@@ -1107,6 +1107,7 @@ def _build_texture_resolution_manifest(
 
 
 def _slot_role(parameter_name: str, texture_path: str) -> Tuple[str, str, bool]:
+    parameter_normalized = re.sub(r"[^a-z0-9]+", "", str(parameter_name or "").lower())
     normalized = re.sub(r"[^a-z0-9]+", "", f"{parameter_name} {PurePosixPath(texture_path).name}".lower())
     if any(token in normalized for token in ("emissive", "glow", "illum")):
         return "emissive", "Emissive", True
@@ -1114,6 +1115,12 @@ def _slot_role(parameter_name: str, texture_path: str) -> Tuple[str, str, bool]:
     slot_kind = str(getattr(classification, "slot_kind", "") or "").strip().lower() or "material"
     semantic_type = str(getattr(classification, "semantic_type", "") or "").strip().lower()
     combined = f"{parameter_name} {texture_path}".lower()
+    if "detailmasktexture" in parameter_normalized:
+        visualized = bool(getattr(classification, "visualized", False)) or slot_kind in {
+            "detail_mask",
+            "material_mask",
+        }
+        return "material", "Detail Mask", visualized
     if semantic_type == "emissive" or any(token in combined for token in ("emissive", "glow", "illum")):
         return "emissive", "Emissive", bool(getattr(classification, "visualized", False))
     if slot_kind == "base":
@@ -1306,6 +1313,26 @@ def _source_owned_material_binding_contract(
     )
 
 
+def _rows_for_source_owned_contract(
+    material_key: str,
+    rows_by_material: Mapping[str, Sequence[FinalPackageBindingRow]],
+    binding_rows: Sequence[FinalPackageBindingRow],
+) -> List[FinalPackageBindingRow]:
+    rows = list(rows_by_material.get(material_key, ()) or ())
+    if rows:
+        return rows
+    return [
+        row
+        for row in binding_rows
+        if material_key
+        and material_key
+        in {
+            _material_key(getattr(row, "material_name", "")),
+            _material_key(getattr(row, "part_name", "")),
+        }
+    ]
+
+
 def _assign_row_to_meshes(
     preview_model: ModelPreviewData,
     mesh_indices: Sequence[int],
@@ -1335,6 +1362,12 @@ def _assign_row_to_meshes(
             mesh.preview_height_texture_path = preview_texture_path
             mesh.preview_height_texture_name = texture_name
         elif role_key == "material":
+            parameter_key = re.sub(r"[^a-z0-9]+", "", str(parameter_name or "").lower())
+            if (
+                "detailmasktexture" in parameter_key
+                and str(getattr(mesh, "preview_material_texture_path", "") or "").strip()
+            ):
+                continue
             semantic_type, semantic_subtype, packed_channels = _material_semantics_for_binding(parameter_name, texture_path or texture_name)
             mesh.preview_material_texture_path = preview_texture_path
             mesh.preview_material_texture_name = texture_name
@@ -2251,7 +2284,7 @@ def build_final_package_preview(
         for material_key in sorted(planned_source_owned_material_keys):
             if material_key in planned_placeholder_material_keys:
                 continue
-            rows = rows_by_material.get(material_key, [])
+            rows = _rows_for_source_owned_contract(material_key, rows_by_material, binding_rows)
             display_name = planned_source_owned_material_display.get(material_key) or material_display_by_key.get(material_key) or material_key
             contract = _source_owned_material_binding_contract(
                 material_key,

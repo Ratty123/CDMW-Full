@@ -58,7 +58,11 @@ binaries = []
 hiddenimports = []
 hiddenimports += [
     "cdmw.rendering.native_d3d11_host",
+    "cdmw.rendering.ingame_capture",
     "cdmw.rendering.native_preview_package",
+    "cdmw.rendering.native_preview_screenshot",
+    "cdmw.rendering.preview_comparison",
+    "cdmw.rendering.test_run_sword_tuning",
 ]
 
 unused_qt_modules = [

@@ -6,6 +6,7 @@ import threading
 import unittest
 import struct
 import tempfile
+from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 from unittest import mock
 
@@ -1352,6 +1353,32 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertEqual((hkx_entry.path,), result.preview_model.physics_overlay.source_paths)
         self.assertEqual(1, len(result.preview_model.physics_overlay.shapes))
         self.assertFalse(any(mesh.preview_role == "hkx_collision_shape" for mesh in result.preview_model.meshes))
+
+    def test_hkx_archive_preview_can_skip_heavy_visual_context_for_browser_selection(self) -> None:
+        hkx_data = self._modern_hkx_bytes()
+        entries = self._archive_entries((("character/bin__/meshphysics/body.hkx", hkx_data),))
+        with (
+            mock.patch(
+                "cdmw.core.archive.build_hkx_preview",
+                return_value=SimpleNamespace(preview_text="HKX tagfile preview for body.hkx", detail_lines=["HKX summary"]),
+            ) as preview_mock,
+            mock.patch("cdmw.core.archive.build_hkx_editable_geometry_document") as document_mock,
+            mock.patch("cdmw.core.archive.build_hkx_model_preview_from_document") as visual_mock,
+        ):
+            result = build_archive_preview_result(
+                None,
+                entries[0],
+                texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
+                texture_entries_by_basename=build_archive_entry_basename_index(entries),
+                enable_hkx_visual_preview=False,
+            )
+
+        preview_mock.assert_called_once()
+        document_mock.assert_not_called()
+        visual_mock.assert_not_called()
+        self.assertIsNone(result.preview_model)
+        self.assertEqual("text", result.preferred_view)
+        self.assertIn("HKX visual body/physics preview skipped for archive browsing", result.detail_text)
 
     def test_hkx_archive_preview_reuses_body_context_for_related_hkx_selection(self) -> None:
         _clear_hkx_context_model_preview_cache()

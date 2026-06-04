@@ -19,6 +19,7 @@ from cdmw.core.archive import (
     build_archive_entry_path_index,
     build_archive_entry_role_index,
     build_archive_name_search_index,
+    archive_scan_shard_cache_health,
     load_archive_item_icon_thumbnail_cache,
     load_or_update_archive_basic_index_shards,
     load_or_update_archive_scan_shards,
@@ -251,6 +252,8 @@ class ArchiveCacheTests(unittest.TestCase):
 
             self.assertIsNone(entries)
             self.assertTrue(any("format changed" in line for line in logs))
+            self.assertFalse(cache_path.exists())
+            self.assertTrue(any("Removed obsolete archive cache file" in line for line in logs))
 
     def test_archive_scan_cache_reuses_compact_entry_metadata_on_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -272,6 +275,33 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertIsNotNone(loaded)
             self.assertEqual(saved_metadata.get("entry_metadata_signature"), loaded_metadata.get("entry_metadata_signature"))
             self.assertEqual(saved_metadata.get("entry_metadata_sources"), loaded_metadata.get("entry_metadata_sources"))
+
+    def test_legacy_monolithic_scan_cache_is_reported_migrated_and_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            legacy_cache_path = save_archive_scan_cache(root, cache_root, entries)
+
+            health = archive_scan_shard_cache_health(root, cache_root)
+            self.assertEqual("stale", health["status"])
+            self.assertIn("older monolithic format", health["reason"])
+
+            logs: list[str] = []
+            loaded_entries, source, cache_dir = load_or_update_archive_scan_shards(
+                root,
+                cache_root,
+                shard_scan_func=lambda _path: (_ for _ in ()).throw(AssertionError("valid legacy cache should migrate without rescan")),
+                on_log=logs.append,
+            )
+
+            self.assertEqual("cache", source)
+            self.assertEqual([entry.path for entry in loaded_entries], ["character/model/a.pac"])
+            self.assertTrue(cache_dir.is_dir())
+            self.assertFalse(legacy_cache_path.exists())
+            self.assertTrue(any("migrated to archive scan shard cache" in line for line in logs))
 
     def test_scan_shard_cache_rescans_only_changed_pamt(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -319,6 +349,29 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertEqual(calls, ["0001/0.pamt"])
             self.assertEqual([entry.path for entry in second_entries], ["character/model/a.pac", "character/model/b_changed.pac"])
             self.assertTrue(any("Archive cache shard stale: 0001/0.pamt source stamps changed" in line for line in logs))
+
+    def test_scan_shard_cache_health_reports_missing_healthy_and_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"abc"
+            pamt_path, paz_path = _write_entry_files(root, "0001", data)
+            entries = [_entry("character/model/test.pac", pamt_path, paz_path, data)]
+
+            missing = archive_scan_shard_cache_health(root, cache_root, deep=True)
+            self.assertEqual("missing", missing["status"])
+            self.assertEqual(1, missing["missing_count"])
+
+            load_or_update_archive_scan_shards(root, cache_root, shard_scan_func=lambda _path: entries)
+            healthy = archive_scan_shard_cache_health(root, cache_root, deep=True)
+            self.assertEqual("healthy", healthy["status"])
+            self.assertIn("Cache Status: Healthy", healthy["reason"])
+
+            pamt_path.write_bytes(b"changed")
+            stale = archive_scan_shard_cache_health(root, cache_root, deep=True)
+            self.assertEqual("stale", stale["status"])
+            self.assertGreaterEqual(stale["stale_count"], 1)
+            self.assertIn("source size or timestamp changed", stale["reason"])
 
     def test_scan_shard_cache_uses_full_scan_when_many_shards_stale(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -864,6 +917,34 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertIsNotNone(loaded)
             self.assertEqual((loaded or {}).get("item_search_aliases"), {"a": "test item"})
 
+    def test_derived_index_cache_save_skips_dependency_walk_when_compact_metadata_is_provided(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            save_archive_scan_cache(root, cache_root, entries, metadata_out=scan_metadata)
+
+            with mock.patch(
+                "cdmw.core.archive.archive_item_index_dependency_signature",
+                side_effect=AssertionError("dependency signature walk should not run during save"),
+            ):
+                save_archive_derived_index_cache(
+                    root,
+                    cache_root,
+                    entries,
+                    item_search_aliases={"a": "test item"},
+                    entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                    entry_metadata_sources=scan_metadata.get("entry_metadata_sources") or (),
+                )
+
+            payload = _deserialize_archive_derived_index_cache_payload_from_path(
+                resolve_archive_derived_index_cache_path(root, cache_root)
+            )
+            self.assertEqual("", payload.get("item_index_dependency_signature"))
+
     def test_derived_index_cache_can_defer_name_search_binary_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1012,7 +1093,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 )
 
             self.assertIsNone(loaded)
-            self.assertTrue(any("missing compact entry metadata" in line for line in logs))
+            self.assertTrue(any("missing compact metadata" in line for line in logs))
 
     def test_derived_index_cache_v8_is_rejected_after_table_catalog_metadata_added(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1038,7 +1119,7 @@ class ArchiveCacheTests(unittest.TestCase):
 
             logs: list[str] = []
             self.assertIsNone(load_archive_derived_index_cache(root, cache_root, entries, on_log=logs.append))
-            self.assertTrue(any("rebuilding lightweight cache" in line for line in logs))
+            self.assertTrue(any("rebuilding it now" in line for line in logs))
 
     def test_derived_index_cache_v5_is_rejected_after_item_catalog_category_refresh(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1070,7 +1151,7 @@ class ArchiveCacheTests(unittest.TestCase):
 
             logs: list[str] = []
             self.assertIsNone(load_archive_derived_index_cache(root, cache_root, entries, on_log=logs.append))
-            self.assertTrue(any("rebuilding lightweight cache" in line for line in logs))
+            self.assertTrue(any("rebuilding it now" in line for line in logs))
 
     def test_derived_index_cache_v6_is_rejected_after_weapon_category_refresh(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1102,7 +1183,7 @@ class ArchiveCacheTests(unittest.TestCase):
 
             logs: list[str] = []
             self.assertIsNone(load_archive_derived_index_cache(root, cache_root, entries, on_log=logs.append))
-            self.assertTrue(any("rebuilding lightweight cache" in line for line in logs))
+            self.assertTrue(any("rebuilding it now" in line for line in logs))
 
     def test_derived_index_cache_v7_is_rejected_after_horse_gear_category_refresh(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1134,7 +1215,7 @@ class ArchiveCacheTests(unittest.TestCase):
 
             logs: list[str] = []
             self.assertIsNone(load_archive_derived_index_cache(root, cache_root, entries, on_log=logs.append))
-            self.assertTrue(any("rebuilding lightweight cache" in line for line in logs))
+            self.assertTrue(any("rebuilding it now" in line for line in logs))
 
     def test_derived_index_cache_rejects_source_mismatch_and_invalid_cache(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1183,7 +1264,7 @@ class ArchiveCacheTests(unittest.TestCase):
 
             logs: list[str] = []
             self.assertIsNone(load_archive_derived_index_cache(root, cache_root, entries, on_log=logs.append))
-            self.assertTrue(any("rebuilding lightweight cache" in line for line in logs))
+            self.assertTrue(any("rebuilding it now" in line for line in logs))
 
     def test_archive_scan_cache_status_does_not_report_ready_too_early(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

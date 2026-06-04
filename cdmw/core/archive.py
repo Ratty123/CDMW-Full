@@ -1393,7 +1393,7 @@ def _load_archive_name_search_shards_trusted(
         include_signatures=False,
         on_progress=on_progress,
         stop_event=stop_event,
-        progress_label="Preparing archive name-search shard offsets",
+        progress_label="Preparing archive search cache (2/3): path/name index",
     )
     cache_dir = resolve_archive_name_search_shard_cache_dir(package_root, cache_root)
     shard_indexes: List[Tuple[int, ArchiveNameSearchIndex]] = []
@@ -1417,7 +1417,7 @@ def _load_archive_name_search_shards_trusted(
             )
         )
         if on_progress is not None and (index == 1 or index % 20 == 0 or index == total_groups):
-            on_progress(index, max(total_groups, 1), f"Loading archive name-search shards... {index:,} / {total_groups:,}")
+            on_progress(index, max(total_groups, 1), f"Loading archive search cache (2/3): path/name index... {index:,} / {total_groups:,}")
     token_rows = _MergedArchiveNameSearchTokenRows(shard_indexes, source_shards=source_shards)
     return ArchiveNameSearchIndex(
         entries=entries,
@@ -1467,6 +1467,7 @@ def _load_or_update_archive_name_search_shards(
     alias_signature = _archive_name_search_alias_signature(item_search_aliases)
     stale_groups: List[_ArchiveEntryShardGroup] = []
     loaded_meta: Dict[str, dict] = {}
+    stale_reason_samples: List[str] = []
     for group in groups:
         meta_path = _archive_name_search_shard_meta_path(cache_dir, group.relative_pamt_path)
         binary_path = _archive_name_search_shard_binary_path(cache_dir, group.relative_pamt_path)
@@ -1480,9 +1481,13 @@ def _load_or_update_archive_name_search_shards(
                 raise ValueError("entry list changed")
             loaded_meta[group.relative_pamt_path] = meta
         except Exception as exc:
-            if on_log is not None:
-                on_log(f"Archive name-search shard stale: {group.relative_pamt_path} {str(exc).strip() or 'changed'}")
+            if len(stale_reason_samples) < 3:
+                stale_reason_samples.append(f"{group.relative_pamt_path} {str(exc).strip() or 'changed'}")
             stale_groups.append(group)
+    if stale_groups and on_log is not None:
+        sample_text = "; ".join(stale_reason_samples)
+        suffix = f" ({sample_text})" if sample_text else ""
+        on_log(f"Archive search cache needs {len(stale_groups):,} shard(s) rebuilt{suffix}.")
     if stale_groups and not load_name_search_index:
         return None
     if stale_groups:
@@ -1494,7 +1499,7 @@ def _load_or_update_archive_name_search_shards(
                 on_progress(
                     index - 1,
                     max(total, 1),
-                    f"Building archive name-search shard {index:,} / {total:,}: {group.relative_pamt_path}",
+                    f"Preparing archive search cache (2/3): path/name index... {index:,} / {total:,}",
                 )
             shard_index = _build_archive_name_search_index_python(
                 group.entries,
@@ -1508,7 +1513,7 @@ def _load_or_update_archive_name_search_shards(
                 alias_signature=alias_signature,
             )
         if on_log is not None:
-            on_log(f"Archive name-search shard cache updated: {len(stale_groups):,} shard(s) rebuilt.")
+            on_log(f"Archive search cache updated: {len(stale_groups):,} shard(s) rebuilt.")
     if not load_name_search_index:
         return None
     shard_indexes: List[Tuple[int, ArchiveNameSearchIndex]] = []
@@ -1530,7 +1535,7 @@ def _load_or_update_archive_name_search_shards(
             )
         )
         if on_progress is not None and (index == 1 or index % 20 == 0 or index == total_groups):
-            on_progress(index, max(total_groups, 1), f"Loading archive name-search shards... {index:,} / {total_groups:,}")
+            on_progress(index, max(total_groups, 1), f"Loading archive search cache (2/3): path/name index... {index:,} / {total_groups:,}")
     token_rows = _MergedArchiveNameSearchTokenRows(shard_indexes, source_shards=source_shards)
     return ArchiveNameSearchIndex(
         entries=entries,
@@ -3387,6 +3392,160 @@ def _archive_scan_shard_cache_path(cache_dir: Path, relative_pamt_path: str) -> 
     return cache_dir / f"{_archive_scan_shard_id(relative_pamt_path)}.bin"
 
 
+def archive_scan_shard_cache_health(package_root: Path, cache_root: Path, *, deep: bool = False) -> Dict[str, object]:
+    cache_dir = resolve_archive_scan_shard_cache_dir(package_root, cache_root)
+    report: Dict[str, object] = {
+        "status": "unknown",
+        "reason": "Archive cache has not been checked.",
+        "cache_dir": str(cache_dir),
+        "pamt_count": 0,
+        "shard_count": 0,
+        "missing_count": 0,
+        "stale_count": 0,
+        "extra_count": 0,
+        "stale_reasons": [],
+    }
+    try:
+        base_dir, current_pamt_sources = _collect_archive_scan_sources(package_root)
+        pamt_files = discover_pamt_files(package_root)
+    except Exception as exc:
+        report.update(
+            {
+                "status": "unhealthy",
+                "reason": f"Could not inspect archive source files: {exc}",
+            }
+        )
+        return report
+    if not pamt_files:
+        report.update(
+            {
+                "status": "unhealthy",
+                "reason": f"No .pamt files were found under {package_root}.",
+            }
+        )
+        return report
+
+    pamt_source_by_rel = {str(row[0]): row for row in current_pamt_sources}
+    pamt_by_rel = {_archive_relative_source_path(base_dir, pamt_path): pamt_path for pamt_path in pamt_files}
+    current_shard_ids = {_archive_scan_shard_id(relative_pamt_path) for relative_pamt_path in pamt_by_rel}
+    existing_shard_files = tuple(cache_dir.glob("*.bin")) if cache_dir.is_dir() else ()
+    report["pamt_count"] = len(pamt_files)
+    report["shard_count"] = len(existing_shard_files)
+    if not existing_shard_files:
+        legacy_paths = [path for path in _candidate_archive_scan_cache_paths(package_root, cache_root) if path.is_file()]
+        if legacy_paths:
+            report.update(
+                {
+                    "status": "stale",
+                    "reason": (
+                        "Archive cache uses an older monolithic format. CDMW will migrate or rebuild it into the "
+                        "current shard cache and remove the old cache file."
+                    ),
+                    "legacy_cache_count": len(legacy_paths),
+                    "legacy_cache_paths": [str(path) for path in legacy_paths[:5]],
+                }
+            )
+            return report
+        report.update(
+            {
+                "status": "missing",
+                "missing_count": len(pamt_files),
+                "reason": "Archive cache has not been built for this Crimson Desert folder yet.",
+            }
+        )
+        return report
+
+    stale_reasons: List[str] = []
+    extra_count = 0
+    for cache_path in existing_shard_files:
+        if cache_path.stem.lower() not in current_shard_ids:
+            extra_count += 1
+    missing_count = 0
+    stale_count = 0
+    for relative_pamt_path in sorted(pamt_by_rel):
+        current_pamt_source = pamt_source_by_rel.get(relative_pamt_path)
+        cache_path = _archive_scan_shard_cache_path(cache_dir, relative_pamt_path)
+        if current_pamt_source is None:
+            stale_count += 1
+            stale_reasons.append(f"{relative_pamt_path}: source metadata missing")
+            continue
+        if not cache_path.is_file():
+            missing_count += 1
+            if len(stale_reasons) < 5:
+                stale_reasons.append(f"{relative_pamt_path}: cache shard missing")
+            continue
+        if not deep:
+            try:
+                cache_stat = cache_path.stat()
+                cache_mtime_ns = int(getattr(cache_stat, "st_mtime_ns", int(cache_stat.st_mtime * 1_000_000_000)))
+                source_mtime_ns = int(current_pamt_source[2])
+            except Exception as exc:
+                stale_count += 1
+                if len(stale_reasons) < 5:
+                    stale_reasons.append(f"{relative_pamt_path}: could not compare timestamps ({exc})")
+                continue
+            if cache_mtime_ns < source_mtime_ns:
+                stale_count += 1
+                if len(stale_reasons) < 5:
+                    stale_reasons.append(f"{relative_pamt_path}: source file is newer than cache shard")
+            continue
+        try:
+            data = _deserialize_archive_scan_shard_cache_payload_from_path(cache_path)
+            if int(data.get("version", 0)) != _ARCHIVE_SCAN_SHARD_CACHE_VERSION:
+                raise ValueError("cache format changed")
+            cached_relative_path = str(data.get("relative_pamt_path") or "").replace("\\", "/")
+            if cached_relative_path != str(relative_pamt_path).replace("\\", "/"):
+                raise ValueError("source path changed")
+            cached_sources = _normalize_archive_source_rows(data.get("pamt_sources"))
+            if cached_sources != [current_pamt_source]:
+                raise ValueError("source size or timestamp changed")
+        except Exception as exc:
+            stale_count += 1
+            if len(stale_reasons) < 5:
+                stale_reasons.append(f"{relative_pamt_path}: {str(exc).strip() or 'changed'}")
+
+    report["missing_count"] = missing_count
+    report["stale_count"] = stale_count
+    report["extra_count"] = extra_count
+    report["stale_reasons"] = stale_reasons
+    if missing_count or stale_count or extra_count:
+        pieces: List[str] = []
+        if missing_count:
+            pieces.append(f"{missing_count:,} missing shard(s)")
+        if stale_count:
+            pieces.append(f"{stale_count:,} changed shard(s)")
+        if extra_count:
+            pieces.append(f"{extra_count:,} removed archive shard(s)")
+        detail = "; ".join(stale_reasons[:3])
+        reason = f"Archive cache is stale: {', '.join(pieces)}."
+        if detail:
+            reason = f"{reason} {detail}"
+        report.update({"status": "stale", "reason": reason})
+        return report
+
+    report.update(
+        {
+            "status": "healthy",
+            "reason": f"Cache Status: Healthy. {len(pamt_files):,} archive shard(s) match current source files.",
+        }
+    )
+    return report
+
+
+def _delete_obsolete_archive_scan_cache_path(cache_path: Path, *, on_log: Optional[Callable[[str], None]] = None, reason: str = "") -> None:
+    try:
+        cache_path.unlink()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        if on_log:
+            on_log(f"Warning: obsolete archive cache could not be removed: {cache_path}: {exc}")
+        return
+    if on_log:
+        detail = f" ({reason})" if reason else ""
+        on_log(f"Removed obsolete archive cache file: {cache_path.name}{detail}")
+
+
 def _write_archive_scan_shard_cache(
     package_root: Path,
     cache_dir: Path,
@@ -3656,6 +3815,12 @@ def load_or_update_archive_scan_shards(
                     timings.setdefault("cache_write_s", float(timings.get("scan_shard_write_s", 0.0) or 0.0))
                     timings.setdefault("scan_shard_load_s", 0.0)
                     timings.setdefault("scan_shard_rescan_s", 0.0)
+                for legacy_cache_path in _candidate_archive_scan_cache_paths(package_root, cache_root):
+                    _delete_obsolete_archive_scan_cache_path(
+                        legacy_cache_path,
+                        on_log=on_log,
+                        reason="migrated to archive scan shard cache",
+                    )
                 return legacy_entries, "cache", cache_dir
 
         current_shard_ids = {_archive_scan_shard_id(relative_pamt_path) for relative_pamt_path in pamt_by_rel}
@@ -4025,12 +4190,14 @@ def load_archive_scan_cache(
             last_failure_message = f"{cache_label.capitalize()} could not be read; will try another cache or rescan: {exc}"
             if on_log:
                 on_log(last_failure_message)
+            _delete_obsolete_archive_scan_cache_path(cache_path, on_log=on_log, reason="unreadable old format")
             continue
 
         if int(data.get("version", 0)) not in _ARCHIVE_SCAN_CACHE_SUPPORTED_VERSIONS:
             last_failure_message = f"{cache_label.capitalize()} format changed; will try another cache or rescan."
             if on_log:
                 on_log(last_failure_message)
+            _delete_obsolete_archive_scan_cache_path(cache_path, on_log=on_log, reason="unsupported old format")
             continue
 
         cached_sources = data.get("sources")
@@ -4038,6 +4205,7 @@ def load_archive_scan_cache(
             last_failure_message = f"{cache_label.capitalize()} is missing source metadata; will try another cache or rescan."
             if on_log:
                 on_log(last_failure_message)
+            _delete_obsolete_archive_scan_cache_path(cache_path, on_log=on_log, reason="missing old cache metadata")
             continue
 
         if cached_sources != current_sources:
@@ -4053,6 +4221,7 @@ def load_archive_scan_cache(
             )
             if on_log:
                 on_log(last_failure_message)
+            _delete_obsolete_archive_scan_cache_path(cache_path, on_log=on_log, reason="stale old format")
             continue
 
         raw_rows = data.get("rows")
@@ -4060,6 +4229,7 @@ def load_archive_scan_cache(
             last_failure_message = f"{cache_label.capitalize()} is missing entry rows; will try another cache or rescan."
             if on_log:
                 on_log(last_failure_message)
+            _delete_obsolete_archive_scan_cache_path(cache_path, on_log=on_log, reason="invalid old cache rows")
             continue
 
         total_rows = len(raw_rows)
@@ -6611,7 +6781,7 @@ def save_archive_derived_index_cache(
     if sources is None or not normalized_entry_metadata_signature:
         normalized_entry_metadata_signature, sources = _archive_entry_metadata_from_entries(package_root, entries)
     normalized_dependency_signature = _normalize_archive_entry_metadata_signature(item_index_dependency_signature)
-    if not normalized_dependency_signature:
+    if not normalized_dependency_signature and not normalized_entry_metadata_signature:
         normalized_dependency_signature = archive_item_index_dependency_signature(package_root, entries)
     catalog_rows = [dict(row) for row in (item_asset_catalog or []) if isinstance(row, Mapping)]
     payload = {
@@ -6648,7 +6818,7 @@ def save_archive_derived_index_cache(
             }
         except Exception as exc:
             if on_log is not None:
-                on_log(f"Archive name-search shard cache could not be written: {exc}")
+                on_log(f"Archive search cache shard files could not be written: {exc}")
             name_index_path = resolve_archive_name_search_index_cache_path(package_root, cache_root)
             try:
                 _write_native_name_search_index_binary(name_index_path, archive_name_search_index, len(entries))
@@ -6668,7 +6838,7 @@ def save_archive_derived_index_cache(
         payload=payload,
     )
     if on_log is not None:
-        on_log(f"Archive derived index cache updated: {cache_path}")
+        on_log(f"Archive search cache updated: {cache_path}")
     prune_report = prune_archive_cache_root(cache_root)
     if on_log is not None and prune_report.get("removed_files"):
         on_log(
@@ -6709,7 +6879,7 @@ def load_archive_derived_index_cache(
             except OSError:
                 pass
             if on_log is not None:
-                on_log("Archive derived index cache format changed; rebuilding lightweight cache.")
+                on_log("Archive search cache format changed; rebuilding it now.")
             if timings is not None:
                 timings["derived_cache_check_s"] = max(0.0, float(time.perf_counter() - check_started_at))
                 timings.setdefault("derived_cache_load_s", 0.0)
@@ -6726,7 +6896,7 @@ def load_archive_derived_index_cache(
         data = _deserialize_archive_derived_index_cache_payload_from_path(cache_path)
         if int(data.get("version", 0)) not in _ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS:
             if on_log is not None:
-                on_log("Archive derived index cache format changed; rebuilding lightweight cache.")
+                on_log("Archive search cache format changed; rebuilding it now.")
             try:
                 cache_path.unlink()
             except OSError:
@@ -6734,7 +6904,7 @@ def load_archive_derived_index_cache(
             return None
         if not table_catalog_cache_metadata_matches(data.get("table_catalog")):
             if on_log is not None:
-                on_log("Archive derived index cache table catalog metadata changed; rebuilding lightweight cache.")
+                on_log("Archive search cache metadata changed; rebuilding it now.")
             try:
                 cache_path.unlink()
             except OSError:
@@ -6751,31 +6921,31 @@ def load_archive_derived_index_cache(
         if normalized_entry_metadata_signature and cached_entry_metadata_signature:
             if cached_entry_metadata_signature != normalized_entry_metadata_signature:
                 if on_log is not None:
-                    on_log("Archive derived index cache is out of date: compact entry metadata changed.")
+                    on_log("Archive search cache is out of date: archive metadata changed.")
                 return None
             metadata_verified = True
         if cached_dependency_signature and not metadata_verified:
             current_dependency_signature = archive_item_index_dependency_signature(package_root, entries)
             if current_dependency_signature != cached_dependency_signature:
                 if on_log is not None:
-                    on_log("Archive derived index cache is out of date: item index dependency signature changed.")
+                    on_log("Archive search cache is out of date: item index dependency metadata changed.")
                 return None
         elif not metadata_verified:
             if cached_entry_count != len(entries):
                 if on_log is not None:
                     on_log(
-                        "Archive derived index cache is out of date: "
+                        "Archive search cache is out of date: "
                         f"entry count changed {cached_entry_count:,}->{len(entries):,}"
                     )
                 return None
             if normalized_entry_metadata_signature:
                 if not cached_entry_metadata_signature:
                     if on_log is not None:
-                        on_log("Archive derived index cache is missing compact entry metadata; rebuilding lightweight cache.")
+                        on_log("Archive search cache is missing compact metadata; rebuilding it now.")
                     return None
                 if cached_entry_metadata_signature != normalized_entry_metadata_signature:
                     if on_log is not None:
-                        on_log("Archive derived index cache is out of date: compact entry metadata changed.")
+                        on_log("Archive search cache is out of date: archive metadata changed.")
                     return None
             else:
                 cached_sources = _normalize_archive_source_rows(data.get("sources"))
@@ -6789,7 +6959,7 @@ def load_archive_derived_index_cache(
                             cached_entry_count,
                             len(entries),
                         )
-                        on_log("Archive derived index cache is out of date: " + "; ".join(reasons or ["metadata changed"]))
+                        on_log("Archive search cache is out of date: " + "; ".join(reasons or ["metadata changed"]))
                     return None
         payload = {
             "item_search_aliases": {
@@ -6852,7 +7022,7 @@ def load_archive_derived_index_cache(
                             payload["name_search_index"] = name_search_index
                     except Exception as exc:
                         if on_log is not None:
-                            on_log(f"Archive name-search shard cache could not be used; rebuilding name search index: {exc}")
+                            on_log(f"Archive search cache shard files could not be used; rebuilding: {exc}")
             else:
                 name_index_path = Path(str(name_index_payload.get("path") or ""))
                 if not name_index_path.is_absolute():
@@ -6881,7 +7051,7 @@ def load_archive_derived_index_cache(
         return payload
     except Exception as exc:
         if on_log is not None:
-            on_log(f"Archive derived index cache could not be used; rebuilding derived indexes: {exc}")
+            on_log(f"Archive search cache could not be used; rebuilding: {exc}")
         if timings is not None:
             timings.setdefault("derived_cache_check_s", max(0.0, float(time.perf_counter() - check_started_at)))
             timings.setdefault("derived_cache_load_s", 0.0)
@@ -23472,6 +23642,7 @@ def build_archive_preview_result(
     visible_texture_mode: str = "mesh_base_first",
     support_texture_slots: Sequence[str] = ("normal", "material", "height"),
     quality_tier: str = "full",
+    enable_hkx_visual_preview: bool = True,
     stop_event: Optional[threading.Event] = None,
 ) -> ArchivePreviewResult:
     normalized_quality_tier = _normalize_archive_preview_quality_tier(quality_tier)
@@ -23955,6 +24126,35 @@ def build_archive_preview_result(
                 archive_entries_by_basename=texture_entries_by_basename,
             )
             related_references = merge_archive_reference_rows(related_references, graph_references)
+            if not enable_hkx_visual_preview:
+                detail_extra = "\n\n".join(
+                    part
+                    for part in [
+                        ("Archive entry uses non-DDS Partial storage; preview is based on raw stored bytes." if "PartialRaw" in note_flags else ""),
+                        ("Decrypted via deterministic ChaCha20 filename derivation." if "ChaCha20" in note_flags else ""),
+                        "\n".join(hkx_preview.detail_lines),
+                        "HKX visual body/physics preview skipped for archive browsing. Use the HKX editor for explicit collision/body preview.",
+                        ("Companion and related files are listed below." if related_references else ""),
+                    ]
+                    if part
+                )
+                return ArchivePreviewResult(
+                    status="ok",
+                    title=entry.basename,
+                    metadata_summary=f"{metadata_summary} | Havok",
+                    detail_text=build_archive_entry_detail_text(entry, detail_extra),
+                    preview_text=hkx_preview.preview_text,
+                    model_texture_references=related_references,
+                    asset_family_graph=build_archive_asset_family_graph(entry, related_references),
+                    preferred_view="text",
+                    loose_file_path=loose_file_path,
+                    loose_preview_image_path=loose_preview_image_path,
+                    loose_preview_media_path=loose_preview_media_path,
+                    loose_preview_media_kind=loose_preview_media_kind,
+                    loose_preview_title=loose_preview_title,
+                    loose_preview_metadata_summary=loose_preview_metadata_summary,
+                    loose_preview_detail_text=loose_preview_detail_text,
+                )
             descriptor_hints, skeleton_bone_positions, hkx_visual_notes = _build_hkx_preview_context_from_related_references(
                 related_references,
                 stop_event=stop_event,

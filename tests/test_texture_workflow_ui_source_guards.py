@@ -10,6 +10,7 @@ REPLACE_ASSISTANT_TAB = REPO_ROOT / "cdmw" / "ui" / "replace_assistant_tab.py"
 RESEARCH_TAB = REPO_ROOT / "cdmw" / "ui" / "research_tab.py"
 TEXTURE_EDITOR_TAB = REPO_ROOT / "cdmw" / "ui" / "texture_editor_tab.py"
 ITEM_ICONS_TAB = REPO_ROOT / "cdmw" / "ui" / "item_icons_tab.py"
+THEMES = REPO_ROOT / "cdmw" / "ui" / "themes.py"
 README = REPO_ROOT / "README.md"
 
 
@@ -35,6 +36,7 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         research_source = RESEARCH_TAB.read_text(encoding="utf-8")
         editor_source = TEXTURE_EDITOR_TAB.read_text(encoding="utf-8")
         readme = README.read_text(encoding="utf-8")
+        theme_source = THEMES.read_text(encoding="utf-8")
 
         dashboard_nav = 'self.main_tabs.addTab(self.dashboard_tab, "Dashboard")'
         assets_nav = 'self.main_tabs.addTab(self.assets_tabs, "Assets")'
@@ -60,6 +62,20 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         self.assertIn('self._build_dashboard_tab()', main_source)
         self.assertIn('QGroupBox("Workspace")', main_source)
         self.assertIn('QGroupBox("Health")', main_source)
+        self.assertIn('QGroupBox("Archive Cache")', main_source)
+        self.assertIn("self.dashboard_archive_progress_bar = QProgressBar()", main_source)
+        self.assertIn("def _dashboard_set_archive_progress(", main_source)
+        self.assertIn("def _check_archive_cache_health(", main_source)
+        self.assertIn("def _set_widget_health_state(", main_source)
+        self.assertIn('widget.setProperty("healthState", normalized)', main_source)
+        self.assertIn('self._dashboard_set_status_health_state("archive_cache", normalized)', main_source)
+        self.assertIn('self._set_widget_health_state(self.dashboard_archive_progress_detail_label, progress_health_state)', main_source)
+        self.assertIn("archive_scan_shard_cache_health(package_root, self.archive_cache_root)", main_source)
+        self.assertIn("Cache Status: Healthy", main_source)
+        self.assertIn('QLabel#DashboardStatusValue[healthState="healthy"]', theme_source)
+        self.assertIn('QLabel#DashboardStatusName[healthState="healthy"]', theme_source)
+        self.assertIn('QLabel#HintLabel[healthState="healthy"]', theme_source)
+        self.assertIn("#2fbf64", theme_source)
         self.assertIn('QGroupBox("Recent Work")', main_source)
         self.assertIn('QGroupBox("Last Results")', main_source)
         self.assertNotIn("def _dashboard_task_specs(self)", main_source)

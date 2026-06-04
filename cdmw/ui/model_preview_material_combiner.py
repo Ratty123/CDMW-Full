@@ -10,6 +10,11 @@ from PySide6.QtCore import QSize, QUrl, Qt
 from PySide6.QtGui import QColor, QImage, QImageReader
 
 from cdmw.models import PreviewMaterialTextureInput
+from cdmw.rendering.crimson_shader_registry import (
+    AUTHORITY_GUESS,
+    decode_crimson_texture_binding,
+    normalize_shader_family,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -686,6 +691,9 @@ def _shader_rule_for_inputs(inputs: Sequence[PreviewMaterialTextureInput], paylo
         for item in tuple(inputs or ())
     )
     shader_text = f"{shader_text} {getattr(payload, 'shader_family', '')}".lower()
+    normalized_family = normalize_shader_family(shader_text)
+    if normalized_family in {"skin", "hair", "emissive_v2", "cloth_v2", "cloth", "standard_v2", "standard", "static_multitextured", "static_standard"}:
+        return normalized_family
     compact = _normalized_key(shader_text)
     if "skinnedmeshskin" in compact:
         return "skin"
@@ -710,6 +718,59 @@ def _shader_rule_for_inputs(inputs: Sequence[PreviewMaterialTextureInput], paylo
 
 def _texture_rule_for_input(input_item: PreviewMaterialTextureInput) -> str:
     return _shader_rule_for_inputs((input_item,), object())
+
+
+def _registry_decode_for_input(input_item: PreviewMaterialTextureInput) -> dict[str, object]:
+    return dict(
+        decode_crimson_texture_binding(
+            shader_family=str(getattr(input_item, "shader_family", "") or ""),
+            parameter_name=str(getattr(input_item, "parameter_name", "") or ""),
+            source_path=str(getattr(input_item, "source_dds_path", "") or getattr(input_item, "source_texture_path", "") or getattr(input_item, "preview_texture_path", "") or ""),
+            slot_name=str(getattr(input_item, "slot_kind", "") or "material"),
+            semantic_subtype=str(getattr(input_item, "semantic_subtype", "") or ""),
+            packed_channels=tuple(getattr(input_item, "packed_channels", ()) or ()),
+            layer_channel=str(getattr(input_item, "layer_channel", "") or ""),
+            blend_flags=tuple(getattr(input_item, "blend_flags", ()) or ()),
+            sidecar_kind=str(getattr(input_item, "sidecar_kind", "") or ""),
+            parameter_declared_by=str(getattr(input_item, "parameter_declared_by", "") or ""),
+        )
+    )
+
+
+def _registry_decode_mode_for_input(input_item: PreviewMaterialTextureInput) -> str:
+    decode = _registry_decode_for_input(input_item)
+    source_kind = str(decode.get("source_kind", "") or "")
+    disposition = str(decode.get("disposition", "") or "")
+    authority = str(decode.get("authority", "") or AUTHORITY_GUESS)
+    promoted = decode.get("promoted_channels", {})
+    family = str(decode.get("shader_family", "") or _texture_rule_for_input(input_item))
+    if authority == AUTHORITY_GUESS and source_kind not in {"explicit_packed_material"}:
+        return ""
+    if source_kind in {"crimson_overlay_color", "crimson_base_color", "crimson_diffuse", "crimson_albedo", "crimson_color"}:
+        return "visible_color"
+    if source_kind == "crimson_color_blending_mask" and isinstance(promoted, dict) and promoted:
+        return "standard_v2_mask"
+    if disposition == "layer_material_response" or source_kind == "crimson_layer_material_response":
+        if family == "skin":
+            return "skin_material"
+        if family == "hair":
+            return "hair_material"
+        parameter_key = _normalized_key(getattr(input_item, "parameter_name", ""))
+        tokens = _stem_tokens(getattr(input_item, "source_texture_path", ""), getattr(input_item, "texture_name", ""))
+        if parameter_key in {"materialtexture", "materialmap"} and tokens and tokens[-1] in {"sp", "spec", "specular"}:
+            return "standard_v2_specular" if family in {"standard_v2", "emissive_v2", "cloth_v2", "cloth", "standard"} else "material_response"
+        if family == "static_multitextured":
+            return "static_multitextured_material"
+        if family in {"standard_v2", "emissive_v2", "cloth_v2", "cloth", "standard"}:
+            return "standard_v2_material"
+        return "material_response"
+    if disposition == "layer_only" or source_kind in {"crimson_detail_mask", "crimson_dye_control"}:
+        return "standard_v2_detail" if family in {"standard_v2", "emissive_v2", "cloth_v2", "cloth", "standard"} else "detail_mask"
+    if source_kind in {"crimson_flow_vector", "crimson_hair_direction", "crimson_eye_layer"}:
+        return "diagnostic"
+    if source_kind == "explicit_packed_material":
+        return "orm"
+    return ""
 
 
 def _parameter_key(input_item: PreviewMaterialTextureInput) -> str:
@@ -1006,8 +1067,13 @@ def _generate_synthesized_albedo_map(
     *,
     flip_vertical: bool,
     max_dimension: int,
+    neutral_base_color: Tuple[float, float, float] = (),
 ) -> Tuple[str, str]:
-    prepared_base = _support_source_image(base_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+    prepared_base = (
+        QImage()
+        if len(neutral_base_color) >= 3
+        else _support_source_image(base_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+    )
     source_layers: list[Tuple[PreviewMaterialTextureInput, QImage]] = []
     for item in layer_inputs:
         image = _image_reader(str(getattr(item, "preview_texture_path", "") or ""), max_dimension=max_dimension)
@@ -1017,13 +1083,21 @@ def _generate_synthesized_albedo_map(
         if prepared.isNull():
             continue
         source_layers.append((item, prepared.convertToFormat(QImage.Format.Format_RGBA8888)))
-    if prepared_base.isNull() and not source_layers:
+    if prepared_base.isNull() and not source_layers and len(neutral_base_color) < 3:
         return "", ""
 
     if not prepared_base.isNull():
         width = int(prepared_base.width())
         height = int(prepared_base.height())
         target = prepared_base.convertToFormat(QImage.Format.Format_RGB888)
+        layer_start = 0
+    elif len(neutral_base_color) >= 3 and source_layers:
+        _first_item, first_image = source_layers[0]
+        width = int(first_image.width())
+        height = int(first_image.height())
+        target = QImage(width, height, QImage.Format.Format_RGB888)
+        red, green, blue = (_byte(float(value)) for value in neutral_base_color[:3])
+        target.fill(QColor(red, green, blue))
         layer_start = 0
     else:
         first_item, first_image = source_layers[0]
@@ -1095,9 +1169,152 @@ def _generate_synthesized_albedo_map(
         note = "albedo synthesized:" + ",".join(roles_used[:6])
     else:
         note = "albedo synthesized:visible layer"
+    if len(neutral_base_color) >= 3:
+        note += "; neutral_metal_base_synthesized"
     if prepared_base.isNull():
-        note += "; no reliable base DDS"
+        note += "; no reliable base DDS; no_reliable_full_base_albedo"
     return _local_file_url(output_path), note
+
+
+def _payload_vertex_base_color(payload: object) -> Tuple[float, float, float]:
+    raw = tuple(getattr(payload, "base_color", ()) or ())
+    if len(raw) < 3:
+        return ()
+    color = tuple(_clamp(_finite_float(value, 0.62), 0.12, 1.0) for value in raw[:3])
+    if max(color) - min(color) > 0.22:
+        luma = _clamp((0.299 * color[0]) + (0.587 * color[1]) + (0.114 * color[2]), 0.38, 0.74)
+        return (luma, luma, luma)
+    return color  # type: ignore[return-value]
+
+
+def _neutral_metal_tint_from_tokens(descriptor: str) -> Tuple[float, float, float]:
+    if any(_descriptor_contains_token(descriptor, token) for token in ("gold", "brass")):
+        return (0.78, 0.66, 0.36)
+    if any(_descriptor_contains_token(descriptor, token) for token in ("bronze", "copper")):
+        return (0.70, 0.48, 0.32)
+    if any(_descriptor_contains_token(descriptor, token) for token in ("silver", "chrome", "steel", "iron")):
+        return (0.66, 0.68, 0.70)
+    return ()
+
+
+def _global_material_base_tint(inputs: Sequence[PreviewMaterialTextureInput]) -> Tuple[float, float, float]:
+    for item in inputs:
+        role = _visible_layer_role(item)
+        if role not in {"base", "overlay", "color"}:
+            continue
+        for token in ("basecolor", "tintcolor", "albedocolor"):
+            color = _material_parameter_color(item, token)
+            if len(color) >= 3:
+                return color
+    return ()
+
+
+def _neutral_metal_base_color(payload: object, inputs: Sequence[PreviewMaterialTextureInput]) -> Tuple[float, float, float]:
+    descriptor = _material_surface_descriptor(None, payload)
+    color = _payload_vertex_base_color(payload) or (0.60, 0.61, 0.62)
+    token_tint = _neutral_metal_tint_from_tokens(descriptor)
+    if token_tint:
+        color = tuple(_clamp((color[index] * 0.55) + (token_tint[index] * 0.45), 0.22, 0.86) for index in range(3))
+    material_tint = _global_material_base_tint(inputs)
+    if material_tint:
+        tint_luma = max(0.08, (0.299 * material_tint[0]) + (0.587 * material_tint[1]) + (0.114 * material_tint[2]))
+        tint_bias = tuple(_clamp(component / tint_luma, 0.70, 1.35) for component in material_tint[:3])
+        color = tuple(_clamp(color[index] * (0.78 + tint_bias[index] * 0.22), 0.20, 0.88) for index in range(3))
+    luma = _clamp((0.299 * color[0]) + (0.587 * color[1]) + (0.114 * color[2]), 0.42, 0.76)
+    if max(color) - min(color) < 0.04:
+        return (luma, _clamp(luma * 1.01, 0.0, 1.0), _clamp(luma * 1.025, 0.0, 1.0))
+    return color  # type: ignore[return-value]
+
+
+def _should_seed_neutral_metal_base(
+    payload: object,
+    inputs: Sequence[PreviewMaterialTextureInput],
+    visible_layer_inputs: Sequence[PreviewMaterialTextureInput],
+    *,
+    selected_base_low_authority: bool,
+    selected_base_item: Optional[PreviewMaterialTextureInput],
+) -> bool:
+    if not visible_layer_inputs:
+        return False
+    if _material_surface_category(None, payload) != "metal":
+        return False
+    if selected_base_item is not None and not selected_base_low_authority:
+        return False
+    return any(
+        _visible_layer_role(item) in {"grime", "detail", "layer", "damage"}
+        or _registry_decode_for_input(item).get("disposition") == "layer_only"
+        for item in visible_layer_inputs
+    )
+
+
+def _material_parameter_color_luma(input_item: PreviewMaterialTextureInput, *tokens: str) -> Optional[float]:
+    wanted = tuple(_normalized_key(token) for token in tokens if str(token or "").strip())
+    if not wanted:
+        return None
+    for parameter in _material_parameters(input_item):
+        key = _normalized_key(getattr(parameter, "parameter_name", ""))
+        if not key or not any(token in key for token in wanted):
+            continue
+        color = tuple(getattr(parameter, "color_value", ()) or ())
+        if len(color) >= 3:
+            try:
+                r, g, b = (_clamp(_finite_float(component, 0.0)) for component in color[:3])
+            except (TypeError, ValueError, OverflowError):
+                continue
+            return _clamp((0.299 * r) + (0.587 * g) + (0.114 * b))
+        numeric_value = getattr(parameter, "numeric_value", None)
+        if numeric_value is not None:
+            return _clamp(_finite_float(numeric_value, 0.0))
+        channels = _byte4_channels(getattr(parameter, "value", ""))
+        if channels:
+            return _clamp((0.299 * channels[0]) + (0.587 * channels[1]) + (0.114 * channels[2]))
+    return None
+
+
+def _generate_spec_gloss_preview_albedo_map(
+    base_image: QImage,
+    spec_gloss_image: QImage,
+    output_dir: Path,
+    stem: str,
+    *,
+    flip_vertical: bool,
+    max_dimension: int,
+) -> Tuple[str, str]:
+    spec_source = _support_source_image(spec_gloss_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+    if spec_source.isNull():
+        return "", ""
+    width = int(spec_source.width())
+    height = int(spec_source.height())
+    if width <= 0 or height <= 0:
+        return "", ""
+    base_source = _support_source_image(base_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+    if not base_source.isNull() and (int(base_source.width()) != width or int(base_source.height()) != height):
+        base_source = base_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    spec_rgba = spec_source.convertToFormat(QImage.Format.Format_RGBA8888)
+    base_rgba = base_source.convertToFormat(QImage.Format.Format_RGBA8888) if not base_source.isNull() else QImage()
+    target = QImage(width, height, QImage.Format.Format_RGB888)
+    for y in range(height):
+        for x in range(width):
+            spec = spec_rgba.pixelColor(x, y)
+            base = base_rgba.pixelColor(x, y) if not base_rgba.isNull() else QColor(0, 0, 0)
+            gloss = spec.alphaF()
+            spec_r, spec_g, spec_b = spec.redF(), spec.greenF(), spec.blueF()
+            base_r, base_g, base_b = base.redF(), base.greenF(), base.blueF()
+            spec_luma = (0.2126 * spec_r) + (0.7152 * spec_g) + (0.0722 * spec_b)
+            base_luma = (0.2126 * base_r) + (0.7152 * base_g) + (0.0722 * base_b)
+            if spec_luma <= max(base_luma * 1.20, 0.08):
+                out_r, out_g, out_b = base_r, base_g, base_b
+            else:
+                spec_weight = _clamp(0.72 + (gloss * 0.38), 0.72, 1.08)
+                out_r = max(base_r, spec_r * spec_weight)
+                out_g = max(base_g, spec_g * spec_weight)
+                out_b = max(base_b, spec_b * spec_weight)
+            target.setPixelColor(x, y, QColor(_byte(out_r), _byte(out_g), _byte(out_b)))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{stem}_spec_gloss_albedo.png"
+    if not target.save(str(output_path), "PNG"):
+        return "", ""
+    return _local_file_url(output_path), "albedo synthesized:specular-glossiness color"
 
 
 def _first_input_by_parameter(
@@ -1292,6 +1509,9 @@ def _decode_mode_for_input(input_item: PreviewMaterialTextureInput) -> str:
     last_token = tokens[-1] if tokens else ""
     if _is_visible_color_input(input_item):
         return "visible_color"
+    registry_mode = _registry_decode_mode_for_input(input_item)
+    if registry_mode:
+        return registry_mode
     if parameter_key in {"layermasktexture", "layerblendmasktexture"}:
         return "blend_mask"
     if "skinnedmeshskin" in shader_key:
@@ -2452,14 +2672,33 @@ def combine_preview_material(
     )
     should_synthesize_albedo = bool(visible_layer_inputs and (not base_source or selected_base_low_authority or force_layer_synthesis))
     if should_synthesize_albedo:
+        neutral_base_color = ()
+        neutral_metal_base = _should_seed_neutral_metal_base(
+            payload,
+            inputs,
+            visible_layer_inputs,
+            selected_base_low_authority=selected_base_low_authority,
+            selected_base_item=selected_base_item,
+        )
+        if neutral_metal_base:
+            neutral_base_color = _neutral_metal_base_color(payload, inputs)
+            notes.append("neutral_metal_base_synthesized")
+            notes.append("no_reliable_full_base_albedo")
+            for layer_item in visible_layer_inputs:
+                label = _texture_label(layer_item.source_texture_path, layer_item.texture_name)
+                role = _visible_layer_role(layer_item)
+                channel = _layer_channel(layer_item)
+                role_label = role if not channel else f"{role}:{channel}"
+                notes.append(f"texturelayer_kept_masked:{role_label}:{label}")
         synthesized_source, synthesized_note = _generate_synthesized_albedo_map(
-            selected_base_image,
+            QImage() if neutral_metal_base else selected_base_image,
             visible_layer_inputs,
             _mask_inputs_for_albedo(inputs),
             output_dir,
             f"batch_{batch_index:03d}",
             flip_vertical=flip_vertical,
             max_dimension=min(base_map_max_dimension, 512),
+            neutral_base_color=neutral_base_color,
         )
         if synthesized_source:
             base_source = synthesized_source
@@ -2471,6 +2710,36 @@ def combine_preview_material(
             notes.append("albedo synthesis failed")
     if not base_source and base_candidates:
         notes.append("no reliable base DDS")
+
+    spec_gloss_albedo_item = next(
+        (
+            item
+            for item in inputs
+            if _decode_mode_for_input(item) == "specular_glossiness"
+            and (
+                _material_parameter_color_luma(item, "specularfactor", "specularcolorfactor") is None
+                or (_material_parameter_color_luma(item, "specularfactor", "specularcolorfactor") or 0.0) > 0.02
+            )
+        ),
+        None,
+    )
+    if spec_gloss_albedo_item is not None:
+        spec_gloss_image = _image_reader(str(spec_gloss_albedo_item.preview_texture_path or ""), max_dimension=base_map_max_dimension)
+        if not spec_gloss_image.isNull():
+            spec_gloss_base_source, spec_gloss_base_note = _generate_spec_gloss_preview_albedo_map(
+                selected_base_image,
+                spec_gloss_image,
+                output_dir,
+                f"batch_{batch_index:03d}",
+                flip_vertical=flip_vertical,
+                max_dimension=min(base_map_max_dimension, 512),
+            )
+            if spec_gloss_base_source:
+                base_source = spec_gloss_base_source
+                base_note = spec_gloss_base_note
+                if "albedo" not in outputs:
+                    outputs.append("albedo")
+                notes.append(spec_gloss_base_note)
 
     normal_source = ""
     normal_strength = 0.0
@@ -2532,6 +2801,15 @@ def combine_preview_material(
     if culled_material_count > 0:
         notes.append(f"material inputs culled:{len(raw_material_candidates)}->{len(material_candidates)}")
     material_candidate_decode_modes = tuple(_decode_mode_for_input(candidate) for candidate in material_candidates)
+    registry_authority_notes = []
+    for candidate, mode in zip(material_candidates, material_candidate_decode_modes):
+        decode = _registry_decode_for_input(candidate)
+        authority = str(decode.get("authority", "") or AUTHORITY_GUESS)
+        source_kind = str(decode.get("source_kind", "") or "")
+        if authority != AUTHORITY_GUESS and source_kind not in {"unknown_crimson_texture", ""}:
+            registry_authority_notes.append(f"{mode}:{authority}:{source_kind}")
+    if registry_authority_notes:
+        notes.append("registry authority:" + ",".join(dict.fromkeys(registry_authority_notes)))
     suppress_standard_v2_specular_metalness = any(
         mode in {"standard_v2_mask", "standard_v2_material"}
         for mode in material_candidate_decode_modes

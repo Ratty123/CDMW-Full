@@ -5,6 +5,14 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 from typing import Dict, Mapping, Optional, Sequence, Tuple
 
+from cdmw.rendering.crimson_shader_registry import (
+    AUTHORITY_AUTHORITATIVE,
+    AUTHORITY_GUESS,
+    decode_crimson_texture_binding,
+    decode_crimson_texture_entry,
+    normalize_shader_family,
+)
+
 
 MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION = 2
 
@@ -84,6 +92,7 @@ class MaterialChannelSource:
     parameter_name: str = ""
     shader_family: str = ""
     disposition: str = "promoted"
+    authority: str = AUTHORITY_GUESS
 
     def to_diagnostic(self) -> Dict[str, object]:
         return {
@@ -100,6 +109,7 @@ class MaterialChannelSource:
             "parameter_name": self.parameter_name,
             "shader_family": self.shader_family,
             "disposition": self.disposition,
+            "authority": self.authority,
         }
 
 
@@ -157,25 +167,7 @@ def _normalize_key(value: object) -> str:
 
 
 def _normalized_shader_family(value: object) -> str:
-    text = str(value or "").strip().lower()
-    compact = _normalize_key(text)
-    if not compact:
-        return ""
-    if "skin" in compact and "skinnedmesh" not in compact:
-        return "skin"
-    if "hair" in compact:
-        return "hair"
-    if "cloth" in compact:
-        return "cloth_v2" if "v2" in compact or "ver2" in compact else "cloth"
-    if "emissive" in compact:
-        return "emissive_v2" if "v2" in compact or "ver2" in compact else "emissive"
-    if "static" in compact and ("multi" in compact or "rgbtexture" in compact):
-        return "static_multitextured"
-    if "static" in compact:
-        return "static_standard"
-    if "standard" in compact:
-        return "standard_v2" if "v2" in compact or "ver2" in compact else "standard"
-    return text.replace(" ", "_")
+    return normalize_shader_family(value)
 
 
 def parse_crimson_material_definition_text(text: str, *, source_path: str = "") -> CrimsonMaterialDefinition:
@@ -367,11 +359,30 @@ def _supported_crimson_material_mask_family(shader_family: str) -> bool:
 def _crimson_material_mask_layout(batch: Mapping[str, object]) -> Optional[Dict[str, str]]:
     if not _is_crimson_ma_material_map(batch):
         return None
-    parameter_key = _normalize_key(_slot_parameter_name(batch, "material"))
-    shader_family = _slot_shader_family(batch, "material")
-    if parameter_key == "colorblendingmasktexture" and _supported_crimson_material_mask_family(shader_family):
-        return {"ao": "r", "roughness": "g", "metalness": "b"}
-    return None
+    decode = _registry_decode_for_slot(batch, "material")
+    promoted = decode.get("promoted_channels", {})
+    if not isinstance(promoted, Mapping):
+        return None
+    layout = {str(channel): str(source_channel) for channel, source_channel in promoted.items()}
+    return layout or None
+
+
+def _registry_decode_for_slot(batch: Mapping[str, object], slot_name: str) -> Mapping[str, object]:
+    slot_state = _slot_state_from_contract(batch, slot_name)
+    parameter_name = str(slot_state.get("parameter_name", "") or _slot_parameter_name(batch, slot_name))
+    preview_path, source_dds_path = _slot_source_paths(batch, slot_name)
+    return decode_crimson_texture_binding(
+        shader_family=str(slot_state.get("shader_family", "") or _slot_shader_family(batch, slot_name)),
+        parameter_name=parameter_name,
+        source_path=str(slot_state.get("source_dds_path", "") or source_dds_path or preview_path),
+        slot_name=slot_name,
+        semantic_subtype=str(slot_state.get("semantic_subtype", "") or ""),
+        packed_channels=tuple(_slot_packed_channels(batch, slot_name)),
+        layer_channel=str(slot_state.get("layer_channel", "") or ""),
+        blend_flags=tuple(slot_state.get("blend_flags", ()) or ()) if isinstance(slot_state.get("blend_flags", ()), Sequence) and not isinstance(slot_state.get("blend_flags", ()), (str, bytes, bytearray)) else (),
+        sidecar_kind=str(slot_state.get("sidecar_kind", "") or ""),
+        parameter_declared_by=str(slot_state.get("parameter_declared_by", "") or ""),
+    )
 
 
 def _crimson_unresolved_material_entries(batch: Mapping[str, object]) -> Tuple[Dict[str, object], ...]:
@@ -389,34 +400,44 @@ def _crimson_unresolved_material_entries(batch: Mapping[str, object]) -> Tuple[D
         parameter = str(entry.get("parameter_name", "") or "").strip()
         parameter_key = _normalize_key(parameter)
         shader_family = _normalized_shader_family(entry.get("shader_family", "")) or _slot_shader_family(batch, "material")
+        decode = decode_crimson_texture_entry(
+            {
+                **dict(entry),
+                "source_path": str(entry.get("source_dds_path", "") or entry.get("source_path", "") or name),
+                "parameter_name": parameter,
+                "shader_family": shader_family,
+            },
+            default_slot="material",
+        )
         if name.endswith("_ma.dds") or Path(name).stem.endswith("_ma"):
-            if parameter_key == "colorblendingmasktexture" and _supported_crimson_material_mask_family(shader_family):
+            promoted = decode.get("promoted_channels", {})
+            if isinstance(promoted, Mapping) and promoted:
                 continue
-            disposition = "diagnostic_only"
-            reason = "Crimson _ma mask is not promoted without supported shader family and _colorBlendingMaskTexture parameter"
+            disposition = str(decode.get("disposition", "") or "diagnostic_only")
+            reason = str(decode.get("reason", "") or "Crimson _ma mask is not promoted without supported shader family and _colorBlendingMaskTexture parameter")
             slot = "material"
         elif name.endswith("_mg.dds") or Path(name).stem.endswith("_mg") or parameter_key == "detailmasktexture":
-            disposition = "layer_only"
-            reason = "Crimson _mg detail/grime/dye mask is layer-only; not a whole-material PBR map"
+            disposition = str(decode.get("disposition", "") or "layer_only")
+            reason = str(decode.get("reason", "") or "Crimson _mg detail/grime/dye mask is layer-only; not a whole-material PBR map")
             slot = "detail"
         elif name.endswith("_sp.dds") or Path(name).stem.endswith("_sp"):
-            disposition = "layer_material_response" if any(token in parameter_key for token in ("grimematerialtexture", "detailmaterialmask", "materialtexture")) else "diagnostic_only"
-            reason = "Crimson _sp material response is parameter/layer dependent; not exported as whole-material roughness/metalness"
+            disposition = str(decode.get("disposition", "") or ("layer_material_response" if any(token in parameter_key for token in ("grimematerialtexture", "detailmaterialmask", "materialtexture")) else "diagnostic_only"))
+            reason = str(decode.get("reason", "") or "Crimson _sp material response is parameter/layer dependent; not exported as whole-material roughness/metalness")
             slot = "material"
         elif parameter_key == "flowtexture" or name.endswith("_flow.dds") or Path(name).stem.endswith("_flow"):
-            disposition = "layer_flow"
-            reason = "Crimson flow texture is layer/vector control data; not promoted without an exact shader decoder"
+            disposition = str(decode.get("disposition", "") or "layer_flow")
+            reason = str(decode.get("reason", "") or "Crimson flow texture is layer/vector control data; not promoted without an exact shader decoder")
             slot = "layer"
         elif parameter_key == "ssdmhairdirectiontexture" or "hairdirection" in parameter_key:
-            disposition = "layer_direction"
-            reason = "Crimson hair direction texture is anisotropic/layer control data; not a whole-material normal map"
+            disposition = str(decode.get("disposition", "") or "layer_direction")
+            reason = str(decode.get("reason", "") or "Crimson hair direction texture is anisotropic/layer control data; not a whole-material normal map")
             slot = "layer"
         elif (
             any(token in parameter_key for token in ("eyetexture", "iris", "pupil", "cornea"))
             or any(token in Path(name).stem.lower() for token in ("_eye", "_iris", "_pupil", "_cornea"))
         ):
-            disposition = "diagnostic_only"
-            reason = "Crimson eye/iris/pupil texture is anatomy-layer data; not promoted without an exact eye shader rule"
+            disposition = str(decode.get("disposition", "") or "diagnostic_only")
+            reason = str(decode.get("reason", "") or "Crimson eye/iris/pupil texture is anatomy-layer data; not promoted without an exact eye shader rule")
             slot = "layer"
         else:
             continue
@@ -434,8 +455,10 @@ def _crimson_unresolved_material_entries(batch: Mapping[str, object]) -> Tuple[D
                 "disposition": disposition,
                 "reason": reason,
                 "confidence": str(entry.get("confidence", "") or entry.get("evidence_grade", "") or "shader_parameter_rule"),
+                "authority": str(decode.get("authority", "") or AUTHORITY_GUESS),
+                "source_kind": str(decode.get("source_kind", "") or ""),
                 "layer_role": str(entry.get("layer_role", "") or ""),
-                "layer_channel": str(entry.get("layer_channel", "") or ""),
+                "layer_channel": str(decode.get("layer_channel", "") or entry.get("layer_channel", "") or ""),
                 "blend_flags": list(tuple(entry.get("blend_flags", ()) or ())) if isinstance(entry.get("blend_flags", ()), Sequence) and not isinstance(entry.get("blend_flags", ()), (str, bytes, bytearray)) else (),
             }
         )
@@ -481,6 +504,7 @@ def _source_for_slot(batch: Mapping[str, object], slot_name: str, channel: str) 
         parameter_name=str(slot_state.get("parameter_name", "") or _slot_parameter_name(batch, slot_name)),
         shader_family=str(slot_state.get("shader_family", "") or _slot_shader_family(batch, slot_name)),
         disposition=str(slot_state.get("disposition", "") or "promoted"),
+        authority=str(slot_state.get("authority", "") or AUTHORITY_GUESS),
     )
 
 
@@ -528,18 +552,23 @@ def _packed_material_channels(batch: Mapping[str, object]) -> Dict[str, Material
     joined_packed = ",".join(packed)
     if packed[:3] in {("ao", "roughness", "metallic"), ("occlusion", "roughness", "metallic")}:
         layout = {"ao": "r", "roughness": "g", "metalness": "b"}
+        authority = AUTHORITY_AUTHORITATIVE
     elif packed[:2] == ("roughness", "metallic"):
         layout = {"roughness": "g", "metalness": "b"}
+        authority = AUTHORITY_AUTHORITATIVE
     elif (
         ("r=ao" in joined_packed or "r=occlusion" in joined_packed)
         and "g=roughness" in joined_packed
         and ("b=metallic" in joined_packed or "b=metalness" in joined_packed)
     ):
         layout = {"ao": "r", "roughness": "g", "metalness": "b"}
+        authority = AUTHORITY_AUTHORITATIVE
     elif (layout := _crimson_material_mask_layout(batch)):
+        decode = _registry_decode_for_slot(batch, "material")
         confidence = "shader_parameter_rule"
         source_kind = "crimson_color_blending_mask"
-        reason = "Crimson _ma _colorBlendingMaskTexture: R=AO, G=roughness, B=metalness"
+        reason = str(decode.get("reason", "") or "Crimson _ma _colorBlendingMaskTexture: R=AO, G=roughness, B=metalness")
+        authority = str(decode.get("authority", "") or AUTHORITY_AUTHORITATIVE)
     else:
         return {}
     preview_path, source_dds_path = _slot_source_paths(batch, "material")
@@ -560,6 +589,7 @@ def _packed_material_channels(batch: Mapping[str, object]) -> Dict[str, Material
             parameter_name=parameter_name,
             shader_family=shader_family,
             disposition="promoted",
+            authority=authority,
         )
         for channel, source_channel in layout.items()
     }
@@ -633,6 +663,7 @@ def resolve_preview_batch_material_channels(
                 "slot": slot_name,
                 "reason": "custom or packed material data; not promoted without an exact channel layout",
                 "confidence": str(slot_state.get("confidence", "") or "unresolved"),
+                "authority": str(slot_state.get("authority", "") or AUTHORITY_GUESS),
                 "preview_path": str(slot_state.get("preview_path", "") or ""),
                 "source_dds_path": str(slot_state.get("source_dds_path", "") or ""),
                 "parameter_name": str(slot_state.get("parameter_name", "") or _slot_parameter_name(batch, slot_name)),

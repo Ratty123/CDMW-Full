@@ -112,7 +112,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("preview_panel.setMinimumWidth(220)", source)
         self.assertIn("main_splitter.setStretchFactor(0, 0)", source)
         self.assertIn("main_splitter.setStretchFactor(1, 1)", source)
-        self.assertIn("control_width = max(320, min(520, int(width * 0.34)))", source)
+        self.assertIn("control_width = max(380, min(620, int(width * 0.40)))", source)
         self.assertIn("main_splitter.setSizes([control_width, max(220, width - control_width)])", source)
         self.assertIn("scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff if embedded_alignment_builder else Qt.ScrollBarAsNeeded)", source)
         self.assertIn("page.setMinimumWidth(0 if embedded_alignment_builder else alignment_control_content_min_width)", source)
@@ -135,6 +135,27 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("AlignmentD3D11PackageWorker(", source)
         self.assertIn('display_mode=requested_display_mode', source)
         self.assertIn('editor_workspace="modify_original_alignment" if modify_original_clone_mode else "mesh_replacement_alignment"', source)
+
+    def test_mesh_editor_replacement_diagnostics_tab_reports_live_package_state(self) -> None:
+        source = _main_window_source()
+
+        self.assertIn('_new_alignment_scroll_tab("MeshAlignmentDiagnosticsScrollTab")', source)
+        self.assertIn('control_tabs.addTab(diagnostics_tab, "Diagnostics")', source)
+        self.assertIn('diagnostics_text.setObjectName("MeshAlignmentDiagnosticsText")', source)
+        self.assertIn('mesh_editor_diagnostics_state["text_widget"] = diagnostics_text', source)
+        self.assertIn("def _refresh_mesh_editor_diagnostics(", source)
+        self.assertIn("def _mesh_editor_diagnostics_manifest_lines(", source)
+        self.assertIn("def _mesh_editor_diagnostics_model_lines(", source)
+        self.assertIn("def _mesh_editor_diagnostics_source_mesh_lines(", source)
+        self.assertIn("find_native_d3d11_host()", source)
+        self.assertIn("active_package_quality", source)
+        self.assertIn("mesh_edit_raw_preview_active", source)
+        self.assertIn("source_face_limit", source)
+        self.assertIn("manifest flags: two_sided_batches=", source)
+        self.assertIn("manifest material inputs: ", source)
+        self.assertIn("Latest native status", source)
+        self.assertIn("diagnostics_copy_button.clicked.connect", source)
+        self.assertIn("_queue_alignment_post_open_task(_refresh_mesh_editor_diagnostics)", source)
 
     def test_alignment_dialog_qsize_runtime_dependency_is_imported(self) -> None:
         source = _main_window_source()
@@ -397,7 +418,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("use_textures=worker_use_textures", source)
         self.assertIn("worker_original_reference_material_parity = bool(worker_use_textures)", source)
         self.assertIn("original_reference_material_parity=worker_original_reference_material_parity", source)
-        self.assertIn('reuse_prepared_geometry=package_quality_key == "material_refresh"', source)
+        self.assertIn("reuse_prepared_geometry=bool(geometry_signature)", source)
         self.assertIn("def _mesh_by_source_identity", source)
         self.assertIn("by_source[(role_key, source_index)] = mesh", source)
         self.assertIn("_preview_roles_compatible(", source)
@@ -876,7 +897,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("mesh_edit_layout_page.addWidget(mesh_edit_group, 0)", source)
         self.assertIn('parts_outliner_panel.setObjectName("PartsRoutingOutlinerPropertiesStack")', source)
         self.assertNotIn("parts_outliner_layout.addWidget(geometry_overview_group, 0)", source)
-        self.assertIn("source_tree.setSelectionMode(QAbstractItemView.SingleSelection)", source)
+        self.assertIn("source_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)", source)
         self.assertIn("def _auto_fit_alignment_tree_columns(", source)
         self.assertIn("material_plan_tree,\n                        (72, 58, 150, 230, 58, 90)", source)
         self.assertIn("expand_columns=(3, 2, 5)", source)
@@ -962,8 +983,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         source = _main_window_source()
         self.assertIn("dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)", source)
         self.assertIn("dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)", source)
-        self.assertIn("alignment_control_min_width = 520", source)
-        self.assertIn("alignment_control_content_min_width = 560", source)
+        self.assertIn("alignment_control_min_width = 640", source)
+        self.assertIn("alignment_control_content_min_width = 700", source)
         self.assertIn("mesh_edit_control_min_width = 460", source)
         self.assertIn("mesh_edit_control_content_min_width = 420", source)
         self.assertIn("mesh_edit_control_max_width = 540", source)
@@ -2531,6 +2552,112 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("worker.completed.connect(", startup_original_preview)
         self.assertNotIn('original_dialog_preview.clear_model("Original textures loaded in native D3D11 preview.")', source)
         self.assertIn("else:\n                        original_dialog_preview.set_model(original_reference_preview_model)", source)
+
+    def test_mesh_editor_source_preview_preserves_spec_gloss_and_full_direct_geometry(self) -> None:
+        source = _main_window_source()
+        import_start = source.index("from cdmw.modding.material_replacer import (")
+        import_end = source.index("from cdmw.core.model_export import", import_start)
+        material_imports = source[import_start:import_end]
+        self.assertIn("replacement_texture_slot_preview_semantics,", material_imports)
+
+        preview_start = source.index("def _apply_source_material_preview")
+        preview_end = source.index("emissive_slot = slots.get", preview_start)
+        source_material_preview = source[preview_start:preview_end]
+        self.assertIn("declared_semantic_subtype", source_material_preview)
+        self.assertIn("declared_parameter_name", source_material_preview)
+        self.assertIn("preview_material_texture_subtype = semantic_subtype", source_material_preview)
+        self.assertIn("parameters=material_factor_parameters", source_material_preview)
+
+        direct_start = source.index("def _build_direct_source_preview_model(")
+        direct_end = source.index("disabled_source_indices = {", direct_start)
+        direct_preview = source[direct_start:direct_end]
+        self.assertIn("max_source_faces_per_submesh=0", direct_preview)
+        preview_model_start = source.index("def _preview_model_in_original_frame(")
+        preview_model_end = source.index("def _source_preview_geometry_key(", preview_model_start)
+        preview_model_source = source[preview_model_start:preview_model_end]
+        self.assertIn("preview_double_sided=bool(", preview_model_source)
+        self.assertIn('getattr(submesh, "preview_double_sided", False)', preview_model_source)
+        self.assertIn("max_source_faces_per_submesh=_alignment_preview_source_face_limit()", source)
+        refresh_start = source.index("def _refresh_static_dialog_preview(")
+        refresh_end = source.index("if not use_direct_source_preview:", refresh_start)
+        refresh_prelude = source[refresh_start:refresh_end]
+        self.assertIn("replacement_only_direct_source_preview = bool(", refresh_prelude)
+        self.assertIn('active_preview_mode == "replacement_only"', refresh_prelude)
+        self.assertIn("source_owned_direct_source_preview = bool(", refresh_prelude)
+        self.assertIn("_complete_external_swap_enabled()", refresh_prelude)
+        self.assertIn('active_preview_mode in {"side_by_side", "replacement_only"}', refresh_prelude)
+        self.assertIn("force_direct_source_preview = bool(", refresh_prelude)
+        self.assertIn("raw_direct_source_preview_indices.update(", refresh_prelude)
+        self.assertIn("force_direct_source_preview or mesh_edit_direct_source_preview", refresh_prelude)
+        self.assertIn('"|direct-source:" + ",".join', source)
+        source_limit_start = source.index("def _alignment_preview_source_face_limit()")
+        source_limit_end = source.index("def _alignment_preview_selected_source_face_limit(", source_limit_start)
+        source_limit = source[source_limit_start:source_limit_end]
+        self.assertIn("if mesh_edit_enabled_checkbox.isChecked():", source_limit)
+        self.assertNotIn("_alignment_mesh_edit_tab_active()", source_limit)
+
+    def test_mesh_editor_parts_delete_requires_apply_and_unassigns_routes(self) -> None:
+        source = _main_window_source()
+
+        self.assertIn('source_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)', source)
+        self.assertIn('source_tree.setSelectionBehavior(QAbstractItemView.SelectRows)', source)
+        self.assertIn("class _SourceTreeContextSelectionFilter(QObject):", source)
+        self.assertIn('source_tree_context_selection_state["multi_indices"] = selected_indices', source)
+        self.assertIn('delete_source_parts_button = QPushButton("Delete Selected")', source)
+        self.assertIn('apply_source_parts_button = QPushButton("Apply")', source)
+        self.assertIn('delete_source_parts_button.clicked.connect(lambda _checked=False: _delete_selected_source_parts())', source)
+        self.assertNotIn('delete_source_parts_button.clicked.connect(_delete_selected_source_parts)', source)
+        self.assertIn('apply_source_parts_button.clicked.connect(_apply_source_part_preview_changes)', source)
+        self.assertIn("apply_source_parts_button.setEnabled(True)", source)
+        self.assertIn("apply_source_parts_button.setEnabled(bool(source_parts_apply_state.get(\"pending\")))", source)
+        self.assertIn('"preview_rebuild_pending": False', source)
+        self.assertIn("def _set_source_parts_preview_rebuild_pending(reason: str) -> None:", source)
+        self.assertIn("old D3D11 geometry may remain visible until reload finishes", source)
+        self.assertIn("_clear_source_parts_preview_rebuild_pending()", source)
+        self.assertNotIn("source_parts_apply_button.setEnabled", source)
+
+        check_start = source.index("def _source_item_check_state_changed(")
+        check_end = source.index("source_tree.itemChanged.connect", check_start)
+        check_handler = source[check_start:check_end]
+        self.assertIn('_set_source_parts_apply_pending("source include/exclude changed")', check_handler)
+        self.assertNotIn("_queue_static_preview_rebuild()", check_handler)
+
+        delete_start = source.index("def _delete_selected_source_parts(")
+        delete_end = source.index("def _apply_source_part_preview_changes(", delete_start)
+        delete_helper = source[delete_start:delete_end]
+        self.assertIn("if source_indices is None or isinstance(source_indices, bool):", delete_helper)
+        self.assertIn("selected_indices = _selected_source_indices_from_tree()", delete_helper)
+        self.assertIn("selected_indices = list(source_indices)", delete_helper)
+        self.assertIn("index_map: Dict[int, int] = {}", delete_helper)
+        self.assertIn("replacement_mesh_for_mapping.submeshes[:] = kept_submeshes", delete_helper)
+        self.assertIn("replacement_mesh_base_for_mapping.submeshes[:]", delete_helper)
+        self.assertIn("_rebuild_source_part_widgets(", delete_helper)
+        self.assertIn("defer_preview=True", delete_helper)
+        self.assertIn("target routes were unassigned/remapped", delete_helper)
+        self.assertIn("Preview still shows old geometry until Apply.", delete_helper)
+        self.assertNotIn("_queue_static_preview_rebuild()", delete_helper)
+
+        apply_start = source.index("def _apply_source_part_preview_changes(")
+        apply_end = source.index("def _apply_source_material_grouped_routing(", apply_start)
+        apply_helper = source[apply_start:apply_end]
+        self.assertIn("rebuild_reason = str(", apply_helper)
+        self.assertIn("_set_source_parts_preview_rebuild_pending(rebuild_reason)", apply_helper)
+        self.assertIn("_queue_static_preview_rebuild()", apply_helper)
+        self.assertNotIn("_clear_source_parts_apply_pending()", apply_helper)
+
+        menu_start = source.index("def _show_replacement_sources_context_menu(")
+        menu_end = source.index("original_copy_button.clicked.connect", menu_start)
+        menu_helper = source[menu_start:menu_end]
+        self.assertIn("selected_source_indices = _selected_source_indices_from_tree(include_fallback=False)", menu_helper)
+        self.assertIn('preserved_multi_indices = tuple(source_tree_context_selection_state.get("multi_indices", ()) or ())', menu_helper)
+        self.assertIn("selected_source_indices = [int(index) for index in preserved_multi_indices]", menu_helper)
+        self.assertIn("delete_source_indices = selected_source_indices or _selected_source_indices_from_tree(include_fallback=True)", menu_helper)
+        self.assertIn("_delete_selected_source_parts(delete_source_indices)", menu_helper)
+
+        remove_start = source.index("def _remove_selected_source_from_target(")
+        remove_end = source.index("def _clear_selected_target(", remove_start)
+        remove_helper = source[remove_start:remove_end]
+        self.assertIn("defer_preview=True", remove_helper)
 
     def test_modify_original_transform_helpers_are_available_before_preview_refresh(self) -> None:
         source = _main_window_source()

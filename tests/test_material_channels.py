@@ -149,6 +149,7 @@ class MaterialChannelContractTests(unittest.TestCase):
         self.assertEqual("g", contract.channel("roughness").source_channel)
         self.assertEqual("b", contract.channel("metalness").source_channel)
         self.assertEqual("crimson_color_blending_mask", contract.channel("metalness").source_kind)
+        self.assertEqual("authoritative", contract.channel("metalness").authority)
         self.assertEqual("shader_parameter_rule", contract.channel("roughness").confidence)
         self.assertEqual("_colorBlendingMaskTexture", contract.channel("metalness").parameter_name)
         self.assertFalse(contract.unresolved)
@@ -163,7 +164,7 @@ class MaterialChannelContractTests(unittest.TestCase):
 
         self.assertIsNone(contract.channel("roughness"))
         self.assertIsNone(contract.channel("metalness"))
-        self.assertTrue(any(item.get("disposition") == "diagnostic_only" for item in contract.unresolved))
+        self.assertTrue(any(item.get("disposition") == "diagnostic_only" and item.get("authority") == "guess" for item in contract.unresolved))
 
     def test_detail_mask_mg_is_layer_only_not_global_pbr(self) -> None:
         contract = resolve_preview_batch_material_channels(
@@ -185,7 +186,7 @@ class MaterialChannelContractTests(unittest.TestCase):
 
         self.assertIsNone(contract.channel("roughness"))
         self.assertIsNone(contract.channel("metalness"))
-        self.assertTrue(any(item.get("disposition") == "layer_only" for item in contract.unresolved))
+        self.assertTrue(any(item.get("disposition") == "layer_only" and item.get("authority") == "authoritative" for item in contract.unresolved))
 
     def test_sp_material_response_is_layer_only_not_global_pbr(self) -> None:
         contract = resolve_preview_batch_material_channels(

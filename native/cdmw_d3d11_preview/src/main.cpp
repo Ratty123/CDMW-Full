@@ -49,6 +49,7 @@ static constexpr ULONG_PTR kCdmwCommandCopyData = 0x43444D57u; // "CDMW"
 static constexpr ULONG_PTR kCdmwEventCopyData = 0x44334431u; // "D3D1"
 static constexpr size_t kSrvCacheSoftMaxEntries = 512;
 static constexpr std::uint64_t kSrvCacheSoftMaxBytes = 384ull * 1024ull * 1024ull;
+static constexpr size_t kDenseMeshEditMaterialPreserveTriangles = 1800u;
 static constexpr DWORD kIdleWaitMs = 50;
 static constexpr double kParentHealthCheckMs = 1000.0;
 static constexpr double kParentHangExitMs = 30000.0;
@@ -180,6 +181,8 @@ struct PreviewBatch {
     float alpha_threshold = 0.0f;
     float base_color[3] = {0.78f, 0.48f, 0.34f};
     std::wstring vertex_file;
+    std::uint64_t vertex_offset = 0;
+    std::uint64_t vertex_size = 0;
     std::wstring base_dds;
     std::wstring normal_dds;
     std::wstring material_dds;
@@ -227,7 +230,7 @@ struct PreviewBatch {
     float material_family_code = 0.0f;
     float material_category_code = 0.0f;
     float material_category_confidence = 0.35f;
-    bool material_response_promoted = true;
+    bool material_response_promoted = false;
     bool low_authority_base_overlay = false;
     std::array<PreviewMaterialLayer, kMaxMaterialLayers> material_layers;
     int material_layer_count = 0;
@@ -235,6 +238,8 @@ struct PreviewBatch {
     int source_local_submesh_index = -1;
     int source_component_index = 0;
     std::wstring identity_file;
+    std::uint64_t identity_offset = 0;
+    std::uint64_t identity_size = 0;
     std::string source_model_path;
     std::string source_component_label;
     std::string part_label;
@@ -543,16 +548,19 @@ struct RenderTuning {
     float light_azimuth_degrees = -52.0f;
     float light_elevation_degrees = 27.0f;
     int normal_y_mode = 0;
-    float ao_strength = 1.0f;
-    float roughness_bias = 0.0f;
-    float metalness_scale = 1.0f;
-    float environment_strength = 1.0f;
+    float ao_strength = 0.65f;
+    float roughness_bias = 0.10f;
+    float metalness_scale = 0.75f;
+    float environment_strength = 0.45f;
     float emissive_gain = 1.0f;
+    float tone_exposure = 1.0f;
+    float tone_contrast = 1.0f;
+    float tone_gamma = 1.0f;
     std::string texture_address_mode = "wrap";
     float ambient_strength = 0.55f;
     float diffuse_light_scale = 0.65f;
     float specular_base = 0.05f;
-    float specular_max = 0.18f;
+    float specular_max = 0.14f;
     float shininess_min = 28.0f;
     float shininess_max = 72.0f;
 };
@@ -560,7 +568,9 @@ struct RenderTuning {
 static int diagnostic_mode_code(const std::string& value) {
     std::string mode = value;
     std::transform(mode.begin(), mode.end(), mode.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    if (mode == "lit" || mode == "final_lit" || mode == "final") return 0;
     if (mode == "base" || mode == "base_texture" || mode == "texture" || mode == "albedo" ||
+        mode == "albedo_base_only" || mode == "base_only" ||
         mode == "base_direct" || mode == "base_no_tint" || mode == "base_color" || mode == "texture_probe") return 1;
     if (mode == "uv" || mode == "uv_checker" || mode == "checker") return 2;
     if (mode == "alpha" || mode == "opacity" || mode == "base_alpha") return 3;
@@ -570,7 +580,11 @@ static int diagnostic_mode_code(const std::string& value) {
         mode == "material_raw" || mode == "height_raw" || mode == "height_calibrated" ||
         mode == "height_depth" || mode == "material_response" || mode == "metal_shine" ||
         mode == "roughness_response") return 6;
-    if (mode == "layer_mask" || mode == "layer_masks" || mode == "mask" || mode == "detail_mask") return 7;
+    if (mode == "layer_mask" || mode == "layer_masks" || mode == "mask" || mode == "detail_mask" ||
+        mode == "masked_layer_contribution" || mode == "masked_layers") return 7;
+    if (mode == "metalness" || mode == "metallic") return 8;
+    if (mode == "roughness") return 9;
+    if (mode == "specular_gloss" || mode == "specular_glossiness" || mode == "specular" || mode == "gloss") return 10;
     return 0;
 }
 
@@ -646,6 +660,24 @@ static std::vector<uint8_t> read_binary(const fs::path& path) {
     return std::vector<uint8_t>((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
 }
 
+static std::vector<uint8_t> read_binary_range(const fs::path& path, std::uint64_t offset, std::uint64_t size) {
+    if (size == 0u) return {};
+    std::ifstream stream(path, std::ios::binary);
+    if (!stream) return {};
+    stream.seekg(0, std::ios::end);
+    const std::streamoff end = static_cast<std::streamoff>(stream.tellg());
+    if (end <= 0) return {};
+    const std::uint64_t file_size = static_cast<std::uint64_t>(end);
+    if (offset >= file_size) return {};
+    const std::uint64_t available = file_size - offset;
+    const std::uint64_t read_size = std::min(size, available);
+    std::vector<uint8_t> data(static_cast<size_t>(read_size));
+    stream.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
+    stream.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(data.size()));
+    data.resize(static_cast<size_t>(std::max<std::streamsize>(0, stream.gcount())));
+    return data;
+}
+
 static bool write_status(const fs::path& path, const std::string& payload) {
     if (path.empty()) return true;
     std::error_code ec;
@@ -702,6 +734,17 @@ static int json_int_field(const std::string& object, const std::string& name, in
     if (!std::regex_search(object, match, pattern)) return fallback;
     try {
         return std::stoi(match[1].str());
+    } catch (...) {
+        return fallback;
+    }
+}
+
+static std::uint64_t json_uint64_field(const std::string& object, const std::string& name, std::uint64_t fallback = 0) {
+    std::regex pattern("\"" + name + "\"\\s*:\\s*(\\d+)");
+    std::smatch match;
+    if (!std::regex_search(object, match, pattern)) return fallback;
+    try {
+        return static_cast<std::uint64_t>(std::stoull(match[1].str()));
     } catch (...) {
         return fallback;
     }
@@ -1241,23 +1284,8 @@ static float material_category_code(const std::string& category) {
 }
 
 static float boosted_preview_layer_weight(const PreviewMaterialLayer& layer, int layer_index) {
-    float weight = std::clamp(layer.weight, 0.0f, 1.0f);
-    if (layer_index <= 0) return weight;
-    if (weight < 0.16f) return weight;
-    const float max_component = std::max({layer.tint[0], layer.tint[1], layer.tint[2]});
-    const float min_component = std::min({layer.tint[0], layer.tint[1], layer.tint[2]});
-    const float chroma = max_component - min_component;
-    const bool visibly_tinted = chroma > 0.075f || layer.metalness_hint > 0.35f;
-    if (!visibly_tinted) return weight;
-    const std::string role = lower_copy(layer.role);
-    if (role == "detail" || role == "layer") {
-        weight = std::max(weight, 0.44f);
-    } else if (role == "grime") {
-        weight = std::max(weight, 0.32f);
-    } else {
-        weight = std::max(weight, 0.36f);
-    }
-    return std::clamp(weight, 0.0f, 0.68f);
+    (void)layer_index;
+    return std::clamp(layer.weight, 0.0f, 1.0f);
 }
 
 static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_dir, const std::string& manifest, RendererStats& stats) {
@@ -1268,7 +1296,7 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.vertex_count = json_int_field(object, "vertex_count", 0);
         batch.flip_v = json_bool_field(object, "texture_flip_vertical", false);
         batch.alpha_cutout = lower_copy(json_string_field(object, "alpha_mode")).find("cutout") != std::string::npos;
-        batch.two_sided = json_bool_field(object, "two_sided", false);
+        batch.two_sided = json_bool_field(object, "two_sided", json_bool_field(object, "double_sided", false));
         batch.alpha_threshold = std::clamp(json_float_field(object, "alpha_threshold", batch.alpha_cutout ? 0.12f : 0.0f), 0.0f, 0.95f);
         const std::string normal_y_policy = lower_copy(json_string_field(object, "normal_y_policy"));
         batch.invert_normal_y = normal_y_policy.empty()
@@ -1276,6 +1304,8 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
             || normal_y_policy.find("legacy") != std::string::npos;
         parse_base_color(object, batch.base_color);
         batch.vertex_file = absolute_from_manifest_path(package_dir, json_string_field(object, "vertex_file"));
+        batch.vertex_offset = json_uint64_field(object, "vertex_offset", 0);
+        batch.vertex_size = json_uint64_field(object, "vertex_size", 0);
         batch.base_dds = dds_slot_source(object, "base");
         batch.normal_dds = dds_slot_source(object, "normal");
         batch.material_dds = dds_slot_source(object, "material");
@@ -1325,7 +1355,7 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.material_family_code = material_family_code(batch.material_shader_family);
         batch.material_category_code = material_category_code(json_string_field(object, "material_category", "generic"));
         batch.material_category_confidence = std::clamp(json_float_field(object, "material_category_confidence", 0.35f), 0.0f, 1.0f);
-        batch.material_response_promoted = json_bool_field(object, "material_response_promoted", true);
+        batch.material_response_promoted = json_bool_field(object, "material_response_promoted", false);
         batch.low_authority_base_overlay = json_bool_field(object, "base_low_authority_overlay", false);
         parse_material_layers(batch, object);
         parse_primary_material_layer(batch, object);
@@ -1334,6 +1364,8 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.source_local_submesh_index = json_int_field(editor_identity, "source_local_submesh_index", batch.source_submesh_index);
         batch.source_component_index = json_int_field(editor_identity, "source_component_index", 0);
         batch.identity_file = absolute_from_manifest_path(package_dir, json_string_field(editor_identity, "identity_file"));
+        batch.identity_offset = json_uint64_field(editor_identity, "identity_offset", 0);
+        batch.identity_size = json_uint64_field(editor_identity, "identity_size", 0);
         batch.source_model_path = json_string_field(editor_identity, "source_model_path");
         batch.source_component_label = json_string_field(editor_identity, "source_component_label");
         batch.part_label = json_string_field(editor_identity, "part_label");
@@ -1442,6 +1474,7 @@ static ViewSettings parse_view_settings(const std::string& manifest) {
 static RenderTuning parse_render_tuning(const std::string& manifest) {
     RenderTuning tuning;
     const std::string d3d11_view_mode = json_string_field(manifest, "d3d11_view_mode");
+    const std::string normalized_view_mode = lower_copy(d3d11_view_mode);
     tuning.diagnostic_mode = diagnostic_mode_code(d3d11_view_mode.empty() ? json_string_field(manifest, "render_diagnostic_mode") : d3d11_view_mode);
     tuning.max_anisotropy = std::clamp(json_int_field(manifest, "max_anisotropy", tuning.max_anisotropy), 1, 16);
     tuning.mip_lod_bias = std::clamp(json_float_field(manifest, "d3d11_mip_lod_bias", tuning.mip_lod_bias), -2.0f, 1.0f);
@@ -1455,6 +1488,9 @@ static RenderTuning parse_render_tuning(const std::string& manifest) {
     tuning.metalness_scale = std::clamp(json_float_field(manifest, "d3d11_metalness_scale", tuning.metalness_scale), 0.0f, 2.0f);
     tuning.environment_strength = std::clamp(json_float_field(manifest, "d3d11_environment_strength", tuning.environment_strength), 0.0f, 2.0f);
     tuning.emissive_gain = std::clamp(json_float_field(manifest, "d3d11_emissive_gain", tuning.emissive_gain), 0.0f, 4.0f);
+    tuning.tone_exposure = std::clamp(json_float_field(manifest, "d3d11_tone_exposure", tuning.tone_exposure), 0.25f, 2.0f);
+    tuning.tone_contrast = std::clamp(json_float_field(manifest, "d3d11_tone_contrast", tuning.tone_contrast), 0.50f, 1.75f);
+    tuning.tone_gamma = std::clamp(json_float_field(manifest, "d3d11_tone_gamma", tuning.tone_gamma), 0.50f, 2.20f);
     tuning.texture_address_mode = lower_copy(json_string_field(manifest, "d3d11_texture_address_mode", tuning.texture_address_mode));
     if (tuning.texture_address_mode != "clamp") tuning.texture_address_mode = "wrap";
     tuning.ambient_strength = std::clamp(json_float_field(manifest, "ambient_strength", tuning.ambient_strength), 0.05f, 1.20f);
@@ -1463,6 +1499,17 @@ static RenderTuning parse_render_tuning(const std::string& manifest) {
     tuning.specular_max = std::clamp(json_float_field(manifest, "specular_max", tuning.specular_max), tuning.specular_base, 1.00f);
     tuning.shininess_min = std::clamp(json_float_field(manifest, "shininess_min", tuning.shininess_min), 1.0f, 128.0f);
     tuning.shininess_max = std::clamp(json_float_field(manifest, "shininess_max", tuning.shininess_max), tuning.shininess_min, 256.0f);
+    if (normalized_view_mode == "game_outdoor" || normalized_view_mode == "cd_outdoor" || normalized_view_mode == "outdoor_game") {
+        tuning.diagnostic_mode = 0;
+        tuning.light_elevation_degrees = std::max(tuning.light_elevation_degrees, 42.0f);
+        tuning.ao_strength = std::min(tuning.ao_strength, 0.55f);
+        tuning.roughness_bias = std::min(tuning.roughness_bias, 0.04f);
+        tuning.environment_strength = std::max(tuning.environment_strength, 0.70f);
+        tuning.emissive_gain = std::max(tuning.emissive_gain, 1.80f);
+        tuning.ambient_strength = std::max(tuning.ambient_strength, 0.78f);
+        tuning.diffuse_light_scale = std::max(tuning.diffuse_light_scale, 1.05f);
+        tuning.specular_max = std::max(tuning.specular_max, 0.22f);
+    }
     return tuning;
 }
 
@@ -1638,6 +1685,9 @@ static std::string loaded_payload_for_event(const RendererStats& stats, const st
            << "\"manifest_read_ms\":" << stats.manifest_ms << ","
            << "\"texture_bind_ms\":" << stats.texture_ms << ","
            << "\"geometry_upload_ms\":" << stats.geometry_ms << ","
+           << "\"native_manifest_ms\":" << stats.manifest_ms << ","
+           << "\"native_geometry_ms\":" << stats.geometry_ms << ","
+           << "\"native_texture_ms\":" << stats.texture_ms << ","
            << "\"first_frame_ms\":" << stats.first_frame_ms << ","
            << "\"texture_cache_entries\":" << stats.texture_cache_entries << ","
            << "\"texture_cache_releases\":" << stats.texture_cache_releases << ","
@@ -1833,6 +1883,42 @@ float3 srgb_to_linear(float3 color) {
 float3 linear_to_srgb(float3 color) {
     return pow(saturate(color), 1.0 / 2.2);
 }
+float3 aces_tonemap(float3 color) {
+    color = max(color, float3(0.0, 0.0, 0.0));
+    return saturate((color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14));
+}
+float ggx_distribution(float ndoth, float roughness) {
+    float a = max(roughness * roughness, 0.035);
+    float a2 = a * a;
+    float denom = (ndoth * ndoth) * (a2 - 1.0) + 1.0;
+    return a2 / max(3.14159265 * denom * denom, 0.0001);
+}
+float geometry_schlick_ggx(float ndotv, float roughness) {
+    float r = roughness + 1.0;
+    float k = (r * r) * 0.125;
+    return ndotv / max(ndotv * (1.0 - k) + k, 0.0001);
+}
+float geometry_smith(float ndotv, float ndotl, float roughness) {
+    return geometry_schlick_ggx(ndotv, roughness) * geometry_schlick_ggx(ndotl, roughness);
+}
+float3 fresnel_schlick(float costheta, float3 f0) {
+    return f0 + (1.0 - f0) * pow(1.0 - saturate(costheta), 5.0);
+}
+float3 preview_environment_color(float3 reflected_view, float roughness) {
+    float env_lobe = saturate((reflected_view.y * 0.55) + (reflected_view.z * -0.14) + 0.58);
+    float horizon_band = pow(saturate(1.0 - abs(reflected_view.y) * 1.12), 2.2);
+    float front_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.18, 0.36, -0.92)))), lerp(14.0, 4.0, roughness));
+    float top_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.32, 0.88, -0.34)))), lerp(28.0, 7.0, roughness));
+    float side_softbox = pow(saturate(dot(reflected_view, normalize(float3(0.82, 0.20, -0.54)))), lerp(18.0, 5.0, roughness));
+    float dark_band = pow(saturate(1.0 - abs(reflected_view.x * 1.8 + reflected_view.y * 0.35)), 3.2) * saturate(0.85 - reflected_view.z);
+    float3 env_color = lerp(float3(0.030, 0.034, 0.040), float3(0.28, 0.31, 0.36), env_lobe);
+    env_color = lerp(env_color, env_color * float3(0.42, 0.45, 0.50), dark_band * (1.0 - roughness) * 0.45);
+    env_color += horizon_band * float3(0.08, 0.09, 0.11);
+    env_color += front_softbox.xxx * float3(0.18, 0.21, 0.24);
+    env_color += top_softbox.xxx * float3(0.34, 0.32, 0.28);
+    env_color += side_softbox.xxx * float3(0.12, 0.15, 0.19);
+    return env_color;
+}
 VSOut vs_main(VSIn input) {
     VSOut output;
     output.position = mul(float4(input.position, 1.0), mvp);
@@ -1871,16 +1957,22 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float base_alpha = 1.0;
     if (flags.x > 0.5) {
         float4 base_sample = base_tex.Sample(preview_sampler, uv);
-        albedo = base_sample.rgb;
+        albedo = saturate(base_sample.rgb);
         base_alpha = base_sample.a;
         if (flags4.x > 0.001) {
             float3 preview_tint = saturate(base_color_flip.rgb);
             float tint_luma = max(dot(preview_tint, float3(0.299, 0.587, 0.114)), 0.08);
-            float3 tint_bias = clamp(preview_tint / tint_luma, float3(0.42, 0.42, 0.42), float3(1.45, 1.45, 1.45));
-            albedo = lerp(albedo, saturate(albedo * tint_bias), saturate(flags4.x));
+            float3 tint_bias = clamp(preview_tint / tint_luma, float3(0.38, 0.38, 0.38), float3(1.72, 1.72, 1.72));
+            float strength = saturate(flags4.x);
+            float albedo_luma = dot(albedo, float3(0.299, 0.587, 0.114));
+            float lifted_luma = saturate(albedo_luma * (1.05 + strength * 0.35) + 0.10 * strength);
+            float3 multiplied = saturate(albedo * tint_bias);
+            float3 colorized = saturate(lifted_luma.xxx * tint_bias);
+            albedo = lerp(albedo, lerp(multiplied, colorized, 0.58), strength);
         }
     }
     albedo = saturate(albedo * preview_brightness);
+    albedo = max(albedo, float3(0.012, 0.012, 0.012));
     if (flags3.z > 0.5 && base_alpha < max(flags3.w, 0.001)) {
         discard;
     }
@@ -1891,7 +1983,8 @@ float4 ps_main(VSOut input) : SV_TARGET {
         return float4(lerp(float3(0.04, 0.05, 0.06), float3(0.78, 0.88, 1.0), checker), 1.0);
     }
     if (debug_mode > 0.5 && debug_mode < 1.5) {
-        return float4(linear_to_srgb(saturate(albedo)), 1.0);
+        float3 inspection_albedo = saturate(albedo * 1.18 + float3(0.018, 0.018, 0.018));
+        return float4(linear_to_srgb(inspection_albedo), 1.0);
     }
     if (debug_mode > 2.5 && debug_mode < 3.5) {
         return float4(base_alpha.xxx, 1.0);
@@ -1908,10 +2001,19 @@ float4 ps_main(VSOut input) : SV_TARGET {
             mask_sample = MASK_TEX.Sample(preview_sampler, uv); \
         } \
         float mask_value = select_mask_channel(mask_sample, layer_params[ID].x); \
-        float tint_chroma = max(layer_tint[ID].r, max(layer_tint[ID].g, layer_tint[ID].b)) - min(layer_tint[ID].r, min(layer_tint[ID].g, layer_tint[ID].b)); \
-        float tint_alpha = max(layer_tint[ID].a, tint_chroma > 0.075 ? 0.68 : layer_tint[ID].a); \
+        float tint_alpha = saturate(layer_tint[ID].a); \
         layer_alpha[ID] = saturate(mask_value * layer_params[ID].y * tint_alpha); \
-        float3 layer_color = DIFFUSE_TEX.Sample(preview_sampler, uv).rgb * layer_tint[ID].rgb; \
+        float3 layer_sample = DIFFUSE_TEX.Sample(preview_sampler, uv).rgb; \
+        float3 layer_tint_rgb = saturate(layer_tint[ID].rgb); \
+        float layer_tint_luma = max(dot(layer_tint_rgb, float3(0.299, 0.587, 0.114)), 0.08); \
+        float3 layer_tint_bias = clamp(layer_tint_rgb / layer_tint_luma, float3(0.32, 0.32, 0.32), float3(2.15, 2.15, 2.15)); \
+        float layer_luma = dot(layer_sample, float3(0.299, 0.587, 0.114)); \
+        float layer_lifted_luma = saturate(layer_luma * (1.08 + layer_params[ID].y * 0.24) + 0.06 * layer_params[ID].y); \
+        float3 layer_multiplied = saturate(layer_sample * layer_tint_bias); \
+        float3 layer_colorized = saturate(layer_lifted_luma.xxx * layer_tint_bias); \
+        float layer_chroma = max(layer_tint_rgb.r, max(layer_tint_rgb.g, layer_tint_rgb.b)) - min(layer_tint_rgb.r, min(layer_tint_rgb.g, layer_tint_rgb.b)); \
+        float layer_colorize_strength = saturate(0.18 + layer_chroma * 1.35); \
+        float3 layer_color = lerp(layer_multiplied, layer_colorized, layer_colorize_strength); \
         albedo = lerp(albedo, layer_color, layer_alpha[ID]); \
     }
     APPLY_ALBEDO_LAYER(0, layer0_diffuse_tex, layer0_mask_tex)
@@ -2017,9 +2119,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
         roughness_bias = -0.03;
     }
     float category_metal_cap = category_metal ? 1.0 : (known_nonmetal ? 0.0 : lerp(0.12, 0.32, category_confidence));
-    float category_specular_cap = category_metal ? 1.0 : (category_glass ? 0.72 : (category_gem ? 0.78 : (category_eye ? 0.66 : (category_leather ? 0.42 : (category_wood ? 0.24 : (category_cloth ? 0.20 : (category_skin ? 0.30 : (category_hair ? 0.45 : (category_stone ? 0.18 : (category_tooth ? 0.32 : 0.38))))))))));
-    float category_env_scale = category_metal ? 1.0 : (category_glass ? 0.52 : (category_gem ? 0.60 : (category_eye ? 0.46 : (category_leather ? 0.26 : (category_wood ? 0.14 : (category_cloth ? 0.12 : (category_skin ? 0.20 : (category_hair ? 0.28 : (category_stone ? 0.08 : (category_tooth ? 0.18 : 0.24))))))))));
-    float category_roughness_floor = category_metal ? 0.06 : (category_glass ? 0.10 : (category_gem ? 0.08 : (category_eye ? 0.12 : (category_leather ? 0.54 : (category_wood ? 0.62 : (category_cloth ? 0.68 : (category_skin ? 0.48 : (category_hair ? 0.36 : (category_stone ? 0.74 : (category_tooth ? 0.38 : 0.50))))))))));
+    float category_specular_cap = category_metal ? 1.0 : (category_glass ? 0.42 : (category_gem ? 0.48 : (category_eye ? 0.44 : (category_leather ? 0.24 : (category_wood ? 0.16 : (category_cloth ? 0.12 : (category_skin ? 0.16 : (category_hair ? 0.22 : (category_stone ? 0.10 : (category_tooth ? 0.18 : 0.18))))))))));
+    float category_env_scale = category_metal ? 0.82 : (category_glass ? 0.26 : (category_gem ? 0.30 : (category_eye ? 0.24 : (category_leather ? 0.10 : (category_wood ? 0.06 : (category_cloth ? 0.05 : (category_skin ? 0.05 : (category_hair ? 0.08 : (category_stone ? 0.04 : (category_tooth ? 0.08 : 0.08))))))))));
+    float category_roughness_floor = category_metal ? 0.16 : (category_glass ? 0.30 : (category_gem ? 0.26 : (category_eye ? 0.30 : (category_leather ? 0.64 : (category_wood ? 0.70 : (category_cloth ? 0.74 : (category_skin ? 0.68 : (category_hair ? 0.64 : (category_stone ? 0.82 : (category_tooth ? 0.58 : 0.66))))))))));
     metal_scale *= render_tuning3.z * category_metal_cap;
     specular_scale *= category_specular_cap;
     if (conservative_nonmetal) {
@@ -2029,13 +2131,13 @@ float4 ps_main(VSOut input) : SV_TARGET {
     specular = max(specular, render_tuning.z);
     if (flags.z > 0.5) {
         float4 m = material_tex.Sample(preview_sampler, uv);
-        ao = min(ao, max(0.35, m.r));
+        ao = min(ao, max(category_skin ? 0.72 : 0.58, m.r));
         roughness = saturate(m.g);
         metalness = max(metalness, saturate(m.b) * (category_metal ? 0.96 : 0.65) * metal_scale);
         specular = saturate(max(m.a, m.b * 0.55) * specular_scale);
     }
     if (flags2.x > 0.5) {
-        ao = min(ao, max(0.35, occlusion_tex.Sample(preview_sampler, uv).r));
+        ao = min(ao, max(category_skin ? 0.72 : 0.58, occlusion_tex.Sample(preview_sampler, uv).r));
     }
     if (flags2.y > 0.5) {
         roughness = saturate(roughness_tex.Sample(preview_sampler, uv).r);
@@ -2117,45 +2219,50 @@ float4 ps_main(VSOut input) : SV_TARGET {
     APPLY_HEIGHT_LAYER(2, layer2_height_tex)
     APPLY_HEIGHT_LAYER(3, layer3_height_tex)
 #undef APPLY_HEIGHT_LAYER
+    if (debug_mode > 7.5 && debug_mode < 8.5) {
+        return float4(saturate(metalness).xxx, 1.0);
+    }
+    if (debug_mode > 8.5 && debug_mode < 9.5) {
+        return float4(saturate(roughness).xxx, 1.0);
+    }
+    if (debug_mode > 9.5 && debug_mode < 10.5) {
+        return float4(saturate(specular), saturate(1.0 - roughness), saturate(metalness), 1.0);
+    }
 )";
 
 static const char kShaderSourcePixelLighting[] = R"(
     float3 l = normalize(light_dir.xyz);
-    float ndotl = saturate(dot(n, l));
     float3 view_dir = float3(0.0, 0.0, -1.0);
-    float3 h = normalize(l - view_dir);
+    if (flags5.w > 0.5 && dot(n, view_dir) < 0.0) {
+        n = -n;
+    }
+    float3 v = normalize(-view_dir);
+    float ndotl = saturate(dot(n, l));
+    float ndotv = max(0.045, saturate(abs(dot(n, v))));
+    float3 h = normalize(l + v);
+    float ndoth = saturate(dot(n, h));
+    float vdoth = saturate(dot(v, h));
+    roughness = clamp(roughness, 0.035, 0.98);
     float smoothness = saturate(1.0 - roughness);
-    float shine_power = lerp(render_tuning2.y, render_tuning2.x, roughness);
-    float fresnel = pow(1.0 - saturate(abs(dot(n, view_dir))), 5.0);
-    float metal_reflectance = saturate(metalness * (0.72 + smoothness * 1.24));
-    float nonmetal_sheen = saturate((specular - 0.35) * 1.55) * smoothness;
-    float highlight = pow(saturate(dot(n, h)), shine_power) * specular * (0.50 + metal_reflectance * 1.70);
-    float broad_highlight = pow(saturate(dot(n, h)), max(2.0, shine_power * 0.12)) * (metal_reflectance * 0.56 + nonmetal_sheen * 0.080);
-    float rim = pow(1.0 - saturate(abs(dot(n, view_dir))), 2.0) * (0.020 + metal_reflectance * 0.34 + nonmetal_sheen * 0.045);
-    float3 reflected_view = normalize(reflect(-view_dir, n));
-    float env_lobe = saturate((reflected_view.y * 0.55) + (reflected_view.z * -0.14) + 0.58);
-    float horizon_band = pow(saturate(1.0 - abs(reflected_view.y) * 1.12), 2.2);
-    float front_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.18, 0.36, -0.92)))), 10.0);
-    float top_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.32, 0.88, -0.34)))), 18.0);
-    float side_softbox = pow(saturate(dot(reflected_view, normalize(float3(0.82, 0.20, -0.54)))), 12.0);
-    float key_glint = pow(saturate(dot(reflected_view, normalize(float3(-0.42, 0.70, -0.58)))), 72.0);
-    float fill_glint = pow(saturate(dot(reflected_view, normalize(float3(0.64, 0.34, -0.68)))), 34.0);
-    float dark_band = pow(saturate(1.0 - abs(reflected_view.x * 1.8 + reflected_view.y * 0.35)), 3.2) * saturate(0.85 - reflected_view.z);
-    float3 env_color = lerp(float3(0.018, 0.023, 0.030), float3(0.38, 0.42, 0.48), env_lobe);
-    env_color = lerp(env_color, env_color * float3(0.18, 0.20, 0.23), dark_band * metal_reflectance);
-    env_color += horizon_band * float3(0.22, 0.25, 0.29);
-    env_color += front_softbox.xxx * float3(0.72, 0.79, 0.86);
-    env_color += top_softbox.xxx * float3(1.75, 1.68, 1.54);
-    env_color += side_softbox.xxx * float3(0.58, 0.67, 0.82);
-    env_color += key_glint.xxx * float3(4.2, 3.95, 3.45) + fill_glint.xxx * float3(0.72, 0.84, 1.02);
+    float3 dielectric_f0 = saturate(float3(0.04, 0.04, 0.04) * (0.55 + specular * 2.25));
+    float3 f0 = lerp(dielectric_f0, max(albedo, float3(0.02, 0.02, 0.02)), saturate(metalness));
+    float d = ggx_distribution(ndoth, roughness);
+    float g = geometry_smith(ndotv, ndotl, roughness);
+    float3 f = fresnel_schlick(vdoth, f0);
+    float3 specular_brdf = (d * g * f) / max(4.0 * ndotv * max(ndotl, 0.001), 0.001);
+    float3 kd = (1.0 - f) * (1.0 - metalness);
     float height_light = lerp(1.0 - material_params.y, 1.0 + material_params.y, height_value);
-    float3 diffuse = albedo * (render_tuning.x + ndotl * render_tuning.y) * ao * height_light * lerp(1.0, 0.035, metalness);
-    float3 metal_tint = lerp(float3(1.0, 1.0, 1.0), max(albedo, float3(0.22, 0.22, 0.22)), saturate(metal_reflectance * 0.86));
-    float3 specular_color = lerp(highlight.xxx * 0.45, highlight.xxx * metal_tint, metal_reflectance);
-    float reflection_strength = fresnel * (0.045 + metal_reflectance * 1.08) + smoothness * (0.030 + metal_reflectance * 1.10 + nonmetal_sheen * 0.040);
-    float3 env_reflection = env_color * reflection_strength * render_tuning3.w * category_env_scale;
-    env_reflection = lerp(env_reflection * 0.62, env_reflection * metal_tint, metal_reflectance);
-    float3 color = diffuse + specular_color + env_reflection + broad_highlight.xxx + rim.xxx;
+    float3 diffuse_brdf = kd * albedo * (1.0 / 3.14159265);
+    float3 key_light = float3(1.0, 0.94, 0.86) * max(render_tuning.y, 0.05) * 3.6;
+    float3 direct = (diffuse_brdf + specular_brdf) * key_light * ndotl * ao * height_light;
+    float3 ambient_diffuse = albedo * max(render_tuning.x, 0.58) * ao * (1.0 - metalness) * lerp(0.92, 0.62, smoothness);
+    float3 reflected_view = normalize(reflect(-v, n));
+    float3 env_color = preview_environment_color(reflected_view, roughness);
+    float3 env_fresnel = fresnel_schlick(ndotv, f0);
+    float env_roughness_scale = lerp(0.62, 0.06, roughness);
+    float3 env_reflection = env_color * env_fresnel * env_roughness_scale * render_tuning3.w * category_env_scale;
+    float rim = pow(1.0 - ndotv, 2.4) * (0.015 + smoothness * (0.035 + metalness * 0.24));
+    float3 color = direct + ambient_diffuse + env_reflection + rim.xxx;
     if (emissive_params.a > 0.001) {
         float encoded_emissive = emissive_params.a;
         bool has_emissive_tex = encoded_emissive > 1.5;
@@ -2172,7 +2279,13 @@ static const char kShaderSourcePixelLighting[] = R"(
         color += emissive_color * (emissive_strength * 0.85 + rim_boost * emissive_strength * 0.55);
     }
     color = lerp(color, editor_tint.rgb, saturate(editor_tint.a));
-    return float4(linear_to_srgb(color), 1.0);
+    float tone_exposure = max(render_tuning4.y, 0.05);
+    float tone_contrast = max(render_tuning4.z, 0.10);
+    float tone_gamma = max(render_tuning4.w, 0.20);
+    float3 mapped = aces_tonemap(color * tone_exposure);
+    mapped = saturate((mapped - 0.5) * tone_contrast + 0.5);
+    mapped = pow(mapped, float3(tone_gamma, tone_gamma, tone_gamma));
+    return float4(linear_to_srgb(mapped), 1.0);
 }
 )";
 
@@ -3456,9 +3569,9 @@ private:
             ? DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f)
             : DirectX::XMFLOAT4(
                 render_tuning_.emissive_gain,
-                0.0f,
-                0.0f,
-                0.0f);
+                render_tuning_.tone_exposure,
+                render_tuning_.tone_contrast,
+                render_tuning_.tone_gamma);
         constants.editor_tint = mesh_edit_flat ? DirectX::XMFLOAT4(0.50f, 0.51f, 0.50f, 0.42f) : editor_tint;
         constants.flags4 = DirectX::XMFLOAT4(
             mesh_edit_flat ? 0.0f : batch.base_tint_strength,
@@ -3466,12 +3579,12 @@ private:
             static_cast<float>(std::max(0, batch.source_submesh_index + 1)),
             mesh_edit_flat ? 0.0f : batch.material_family_code);
         constants.flags5 = mesh_edit_flat
-            ? DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f)
+            ? DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, batch.two_sided ? 1.0f : 0.0f)
             : DirectX::XMFLOAT4(
                 batch.material_category_code,
                 batch.material_category_confidence,
                 batch.material_response_promoted ? 1.0f : 0.0f,
-                batch.low_authority_base_overlay ? 1.0f : 0.0f);
+                batch.two_sided ? 1.0f : 0.0f);
         const float emissive_encoded = mesh_edit_flat ? 0.0f : ((batch.emissive_srv ? 2.0f : 0.0f) + std::clamp(batch.emissive_intensity / 12.0f, 0.0f, 1.0f));
         constants.emissive_params = DirectX::XMFLOAT4(
             mesh_edit_flat ? 0.0f : std::clamp(batch.emissive_color[0], 0.0f, 2.0f),
@@ -3488,8 +3601,9 @@ private:
         if (!mesh_edit_flat) {
             for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
                 const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
+                const bool draw_albedo_layer = lower_copy(layer.role) != "base";
                 constants.layer_flags[layer_index] = DirectX::XMFLOAT4(
-                    layer.diffuse_srv ? 1.0f : 0.0f,
+                    (draw_albedo_layer && layer.diffuse_srv) ? 1.0f : 0.0f,
                     layer.mask_srv ? 1.0f : 0.0f,
                     layer.material_srv ? 1.0f : 0.0f,
                     layer.normal_srv ? 1.0f : 0.0f);
@@ -3563,6 +3677,10 @@ private:
             && batch.source_submesh_index >= 0
             && mesh_edit_source_allowed(batch.source_submesh_index)
             && !batch.cpu_positions.empty();
+    }
+
+    static bool mesh_edit_preserve_materials_for_batch(const PreviewBatch& batch) {
+        return batch.cpu_positions.size() / 3u > kDenseMeshEditMaterialPreserveTriangles;
     }
 
     std::pair<int, int> mesh_edit_source_key(const PreviewBatch& batch, size_t vertex_index) const {
@@ -4030,6 +4148,7 @@ private:
         for (const PreviewBatch& batch : batches_) {
             if (!mesh_edit_batch_editable_in_view(batch, view)) continue;
             const size_t triangle_count = batch.cpu_positions.size() / 3u;
+            const bool dense_topology_overlay = mesh_edit_preserve_materials_for_batch(batch);
             const size_t triangle_stride = std::max<size_t>(1u, triangle_count / std::max<size_t>(1u, kMaxMeshEditOverlayTriangles));
             for (size_t triangle_index = 0; triangle_index < triangle_count; triangle_index += triangle_stride) {
                 if (overlay_triangle_count++ >= kMaxMeshEditOverlayTriangles) break;
@@ -4075,7 +4194,7 @@ private:
                     add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 2.4f, 1.0f, 0.48f, 0.12f);
                     add_thick_line_depth(p[1], depth_z[1], p[2], depth_z[2], 2.4f, 1.0f, 0.48f, 0.12f);
                     add_thick_line_depth(p[2], depth_z[2], p[0], depth_z[0], 2.4f, 1.0f, 0.48f, 0.12f);
-                } else {
+                } else if (!dense_topology_overlay) {
                     add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 1.35f, 0.015f, 0.018f, 0.020f);
                     add_thick_line_depth(p[1], depth_z[1], p[2], depth_z[2], 1.35f, 0.015f, 0.018f, 0.020f);
                     add_thick_line_depth(p[2], depth_z[2], p[0], depth_z[0], 1.35f, 0.015f, 0.018f, 0.020f);
@@ -4102,6 +4221,7 @@ private:
         context_->OMSetDepthStencilState(view.no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
         for (PreviewBatch& batch : batches_) {
             if (!batch_visible_in_view(batch, view.role)) continue;
+            context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : (render_tuning_.cull_back_faces && !batch.two_sided && cull_rasterizer_ ? cull_rasterizer_.Get() : rasterizer_.Get()));
             const bool reference = batch_is_reference(batch);
             DirectX::XMFLOAT4 tint(
                 1.0f,
@@ -4118,8 +4238,8 @@ private:
             const DirectX::XMMATRIX alignment_transform =
                 view.role == PreviewViewRole::Reference ? DirectX::XMMatrixIdentity() : alignment_preview_transform_for_batch(batch);
             const DirectX::XMMATRIX batch_world = alignment_transform * camera_world;
-            const bool mesh_edit_flat =
-                mesh_edit_batch_editable_in_view(batch, view);
+            const bool mesh_edit_active = mesh_edit_batch_editable_in_view(batch, view);
+            const bool mesh_edit_flat = mesh_edit_active && !mesh_edit_preserve_materials_for_batch(batch);
             draw_preview_batch(batch, batch_world * view_projection, batch_world, tint, mesh_edit_flat);
         }
         draw_cloth_debug_overlays(view, world_view_projection);
@@ -6266,8 +6386,13 @@ private:
         auto geometry_start = std::chrono::steady_clock::now();
         bool uploaded_any_geometry = false;
         for (PreviewBatch& batch : batches) {
-            std::vector<uint8_t> data = read_binary(batch.vertex_file);
             const size_t expected = static_cast<size_t>(batch.vertex_count) * kVertexStrideBytes;
+            const std::uint64_t vertex_read_size = batch.vertex_size > 0
+                ? batch.vertex_size
+                : static_cast<std::uint64_t>(expected);
+            std::vector<uint8_t> data = (batch.vertex_offset > 0 || batch.vertex_size > 0)
+                ? read_binary_range(batch.vertex_file, batch.vertex_offset, vertex_read_size)
+                : read_binary(batch.vertex_file);
             if (data.size() < expected || expected == 0) {
                 stats.skipped.push_back("geometry missing/truncated:" + wide_to_utf8(batch.vertex_file));
                 continue;
@@ -6282,7 +6407,15 @@ private:
                 const float* values = reinterpret_cast<const float*>(data.data() + static_cast<size_t>(vertex_index) * kVertexStrideBytes);
                 batch.cpu_positions.push_back(DirectX::XMFLOAT3(values[0], values[1], values[2]));
             }
-            std::vector<uint8_t> identity_data = batch.identity_file.empty() ? std::vector<uint8_t>() : read_binary(batch.identity_file);
+            const std::uint64_t expected_identity = static_cast<std::uint64_t>(batch.vertex_count) * sizeof(int32_t) * 2u;
+            std::vector<uint8_t> identity_data = batch.identity_file.empty()
+                ? std::vector<uint8_t>()
+                : ((batch.identity_offset > 0 || batch.identity_size > 0)
+                    ? read_binary_range(
+                        batch.identity_file,
+                        batch.identity_offset,
+                        batch.identity_size > 0 ? batch.identity_size : expected_identity)
+                    : read_binary(batch.identity_file));
             if (identity_data.size() >= static_cast<size_t>(batch.vertex_count) * sizeof(int32_t) * 2u) {
                 batch.cpu_source_submeshes.reserve(static_cast<size_t>(batch.vertex_count));
                 batch.cpu_source_vertices.reserve(static_cast<size_t>(batch.vertex_count));

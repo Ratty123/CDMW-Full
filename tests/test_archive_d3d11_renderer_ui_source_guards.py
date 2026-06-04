@@ -33,7 +33,9 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
         package_source = Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8")
 
-        self.assertIn("from cdmw.rendering.model_preview_prepare import prepare_model_preview", source)
+        import_start = source.index("from cdmw.rendering.model_preview_prepare import")
+        import_end = source.index(")", import_start)
+        self.assertIn("prepare_model_preview", source[import_start:import_end])
         self.assertIn("prepare_model_preview(", source)
         self.assertNotIn("NativePreviewPanel.prepare_model_preview", source)
         self.assertIn("prepared_preview_model=prepared_preview_model", source)

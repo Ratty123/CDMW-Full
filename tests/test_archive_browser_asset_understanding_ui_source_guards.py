@@ -405,7 +405,9 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_scan_progress_bar.setRange(0, 100)", source)
         self.assertIn("self.archive_scan_progress_bar.setFormat(f\"{percent_value}%\")", source)
         self.assertIn("self.archive_scan_progress_label.setText(phase_text)", source)
+        self.assertIn("self._dashboard_set_archive_progress(phase_text, detail_text, percent_value)", source)
         self.assertIn('self.archive_scan_progress_label = QLabel("Ready")', source)
+        self.assertIn("self.dashboard_archive_progress_detail_label = QLabel(\"No archive cache build is running.\")", source)
         self.assertLess(
             source.index("archive_status_group_layout.addWidget(self.archive_scan_progress_bar)"),
             source.index("archive_status_group_layout.addWidget(self.archive_scan_progress_label)"),
@@ -414,6 +416,10 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("phase_percent = int(round(100.0 * completed_value / max(total, 1)))", source)
         self.assertIn("detail_with_progress = f\"{progress_detail} ({phase_percent}%)\"", source)
         self.assertIn("self._set_archive_load_progress(progress_detail, completed_value, total, percent=percent)", source)
+        self.assertIn("new_work_after_ready = (", source)
+        self.assertIn("previous >= 100", source)
+        self.assertIn('phase_text not in {"Ready", "Failed"}', source)
+        self.assertIn("if not allow_decrease and not new_work_after_ready:", source)
         self.assertIn("def _archive_virtual_fetch_batch_size(self) -> int:", source)
         self.assertNotIn("self.archive_tree_population_time_budget_ms = 6.0", source)
         self.assertNotIn("self.archive_tree_population_timer.setInterval(12)", source)
@@ -454,7 +460,10 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("load_name_search_index_cache: bool = False", scan_body)
         self.assertIn("load_name_search_index=self.load_name_search_index_cache", run_body)
         self.assertIn("Item-name search cache will load on demand after the archive list opens.", run_body)
-        self.assertNotIn("self._build_enhanced_archive_indexes_inline(entries)", run_body)
+        self.assertIn("build_enhanced_indexes_before_ready = bool(", run_body)
+        self.assertIn("or source != \"cache\"", run_body)
+        self.assertIn("self._build_enhanced_archive_indexes_inline(entries)", run_body)
+        self.assertIn("Preparing archive search cache as part of archive cache build.", run_body)
         self.assertIn("basic_indexes_needed_before_ready", run_body)
         self.assertIn("Path lookup cache is deferred until filters", run_body)
         self.assertIn("load_or_update_archive_basic_index_shards(", run_body)
@@ -465,11 +474,11 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         enhanced_start = source.index("class ArchiveEnhancedIndexWorker")
         enhanced_end = source.index("class ArchiveFilterWorker", enhanced_start)
         enhanced_body = source[enhanced_start:enhanced_end]
-        self.assertIn("Building path/name search shard cache in background...", enhanced_body)
+        self.assertIn("Preparing archive search cache (2/3): path/name index...", enhanced_body)
         self.assertIn("load_or_update_archive_name_search_shards(", enhanced_body)
         archive_source = Path("cdmw/core/archive.py").read_text(encoding="utf-8")
         self.assertIn("def load_or_update_archive_name_search_shards", archive_source)
-        self.assertIn("Building archive name-search shard", archive_source)
+        self.assertIn("Preparing archive search cache (2/3): path/name index", archive_source)
 
     def test_placement_workspace_and_loose_overlay_review_are_present(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")

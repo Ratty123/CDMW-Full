@@ -557,6 +557,9 @@ class CrashReportingGuardTests(unittest.TestCase):
         startup_dialog_start = source.index("class StartupArchivePathDialog(QDialog):")
         startup_dialog_body = source[startup_dialog_start : source.index("class ThemeChangeBusyOverlay", startup_dialog_start)]
         self.assertIn("self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint", startup_dialog_body)
+        self.assertIn("self.setMinimumWidth(520)", startup_dialog_body)
+        self.assertIn("root_layout.setContentsMargins(14, 14, 14, 14)", startup_dialog_body)
+        self.assertNotIn("self.setMinimumHeight(360)", startup_dialog_body)
         self.assertIn("QTimer.singleShot(80, self._run_initial_autodetect)", startup_dialog_body)
         self.assertIn("autodetect_archive_package_roots(on_log=logs.append)", startup_dialog_body)
         self.assertIn("looks_like_archive_package_root(Path(path_text).expanduser())", startup_dialog_body)
@@ -566,12 +569,24 @@ class CrashReportingGuardTests(unittest.TestCase):
         prompt_start = source.index("        def _show_startup_archive_path_prompt_if_needed(")
         prompt_body = source[prompt_start : source.index("        def _add_path_row(", prompt_start)]
         self.assertIn("StartupArchivePathDialog(", prompt_body)
+        self.assertIn("self._startup_archive_path_prompt_open = True", prompt_body)
+        self.assertIn("self._startup_archive_path_prompt_open = False", prompt_body)
         self.assertIn("self.show_quick_start_on_launch = False", prompt_body)
         self.assertIn('self.settings.setValue("archive/package_root", selected_path)', prompt_body)
         self.assertIn('os.environ["CDMW_DEFER_TEXTURE_PREVIEW"] = "1"', prompt_body)
         self.assertIn("startup_path_prompt_accepted", prompt_body)
         self.assertIn("Building archive cache. First load can take a while; let it finish.", prompt_body)
+        autoload_start = source.index("        def _maybe_autoload_archive_on_startup(self) -> None:")
+        autoload_body = source[autoload_start : source.index("        def _load_game_executable_fingerprints", autoload_start)]
+        self.assertIn('if bool(getattr(self, "_startup_archive_path_prompt_open", False)):', autoload_body)
+        self.assertIn("QTimer.singleShot(250, self._maybe_autoload_archive_on_startup)", autoload_body)
+        self.assertIn("health_report = self._check_archive_cache_health(package_root_text)", autoload_body)
+        self.assertIn("self._warn_if_archive_cache_stale(health_report, package_root_text)", autoload_body)
+        self.assertIn("Keep CDMW open until the Dashboard progress reaches ready.", autoload_body)
+        self.assertIn("self.scan_archives(\n                force_refresh=", autoload_body)
+        self.assertIn("if bool(getattr(self, \"_startup_archive_path_prompt_accepted\", False)):\n                self._release_startup_splash()", autoload_body)
         self.assertIn("window._show_startup_archive_path_prompt_if_needed(startup_splash)", source)
+        self.assertIn("QTimer.singleShot(0, window._maybe_autoload_archive_on_startup)", source)
         self.assertLess(
             source.index("window._show_startup_archive_path_prompt_if_needed(startup_splash)"),
             source.index("        if window._startup_archive_autoload_expected():"),

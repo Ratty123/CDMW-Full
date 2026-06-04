@@ -1384,6 +1384,7 @@ class PreparedModelPreviewData:
     normalization_scale: float = 1.0
     batches: Tuple[PreparedModelPreviewBatch, ...] = ()
     cloth_preview: Optional[ClothPreviewData] = None
+    load_trace: Dict[str, float] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -1428,6 +1429,9 @@ MODEL_PREVIEW_RENDER_LIMITS: Dict[str, Tuple[float, float]] = {
     "d3d11_metalness_scale": (0.0, 2.0),
     "d3d11_environment_strength": (0.0, 2.0),
     "d3d11_emissive_gain": (0.0, 4.0),
+    "d3d11_tone_exposure": (0.25, 2.0),
+    "d3d11_tone_contrast": (0.50, 1.75),
+    "d3d11_tone_gamma": (0.50, 2.20),
     "orbit_sensitivity": (0.05, 1.0),
     "pan_sensitivity": (0.05, 3.0),
     "normal_strength_cap": (0.0, 1.0),
@@ -1472,10 +1476,15 @@ MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES: Tuple[str, ...] = (
     "normal",
     "uv",
     "cpu_average",
+    "albedo_base_only",
     "base_direct",
     "base_no_tint",
     "base_alpha",
+    "masked_layer_contribution",
     "normal_raw",
+    "metalness",
+    "roughness",
+    "specular_gloss",
     "material_raw",
     "height_raw",
     "height_calibrated",
@@ -1488,6 +1497,7 @@ MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES: Tuple[str, ...] = (
     "material_response",
     "metal_shine",
     "roughness_response",
+    "final_lit",
     "source_pbr_preview",
     "cd_runtime_approx",
 )
@@ -1506,10 +1516,15 @@ MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS: Dict[str, str] = {
     "normal": "Geometry Normal",
     "uv": "UV",
     "cpu_average": "CPU Average Color",
+    "albedo_base_only": "Albedo Base Only",
     "base_direct": "Base Texture Raw",
     "base_no_tint": "Base Texture No Tint",
     "base_alpha": "Base Alpha",
+    "masked_layer_contribution": "Masked Layer Contribution",
     "normal_raw": "Normal Texture Raw",
+    "metalness": "Metalness",
+    "roughness": "Roughness",
+    "specular_gloss": "Specular / Gloss",
     "material_raw": "Material Raw",
     "height_raw": "Height Raw",
     "height_calibrated": "Height Calibrated",
@@ -1522,6 +1537,7 @@ MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS: Dict[str, str] = {
     "material_response": "Material Mask Response",
     "metal_shine": "Metal / Shine Response",
     "roughness_response": "Roughness Response",
+    "final_lit": "Final Lit",
     "source_pbr_preview": "Source PBR Preview",
     "cd_runtime_approx": "CD Runtime Approx Preview",
 }
@@ -1594,6 +1610,7 @@ MODEL_PREVIEW_DIFFUSE_SWIZZLE_LABELS: Dict[str, str] = {
 
 D3D11_PREVIEW_VIEW_MODES: Tuple[str, ...] = (
     "lit",
+    "game_outdoor",
     "base_direct",
     "uv_checker",
     "base_alpha",
@@ -1605,6 +1622,7 @@ D3D11_PREVIEW_VIEW_MODES: Tuple[str, ...] = (
 
 D3D11_PREVIEW_VIEW_MODE_LABELS: Dict[str, str] = {
     "lit": "Lit",
+    "game_outdoor": "Game Outdoor Approx",
     "base_direct": "Base Texture",
     "uv_checker": "UV Checker",
     "base_alpha": "Alpha",
@@ -1678,11 +1696,14 @@ class ModelPreviewRenderSettings:
     d3d11_light_azimuth_degrees: float = -52.0
     d3d11_light_elevation_degrees: float = 27.0
     d3d11_normal_y_mode: str = "asset"
-    d3d11_ao_strength: float = 1.0
-    d3d11_roughness_bias: float = 0.0
-    d3d11_metalness_scale: float = 1.0
-    d3d11_environment_strength: float = 1.0
+    d3d11_ao_strength: float = 0.65
+    d3d11_roughness_bias: float = 0.10
+    d3d11_metalness_scale: float = 0.75
+    d3d11_environment_strength: float = 0.45
     d3d11_emissive_gain: float = 1.0
+    d3d11_tone_exposure: float = 1.0
+    d3d11_tone_contrast: float = 1.0
+    d3d11_tone_gamma: float = 1.0
     d3d11_texture_address_mode: str = "wrap"
     ambient_strength: float = 0.55
     diffuse_wrap_bias: float = 0.60
@@ -1700,7 +1721,7 @@ class ModelPreviewRenderSettings:
     cavity_clamp_max: float = 1.25
     specular_base: float = 0.050
     specular_min: float = 0.050
-    specular_max: float = 0.18
+    specular_max: float = 0.14
     shininess_base: float = 36.0
     shininess_min: float = 28.0
     shininess_max: float = 72.0

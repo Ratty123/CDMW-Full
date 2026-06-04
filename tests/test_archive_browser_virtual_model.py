@@ -289,7 +289,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("self._schedule_archive_pending_enhanced_filter_refresh(150)", enhanced_body)
         self.assertIn("self._try_apply_startup_saved_filters()", enhanced_body)
 
-    def test_scan_worker_defers_missing_indexes_until_after_ready(self) -> None:
+    def test_scan_worker_builds_missing_rebuild_indexes_before_ready(self) -> None:
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
         scan_start = source.index("    class ArchiveScanWorker")
         scan_end = source.index("    class ArchiveDerivedIndexCacheWriteWorker", scan_start)
@@ -297,7 +297,10 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         run_start = scan_body.index("        @Slot()\n        def run")
         run_body = scan_body[run_start:]
         self.assertIn("Item-name search cache is missing or stale; archive list will open and search will build on demand.", run_body)
-        self.assertNotIn("self._build_enhanced_archive_indexes_inline(entries)", run_body)
+        self.assertIn("build_enhanced_indexes_before_ready = bool(", run_body)
+        self.assertIn("or source != \"cache\"", run_body)
+        self.assertIn("self._build_enhanced_archive_indexes_inline(entries)", run_body)
+        self.assertIn("Preparing archive search cache as part of archive cache build.", run_body)
         self.assertIn("Path lookup cache is deferred until filters", run_body)
         self.assertIn("load_or_update_archive_basic_index_shards(", run_body)
         self.assertIn("save_archive_basic_index_cache(", run_body)

@@ -4,12 +4,19 @@ from array import array
 from dataclasses import dataclass, fields as dataclass_fields
 import hashlib
 import math
+import os
 from pathlib import Path
 import tempfile
+import time
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QMatrix4x4, QVector3D
+
+try:  # pragma: no cover - exercised through behavior tests when numpy is installed.
+    import numpy as np
+except Exception:  # pragma: no cover
+    np = None  # type: ignore[assignment]
 
 from cdmw.core.dds_native import dds_source_path_from_report
 from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
@@ -34,6 +41,43 @@ PALETTE = (
     (198 / 255.0, 176 / 255.0, 92 / 255.0),
     (147 / 255.0, 112 / 255.0, 166 / 255.0),
 )
+MESH_EDITOR_LOAD_TRACE_ENV = "CDMW_MESH_EDITOR_LOAD_TRACE"
+
+
+def mesh_editor_load_trace_enabled() -> bool:
+    return str(os.environ.get(MESH_EDITOR_LOAD_TRACE_ENV, "") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def trace_elapsed_ms(started: float) -> float:
+    return max(0.0, (time.perf_counter() - float(started)) * 1000.0)
+
+
+@dataclass(frozen=True, slots=True)
+class MeshPreviewDirtyFlags:
+    geometry: bool = False
+    topology: bool = False
+    uv: bool = False
+    material: bool = False
+    render_settings: bool = False
+    selection: bool = False
+
+    def affects_geometry(self) -> bool:
+        return bool(self.geometry or self.topology or self.uv)
+
+    def affects_material(self) -> bool:
+        return bool(self.material or self.render_settings)
+
+
+@dataclass(frozen=True, slots=True)
+class MeshPreviewCacheSignature:
+    geometry_key: str = ""
+    material_key: str = ""
+    display_class: str = ""
+
+    @property
+    def package_key(self) -> str:
+        encoded = repr((self.geometry_key, self.material_key, self.display_class)).encode("utf-8", errors="replace")
+        return hashlib.sha1(encoded).hexdigest()
 
 
 @dataclass(slots=True)
@@ -445,16 +489,30 @@ def _build_tangent_frames(
             by = (nz * tx) - (nx * tz)
             bz = (nx * ty) - (ny * tx)
             bitangent_valid[vertex_index] = False
-        bitangent_length = (bx * bx + by * by + bz * bz) ** 0.5
-        if bitangent_length <= 1e-6 or not math.isfinite(bitangent_length):
+        raw_bitangent_length = (bx * bx + by * by + bz * bz) ** 0.5
+        if raw_bitangent_length <= 1e-6 or not math.isfinite(raw_bitangent_length):
             tangent, bitangent = _orthogonal_tangent_frame(normals[vertex_index])
             tangents.append(tangent)
             bitangents.append(bitangent)
             bitangent_valid[vertex_index] = False
             continue
-        bx /= bitangent_length
-        by /= bitangent_length
-        bz /= bitangent_length
+        cross_bx = (ny * tz) - (nz * ty)
+        cross_by = (nz * tx) - (nx * tz)
+        cross_bz = (nx * ty) - (ny * tx)
+        cross_length = (cross_bx * cross_bx + cross_by * cross_by + cross_bz * cross_bz) ** 0.5
+        if cross_length <= 1e-6 or not math.isfinite(cross_length):
+            tangent, bitangent = _orthogonal_tangent_frame(normals[vertex_index])
+            tangents.append(tangent)
+            bitangents.append(bitangent)
+            bitangent_valid[vertex_index] = False
+            continue
+        cross_bx /= cross_length
+        cross_by /= cross_length
+        cross_bz /= cross_length
+        handedness = -1.0 if ((cross_bx * bx) + (cross_by * by) + (cross_bz * bz)) < 0.0 else 1.0
+        bx = cross_bx * handedness
+        by = cross_by * handedness
+        bz = cross_bz * handedness
         tangents.append((tx, ty, tz))
         bitangents.append((bx, by, bz))
     return tangents, bitangents, tangent_valid, bitangent_valid
@@ -550,11 +608,123 @@ def _material_decode_mode_for_semantics(kind: str, subtype: str, channels: Seque
     return 0
 
 
-def build_vertex_blob(model: object, *, flip_texture_v: bool = False) -> Tuple[bytes, int, List[ModelPreviewDrawBatch]]:
+def _valid_triangle_indices(indices: Sequence[int], vertex_count: int) -> List[int]:
+    valid: List[int] = []
+    for triangle_index in range(0, len(indices) - 2, 3):
+        a = int(indices[triangle_index])
+        b = int(indices[triangle_index + 1])
+        c = int(indices[triangle_index + 2])
+        if a < 0 or b < 0 or c < 0 or a >= vertex_count or b >= vertex_count or c >= vertex_count:
+            continue
+        valid.extend((a, b, c))
+    return valid
+
+
+def _pack_mesh_vertex_blob_python_reference(
+    positions: Sequence[Tuple[float, float, float]],
+    normals: Sequence[Tuple[float, float, float]],
+    color: Tuple[float, float, float],
+    texture_coordinates: Sequence[Tuple[float, float]],
+    has_texture_coordinates: bool,
+    tangents: Sequence[Tuple[float, float, float]],
+    bitangents: Sequence[Tuple[float, float, float]],
+    smoothed_normals: Sequence[Tuple[float, float, float]],
+    indices: Sequence[int],
+) -> Tuple[bytes, int]:
+    vertex_data = array("f")
+    packed_count = 0
+    for vertex_index in _valid_triangle_indices(indices, len(positions)):
+        px, py, pz = positions[vertex_index]
+        nx, ny, nz = normals[vertex_index]
+        tu, tv = texture_coordinates[vertex_index] if has_texture_coordinates else (0.0, 0.0)
+        tx, ty, tz = tangents[vertex_index] if vertex_index < len(tangents) else (1.0, 0.0, 0.0)
+        bx, by, bz = bitangents[vertex_index] if vertex_index < len(bitangents) else (0.0, 1.0, 0.0)
+        sx, sy, sz = smoothed_normals[vertex_index] if vertex_index < len(smoothed_normals) else (nx, ny, nz)
+        if packed_count % 3 == 0:
+            barycentric = (1.0, 0.0, 0.0)
+        elif packed_count % 3 == 1:
+            barycentric = (0.0, 1.0, 0.0)
+        else:
+            barycentric = (0.0, 0.0, 1.0)
+        ba, bb, bc = barycentric
+        vertex_data.extend((px, py, pz, nx, ny, nz, color[0], color[1], color[2], tu, tv, tx, ty, tz, bx, by, bz, sx, sy, sz, ba, bb, bc))
+        packed_count += 1
+    return vertex_data.tobytes(), packed_count
+
+
+def _pack_mesh_vertex_blob(
+    positions: Sequence[Tuple[float, float, float]],
+    normals: Sequence[Tuple[float, float, float]],
+    color: Tuple[float, float, float],
+    texture_coordinates: Sequence[Tuple[float, float]],
+    has_texture_coordinates: bool,
+    tangents: Sequence[Tuple[float, float, float]],
+    bitangents: Sequence[Tuple[float, float, float]],
+    smoothed_normals: Sequence[Tuple[float, float, float]],
+    indices: Sequence[int],
+    *,
+    use_numpy: bool,
+) -> Tuple[bytes, int]:
+    flat_indices = _valid_triangle_indices(indices, len(positions))
+    if not flat_indices:
+        return b"", 0
+    if not use_numpy or np is None:
+        return _pack_mesh_vertex_blob_python_reference(
+            positions,
+            normals,
+            color,
+            texture_coordinates,
+            has_texture_coordinates,
+            tangents,
+            bitangents,
+            smoothed_normals,
+            indices,
+        )
+    try:
+        dtype = np.dtype("<f4")
+        selected = np.asarray(flat_indices, dtype=np.int64)
+        packed_count = int(selected.size)
+        positions_array = np.asarray(positions, dtype=dtype)[selected]
+        normals_array = np.asarray(normals, dtype=dtype)[selected]
+        if has_texture_coordinates:
+            uv_array = np.asarray(texture_coordinates, dtype=dtype)[selected]
+        else:
+            uv_array = np.zeros((packed_count, 2), dtype=dtype)
+        tangents_array = np.asarray(tangents, dtype=dtype)[selected]
+        bitangents_array = np.asarray(bitangents, dtype=dtype)[selected]
+        smoothed_array = np.asarray(smoothed_normals, dtype=dtype)[selected]
+        output = np.empty((packed_count, 23), dtype=dtype)
+        output[:, 0:3] = positions_array
+        output[:, 3:6] = normals_array
+        output[:, 6:9] = np.asarray(color, dtype=dtype)
+        output[:, 9:11] = uv_array
+        output[:, 11:14] = tangents_array
+        output[:, 14:17] = bitangents_array
+        output[:, 17:20] = smoothed_array
+        output[:, 20:23] = np.tile(
+            np.asarray(((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)), dtype=dtype),
+            (packed_count // 3, 1),
+        )
+        return output.tobytes(), packed_count
+    except Exception:
+        return _pack_mesh_vertex_blob_python_reference(
+            positions,
+            normals,
+            color,
+            texture_coordinates,
+            has_texture_coordinates,
+            tangents,
+            bitangents,
+            smoothed_normals,
+            indices,
+        )
+
+
+def _build_vertex_blob_impl(model: object, *, flip_texture_v: bool = False, use_numpy: bool = True) -> Tuple[bytes, int, List[ModelPreviewDrawBatch]]:
     meshes = getattr(model, "meshes", None)
     if not meshes:
         return b"", 0, []
-    vertex_data = array("f")
+    vertex_chunks: List[bytes] = []
     vertex_count = 0
     batches: List[ModelPreviewDrawBatch] = []
     for mesh_index, mesh in enumerate(meshes):
@@ -616,25 +786,22 @@ def build_vertex_blob(model: object, *, flip_texture_v: bool = False) -> Tuple[b
             texture_wrap_repeat = min(us) < -0.05 or max(us) > 1.05 or min(vs) < -0.05 or max(vs) > 1.05
         color = _sanitize_color3(tuple(getattr(mesh, "preview_color", ()) or ()), fallback=PALETTE[mesh_index % len(PALETTE)])
         batch_first_vertex = vertex_count
-        for triangle_index in range(0, len(indices) - 2, 3):
-            a = indices[triangle_index]
-            b = indices[triangle_index + 1]
-            c = indices[triangle_index + 2]
-            if a < 0 or b < 0 or c < 0 or a >= len(positions) or b >= len(positions) or c >= len(positions):
-                continue
-            for vertex_index, barycentric in ((a, (1.0, 0.0, 0.0)), (b, (0.0, 1.0, 0.0)), (c, (0.0, 0.0, 1.0))):
-                px, py, pz = positions[vertex_index]
-                nx, ny, nz = normals[vertex_index]
-                tu, tv = texture_coordinates[vertex_index] if has_texture_coordinates else (0.0, 0.0)
-                tx, ty, tz = tangents[vertex_index] if vertex_index < len(tangents) else (1.0, 0.0, 0.0)
-                bx, by, bz = bitangents[vertex_index] if vertex_index < len(bitangents) else (0.0, 1.0, 0.0)
-                sx, sy, sz = smoothed_normals[vertex_index] if vertex_index < len(smoothed_normals) else (nx, ny, nz)
-                ba, bb, bc = barycentric
-                vertex_data.extend((px, py, pz, nx, ny, nz, color[0], color[1], color[2], tu, tv, tx, ty, tz, bx, by, bz, sx, sy, sz, ba, bb, bc))
-            vertex_count += 3
-        batch_vertex_count = vertex_count - batch_first_vertex
+        vertex_blob, batch_vertex_count = _pack_mesh_vertex_blob(
+            positions,
+            normals,
+            color,
+            texture_coordinates,
+            has_texture_coordinates,
+            tangents,
+            bitangents,
+            smoothed_normals,
+            indices,
+            use_numpy=bool(use_numpy),
+        )
         if batch_vertex_count <= 0:
             continue
+        vertex_chunks.append(vertex_blob)
+        vertex_count += batch_vertex_count
         texture_key = str(getattr(mesh, "preview_texture_path", "") or "").strip()
         if not texture_key and getattr(mesh, "preview_texture_image", None) is not None:
             texture_key = f"in_memory:{mesh_index}"
@@ -709,7 +876,15 @@ def build_vertex_blob(model: object, *, flip_texture_v: bool = False) -> Tuple[b
                 position_y_max=position_y_max,
             )
         )
-    return vertex_data.tobytes(), vertex_count, batches
+    return b"".join(vertex_chunks), vertex_count, batches
+
+
+def build_vertex_blob(model: object, *, flip_texture_v: bool = False) -> Tuple[bytes, int, List[ModelPreviewDrawBatch]]:
+    return _build_vertex_blob_impl(model, flip_texture_v=flip_texture_v, use_numpy=True)
+
+
+def build_vertex_blob_python_reference(model: object, *, flip_texture_v: bool = False) -> Tuple[bytes, int, List[ModelPreviewDrawBatch]]:
+    return _build_vertex_blob_impl(model, flip_texture_v=flip_texture_v, use_numpy=False)
 
 
 def preview_material_texture_inputs_for_prepared_batch(
@@ -957,6 +1132,9 @@ def prepare_model_preview(
     stop_event=None,
     enable_material_combiner: bool = True,
 ) -> Tuple[object, Optional[PreparedModelPreviewData]]:
+    prepare_started = time.perf_counter()
+    trace_enabled = mesh_editor_load_trace_enabled()
+    load_trace: Dict[str, float] = {}
     if stop_event is not None and stop_event.is_set():
         raise RunCancelled("Model preview preparation cancelled.")
     cloned_model = clone_model_preview(model)
@@ -968,8 +1146,14 @@ def prepare_model_preview(
         if isinstance(mesh, ModelPreviewMesh):
             initialize_mesh_preview_slot_defaults(mesh)
     if bool(enable_material_combiner):
+        material_started = time.perf_counter()
         apply_material_combiner(cloned_model, render_settings=render_settings, stop_event=stop_event)
+        if trace_enabled:
+            load_trace["material_apply_ms"] = trace_elapsed_ms(material_started)
+    geometry_started = time.perf_counter()
     vertex_blob, vertex_count, mesh_batches = build_vertex_blob(cloned_model)
+    if trace_enabled:
+        load_trace["geometry_pack_ms"] = trace_elapsed_ms(geometry_started)
     prepared_batches: List[PreparedModelPreviewBatch] = []
     cloth_preview = getattr(cloned_model, "cloth_preview", None)
 
@@ -1056,6 +1240,8 @@ def prepare_model_preview(
                 cloth_preview=cloth_batch,
             )
         )
+    if trace_enabled:
+        load_trace["prepare_ms"] = trace_elapsed_ms(prepare_started)
     return cloned_model, PreparedModelPreviewData(
         source_path=str(getattr(cloned_model, "path", "") or "").strip(),
         format=str(getattr(cloned_model, "format", "") or "").strip(),
@@ -1069,6 +1255,7 @@ def prepare_model_preview(
         normalization_scale=float(getattr(cloned_model, "normalization_scale", 1.0) or 1.0),
         batches=tuple(prepared_batches),
         cloth_preview=getattr(cloned_model, "cloth_preview", None),
+        load_trace=load_trace if trace_enabled else {},
     )
 
 

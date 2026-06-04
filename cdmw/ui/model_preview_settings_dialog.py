@@ -418,6 +418,27 @@ class ModelPreviewSettingsDialog(QDialog):
             step=0.05,
             decimals=2,
         )
+        self._add_slider_row(
+            quality_form,
+            "Tone exposure",
+            "d3d11_tone_exposure",
+            step=0.02,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Tone contrast",
+            "d3d11_tone_contrast",
+            step=0.02,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
+            "Tone gamma",
+            "d3d11_tone_gamma",
+            step=0.02,
+            decimals=2,
+        )
         quality_layout.addLayout(quality_form)
         quality_hint = QLabel(
             "Native D3D11 applies these to its shader and sampler directly. Texture resolution normally comes from direct DDS upload; generated fallback maps still use the existing preview cache pipeline."
@@ -801,6 +822,9 @@ class ModelPreviewSettingsDialog(QDialog):
             "d3d11_metalness_scale",
             "d3d11_environment_strength",
             "d3d11_emissive_gain",
+            "d3d11_tone_exposure",
+            "d3d11_tone_contrast",
+            "d3d11_tone_gamma",
         ):
             control = self._slider_controls.get(key)
             if control is not None:

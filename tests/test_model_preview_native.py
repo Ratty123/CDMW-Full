@@ -7,6 +7,8 @@ import struct
 import tempfile
 import unittest
 
+from PySide6.QtCore import QUrl
+
 from cdmw.models import (
     ModelPreviewData,
     ModelPreviewMesh,
@@ -147,6 +149,74 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertAlmostEqual(0.25, roughness)
         self.assertAlmostEqual(0.0, metalness)
         self.assertAlmostEqual(0.8, specular)
+
+    def test_gltf_specular_glossiness_synthesizes_visible_preview_albedo(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            base_path = temp / "axe_diffuse.png"
+            base_image = QImage(2, 2, QImage.Format_RGBA8888)
+            base_image.fill(QColor(12, 10, 8, 255))
+            self.assertTrue(base_image.save(str(base_path), "PNG"))
+            spec_gloss_path = temp / "axe_specularGlossiness.png"
+            spec_gloss_image = QImage(2, 2, QImage.Format_RGBA8888)
+            spec_gloss_image.fill(QColor(210, 164, 96, 220))
+            self.assertTrue(spec_gloss_image.save(str(spec_gloss_path), "PNG"))
+
+            combined = combine_preview_material(
+                type(
+                    "Payload",
+                    (),
+                    {
+                        "texture_flip_vertical": False,
+                        "tangents_usable": False,
+                        "normal_texture_strength": 0.0,
+                        "material_texture_inputs": (
+                            PreviewMaterialTextureInput(
+                                slot_kind="base",
+                                parameter_name="_diffuseTexture",
+                                source_texture_path=str(base_path),
+                                preview_texture_path=str(base_path),
+                                semantic_type="color",
+                                semantic_subtype="albedo",
+                                material_name="Axe",
+                                confidence="gltf",
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_specularGlossinessTexture",
+                                source_texture_path=str(spec_gloss_path),
+                                preview_texture_path=str(spec_gloss_path),
+                                semantic_type="specular",
+                                semantic_subtype="specular_glossiness",
+                                packed_channels=("specular", "glossiness"),
+                                material_name="Axe",
+                                confidence="gltf",
+                                material_parameters=(
+                                    PreviewMaterialParameterInput(
+                                        parameter_kind="color",
+                                        parameter_name="_specularFactor",
+                                        color_value=(1.0, 1.0, 1.0),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    },
+                )(),
+                temp / "combined",
+                0,
+                settings=MaterialPreviewCombinerSettings(support_map_max_dimension=128),
+            )
+
+            self.assertTrue(combined.base_source)
+            self.assertIn("specular-glossiness", combined.base_note)
+            preview_base = QImage(QUrl(combined.base_source).toLocalFile())
+            self.assertFalse(preview_base.isNull())
+            color = preview_base.pixelColor(0, 0)
+            self.assertGreater(color.red(), 120)
+            self.assertGreater(color.green(), 90)
+            self.assertGreater(color.blue(), 45)
 
     def test_d3d11_package_splits_specular_glossiness_when_combiner_disabled(self) -> None:
         from PySide6.QtGui import QColor, QImage

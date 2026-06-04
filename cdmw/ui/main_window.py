@@ -105,6 +105,8 @@ def _d3d11_cache_event_user_label(event: object) -> str:
         return "new preview package"
     if normalized == "hit":
         return "cached preview package"
+    if normalized == "material_dirty":
+        return "material cache updated"
     if normalized == "cleared":
         return "preview package reset"
     return normalized or "preview package"
@@ -308,6 +310,7 @@ from cdmw.modding.material_replacer import (
     material_authority_preview_texture_slots,
     patch_material_sidecar_text,
     read_complete_swap_calibrated_material_profile,
+    replacement_texture_slot_preview_semantics,
     serialize_complete_swap_manual_material_profile,
     write_complete_swap_calibrated_material_profile,
     apply_true_source_basic_controls_to_profile,
@@ -1171,6 +1174,9 @@ def run_gui() -> int:
                     "d3d11_metalness_scale": float(getattr(settings, "d3d11_metalness_scale", 1.0)),
                     "d3d11_environment_strength": float(getattr(settings, "d3d11_environment_strength", 1.0)),
                     "d3d11_emissive_gain": float(getattr(settings, "d3d11_emissive_gain", 1.0)),
+                    "d3d11_tone_exposure": float(getattr(settings, "d3d11_tone_exposure", 1.0)),
+                    "d3d11_tone_contrast": float(getattr(settings, "d3d11_tone_contrast", 1.0)),
+                    "d3d11_tone_gamma": float(getattr(settings, "d3d11_tone_gamma", 1.0)),
                     "d3d11_texture_address_mode": str(
                         getattr(settings, "d3d11_texture_address_mode", "wrap") or "wrap"
                     ),
@@ -1610,7 +1616,12 @@ def run_gui() -> int:
     from cdmw.ui.model_preview_settings_dialog import ModelPreviewSettingsDialog
     from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_package
     from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
-    from cdmw.rendering.model_preview_prepare import prepare_model_preview
+    from cdmw.rendering.model_preview_prepare import (
+        MeshPreviewCacheSignature,
+        MeshPreviewDirtyFlags,
+        mesh_editor_load_trace_enabled,
+        prepare_model_preview,
+    )
     from cdmw.rendering.native_preview_core import (
         NativePreviewCoreAttempt,
         NativePreviewCoreServiceClient,
@@ -2926,8 +2937,8 @@ def run_gui() -> int:
             self,
             entries: Sequence[ArchiveEntry],
         ) -> Dict[str, object]:
-            self.log_message.emit("Building item-name search...")
-            self.progress_changed.emit(0, 0, "Building item-name search...")
+            self.log_message.emit("Preparing archive search cache (1/3): item links...")
+            self.progress_changed.emit(0, 0, "Preparing archive search cache (1/3): item links...")
             item_index = build_archive_item_search_index(
                 entries,
                 on_log=self.log_message.emit,
@@ -2943,14 +2954,27 @@ def run_gui() -> int:
                 for row in getattr(item_index, "asset_catalog", [])
                 if hasattr(row, "to_cache_dict")
             ]
-            self.log_message.emit("Building path/name search index...")
-            self.progress_changed.emit(0, 0, "Building path/name search index...")
-            name_search_index = build_archive_name_search_index(
+            self.log_message.emit("Preparing archive search cache (2/3): path/name index...")
+            self.progress_changed.emit(0, 0, "Preparing archive search cache (2/3): path/name index...")
+            name_search_index = load_or_update_archive_name_search_shards(
+                self.package_root,
+                self.cache_root,
                 entries,
-                item_search_aliases=item_search_aliases,
+                item_search_aliases,
+                load_name_search_index=True,
                 on_progress=self.progress_changed.emit,
+                on_log=self.log_message.emit,
                 stop_event=self.stop_event,
             )
+            if not isinstance(name_search_index, ArchiveNameSearchIndex):
+                self.log_message.emit("Preparing archive search cache (2/3): path/name index...")
+                self.progress_changed.emit(0, 0, "Preparing archive search cache (2/3): path/name index...")
+                name_search_index = build_archive_name_search_index(
+                    entries,
+                    item_search_aliases=item_search_aliases,
+                    on_progress=self.progress_changed.emit,
+                    stop_event=self.stop_event,
+                )
             return {
                 "item_search_aliases": item_search_aliases,
                 "item_display_names": item_display_names,
@@ -3087,9 +3111,11 @@ def run_gui() -> int:
                 name_search_index: Optional[ArchiveNameSearchIndex] = None
                 derived_cache = None
                 derived_cache_needs_write = False
+                enhanced_index_deferred_message = ""
+                enhanced_index_deferred_progress = ""
                 if entries and not self.force_refresh:
-                    self.log_message.emit("Checking archive derived index cache...")
-                    self.progress_changed.emit(0, 0, "Checking archive derived index cache...")
+                    self.log_message.emit("Checking archive search cache...")
+                    self.progress_changed.emit(0, 0, "Checking archive search cache...")
                     derived_cache = load_archive_derived_index_cache(
                         self.package_root,
                         self.cache_root,
@@ -3114,8 +3140,8 @@ def run_gui() -> int:
                     if isinstance(cached_name_search_index, ArchiveNameSearchIndex):
                         name_search_index = cached_name_search_index
                     elif bool(derived_cache.get("name_search_index_deferred")):
-                        self.log_message.emit("Item-name search cache will load on demand after the archive list opens.")
-                        self.progress_changed.emit(0, 0, "Item-name search cache deferred until needed...")
+                        enhanced_index_deferred_message = "Item-name search cache will load on demand after the archive list opens."
+                        enhanced_index_deferred_progress = "Item-name search cache deferred until needed..."
                     else:
                         derived_cache_needs_write = bool(entries)
                     enhanced_index_needs_build = bool(entries and name_search_index is None)
@@ -3123,9 +3149,42 @@ def run_gui() -> int:
                 else:
                     derived_cache_needs_write = False
                     enhanced_index_needs_build = bool(entries)
-                    self.log_message.emit("Item-name search cache is missing or stale; archive list will open and search will build on demand.")
-                    self.progress_changed.emit(0, 0, "Item-name search deferred until needed...")
+                    enhanced_index_deferred_message = "Item-name search cache is missing or stale; archive list will open and search will build on demand."
+                    enhanced_index_deferred_progress = "Item-name search deferred until needed..."
                     timings["item_search_index_s"] = 0.0
+                build_enhanced_indexes_before_ready = bool(
+                    entries
+                    and name_search_index is None
+                    and (
+                        self.force_refresh
+                        or source != "cache"
+                        or self.load_name_search_index_cache
+                    )
+                )
+                if build_enhanced_indexes_before_ready:
+                    self.log_message.emit("Preparing archive search cache as part of archive cache build.")
+                    enhanced_started_at = time.perf_counter()
+                    enhanced_payload = self._build_enhanced_archive_indexes_inline(entries)
+                    item_search_aliases = dict(enhanced_payload.get("item_search_aliases", {}) or {})
+                    item_display_names = dict(enhanced_payload.get("item_display_names", {}) or {})
+                    item_exact_display_names = dict(enhanced_payload.get("item_exact_display_names", {}) or {})
+                    item_related_display_names = dict(enhanced_payload.get("item_related_display_names", {}) or {})
+                    item_asset_catalog = [
+                        dict(row)
+                        for row in (enhanced_payload.get("item_asset_catalog", []) or [])
+                        if isinstance(row, Mapping)
+                    ]
+                    built_name_search_index = enhanced_payload.get("name_search_index")
+                    if isinstance(built_name_search_index, ArchiveNameSearchIndex):
+                        name_search_index = built_name_search_index
+                        derived_cache_needs_write = True
+                        enhanced_index_needs_build = False
+                    else:
+                        enhanced_index_needs_build = bool(entries)
+                    timings["item_search_index_s"] = max(0.0, float(time.perf_counter() - enhanced_started_at))
+                elif enhanced_index_deferred_message:
+                    self.log_message.emit(enhanced_index_deferred_message)
+                    self.progress_changed.emit(0, 0, enhanced_index_deferred_progress)
                 can_use_initial_list = self._can_use_fast_flat_initial_browser_state(entries)
                 basic_cache = None
                 if entries and self.load_basic_index_cache:
@@ -3202,7 +3261,11 @@ def run_gui() -> int:
                         self.log_message.emit(f"Warning: path lookup cache could not be written: {exc}")
                 else:
                     if basic_indexes_loaded_from_cache:
-                        self.log_message.emit("Path lookup loaded from cache.")
+                        if isinstance(basic_cache, Mapping) and not bool(basic_cache.get("cache_loaded", True)):
+                            rebuilt_shards = int(basic_cache.get("rebuilt_shards", 0) or 0)
+                            self.log_message.emit(f"Path lookup cache ready after rebuilding {rebuilt_shards:,} shard(s).")
+                        else:
+                            self.log_message.emit("Path lookup loaded from cache.")
                     else:
                         self.log_message.emit("Path lookup cache is deferred until filters, search, preview, or priority indexing need it.")
                         self.progress_changed.emit(0, 0, "Path lookup deferred until needed...")
@@ -3303,8 +3366,8 @@ def run_gui() -> int:
                     browser_state["category_entry_indexes"] = {}
                     timings["category_index_s"] = 0.0
                 if derived_cache_needs_write and entries and name_search_index is not None:
-                    self.log_message.emit("Writing lightweight archive derived index cache...")
-                    self.progress_changed.emit(0, 0, "Writing archive derived index cache...")
+                    self.log_message.emit("Preparing archive search cache (3/3): saving...")
+                    self.progress_changed.emit(0, 0, "Preparing archive search cache (3/3): saving...")
                     save_archive_derived_index_cache(
                         self.package_root,
                         self.cache_root,
@@ -3321,7 +3384,7 @@ def run_gui() -> int:
                         timings=timings,
                     )
                     elapsed = float(timings.get("derived_cache_write_s", 0.0) or 0.0)
-                    self.log_message.emit(f"Lightweight archive derived index cache write finished in {elapsed:.2f}s.")
+                    self.log_message.emit(f"Archive search cache saved in {elapsed:.2f}s.")
                     derived_cache_needs_write = False
                 timings["total_s"] = max(0.0, float(time.perf_counter() - started_at))
                 timing_summary = _format_timing_summary(
@@ -3377,6 +3440,7 @@ def run_gui() -> int:
                         "extension_counts": dict(extension_counts),
                         "entry_metadata_signature": entry_metadata_signature,
                         "entry_metadata_sources": entry_metadata_sources,
+                        "scan_metadata": dict(scan_metadata),
                         "result_filter_signature": self.result_filter_signature,
                         "game_executable_fingerprints": self.updated_game_executable_fingerprints,
                         "timings": timings,
@@ -3441,7 +3505,7 @@ def run_gui() -> int:
             try:
                 if self.stop_event.is_set():
                     return
-                self.log_message.emit("Writing lightweight archive derived index cache in background...")
+                self.log_message.emit("Saving archive search cache...")
                 timings: Dict[str, float] = {}
                 save_archive_derived_index_cache(
                     self.package_root,
@@ -3459,9 +3523,9 @@ def run_gui() -> int:
                     timings=timings,
                 )
                 elapsed = float(timings.get("derived_cache_write_s", 0.0) or 0.0)
-                self.log_message.emit(f"Lightweight archive derived index cache write finished in {elapsed:.2f}s.")
+                self.log_message.emit(f"Archive search cache saved in {elapsed:.2f}s.")
             except Exception as exc:
-                self.log_message.emit(f"Warning: archive derived index cache could not be written: {exc}")
+                self.log_message.emit(f"Warning: archive search cache could not be saved: {exc}")
             finally:
                 if gc_was_enabled:
                     gc.enable()
@@ -3627,8 +3691,8 @@ def run_gui() -> int:
             if gc_was_enabled:
                 gc.disable()
             try:
-                self.log_message.emit("Loading item-name search cache in background...")
-                self.progress_changed.emit(0, 0, "Loading item-name search cache in background...")
+                self.log_message.emit("Loading archive search cache...")
+                self.progress_changed.emit(0, 0, "Loading archive search cache...")
                 derived_cache = load_archive_derived_index_cache(
                     self.package_root,
                     self.cache_root,
@@ -3659,8 +3723,8 @@ def run_gui() -> int:
                         }
                     )
                     return
-                self.log_message.emit("Building item-name search in background...")
-                self.progress_changed.emit(0, 0, "Building item-name search in background...")
+                self.log_message.emit("Preparing archive search cache (1/3): item links...")
+                self.progress_changed.emit(0, 0, "Preparing archive search cache (1/3): item links...")
                 item_index = build_archive_item_search_index(
                     self.entries,
                     on_log=self.log_message.emit,
@@ -3676,7 +3740,7 @@ def run_gui() -> int:
                     for row in getattr(item_index, "asset_catalog", [])
                     if hasattr(row, "to_cache_dict")
                 ]
-                self.log_message.emit("Building path/name search shard cache in background...")
+                self.log_message.emit("Preparing archive search cache (2/3): path/name index...")
                 name_search_index = load_or_update_archive_name_search_shards(
                     self.package_root,
                     self.cache_root,
@@ -5144,6 +5208,7 @@ def run_gui() -> int:
                 visible_texture_mode=self.visible_texture_mode,
                 support_texture_slots=self.support_texture_slots if support_texture_slots is None else support_texture_slots,
                 quality_tier=quality_tier,
+                enable_hkx_visual_preview=str(getattr(self.entry, "extension", "") or "").strip().lower() not in {".hkx", ".hkt"},
                 stop_event=self.stop_event,
             )
             timings["worker_build_s"] = max(0.0, float(time.perf_counter() - worker_build_started_at))
@@ -5525,6 +5590,32 @@ def run_gui() -> int:
             )
             return tuple(references), graph, tuple(lines), schema_version
 
+        @staticmethod
+        def _native_preview_core_shader_fidelity_lines(package_path: str) -> Tuple[str, ...]:
+            package_dir = Path(str(package_path or ""))
+            manifest_path = package_dir / "manifest.json"
+            if not manifest_path.is_file():
+                return ()
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except Exception:
+                return ()
+            if not isinstance(manifest, Mapping):
+                return ()
+            status = manifest.get("shader_asset_fidelity_status")
+            if not isinstance(status, Mapping):
+                return ()
+            summary = [
+                str(line or "").strip()
+                for line in tuple(status.get("ui_summary", ()) or ())
+                if str(line or "").strip()
+            ]
+            if not summary:
+                return ()
+            lines = ["Shader Fidelity: " + summary[0]]
+            lines.extend(f"Shader Fidelity: {line}" for line in summary[1:5])
+            return tuple(lines)
+
         def _native_preview_core_result(
             self,
             native_attempt: NativePreviewCoreAttempt,
@@ -5565,6 +5656,9 @@ def run_gui() -> int:
                     f"technical_base={int(diagnostics.get('base_technical_count', 0) or 0)}"
                 ),
             ]
+            shader_fidelity_lines = self._native_preview_core_shader_fidelity_lines(native_attempt.package_path)
+            if shader_fidelity_lines:
+                diagnostic_lines.extend(shader_fidelity_lines)
             if notes:
                 diagnostic_lines.append("Native Material Notes: " + "; ".join(notes[:8]))
             if base_quality_notes:
@@ -6586,20 +6680,11 @@ def run_gui() -> int:
             self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
             self.setWindowModality(Qt.ApplicationModal)
             self.setObjectName("StartupArchivePathDialog")
-            self.setMinimumWidth(560)
-            self.setMinimumHeight(360)
+            self.setMinimumWidth(520)
 
             root_layout = QVBoxLayout(self)
-            root_layout.setContentsMargins(18, 18, 18, 18)
-            root_layout.setSpacing(12)
-
-            self.title_label = QLabel("Set Crimson Desert game path")
-            self.title_label.setObjectName("StartupArchivePathTitle")
-            title_font = QFont()
-            title_font.setPointSize(13)
-            title_font.setWeight(QFont.Medium)
-            self.title_label.setFont(title_font)
-            root_layout.addWidget(self.title_label)
+            root_layout.setContentsMargins(14, 14, 14, 14)
+            root_layout.setSpacing(8)
 
             self.detail_label = QLabel(
                 "Choose the Crimson Desert folder or package root that contains game_files or .pamt archives."
@@ -6618,9 +6703,9 @@ def run_gui() -> int:
             path_panel = QFrame(self)
             path_panel.setObjectName("StartupArchivePathPanel")
             path_layout = QGridLayout(path_panel)
-            path_layout.setContentsMargins(12, 12, 12, 12)
+            path_layout.setContentsMargins(10, 10, 10, 10)
             path_layout.setHorizontalSpacing(8)
-            path_layout.setVerticalSpacing(8)
+            path_layout.setVerticalSpacing(6)
 
             path_label = QLabel("Path")
             path_label.setObjectName("StartupArchivePathFieldLabel")
@@ -6666,6 +6751,8 @@ def run_gui() -> int:
             self.candidates_combo.currentTextChanged.connect(self._candidate_changed)
             self._apply_theme_styles()
             self._validate_path_text(self.path_edit.text())
+            self.adjustSize()
+            self.resize(max(self.width(), 520), self.sizeHint().height())
             QTimer.singleShot(80, self._run_initial_autodetect)
 
         def _apply_theme_styles(self) -> None:
@@ -6686,7 +6773,7 @@ def run_gui() -> int:
                     background: {_splash_theme_value(self._theme_key, "surface_alt", "#2a2d2e")};
                     border: 1px solid {_splash_theme_value(self._theme_key, "border", "#2a2d2e")};
                     border-radius: 6px;
-                    padding: 8px;
+                    padding: 6px;
                 }}
                 QLabel#StartupArchivePathFieldLabel {{
                     color: {_splash_theme_value(self._theme_key, "text_muted", "#9f938c")};
@@ -7046,6 +7133,7 @@ def run_gui() -> int:
             self._startup_splash_finish_after_paint_deadline = 0.0
             self._startup_archive_path_prompt_handled = False
             self._startup_archive_path_prompt_accepted = False
+            self._startup_archive_path_prompt_open = False
             self.app_tray_icon: Optional[QSystemTrayIcon] = None
             self.app_tray_menu: Optional[QMenu] = None
             self._external_activation_last_seen = 0.0
@@ -7129,6 +7217,10 @@ def run_gui() -> int:
             self._archive_load_progress_percent = 0
             self._archive_load_progress_active = False
             self._archive_load_progress_detail = ""
+            self._archive_cache_health_state = "unknown"
+            self._archive_cache_health_reason = "Cache Status: Unknown. Archive cache has not been checked."
+            self._archive_cache_health_checked_path = ""
+            self._archive_cache_stale_warning_shown_for = ""
             self._archive_scan_progress_timer = QTimer(self)
             self._archive_scan_progress_timer.setSingleShot(True)
             self._archive_scan_progress_timer.setTimerType(Qt.PreciseTimer)
@@ -10525,6 +10617,30 @@ def run_gui() -> int:
             status_grid.setColumnStretch(0, 1)
             status_grid.setColumnStretch(1, 1)
 
+            archive_progress_group = QGroupBox("Archive Cache")
+            archive_progress_group.setObjectName("DashboardStatusPanel")
+            archive_progress_layout = QGridLayout(archive_progress_group)
+            archive_progress_layout.setContentsMargins(10, 10, 10, 10)
+            archive_progress_layout.setHorizontalSpacing(10)
+            archive_progress_layout.setVerticalSpacing(6)
+            self.dashboard_archive_progress_bar = QProgressBar()
+            self.dashboard_archive_progress_bar.setRange(0, 100)
+            self.dashboard_archive_progress_bar.setValue(int(getattr(self, "_archive_load_progress_percent", 0) or 0))
+            self.dashboard_archive_progress_bar.setTextVisible(True)
+            self.dashboard_archive_progress_bar.setFormat(f"{self.dashboard_archive_progress_bar.value()}%")
+            self.dashboard_archive_progress_bar.setToolTip("Ready to build archive cache.")
+            self.dashboard_archive_progress_phase_label = QLabel("Ready")
+            self.dashboard_archive_progress_phase_label.setObjectName("DashboardStatusName")
+            self.dashboard_archive_progress_phase_label.setAlignment(Qt.AlignCenter)
+            self.dashboard_archive_progress_detail_label = QLabel("No archive cache build is running.")
+            self.dashboard_archive_progress_detail_label.setObjectName("HintLabel")
+            self.dashboard_archive_progress_detail_label.setWordWrap(True)
+            archive_progress_layout.addWidget(self.dashboard_archive_progress_bar, 0, 0)
+            archive_progress_layout.addWidget(self.dashboard_archive_progress_phase_label, 0, 1)
+            archive_progress_layout.addWidget(self.dashboard_archive_progress_detail_label, 1, 0, 1, 2)
+            archive_progress_layout.setColumnStretch(0, 1)
+            content_layout.addWidget(archive_progress_group)
+
             recent_group = QGroupBox("Recent Work")
             recent_group.setObjectName("DashboardStatusPanel")
             recent_layout = QGridLayout(recent_group)
@@ -10594,6 +10710,25 @@ def run_gui() -> int:
             if label is not None:
                 label.setText(str(value or "-"))
 
+        def _set_widget_health_state(self, widget: Optional[QWidget], state: str) -> None:
+            if widget is None:
+                return
+            normalized = str(state or "").strip().lower()
+            if normalized not in {"healthy", "building", "missing", "stale", "unhealthy", "unknown"}:
+                normalized = ""
+            if str(widget.property("healthState") or "") == normalized:
+                return
+            widget.setProperty("healthState", normalized)
+            try:
+                widget.style().unpolish(widget)
+                widget.style().polish(widget)
+            except Exception:
+                pass
+            widget.update()
+
+        def _dashboard_set_status_health_state(self, key: str, state: str) -> None:
+            self._set_widget_health_state(self._dashboard_status_labels.get(key), state)
+
         def _dashboard_path_status(self, raw_path: str, *, required: bool = False) -> str:
             text = str(raw_path or "").strip()
             if not text:
@@ -10604,6 +10739,135 @@ def run_gui() -> int:
             except OSError:
                 exists = False
             return f"{text} ({'ready' if exists else 'missing'})"
+
+        def _set_archive_cache_health(self, state: str, reason: str, *, package_root: str = "") -> None:
+            normalized = str(state or "unknown").strip().lower()
+            if normalized not in {"unknown", "healthy", "building", "missing", "stale", "unhealthy"}:
+                normalized = "unknown"
+            reason_text = str(reason or "").strip()
+            if not reason_text:
+                if normalized == "healthy":
+                    reason_text = "Cache Status: Healthy."
+                elif normalized == "building":
+                    reason_text = "Cache Status: Building. Archive cache build is running."
+                elif normalized in {"missing", "stale", "unhealthy"}:
+                    reason_text = "Cache Status: Unhealthy. Rebuild archive cache."
+                else:
+                    reason_text = "Cache Status: Unknown. Archive cache has not been checked."
+            self._archive_cache_health_state = normalized
+            self._archive_cache_health_reason = reason_text
+            self._archive_cache_health_checked_path = str(package_root or self.archive_package_root_edit.text().strip() or "")
+            self._dashboard_set_status("archive_cache", reason_text)
+            self._dashboard_set_status_health_state("archive_cache", normalized)
+            self._dashboard_set_archive_progress()
+
+        def _check_archive_cache_health(self, package_root_text: str = "") -> Dict[str, object]:
+            root_text = str(package_root_text or self.archive_package_root_edit.text().strip() or "").strip()
+            if not root_text:
+                self._set_archive_cache_health("unhealthy", "Cache Status: Unhealthy. No Crimson Desert path is set.", package_root="")
+                return {"status": "unhealthy", "reason": self._archive_cache_health_reason}
+            package_root = Path(root_text).expanduser()
+            if not package_root.exists():
+                self._set_archive_cache_health(
+                    "unhealthy",
+                    f"Cache Status: Unhealthy. Crimson Desert path does not exist: {package_root}",
+                    package_root=root_text,
+                )
+                return {"status": "unhealthy", "reason": self._archive_cache_health_reason}
+            try:
+                report = archive_scan_shard_cache_health(package_root, self.archive_cache_root)
+            except Exception as exc:
+                report = {"status": "unhealthy", "reason": f"Could not inspect archive cache: {exc}"}
+            status = str(report.get("status", "unknown") or "unknown").strip().lower()
+            reason = str(report.get("reason", "") or "").strip()
+            if status == "healthy":
+                self._set_archive_cache_health("healthy", reason or "Cache Status: Healthy.", package_root=root_text)
+            elif status == "missing":
+                self._set_archive_cache_health(
+                    "missing",
+                    reason or "Cache Status: Unhealthy. Archive cache has not been built yet.",
+                    package_root=root_text,
+                )
+            elif status == "stale":
+                self._set_archive_cache_health(
+                    "stale",
+                    reason or "Cache Status: Unhealthy. Archive cache is stale.",
+                    package_root=root_text,
+                )
+            else:
+                self._set_archive_cache_health(
+                    "unhealthy",
+                    reason or "Cache Status: Unhealthy. Archive cache could not be validated.",
+                    package_root=root_text,
+                )
+            return dict(report)
+
+        def _warn_if_archive_cache_stale(self, health_report: Mapping[str, object], package_root_text: str) -> None:
+            if str(health_report.get("status", "") or "").strip().lower() != "stale":
+                return
+            root_key = str(package_root_text or "").strip()
+            if root_key and root_key == str(getattr(self, "_archive_cache_stale_warning_shown_for", "") or ""):
+                return
+            self._archive_cache_stale_warning_shown_for = root_key
+            reason = str(health_report.get("reason", "") or "Archive cache is stale.").strip()
+            QMessageBox.warning(
+                self,
+                "Archive Cache Stale",
+                (
+                    f"{reason}\n\n"
+                    "CDMW will rebuild the archive cache from the current game files now.\n\n"
+                    "This can happen after a game update, after adding or removing mod archives, "
+                    "or after repeatedly editing/replacing archive files while testing."
+                ),
+            )
+
+        def _dashboard_set_archive_progress(self, phase: str = "", detail: str = "", percent: Optional[int] = None) -> None:
+            if not hasattr(self, "dashboard_archive_progress_bar"):
+                return
+            active = bool(getattr(self, "_archive_load_progress_active", False))
+            health_state = str(getattr(self, "_archive_cache_health_state", "unknown") or "unknown")
+            health_reason = str(getattr(self, "_archive_cache_health_reason", "") or "").strip()
+            percent_value = int(
+                self.dashboard_archive_progress_bar.value()
+                if percent is None
+                else min(max(int(percent), 0), 100)
+            )
+            detail_text = str(detail or getattr(self, "_archive_load_progress_detail", "") or "").strip()
+            phase_text = str(phase or "").strip()
+            if not active:
+                if health_state == "healthy":
+                    percent_value = 100
+                    phase_text = "Healthy"
+                    detail_text = health_reason or "Cache Status: Healthy."
+                elif health_state in {"stale", "missing", "unhealthy"}:
+                    percent_value = 0
+                    phase_text = "Unhealthy"
+                    detail_text = health_reason or "Cache Status: Unhealthy. Rebuild archive cache."
+                elif health_state == "building":
+                    phase_text = "Building"
+                    detail_text = health_reason or "Archive cache build queued."
+                else:
+                    percent_value = 0
+                    phase_text = "Unknown"
+                    detail_text = health_reason or "Cache Status: Unknown. Archive cache has not been checked."
+            else:
+                if not phase_text:
+                    phase_text = self._archive_progress_phase_for_detail(detail_text)[0] if detail_text else "Working"
+                if not detail_text:
+                    detail_text = "Archive cache build running..."
+            progress_health_state = health_state if not active else "building"
+            self._set_widget_health_state(self.dashboard_archive_progress_phase_label, progress_health_state)
+            self._set_widget_health_state(self.dashboard_archive_progress_detail_label, progress_health_state)
+            self.dashboard_archive_progress_bar.setVisible(active)
+            self.dashboard_archive_progress_phase_label.setVisible(active)
+            self.dashboard_archive_progress_bar.setRange(0, 100)
+            self.dashboard_archive_progress_bar.setValue(percent_value)
+            self.dashboard_archive_progress_bar.setFormat(f"{percent_value}%")
+            self.dashboard_archive_progress_bar.setToolTip(detail_text)
+            self.dashboard_archive_progress_phase_label.setText(phase_text)
+            self.dashboard_archive_progress_phase_label.setToolTip(detail_text)
+            self.dashboard_archive_progress_detail_label.setText(detail_text)
+            self.dashboard_archive_progress_detail_label.setToolTip(detail_text)
 
         def _refresh_dashboard(self) -> None:
             if not getattr(self, "_dashboard_status_labels", None):
@@ -10622,11 +10886,18 @@ def run_gui() -> int:
                 "archive_index",
                 f"{archive_shown:,} shown / {archive_total:,} loaded" if archive_total else "No archives scanned",
             )
-            cache_root = getattr(self, "archive_cache_root", None)
-            self._dashboard_set_status(
-                "archive_cache",
-                str(cache_root) if isinstance(cache_root, Path) and cache_root.exists() else "No cache folder yet",
-            )
+            current_archive_root = self.archive_package_root_edit.text().strip()
+            if (
+                current_archive_root
+                and current_archive_root != str(getattr(self, "_archive_cache_health_checked_path", "") or "")
+                and not bool(getattr(self, "_archive_load_progress_active", False))
+            ):
+                self._check_archive_cache_health(current_archive_root)
+            else:
+                self._dashboard_set_status(
+                    "archive_cache",
+                    str(getattr(self, "_archive_cache_health_reason", "") or "Cache Status: Unknown."),
+                )
             running = []
             if getattr(self, "worker_thread", None) is not None:
                 running.append("workflow/archive")
@@ -10654,6 +10925,7 @@ def run_gui() -> int:
             self._dashboard_set_status("recent_icon_library", str(getattr(self.item_icons_tab, "library_root", "")) or "None")
             current_text_path = self.text_search_tab.current_result_path()
             self._dashboard_set_status("recent_text_search", current_text_path or "None")
+            self._dashboard_set_archive_progress(percent=int(getattr(self, "_archive_load_progress_percent", 0) or 0))
             if hasattr(self, "dashboard_last_results_label"):
                 self.dashboard_last_results_label.setText(self._dashboard_last_result_text)
 
@@ -13426,9 +13698,13 @@ def run_gui() -> int:
             if not self.windowIcon().isNull():
                 dialog.setWindowIcon(self.windowIcon())
             dialog.center_on_screen()
-            accepted = dialog.exec() == QDialog.Accepted
-            selected_path = dialog.selected_path().strip() if accepted else ""
-            dialog.deleteLater()
+            self._startup_archive_path_prompt_open = True
+            try:
+                accepted = dialog.exec() == QDialog.Accepted
+                selected_path = dialog.selected_path().strip() if accepted else ""
+            finally:
+                self._startup_archive_path_prompt_open = False
+                dialog.deleteLater()
             if not selected_path:
                 self._startup_archive_path_prompt_accepted = False
                 self.set_status_message("Crimson Desert path setup skipped; archive cache build was not started.")
@@ -14762,7 +15038,8 @@ def run_gui() -> int:
                 self._startup_texture_preview_defer_env = False
             self._startup_splash_released = True
             self._startup_splash_release_pending = False
-            self.archive_startup_index_warmup_required = False
+            if self.archive_scan_worker is None and self.worker_thread is None:
+                self.archive_startup_index_warmup_required = False
             _record_runtime_event("splash_released")
             if (
                 getattr(self, "_startup_splash_holds_main_window", False)
@@ -14777,6 +15054,9 @@ def run_gui() -> int:
             self._finish_startup_splash_now()
 
         def _maybe_autoload_archive_on_startup(self) -> None:
+            if bool(getattr(self, "_startup_archive_path_prompt_open", False)):
+                QTimer.singleShot(250, self._maybe_autoload_archive_on_startup)
+                return
             if self.show_quick_start_on_launch:
                 _write_heartbeat("running")
                 self._release_startup_splash()
@@ -14809,9 +15089,11 @@ def run_gui() -> int:
                 return
 
             self.append_archive_log("Startup Archive Browser preload is enabled.")
+            health_report = self._check_archive_cache_health(package_root_text)
+            self._warn_if_archive_cache_stale(health_report, package_root_text)
             if bool(getattr(self, "_startup_archive_path_prompt_accepted", False)):
                 self.append_archive_log(
-                    "Building the first archive cache now. Keep CDMW open until the startup splash finishes."
+                    "Building the first archive cache now. Keep CDMW open until the Dashboard progress reaches ready."
                 )
                 self._update_startup_splash(
                     "Building archive cache. First load can take a while; let it finish.",
@@ -14835,6 +15117,8 @@ def run_gui() -> int:
                 force_refresh=not self._preference_bool("prefer_archive_cache_on_startup", True),
                 activate_archive_tab=False,
             )
+            if bool(getattr(self, "_startup_archive_path_prompt_accepted", False)):
+                self._release_startup_splash()
 
         def _load_game_executable_fingerprints(self) -> Dict[str, Dict[str, object]]:
             raw_value = self.settings.value("archive/game_executable_fingerprints", "{}")
@@ -16456,6 +16740,9 @@ def run_gui() -> int:
             self.settings.setValue("preview/d3d11_metalness_scale", preview_settings.d3d11_metalness_scale)
             self.settings.setValue("preview/d3d11_environment_strength", preview_settings.d3d11_environment_strength)
             self.settings.setValue("preview/d3d11_emissive_gain", preview_settings.d3d11_emissive_gain)
+            self.settings.setValue("preview/d3d11_tone_exposure", preview_settings.d3d11_tone_exposure)
+            self.settings.setValue("preview/d3d11_tone_contrast", preview_settings.d3d11_tone_contrast)
+            self.settings.setValue("preview/d3d11_tone_gamma", preview_settings.d3d11_tone_gamma)
             self.settings.setValue("dds_output/format_mode", self._combo_value(self.dds_format_mode_combo))
             self.settings.setValue("dds_output/custom_format", self._combo_value(self.dds_custom_format_combo))
             self.settings.setValue("dds_output/size_mode", self._combo_value(self.dds_size_mode_combo))
@@ -18504,6 +18791,11 @@ def run_gui() -> int:
             self._activate_archive_browser_on_scan_complete = activate_archive_tab
             if activate_archive_tab:
                 self._activate_tool_widget(self.archive_browser_tab)
+            self._set_archive_cache_health(
+                "building",
+                "Cache Status: Building. Archive scan/cache build is running.",
+                package_root=package_root_text,
+            )
             self._reset_archive_load_progress()
             preparing_text = "Preparing archive refresh..." if force_refresh else "Preparing archive scan / cache load..."
             self._set_archive_load_progress(preparing_text)
@@ -18783,7 +19075,13 @@ def run_gui() -> int:
             else:
                 percent_value = min(max(int(percent), 0), 100)
             previous = int(getattr(self, "_archive_load_progress_percent", 0) or 0)
-            if not allow_decrease:
+            new_work_after_ready = (
+                not allow_decrease
+                and previous >= 100
+                and percent_value < previous
+                and phase_text not in {"Ready", "Failed"}
+            )
+            if not allow_decrease and not new_work_after_ready:
                 percent_value = max(previous, percent_value)
             self._archive_load_progress_active = percent_value < 100 and phase_text not in {"Ready", "Failed"}
             self._archive_load_progress_percent = percent_value
@@ -18796,6 +19094,7 @@ def run_gui() -> int:
             if hasattr(self, "archive_scan_progress_label"):
                 self.archive_scan_progress_label.setText(phase_text)
                 self.archive_scan_progress_label.setToolTip(detail_text)
+            self._dashboard_set_archive_progress(phase_text, detail_text, percent_value)
 
         def _apply_archive_scan_progress(self, current: int, total: int, detail: str) -> None:
             progress_detail = str(detail or "Working...")
@@ -19136,6 +19435,25 @@ def run_gui() -> int:
             cache_path_text = str(payload.get("cache_path", "")).strip()
             timings = payload.get("timings", {}) if isinstance(payload.get("timings"), dict) else {}
             timing_summary = str(payload.get("timing_summary", "")).strip()
+            scan_metadata = payload.get("scan_metadata", {}) if isinstance(payload.get("scan_metadata"), Mapping) else {}
+            stale_count = int(scan_metadata.get("scan_shard_stale_count", 0) or 0)
+            rebuilt_count = int(scan_metadata.get("scan_shard_rebuilt_count", 0) or 0)
+            if self.archive_entries:
+                if source == "cache" and stale_count <= 0 and rebuilt_count <= 0:
+                    self._set_archive_cache_health(
+                        "healthy",
+                        f"Cache Status: Healthy. {len(self.archive_entries):,} archive entries loaded from current cache.",
+                        package_root=package_root_text,
+                    )
+                else:
+                    rebuild_note = (
+                        f" Rebuilt {rebuilt_count:,} stale shard(s)." if rebuilt_count > 0 else ""
+                    )
+                    self._set_archive_cache_health(
+                        "healthy",
+                        f"Cache Status: Healthy. Archive cache matches current game files.{rebuild_note}",
+                        package_root=package_root_text,
+                    )
             rendering_archive_view = (
                 self._activate_archive_browser_on_scan_complete
                 or self._is_tool_visible_or_current(self.archive_browser_tab)
@@ -19393,8 +19711,8 @@ def run_gui() -> int:
             self.archive_enhanced_index_auto_prewarm_pending = False
             self.archive_enhanced_index_state = "warming"
             self.archive_enhanced_index_activity = "loading"
-            self._set_archive_load_progress("Loading item-name search...", phase="Indexing")
-            self.set_status_message("Loading item-name search...")
+            self._set_archive_load_progress("Loading archive search cache...", phase="Indexing")
+            self.set_status_message("Loading archive search cache...")
             package_root_text = self.archive_package_root_edit.text().strip()
             worker = ArchiveEnhancedIndexWorker(
                 Path(package_root_text).expanduser(),
@@ -19425,7 +19743,7 @@ def run_gui() -> int:
         def _handle_archive_enhanced_index_progress(self, current: int, total: int, detail: str) -> None:
             if self._shutting_down:
                 return
-            detail_text = str(detail or "Building item-name search...")
+            detail_text = str(detail or "Preparing archive search cache...")
             lower_detail = detail_text.lower()
             if "load" in lower_detail:
                 self.archive_enhanced_index_activity = "loading"
@@ -19458,9 +19776,9 @@ def run_gui() -> int:
             self._schedule_archive_asset_catalog_icon_preload()
             self._invalidate_archive_browser_name_columns()
             if cache_loaded:
-                self.append_archive_log("Item-name search loaded from cache.")
+                self.append_archive_log("Archive search cache loaded.")
             else:
-                self.append_archive_log("Item-name search ready.")
+                self.append_archive_log("Archive search cache ready.")
             self._record_archive_memory_audit("archive_name_search_ready", log_if_high=True)
             self._set_archive_list_status("Archive list available")
             if self.archive_initial_sort_apply_pending:
@@ -19550,7 +19868,7 @@ def run_gui() -> int:
                 self.archive_derived_cache_write_pending = False
                 return
 
-            self._handle_archive_scan_progress(0, 0, "Saving item-name search cache...")
+            self._handle_archive_scan_progress(0, 0, "Saving archive search cache...")
             self.archive_derived_cache_write_pending = False
             worker = ArchiveDerivedIndexCacheWriteWorker(
                 Path(package_root_text).expanduser(),
@@ -19588,6 +19906,8 @@ def run_gui() -> int:
             self.archive_derived_cache_worker = None
             if self.archive_derived_cache_write_pending and not self._shutting_down:
                 QTimer.singleShot(0, self._start_archive_derived_index_cache_writer)
+            else:
+                self._set_archive_list_status("Archive list available")
             self._maybe_release_startup_after_archive_ready()
 
         def _start_archive_sidecar_index_worker(self) -> None:
@@ -20143,6 +20463,9 @@ def run_gui() -> int:
             return (
                 str(getattr(self, "archive_basic_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
                 and str(getattr(self, "archive_enhanced_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
+                and self.archive_derived_cache_thread is None
+                and not self.archive_derived_cache_write_pending
+                and not self.archive_deferred_derived_cache_write_pending
             )
 
         def _archive_status_text(self, base_text: str = "") -> str:
@@ -20151,7 +20474,13 @@ def run_gui() -> int:
                 pending.append("Building path lookup")
             if str(getattr(self, "archive_enhanced_index_state", "") or "") == "warming":
                 activity = str(getattr(self, "archive_enhanced_index_activity", "") or "").lower()
-                pending.append("Loading item-name search" if activity == "loading" else "Building item-name search")
+                pending.append("Loading archive search cache" if activity == "loading" else "Preparing archive search cache")
+            if (
+                self.archive_derived_cache_thread is not None
+                or self.archive_derived_cache_write_pending
+                or self.archive_deferred_derived_cache_write_pending
+            ):
+                pending.append("Saving archive search cache")
             if bool(getattr(self, "archive_startup_saved_filter_apply_pending", False)):
                 pending.append("Filters will apply when search is ready")
             if pending:
@@ -27797,7 +28126,11 @@ def run_gui() -> int:
             self.archive_preview_request_started_at[request_id] = time.perf_counter()
             self.archive_preview_request_phase_timings[request_id] = {}
             self.archive_preview_request_sources[request_id] = "worker"
-            if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
+            if (
+                self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+                and entry is not None
+                and str(getattr(entry, "extension", "") or "").strip().lower() in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
+            ):
                 self._note_native_preview_core_activity()
             self.archive_preview_quick_result_active = False
             self.archive_preview_requested_loose = bool(entry is not None and prefer_loose_preview)
@@ -28053,6 +28386,7 @@ def run_gui() -> int:
                 native_cache_mode != "off"
                 and self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
                 and entry is not None
+                and str(getattr(entry, "extension", "") or "").strip().lower() in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
                 and not include_loose_preview_assets
             ):
                 native_package_cache_key = self._archive_native_preview_package_cache_key(
@@ -30216,6 +30550,53 @@ def run_gui() -> int:
 
         def _read_model_preview_render_settings(self) -> ModelPreviewRenderSettings:
             defaults = clamp_model_preview_render_settings()
+            legacy_lighting_version = 0
+            try:
+                legacy_lighting_version = int(
+                    self.settings.value("preview/d3d11_lighting_defaults_version", 0) or 0
+                )
+            except (TypeError, ValueError):
+                legacy_lighting_version = 0
+            d3d11_ao_strength = self._read_float("preview/d3d11_ao_strength", defaults.d3d11_ao_strength)
+            d3d11_roughness_bias = self._read_float(
+                "preview/d3d11_roughness_bias",
+                defaults.d3d11_roughness_bias,
+            )
+            d3d11_metalness_scale = self._read_float(
+                "preview/d3d11_metalness_scale",
+                defaults.d3d11_metalness_scale,
+            )
+            d3d11_environment_strength = self._read_float(
+                "preview/d3d11_environment_strength",
+                defaults.d3d11_environment_strength,
+            )
+            specular_max = self._read_float("preview/specular_max", defaults.specular_max)
+            if legacy_lighting_version < 2:
+                def _near(current: float, expected: float) -> bool:
+                    try:
+                        return abs(float(current) - float(expected)) <= 1e-6
+                    except (TypeError, ValueError):
+                        return False
+
+                old_saved_defaults = (
+                    _near(d3d11_ao_strength, 1.0)
+                    and _near(d3d11_roughness_bias, 0.0)
+                    and _near(d3d11_metalness_scale, 1.0)
+                    and _near(d3d11_environment_strength, 1.0)
+                    and _near(specular_max, 0.18)
+                )
+                if old_saved_defaults:
+                    d3d11_ao_strength = defaults.d3d11_ao_strength
+                    d3d11_roughness_bias = defaults.d3d11_roughness_bias
+                    d3d11_metalness_scale = defaults.d3d11_metalness_scale
+                    d3d11_environment_strength = defaults.d3d11_environment_strength
+                    specular_max = defaults.specular_max
+                    self.settings.setValue("preview/d3d11_ao_strength", d3d11_ao_strength)
+                    self.settings.setValue("preview/d3d11_roughness_bias", d3d11_roughness_bias)
+                    self.settings.setValue("preview/d3d11_metalness_scale", d3d11_metalness_scale)
+                    self.settings.setValue("preview/d3d11_environment_strength", d3d11_environment_strength)
+                    self.settings.setValue("preview/specular_max", specular_max)
+                self.settings.setValue("preview/d3d11_lighting_defaults_version", 2)
             return clamp_model_preview_render_settings(
                 ModelPreviewRenderSettings(
                     use_textures_by_default=self._read_bool("archive/model_use_textures", defaults.use_textures_by_default),
@@ -30348,7 +30729,7 @@ def run_gui() -> int:
                     cavity_clamp_max=self._read_float("preview/cavity_clamp_max", defaults.cavity_clamp_max),
                     specular_base=self._read_float("preview/specular_base", defaults.specular_base),
                     specular_min=self._read_float("preview/specular_min", defaults.specular_min),
-                    specular_max=self._read_float("preview/specular_max", defaults.specular_max),
+                    specular_max=specular_max,
                     shininess_base=self._read_float("preview/shininess_base", defaults.shininess_base),
                     shininess_min=self._read_float("preview/shininess_min", defaults.shininess_min),
                     shininess_max=self._read_float("preview/shininess_max", defaults.shininess_max),
@@ -30356,17 +30737,14 @@ def run_gui() -> int:
                         "preview/height_shininess_boost",
                         defaults.height_shininess_boost,
                     ),
-                    d3d11_ao_strength=self._read_float("preview/d3d11_ao_strength", defaults.d3d11_ao_strength),
-                    d3d11_roughness_bias=self._read_float("preview/d3d11_roughness_bias", defaults.d3d11_roughness_bias),
-                    d3d11_metalness_scale=self._read_float(
-                        "preview/d3d11_metalness_scale",
-                        defaults.d3d11_metalness_scale,
-                    ),
-                    d3d11_environment_strength=self._read_float(
-                        "preview/d3d11_environment_strength",
-                        defaults.d3d11_environment_strength,
-                    ),
+                    d3d11_ao_strength=d3d11_ao_strength,
+                    d3d11_roughness_bias=d3d11_roughness_bias,
+                    d3d11_metalness_scale=d3d11_metalness_scale,
+                    d3d11_environment_strength=d3d11_environment_strength,
                     d3d11_emissive_gain=self._read_float("preview/d3d11_emissive_gain", defaults.d3d11_emissive_gain),
+                    d3d11_tone_exposure=self._read_float("preview/d3d11_tone_exposure", defaults.d3d11_tone_exposure),
+                    d3d11_tone_contrast=self._read_float("preview/d3d11_tone_contrast", defaults.d3d11_tone_contrast),
+                    d3d11_tone_gamma=self._read_float("preview/d3d11_tone_gamma", defaults.d3d11_tone_gamma),
                 )
             )
 
@@ -30657,6 +31035,9 @@ def run_gui() -> int:
                 or previous_settings.d3d11_metalness_scale != preview_settings.d3d11_metalness_scale
                 or previous_settings.d3d11_environment_strength != preview_settings.d3d11_environment_strength
                 or previous_settings.d3d11_emissive_gain != preview_settings.d3d11_emissive_gain
+                or previous_settings.d3d11_tone_exposure != preview_settings.d3d11_tone_exposure
+                or previous_settings.d3d11_tone_contrast != preview_settings.d3d11_tone_contrast
+                or previous_settings.d3d11_tone_gamma != preview_settings.d3d11_tone_gamma
                 or previous_settings.d3d11_texture_address_mode != preview_settings.d3d11_texture_address_mode
                 or previous_settings.ambient_strength != preview_settings.ambient_strength
                 or previous_settings.diffuse_light_scale != preview_settings.diffuse_light_scale
@@ -55681,8 +56062,8 @@ def run_gui() -> int:
                 return button
 
             root_layout = QVBoxLayout(dialog)
-            alignment_control_min_width = 520
-            alignment_control_content_min_width = 560
+            alignment_control_min_width = 640
+            alignment_control_content_min_width = 700
             mesh_edit_control_min_width = 460
             mesh_edit_control_content_min_width = 420
             mesh_edit_control_max_width = 540
@@ -56146,6 +56527,395 @@ def run_gui() -> int:
             alignment_preview_mode_view_states: Dict[str, object] = {}
             alignment_preview_mode_state = {"current": str(preview_mode_combo.currentData() or "side_by_side")}
             alignment_preview_view_sync = {"active": False}
+            mesh_editor_diagnostics_state: Dict[str, object] = {"text_widget": None, "last_text": ""}
+
+            def _mesh_editor_diagnostics_model_lines(label: str, model: object, *, limit: int = 18) -> List[str]:
+                lines: List[str] = []
+                if not isinstance(model, ModelPreviewData):
+                    lines.append(f"{label}: unavailable")
+                    return lines
+                meshes = list(getattr(model, "meshes", ()) or ())
+                vertex_count = int(getattr(model, "vertex_count", 0) or sum(len(getattr(mesh, "positions", ()) or ()) for mesh in meshes))
+                face_count = int(getattr(model, "face_count", 0) or sum(len(getattr(mesh, "indices", ()) or ()) // 3 for mesh in meshes))
+                textured = sum(
+                    1
+                    for mesh in meshes
+                    if (
+                        str(getattr(mesh, "preview_texture_path", "") or "").strip()
+                        or str(getattr(mesh, "preview_material_texture_path", "") or "").strip()
+                        or tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+                    )
+                )
+                double_sided = sum(1 for mesh in meshes if bool(getattr(mesh, "preview_double_sided", False)))
+                editable = sum(1 for mesh in meshes if int(getattr(mesh, "source_submesh_index", -1) or -1) >= 0)
+                lines.extend(
+                    [
+                        f"{label}: meshes={len(meshes):,} verts={vertex_count:,} faces={face_count:,} textured={textured:,} double_sided={double_sided:,} editable={editable:,}",
+                        f"{label} path: {str(getattr(model, 'path', '') or '')}",
+                        f"{label} summary: {str(getattr(model, 'summary', '') or '')}",
+                    ]
+                )
+                for index, mesh in enumerate(meshes[: max(0, int(limit))]):
+                    material_inputs = tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+                    input_summary = ", ".join(
+                        (
+                            f"{str(getattr(item, 'parameter_name', '') or getattr(item, 'slot_kind', '') or '?')}"
+                            f":{str(getattr(item, 'semantic_subtype', '') or getattr(item, 'semantic_type', '') or '?')}"
+                        )
+                        for item in material_inputs[:5]
+                    )
+                    textures = [
+                        slot
+                        for slot, value in (
+                            ("base", getattr(mesh, "preview_texture_path", "")),
+                            ("normal", getattr(mesh, "preview_normal_texture_path", "")),
+                            ("material", getattr(mesh, "preview_material_texture_path", "")),
+                            ("height", getattr(mesh, "preview_height_texture_path", "")),
+                        )
+                        if str(value or "").strip()
+                    ]
+                    lines.append(
+                        f"  [{index:02d}] src={int(getattr(mesh, 'source_submesh_index', -1) or -1)} "
+                        f"role={str(getattr(mesh, 'preview_role', '') or '-')} "
+                        f"mat={str(getattr(mesh, 'material_name', '') or '-')[:70]} "
+                        f"verts={len(getattr(mesh, 'positions', ()) or ()):>7,} "
+                        f"faces={len(getattr(mesh, 'indices', ()) or ()) // 3:>7,} "
+                        f"uv={len(getattr(mesh, 'texture_coordinates', ()) or ()):>7,} "
+                        f"norm={len(getattr(mesh, 'normals', ()) or ()):>7,} "
+                        f"two_sided={bool(getattr(mesh, 'preview_double_sided', False))} "
+                        f"textures={'+'.join(textures) or '-'} inputs={input_summary or '-'}"
+                    )
+                if len(meshes) > limit:
+                    lines.append(f"  ... {len(meshes) - limit:,} more mesh(es)")
+                return lines
+
+            def _mesh_editor_diagnostics_source_mesh_lines(label: str, mesh: object, *, limit: int = 18) -> List[str]:
+                lines: List[str] = []
+                submeshes = list(getattr(mesh, "submeshes", ()) or ()) if mesh is not None else []
+                if not submeshes:
+                    lines.append(f"{label}: unavailable")
+                    return lines
+                total_vertices = sum(len(getattr(submesh, "vertices", ()) or ()) for submesh in submeshes)
+                total_faces = sum(len(getattr(submesh, "faces", ()) or ()) for submesh in submeshes)
+                total_uvs = sum(len(getattr(submesh, "uvs", ()) or ()) for submesh in submeshes)
+                total_normals = sum(len(getattr(submesh, "normals", ()) or ()) for submesh in submeshes)
+                lines.append(
+                    f"{label}: submeshes={len(submeshes):,} verts={total_vertices:,} faces={total_faces:,} "
+                    f"uv={total_uvs:,} normals={total_normals:,}"
+                )
+                lines.append(f"{label} path: {str(getattr(mesh, 'path', '') or '')}")
+                for index, submesh in enumerate(submeshes[: max(0, int(limit))]):
+                    enabled = True
+                    try:
+                        enabled = _source_index_is_enabled_renderable(index)
+                    except Exception:
+                        pass
+                    lines.append(
+                        f"  [{index:02d}] enabled={enabled} "
+                        f"mat={str(getattr(submesh, 'material', '') or getattr(submesh, 'name', '') or '-')[:70]} "
+                        f"verts={len(getattr(submesh, 'vertices', ()) or ()):>7,} "
+                        f"faces={len(getattr(submesh, 'faces', ()) or ()):>7,} "
+                        f"uv={len(getattr(submesh, 'uvs', ()) or ()):>7,} "
+                        f"norm={len(getattr(submesh, 'normals', ()) or ()):>7,}"
+                    )
+                if len(submeshes) > limit:
+                    lines.append(f"  ... {len(submeshes) - limit:,} more submesh(es)")
+                return lines
+
+            def _mesh_editor_diagnostics_manifest_lines(package_dir: object, *, limit: int = 24) -> List[str]:
+                lines: List[str] = []
+                try:
+                    manifest_path = Path(package_dir) / "manifest.json" if package_dir is not None else None
+                except TypeError:
+                    manifest_path = None
+                if manifest_path is None or not manifest_path.is_file():
+                    lines.append("manifest: unavailable")
+                    return lines
+                lines.append(f"manifest path: {manifest_path}")
+                try:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except Exception as exc:
+                    lines.append(f"manifest read error: {exc}")
+                    return lines
+                if not isinstance(manifest, Mapping):
+                    lines.append("manifest: invalid payload")
+                    return lines
+                batches = manifest.get("batches")
+                batch_list = list(batches) if isinstance(batches, Sequence) and not isinstance(batches, (str, bytes, bytearray)) else []
+                texture_counts: Counter[str] = Counter()
+                material_input_counts: Counter[str] = Counter()
+                role_counts: Counter[str] = Counter()
+                two_sided_count = 0
+                uv_count = 0
+                tangent_count = 0
+                editable_count = 0
+                total_batch_vertices = 0
+                for batch in batch_list:
+                    if not isinstance(batch, Mapping):
+                        continue
+                    total_batch_vertices += int(batch.get("vertex_count", 0) or 0)
+                    if bool(batch.get("two_sided", batch.get("double_sided", False))):
+                        two_sided_count += 1
+                    if bool(batch.get("has_texture_coordinates", False)):
+                        uv_count += 1
+                    if bool(batch.get("tangents_usable", False)):
+                        tangent_count += 1
+                    identity = batch.get("editor_identity")
+                    if isinstance(identity, Mapping):
+                        role = str(identity.get("role", "") or batch.get("editor_role", "") or "-")
+                        if bool(identity.get("editable", batch.get("editor_editable", False))):
+                            editable_count += 1
+                    else:
+                        role = str(batch.get("editor_role", "") or "-")
+                        if bool(batch.get("editor_editable", False)):
+                            editable_count += 1
+                    role_counts[role] += 1
+                    for slot_group in ("textures", "dds_textures"):
+                        textures = batch.get(slot_group)
+                        if isinstance(textures, Mapping):
+                            for slot_name, value in textures.items():
+                                if str(value or "").strip():
+                                    texture_counts[str(slot_name)] += 1
+                    material_inputs = batch.get("material_inputs")
+                    if isinstance(material_inputs, Sequence) and not isinstance(material_inputs, (str, bytes, bytearray)):
+                        for material_input in material_inputs:
+                            if not isinstance(material_input, Mapping):
+                                continue
+                            slot = str(material_input.get("slot_kind", "") or "?")
+                            subtype = str(material_input.get("semantic_subtype", "") or material_input.get("semantic_type", "") or "?")
+                            packed = ",".join(str(value) for value in tuple(material_input.get("packed_channels", ()) or ())) or "-"
+                            material_input_counts[f"{slot}:{subtype}:{packed}"] += 1
+                lines.extend(
+                    [
+                        "manifest: "
+                        f"schema={manifest.get('schema_version', '?')} backend={manifest.get('backend', '?')} "
+                        f"workspace={manifest.get('editor_workspace', '?')} display={manifest.get('display_mode', '?')} "
+                        f"diagnostic={manifest.get('render_diagnostic_mode', '?')} view={manifest.get('d3d11_view_mode', '?')}",
+                        f"manifest counts: meshes={manifest.get('mesh_count', '?')} verts={manifest.get('vertex_count', '?')} "
+                        f"faces={manifest.get('face_count', '?')} batches={len(batch_list):,} batch_vertices={total_batch_vertices:,}",
+                        f"manifest flags: two_sided_batches={two_sided_count:,} uv_batches={uv_count:,} tangent_batches={tangent_count:,} editable_batches={editable_count:,}",
+                        "manifest roles: "
+                        + (", ".join(f"{key}={value}" for key, value in sorted(role_counts.items())) or "-"),
+                        "manifest textures: "
+                        + (", ".join(f"{key}={value}" for key, value in sorted(texture_counts.items())) or "-"),
+                        "manifest material inputs: "
+                        + (", ".join(f"{key}={value}" for key, value in sorted(material_input_counts.items())) or "-"),
+                    ]
+                )
+                render_settings = manifest.get("render_settings")
+                if isinstance(render_settings, Mapping):
+                    lines.append(
+                        "manifest render settings: "
+                        f"visible={render_settings.get('visible_texture_mode', '?')} "
+                        f"diagnostic={render_settings.get('render_diagnostic_mode', '?')} "
+                        f"support_disabled={render_settings.get('disable_all_support_maps', '?')} "
+                        f"normal_disabled={render_settings.get('disable_normal_map', '?')} "
+                        f"material_disabled={render_settings.get('disable_material_map', '?')} "
+                        f"height_disabled={render_settings.get('disable_height_map', '?')}"
+                    )
+                load_trace = manifest.get("load_trace")
+                if isinstance(load_trace, Mapping) and load_trace:
+                    trace_order = (
+                        "prepare_ms",
+                        "geometry_pack_ms",
+                        "material_apply_ms",
+                        "package_write_ms",
+                        "dds_manifest_ms",
+                        "texture_copy_ms",
+                    )
+                    trace_parts = []
+                    for key in trace_order:
+                        if key in load_trace:
+                            try:
+                                trace_parts.append(f"{key}={float(load_trace.get(key, 0.0) or 0.0):.1f}ms")
+                            except (TypeError, ValueError, OverflowError):
+                                trace_parts.append(f"{key}={load_trace.get(key)}")
+                    for key, value in sorted(load_trace.items()):
+                        if key in trace_order:
+                            continue
+                        try:
+                            trace_parts.append(f"{key}={float(value or 0.0):.1f}ms")
+                        except (TypeError, ValueError, OverflowError):
+                            trace_parts.append(f"{key}={value}")
+                    lines.append("manifest load trace: " + (", ".join(trace_parts) or "-"))
+                for index, batch in enumerate(batch_list[: max(0, int(limit))]):
+                    if not isinstance(batch, Mapping):
+                        continue
+                    identity = batch.get("editor_identity")
+                    role = ""
+                    source_index = ""
+                    editable = ""
+                    if isinstance(identity, Mapping):
+                        role = str(identity.get("role", "") or "")
+                        source_index = str(identity.get("source_submesh_index", ""))
+                        editable = str(identity.get("editable", ""))
+                    texture_slots = []
+                    for slot_group in ("textures", "dds_textures"):
+                        textures = batch.get(slot_group)
+                        if isinstance(textures, Mapping):
+                            texture_slots.extend(str(slot) for slot, value in textures.items() if str(value or "").strip())
+                    material_inputs = batch.get("material_inputs")
+                    input_summary = "-"
+                    if isinstance(material_inputs, Sequence) and not isinstance(material_inputs, (str, bytes, bytearray)):
+                        input_summary = ", ".join(
+                            f"{str(item.get('parameter_name', '') or item.get('slot_kind', '') or '?')}:{str(item.get('semantic_subtype', '') or item.get('semantic_type', '') or '?')}"
+                            for item in material_inputs[:5]
+                            if isinstance(item, Mapping)
+                        ) or "-"
+                    lines.append(
+                        f"  batch[{index:02d}] src={source_index or batch.get('source_submesh_index', '-')} role={role or batch.get('editor_role', '-')} editable={editable or batch.get('editor_editable', '-')}"
+                        f" mat={str(batch.get('material_name', '') or '-')[:60]} verts={int(batch.get('vertex_count', 0) or 0):>7,} "
+                        f"two_sided={bool(batch.get('two_sided', batch.get('double_sided', False)))} uv={bool(batch.get('has_texture_coordinates', False))} "
+                        f"tan={bool(batch.get('tangents_usable', False))} tex={'+'.join(sorted(set(texture_slots))) or '-'} inputs={input_summary}"
+                    )
+                if len(batch_list) > limit:
+                    lines.append(f"  ... {len(batch_list) - limit:,} more batch(es)")
+                return lines
+
+            def _refresh_mesh_editor_diagnostics(*, auto: bool = False) -> None:
+                text_widget = mesh_editor_diagnostics_state.get("text_widget")
+                if not isinstance(text_widget, QPlainTextEdit):
+                    return
+                lines: List[str] = []
+
+                def _safe_text(label: str, getter: Callable[[], object]) -> None:
+                    try:
+                        value = getter()
+                    except Exception as exc:
+                        value = f"<error: {exc}>"
+                    lines.append(f"{label}: {value}")
+
+                lines.append("Mesh Editor Replacement Diagnostics")
+                lines.append(f"updated: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+                lines.append("")
+                _safe_text("target", lambda: str(getattr(entry, "path", "") or getattr(entry, "basename", "") or ""))
+                _safe_text("source", lambda: str(obj_path))
+                _safe_text("embedded_builder", lambda: bool(embedded_alignment_builder))
+                _safe_text("native_host", lambda: str(find_native_d3d11_host() or "missing"))
+                _safe_text("preview_mode", lambda: str(preview_mode_combo.currentData() or ""))
+                _safe_text("renderer", lambda: str(preview_renderer_combo.currentData() or ""))
+                _safe_text("render_diagnostic_mode", lambda: str(preview_render_mode_combo.currentData() or ""))
+                _safe_text("visible_texture_mode", lambda: str(preview_visible_mode_combo.currentData() or ""))
+                _safe_text("d3d11_active", lambda: bool(_alignment_d3d11_preview_active()))
+                _safe_text("d3d11_status_label", lambda: alignment_d3d11_preview_status_label.text())
+                _safe_text("preview_timing_label", lambda: preview_performance_label.text())
+                _safe_text("mesh_edit_tab_active", lambda: bool(_alignment_mesh_edit_tab_active()))
+                _safe_text("mesh_edit_enabled", lambda: bool(mesh_edit_enabled_checkbox.isChecked()))
+                _safe_text("mesh_edit_raw_preview_active", lambda: bool(_mesh_edit_raw_preview_active()))
+                _safe_text("mesh_edit_show_vertices", lambda: bool(mesh_edit_show_vertices_checkbox.isChecked()))
+                _safe_text("mesh_edit_tool", lambda: str(mesh_edit_tool_combo.currentData() or ""))
+                _safe_text("mesh_edit_scope", lambda: str(mesh_edit_scope_combo.currentData() or ""))
+                _safe_text("source_face_limit", lambda: int(_alignment_preview_source_face_limit()))
+                _safe_text("selected_source", lambda: int(selected_source_part.get("index", -1)))
+                _safe_text("highlighted_sources", lambda: tuple(sorted(int(index) for index in highlighted_source_indices)))
+                lines.append("")
+                lines.append("D3D11 state")
+                for key in (
+                    "request_id",
+                    "preview_loaded",
+                    "resources_loaded",
+                    "preview_pipeline_stage",
+                    "package_quality",
+                    "replacement_only_direct_source_preview",
+                    "source_owned_direct_source_preview",
+                    "force_direct_source_preview",
+                    "active_package_quality",
+                    "active_package_display_mode",
+                    "last_cache_event",
+                    "last_cache_reason",
+                    "last_rebuild_reason",
+                    "active_package_cache_key",
+                    "prepare_ms",
+                    "package_ms",
+                    "loading_percent",
+                    "loading_stage",
+                    "loading_message",
+                ):
+                    lines.append(f"  {key}: {alignment_d3d11_state.get(key)}")
+                lines.append(f"  active_package: {alignment_d3d11_state.get('active_package')}")
+                lines.append(f"  status_file: {alignment_d3d11_state.get('status_file')}")
+                process = alignment_d3d11_state.get("process")
+                if isinstance(process, QProcess):
+                    lines.append(f"  process_state: {process.state()}")
+                    lines.append(f"  process_program: {process.program()}")
+                    lines.append(f"  process_arguments: {' '.join(process.arguments())}")
+                lines.append("")
+                lines.append("Source geometry")
+                try:
+                    lines.extend(_mesh_editor_diagnostics_source_mesh_lines("replacement_mesh_for_mapping", replacement_mesh_for_mapping))
+                    lines.extend(_mesh_editor_diagnostics_source_mesh_lines("replacement_mesh_base_for_mapping", replacement_mesh_base_for_mapping, limit=6))
+                except NameError as exc:
+                    lines.append(f"source geometry unavailable: {exc}")
+                lines.append("")
+                lines.append("Preview model")
+                try:
+                    lines.extend(_mesh_editor_diagnostics_model_lines("replacement_preview_model", replacement_preview_model))
+                except NameError as exc:
+                    lines.append(f"preview model unavailable: {exc}")
+                queued_model = alignment_d3d11_state.get("queued_model")
+                pending_model = alignment_d3d11_state.get("pending_model")
+                if isinstance(queued_model, ModelPreviewData):
+                    lines.extend(_mesh_editor_diagnostics_model_lines("queued_d3d11_model", queued_model, limit=8))
+                if isinstance(pending_model, ModelPreviewData):
+                    lines.extend(_mesh_editor_diagnostics_model_lines("pending_d3d11_model", pending_model, limit=8))
+                lines.append("")
+                lines.append("Material groups")
+                try:
+                    texture_file_count = len(texture_files_for_mapping)
+                except NameError:
+                    texture_file_count = 0
+                try:
+                    lines.append(f"  texture_files_for_mapping={texture_file_count:,} texture_sets={len(texture_sets):,}")
+                    for index, texture_set in enumerate(list(texture_sets.values())[:18]):
+                        slots = getattr(texture_set, "slots", {}) or {}
+                        slot_text = []
+                        for slot_name, slot in sorted(slots.items()):
+                            source_path = getattr(slot, "source_path", "")
+                            slot_text.append(
+                                f"{slot_name}:{Path(str(source_path)).name if source_path else '-'}"
+                                f":{str(getattr(slot, 'semantic_subtype', '') or '-')}"
+                            )
+                        lines.append(
+                            f"  set[{index:02d}] mat={str(getattr(texture_set, 'material_name', '') or '-')[:70]} "
+                            f"slots={', '.join(slot_text) or '-'} "
+                            f"spec={getattr(texture_set, 'specular_factor', None)} gloss={getattr(texture_set, 'glossiness_factor', None)}"
+                        )
+                except NameError as exc:
+                    lines.append(f"  material groups unavailable: {exc}")
+                lines.append("")
+                lines.append("Active package manifest")
+                lines.extend(_mesh_editor_diagnostics_manifest_lines(alignment_d3d11_state.get("active_package")))
+                lines.append("")
+                lines.append("Latest native status")
+                status_payload_text = str(alignment_d3d11_state.get("status_payload_text", "") or "").strip()
+                if status_payload_text:
+                    try:
+                        status_payload = json.loads(status_payload_text)
+                        lines.append(json.dumps(status_payload, indent=2, sort_keys=True)[:12000])
+                    except Exception:
+                        lines.append(status_payload_text[:12000])
+                else:
+                    lines.append("no status payload yet")
+
+                text = "\n".join(lines)
+                if auto and text == str(mesh_editor_diagnostics_state.get("last_text", "") or ""):
+                    return
+                mesh_editor_diagnostics_state["last_text"] = text
+                try:
+                    cursor_position = int(text_widget.textCursor().position())
+                    text_widget.setPlainText(text)
+                    cursor = text_widget.textCursor()
+                    cursor.setPosition(max(0, min(cursor_position, len(text))))
+                    text_widget.setTextCursor(cursor)
+                except RuntimeError:
+                    pass
+
+            def _copy_mesh_editor_diagnostics() -> None:
+                text_widget = mesh_editor_diagnostics_state.get("text_widget")
+                if not isinstance(text_widget, QPlainTextEdit):
+                    return
+                QApplication.clipboard().setText(text_widget.toPlainText())
+                self.set_status_message("Mesh Editor diagnostics copied.")
 
             def _tick_alignment_d3d11_loading_spinner() -> None:
                 if not _alignment_dialog_widgets_live() or not _qt_object_is_valid(alignment_d3d11_loading_spinner_label):
@@ -56717,6 +57487,10 @@ def run_gui() -> int:
                 text = str(summary or "").strip()
                 preview_performance_label.setText(text)
                 preview_performance_label.setToolTip(str(details or text or "Live preview status.").strip())
+                try:
+                    _refresh_mesh_editor_diagnostics(auto=True)
+                except NameError:
+                    pass
             preview_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             main_splitter.addWidget(preview_panel)
             main_splitter.setCollapsible(0, False)
@@ -56751,7 +57525,7 @@ def run_gui() -> int:
                     if preview_splitter.orientation() != Qt.Horizontal:
                         preview_splitter.setOrientation(Qt.Horizontal)
                     if force_sizes or alignment_dialog_layout_state.get("mode") != "embedded":
-                        control_width = max(320, min(520, int(width * 0.34)))
+                        control_width = max(380, min(620, int(width * 0.40)))
                         main_splitter.setSizes([control_width, max(220, width - control_width)])
                         preview_splitter.setSizes([max(220, int((width - control_width) * 0.52)), max(220, int((width - control_width) * 0.44))])
                     alignment_dialog_layout_state["mode"] = "embedded"
@@ -56798,7 +57572,7 @@ def run_gui() -> int:
                         if mesh_edit_tools_active:
                             control_width = max(mesh_edit_control_min_width, min(mesh_edit_control_max_width, int(width * 0.24)))
                         else:
-                            control_width = max(620, min(1040, int(width * 0.42)))
+                            control_width = max(760, min(1120, int(width * 0.48)))
                         main_splitter.setSizes([control_width, max(760, width - control_width)])
                         preview_splitter.setSizes([max(360, int((width - control_width) * 0.52)), max(360, int((width - control_width) * 0.44))])
 
@@ -56847,12 +57621,36 @@ def run_gui() -> int:
             mesh_edit_layout_page.setSpacing(0)
             mesh_edit_tab.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             textures_tab, textures_page, textures_layout = _new_alignment_scroll_tab("MeshAlignmentMaterialsScrollTab")
+            diagnostics_tab, diagnostics_page, diagnostics_layout = _new_alignment_scroll_tab("MeshAlignmentDiagnosticsScrollTab")
             control_tabs.addTab(setup_tab, "Setup")
             control_tabs.addTab(parts_tab, "Parts && Routing")
             control_tabs.addTab(mesh_edit_tab, "Mesh Editing")
             control_tabs.addTab(textures_tab, "Materials && Textures")
-            for tab_index, tab_label in enumerate(("Setup", "Parts && Routing", "Mesh Editing", "Materials && Textures")):
+            control_tabs.addTab(diagnostics_tab, "Diagnostics")
+            for tab_index, tab_label in enumerate(("Setup", "Parts && Routing", "Mesh Editing", "Materials && Textures", "Diagnostics")):
                 control_tabs.setTabToolTip(tab_index, tab_label)
+            diagnostics_page.setMinimumWidth(0 if embedded_alignment_builder else alignment_control_content_min_width)
+            diagnostics_toolbar = QHBoxLayout()
+            diagnostics_toolbar.setContentsMargins(5, 3, 5, 3)
+            diagnostics_toolbar.setSpacing(4)
+            diagnostics_refresh_button = QPushButton("Refresh")
+            diagnostics_copy_button = QPushButton("Copy")
+            diagnostics_refresh_button.setObjectName("MeshAlignmentDiagnosticsRefreshButton")
+            diagnostics_copy_button.setObjectName("MeshAlignmentDiagnosticsCopyButton")
+            diagnostics_refresh_button.clicked.connect(lambda _checked=False: _refresh_mesh_editor_diagnostics())
+            diagnostics_copy_button.clicked.connect(lambda _checked=False: _copy_mesh_editor_diagnostics())
+            diagnostics_toolbar.addWidget(diagnostics_refresh_button)
+            diagnostics_toolbar.addWidget(diagnostics_copy_button)
+            diagnostics_toolbar.addStretch(1)
+            diagnostics_layout.addLayout(diagnostics_toolbar)
+            diagnostics_text = QPlainTextEdit(diagnostics_page)
+            diagnostics_text.setObjectName("MeshAlignmentDiagnosticsText")
+            diagnostics_text.setReadOnly(True)
+            diagnostics_text.setLineWrapMode(QPlainTextEdit.NoWrap)
+            diagnostics_text.setMinimumHeight(420)
+            diagnostics_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            diagnostics_layout.addWidget(diagnostics_text, 1)
+            mesh_editor_diagnostics_state["text_widget"] = diagnostics_text
             selection_context_frame = QFrame(content_container)
             selection_context_frame.setObjectName("SelectionContextFrame")
             selection_context_layout = QHBoxLayout(selection_context_frame)
@@ -57265,6 +58063,12 @@ def run_gui() -> int:
                 "sidecar_reports": (),
             }
             texture_overrides_dirty = {"dirty": True}
+            source_parts_apply_state: Dict[str, object] = {
+                "pending": False,
+                "reason": "",
+                "preview_rebuild_pending": False,
+                "preview_rebuild_reason": "",
+            }
             material_authority_preview_signature_state = {"visible": "", "cache": ""}
             static_preview_refresh_timer = QTimer(dialog)
             static_preview_refresh_timer.setSingleShot(True)
@@ -57509,7 +58313,7 @@ def run_gui() -> int:
 
             def _alignment_preview_source_face_limit() -> int:
                 try:
-                    if mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active():
+                    if mesh_edit_enabled_checkbox.isChecked():
                         return 0
                 except NameError:
                     pass
@@ -57592,7 +58396,7 @@ def run_gui() -> int:
 
             def _alignment_preview_selected_source_face_limit(source_indices: Sequence[int]) -> int:
                 try:
-                    if mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active():
+                    if mesh_edit_enabled_checkbox.isChecked():
                         return 0
                 except NameError:
                     pass
@@ -57993,6 +58797,14 @@ def run_gui() -> int:
                 static_preview_refresh_timer.start()
 
             def _queue_selection_preview_refresh(*_args: object) -> None:
+                if bool(source_parts_apply_state.get("pending")):
+                    _sync_highlight_sets()
+                    reason = str(source_parts_apply_state.get("reason", "") or "part changes").strip()
+                    _set_preview_performance_status(
+                        "Part changes pending. Press Apply to rebuild preview.",
+                        details=f"Pending {reason}; selection update did not rebuild geometry.",
+                    )
+                    return
                 if _alignment_d3d11_preview_active():
                     _sync_highlight_sets()
                     _set_preview_performance_status(
@@ -58588,6 +59400,11 @@ def run_gui() -> int:
                     _remove()
 
             def _alignment_d3d11_invalidate_package_cache(reason: str = "geometry") -> None:
+                normalized_reason = str(reason or "geometry").strip().lower()
+                if normalized_reason == "material":
+                    alignment_d3d11_state["last_cache_event"] = "material_dirty"
+                    alignment_d3d11_state["last_cache_reason"] = normalized_reason
+                    return
                 package_cache = alignment_d3d11_state.get("package_cache")
                 if not isinstance(package_cache, OrderedDict) or not package_cache:
                     return
@@ -58611,7 +59428,7 @@ def run_gui() -> int:
                     delay_ms = 5000 if active_path is not None and package_path == active_path else 0
                     _cleanup_alignment_d3d11_package(package_path, delay_ms=delay_ms, force=True)
                 alignment_d3d11_state["last_cache_event"] = "cleared"
-                alignment_d3d11_state["last_cache_reason"] = str(reason or "geometry")
+                alignment_d3d11_state["last_cache_reason"] = normalized_reason
 
             def _alignment_d3d11_model_cache_signature(model: ModelPreviewData) -> str:
                 def _sample_sequence(values: object, *, limit: int = 4) -> tuple:
@@ -58709,25 +59526,24 @@ def run_gui() -> int:
                 *,
                 display_mode: str,
             ) -> str:
-                def _sample_sequence(values: object, *, limit: int = 4) -> tuple:
-                    seq = tuple(values or ())
-                    if len(seq) <= limit * 2:
-                        return seq
-                    return seq[:limit] + seq[-limit:]
+                def _sequence_digest(values: object) -> tuple[int, str]:
+                    digest = hashlib.sha1()
+                    count = 0
+                    for value in tuple(values or ()):
+                        digest.update(repr(value).encode("utf-8", errors="replace"))
+                        digest.update(b"\0")
+                        count += 1
+                    return count, digest.hexdigest()
 
                 mesh_signatures = []
                 for mesh in getattr(model, "meshes", ()) or ():
                     mesh_signatures.append(
                         (
                             int(getattr(mesh, "source_submesh_index", -1) or -1),
-                            len(getattr(mesh, "positions", ()) or ()),
-                            len(getattr(mesh, "normals", ()) or ()),
-                            len(getattr(mesh, "texture_coordinates", ()) or ()),
-                            len(getattr(mesh, "indices", ()) or ()),
-                            _sample_sequence(getattr(mesh, "positions", ()) or ()),
-                            _sample_sequence(getattr(mesh, "normals", ()) or ()),
-                            _sample_sequence(getattr(mesh, "texture_coordinates", ()) or ()),
-                            _sample_sequence(getattr(mesh, "indices", ()) or ()),
+                            _sequence_digest(getattr(mesh, "positions", ()) or ()),
+                            _sequence_digest(getattr(mesh, "normals", ()) or ()),
+                            _sequence_digest(getattr(mesh, "texture_coordinates", ()) or ()),
+                            _sequence_digest(getattr(mesh, "indices", ()) or ()),
                             bool(getattr(mesh, "preview_double_sided", False)),
                         )
                     )
@@ -58742,22 +59558,28 @@ def run_gui() -> int:
                     float(getattr(model, "normalization_scale", 1.0) or 1.0),
                     _alignment_d3d11_cache_display_class(display_mode),
                     bool(modify_original_clone_mode),
-                    bool(getattr(settings, "flip_texture_v", False)),
                     tuple(mesh_signatures),
                 )
                 encoded = repr(signature).encode("utf-8", errors="replace")
                 return hashlib.sha1(encoded).hexdigest()
 
-            def _alignment_d3d11_preview_cache_key(
+            def _alignment_d3d11_material_cache_key(
                 model: ModelPreviewData,
                 settings: ModelPreviewRenderSettings,
                 *,
-                label: str,
-                display_mode: str,
                 package_quality: str,
             ) -> str:
-                if _mesh_edit_raw_preview_active():
-                    return ""
+                def _file_signature(path_value: object) -> tuple[str, int, int]:
+                    path_text = str(path_value or "").strip()
+                    if not path_text:
+                        return ("", 0, 0)
+                    try:
+                        path = Path(path_text).expanduser()
+                        stat = path.stat()
+                        return (str(path), int(stat.st_size), int(stat.st_mtime_ns))
+                    except (OSError, TypeError, ValueError):
+                        return (path_text, 0, 0)
+
                 package_settings = (
                     int(getattr(settings, "preview_texture_max_dimension", 0) or 0),
                     int(getattr(settings, "low_quality_texture_max_dimension", 0) or 0),
@@ -58769,16 +59591,103 @@ def run_gui() -> int:
                     str(getattr(settings, "visible_texture_mode", "") or ""),
                     str(getattr(settings, "alpha_handling_mode", "") or ""),
                     str(package_quality or "normal"),
-                    _alignment_d3d11_cache_display_class(display_mode),
-                    bool(modify_original_clone_mode),
                 )
+                material_authority_payload = {
+                    "donor_material_plans": _current_donor_material_plan_payload(),
+                }
+                mesh_signatures = []
+                for mesh in getattr(model, "meshes", ()) or ():
+                    material_inputs = tuple(
+                        (
+                            str(getattr(item, "parameter_name", "") or ""),
+                            str(getattr(item, "slot_kind", "") or ""),
+                            str(getattr(item, "semantic_type", "") or ""),
+                            str(getattr(item, "semantic_subtype", "") or ""),
+                            str(getattr(item, "source_texture_path", "") or ""),
+                            str(getattr(item, "source_dds_path", "") or ""),
+                            str(getattr(item, "preview_texture_path", "") or ""),
+                            _file_signature(getattr(item, "source_texture_path", "")),
+                            _file_signature(getattr(item, "source_dds_path", "")),
+                            _file_signature(getattr(item, "preview_texture_path", "")),
+                            tuple(getattr(item, "packed_channels", ()) or ()),
+                            tuple(
+                                (
+                                    str(getattr(parameter, "parameter_kind", "") or ""),
+                                    str(getattr(parameter, "parameter_name", "") or ""),
+                                    str(getattr(parameter, "value", "") or ""),
+                                    str(getattr(parameter, "numeric_value", "") or ""),
+                                )
+                                for parameter in tuple(getattr(item, "material_parameters", ()) or ())
+                            ),
+                        )
+                        for item in tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())[:24]
+                    )
+                    mesh_signatures.append(
+                        (
+                            str(getattr(mesh, "material_name", "") or ""),
+                            str(getattr(mesh, "texture_name", "") or ""),
+                            str(getattr(mesh, "preview_texture_path", "") or ""),
+                            str(getattr(mesh, "preview_texture_dds_path", "") or ""),
+                            str(getattr(mesh, "preview_normal_texture_path", "") or ""),
+                            str(getattr(mesh, "preview_normal_texture_dds_path", "") or ""),
+                            str(getattr(mesh, "preview_material_texture_path", "") or ""),
+                            str(getattr(mesh, "preview_material_texture_dds_path", "") or ""),
+                            str(getattr(mesh, "preview_height_texture_path", "") or ""),
+                            str(getattr(mesh, "preview_height_texture_dds_path", "") or ""),
+                            _file_signature(getattr(mesh, "preview_texture_path", "")),
+                            _file_signature(getattr(mesh, "preview_texture_dds_path", "")),
+                            _file_signature(getattr(mesh, "preview_normal_texture_path", "")),
+                            _file_signature(getattr(mesh, "preview_normal_texture_dds_path", "")),
+                            _file_signature(getattr(mesh, "preview_material_texture_path", "")),
+                            _file_signature(getattr(mesh, "preview_material_texture_dds_path", "")),
+                            _file_signature(getattr(mesh, "preview_height_texture_path", "")),
+                            _file_signature(getattr(mesh, "preview_height_texture_dds_path", "")),
+                            getattr(mesh, "preview_texture_flip_vertical", None),
+                            tuple(getattr(mesh, "preview_texture_tint", ()) or ()),
+                            float(getattr(mesh, "preview_texture_brightness", 1.0) or 1.0),
+                            tuple(getattr(mesh, "preview_texture_uv_scale", ()) or ()),
+                            str(getattr(mesh, "preview_alpha_mode", "") or ""),
+                            bool(getattr(mesh, "preview_double_sided", False)),
+                            material_inputs,
+                        )
+                    )
                 signature = (
-                    "alignment_d3d11_v2",
+                    "alignment_d3d11_material_v1",
                     package_settings,
-                    _alignment_d3d11_model_cache_signature(model),
+                    material_authority_payload,
+                    tuple(mesh_signatures),
                 )
                 encoded = repr(signature).encode("utf-8", errors="replace")
                 return hashlib.sha1(encoded).hexdigest()
+
+            def _alignment_d3d11_preview_cache_signature(
+                model: ModelPreviewData,
+                settings: ModelPreviewRenderSettings,
+                *,
+                display_mode: str,
+                package_quality: str,
+            ) -> MeshPreviewCacheSignature:
+                return MeshPreviewCacheSignature(
+                    geometry_key=_alignment_d3d11_geometry_cache_key(model, settings, display_mode=display_mode),
+                    material_key=_alignment_d3d11_material_cache_key(model, settings, package_quality=package_quality),
+                    display_class=f"{_alignment_d3d11_cache_display_class(display_mode)}|{str(package_quality or 'normal')}",
+                )
+
+            def _alignment_d3d11_preview_cache_key(
+                model: ModelPreviewData,
+                settings: ModelPreviewRenderSettings,
+                *,
+                label: str,
+                display_mode: str,
+                package_quality: str,
+            ) -> str:
+                _ = label
+                return _alignment_d3d11_preview_cache_signature(
+                    model,
+                    settings,
+                    display_mode=display_mode,
+                    package_quality=package_quality,
+                ).package_key
 
             def _alignment_d3d11_package_cache_get(cache_key: str) -> Optional[Mapping[str, object]]:
                 key = str(cache_key or "")
@@ -59087,6 +59996,7 @@ def run_gui() -> int:
             ) -> tuple[ModelPreviewRenderSettings, bool, bool, str]:
                 settings = _current_alignment_preview_render_settings()
                 normalized_reason = str(reason or alignment_d3d11_state.get("next_rebuild_reason", "") or "").strip().lower()
+                dirty_flags = _alignment_d3d11_dirty_flags_for_reason(normalized_reason)
                 if _mesh_edit_raw_preview_active():
                     # Live mesh editing still needs uncached geometry packages,
                     # but it must render the same material contract as Archive
@@ -59094,10 +60004,23 @@ def run_gui() -> int:
                     return clamp_model_preview_render_settings(settings), True, True, "mesh_edit_raw"
                 if (
                     bool(alignment_d3d11_state.get("archive_parity_ready"))
-                    and normalized_reason == "material"
+                    and dirty_flags.affects_material()
+                    and not dirty_flags.affects_geometry()
                 ):
                     return clamp_model_preview_render_settings(settings), True, True, "material_refresh"
                 return clamp_model_preview_render_settings(settings), True, True, "archive_parity"
+
+            def _alignment_d3d11_dirty_flags_for_reason(reason: str) -> MeshPreviewDirtyFlags:
+                normalized = str(reason or "geometry").strip().lower()
+                if normalized == "material":
+                    return MeshPreviewDirtyFlags(material=True)
+                if normalized == "texture_uv":
+                    return MeshPreviewDirtyFlags(uv=True, material=True)
+                if normalized == "mode_missing_original":
+                    return MeshPreviewDirtyFlags(render_settings=True)
+                if normalized == "selection":
+                    return MeshPreviewDirtyFlags(selection=True)
+                return MeshPreviewDirtyFlags(geometry=True)
 
             def _queue_alignment_archive_parity_upgrade(reason: str = "fast preview ready") -> None:
                 if not _alignment_dialog_widgets_live() or not _alignment_d3d11_preview_active():
@@ -59232,7 +60155,8 @@ def run_gui() -> int:
                 rebuild_reason = str(reason or "geometry").strip().lower()
                 if rebuild_reason not in {"geometry", "texture_uv", "material", "mode_missing_original"}:
                     rebuild_reason = "geometry"
-                if rebuild_reason != "material":
+                dirty_flags = _alignment_d3d11_dirty_flags_for_reason(rebuild_reason)
+                if dirty_flags.affects_geometry():
                     alignment_d3d11_state["fast_geometry_loaded"] = False
                     alignment_d3d11_state["archive_parity_ready"] = False
                     alignment_d3d11_state["archive_parity_upgrade_queued"] = False
@@ -59371,6 +60295,7 @@ def run_gui() -> int:
                                     "native load/upload 0.0 ms (active package reused)"
                                 ),
                             )
+                            _clear_source_parts_preview_rebuild_pending()
                             if cached_quality == "fast_geometry":
                                 _queue_alignment_archive_parity_upgrade("active cached fast package reused")
                             return
@@ -59412,7 +60337,7 @@ def run_gui() -> int:
                     editor_workspace="modify_original_alignment" if modify_original_clone_mode else "mesh_replacement_alignment",
                     package_quality=package_quality,
                     geometry_signature=geometry_signature,
-                    reuse_prepared_geometry=package_quality_key == "material_refresh",
+                    reuse_prepared_geometry=bool(geometry_signature),
                     geometry_cache_dir=preview_cache_root / "geometry",
                     texture_cache_dir=preview_cache_root / "textures",
                 )
@@ -59532,6 +60457,7 @@ def run_gui() -> int:
                     return
                 _set_alignment_d3d11_loading(False, f"Preview load failed: {message}")
                 _set_preview_performance_status("D3D11 package failed.", details=str(message))
+                _clear_source_parts_preview_rebuild_pending()
 
             def _cleanup_alignment_d3d11_package_worker_refs() -> None:
                 alignment_d3d11_state["thread"] = None
@@ -59803,6 +60729,7 @@ def run_gui() -> int:
                 if process is not alignment_d3d11_state.get("process"):
                     return
                 _set_alignment_d3d11_loading(False, f"Preview process error: {error}")
+                _clear_source_parts_preview_rebuild_pending()
 
             def _handle_alignment_d3d11_finished(process: QProcess, exit_code: int, exit_status: object) -> None:
                 if process is not alignment_d3d11_state.get("process"):
@@ -59822,6 +60749,7 @@ def run_gui() -> int:
                 _cleanup_alignment_d3d11_package(package_dir)
                 if widgets_live and int(exit_code) != 0:
                     _set_alignment_d3d11_loading(False, f"Preview closed with code {int(exit_code)} ({exit_status}).")
+                    _clear_source_parts_preview_rebuild_pending()
 
             def _poll_alignment_d3d11_status() -> None:
                 if not _alignment_dialog_widgets_live():
@@ -59923,11 +60851,10 @@ def run_gui() -> int:
                     cache_event = str(alignment_d3d11_state.get("last_cache_event", "miss") or "miss")
                     cache_label = _d3d11_cache_event_user_label(cache_event)
                     rebuild_reason = str(alignment_d3d11_state.get("last_cache_reason", "") or alignment_d3d11_state.get("last_rebuild_reason", "geometry") or "geometry")
-                    native_load_ms = (
-                        float(payload.get("manifest_read_ms", 0.0) or 0.0)
-                        + float(payload.get("texture_bind_ms", 0.0) or 0.0)
-                        + float(payload.get("geometry_upload_ms", 0.0) or 0.0)
-                    )
+                    native_manifest_ms = float(payload.get("native_manifest_ms", payload.get("manifest_read_ms", 0.0)) or 0.0)
+                    native_texture_ms = float(payload.get("native_texture_ms", payload.get("texture_bind_ms", 0.0)) or 0.0)
+                    native_geometry_ms = float(payload.get("native_geometry_ms", payload.get("geometry_upload_ms", 0.0)) or 0.0)
+                    native_load_ms = native_manifest_ms + native_texture_ms + native_geometry_ms
                     timing_summary = (
                         f"D3D11 preview loaded - {_alignment_preview_quality_label()} - "
                         f"{str(alignment_d3d11_state.get('package_quality', 'normal') or 'normal')} package - "
@@ -59941,9 +60868,9 @@ def run_gui() -> int:
                         f"pipeline {str(alignment_d3d11_state.get('preview_pipeline_stage', '') or '')}\n"
                         f"prepare {float(alignment_d3d11_state.get('prepare_ms', 0.0) or 0.0):.1f} ms\n"
                         f"package {float(alignment_d3d11_state.get('package_ms', 0.0) or 0.0):.1f} ms\n"
-                        f"manifest {float(payload.get('manifest_read_ms', 0.0) or 0.0):.1f} ms\n"
-                        f"textures {float(payload.get('texture_bind_ms', 0.0) or 0.0):.1f} ms\n"
-                        f"geometry {float(payload.get('geometry_upload_ms', 0.0) or 0.0):.1f} ms\n"
+                        f"native_manifest_ms {native_manifest_ms:.1f}\n"
+                        f"native_texture_ms {native_texture_ms:.1f}\n"
+                        f"native_geometry_ms {native_geometry_ms:.1f}\n"
                         f"native_load_upload {native_load_ms:.1f} ms\n"
                         f"first_frame {float(payload.get('first_frame_ms', 0.0) or 0.0):.1f} ms\n"
                         f"frames {int(payload.get('frame_count', 0) or 0)}\n"
@@ -59952,6 +60879,7 @@ def run_gui() -> int:
                         f"{channel_debug}"
                     )
                     _set_preview_performance_status(timing_summary, details=timing_details)
+                    _clear_source_parts_preview_rebuild_pending()
                     if loaded_quality == "fast_geometry":
                         _queue_alignment_archive_parity_upgrade("fast geometry loaded")
                 elif event == "resources_loaded":
@@ -60015,9 +60943,11 @@ def run_gui() -> int:
                     message = str(payload.get("message", "") or "Native D3D11 renderer error.")
                     _set_alignment_d3d11_loading(False, f"Preview load failed: {message}")
                     _set_preview_performance_status("D3D11 renderer error.", details=message)
+                    _clear_source_parts_preview_rebuild_pending()
                 elif event == "closed":
                     alignment_d3d11_state["preview_loaded"] = False
                     _set_alignment_d3d11_loading(False, "Preview closed.")
+                    _clear_source_parts_preview_rebuild_pending()
 
             def _set_preview_renderer() -> None:
                 if not _alignment_dialog_widgets_live():
@@ -61370,7 +62300,8 @@ def run_gui() -> int:
                     stretch_columns=(2, 4, 6),
                     persist_key="source_parts",
                 )
-                source_tree.setSelectionMode(QAbstractItemView.SingleSelection)
+                source_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
+                source_tree.setSelectionBehavior(QAbstractItemView.SelectRows)
                 source_parts_group = QGroupBox("Replacement reference parts")
                 source_parts_group.setObjectName("MeshReplacementReferenceParts")
                 source_parts_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
@@ -61400,6 +62331,30 @@ def run_gui() -> int:
                             indices.append(source_index)
                     return indices
 
+                source_tree_context_selection_state: Dict[str, object] = {
+                    "multi_indices": (),
+                    "right_press": False,
+                }
+
+                class _SourceTreeContextSelectionFilter(QObject):
+                    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # type: ignore[override]
+                        if watched is source_tree.viewport() and event.type() == QEvent.MouseButtonPress:
+                            try:
+                                button = event.button()
+                            except Exception:
+                                button = None
+                            if button == Qt.RightButton:
+                                source_tree_context_selection_state["right_press"] = True
+                                selected_indices = tuple(_selected_source_indices_from_tree(include_fallback=False))
+                                if len(selected_indices) > 1:
+                                    source_tree_context_selection_state["multi_indices"] = selected_indices
+                            elif button == Qt.LeftButton:
+                                source_tree_context_selection_state["right_press"] = False
+                        return False
+
+                source_tree_context_selection_filter = _SourceTreeContextSelectionFilter(source_tree)
+                source_tree.viewport().installEventFilter(source_tree_context_selection_filter)
+
                 def _set_transform_source_indices(source_indices: Sequence[int]) -> None:
                     transform_source_indices.clear()
                     for raw_index in tuple(source_indices or ()):
@@ -61414,6 +62369,60 @@ def run_gui() -> int:
                     transform_source_indices.clear()
 
                 source_tree_item_update_guard = {"active": False}
+
+                def _set_source_parts_apply_pending(reason: str) -> None:
+                    source_parts_apply_state["pending"] = True
+                    source_parts_apply_state["reason"] = str(reason or "part changes")
+                    source_parts_apply_state["preview_rebuild_pending"] = False
+                    source_parts_apply_state["preview_rebuild_reason"] = ""
+                    try:
+                        apply_source_parts_button.setEnabled(True)
+                        source_parts_pending_label.setText(
+                            f"Pending: {source_parts_apply_state['reason']}. Preview still shows the previous build until Apply."
+                        )
+                        source_parts_pending_label.setVisible(True)
+                    except NameError:
+                        pass
+                    _set_preview_performance_status(
+                        "Part changes pending. Deleted/unchecked parts may still render until Apply.",
+                        details=str(source_parts_apply_state["reason"]),
+                    )
+
+                def _clear_source_parts_apply_pending() -> None:
+                    source_parts_apply_state["pending"] = False
+                    source_parts_apply_state["reason"] = ""
+                    source_parts_apply_state["preview_rebuild_pending"] = False
+                    source_parts_apply_state["preview_rebuild_reason"] = ""
+                    try:
+                        apply_source_parts_button.setEnabled(False)
+                        source_parts_pending_label.setText("No unapplied source-part changes.")
+                        source_parts_pending_label.setVisible(False)
+                    except NameError:
+                        pass
+
+                def _set_source_parts_preview_rebuild_pending(reason: str) -> None:
+                    reason_text = str(reason or "source-part changes").strip() or "source-part changes"
+                    source_parts_apply_state["pending"] = False
+                    source_parts_apply_state["reason"] = ""
+                    source_parts_apply_state["preview_rebuild_pending"] = True
+                    source_parts_apply_state["preview_rebuild_reason"] = reason_text
+                    try:
+                        apply_source_parts_button.setEnabled(False)
+                        source_parts_pending_label.setText(
+                            f"Applied: {reason_text}. Rebuilding preview; old D3D11 geometry may remain visible until reload finishes."
+                        )
+                        source_parts_pending_label.setVisible(True)
+                    except NameError:
+                        pass
+                    _set_preview_performance_status(
+                        "Source-part changes applied. Rebuilding preview package.",
+                        details=f"{reason_text}\nOld D3D11 geometry may remain visible until reload finishes.",
+                    )
+
+                def _clear_source_parts_preview_rebuild_pending() -> None:
+                    if not bool(source_parts_apply_state.get("preview_rebuild_pending")):
+                        return
+                    _clear_source_parts_apply_pending()
 
                 def _add_source_tree_item(source_index: int, source: object) -> None:
                     if _is_marker_source(source):
@@ -61473,7 +62482,7 @@ def run_gui() -> int:
                         except NameError:
                             pass
                     _sync_highlight_sets()
-                    _queue_static_preview_rebuild()
+                    _set_source_parts_apply_pending("source include/exclude changed")
 
                 source_tree.itemChanged.connect(_source_item_check_state_changed)
 
@@ -61957,10 +62966,30 @@ def run_gui() -> int:
 
                 def _show_replacement_sources_context_menu(pos: QPoint) -> None:
                     item = source_tree.itemAt(pos)
+                    clicked_source_index = _source_index_from_tree_item(item)
+                    selected_source_indices = _selected_source_indices_from_tree(include_fallback=False)
+                    preserved_multi_indices = tuple(source_tree_context_selection_state.get("multi_indices", ()) or ())
+                    if (
+                        len(selected_source_indices) <= 1
+                        and len(preserved_multi_indices) > 1
+                        and clicked_source_index in preserved_multi_indices
+                    ):
+                        selected_source_indices = [int(index) for index in preserved_multi_indices]
                     if item is not None:
+                        if not item.isSelected() and clicked_source_index not in selected_source_indices:
+                            source_tree.clearSelection()
+                            item.setSelected(True)
+                            source_tree_context_selection_state["multi_indices"] = ()
+                            selected_source_indices = [clicked_source_index] if clicked_source_index >= 0 else []
                         source_tree.setCurrentItem(item)
                     source_index = _selected_source_index()
+                    delete_source_indices = selected_source_indices or _selected_source_indices_from_tree(include_fallback=True)
                     menu = QMenu(source_tree)
+                    delete_action = menu.addAction("Delete Selected Part(s)")
+                    delete_action.setEnabled(bool(delete_source_indices))
+                    apply_action = menu.addAction("Apply")
+                    apply_action.setEnabled(bool(source_parts_apply_state.get("pending")))
+                    menu.addSeparator()
                     paste_action = menu.addAction("Paste As Replacement Source")
                     paste_action.setEnabled(_alignment_part_clipboard_can_paste())
                     menu.addSeparator()
@@ -61969,12 +62998,17 @@ def run_gui() -> int:
                     glow_role_action.setEnabled(source_index >= 0)
                     auto_role_action.setEnabled(source_index >= 0)
                     chosen = menu.exec(source_tree.viewport().mapToGlobal(pos))
-                    if chosen is paste_action:
+                    if chosen is delete_action:
+                        _delete_selected_source_parts(delete_source_indices)
+                    elif chosen is apply_action:
+                        _apply_source_part_preview_changes()
+                    elif chosen is paste_action:
                         _paste_alignment_part_clipboard_as_replacement_source()
                     elif chosen is glow_role_action and source_index >= 0:
                         _apply_source_role_selection(source_index, "glow", "Set source role glow")
                     elif chosen is auto_role_action and source_index >= 0:
                         _apply_source_role_selection(source_index, "", "Clear source role")
+                    source_tree_context_selection_state["right_press"] = False
 
                 original_copy_button.clicked.connect(lambda _checked=False: _copy_selected_original_part(assign_to_target=False))
                 original_copy_assign_button.clicked.connect(lambda _checked=False: _copy_selected_original_part(assign_to_target=True))
@@ -62082,6 +63116,30 @@ def run_gui() -> int:
                     expand_columns=(2, 4, 6),
                 )
                 source_parts_layout.addWidget(source_tree, 0)
+                source_parts_button_row = QHBoxLayout()
+                source_parts_button_row.setContentsMargins(0, 0, 0, 0)
+                source_parts_button_row.setSpacing(4)
+                delete_source_parts_button = QPushButton("Delete Selected")
+                apply_source_parts_button = QPushButton("Apply")
+                delete_source_parts_button.setObjectName("MeshRoutingDeleteSourcePartsButton")
+                apply_source_parts_button.setObjectName("MeshRoutingApplySourcePartsButton")
+                delete_source_parts_button.setToolTip(
+                    "Delete selected replacement source part(s) from this alignment session, remove their target assignments, and re-number later source indices. Original archive files are not modified."
+                )
+                apply_source_parts_button.setToolTip(
+                    "Rebuild preview after source include/exclude, delete, or unassign changes. Until Apply, selection can change but geometry preview is not rebuilt."
+                )
+                apply_source_parts_button.setEnabled(bool(source_parts_apply_state.get("pending")))
+                for source_parts_button in (delete_source_parts_button, apply_source_parts_button):
+                    source_parts_button.setMinimumWidth(0)
+                    source_parts_button_row.addWidget(source_parts_button)
+                source_parts_button_row.addStretch(1)
+                source_parts_layout.addLayout(source_parts_button_row)
+                source_parts_pending_label = QLabel("No unapplied source-part changes.")
+                source_parts_pending_label.setObjectName("HintLabel")
+                source_parts_pending_label.setWordWrap(True)
+                source_parts_pending_label.setVisible(False)
+                source_parts_layout.addWidget(source_parts_pending_label)
                 source_parts_group.setMaximumHeight(16777215)
 
                 _alignment_startup_step("Preparing routing controls...")
@@ -62528,12 +63586,13 @@ def run_gui() -> int:
                     if source_index < 0 or source_index >= len(replacement_mesh_for_mapping.submeshes):
                         return
                     _push_geometry_undo_snapshot("Change source target")
+                    defer_preview = target_index < 0
                     for candidate_target, edit in tuple(mapping_edits):
                         current_indices = [int(index) for index in _parse_mapping_edit(edit) if int(index) != source_index]
                         if int(candidate_target) == target_index and source_index not in current_indices:
                             current_indices.append(source_index)
                         if current_indices != _parse_mapping_edit(edit):
-                            _set_mapping_indices(candidate_target, current_indices, push_undo=False)
+                            _set_mapping_indices(candidate_target, current_indices, push_undo=False, defer_preview=defer_preview)
                     if target_index < 0:
                         preview_only_source_indices.add(source_index)
                         independent_output_source_indices.discard(source_index)
@@ -62551,7 +63610,10 @@ def run_gui() -> int:
                     except NameError:
                         pass
                     _update_mapping_status()
-                    _queue_static_preview_rebuild()
+                    if defer_preview:
+                        _set_source_parts_apply_pending("source unassigned")
+                    else:
+                        _queue_static_preview_rebuild()
 
                 def _parts_outliner_drop_target_index(item: Optional[QTreeWidgetItem]) -> Optional[int]:
                     if item is None:
@@ -63390,12 +64452,39 @@ def run_gui() -> int:
                     remove_source_button.setEnabled(has_source and has_target)
                     clear_target_button.setEnabled(has_target)
 
+                def _sync_target_mapping_tree_item(target_index: int) -> None:
+                    edit = mapping_edits_by_target.get(int(target_index))
+                    item = mapping_items_by_target.get(int(target_index))
+                    if edit is None or item is None:
+                        return
+                    committed_text = str(edit.property("committed_mapping_text") or edit.text() or "").strip()
+                    committed_indices = _parse_mapping_edit(edit)
+                    summary, ok = _selected_source_summary(committed_text)
+                    item.setText(3, _mapping_source_cell_text(summary, ok))
+                    item.setForeground(3, QBrush(QColor("#cbd5e1" if ok else "#fca5a5")))
+                    item.setData(0, Qt.UserRole, tuple(committed_indices))
+                    item.setData(0, Qt.UserRole + 3, not bool(committed_indices))
+                    state_text, state_color = _target_outliner_state(int(target_index), committed_indices)
+                    item.setText(4, state_text)
+                    item.setForeground(4, QBrush(QColor(state_color)))
+                    if state_text == "Removed":
+                        item.setText(5, _removed_target_dds_cell_text(item.text(0)))
+                        item.setToolTip(
+                            5,
+                            "Removed target: patched sidecar output prunes this target's DDS parameters when material sidecar patching is enabled.",
+                        )
+                    else:
+                        item.setText(5, _target_texture_status_text(item.text(0)))
+                        item.setToolTip(5, _target_texture_status_details(item.text(0)))
+                    item.setForeground(5, QBrush(QColor("#cbd5e1" if committed_indices else "#fb923c")))
+
                 def _set_mapping_indices(
                     target_index: int,
                     source_indices: Sequence[int],
                     *,
                     push_undo: bool = True,
                     undo_label: str = "Change target routing",
+                    defer_preview: bool = False,
                 ) -> None:
                     edit = mapping_edits_by_target.get(target_index)
                     if edit is None:
@@ -63411,6 +64500,7 @@ def run_gui() -> int:
                         preview_only_source_indices.discard(mapped_source_index)
                     edit.setText(", ".join(str(index) for index in source_indices))
                     edit.setProperty("committed_mapping_text", edit.text().strip())
+                    _sync_target_mapping_tree_item(int(target_index))
                     texture_overrides_dirty["dirty"] = True
                     mapping_edit_refresh_timer.stop()
                     _refresh_source_assignment_columns()
@@ -63428,7 +64518,261 @@ def run_gui() -> int:
                             kind="target",
                             target_indices=(int(target_index),),
                             source_indices=tuple(normalized_sources),
+                    )
+                    _update_selection_context()
+                    if defer_preview:
+                        _set_source_parts_apply_pending("routing removal changed")
+                    else:
+                        _queue_static_preview_rebuild()
+
+                def _remap_source_index_collection(
+                    values: Iterable[int],
+                    index_map: Mapping[int, int],
+                ) -> set[int]:
+                    remapped: set[int] = set()
+                    for raw_index in tuple(values or ()):
+                        try:
+                            old_index = int(raw_index)
+                        except (TypeError, ValueError):
+                            continue
+                        new_index = index_map.get(old_index)
+                        if new_index is not None and int(new_index) >= 0:
+                            remapped.add(int(new_index))
+                    return remapped
+
+                def _remap_selected_source_index(value: int, index_map: Mapping[int, int]) -> int:
+                    try:
+                        old_index = int(value)
+                    except (TypeError, ValueError):
+                        return -1
+                    new_index = index_map.get(old_index)
+                    return int(new_index) if new_index is not None else -1
+
+                def _remap_source_index_dict(
+                    values: Mapping[int, object],
+                    index_map: Mapping[int, int],
+                    *,
+                    copy_values: bool = False,
+                ) -> dict[int, object]:
+                    remapped: dict[int, object] = {}
+                    for raw_index, value in dict(values or {}).items():
+                        try:
+                            old_index = int(raw_index)
+                        except (TypeError, ValueError):
+                            continue
+                        new_index = index_map.get(old_index)
+                        if new_index is None:
+                            continue
+                        remapped[int(new_index)] = copy.deepcopy(value) if copy_values else value
+                    return remapped
+
+                def _remap_original_copy_source_text(text: str, index_map: Mapping[int, int]) -> str:
+                    remapped: List[str] = []
+                    for raw_part in re.split(r"[,;\s]+", str(text or "").strip()):
+                        if not raw_part:
+                            continue
+                        try:
+                            old_index = int(raw_part)
+                        except ValueError:
+                            continue
+                        new_index = index_map.get(old_index)
+                        if new_index is not None and str(int(new_index)) not in remapped:
+                            remapped.append(str(int(new_index)))
+                    return ", ".join(remapped)
+
+                def _delete_selected_source_parts(source_indices: Optional[Sequence[int]] = None) -> None:
+                    nonlocal replacement_preview_model, texture_sets
+                    if replacement_mesh_for_mapping is None:
+                        return
+                    if source_indices is None or isinstance(source_indices, bool):
+                        selected_indices = _selected_source_indices_from_tree()
+                    else:
+                        selected_indices = list(source_indices)
+                    if not selected_indices:
+                        self.set_status_message("Select replacement source part(s) to delete first.")
+                        return
+                    source_count = len(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())
+                    delete_indices = {
+                        int(index)
+                        for index in selected_indices
+                        if 0 <= int(index) < source_count
+                        and not _is_marker_source(replacement_mesh_for_mapping.submeshes[int(index)])
+                    }
+                    if not delete_indices:
+                        self.set_status_message("No deletable replacement source part selected.")
+                        return
+                    _push_geometry_undo_snapshot("Delete source part")
+                    index_map: Dict[int, int] = {}
+                    kept_submeshes: list[object] = []
+                    for old_index, submesh in enumerate(tuple(replacement_mesh_for_mapping.submeshes or ())):
+                        if old_index in delete_indices:
+                            continue
+                        index_map[old_index] = len(kept_submeshes)
+                        kept_submeshes.append(submesh)
+                    replacement_mesh_for_mapping.submeshes[:] = kept_submeshes
+                    if replacement_mesh_base_for_mapping is not None:
+                        base_submeshes = tuple(getattr(replacement_mesh_base_for_mapping, "submeshes", ()) or ())
+                        if len(base_submeshes) == source_count:
+                            replacement_mesh_base_for_mapping.submeshes[:] = [
+                                submesh for old_index, submesh in enumerate(base_submeshes) if old_index not in delete_indices
+                            ]
+                            refresh_parsed_mesh_totals(replacement_mesh_base_for_mapping)
+                    refresh_parsed_mesh_totals(replacement_mesh_for_mapping)
+                    source_geometry_revision["value"] = int(source_geometry_revision.get("value", 0) or 0) + 1
+
+                    remapped_adjustments: Dict[int, StaticSourcePartAdjustment] = {}
+                    for old_index, adjustment in source_part_adjustments.items():
+                        new_index = index_map.get(int(old_index))
+                        if new_index is None:
+                            continue
+                        remapped_adjustment = copy.deepcopy(adjustment)
+                        remapped_adjustment.source_submesh_index = int(new_index)
+                        remapped_adjustments[int(new_index)] = remapped_adjustment
+                    source_part_adjustments.clear()
+                    source_part_adjustments.update(remapped_adjustments)
+
+                    remapped_source_role_overrides = {
+                        int(new_index): str(value)
+                        for new_index, value in _remap_source_index_dict(source_role_overrides, index_map).items()
+                    }
+                    remapped_source_display_overrides = {
+                        int(new_index): str(value)
+                        for new_index, value in _remap_source_index_dict(source_display_overrides, index_map).items()
+                    }
+                    source_role_overrides.clear()
+                    source_role_overrides.update(remapped_source_role_overrides)
+                    source_display_overrides.clear()
+                    source_display_overrides.update(remapped_source_display_overrides)
+                    _invalidate_source_display_cache()
+
+                    for target_set in (
+                        appended_source_indices,
+                        independent_output_source_indices,
+                        preview_only_source_indices,
+                        copied_original_source_indices,
+                        copied_original_texture_disabled_sources,
+                        copied_original_physics_sensitive_sources,
+                        selected_source_highlight_indices,
+                        selected_target_source_highlight_indices,
+                        transform_source_indices,
+                    ):
+                        remapped = _remap_source_index_collection(target_set, index_map)
+                        target_set.clear()
+                        target_set.update(remapped)
+
+                    remapped_copied_original_source_to_original_index = {
+                        int(new_index): int(value)
+                        for new_index, value in _remap_source_index_dict(
+                            copied_original_source_to_original_index,
+                            index_map,
+                        ).items()
+                    }
+                    remapped_copied_original_texture_intents = {
+                        int(new_index): list(value)
+                        for new_index, value in _remap_source_index_dict(
+                            copied_original_texture_intents_by_source,
+                            index_map,
+                            copy_values=True,
+                        ).items()
+                        if isinstance(value, list)
+                    }
+                    copied_original_source_to_original_index.clear()
+                    copied_original_source_to_original_index.update(remapped_copied_original_source_to_original_index)
+                    copied_original_texture_intents_by_source.clear()
+                    copied_original_texture_intents_by_source.update(remapped_copied_original_texture_intents)
+                    selected_source_part["index"] = _remap_selected_source_index(
+                        int(selected_source_part.get("index", -1)),
+                        index_map,
+                    )
+                    for original_item in original_items_by_index.values():
+                        original_item.setText(4, _remap_original_copy_source_text(original_item.text(4), index_map))
+                    if isinstance(static_preview_baked_transform_state.get("parts"), dict):
+                        static_preview_baked_transform_state["parts"] = _remap_source_index_dict(
+                            static_preview_baked_transform_state.get("parts", {}),
+                            index_map,
+                            copy_values=True,
                         )
+                    mesh_edit_selected_vertices_by_submesh.clear()
+                    if morph_slider_post_edit_deltas and len(morph_slider_post_edit_deltas) == source_count:
+                        morph_slider_post_edit_deltas[:] = [
+                            deltas
+                            for old_index, deltas in enumerate(morph_slider_post_edit_deltas)
+                            if old_index not in delete_indices
+                        ]
+                    new_current_index = int(selected_source_part.get("index", -1))
+                    _rebuild_source_part_widgets(
+                        (new_current_index,) if new_current_index >= 0 else (),
+                        current_index=new_current_index,
+                    )
+                    for target_index, edit in tuple(mapping_edits):
+                        remapped_indices: List[int] = []
+                        for old_index in _parse_mapping_edit(edit):
+                            new_index = index_map.get(int(old_index))
+                            if new_index is not None and int(new_index) not in remapped_indices:
+                                remapped_indices.append(int(new_index))
+                        _set_mapping_indices(
+                            int(target_index),
+                            remapped_indices,
+                            push_undo=False,
+                            undo_label="Delete source part",
+                            defer_preview=True,
+                        )
+                    replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
+                    static_preview_geometry_cache.clear()
+                    static_preview_prepared_cache.clear()
+                    mesh_edit_undo_stack.clear()
+                    mesh_edit_redo_stack.clear()
+                    mesh_edit_undo_adjustment_stack.clear()
+                    mesh_edit_redo_adjustment_stack.clear()
+                    texture_overrides_dirty["dirty"] = True
+                    texture_sets = group_replacement_texture_sets(texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
+                    _apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
+                    try:
+                        selected_added_part_texture_row["source_index"] = _remap_selected_source_index(
+                            int(selected_added_part_texture_row.get("source_index", -1)),
+                            index_map,
+                        )
+                    except NameError:
+                        pass
+                    try:
+                        selected_texture_plan_source["source_indices"] = tuple(
+                            sorted(_remap_source_index_collection(selected_texture_plan_source.get("source_indices", ()), index_map))
+                        )
+                    except NameError:
+                        pass
+                    _refresh_source_assignment_columns()
+                    try:
+                        _refresh_texture_row_guidance()
+                        _refresh_texture_table(selected_texture_row.get("row"))
+                    except NameError:
+                        pass
+                    try:
+                        _refresh_added_part_texture_tree(new_current_index if new_current_index >= 0 else None)
+                    except NameError:
+                        pass
+                    try:
+                        _refresh_source_material_plan(force=True)
+                    except NameError:
+                        pass
+                    _load_selected_part_controls()
+                    _sync_highlight_sets()
+                    _set_source_parts_apply_pending(
+                        f"deleted {len(delete_indices):,} source part(s); target routes were unassigned/remapped"
+                    )
+                    self.set_status_message(
+                        f"Deleted {len(delete_indices):,} replacement source part(s). Preview still shows old geometry until Apply."
+                    )
+
+                def _apply_source_part_preview_changes() -> None:
+                    rebuild_reason = str(
+                        source_parts_apply_state.get("reason", "") or "source-part changes"
+                    )
+                    static_preview_geometry_cache.clear()
+                    static_preview_prepared_cache.clear()
+                    texture_overrides_dirty["dirty"] = True
+                    _set_source_parts_preview_rebuild_pending(rebuild_reason)
+                    _refresh_source_assignment_columns()
+                    _update_mapping_status()
                     _update_selection_context()
                     _queue_static_preview_rebuild()
 
@@ -63763,12 +65107,16 @@ def run_gui() -> int:
                     edit = mapping_edits_by_target.get(target_index)
                     if source_index < 0 or edit is None:
                         return
-                    _set_mapping_indices(target_index, [index for index in _parse_mapping_edit(edit) if index != source_index])
+                    _set_mapping_indices(
+                        target_index,
+                        [index for index in _parse_mapping_edit(edit) if index != source_index],
+                        defer_preview=True,
+                    )
 
                 def _clear_selected_target() -> None:
                     target_index = _selected_target_index()
                     if target_index >= 0:
-                        _set_mapping_indices(target_index, [])
+                        _set_mapping_indices(target_index, [], defer_preview=True)
 
                 def _clear_tree_current_item(tree: QTreeWidget) -> None:
                     tree.clearSelection()
@@ -63862,6 +65210,8 @@ def run_gui() -> int:
                 merge_source_button.clicked.connect(_merge_selected_source_into_target)
                 remove_source_button.clicked.connect(_remove_selected_source_from_target)
                 clear_target_button.clicked.connect(_clear_selected_target)
+                delete_source_parts_button.clicked.connect(lambda _checked=False: _delete_selected_source_parts())
+                apply_source_parts_button.clicked.connect(_apply_source_part_preview_changes)
                 group_materials_button.clicked.connect(_apply_source_material_grouped_routing)
                 preview_target_button.clicked.connect(_preview_selected_target_slot)
                 original_clear_selection_button.clicked.connect(_clear_original_selection)
@@ -64496,7 +65846,7 @@ def run_gui() -> int:
                                 source_tree_item_update_guard["active"] = False
                     _refresh_source_assignment_columns(lightweight=not enabled_changed)
                     if enabled_changed:
-                        _queue_static_preview_rebuild()
+                        _set_source_parts_apply_pending("source include/exclude changed")
                     else:
                         _queue_part_transform_preview_update(source_index)
 
@@ -64576,6 +65926,7 @@ def run_gui() -> int:
                             [index for index in _parse_mapping_edit(edit) if index != source_index],
                             push_undo=ordinal == 0,
                             undo_label="Unmap source part",
+                            defer_preview=True,
                         )
                     if source_index in appended_source_indices and source_index not in _mapped_source_indices(_current_dialog_mappings_for_preview()):
                         independent_output_source_indices.discard(source_index)
@@ -64626,7 +65977,7 @@ def run_gui() -> int:
                     part_enabled_checkbox.setChecked(False)
                     part_enabled_checkbox.blockSignals(False)
                     _refresh_source_assignment_columns()
-                    _queue_static_preview_rebuild()
+                    _set_source_parts_apply_pending("source include/exclude changed")
 
                 def _part_bbox(vertices: Sequence[tuple[float, float, float]]) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
                     if not vertices:
@@ -65871,6 +67222,11 @@ def run_gui() -> int:
                 mirror_duplicate_part_button.clicked.connect(lambda _checked=False: _duplicate_selected_part(mirrored=True))
 
                 def _refresh_source_tree_selection_state() -> None:
+                    selected_source_indices = _selected_source_indices_from_tree(include_fallback=False)
+                    if len(selected_source_indices) > 1:
+                        source_tree_context_selection_state["multi_indices"] = tuple(selected_source_indices)
+                    elif not bool(source_tree_context_selection_state.get("right_press")):
+                        source_tree_context_selection_state["multi_indices"] = ()
                     current = source_tree.currentItem()
                     current_index = _source_index_from_tree_item(current)
                     if current_index < 0:
@@ -68458,6 +69814,11 @@ def run_gui() -> int:
                 control_tabs.currentChanged.connect(_clear_part_selections_when_leaving_geometry)
                 control_tabs.currentChanged.connect(_mesh_edit_control_tab_changed)
                 control_tabs.currentChanged.connect(lambda _index: _update_selection_context())
+                control_tabs.currentChanged.connect(
+                    lambda index: _refresh_mesh_editor_diagnostics()
+                    if control_tabs.widget(index) is diagnostics_tab
+                    else None
+                )
                 _refresh_source_assignment_columns()
                 _load_selected_part_controls()
                 _update_mapping_status()
@@ -69188,6 +70549,10 @@ def run_gui() -> int:
                                 indices=indices,
                                 source_submesh_index=source_submesh_index,
                                 source_vertex_indices=source_vertex_indices,
+                                preview_double_sided=bool(
+                                    getattr(submesh, "preview_double_sided", False)
+                                    or getattr(submesh, "double_sided", False)
+                                ),
                             )
                         )
                         if parsed_submesh_index_map is not None:
@@ -69245,8 +70610,6 @@ def run_gui() -> int:
                             for copy in original_part_copies
                         ],
                         "texture_uv": _current_texture_uv_transform_payload(),
-                        "source_material_textures": _current_source_material_texture_override_payload(),
-                        "donor_material_plans": _current_donor_material_plan_payload(),
                         "mesh_edit_revision": int(mesh_edit_revision.get("value", 0) or 0),
                         "source_geometry_revision": int(source_geometry_revision.get("value", 0) or 0),
                         "preview_quality": "normal",
@@ -69728,7 +71091,7 @@ def run_gui() -> int:
                         _current_texture_uv_transforms(),
                         global_transform_exempt_indices=set(appended_source_indices),
                         global_transform_source_indices=_mapped_source_indices(current_mappings),
-                        max_source_faces_per_submesh=_alignment_preview_selected_source_face_limit(requested_source_indices),
+                        max_source_faces_per_submesh=0,
                         output_source_indices=requested_source_indices,
                         alignment_basis_mesh=(
                             replacement_mesh_base_for_mapping
@@ -70193,12 +71556,34 @@ def run_gui() -> int:
                     mesh_edit_direct_source_preview = bool(
                         mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active()
                     )
+                    replacement_only_direct_source_preview = bool(
+                        active_preview_mode == "replacement_only"
+                        and replacement_mesh_for_mapping is not None
+                        and not _alignment_preview_is_interactive()
+                    )
+                    source_owned_direct_source_preview = bool(
+                        _complete_external_swap_enabled()
+                        and active_preview_mode in {"side_by_side", "replacement_only"}
+                        and replacement_mesh_for_mapping is not None
+                        and not _alignment_preview_is_interactive()
+                    )
+                    force_direct_source_preview = bool(
+                        replacement_only_direct_source_preview or source_owned_direct_source_preview
+                    )
+                    alignment_d3d11_state["replacement_only_direct_source_preview"] = replacement_only_direct_source_preview
+                    alignment_d3d11_state["source_owned_direct_source_preview"] = source_owned_direct_source_preview
+                    alignment_d3d11_state["force_direct_source_preview"] = force_direct_source_preview
                     if not mesh_edit_direct_source_preview and not _ensure_original_reference_texture_preview_ready(
                         active_preview_mode,
                         reason="preview_refresh",
                     ):
                         return
                     raw_direct_source_preview_indices = set(selected_source_highlight_indices)
+                    if force_direct_source_preview and replacement_mesh_for_mapping is not None:
+                        raw_direct_source_preview_indices.update(
+                            index
+                            for index, _submesh in enumerate(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())
+                        )
                     if mesh_edit_direct_source_preview:
                         raw_direct_source_preview_indices.update(_mesh_edit_preview_source_indices())
                     direct_source_preview_indices = {
@@ -70211,8 +71596,8 @@ def run_gui() -> int:
                     direct_source_indices_have_mapped = bool(direct_source_preview_indices & mapped_preview_source_indices)
                     use_direct_source_preview = bool(
                         direct_source_preview_indices
-                        and (mesh_edit_direct_source_preview or not direct_source_indices_have_appended)
-                        and (mesh_edit_direct_source_preview or not direct_source_indices_have_mapped)
+                        and (force_direct_source_preview or mesh_edit_direct_source_preview or not direct_source_indices_have_appended)
+                        and (force_direct_source_preview or mesh_edit_direct_source_preview or not direct_source_indices_have_mapped)
                         and active_preview_mode in {"side_by_side", "replacement_only", "overlay"}
                         and original_mesh_for_mapping is not None
                         and replacement_mesh_for_mapping is not None
@@ -70229,7 +71614,9 @@ def run_gui() -> int:
                         and replacement_mesh_for_mapping is not None
                     ):
                         cache_key = _source_preview_geometry_key(current_mappings) + (
-                            "|direct-source" if use_direct_source_preview else "|mapped"
+                            "|direct-source:" + ",".join(str(index) for index in sorted(direct_source_preview_indices))
+                            if use_direct_source_preview
+                            else "|mapped"
                         )
                         source_preview_cache_key = cache_key
                         cached_preview = None if live_mesh_edit else static_preview_geometry_cache.get(cache_key)
@@ -70437,6 +71824,38 @@ def run_gui() -> int:
                                 for token in ("metallicroughness", "metalrough", "metallicrough", "roughnessmetallic")
                             )
 
+                        def _source_slot_preview_semantics(
+                            source_slot: Optional[ReplacementTextureSlot],
+                            source_path: Path,
+                        ) -> tuple[str, str, tuple[str, ...], str]:
+                            return replacement_texture_slot_preview_semantics(source_slot, source_path=source_path)
+
+                        def _texture_set_factor_parameters(texture_set_obj: object) -> tuple[PreviewMaterialParameterInput, ...]:
+                            parameters: list[PreviewMaterialParameterInput] = []
+                            for attr_name, parameter_name in (
+                                ("roughness_factor", "_roughnessFactor"),
+                                ("metallic_factor", "_metallicFactor"),
+                                ("specular_factor", "_specularFactor"),
+                                ("glossiness_factor", "_glossinessFactor"),
+                                ("occlusion_strength", "_occlusionStrength"),
+                            ):
+                                value = getattr(texture_set_obj, attr_name, None)
+                                if value is None:
+                                    continue
+                                try:
+                                    numeric_value = max(0.0, min(1.0, float(value)))
+                                except (TypeError, ValueError, OverflowError):
+                                    continue
+                                parameters.append(
+                                    PreviewMaterialParameterInput(
+                                        parameter_kind="float",
+                                        parameter_name=parameter_name,
+                                        value=f"{numeric_value:.6f}",
+                                        numeric_value=numeric_value,
+                                    )
+                                )
+                            return tuple(parameters)
+
                         def _current_material_authority_preview_slots(texture_set_obj: ReplacementTextureSet) -> Dict[str, ReplacementTextureSlot]:
                             if not (_complete_external_swap_enabled() and _basic_controls_profile_enabled()):
                                 return material_authority_preview_texture_slots(texture_set_obj, enabled=False)
@@ -70459,6 +71878,46 @@ def run_gui() -> int:
                         ) -> None:
                             existing = list(getattr(mesh, "preview_material_texture_inputs", ()) or ())
                             preview_path = _source_preview_path(str(source_path))
+                            source_key = str(source_path).replace("\\", "/").casefold()
+                            new_subtype = str(semantic_subtype or "").strip().lower()
+                            new_parameter = str(parameter_name or "").strip()
+                            new_channels = tuple(str(channel or "").strip().lower() for channel in packed_channels if str(channel or "").strip())
+                            new_is_pbr = new_subtype in {"metallic_roughness", "metallicroughness"} or new_channels[:2] == ("roughness", "metallic")
+                            new_is_legacy_orm = (
+                                slot_kind in {"material_mask", "ao"}
+                                or new_subtype in {"orm", "rma", "mra", "material_mask"}
+                                or new_channels[:3] == ("ao", "roughness", "metallic")
+                            )
+                            filtered_existing: list[PreviewMaterialTextureInput] = []
+                            for item in existing:
+                                item_source = str(
+                                    getattr(item, "source_texture_path", "")
+                                    or getattr(item, "source_dds_path", "")
+                                    or getattr(item, "preview_texture_path", "")
+                                    or ""
+                                ).replace("\\", "/").casefold()
+                                item_subtype = str(getattr(item, "semantic_subtype", "") or "").strip().lower()
+                                item_parameter = str(getattr(item, "parameter_name", "") or "").strip()
+                                item_channels = tuple(
+                                    str(channel or "").strip().lower()
+                                    for channel in tuple(getattr(item, "packed_channels", ()) or ())
+                                    if str(channel or "").strip()
+                                )
+                                item_is_pbr = item_subtype in {"metallic_roughness", "metallicroughness"} or item_channels[:2] == ("roughness", "metallic")
+                                item_is_legacy_orm = (
+                                    str(getattr(item, "slot_kind", "") or "").strip().lower() in {"material_mask", "ao"}
+                                    or item_subtype in {"orm", "rma", "mra", "material_mask"}
+                                    or item_channels[:3] == ("ao", "roughness", "metallic")
+                                )
+                                if item_source and item_source == source_key:
+                                    if item_parameter == new_parameter and item_subtype == new_subtype:
+                                        return
+                                    if item_is_pbr and new_is_legacy_orm:
+                                        return
+                                    if item_is_legacy_orm and new_is_pbr:
+                                        continue
+                                filtered_existing.append(item)
+                            existing = filtered_existing
                             existing.append(
                                 PreviewMaterialTextureInput(
                                     slot_kind=slot_kind,
@@ -70492,6 +71951,7 @@ def run_gui() -> int:
                                 mesh.preview_sidecar_shader_family = "SkinnedMeshEmissive_Ver2"
 
                         slots = _current_material_authority_preview_slots(texture_set)
+                        material_factor_parameters = _texture_set_factor_parameters(texture_set)
                         base_slot = slots.get("base")
                         if base_slot is not None:
                             source_path = getattr(base_slot, "source_path", None)
@@ -70556,10 +72016,21 @@ def run_gui() -> int:
                             source_path = getattr(material_slot, "source_path", None)
                             if isinstance(source_path, Path):
                                 semantic_type, semantic_subtype, _confidence, packed_channels = _resolve_model_texture_semantic_details(source_path)
-                                if _is_gltf_metallic_roughness(source_path):
+                                (
+                                    declared_semantic_type,
+                                    declared_semantic_subtype,
+                                    declared_packed_channels,
+                                    declared_parameter_name,
+                                ) = _source_slot_preview_semantics(material_slot, source_path)
+                                if declared_semantic_subtype:
+                                    semantic_type = declared_semantic_type
+                                    semantic_subtype = declared_semantic_subtype
+                                    packed_channels = declared_packed_channels
+                                elif _is_gltf_metallic_roughness(source_path):
                                     semantic_type = "material"
                                     semantic_subtype = "metallic_roughness"
                                     packed_channels = ("roughness", "metallic")
+                                    declared_parameter_name = "_metallicRoughnessTexture"
                                 _set_preview_texture_slot_path(
                                     mesh,
                                     path_attr="preview_material_texture_path",
@@ -70576,7 +72047,9 @@ def run_gui() -> int:
                                     semantic_type=semantic_type,
                                     semantic_subtype=semantic_subtype,
                                     packed_channels=tuple(packed_channels),
-                                    parameter_name="_metallicRoughnessTexture" if semantic_subtype == "metallic_roughness" else "",
+                                    parameter_name=declared_parameter_name
+                                    or ("_metallicRoughnessTexture" if semantic_subtype == "metallic_roughness" else ""),
+                                    parameters=material_factor_parameters,
                                 )
                         for source_slot_name, semantic_type, semantic_subtype, packed_channels in (
                             ("material_mask", "material", "orm", ("ao", "roughness", "metallic")),
@@ -70613,7 +72086,33 @@ def run_gui() -> int:
                                     parameter_name="_detailMaskTexture" if source_slot_name == "detail_mask" else "_materialTexture",
                                 )
                                 continue
-                            if _is_gltf_metallic_roughness(source_path):
+                            (
+                                declared_semantic_type,
+                                declared_semantic_subtype,
+                                declared_packed_channels,
+                                declared_parameter_name,
+                            ) = _source_slot_preview_semantics(slot, source_path)
+                            if declared_semantic_subtype:
+                                _set_preview_texture_slot_path(
+                                    mesh,
+                                    path_attr="preview_material_texture_path",
+                                    dds_attr="preview_material_texture_dds_path",
+                                    name_attr="preview_material_texture_name",
+                                    source_path=source_path,
+                                )
+                                mesh.preview_material_texture_type = declared_semantic_type
+                                mesh.preview_material_texture_subtype = declared_semantic_subtype
+                                mesh.preview_material_texture_packed_channels = tuple(declared_packed_channels)
+                                _add_preview_material_input(
+                                    slot_kind="material",
+                                    source_path=source_path,
+                                    semantic_type=declared_semantic_type,
+                                    semantic_subtype=declared_semantic_subtype,
+                                    packed_channels=declared_packed_channels,
+                                    parameter_name=declared_parameter_name,
+                                    parameters=material_factor_parameters,
+                                )
+                            elif _is_gltf_metallic_roughness(source_path):
                                 _set_preview_texture_slot_path(
                                     mesh,
                                     path_attr="preview_material_texture_path",
@@ -70631,6 +72130,7 @@ def run_gui() -> int:
                                     semantic_subtype="metallic_roughness",
                                     packed_channels=("roughness", "metallic"),
                                     parameter_name="_metallicRoughnessTexture",
+                                    parameters=material_factor_parameters,
                                 )
                             else:
                                 _add_preview_material_input(
@@ -70639,6 +72139,7 @@ def run_gui() -> int:
                                     semantic_type=semantic_type,
                                     semantic_subtype=semantic_subtype,
                                     packed_channels=packed_channels,
+                                    parameters=material_factor_parameters,
                                 )
                         emissive_slot = slots.get("emissive")
                         if emissive_slot is not None:
@@ -70774,13 +72275,23 @@ def run_gui() -> int:
                                 elif slot_kind in {"material", "material_mask", "detail_mask", "roughness", "metallic", "metalness", "ao", "emissive"}:
                                     semantic_type, semantic_subtype, _confidence, packed_channels = _resolve_model_texture_semantic_details(source_path)
                                     normalized_source_stem = re.sub(r"[^a-z0-9]+", "", source_path_obj.stem.lower())
+                                    declared_semantic_type, declared_semantic_subtype, declared_packed_channels, declared_parameter_name = (
+                                        replacement_texture_slot_preview_semantics(None, source_path=source_path_obj)
+                                    )
+                                    if declared_semantic_subtype:
+                                        semantic_type = declared_semantic_type
+                                        semantic_subtype = declared_semantic_subtype
+                                        packed_channels = declared_packed_channels
+                                    else:
+                                        declared_parameter_name = ""
                                     if any(
                                         token in normalized_source_stem
                                         for token in ("metallicroughness", "metalrough", "metallicrough", "roughnessmetallic")
-                                    ):
+                                    ) and not declared_semantic_subtype:
                                         semantic_type = "material"
                                         semantic_subtype = "metallic_roughness"
                                         packed_channels = ("roughness", "metallic")
+                                        declared_parameter_name = "_metallicRoughnessTexture"
                                     mesh.preview_material_texture_path = preview_texture_path
                                     mesh.preview_material_texture_name = source_name
                                     mesh.preview_material_texture_dds_path = (
@@ -70817,7 +72328,12 @@ def run_gui() -> int:
                                         mesh.preview_material_texture_inputs = (
                                             PreviewMaterialTextureInput(
                                                 slot_kind="material",
-                                                parameter_name="_metallicRoughnessTexture" if semantic_subtype == "metallic_roughness" else "_materialTexture",
+                                                parameter_name=declared_parameter_name
+                                                or (
+                                                    "_metallicRoughnessTexture"
+                                                    if semantic_subtype == "metallic_roughness"
+                                                    else "_materialTexture"
+                                                ),
                                                 source_texture_path=str(source_path_obj),
                                                 source_dds_path=str(source_path_obj) if source_path_obj.suffix.lower() == ".dds" else "",
                                                 texture_name=source_name,
@@ -71047,6 +72563,7 @@ def run_gui() -> int:
                             f"GL upload {upload_elapsed_ms:.1f} ms"
                         ),
                     )
+                    _clear_source_parts_preview_rebuild_pending()
 
                 def _safe_refresh_static_dialog_preview(*, live_mesh_edit: bool = False) -> None:
                     try:
@@ -71062,6 +72579,7 @@ def run_gui() -> int:
                         )
                         _set_alignment_d3d11_loading(False, f"Preview failed: {exc}")
                         _set_preview_performance_status("D3D11 alignment preview failed.", details=str(exc))
+                        _clear_source_parts_preview_rebuild_pending()
 
                 static_preview_refresh_timer.timeout.connect(_safe_refresh_static_dialog_preview)
                 static_preview_settle_timer.timeout.connect(_queue_static_preview_refresh)
@@ -71307,8 +72825,6 @@ def run_gui() -> int:
                     original_reference_texture_preview_state["loading"] = False
                     original_reference_texture_preview_state["failed"] = False
                     original_reference_texture_preview_state["error"] = ""
-                    static_preview_geometry_cache.clear()
-                    static_preview_prepared_cache.clear()
                     alignment_d3d11_state["request_id"] = int(alignment_d3d11_state.get("request_id", 0) or 0) + 1
                     alignment_d3d11_state["queued_model"] = None
                     alignment_d3d11_state["queued_label"] = ""
@@ -78808,6 +80324,7 @@ def run_gui() -> int:
             _queue_alignment_post_open_task(_queue_static_preview_refresh)
             _queue_alignment_post_open_task(_load_original_reference_texture_preview)
             _queue_alignment_post_open_task(_clear_all_part_selections)
+            _queue_alignment_post_open_task(_refresh_mesh_editor_diagnostics)
 
             buttons = QHBoxLayout()
             buttons.addStretch(1)
@@ -91992,6 +93509,11 @@ def run_gui() -> int:
             self.append_log(f"ERROR: {message}")
             if self.archive_scan_worker is not None or self.archive_filter_worker is not None or self._utility_updates_archive_progress:
                 self.append_archive_log(f"ERROR: {message}")
+                if self.archive_scan_worker is not None:
+                    self._set_archive_cache_health(
+                        "unhealthy",
+                        f"Cache Status: Unhealthy. Archive cache build failed: {message}",
+                    )
                 self._set_archive_load_progress(
                     f"Archive browser task failed: {message}",
                     phase="Failed",
@@ -92771,6 +94293,7 @@ def run_gui() -> int:
                     1,
                     100,
                 )
+                QTimer.singleShot(0, window._maybe_autoload_archive_on_startup)
             else:
                 startup_splash.set_detail("Loading Archive Browser...")
             _write_heartbeat("archive_autoload_queued")

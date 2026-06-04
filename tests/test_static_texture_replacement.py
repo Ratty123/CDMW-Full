@@ -64,6 +64,7 @@ from cdmw.modding.material_replacer import (
     _source_driven_parameter_name,
     _source_driven_slots,
     _texture_set_is_accent_glow_candidate,
+    _visible_gem_sensitive_wrappers_touched,
     build_texture_replacement_payloads,
     build_source_material_routing_plan,
     _build_texture_payload,
@@ -74,6 +75,7 @@ from cdmw.modding.material_replacer import (
     material_authority_preview_texture_slots,
     patch_material_sidecar_text,
     read_complete_swap_calibrated_material_profile,
+    replacement_texture_slot_preview_semantics,
     serialize_complete_swap_manual_material_profile,
     write_complete_swap_calibrated_material_profile,
     write_complete_swap_material_probe_manifests,
@@ -758,6 +760,94 @@ class StaticTextureReplacementTests(unittest.TestCase):
             with Image.open(runtime_mask) as image:
                 self.assertEqual((255, 145, 62, 0), image.convert("RGBA").getpixel((0, 0)))
 
+    def test_gltf_specular_glossiness_slots_keep_authoritative_preview_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            spec_gloss = root / "axe_specularGlossiness.png"
+            spec_gloss.write_bytes(b"")
+            submesh = SubMesh(
+                name="AxeHead",
+                material="AxeHead",
+                vertices=[(0.0, 0.0, 0.0)],
+                faces=[(0, 0, 0)],
+            )
+            submesh.preview_material_texture_inputs = (
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    parameter_name="_specularGlossinessTexture",
+                    source_texture_path=str(spec_gloss),
+                    preview_texture_path=str(spec_gloss),
+                    semantic_type="specular",
+                    semantic_subtype="specular_glossiness",
+                    packed_channels=("specular", "glossiness"),
+                    material_name="AxeHead",
+                    confidence="gltf",
+                ),
+            )
+
+            texture_sets = group_replacement_texture_sets((spec_gloss,), obj_mesh=ParsedMesh(submeshes=[submesh]))
+            slot = texture_sets["axehead"].slots["material"]
+
+            self.assertEqual(spec_gloss, slot.source_path)
+            self.assertEqual("specular_glossiness", slot.semantic_subtype)
+            self.assertEqual(("specular", "glossiness"), slot.packed_channels)
+            self.assertEqual("gltf", slot.source_authority)
+            self.assertEqual(
+                ("specular", "specular_glossiness", ("specular", "glossiness"), "_specularGlossinessTexture"),
+                replacement_texture_slot_preview_semantics(slot, source_path=spec_gloss),
+            )
+
+    def test_gltf_color_specular_factor_maps_to_scalar(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            white_spec = root / "white_specularGlossiness.png"
+            black_spec = root / "black_specularGlossiness.png"
+            white_spec.write_bytes(b"")
+            black_spec.write_bytes(b"")
+
+            def make_submesh(material: str, path: Path, color: tuple[float, float, float]) -> SubMesh:
+                submesh = SubMesh(
+                    name=material,
+                    material=material,
+                    vertices=[(0.0, 0.0, 0.0)],
+                    faces=[(0, 0, 0)],
+                )
+                submesh.preview_material_parameters = (
+                    PreviewMaterialParameterInput(
+                        parameter_kind="color",
+                        parameter_name="_specularFactor",
+                        value="#" + "".join(f"{int(component * 255):02x}" for component in color),
+                        color_value=color,
+                    ),
+                )
+                submesh.preview_material_texture_inputs = (
+                    PreviewMaterialTextureInput(
+                        slot_kind="material",
+                        parameter_name="_specularGlossinessTexture",
+                        source_texture_path=str(path),
+                        preview_texture_path=str(path),
+                        semantic_type="specular",
+                        semantic_subtype="specular_glossiness",
+                        packed_channels=("specular", "glossiness"),
+                        material_name=material,
+                        confidence="gltf",
+                    ),
+                )
+                return submesh
+
+            texture_sets = group_replacement_texture_sets(
+                (white_spec, black_spec),
+                obj_mesh=ParsedMesh(
+                    submeshes=[
+                        make_submesh("WhiteSpec", white_spec, (1.0, 1.0, 1.0)),
+                        make_submesh("BlackSpec", black_spec, (0.0, 0.0, 0.0)),
+                    ]
+                ),
+            )
+
+            self.assertAlmostEqual(1.0, texture_sets["whitespec"].specular_factor or 0.0)
+            self.assertEqual(0.0, texture_sets["blackspec"].specular_factor)
+
     def test_material_authority_runtime_mask_uses_separate_specular_and_glossiness_slots(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             from PIL import Image
@@ -1164,6 +1254,121 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertLess(profile.base_color_gamma, 1.0)
             self.assertGreater(lifted_pixel[0], 24)
 
+    def test_material_authority_spec_gloss_keeps_real_diffuse_runtime_base(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            diffuse = root / "mango_diffuse.png"
+            spec_gloss = root / "mango_specularGlossiness.png"
+            Image.new("RGBA", (2, 1), (18, 16, 14, 255)).save(diffuse)
+            Image.new("RGBA", (2, 1), (178, 132, 72, 220)).save(spec_gloss)
+            texture_set = ReplacementTextureSet(
+                "mango",
+                slots={
+                    "base": ReplacementTextureSlot("mango", "base", diffuse, source_authority="gltf"),
+                    "material": ReplacementTextureSlot(
+                        "mango",
+                        "material",
+                        spec_gloss,
+                        semantic_subtype="specular_glossiness",
+                        packed_channels=("specular", "glossiness"),
+                        source_authority="gltf",
+                    ),
+                },
+                specular_factor=1.0,
+                glossiness_factor=1.0,
+            )
+
+            slots = _source_driven_slots(
+                texture_set,
+                include_pbr_material_fallback=True,
+                include_complete_support_fallbacks=True,
+                material_profile=get_complete_swap_material_profile("material_authority"),
+            )
+            base_slot = next(slot for slot in slots if slot.slot_kind == "base")
+
+            self.assertEqual(diffuse, base_slot.source_path)
+            self.assertEqual("gltf", base_slot.source_authority)
+            with Image.open(_source_slot_png_with_base_color_factor_path(base_slot)) as image:
+                self.assertEqual((18, 16, 14, 255), image.convert("RGBA").getpixel((0, 0)))
+
+    def test_material_authority_spec_gloss_routes_generated_runtime_mask_not_raw_spec_gloss(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            diffuse = root / "mango_diffuse.png"
+            spec_gloss = root / "mango_specularGlossiness.png"
+            Image.new("RGBA", (2, 1), (18, 16, 14, 255)).save(diffuse)
+            Image.new("RGBA", (2, 1), (178, 132, 72, 220)).save(spec_gloss)
+            texture_set = ReplacementTextureSet(
+                "mango",
+                slots={
+                    "base": ReplacementTextureSlot("mango", "base", diffuse, source_authority="gltf"),
+                    "material": ReplacementTextureSlot(
+                        "mango",
+                        "material",
+                        spec_gloss,
+                        semantic_subtype="specular_glossiness",
+                        packed_channels=("specular", "glossiness"),
+                        source_authority="gltf",
+                    ),
+                },
+                specular_factor=1.0,
+                glossiness_factor=1.0,
+            )
+
+            slots = _source_driven_slots(
+                texture_set,
+                include_pbr_material_fallback=True,
+                include_complete_support_fallbacks=True,
+                material_profile=get_complete_swap_material_profile("material_authority"),
+            )
+            material_slot = next(slot for slot in slots if slot.slot_kind == "material_mask")
+
+            self.assertNotEqual(spec_gloss, material_slot.source_path)
+            self.assertEqual("synthetic", material_slot.source_authority)
+            self.assertIn("_material_mask_material_authority_detail_mask_", material_slot.source_path.name)
+            with Image.open(material_slot.source_path) as image:
+                self.assertNotEqual((178, 132, 72, 220), image.convert("RGBA").getpixel((0, 0)))
+
+    def test_material_authority_black_spec_gloss_factor_keeps_runtime_base_diffuse(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            diffuse = root / "roca_diffuse.png"
+            spec_gloss = root / "roca_specularGlossiness.png"
+            Image.new("RGBA", (2, 1), (92, 86, 72, 255)).save(diffuse)
+            Image.new("RGBA", (2, 1), (180, 180, 180, 220)).save(spec_gloss)
+            texture_set = ReplacementTextureSet(
+                "roca",
+                slots={
+                    "base": ReplacementTextureSlot("roca", "base", diffuse, source_authority="gltf"),
+                    "material": ReplacementTextureSlot(
+                        "roca",
+                        "material",
+                        spec_gloss,
+                        semantic_subtype="specular_glossiness",
+                        packed_channels=("specular", "glossiness"),
+                        source_authority="gltf",
+                    ),
+                },
+                specular_factor=0.0,
+                glossiness_factor=1.0,
+            )
+
+            slots = _source_driven_slots(
+                texture_set,
+                include_pbr_material_fallback=True,
+                include_complete_support_fallbacks=True,
+                material_profile=get_complete_swap_material_profile("material_authority"),
+            )
+            base_slot = next(slot for slot in slots if slot.slot_kind == "base")
+
+            self.assertEqual(diffuse, base_slot.source_path)
+
     def test_auto_brightness_balance_lifts_dark_and_tames_bright_base_color(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             from PIL import Image
@@ -1357,6 +1562,36 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertEqual("synthetic_accent_glow", slots["emissive"].source_authority)
         self.assertIn("accent_emissive", slots["emissive"].source_path.name)
         self.assertTrue(slots["emissive"].source_path.is_file())
+
+    def test_material_authority_preview_helper_does_not_clone_real_base_as_accent_glow(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "Gem_outside_baseColor.png"
+            Image.new("RGBA", (2, 2), (226, 190, 72, 255)).save(base_png)
+            texture_set = ReplacementTextureSet(
+                "Gem_outside",
+                slots={
+                    "base": ReplacementTextureSlot(
+                        "Gem_outside",
+                        "base",
+                        base_png,
+                        semantic_subtype="albedo",
+                        source_authority="gltf",
+                    )
+                },
+                source_face_count=128,
+            )
+            profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority_detail_mask"),
+                accent_glow_strength=100,
+            )
+
+            slots = material_authority_preview_texture_slots(texture_set, profile)
+
+            self.assertIn("base", slots)
+            self.assertNotIn("emissive", slots)
 
     def test_material_authority_preview_helper_disabled_returns_original_slots(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1862,6 +2097,9 @@ class StaticTextureReplacementTests(unittest.TestCase):
             patched = sidecar_payload.payload_data.decode("utf-8")
             self.assertIn("_emissiveIntensityTexture", patched)
             self.assertIn("gem_inside_emissive", patched.lower())
+            self.assertIn("_emissiveColor", patched)
+            self.assertIn("#FFFF0000", patched)
+            self.assertNotIn("#FF0000FF", patched)
             self.assertTrue(any(mapping.slot_kind == "emissive" for mapping in report.slot_mappings))
 
     def test_accent_glow_control_synthesizes_emissive_for_gem_part(self) -> None:
@@ -1930,10 +2168,95 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn('SkinnedMeshEmissive_Ver2', patched)
         self.assertIn("_emissiveIntensityTexture", patched)
         self.assertIn("_emissiveColor", patched)
-        self.assertIn("#FF0000FF", patched)
+        self.assertIn("#FFFF0000", patched)
+        self.assertNotIn("#FF0000FF", patched)
         self.assertIn("_emissiveIntensity", patched)
         self.assertIn("5.500000", patched)
         self.assertTrue(any(mapping.slot_kind == "emissive" for mapping in report.slot_mappings))
+
+    def test_accent_glow_control_does_not_bind_real_base_texture_as_emissive(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            texconv = root / "texconv.exe"
+            texconv.write_bytes(b"fake")
+            base_template = root / "base.dds"
+            base_template.write_bytes(_fake_dds_bytes(16, 16, mips=1, fourcc=b"DXT1"))
+            base_png = root / "Gem_outside_baseColor.png"
+            Image.new("RGBA", (4, 4), (226, 190, 72, 255)).save(base_png)
+            base_entry = _entry("character/texture/original_o.dds", root)
+            sidecar_entry = _entry("character/modelproperty/gem.pac_xml", root)
+            mesh = ParsedMesh(
+                submeshes=[
+                    SubMesh(
+                        name="Gem_outside",
+                        material="Gem_outside",
+                        texture=str(base_png),
+                        vertices=[(0.0, 0.0, 0.0)],
+                        faces=[(0, 0, 0)],
+                    )
+                ]
+            )
+            mesh.submeshes[0].preview_material_texture_inputs = (
+                PreviewMaterialTextureInput(
+                    slot_kind="base",
+                    source_texture_path=str(base_png),
+                    preview_texture_path=str(base_png),
+                    semantic_subtype="albedo",
+                    material_name="Gem_outside",
+                    confidence="gltf",
+                ),
+            )
+
+            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
+                out_dir = Path(command[command.index("-o") + 1])
+                produced = out_dir / f"{Path(command[-1]).stem}.dds"
+                produced.write_bytes(_fake_dds_bytes(16, 16, mips=1, fourcc=b"DXT1"))
+                return 0, "", ""
+
+            sidecar_text = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Gem_outside"><Material _materialName="SkinnedMeshStandard_Ver2">'
+                '<Vector Name="_parameters">'
+                '<MaterialParameterTexture _name="_overlayColorTexture" Index="0">'
+                '<ResourceReferencePath_ITexture _path="character/texture/original_o.dds"/>'
+                '</MaterialParameterTexture>'
+                "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+            )
+            with patch("cdmw.core.common.run_process_with_cancellation", side_effect=fake_texconv):
+                payloads, report = build_texture_replacement_payloads(
+                    obj_mesh=mesh,
+                    rebuilt_mesh=mesh,
+                    texture_files=(base_png,),
+                    original_texture_refs=(
+                        ArchiveModelTextureReference(
+                            reference_name=base_entry.path,
+                            material_name="Gem_outside",
+                            sidecar_parameter_name="_overlayColorTexture",
+                            resolved_archive_path=base_entry.path,
+                            resolved_entry=base_entry,
+                        ),
+                    ),
+                    original_sidecars=((sidecar_entry, sidecar_text),),
+                    submesh_mappings=(StaticSubmeshMapping(0, "Gem_outside", [0], 0),),
+                    texconv_path=texconv,
+                    read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
+                    original_texture_source_path=lambda _entry: base_template,
+                    pac_driven_sidecar=True,
+                    neutralize_inherited_material_layers=True,
+                    complete_external_material_reset=True,
+                    complete_swap_material_profile="material_authority_detail_mask",
+                    complete_swap_accent_glow_strength=100,
+                )
+
+        sidecar_payload = next(payload for payload in payloads if payload.kind == "sidecar_generated")
+        patched = sidecar_payload.payload_data.decode("utf-8")
+        self.assertIn("gem_outside_basecolor", patched.lower())
+        self.assertNotIn("_emissiveIntensityTexture", patched)
+        self.assertNotIn("_emissiveColor", patched)
+        self.assertNotIn("_emissiveIntensity", patched)
+        self.assertFalse(any(mapping.slot_kind == "emissive" for mapping in report.slot_mappings))
+        self.assertIn("Accent glow skipped for Gem_outside", "\n".join(report.warnings))
 
     def test_accent_glow_detects_saturated_factor_shell_parts(self) -> None:
         texture_set = ReplacementTextureSet(
@@ -2093,6 +2416,49 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertEqual({"character/texture/new_base.dds", "character/texture/new_ma.dds"}, used_paths)
         self.assertIn('StringItemID="_overlayColorTexture" ItemID="1"', patched)
         self.assertIn('StringItemID="_colorBlendingMaskTexture" ItemID="3936485985222654"', patched)
+
+    def test_visible_gem_sensitive_wrappers_include_blade_when_gem_pac_is_present(self) -> None:
+        sidecar_text = """
+<Root>
+  <SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Blade_0015">
+    <Material><Vector Name="_parameters">
+      <MaterialParameterTexture _name="_overlayColorTexture">
+        <ResourceReferencePath_ITexture _path="character/texture/cd_phm_02_sword_0015_lambert1_basecolor.dds"/>
+      </MaterialParameterTexture>
+    </Vector></Material>
+  </SkinnedMeshMaterialWrapper>
+  <SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Sword_Handle_0015">
+    <Material><Vector Name="_parameters">
+      <MaterialParameterColor _name="_emissiveColor" _value="#FFFF0000"/>
+      <MaterialParameterTexture _name="_emissiveIntensityTexture">
+        <ResourceReferencePath_ITexture _path="character/texture/cd_phm_02_sword_0015_gem_inside_emissive_emi.dds"/>
+      </MaterialParameterTexture>
+    </Vector></Material>
+  </SkinnedMeshMaterialWrapper>
+</Root>
+"""
+
+        risky = _visible_gem_sensitive_wrappers_touched(
+            sidecar_text,
+            ("CD_PHM_02_Blade_0015", "CD_PHM_02_Sword_Guard_0015", "CD_PHM_02_Boot_0015"),
+        )
+
+        self.assertEqual(("CD_PHM_02_Blade_0015", "CD_PHM_02_Sword_Guard_0015"), risky)
+
+    def test_visible_gem_sensitive_wrappers_ignore_non_gem_sidecars(self) -> None:
+        sidecar_text = """
+<Root>
+  <SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Blade_0015">
+    <Material><Vector Name="_parameters">
+      <MaterialParameterTexture _name="_overlayColorTexture">
+        <ResourceReferencePath_ITexture _path="character/texture/cd_phm_02_sword_0015_lambert1_basecolor.dds"/>
+      </MaterialParameterTexture>
+    </Vector></Material>
+  </SkinnedMeshMaterialWrapper>
+</Root>
+"""
+
+        self.assertEqual((), _visible_gem_sensitive_wrappers_touched(sidecar_text, ("CD_PHM_02_Blade_0015",)))
 
     def test_material_authority_detail_mask_routes_source_mask_through_detail_slot(self) -> None:
         profile = get_complete_swap_material_profile("material_authority_detail_mask")
@@ -3864,6 +4230,33 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertEqual("mismatch", result.rows[0].status)
             self.assertEqual("dmmsa/0.pamt", result.rows[0].active_source)
             self.assertTrue(any("IN-GAME TEST BLOCKED" in warning for warning in result.warnings))
+
+    def test_active_file_authority_audit_skips_report_for_base_archive_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            package_root = root / "loose"
+            local_path = package_root / "character" / "texture" / "sword_base.dds"
+            local_path.parent.mkdir(parents=True)
+            local_path.write_bytes(b"new loose payload")
+            game_root = root / "game"
+            virtual_path = "character/texture/sword_base.dds"
+            _write_single_file_pamt(game_root / "0009", virtual_path, b"old vanilla payload")
+            audit_output = root / "loose_cdmw_active_file_authority_audit.json"
+            audit_output.write_text("stale report", encoding="utf-8")
+
+            result = audit_loose_package_active_file_authority(
+                package_root,
+                game_root=game_root,
+                payload_files=(local_path,),
+                audit_output_path=audit_output,
+            )
+
+            self.assertEqual(0, result.mismatch_count)
+            self.assertIsNone(result.audit_path)
+            self.assertFalse(audit_output.exists())
+            self.assertEqual("replaces_archive", result.rows[0].status)
+            self.assertEqual("0009/0.pamt", result.rows[0].active_source)
+            self.assertFalse(any("IN-GAME TEST BLOCKED" in warning for warning in result.warnings))
 
     def test_source_graph_strict_blocks_ambiguous_factor_only_texture_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -6127,10 +6520,12 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertTrue((result.package_root / "character" / "texture" / "generated.dds").exists())
             self.assertTrue((result.package_root / "character" / "modelproperty" / "test_weapon.pac_xml").exists())
             self.assertFalse((result.package_root / "character" / "model" / "test_skeleton.pab").exists())
-            self.assertIsNotNone(result.authority_audit_path)
+            self.assertIsNone(result.authority_audit_path)
+            self.assertEqual(0, result.authority_mismatch_count)
             self.assertFalse((result.package_root / "cdmw_active_file_authority_audit.json").exists())
-            self.assertTrue(result.authority_audit_path.is_file())
-            self.assertEqual(result.package_root.parent, result.authority_audit_path.parent)
+            self.assertFalse(
+                (result.package_root.parent / f"{result.package_root.name}_cdmw_active_file_authority_audit.json").exists()
+            )
             manifest = json.loads((result.package_root / "manifest.json").read_text(encoding="utf-8"))
             files = {item["path"]: item for item in manifest["files"]}
             self.assertIn("Generated replacement texture", files["character/texture/generated.dds"]["note"])

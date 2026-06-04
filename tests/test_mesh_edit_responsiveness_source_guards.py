@@ -244,7 +244,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("mesh_edit_raw_package = _mesh_edit_raw_preview_active()", source)
         self.assertIn("worker_use_textures = True", source)
         self.assertIn("original_reference_material_parity=worker_original_reference_material_parity", source)
-        self.assertIn('reuse_prepared_geometry=package_quality_key == "material_refresh"', source)
+        self.assertIn("reuse_prepared_geometry=bool(geometry_signature)", source)
         self.assertIn("def _mesh_by_source_identity", source)
         poll_start = source.index("def _poll_alignment_d3d11_status() -> None:")
         loaded_start = source.index('if event == "loaded":', poll_start)

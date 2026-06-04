@@ -444,6 +444,9 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
                 d3d11_metalness_scale=99.0,
                 d3d11_environment_strength=99.0,
                 d3d11_emissive_gain=99.0,
+                d3d11_tone_exposure=99.0,
+                d3d11_tone_contrast=99.0,
+                d3d11_tone_gamma=99.0,
                 d3d11_view_mode="bad",
                 d3d11_normal_y_mode="bad",
                 d3d11_texture_address_mode="bad",
@@ -463,9 +466,19 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertLessEqual(settings.d3d11_metalness_scale, 2.0)
         self.assertLessEqual(settings.d3d11_environment_strength, 2.0)
         self.assertLessEqual(settings.d3d11_emissive_gain, 4.0)
+        self.assertLessEqual(settings.d3d11_tone_exposure, 2.0)
+        self.assertLessEqual(settings.d3d11_tone_contrast, 1.75)
+        self.assertLessEqual(settings.d3d11_tone_gamma, 2.20)
         self.assertEqual("lit", settings.d3d11_view_mode)
         self.assertEqual("asset", settings.d3d11_normal_y_mode)
         self.assertEqual("wrap", settings.d3d11_texture_address_mode)
+
+    def test_game_outdoor_d3d11_view_mode_survives_clamping(self) -> None:
+        settings = clamp_model_preview_render_settings(
+            ModelPreviewRenderSettings(d3d11_view_mode="game_outdoor")
+        )
+
+        self.assertEqual("game_outdoor", settings.d3d11_view_mode)
 
     def test_depth_shine_and_rough_settings_survive_clamping(self) -> None:
         settings = clamp_model_preview_render_settings(
@@ -636,6 +649,42 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual(0.0, batches[0].tangent_finite_ratio)
         self.assertEqual(0.0, batches[0].bitangent_finite_ratio)
         self.assertFalse(NativePreviewPanel._support_map_geometry_usable(batches[0]))
+
+    def test_tangent_frame_preserves_mirrored_uv_handedness(self) -> None:
+        mesh = ModelPreviewMesh(
+            positions=[
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+            ],
+            normals=[
+                (0.0, 0.0, 1.0),
+                (0.0, 0.0, 1.0),
+                (0.0, 0.0, 1.0),
+            ],
+            texture_coordinates=[
+                (0.0, 0.0),
+                (1.0, 0.0),
+                (0.0, -1.0),
+            ],
+            indices=[0, 1, 2],
+            preview_texture_path="base.png",
+            preview_normal_texture_path="normal.png",
+        )
+
+        vertex_blob, _vertex_count, batches = NativePreviewPanel._build_vertex_blob(ModelPreviewData(meshes=[mesh]))
+        values = array("f")
+        values.frombytes(vertex_blob)
+        normal = tuple(values[3:6])
+        tangent = tuple(values[11:14])
+        bitangent = tuple(values[14:17])
+
+        self.assertEqual(1.0, batches[0].tangent_finite_ratio)
+        self.assertEqual(1.0, batches[0].bitangent_finite_ratio)
+        self.assertAlmostEqual(0.0, sum(normal[index] * tangent[index] for index in range(3)), places=5)
+        self.assertAlmostEqual(0.0, sum(normal[index] * bitangent[index] for index in range(3)), places=5)
+        self.assertAlmostEqual(0.0, sum(tangent[index] * bitangent[index] for index in range(3)), places=5)
+        self.assertLess(bitangent[1], -0.9)
 
     def test_vertex_blob_includes_preview_smoothed_normals_for_rich_lighting(self) -> None:
         mesh = ModelPreviewMesh(

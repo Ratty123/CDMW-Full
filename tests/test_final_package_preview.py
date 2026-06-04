@@ -962,6 +962,83 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertIn("uses generated CD mask/color-blend data as color authority", warning_text)
             self.assertNotIn("lacks generated Base / Color", "\n".join(result.preflight_errors + result.warnings))
 
+    def test_complete_source_owned_contract_uses_wrapper_rows_when_mesh_uses_original_material_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            runtime_name = "cd_phm_02_sword_handle_0015_03"
+            preview = MeshImportPreviewResult(
+                b"not a parsed mesh in this focused test",
+                ParsedMesh(path="character/model/test_weapon.pac", format="pac"),
+                ModelPreviewData(
+                    path="character/model/test_weapon.pac",
+                    meshes=[
+                        ModelPreviewMesh(
+                            material_name="CD_PHM_02_Handle_0015",
+                            texture_name="CD_PHM_02_Sword_Handle_0015_03",
+                            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                            texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                            indices=[0, 1, 2],
+                            preview_texture_path="source_preview.png",
+                        ),
+                    ],
+                ),
+                [],
+            )
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(
+                    0,
+                    0,
+                    runtime_name,
+                    [0],
+                    0,
+                    0,
+                    "CD_PHM_02_Handle_0015",
+                    3,
+                    False,
+                    runtime_slot_name="CD_PHM_02_Handle_0015",
+                    runtime_material_name=runtime_name,
+                    source_material_name="mango",
+                ),
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(source_path=root / "handle_base.dds", target_path="character/texture/handle_base.dds", kind="texture_generated", payload_data=b"DDS base"),
+                MeshImportSupplementalFileSpec(source_path=root / "handle_n.dds", target_path="character/texture/handle_n.dds", kind="texture_generated", payload_data=b"DDS normal"),
+                MeshImportSupplementalFileSpec(source_path=root / "handle_ma.dds", target_path="character/texture/handle_ma.dds", kind="texture_generated", payload_data=b"DDS material"),
+                MeshImportSupplementalFileSpec(source_path=root / "handle_detail_ma.dds", target_path="character/texture/handle_detail_ma.dds", kind="texture_generated", payload_data=b"DDS detail"),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        f'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        f'<Vector Name="_subMeshResources" IdBase="1190">'
+                        f'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="{runtime_name}">'
+                        f'<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard_Ver2">'
+                        f'<Vector Name="_parameters">'
+                        f'<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/handle_base.dds"/></MaterialParameterTexture>'
+                        f'<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/handle_n.dds"/></MaterialParameterTexture>'
+                        f'<MaterialParameterTexture _name="_colorBlendingMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/handle_ma.dds"/></MaterialParameterTexture>'
+                        f'<MaterialParameterTexture _name="_detailMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/handle_detail_ma.dds"/></MaterialParameterTexture>'
+                        f'</Vector></Material></SkinnedMeshMaterialWrapper>'
+                        f'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ).encode("utf-8"),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+                strict_source_owned_material_contract=True,
+            )
+
+            blocker_text = "\n".join(result.preflight_errors + result.warnings)
+            self.assertNotIn("has no parsed texture parameters", blocker_text)
+            self.assertNotIn("has no exact generated source-visible color authority binding", blocker_text)
+            self.assertNotIn("(Normal", blocker_text)
+            self.assertNotIn("Material / Mask", blocker_text)
+            self.assertNotIn("Detail Mask", blocker_text)
+
     def test_complete_source_owned_warns_missing_generated_support_bindings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

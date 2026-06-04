@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -175,6 +176,9 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         view_index = dialog.d3d11_view_mode_combo.findData("normal")
         self.assertGreaterEqual(view_index, 0)
         dialog.d3d11_view_mode_combo.setCurrentIndex(view_index)
+        outdoor_index = dialog.d3d11_view_mode_combo.findData("game_outdoor")
+        self.assertGreaterEqual(outdoor_index, 0)
+        self.assertEqual("Game Outdoor Approx", dialog.d3d11_view_mode_combo.itemText(outdoor_index))
         normal_y_index = dialog.d3d11_normal_y_mode_combo.findData("force_no_flip")
         self.assertGreaterEqual(normal_y_index, 0)
         dialog.d3d11_normal_y_mode_combo.setCurrentIndex(normal_y_index)
@@ -199,6 +203,18 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
+    def test_game_outdoor_d3d11_view_mode_survives_settings_dialog(self) -> None:
+        _app()
+        dialog = ModelPreviewSettingsDialog(
+            settings=ModelPreviewRenderSettings(d3d11_view_mode="game_outdoor"),
+            archive_renderer_backend="d3d11_native",
+        )
+
+        self.assertEqual("game_outdoor", dialog.current_settings().d3d11_view_mode)
+
+        dialog.close()
+        dialog.deleteLater()
+
     def test_removed_webgl_backend_normalizes_to_d3d11(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(
@@ -218,6 +234,15 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
 
         dialog.close()
         dialog.deleteLater()
+
+    def test_legacy_saved_d3d11_lighting_defaults_are_migrated(self) -> None:
+        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+
+        self.assertIn("preview/d3d11_lighting_defaults_version", source)
+        self.assertIn("old_saved_defaults", source)
+        self.assertIn("_near(d3d11_environment_strength, 1.0)", source)
+        self.assertIn("d3d11_environment_strength = defaults.d3d11_environment_strength", source)
+        self.assertIn('self.settings.setValue("preview/specular_max", specular_max)', source)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,7 @@ from cdmw.models import (
 from cdmw.core.texture_native import write_native_texture_report_sidecar
 from cdmw.rendering.native_preview_package import (
     ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES,
+    _material_hex_color_rgb,
     read_isolated_d3d11_preview_manifest,
     write_isolated_d3d11_preview_package,
 )
@@ -109,6 +110,31 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
         self.assertEqual(False, manifest["physics_overlays"]["cloth"])
         self.assertEqual("not_found", manifest["skeleton_overlay"]["status"])
         self.assertEqual([], manifest["editable_value_groups"])
+        self.assertEqual("bundled", manifest["dds_encoder_matrix"]["backends"]["DirectXTex"]["status"])
+        self.assertEqual("not_bundled", manifest["dds_encoder_matrix"]["backends"]["NVTT"]["bundled_feasibility"])
+        self.assertEqual("cdmw_fallback", manifest["tangent_basis"]["active"])
+        self.assertEqual("green_up_asset_inverted_for_directx_preview", manifest["normal_y_policy"]["normal_y_mode"])
+        self.assertEqual("checklist_only", manifest["renderdoc_truth_pass"]["status"])
+        self.assertEqual(
+            "ags_replay_blocked_for_current_crimson_capture",
+            manifest["renderdoc_truth_pass"]["replay_status"],
+        )
+        self.assertEqual("registry_covered", manifest["shader_asset_fidelity_status"]["status"])
+        self.assertIn("DDS preflight:", " ".join(manifest["shader_asset_fidelity_status"]["ui_summary"]))
+        self.assertIn("mesh_health", manifest["asset_fidelity_preflight"])
+
+    def test_game_outdoor_d3d11_view_mode_writes_outdoor_lighting_preset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="sword.pac"),
+                PreparedModelPreviewData(source_path="sword.pac"),
+                output_root=Path(temp_dir) / "package",
+                render_settings=ModelPreviewRenderSettings(d3d11_view_mode="game_outdoor"),
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+
+        self.assertEqual("game_outdoor", manifest["d3d11_view_mode"])
+        self.assertEqual("game_outdoor_approx", manifest["lighting_preset"])
 
     def test_native_material_manifest_overrides_survive_package_write(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -150,6 +176,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             batch = manifest["batches"][0]
 
         self.assertEqual("metal", batch["material_category"])
+        self.assertEqual("glossy_metal", batch["material_finish"])
         self.assertEqual(0.95, batch["material_category_confidence"])
         self.assertEqual(0.42, batch["roughness"])
         self.assertEqual(0.75, batch["metalness"])
@@ -378,8 +405,8 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             manifest = read_isolated_d3d11_preview_manifest(package_dir)
             batch = manifest["batches"][0]
 
-        self.assertEqual("shiny_metal_inspection", manifest["lighting_preset"])
-        self.assertGreaterEqual(manifest["specular_max"], 0.72)
+        self.assertEqual("neutral_studio", manifest["lighting_preset"])
+        self.assertLessEqual(manifest["specular_max"], 0.18)
         self.assertTrue(batch["textures"]["roughness"])
         self.assertTrue(batch["textures"]["metalness"])
         self.assertTrue(batch["textures"]["specular"])
@@ -527,9 +554,13 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual("side_by_side", manifest["display_mode"])
             self.assertEqual("mesh_alignment", manifest["editor_workspace"])
             self.assertEqual("shiny_metal_inspection", manifest["lighting_preset"])
+            self.assertLessEqual(manifest["d3d11_tone_exposure"], 0.82)
+            self.assertGreaterEqual(manifest["d3d11_tone_contrast"], 1.08)
+            self.assertGreaterEqual(manifest["d3d11_tone_gamma"], 1.04)
             self.assertEqual("alpha_cutout", batch["alpha_mode"])
             self.assertEqual("MASK", batch["source_alpha_mode"])
             self.assertTrue(batch["double_sided"])
+            self.assertTrue(batch["two_sided"])
             self.assertEqual(3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES, geometry_path.stat().st_size)
             self.assertEqual(7, editor_identity["source_submesh_index"])
             self.assertEqual("replacement", editor_identity["role"])
@@ -560,7 +591,10 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual("standard_v2", material_contract["shader_family"])
             self.assertEqual(2, material_contract["schema_version"])
             self.assertEqual("standard_v2", material_contract["decode_policy"]["family"])
+            self.assertEqual("authoritative", material_contract["decode_policy"]["authority"])
             self.assertEqual("standard_v2", material_contract["decode_profile"]["shader_family"])
+            self.assertIn("registry_decodes", material_contract)
+            self.assertTrue(any(item.get("source_kind") == "crimson_detail_mask" for item in material_contract["registry_decodes"]))
             self.assertGreater(material_contract["decode_policy"]["metalness_scale"], 0.0)
             self.assertEqual("direct_dds", material_contract["texture_slots"]["base"]["status"])
             self.assertEqual("high", material_contract["texture_slots"]["base"]["confidence"])
@@ -587,6 +621,11 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertIn("unresolved material channel maps:", notes)
             self.assertIn("direct DDS slots:base,material", notes)
             self.assertNotIn("packed material map skipped", notes)
+            fidelity_status = manifest["shader_asset_fidelity_status"]
+            self.assertEqual("unresolved_diagnostic", fidelity_status["unknown_crimson_map_policy"])
+            self.assertGreaterEqual(fidelity_status["unknown_crimson_map_count"], 1)
+            self.assertGreaterEqual(fidelity_status["diagnostic_only_count"], 1)
+            self.assertIn("guess", fidelity_status["authority_counts"])
 
     def test_prefer_direct_dds_skips_preview_png_fallbacks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1041,6 +1080,83 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertFalse(generated_image.isNull())
             self.assertLess(generated_image.pixelColor(0, 0).red(), 245)
             self.assertIn("native base DDS bypassed for synthesized sidecar albedo", " ".join(batch["notes"]))
+            self.assertTrue(batch["material_base_policy"]["neutral_metal_base_synthesized"])
+            self.assertTrue(batch["material_base_policy"]["no_reliable_full_base_albedo"])
+            diagnostic_codes = {item["code"] for item in batch["material_base_diagnostics"]}
+            self.assertIn("neutral_metal_base_synthesized", diagnostic_codes)
+            self.assertIn("texturelayer_kept_masked", diagnostic_codes)
+            self.assertIn("no_reliable_full_base_albedo", diagnostic_codes)
+
+    def test_weapon_metal_texturelayer_without_base_uses_neutral_base_not_full_layer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            detail_diffuse = temp_path / "cd_texturelayer_013_0018.png"
+            detail_image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+            detail_image.fill(QColor(0, 220, 40, 255))
+            self.assertTrue(detail_image.save(str(detail_diffuse), "PNG"))
+            material_mask = temp_path / "cd_phm_02_blade_0015_ma.png"
+            mask_image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+            mask_image.fill(QColor(0, 0, 0, 255))
+            self.assertTrue(mask_image.save(str(material_mask), "PNG"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHM_02_Blade_0015",
+                        texture_name="CD_PHM_02_Blade_0015",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_grimeDiffuseTextureG",
+                                source_texture_path="character/texture/cd_texturelayer_013_0018.dds",
+                                texture_name="cd_texturelayer_013_0018.dds",
+                                preview_texture_path=str(detail_diffuse),
+                                semantic_type="color",
+                                semantic_subtype="detail_diffuse",
+                                material_name="CD_PHM_02_Blade_0015",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                visualized=True,
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_colorBlendingMaskTexture",
+                                source_texture_path="character/texture/cd_phm_02_blade_0015_ma.dds",
+                                texture_name="cd_phm_02_blade_0015_ma.dds",
+                                preview_texture_path=str(material_mask),
+                                semantic_type="mask",
+                                semantic_subtype="material_mask",
+                                material_name="CD_PHM_02_Blade_0015",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                visualized=True,
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="cd_phm_02_sword_0015.pac"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+            generated_image = QImage(str(package_dir / batch["textures"]["base"]))
+            pixel = generated_image.pixelColor(0, 0)
+
+        self.assertTrue(batch["prefer_generated_base_texture"])
+        self.assertTrue(batch["material_base_policy"]["neutral_metal_base_synthesized"])
+        self.assertLess(pixel.green(), 180)
+        self.assertIn("texturelayer_kept_masked", {item["code"] for item in batch["material_base_diagnostics"]})
 
     def test_d3d11_manifest_honors_support_map_and_camera_settings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1461,6 +1577,11 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual(2.0, hints["emissive_intensity"])
             self.assertEqual(2.0, profile_hints["emissive_intensity"])
 
+    def test_material_emissive_hex_color_uses_crimson_argb_order(self) -> None:
+        self.assertEqual((1.0, 0.0, 0.0), _material_hex_color_rgb("#FFFF0000"))
+        self.assertEqual((0.0, 0.0, 1.0), _material_hex_color_rgb("#FF0000FF"))
+        self.assertEqual((18 / 255.0, 52 / 255.0, 86 / 255.0), _material_hex_color_rgb("#123456"))
+
     def test_specular_material_combiner_promotes_blade_metal_response(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -1535,6 +1656,338 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertGreater(batch["native_material_hints"]["metalness"], 0.0)
             self.assertGreater(batch["native_material_hints"]["specular"], 0.0)
             self.assertIn("material category:metal", " ".join(batch["notes"]))
+
+    def test_helmet_bucket_packed_material_map_does_not_force_metal_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "cd_texturelayer_002_0003.png"
+            base_image = QImage(4, 4, QImage.Format_RGBA8888)
+            base_image.fill(QColor(112, 106, 96, 255))
+            self.assertTrue(base_image.save(str(base), "PNG"))
+            material_dds = temp_path / "cd_phm_00_hel_00_0329_ma.dds"
+            material_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="character/model/armor/13_hel/cd_phm_00_hel_00_0329.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHM_00_Hel_00_0329",
+                        texture_name="cd_texturelayer_002_0003",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_material_texture_dds_path=str(material_dds),
+                        preview_material_texture_type="material",
+                        preview_material_texture_subtype="packed_material",
+                        preview_material_texture_packed_channels=(
+                            "r=occlusion",
+                            "g=roughness",
+                            "b=metalness",
+                            "a=specular_response",
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="cd_phm_00_hel_00_0329.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                prefer_direct_dds=True,
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+            batch = manifest["batches"][0]
+
+        self.assertEqual("neutral_studio", manifest["lighting_preset"])
+        self.assertEqual("generic", batch["material_category"])
+        self.assertEqual("generic:no_strong_material_token", batch["material_category_reason"])
+        self.assertFalse(batch["material_response_promoted"])
+        self.assertIn("material", batch["dds_textures"])
+
+    def test_authoritative_helmet_family_material_mask_promotes_metal_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "cd_texturelayer_003_0203.png"
+            base_image = QImage(4, 4, QImage.Format_RGBA8888)
+            base_image.fill(QColor(184, 166, 130, 255))
+            self.assertTrue(base_image.save(str(base), "PNG"))
+            material_dds = temp_path / "cd_phm_00_hel_00_0369_ma.dds"
+            material_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0369.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="11_normal",
+                        texture_name="cd_texturelayer_003_0203",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_material_texture_dds_path=str(material_dds),
+                        preview_material_texture_type="material",
+                        preview_material_texture_subtype="packed_material",
+                        preview_material_texture_packed_channels=(
+                            "r=occlusion",
+                            "g=roughness",
+                            "b=metalness",
+                            "a=specular_response",
+                        ),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_colorBlendingMaskTexture",
+                                source_texture_path="character/texture/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0369_ma.dds",
+                                source_dds_path=str(material_dds),
+                                texture_name="cd_phm_00_hel_00_0369_ma.dds",
+                                semantic_type="material",
+                                semantic_subtype="packed_material",
+                                packed_channels=(
+                                    "r=occlusion",
+                                    "g=roughness",
+                                    "b=metalness",
+                                    "a=specular_response",
+                                ),
+                                material_name="11_normal",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                sidecar_kind="pac_xml",
+                                sidecar_path="character/modelproperty/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0369.pac_xml",
+                                parameter_declared_by="technique",
+                                material_output_quality="exact",
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0369.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                prefer_direct_dds=True,
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+            batch = manifest["batches"][0]
+
+        self.assertEqual("shiny_metal_inspection", manifest["lighting_preset"])
+        self.assertEqual("metal", batch["material_category"])
+        self.assertEqual("metal:armor_family_material_response", batch["material_category_reason"])
+        self.assertTrue(batch["material_response_promoted"])
+        self.assertIn("material category:metal", " ".join(batch["notes"]))
+
+    def test_authoritative_weapon_family_material_mask_promotes_guard_metal_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "cd_texturelayer_013_0018.png"
+            base_image = QImage(4, 4, QImage.Format_RGBA8888)
+            base_image.fill(QColor(24, 30, 34, 255))
+            self.assertTrue(base_image.save(str(base), "PNG"))
+            material_dds = temp_path / "cd_phm_02_guard_0013_ma.dds"
+            material_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHM_02_Guard_0013",
+                        texture_name="cd_texturelayer_013_0018",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_material_texture_dds_path=str(material_dds),
+                        preview_material_texture_type="material",
+                        preview_material_texture_subtype="packed_material",
+                        preview_material_texture_packed_channels=(
+                            "r=occlusion",
+                            "g=roughness",
+                            "b=metalness",
+                            "a=specular_response",
+                        ),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
+                                parameter_name="_colorBlendingMaskTexture",
+                                source_texture_path="character/texture/cd_phm_02_guard_0013_ma.dds",
+                                source_dds_path=str(material_dds),
+                                texture_name="cd_phm_02_guard_0013_ma.dds",
+                                semantic_type="material",
+                                semantic_subtype="packed_material",
+                                packed_channels=(
+                                    "r=occlusion",
+                                    "g=roughness",
+                                    "b=metalness",
+                                    "a=specular_response",
+                                ),
+                                material_name="CD_PHM_02_Guard_0013",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                sidecar_kind="pac_xml",
+                                sidecar_path="character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac_xml",
+                                parameter_declared_by="technique",
+                                material_output_quality="exact",
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="base",
+                                parameter_name="embedded_mesh_reference",
+                                texture_name="cd_phm_02_handle_0015.dds",
+                                material_name="CD_PHM_02_Handle_0015",
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path=prepared.source_path),
+                prepared,
+                output_root=temp_path / "package",
+                prefer_direct_dds=True,
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+            batch = manifest["batches"][0]
+
+        self.assertEqual("shiny_metal_inspection", manifest["lighting_preset"])
+        self.assertEqual("metal", batch["material_category"])
+        self.assertEqual("metal:weapon_family_material_response", batch["material_category_reason"])
+        self.assertTrue(batch["material_response_promoted"])
+
+    def test_sidecar_weapon_flag_tint_promotes_yellow_preview_base_tint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "cd_phm_02_flag_0001.png"
+            base_image = QImage(4, 4, QImage.Format_RGBA8888)
+            base_image.fill(QColor(136, 20, 12, 255))
+            self.assertTrue(base_image.save(str(base), "PNG"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHM_02_Flag_0001",
+                        texture_name="cd_phm_02_flag_0001",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="base",
+                                parameter_name="_baseColorTexture",
+                                texture_name="cd_phm_02_flag_0001.dds",
+                                material_name="cd_phm_02_flag_0001",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                material_parameters=(
+                                    PreviewMaterialParameterInput(
+                                        parameter_kind="color",
+                                        parameter_name="_tintColorR",
+                                        color_value=(0.388235, 0.262745, 0.0352941),
+                                    ),
+                                    PreviewMaterialParameterInput(
+                                        parameter_kind="color",
+                                        parameter_name="_dyeingDetailLayerColorMaskR",
+                                        color_value=(0.780392, 0.694118, 0.0431373),
+                                    ),
+                                ),
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path=prepared.source_path),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+            batch = manifest["batches"][0]
+
+        self.assertEqual([0.7804, 0.6941, 0.0431], [round(value, 4) for value in batch["texture_tint"]])
+        self.assertEqual(0.85, batch["base_tint_strength"])
+        self.assertIn("sidecar tint promoted to preview base tint", batch["notes"])
+
+    def test_sidecar_weapon_blade_layer_tint_stays_masked_not_global(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "cd_texturelayer_013_0018.png"
+            base_image = QImage(4, 4, QImage.Format_RGBA8888)
+            base_image.fill(QColor(120, 124, 128, 255))
+            self.assertTrue(base_image.save(str(base), "PNG"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHM_02_Blade_0015",
+                        texture_name="cd_texturelayer_013_0018",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="base",
+                                parameter_name="_grimeDiffuseTextureG",
+                                texture_name="cd_texturelayer_013_0018.dds",
+                                material_name="CD_PHM_02_Blade_0015",
+                                shader_family="SkinnedMeshStandard_Ver2",
+                                layer_role="grime",
+                                layer_channel="g",
+                                material_parameters=(
+                                    PreviewMaterialParameterInput(
+                                        parameter_kind="color",
+                                        parameter_name="_dyeingGrimeLayerColorG",
+                                        color_value=(0.054902, 0.25098, 0.196078),
+                                    ),
+                                ),
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path=prepared.source_path),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+            batch = manifest["batches"][0]
+
+        self.assertEqual([], batch["texture_tint"])
+        self.assertEqual(0.0, batch["base_tint_strength"])
+        self.assertNotIn("sidecar tint promoted to preview base tint", batch["notes"])
 
     def test_material_category_uses_standalone_tinted_metal_tokens(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1635,6 +2088,14 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
                     has_texture_coordinates=True,
                 ),
                 PreparedModelPreviewBatch(
+                    material_name="CD_PHM_02_Blade_0015",
+                    texture_name="CD_PHM_02_Handle_0015",
+                    vertex_blob=blob,
+                    index_count=3,
+                    preview_texture_path=str(base),
+                    has_texture_coordinates=True,
+                ),
+                PreparedModelPreviewBatch(
                     material_name="CD_PHM_02_Stick_0013",
                     texture_name="cd_phm_02_stick_0013",
                     vertex_blob=blob,
@@ -1683,6 +2144,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual("tooth", categories_by_name["tooth"]["material_category"])
             self.assertEqual("hair", categories_by_name["eyebrow"]["material_category"])
             self.assertEqual("leather", categories_by_name["CD_PHM_02_Handle_0015"]["material_category"])
+            self.assertEqual("metal", categories_by_name["CD_PHM_02_Blade_0015"]["material_category"])
             self.assertEqual("wood", categories_by_name["CD_PHM_02_Stick_0013"]["material_category"])
             sword_vest_batch = next(
                 batch
@@ -1995,12 +2457,15 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("batch_world * view_projection", source)
         self.assertIn("base_tint_strength", source)
         self.assertIn("boosted_preview_layer_weight", source)
-        self.assertIn("tint_chroma", source)
+        self.assertIn("float tint_alpha = saturate(layer_tint[ID].a);", source)
+        self.assertIn('const bool draw_albedo_layer = lower_copy(layer.role) != "base";', source)
         self.assertIn("prefer_generated_base_texture", source)
         self.assertIn("batch.base_dds.clear()", source)
         self.assertIn("env_reflection", source)
-        self.assertIn("metal_reflectance", source)
-        self.assertIn("nonmetal_sheen", source)
+        self.assertIn("ggx_distribution", source)
+        self.assertIn("geometry_smith", source)
+        self.assertIn("fresnel_schlick", source)
+        self.assertIn("aces_tonemap", source)
         self.assertIn("direct_metal_response", source)
         self.assertIn("category_metal_cap = max(category_metal_cap, 0.96)", source)
         self.assertIn("emissive_color = max(emissive_color, emissive_sample.rgb)", source)
@@ -2009,6 +2474,15 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn("smoothness * 0.45", source)
         self.assertIn("RenderTuning", source)
         self.assertIn("parse_render_tuning", source)
+        self.assertIn('normalized_view_mode == "game_outdoor"', source)
+        self.assertIn("game_outdoor_approx", Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8"))
+        self.assertIn("tuning.emissive_gain = std::max(tuning.emissive_gain, 1.80f)", source)
+        self.assertIn("d3d11_tone_exposure", source)
+        self.assertIn("d3d11_tone_contrast", source)
+        self.assertIn("d3d11_tone_gamma", source)
+        self.assertIn("mapped = aces_tonemap(color * tone_exposure)", source)
+        self.assertIn("mapped = saturate((mapped - 0.5) * tone_contrast + 0.5)", source)
+        self.assertIn("float3(tone_gamma, tone_gamma, tone_gamma)", source)
         self.assertIn("MaxAnisotropy", source)
         self.assertIn("render_tuning", source)
         self.assertIn("detail_tex", source)
@@ -2325,6 +2799,12 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("metal_shine", source)
         self.assertIn("roughness_response", source)
         self.assertIn("material_response", source)
+        self.assertIn("albedo_base_only", source)
+        self.assertIn("masked_layer_contribution", source)
+        self.assertIn('mode == "metalness"', source)
+        self.assertIn('mode == "specular_gloss"', source)
+        self.assertIn("return float4(saturate(metalness).xxx, 1.0);", source)
+        self.assertIn("return float4(saturate(specular), saturate(1.0 - roughness), saturate(metalness), 1.0);", source)
         self.assertIn("material_slot_id", source)
         self.assertIn("layer_masks", source)
         self.assertIn("flags4.y", source)
@@ -2332,6 +2812,10 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("base_alpha < max(flags3.w", source)
         self.assertIn("discard;", source)
         self.assertIn("batch.two_sided", source)
+        self.assertIn('json_bool_field(object, "two_sided", json_bool_field(object, "double_sided", false))', source)
+        self.assertIn("render_tuning_.cull_back_faces && !batch.two_sided && cull_rasterizer_", source)
+        self.assertIn("flags5.w > 0.5 && dot(n, view_dir) < 0.0", source)
+        self.assertIn("batch.two_sided ? 1.0f : 0.0f", source)
         self.assertIn("batch.alpha_threshold", source)
 
     def test_pyinstaller_includes_host_modules(self) -> None:

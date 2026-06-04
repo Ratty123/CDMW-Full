@@ -218,6 +218,9 @@ class NativeD3D11PreviewHostFrame(QFrame):
                 "d3d11_metalness_scale": float(getattr(settings, "d3d11_metalness_scale", 1.0)),
                 "d3d11_environment_strength": float(getattr(settings, "d3d11_environment_strength", 1.0)),
                 "d3d11_emissive_gain": float(getattr(settings, "d3d11_emissive_gain", 1.0)),
+                "d3d11_tone_exposure": float(getattr(settings, "d3d11_tone_exposure", 1.0)),
+                "d3d11_tone_contrast": float(getattr(settings, "d3d11_tone_contrast", 1.0)),
+                "d3d11_tone_gamma": float(getattr(settings, "d3d11_tone_gamma", 1.0)),
                 "d3d11_texture_address_mode": str(
                     getattr(settings, "d3d11_texture_address_mode", "wrap") or "wrap"
                 ),

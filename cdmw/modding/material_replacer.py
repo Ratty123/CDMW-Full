@@ -66,6 +66,46 @@ class ReplacementTextureSet:
     source_role_tags: tuple[str, ...] = ()
 
 
+_SPECULAR_GLOSSINESS_SUBTYPES = {"specular_glossiness", "specularglossiness", "specular_gloss", "specgloss"}
+_METALLIC_ROUGHNESS_SUBTYPES = {"metallic_roughness", "metallicroughness"}
+
+
+def replacement_texture_slot_preview_semantics(
+    source_slot: Optional[ReplacementTextureSlot],
+    *,
+    source_path: Optional[Path] = None,
+) -> tuple[str, str, tuple[str, ...], str]:
+    """Return native-preview semantics declared by source material metadata or filename."""
+
+    subtype = _sanitize_texture_component(str(getattr(source_slot, "semantic_subtype", "") or ""))
+    channels = tuple(
+        _sanitize_texture_component(channel)
+        for channel in tuple(getattr(source_slot, "packed_channels", ()) or ())
+        if _sanitize_texture_component(channel)
+    )
+    channel_set = set(channels)
+    path = source_path if source_path is not None else getattr(source_slot, "source_path", None)
+    normalized_stem = ""
+    if isinstance(path, Path):
+        normalized_stem = re.sub(r"[^a-z0-9]+", "", str(path.stem or "").lower())
+    if (
+        subtype in _SPECULAR_GLOSSINESS_SUBTYPES
+        or {"specular", "glossiness"} <= channel_set
+        or any(token in normalized_stem for token in ("specularglossiness", "specgloss"))
+    ):
+        return "specular", "specular_glossiness", ("specular", "glossiness"), "_specularGlossinessTexture"
+    if (
+        subtype in _METALLIC_ROUGHNESS_SUBTYPES
+        or {"roughness", "metallic"} <= channel_set
+        or any(
+            token in normalized_stem
+            for token in ("metallicroughness", "metalrough", "metallicrough", "roughnessmetallic")
+        )
+    ):
+        return "material", "metallic_roughness", ("roughness", "metallic"), "_metallicRoughnessTexture"
+    return "", "", (), ""
+
+
 @dataclass(slots=True)
 class TextureSlotMapping:
     target_material_name: str
@@ -3076,6 +3116,10 @@ def _build_source_driven_pac_material_payloads(
             accent_slot = _complete_swap_accent_emissive_slot(texture_set, target_name, material_profile)
             if accent_slot is not None:
                 source_slots.append(accent_slot)
+            else:
+                skip_reason = _complete_swap_accent_glow_skip_reason(texture_set, target_name, material_profile)
+                if skip_reason:
+                    _warn_once(report, skip_reason)
         for source_slot in source_slots:
             if not runtime_xml_slot_supported_by_target(target_name, source_slot.slot_kind):
                 continue
@@ -3150,13 +3194,13 @@ def _build_source_driven_pac_material_payloads(
                         f"{output_texture_path}.",
                     )
             bindings.append((parameter_name, output_texture_path, source_slot.slot_kind))
-            if (
-                str(source_slot.slot_kind or "").strip().lower() == "emissive"
-                and _profile_accent_glow_intensity(material_profile) > 0.0
-            ):
+            if str(source_slot.slot_kind or "").strip().lower() == "emissive":
+                emissive_intensity = _profile_accent_glow_intensity(material_profile)
+                if emissive_intensity <= 0.0:
+                    emissive_intensity = 1.0
                 target_emissive_settings[target_name] = (
                     _texture_set_accent_glow_color_hex(texture_set, source_slot),
-                    _profile_accent_glow_intensity(material_profile),
+                    emissive_intensity,
                 )
             report.slot_mappings.append(
                 TextureSlotMapping(
@@ -3221,6 +3265,15 @@ def _build_source_driven_pac_material_payloads(
             template_allowed_insertions=runtime_xml_template_insertions if _profile_is_runtime_xml(material_profile) else {},
             template_shader_overrides=runtime_xml_template_shader_overrides if _profile_is_runtime_xml(material_profile) else {},
         )
+        gem_sensitive_wrappers = _visible_gem_sensitive_wrappers_touched(cloned_sidecar_text, changed_wrapper_names)
+        if gem_sensitive_wrappers:
+            _warn_once(
+                report,
+                "Visible gem-sensitive material wrapper(s) changed in a gem/emissive PAC XML: "
+                + ", ".join(gem_sensitive_wrappers[:8])
+                + (" ..." if len(gem_sensitive_wrappers) > 8 else "")
+                + ". Validate gem color separately before treating the edit as blade/body-only.",
+            )
         glow_settings = {
             target_name: target_emissive_settings[target_name]
             for target_name in target_bindings
@@ -3229,13 +3282,19 @@ def _build_source_driven_pac_material_payloads(
         if glow_settings:
             patched_text, glow_wrappers = _apply_source_emissive_parameters(patched_text, glow_settings)
             if glow_wrappers:
-                _warn_once(
-                    report,
-                    "Accent glow applied: "
-                    f"{_profile_accent_glow_strength(material_profile):.0f}% "
-                    f"({_profile_accent_glow_intensity(material_profile):.2f} emissive intensity) "
-                    f"on {glow_wrappers:,} source-owned wrapper(s).",
-                )
+                if _profile_accent_glow_intensity(material_profile) > 0.0:
+                    _warn_once(
+                        report,
+                        "Accent glow applied: "
+                        f"{_profile_accent_glow_strength(material_profile):.0f}% "
+                        f"({_profile_accent_glow_intensity(material_profile):.2f} emissive intensity) "
+                        f"on {glow_wrappers:,} source-owned wrapper(s).",
+                    )
+                else:
+                    _warn_once(
+                        report,
+                        f"Source emissive material parameters applied on {glow_wrappers:,} source-owned wrapper(s).",
+                    )
         neutralized_parameters = 0
         if neutralize_inherited_material_layers and changed_wrappers > 0:
             keep_rules = [
@@ -3718,8 +3777,10 @@ def _slot_for_complete_swap_atlas_role(
     profile = material_profile or get_complete_swap_material_profile()
     normalized = str(slot_kind or "").strip().lower()
     if normalized == "base":
+        spec_gloss_base = _specular_glossiness_runtime_base_slot(texture_set)
         return (
-            texture_set.slots.get("base")
+            spec_gloss_base
+            or texture_set.slots.get("base")
             or texture_set.slots.get("emissive")
             or ReplacementTextureSlot(
                 material_name=texture_set.material_name,
@@ -3869,6 +3930,7 @@ def _source_driven_slots(
             base_color_tone_contrast=tone_contrast,
         )
 
+    spec_gloss_base_slot = _specular_glossiness_runtime_base_slot(texture_set)
     for slot_kind in order:
         if slot_kind == "base" and base_binding_mode == "disabled":
             continue
@@ -3878,7 +3940,7 @@ def _source_driven_slots(
             continue
         if slot_kind == "emissive" and include_complete_support_fallbacks and profile.emissive_mode != "intensity":
             continue
-        source_slot = texture_set.slots.get(slot_kind)
+        source_slot = spec_gloss_base_slot if slot_kind == "base" and spec_gloss_base_slot is not None else texture_set.slots.get(slot_kind)
         if source_slot is None and slot_kind == "ao":
             source_slot = texture_set.slots.get("occlusion")
         if source_slot is None:
@@ -3900,6 +3962,14 @@ def _source_driven_slots(
             source_slot = texture_set.slots.get(fallback_kind)
             if source_slot is None:
                 continue
+            if _source_slot_is_explicit_pbr(source_slot):
+                generated_slot = _complete_swap_runtime_material_mask_slot(texture_set, profile)
+                key = (str(generated_slot.source_path.expanduser().resolve()).lower(), "material_mask")
+                if key in seen_paths:
+                    continue
+                seen_paths.add(key)
+                slots.append(generated_slot)
+                break
             normalized_name = re.sub(r"[^a-z0-9]+", "", source_slot.source_path.name.lower())
             if any(
                 token in normalized_name
@@ -4460,6 +4530,20 @@ def _source_slot_is_specular_glossiness(source_slot: Optional[ReplacementTexture
         "specular",
         "glossiness",
     } <= channels
+
+
+def _source_slot_is_real_diffuse_base(source_slot: Optional[ReplacementTextureSlot]) -> bool:
+    if source_slot is None:
+        return False
+    if str(getattr(source_slot, "slot_kind", "") or "").strip().lower() != "base":
+        return False
+    if not _source_slot_is_real_texture(source_slot):
+        return False
+    subtype = _sanitize_texture_component(str(getattr(source_slot, "semantic_subtype", "") or ""))
+    if subtype in {"albedo", "basecolor", "base_color", "diffuse", "color"}:
+        return True
+    source_name = re.sub(r"[^a-z0-9]+", "", str(getattr(source_slot, "source_path", "") or "").lower())
+    return any(token in source_name for token in ("diffuse", "basecolor", "albedo"))
 
 
 def _source_slot_channel_index(source_slot: ReplacementTextureSlot, role: str, default_index: int) -> int:
@@ -5155,6 +5239,8 @@ def _complete_swap_accent_emissive_slot(
         return None
     base_slot = texture_set.slots.get("base")
     if base_slot is not None:
+        if _source_slot_is_real_texture(base_slot) and not _texture_set_has_explicit_glow_authority(texture_set):
+            return None
         return replace(
             base_slot,
             slot_kind="emissive",
@@ -5183,6 +5269,139 @@ def _complete_swap_accent_emissive_slot(
     return None
 
 
+def _complete_swap_accent_glow_skip_reason(
+    texture_set: ReplacementTextureSet,
+    target_name: str,
+    material_profile: CDMaterialRuntimeProfile,
+) -> str:
+    if _profile_accent_glow_intensity(material_profile) <= 0.0:
+        return ""
+    if texture_set.slots.get("emissive") is not None:
+        return ""
+    if not _texture_set_is_accent_glow_candidate(texture_set, target_name):
+        return ""
+    base_slot = texture_set.slots.get("base")
+    if base_slot is None:
+        return ""
+    if not _source_slot_is_real_texture(base_slot):
+        return ""
+    if _texture_set_has_explicit_glow_authority(texture_set):
+        return ""
+    material_name = str(getattr(texture_set, "material_name", "") or target_name or "material").strip() or "material"
+    return (
+        f"Accent glow skipped for {material_name}: no explicit emissive/glow source was found. "
+        "A real base texture was not auto-bound as _emissiveIntensityTexture because that can "
+        "wash out yellow/white detail in game lighting."
+    )
+
+
+def _specular_glossiness_runtime_base_slot(texture_set: ReplacementTextureSet) -> Optional[ReplacementTextureSlot]:
+    """Use spec-gloss RGB as fallback base only when no real diffuse/base texture is present."""
+
+    slots = getattr(texture_set, "slots", {}) or {}
+    base_slot = slots.get("base")
+    material_slot = slots.get("material")
+    if base_slot is None or material_slot is None:
+        return None
+    if _source_slot_is_real_diffuse_base(base_slot):
+        return None
+    if not _source_slot_is_specular_glossiness(material_slot):
+        return None
+    specular_scalar = _optional_factor(getattr(texture_set, "specular_factor", None))
+    if specular_scalar is not None and specular_scalar <= 0.003:
+        return None
+    if not _specular_glossiness_should_drive_runtime_base(base_slot, material_slot, specular_scalar):
+        return None
+    try:
+        source_path = _specular_glossiness_runtime_base_png_path(
+            texture_set,
+            base_slot=base_slot,
+            spec_gloss_slot=material_slot,
+            specular_scalar=specular_scalar,
+        )
+    except Exception:
+        return None
+    return replace(
+        base_slot,
+        source_path=source_path,
+        source_authority="gltf",
+        base_color_factor=(),
+        base_color_scale=1.0,
+        base_color_lift=0,
+        base_color_gamma=1.0,
+        base_color_saturation=1.0,
+        base_color_value_max=255,
+        base_color_auto_balance=0,
+        base_color_shadow_lift=0,
+        base_color_tone_contrast=0.0,
+    )
+
+
+def _specular_glossiness_should_drive_runtime_base(
+    base_slot: ReplacementTextureSlot,
+    spec_gloss_slot: ReplacementTextureSlot,
+    specular_scalar: Optional[float],
+) -> bool:
+    base_luma = _mean_image_rgb_luminance(base_slot.source_path)
+    spec_luma = _mean_image_rgb_luminance(spec_gloss_slot.source_path)
+    if base_luma is None or spec_luma is None:
+        return False
+    scalar = 1.0 if specular_scalar is None else max(0.0, min(1.0, float(specular_scalar)))
+    spec_luma *= scalar
+    if base_luma > 96.0:
+        return False
+    return spec_luma >= max(56.0, base_luma * 1.4 + 18.0)
+
+
+def _specular_glossiness_runtime_base_png_path(
+    texture_set: ReplacementTextureSet,
+    *,
+    base_slot: ReplacementTextureSlot,
+    spec_gloss_slot: ReplacementTextureSlot,
+    specular_scalar: Optional[float],
+) -> Path:
+    base_path = base_slot.source_path
+    spec_path = spec_gloss_slot.source_path
+    key_parts = [
+        "spec_gloss_runtime_base_v1",
+        str(getattr(texture_set, "material_name", "") or ""),
+        str(base_path),
+        str(spec_path),
+        str(specular_scalar),
+    ]
+    for path in (base_path, spec_path):
+        try:
+            stat = path.stat()
+            key_parts.extend((str(stat.st_mtime_ns), str(stat.st_size)))
+        except OSError:
+            pass
+    digest = hashlib.sha1("|".join(key_parts).encode("utf-8", errors="ignore")).hexdigest()[:12]
+    safe_material = _sanitize_texture_component(str(getattr(texture_set, "material_name", "") or "")) or "material"
+    root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / f"{safe_material}_specgloss_runtime_base_{digest}.png"
+    if path.is_file():
+        return path
+
+    from PIL import Image
+
+    with Image.open(base_path) as base_image, Image.open(spec_path) as spec_image:
+        base_rgba = base_image.convert("RGBA")
+        spec_rgba = spec_image.convert("RGBA")
+        if spec_rgba.size != base_rgba.size:
+            resampling = getattr(Image, "Resampling", Image).LANCZOS
+            spec_rgba = spec_rgba.resize(base_rgba.size, resampling)
+        spec_r, spec_g, spec_b, _spec_a = spec_rgba.split()
+        if specular_scalar is not None:
+            scalar = max(0.0, min(1.0, float(specular_scalar)))
+            spec_r = spec_r.point(lambda value: max(0, min(255, int(round(int(value) * scalar)))))
+            spec_g = spec_g.point(lambda value: max(0, min(255, int(round(int(value) * scalar)))))
+            spec_b = spec_b.point(lambda value: max(0, min(255, int(round(int(value) * scalar)))))
+        _base_r, _base_g, _base_b, base_a = base_rgba.split()
+        Image.merge("RGBA", (spec_r, spec_g, spec_b, base_a)).save(path)
+    return path
+
+
 def _texture_set_is_accent_glow_candidate(texture_set: ReplacementTextureSet, target_name: str) -> bool:
     role_tags = {
         _normalized_source_part_material_role(tag)
@@ -5207,6 +5426,31 @@ def _texture_set_is_accent_glow_candidate(texture_set: ReplacementTextureSet, ta
     if tokens.intersection(_ACCENT_GLOW_TOKENS) or any(token in compact for token in _ACCENT_GLOW_TOKENS):
         return True
     return _texture_set_is_saturated_factor_shell_accent(texture_set, tokens)
+
+
+def _texture_set_has_explicit_glow_authority(texture_set: ReplacementTextureSet) -> bool:
+    role_tags = {
+        _normalized_source_part_material_role(tag)
+        for tag in tuple(getattr(texture_set, "source_role_tags", ()) or ())
+    }
+    if "glow" in role_tags:
+        return True
+    for slot in tuple((getattr(texture_set, "slots", {}) or {}).values()):
+        slot_kind = str(getattr(slot, "slot_kind", "") or "").strip().lower()
+        if slot_kind == "emissive":
+            return True
+        text_parts = (
+            str(getattr(slot, "source_path", "") or ""),
+            str(getattr(slot, "semantic_subtype", "") or ""),
+            str(getattr(slot, "source_authority", "") or ""),
+        )
+        tokens = {token for token in re.split(r"[^a-z0-9]+", " ".join(text_parts).lower()) if token}
+        compact = _sanitize_texture_component(" ".join(text_parts))
+        if tokens & {"emissive", "emission", "glow", "illum", "illumination", "light"}:
+            return True
+        if any(marker in compact for marker in ("emissive", "emission", "glow", "illumination")):
+            return True
+    return False
 
 
 def _texture_set_is_saturated_factor_shell_accent(
@@ -5244,7 +5488,7 @@ def _texture_set_accent_glow_color_hex(
         try:
             rgb = tuple(max(0, min(255, int(round(float(component) * 255.0)))) for component in color[:3])
             if any(component > 0 for component in rgb):
-                return f"#{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}FF"
+                return f"#FF{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}"
         except (TypeError, ValueError, OverflowError):
             pass
     if source_slot is not None:
@@ -5261,7 +5505,7 @@ def _texture_set_accent_glow_color_hex(
                     strongest = max(rgb)
                     if strongest > 0:
                         boosted = tuple(max(0, min(255, int(round(component * 255.0 / strongest)))) for component in rgb)
-                        return f"#{boosted[0]:02X}{boosted[1]:02X}{boosted[2]:02X}FF"
+                        return f"#FF{boosted[0]:02X}{boosted[1]:02X}{boosted[2]:02X}"
         except Exception:
             pass
     return "#FFFFFFFF"
@@ -5555,6 +5799,40 @@ def _build_source_driven_sidecar_text(
         used_texture_paths,
         changed_wrapper_names,
     )
+
+
+_VISIBLE_GEM_SENSITIVE_WRAPPER_TOKENS = {"acc", "accessory", "blade", "flag", "guard", "handle", "hilt"}
+
+
+def _visible_gem_sensitive_wrappers_touched(sidecar_text: str, changed_wrapper_names: Sequence[str]) -> tuple[str, ...]:
+    if not sidecar_text or not changed_wrapper_names:
+        return ()
+    compact_sidecar = _sanitize_texture_component(sidecar_text)
+    has_visible_gem_evidence = (
+        "gem" in compact_sidecar
+        or "jewel" in compact_sidecar
+        or "crystal" in compact_sidecar
+        or "emissive" in compact_sidecar
+        or "_emissivecolor" in compact_sidecar
+        or "_emissiveintensity" in compact_sidecar
+    )
+    if not has_visible_gem_evidence:
+        return ()
+    risky: list[str] = []
+    seen: set[str] = set()
+    for wrapper_name in tuple(changed_wrapper_names or ()):
+        name = str(wrapper_name or "").strip()
+        if not name:
+            continue
+        tokens = _material_tokens(name)
+        if not (tokens & _VISIBLE_GEM_SENSITIVE_WRAPPER_TOKENS):
+            continue
+        key = _normalize_sidecar_material_name(name)
+        if key in seen:
+            continue
+        seen.add(key)
+        risky.append(name)
+    return tuple(risky)
 
 
 def _apply_detail_mask_material_contract_to_wrapper(
@@ -7868,7 +8146,12 @@ def _attach_source_texture_reference_base_slots(
             )
             confidence = str(getattr(texture_input, "confidence", "") or "").strip().lower()
             semantic_subtype = str(getattr(texture_input, "semantic_subtype", "") or "").strip().lower()
-            authority = "gltf" if confidence == "gltf" or semantic_subtype in {"metallic_roughness", "occlusion", "normal", "emissive"} else "metadata"
+            authority = (
+                "gltf"
+                if confidence == "gltf"
+                or semantic_subtype in {"metallic_roughness", "specular_glossiness", "occlusion", "normal", "emissive"}
+                else "metadata"
+            )
             attach_slot(
                 input_material_name,
                 slot_kind,
@@ -8074,8 +8357,17 @@ def _source_material_numeric_parameter(source_submesh: object, parameter_name: s
         current = str(getattr(parameter, "parameter_name", "") or "").strip().lower()
         if current not in wanted_names:
             continue
+        numeric_value = getattr(parameter, "numeric_value", None)
+        if numeric_value is not None:
+            try:
+                return max(0.0, min(1.0, float(numeric_value)))
+            except (TypeError, ValueError, OverflowError):
+                return None
+        value_text = str(getattr(parameter, "value", "") or "").strip()
+        if not value_text:
+            return None
         try:
-            return max(0.0, min(1.0, float(getattr(parameter, "numeric_value", 0.0) or 0.0)))
+            return max(0.0, min(1.0, float(value_text)))
         except (TypeError, ValueError, OverflowError):
             return None
     return None
@@ -10258,7 +10550,7 @@ def _apply_source_emissive_parameters(
         if not re.fullmatch(r"#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?", cleaned):
             cleaned = "#FFFFFFFF"
         if len(cleaned) == 7:
-            cleaned += "FF"
+            cleaned = "#FF" + cleaned[1:]
         cleaned = cleaned.upper()
         parameter_pattern = re.compile(
             rf'(<MaterialParameterColor\b[^>]*(?:StringItemID|_name|Name|name)="{re.escape(parameter_name)}"[^>]*\b(?:_value|Value|value)=")([^"]*)(")',

@@ -927,6 +927,27 @@ class SettingsTab(QWidget):
             decimals=2,
         )
         shading_layout.addRow("D3D11 emissive gain", self.d3d11_emissive_gain_spin)
+        self.d3d11_tone_exposure_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_exposure"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_exposure"][1],
+            step=0.02,
+            decimals=2,
+        )
+        shading_layout.addRow("D3D11 tone exposure", self.d3d11_tone_exposure_spin)
+        self.d3d11_tone_contrast_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_contrast"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_contrast"][1],
+            step=0.02,
+            decimals=2,
+        )
+        shading_layout.addRow("D3D11 tone contrast", self.d3d11_tone_contrast_spin)
+        self.d3d11_tone_gamma_spin = self._create_float_spin(
+            minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_gamma"][0],
+            maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_gamma"][1],
+            step=0.02,
+            decimals=2,
+        )
+        shading_layout.addRow("D3D11 tone gamma", self.d3d11_tone_gamma_spin)
         reset_row = QHBoxLayout()
         reset_row.setContentsMargins(0, 0, 0, 0)
         reset_row.setSpacing(8)
@@ -1207,6 +1228,9 @@ class SettingsTab(QWidget):
             self.d3d11_metalness_scale_spin,
             self.d3d11_environment_strength_spin,
             self.d3d11_emissive_gain_spin,
+            self.d3d11_tone_exposure_spin,
+            self.d3d11_tone_contrast_spin,
+            self.d3d11_tone_gamma_spin,
         )
 
     def _read_bool(self, key: str, default: bool) -> bool:
@@ -1448,6 +1472,9 @@ class SettingsTab(QWidget):
         self.settings.setValue("preview/d3d11_metalness_scale", preview_settings.d3d11_metalness_scale)
         self.settings.setValue("preview/d3d11_environment_strength", preview_settings.d3d11_environment_strength)
         self.settings.setValue("preview/d3d11_emissive_gain", preview_settings.d3d11_emissive_gain)
+        self.settings.setValue("preview/d3d11_tone_exposure", preview_settings.d3d11_tone_exposure)
+        self.settings.setValue("preview/d3d11_tone_contrast", preview_settings.d3d11_tone_contrast)
+        self.settings.setValue("preview/d3d11_tone_gamma", preview_settings.d3d11_tone_gamma)
         self.settings.sync()
         self._apply_checkbox_states()
         if previous_capture_value != current_capture_value:
@@ -1894,6 +1921,9 @@ class SettingsTab(QWidget):
                     defaults.d3d11_environment_strength,
                 ),
                 d3d11_emissive_gain=self._read_float("preview/d3d11_emissive_gain", defaults.d3d11_emissive_gain),
+                d3d11_tone_exposure=self._read_float("preview/d3d11_tone_exposure", defaults.d3d11_tone_exposure),
+                d3d11_tone_contrast=self._read_float("preview/d3d11_tone_contrast", defaults.d3d11_tone_contrast),
+                d3d11_tone_gamma=self._read_float("preview/d3d11_tone_gamma", defaults.d3d11_tone_gamma),
             )
         )
 
@@ -1967,6 +1997,9 @@ class SettingsTab(QWidget):
             self.d3d11_metalness_scale_spin.setValue(clamped.d3d11_metalness_scale)
             self.d3d11_environment_strength_spin.setValue(clamped.d3d11_environment_strength)
             self.d3d11_emissive_gain_spin.setValue(clamped.d3d11_emissive_gain)
+            self.d3d11_tone_exposure_spin.setValue(clamped.d3d11_tone_exposure)
+            self.d3d11_tone_contrast_spin.setValue(clamped.d3d11_tone_contrast)
+            self.d3d11_tone_gamma_spin.setValue(clamped.d3d11_tone_gamma)
         finally:
             for widget in self._model_preview_setting_widgets():
                 widget.blockSignals(False)
@@ -2067,6 +2100,9 @@ class SettingsTab(QWidget):
                 d3d11_metalness_scale=self.d3d11_metalness_scale_spin.value(),
                 d3d11_environment_strength=self.d3d11_environment_strength_spin.value(),
                 d3d11_emissive_gain=self.d3d11_emissive_gain_spin.value(),
+                d3d11_tone_exposure=self.d3d11_tone_exposure_spin.value(),
+                d3d11_tone_contrast=self.d3d11_tone_contrast_spin.value(),
+                d3d11_tone_gamma=self.d3d11_tone_gamma_spin.value(),
             )
         )
 

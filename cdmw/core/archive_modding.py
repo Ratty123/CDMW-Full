@@ -205,6 +205,7 @@ class ActiveFileAuthorityAuditResult:
     warnings: List[str] = field(default_factory=list)
     mismatch_count: int = 0
     audit_path: Optional[Path] = None
+    requires_report: bool = False
 
 
 @dataclass(slots=True)
@@ -3003,6 +3004,13 @@ def _loose_authority_virtual_path(package_root: Path, local_path: Path) -> str:
     return PurePosixPath(*parts).as_posix()
 
 
+def _is_active_file_authority_audit_path(path: Path) -> bool:
+    name = path.name.casefold()
+    return name == "cdmw_active_file_authority_audit.json" or name.endswith(
+        "_cdmw_active_file_authority_audit.json"
+    )
+
+
 def audit_loose_package_active_file_authority(
     package_root: Path,
     *,
@@ -3019,6 +3027,7 @@ def audit_loose_package_active_file_authority(
     """
 
     from cdmw.core.archive import (
+        archive_entry_is_mod_package,
         active_archive_entry_for_virtual_path,
         discover_pamt_files,
         parse_archive_pamt,
@@ -3064,6 +3073,7 @@ def audit_loose_package_active_file_authority(
             )
             if result_warning not in result.warnings:
                 result.warnings.append(result_warning)
+            result.requires_report = True
         if not expects_files_wrapper and relative_parts_for_layout and relative_parts_for_layout[0].casefold() == "files":
             result_warning = (
                 "VERIFY LOOSE MOD TARGET: package metadata is game-relative but payloads are under files/. "
@@ -3071,6 +3081,7 @@ def audit_loose_package_active_file_authority(
             )
             if result_warning not in result.warnings:
                 result.warnings.append(result_warning)
+            result.requires_report = True
         virtual_path = _loose_authority_virtual_path(root, local_path)
         if not virtual_path:
             continue
@@ -3118,6 +3129,7 @@ def audit_loose_package_active_file_authority(
                 row.status = "active_read_failed"
                 row.note = str(exc)
                 result.warnings.append(f"Authority audit could not read active loose payload for {virtual_path}: {exc}")
+                result.requires_report = True
                 result.rows.append(row)
                 continue
             if row.active_sha256 == local_sha and row.active_size == local_size:
@@ -3126,6 +3138,7 @@ def audit_loose_package_active_file_authority(
                 row.status = "mismatch"
                 row.note = "Active loose payload differs from final package; in-game test may be using stale data."
                 result.mismatch_count += 1
+                result.requires_report = True
                 result.warnings.append(
                     f"IN-GAME TEST BLOCKED: active loose file differs from package {virtual_path} "
                     f"(active {row.active_sha256[:16]}, loose {local_sha[:16]})."
@@ -3148,21 +3161,31 @@ def audit_loose_package_active_file_authority(
             row.status = "active_read_failed"
             row.note = str(exc)
             result.warnings.append(f"Authority audit could not read active archive payload for {virtual_path}: {exc}")
+            result.requires_report = True
             result.rows.append(row)
             continue
         if row.active_sha256 == local_sha and row.active_size == local_size:
             row.status = "match"
-        else:
+        elif archive_entry_is_mod_package(active_entry):
             row.status = "mismatch"
-            row.note = "Active archive payload differs from final loose package; in-game test may be using stale data."
+            row.note = "Active mod archive payload differs from final loose package; in-game test may be using stale data."
             result.mismatch_count += 1
+            result.requires_report = True
             result.warnings.append(
                 f"IN-GAME TEST BLOCKED: active {row.active_source} differs from loose {virtual_path} "
                 f"(active {row.active_sha256[:16]}, loose {local_sha[:16]})."
             )
+        else:
+            row.status = "replaces_archive"
+            row.note = "Final loose package differs from base archive; expected for replacement mods."
         result.rows.append(row)
 
-    if write_audit_file:
+    audit_path = (
+        Path(audit_output_path).expanduser().resolve()
+        if audit_output_path is not None
+        else root / "cdmw_active_file_authority_audit.json"
+    )
+    if write_audit_file and result.requires_report:
         audit_doc = {
             "schema": "cdmw_active_file_authority_audit_v1",
             "package_root": root.as_posix(),
@@ -3176,17 +3199,18 @@ def audit_loose_package_active_file_authority(
             ],
             "rows": [dataclasses.asdict(row) for row in result.rows],
         }
-        audit_path = (
-            Path(audit_output_path).expanduser().resolve()
-            if audit_output_path is not None
-            else root / "cdmw_active_file_authority_audit.json"
-        )
         try:
             audit_path.parent.mkdir(parents=True, exist_ok=True)
             audit_path.write_text(json.dumps(audit_doc, indent=2, sort_keys=True), encoding="utf-8")
             result.audit_path = audit_path
         except OSError as exc:
             result.warnings.append(f"Could not write active file authority audit: {exc}")
+    elif write_audit_file and audit_output_path is not None and _is_active_file_authority_audit_path(audit_path):
+        try:
+            if audit_path.is_file():
+                audit_path.unlink()
+        except OSError as exc:
+            result.warnings.append(f"Could not remove stale active file authority audit: {exc}")
     return result
 
 

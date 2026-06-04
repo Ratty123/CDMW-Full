@@ -684,6 +684,69 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('rule.find("alphaclip")', source)
         self.assertIn('rule.find("cutout")', source)
 
+    def test_native_material_layers_preserve_explicit_texture_channel_suffixes(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        channel_block = source[
+            source.index("static std::string layer_channel_from_parameter"):
+            source.index("static int layer_channel_index", source.index("static std::string layer_channel_from_parameter"))
+        ]
+
+        self.assertLess(channel_block.index('key.ends_with("g")'), channel_block.index('key.find("grime")'))
+        self.assertIn('key.ends_with("b")', channel_block)
+        self.assertIn('key.ends_with("a")', channel_block)
+        self.assertIn(
+            'layer.layer_channel = base != nullptr && !base->layer_channel.empty() ? base->layer_channel : "r";',
+            source,
+        )
+
+    def test_d3d11_preview_does_not_overpaint_duplicate_base_material_layer(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("return std::clamp(layer.weight, 0.0f, 1.0f);", source)
+        self.assertIn("float tint_alpha = saturate(layer_tint[ID].a);", source)
+        self.assertIn("float layer_lifted_luma = saturate", source)
+        self.assertIn("float3 layer_colorized = saturate", source)
+        self.assertIn("float layer_colorize_strength = saturate", source)
+        self.assertIn('const bool draw_albedo_layer = lower_copy(layer.role) != "base";', source)
+        self.assertIn("(draw_albedo_layer && layer.diffuse_srv) ? 1.0f : 0.0f", source)
+        self.assertNotIn("0.68 : layer_tint", source)
+
+    def test_native_core_keeps_weapon_masked_layer_tint_off_base(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        layer_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
+        layer_end = source.index("static std::string material_layer_json", layer_start)
+        layer_source = source[layer_start:layer_end]
+        tint_start = source.index("static bool weapon_metal_base_tint_should_stay_masked")
+        tint_end = source.index("static bool mesh_prefers_sidecar_dye_tint", tint_start)
+        tint_source = source[tint_start:tint_end]
+
+        self.assertIn("mesh_local_surface_has_strong_nonmetal_token", source)
+        self.assertIn("weapon_layer_stack", layer_source)
+        self.assertIn("binding_is_layer_diffuse(*binding, base, weapon_layer_stack && selected_base_layer)", layer_source)
+        self.assertIn("selected_base_layer ? 0.48f", layer_source)
+        self.assertIn("layer.tint[3] = detail_layer ? 0.68f : 0.55f;", layer_source)
+        self.assertIn("std::stable_sort(overlays.begin(), overlays.end()", layer_source)
+        self.assertIn('role.find("detail") != std::string::npos', layer_source)
+        self.assertIn("weapon_metal_base_tint_should_stay_masked(base, mesh)", source)
+        self.assertIn('channel == "g"', tint_source)
+        self.assertIn('parameter.find("diffusetextureg")', tint_source)
+
+    def test_native_preview_core_treats_eye_cover_as_alpha_eye_surface(self) -> None:
+        source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("kNativeMaterialSemanticsVersion = 6", source)
+        self.assertIn("evidence_contains_eye_surface_token", source)
+        self.assertIn("evidence_contains_eye_cutout_surface_token", source)
+        self.assertIn('lower.find("eyecover")', source)
+        self.assertIn('lower.find("eyelid")', source)
+        self.assertIn("batch_is_eye_surface", source)
+        self.assertIn("batch_uses_alpha_cutout", source)
+        self.assertIn("batch_alpha_threshold", source)
+        self.assertIn('batch_is_eye_surface ? 0.05f', source)
+        self.assertIn('"\\"alpha_mode\\":\\"" << (batch_uses_alpha_cutout ? "alpha_cutout" : "opaque")', source)
+        self.assertIn('"\\"two_sided\\":" << ((batch_is_hair || batch_is_eye_surface) ? "true" : "false")', source)
+        self.assertIn("glossy_nonmetal:eye_surface_token", source)
+
     def test_native_material_index_blocks_unsafe_direct_sibling_variants(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 
@@ -877,8 +940,12 @@ class NativePreviewCoreTests(unittest.TestCase):
 
         self.assertIn(r"(?:^|[\\s<])(?:_materialName|MaterialName|TechniqueName)", shader_source)
         self.assertIn("metal_evidence", category_source)
+        self.assertIn("local_evidence", category_source)
+        self.assertIn("local_metal_evidence", category_source)
+        self.assertIn("weak_equipment_metal_evidence", category_source)
         self.assertIn('evidence_contains_token(evidence, "helmet")', category_source)
-        self.assertIn('evidence_contains_token(evidence, "hel")', category_source)
+        self.assertIn('evidence_contains_token(evidence, "helm")', category_source)
+        self.assertNotIn('evidence_contains_token(evidence, "hel")', category_source)
         self.assertLess(category_source.index("if (metal_evidence)"), category_source.index("if (cloth_evidence)"))
 
     def test_native_base_selection_trusts_authoritative_wrapper_for_unknown_mesh_names(self) -> None:
@@ -985,7 +1052,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("parse_material_layers", source)
         self.assertIn("json_object_array_field", source)
         self.assertIn("parse_primary_material_layer", source)
-        self.assertIn("if (weight < 0.16f) return weight;", source)
+        self.assertIn("return std::clamp(layer.weight, 0.0f, 1.0f);", source)
+        self.assertIn("float tint_alpha = saturate(layer_tint[ID].a);", source)
+        self.assertIn('const bool draw_albedo_layer = lower_copy(layer.role) != "base";', source)
         self.assertIn("material_layer_active_batches", source)
         self.assertIn('\\"material_layer_roles\\"', source)
         self.assertIn("Texture2D layer0_diffuse_tex : register(t10)", source)
@@ -1013,6 +1082,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("mesh_edit_flat ? nullptr : batch.base_srv.Get()", source)
         self.assertIn("mesh_edit_.show_vertices", source)
         self.assertIn("mesh_edit_source_vertex_selected", source)
+        self.assertIn("mesh_edit_preserve_materials_for_batch(batch)", source)
+        self.assertIn("const bool mesh_edit_flat = mesh_edit_active && !mesh_edit_preserve_materials_for_batch(batch)", source)
+        self.assertIn("else if (!dense_topology_overlay)", source)
         self.assertIn("batch_is_reference(batch) || !batch_visible_in_view(batch, PreviewViewRole::Replacement)", source)
         self.assertIn("add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 2.4f, 1.0f, 0.48f, 0.12f)", source)
         self.assertIn("mesh_edit_.tool == \"remove\"", source)
@@ -1095,9 +1167,15 @@ class NativePreviewCoreTests(unittest.TestCase):
     def test_d3d11_preview_has_first_class_emissive_slot(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
         package_source = Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8")
+        native_package_source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 
         self.assertIn('"emissive"', package_source)
         self.assertIn('"emissive_intensity"', package_source)
+        self.assertIn('return "emissive";', native_package_source)
+        self.assertIn('role == "emissive"', native_package_source)
+        self.assertIn('best_binding_for_role(bindings, mesh, "emissive"', native_package_source)
+        self.assertIn('{"emissive", emissive}', native_package_source)
+        self.assertIn('\\"emissive_intensity\\":', native_package_source)
         self.assertIn("Texture2D emissive_tex : register(t9)", source)
         self.assertIn("batch.emissive_dds = dds_slot_source(object, \"emissive\")", source)
         self.assertIn("batch.emissive_intensity = std::clamp(json_float_field(object, \"emissive_intensity\"", source)
@@ -1111,18 +1189,19 @@ class NativePreviewCoreTests(unittest.TestCase):
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
         package_source = Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8")
 
-        self.assertIn("float3 reflected_view = normalize(reflect(-view_dir, n));", source)
-        self.assertIn("key_glint", source)
-        self.assertIn("fill_glint", source)
+        self.assertIn("float3 reflected_view = normalize(reflect(-v, n));", source)
+        self.assertIn("preview_environment_color", source)
+        self.assertIn("ggx_distribution", source)
+        self.assertIn("fresnel_schlick", source)
         self.assertIn("front_softbox", source)
-        self.assertIn("metal_reflectance * 1.10", source)
+        self.assertIn("env_fresnel", source)
         self.assertIn("direct_metal_response", source)
         self.assertIn("has_metal_preview_response", package_source)
         self.assertIn('"shiny_metal_inspection"', package_source)
-        self.assertIn("specular_max = max(specular_max, 0.72)", package_source)
+        self.assertIn("specular_max = max(specular_max, 0.42)", package_source)
         for token in ("gold", "silver", "copper", "bronze", "brass", "chrome"):
             self.assertIn(f'"{token}"', package_source)
-        self.assertNotIn('"weapon",', package_source)
+        self.assertIn("_source_or_descriptor_has_weapon_surface", package_source)
 
     def test_native_core_emits_material_category_and_promotion_policy(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
@@ -1139,10 +1218,25 @@ class NativePreviewCoreTests(unittest.TestCase):
         category_source = source[category_start:category_end]
         self.assertLess(category_source.index('evidence.find("skinnedmeshcloth")'), category_source.index('evidence.find("skinnedmeshskin")'))
         self.assertLess(category_source.index('evidence_contains_token(evidence, "handle")'), category_source.index('evidence_contains_token(evidence, "hand")'))
+        self.assertNotIn("pbd_simulation_material_name", category_source)
+        self.assertIn("equipment_surface_evidence", category_source)
+        self.assertIn("mesh_has_crimson_armor_equipment_surface", source)
+        self.assertIn("binding_has_authoritative_model_family_material_response", source)
+        self.assertIn("texture_family_key_is_specific_material_response", source)
+        self.assertIn("has_authoritative_model_family_material_response(bindings, mesh)", category_source)
+        self.assertIn("armor_family_material_response", category_source)
+        self.assertIn("mesh_has_crimson_weapon_surface", source)
+        self.assertIn("weapon_family_material_response", category_source)
+        self.assertIn('"metal:armor_family_material_response"', source)
+        self.assertIn('"metal:weapon_family_material_response"', source)
+        self.assertIn('binding->source_authority == "exact_sidecar"', source)
+        self.assertIn('binding->material_output_quality == "exact"', source)
+        self.assertIn('texture_family_key.find("texturelayer")', source)
         self.assertIn("material_category_confidence", source)
         self.assertIn("promoted_global_material_response", source)
         self.assertIn("material_response_disposition", source)
         self.assertIn("material_response_promoted", source)
+        self.assertIn('material_category == "metal" && promoted_global_material_response(material)', source)
         self.assertIn("material_category_reason_for_bindings", source)
         self.assertIn('\\"material_category_reason\\"', source)
         self.assertIn("add_support_base_sibling_ref", source)
@@ -1167,6 +1261,12 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("eye_evidence", category_source)
         self.assertIn("tooth_evidence", category_source)
         self.assertIn("strong_nonmetal_evidence", category_source)
+        self.assertIn("local_strong_nonmetal_evidence", category_source)
+        self.assertIn("local_metal_evidence", category_source)
+        self.assertIn("local_metal_evidence\n        ||", category_source)
+        self.assertIn("weak_equipment_metal_evidence", category_source)
+        self.assertIn("material_response_metal_hint_evidence", category_source)
+        self.assertIn("binding_has_explicit_metalness_slot", source)
         self.assertIn("leather_material_evidence", category_source)
         self.assertIn("leather_part_evidence", category_source)
         self.assertIn("|| leather_material_evidence", category_source)
@@ -1177,12 +1277,15 @@ class NativePreviewCoreTests(unittest.TestCase):
             self.assertIn(f'evidence_contains_token(evidence, "{token}")', category_source)
         for token in ("gold", "silver", "copper", "bronze", "brass", "chrome"):
             self.assertIn(f'evidence_contains_token(evidence, "{token}")', category_source)
-        self.assertNotIn('evidence_contains_token(evidence, "weapon")', source)
+        self.assertIn('evidence_contains_token(evidence, "weapon")', source)
         self.assertIn("binding_is_tintable_visible_layer_base", source)
+        self.assertIn("preview_sidecar_tint_for_surface", source)
+        self.assertIn("mesh_prefers_sidecar_dye_tint", source)
         self.assertIn("visible_layer_albedo_tint_strength", source)
         self.assertIn("visible_layer_tint_applied", source)
         self.assertIn("visible_layer_tint_color", source)
         self.assertIn("native visible layer tint applied", source)
+        self.assertIn("native sidecar tint applied", source)
         self.assertIn("layer_largest_dimension * 2 < base_largest_dimension", source)
         self.assertIn('return "wood";', source)
         self.assertIn('return "leather";', source)
@@ -1265,9 +1368,28 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("category_metal_cap", source)
         self.assertIn("category_env_scale", source)
         self.assertIn("lerp(0.12, 0.32, category_confidence)", source)
+        self.assertIn("bool material_response_promoted = false;", source)
+        self.assertIn('json_bool_field(object, "material_response_promoted", false)', source)
         self.assertIn("promoted_material_response = flags5.z > 0.5", source)
         self.assertIn("batch.material_response_promoted ? 1.0f : 0.0f", source)
         self.assertIn("render_tuning3.w * category_env_scale", source)
+
+    def test_d3d11_preview_shader_uses_registry_pbr_lighting_helpers(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("float ggx_distribution", source)
+        self.assertIn("float geometry_smith", source)
+        self.assertIn("float3 fresnel_schlick", source)
+        self.assertIn("float3 aces_tonemap", source)
+        self.assertIn("float3 specular_brdf = (d * g * f)", source)
+        self.assertIn("albedo = saturate(base_sample.rgb);", source)
+        self.assertIn("lifted_luma", source)
+        self.assertIn("float3 colorized", source)
+        self.assertNotIn("albedo = srgb_to_linear(base_sample.rgb);", source)
+        self.assertIn("float3 mapped = aces_tonemap(color * tone_exposure);", source)
+        self.assertIn("mapped = saturate((mapped - 0.5) * tone_contrast + 0.5);", source)
+        self.assertIn("mapped = pow(mapped, float3(tone_gamma, tone_gamma, tone_gamma));", source)
+        self.assertIn("return float4(linear_to_srgb(mapped), 1.0);", source)
 
     def test_native_core_material_wrappers_are_slot_authoritative_when_order_matches(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
