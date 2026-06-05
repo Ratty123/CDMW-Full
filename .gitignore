@@ -34,10 +34,24 @@ _ui_smoke.ini
 archive_scan_cache_probe/
 docs/screenshots/*.png
 test_artifacts/
+test_artifacts*/
+test-output/
+test_outputs/
+pytest-output/
+tests/.artifacts/
+tests/artifacts/
+tests/corpus/
+tests/corpora/
 *.hkx-corpus.json
 *.hkx-corpus.csv
 *.sidecar-corpus.json
 *.sidecar-corpus.csv
+*_corpus/
+*_corpora/
+corpus/
+corpora/
+.tmp_crimson_shader_corpus/
+*_artifact.json
 docs/reverse_engineering/*.json
 
 # Local extracted game/corpus payloads should stay outside source control.
