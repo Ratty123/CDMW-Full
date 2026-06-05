@@ -6,6 +6,7 @@ import io
 import json
 import re
 import shutil
+import struct
 import zipfile
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -1853,7 +1854,9 @@ def _material_authority_visible_luma_mean(
             rgb.thumbnail((256, 256))
             red, green, blue = ImageStat.Stat(rgb).mean[:3]
     except Exception:
-        return None
+        stats = dict(_material_authority_dds_channel_stats(_material_authority_payload_or_file_bytes(payload, payload_bytes)))
+        luma = _material_authority_float(stats.get("luma_mean"), -1.0)
+        return round(luma * 255.0, 4) if luma >= 0.0 else None
     luma = (0.2126 * float(red)) + (0.7152 * float(green)) + (0.0722 * float(blue))
     return round(luma, 4)
 
@@ -2461,6 +2464,13 @@ def _material_authority_source_texture_channel_stats(path_text: str) -> Tuple[Tu
             return ()
     except OSError:
         return ()
+    if path.suffix.lower() == ".dds":
+        try:
+            stats = _material_authority_dds_channel_stats(path.read_bytes())
+        except OSError:
+            stats = ()
+        if stats:
+            return stats
     try:
         from PIL import Image
 
@@ -2482,9 +2492,14 @@ def _material_authority_source_zip_texture_channel_stats(path_text: str) -> Tupl
             if info is None or info.is_dir() or int(getattr(info, "file_size", 0) or 0) > SOURCE_TEXTURE_FACT_MAX_IMAGE_BYTES:
                 return ()
             with archive.open(info, "r") as stream:
+                payload = stream.read()
+                if Path(info.filename).suffix.lower() == ".dds":
+                    stats = _material_authority_dds_channel_stats(payload)
+                    if stats:
+                        return stats
                 from PIL import Image
 
-                with Image.open(io.BytesIO(stream.read())) as image:
+                with Image.open(io.BytesIO(payload)) as image:
                     return _material_authority_image_channel_stats(image)
     except Exception:
         return ()
@@ -2513,6 +2528,110 @@ def _material_authority_image_channel_stats(image: object) -> Tuple[Tuple[str, f
         )
     except Exception:
         return ()
+
+
+def _material_authority_payload_or_file_bytes(payload: _FinalPayload, payload_bytes: bytes) -> bytes:
+    if payload_bytes:
+        return bytes(payload_bytes)
+    source_path = getattr(payload, "source_path", Path())
+    if isinstance(source_path, Path) and source_path.is_file():
+        try:
+            if source_path.stat().st_size <= SOURCE_TEXTURE_FACT_MAX_IMAGE_BYTES:
+                return source_path.read_bytes()
+        except OSError:
+            return b""
+    return b""
+
+
+def _material_authority_dds_channel_stats(blob: bytes) -> Tuple[Tuple[str, float], ...]:
+    layout = _material_authority_uncompressed_dds_layout(blob)
+    if layout is None:
+        return ()
+    width, height, pixel_offset, channel_order = layout
+    pixel_count = min(int(width) * int(height), max(0, (len(blob) - pixel_offset) // 4))
+    if pixel_count <= 0:
+        return ()
+    r_total = g_total = b_total = a_total = 0
+    a_min = 255
+    a_max = 0
+    cursor = pixel_offset
+    for _index in range(pixel_count):
+        p0, p1, p2, p3 = blob[cursor : cursor + 4]
+        cursor += 4
+        if channel_order == "rgba":
+            red, green, blue, alpha = p0, p1, p2, p3
+        elif channel_order == "bgra":
+            blue, green, red, alpha = p0, p1, p2, p3
+        elif channel_order == "bgrx":
+            blue, green, red, alpha = p0, p1, p2, 255
+        else:
+            return ()
+        r_total += red
+        g_total += green
+        b_total += blue
+        a_total += alpha
+        a_min = min(a_min, alpha)
+        a_max = max(a_max, alpha)
+    scale = 255.0 * float(pixel_count)
+    r_mean = float(r_total) / scale
+    g_mean = float(g_total) / scale
+    b_mean = float(b_total) / scale
+    a_mean = float(a_total) / scale
+    luma = (0.2126 * r_mean) + (0.7152 * g_mean) + (0.0722 * b_mean)
+    return (
+        ("r_mean", round(r_mean, 4)),
+        ("g_mean", round(g_mean, 4)),
+        ("b_mean", round(b_mean, 4)),
+        ("a_mean", round(a_mean, 4)),
+        ("a_min", round(float(a_min) / 255.0, 4)),
+        ("a_max", round(float(a_max) / 255.0, 4)),
+        ("luma_mean", round(luma, 4)),
+    )
+
+
+def _material_authority_uncompressed_dds_layout(blob: bytes) -> tuple[int, int, int, str] | None:
+    if len(blob) < 128 or blob[:4] != b"DDS ":
+        return None
+    header_size = _material_authority_read_u32(blob, 4)
+    if header_size != 124:
+        return None
+    height = _material_authority_read_u32(blob, 12)
+    width = _material_authority_read_u32(blob, 16)
+    if width <= 0 or height <= 0:
+        return None
+    pf_flags = _material_authority_read_u32(blob, 80)
+    fourcc = blob[84:88]
+    bit_count = _material_authority_read_u32(blob, 88)
+    r_mask = _material_authority_read_u32(blob, 92)
+    g_mask = _material_authority_read_u32(blob, 96)
+    b_mask = _material_authority_read_u32(blob, 100)
+    a_mask = _material_authority_read_u32(blob, 104)
+    if (pf_flags & 0x4) and fourcc == b"DX10":
+        if len(blob) < 148:
+            return None
+        dxgi_format = _material_authority_read_u32(blob, 128)
+        if dxgi_format in {28, 29}:
+            return width, height, 148, "rgba"
+        if dxgi_format in {87, 91}:
+            return width, height, 148, "bgra"
+        if dxgi_format in {88, 93}:
+            return width, height, 148, "bgrx"
+        return None
+    if not (pf_flags & 0x40) or bit_count != 32:
+        return None
+    if (r_mask, g_mask, b_mask, a_mask) == (0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000):
+        return width, height, 128, "rgba"
+    if (r_mask, g_mask, b_mask, a_mask) == (0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000):
+        return width, height, 128, "bgra"
+    if (r_mask, g_mask, b_mask, a_mask) == (0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000):
+        return width, height, 128, "bgrx"
+    return None
+
+
+def _material_authority_read_u32(blob: bytes, offset: int) -> int:
+    if offset < 0 or offset + 4 > len(blob):
+        return 0
+    return int(struct.unpack_from("<I", blob, offset)[0])
 
 
 def _material_authority_zip_member_info(archive: zipfile.ZipFile, member_name: str) -> Optional[zipfile.ZipInfo]:

@@ -90,6 +90,18 @@ def _dds(
     return b"DDS " + bytes(header) + b"\x00" * 512
 
 
+def _dds_rgba_pixels(pixels: list[tuple[int, int, int, int]], *, bgra: bool = False) -> bytes:
+    width = max(1, len(pixels))
+    header = _dds(width=width, height=1, mips=1, rgba=not bgra, bgra=bgra)[:128]
+    payload = bytearray()
+    for red, green, blue, alpha in pixels or [(0, 0, 0, 255)]:
+        if bgra:
+            payload.extend((blue, green, red, alpha))
+        else:
+            payload.extend((red, green, blue, alpha))
+    return header + bytes(payload)
+
+
 class FinalPackagePreviewTests(unittest.TestCase):
     def test_generated_sidecar_resolves_generated_dds_and_binds_base_texture(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1613,6 +1625,33 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertNotIn("visible_color_technical_format", diagnostic_codes)
             self.assertNotIn("visible_color_format_mismatch", flags)
 
+    def test_material_authority_report_records_inline_uncompressed_dds_luma(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Blade")
+            sidecar = _sidecar("character/texture/blade_base.dds", "_overlayColorTexture", "Blade")
+            payload = _dds_rgba_pixels([(10, 20, 30, 255), (110, 120, 130, 255)])
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_base.dds",
+                    target_path="character/texture/blade_base.dds",
+                    kind="texture_generated",
+                    payload_data=payload,
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade.pac_xml",
+                    target_path="character/modelproperty/blade.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=sidecar,
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            output = result.material_authority_report.to_dict()["texture_outputs"][0]
+            expected_luma = (0.2126 * 60.0) + (0.7152 * 70.0) + (0.0722 * 80.0)
+            self.assertAlmostEqual(expected_luma, output["visible_luma_mean"], places=4)
+
     def test_material_authority_report_hashes_file_backed_dds_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1824,6 +1863,28 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertEqual("srgb", facts["base"]["color_space"])
             self.assertEqual("preview_texture_path", facts["base"]["source"])
 
+    def test_material_authority_report_records_source_dds_channel_stats(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dds_path = root / "source_base.dds"
+            dds_path.write_bytes(_dds_rgba_pixels([(10, 20, 30, 255), (110, 120, 130, 128)]))
+            preview = _preview("Blade", texture_path=str(dds_path))
+
+            result = build_final_package_preview(preview, source_path=root / "source.glb")
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            facts = {row["slot_kind"]: row for row in source_row["texture_facts"]}
+            stats = dict(facts["base"]["channel_stats"])
+            self.assertEqual("dds", facts["base"]["image_format"])
+            self.assertEqual((2, 1), tuple(facts["base"]["resolution"]))
+            self.assertEqual("available", facts["base"]["channel_stats_status"])
+            self.assertAlmostEqual(60 / 255.0, stats["r_mean"], places=4)
+            self.assertAlmostEqual(70 / 255.0, stats["g_mean"], places=4)
+            self.assertAlmostEqual(80 / 255.0, stats["b_mean"], places=4)
+            self.assertAlmostEqual(191.5 / 255.0, stats["a_mean"], places=4)
+            self.assertAlmostEqual(128 / 255.0, stats["a_min"], places=4)
+
     def test_material_authority_report_records_source_texture_channel_stats(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             from PIL import Image
@@ -1935,6 +1996,27 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertEqual("dds", facts["base"]["image_format"])
             self.assertEqual((16, 8), tuple(facts["base"]["resolution"]))
             self.assertEqual("srgb", facts["base"]["color_space"])
+
+    def test_material_authority_report_reads_source_dds_stats_from_zip_member(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive_path = root / "source_textures.zip"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                archive.writestr("textures/source_base.dds", _dds_rgba_pixels([(20, 40, 60, 255), (120, 140, 160, 255)], bgra=True))
+            preview = _preview("Blade", texture_path=f"{archive_path}::textures/source_base.dds")
+
+            result = build_final_package_preview(preview, source_path=archive_path)
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            facts = {row["slot_kind"]: row for row in source_row["texture_facts"]}
+            stats = dict(facts["base"]["channel_stats"])
+            self.assertEqual("dds", facts["base"]["image_format"])
+            self.assertEqual((2, 1), tuple(facts["base"]["resolution"]))
+            self.assertEqual("available", facts["base"]["channel_stats_status"])
+            self.assertAlmostEqual(70 / 255.0, stats["r_mean"], places=4)
+            self.assertAlmostEqual(90 / 255.0, stats["g_mean"], places=4)
+            self.assertAlmostEqual(110 / 255.0, stats["b_mean"], places=4)
 
     def test_material_authority_report_reads_source_texture_stats_from_zip_member(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
