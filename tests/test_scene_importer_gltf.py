@@ -343,6 +343,39 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertTrue(transmission_slots)
             self.assertTrue(inventory.material_classes[0].evidence)
 
+    def test_gltf_external_audit_does_not_treat_workflow_label_as_metal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            (root / "triangle.bin").write_bytes(bin_chunk)
+            document["buffers"][0]["uri"] = "triangle.bin"
+            document["materials"][0] = {
+                "name": "GemOutside",
+                "alphaMode": "BLEND",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [1.0, 0.0, 0.0, 0.5],
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.0,
+                },
+                "extensions": {
+                    "KHR_materials_specular": {"specularFactor": 1.0},
+                    "KHR_materials_transmission": {"transmissionFactor": 0.5},
+                },
+            }
+            path = root / "red_gem.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+
+            audit = result.external_audit
+            self.assertIsNotNone(audit)
+            assert audit is not None
+            inventory = audit.material_inventory[0]
+            class_names = {item.material_class for item in inventory.material_classes}
+            self.assertEqual("metallic_roughness", inventory.pbr_workflow)
+            self.assertIn("glass_crystal", class_names)
+            self.assertNotIn("metal", class_names)
+
     def test_gltf_external_audit_uses_texture_channel_stats_for_material_classes(self) -> None:
         from PIL import Image
 

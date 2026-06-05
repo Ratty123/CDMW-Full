@@ -48,6 +48,40 @@ SCENE_COMPANION_SOURCE_EXTENSIONS = {
     ".material",
     ".paa_metabin",
 }
+_MATERIAL_CLASS_TEXTURE_ROLE_TOKENS = (
+    "metallicroughness",
+    "metallic_roughness",
+    "roughnessmetallic",
+    "roughness_metallic",
+    "metalnessroughness",
+    "metalness_roughness",
+    "roughnessmetalness",
+    "roughness_metalness",
+    "occlusionroughnessmetallic",
+    "occlusion_roughness_metallic",
+    "orm",
+    "mro",
+    "rma",
+    "arm",
+    "basecolor",
+    "base_color",
+    "diffuse",
+    "albedo",
+    "normal",
+    "roughness",
+    "metallic",
+    "metalness",
+    "specular",
+    "glossiness",
+    "emissive",
+    "emission",
+    "opacity",
+    "alpha",
+    "transmission",
+    "occlusion",
+    "ao",
+    "height",
+)
 _GLTF_COMPONENT_FORMATS = {
     5120: ("b", 1, True),
     5121: ("B", 1, False),
@@ -1699,9 +1733,7 @@ def _classify_external_material(
     scores: dict[str, float] = defaultdict(float)
     raw_text = " ".join(
         [material_name]
-        + [slot.texture_name for slot in tuple(texture_slots or ())]
-        + [slot.semantic_subtype for slot in tuple(texture_slots or ())]
-        + [pbr_workflow]
+        + [_material_class_texture_token_text(slot.texture_name) for slot in tuple(texture_slots or ())]
     )
     split_text = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", raw_text)
     text = split_text.lower()
@@ -1753,8 +1785,6 @@ def _classify_external_material(
     roughness = float(scalar_map.get("roughness", 0.0) or 0.0)
     if metalness >= 0.5:
         add("metal", 0.55 + min(0.25, metalness * 0.25), f"metallic factor {metalness:.2f}")
-    if "metalness" in slot_kinds or "metallic" in slot_subtypes or "metallic_roughness" in slot_subtypes:
-        add("metal", 0.35, "metallic/roughness texture slot")
     material_stats = first_stats_for("material", "metallic_roughness")
     metallic_channel = material_stats.get("b_mean")
     if metallic_channel is not None and "metallic_roughness" in slot_subtypes:
@@ -1875,6 +1905,16 @@ def _classify_external_material(
         for material_class, score in scores.items()
     ]
     return tuple(sorted(results, key=lambda item: (-item.confidence, item.material_class)))
+
+
+def _material_class_texture_token_text(texture_name: object) -> str:
+    stem = PurePosixPath(str(texture_name or "").replace("\\", "/")).stem
+    if not stem:
+        return ""
+    text = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", stem).lower()
+    for token in _MATERIAL_CLASS_TEXTURE_ROLE_TOKENS:
+        text = re.sub(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", " ", text)
+    return text
 
 
 def _external_inventory_warnings(
