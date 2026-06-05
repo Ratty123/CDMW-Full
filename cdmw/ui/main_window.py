@@ -355,6 +355,7 @@ from cdmw.core.material_sidecar_editor import (
     export_material_sidecar_mod_package,
     is_material_sidecar_entry,
 )
+from cdmw.core.material_authority_report_check import check_material_authority_report
 from cdmw.core.chainner import *
 from cdmw.core.pipeline import *
 from cdmw.core.realesrgan_ncnn import discover_realesrgan_ncnn_models, resolve_ncnn_model_dir
@@ -429,6 +430,60 @@ def _complete_swap_authority_contract(options: object = None) -> str:
 def _complete_swap_requires_true_source_authority(options: object = None) -> bool:
     raw_profile_name = getattr(options, "complete_swap_material_profile", options)
     return bool(complete_swap_material_requires_true_source_authority(str(raw_profile_name or "")))
+
+
+def _check_final_preview_material_authority(final_preview: object) -> Mapping[str, object]:
+    report_obj = getattr(final_preview, "material_authority_report", None)
+    if report_obj is None:
+        return {
+            "status": "failed",
+            "errors": ["Material authority report was not generated."],
+            "warnings": [],
+            "blocking_risk_flags": ["missing_material_authority_report"],
+            "review_risk_flags": [],
+        }
+    try:
+        report = report_obj.to_dict() if hasattr(report_obj, "to_dict") else dict(report_obj)
+    except Exception as exc:
+        return {
+            "status": "failed",
+            "errors": [f"Material authority report could not be serialized: {exc}"],
+            "warnings": [],
+            "blocking_risk_flags": ["invalid_material_authority_report"],
+            "review_risk_flags": [],
+        }
+    try:
+        result = check_material_authority_report(report)
+    except Exception as exc:
+        return {
+            "status": "failed",
+            "errors": [f"Material authority report check crashed: {exc}"],
+            "warnings": [],
+            "blocking_risk_flags": ["material_authority_check_error"],
+            "review_risk_flags": [],
+        }
+    return result if isinstance(result, Mapping) else {}
+
+
+def _material_authority_check_blockers(check_result: Mapping[str, object]) -> Tuple[str, ...]:
+    if str(check_result.get("status", "") or "") != "failed":
+        return ()
+    lines = [str(line) for line in tuple(check_result.get("errors", ()) or ()) if str(line or "").strip()]
+    if not lines:
+        flags = [str(flag) for flag in tuple(check_result.get("blocking_risk_flags", ()) or ()) if str(flag or "").strip()]
+        if flags:
+            lines.append("Blocking material authority risk flag(s): " + ", ".join(flags))
+    return tuple(lines or ("Material authority report check failed.",))
+
+
+def _material_authority_check_review_lines(check_result: Mapping[str, object], *, limit: int = 8) -> Tuple[str, ...]:
+    if str(check_result.get("status", "") or "") not in {"needs_review", "failed"}:
+        return ()
+    warnings = [str(line) for line in tuple(check_result.get("warnings", ()) or ()) if str(line or "").strip()]
+    flags = [str(flag) for flag in tuple(check_result.get("review_risk_flags", ()) or ()) if str(flag or "").strip()]
+    if flags:
+        warnings.insert(0, "Review material authority risk flag(s): " + ", ".join(flags[:limit]))
+    return tuple(dict.fromkeys(warnings[:limit]))
 
 
 @dataclasses.dataclass(slots=True)
@@ -6041,6 +6096,10 @@ def run_gui() -> int:
                         preview_texture_brightness=float(getattr(mesh, "preview_texture_brightness", getattr(batch, "preview_texture_brightness", 1.0)) or 1.0),
                         preview_texture_tint=tuple(getattr(mesh, "preview_texture_tint", getattr(batch, "preview_texture_tint", ())) or ()),
                         preview_texture_uv_scale=tuple(getattr(mesh, "preview_texture_uv_scale", getattr(batch, "preview_texture_uv_scale", ())) or ()),
+                        preview_vertex_color_mean=tuple(getattr(mesh, "preview_vertex_color_mean", getattr(batch, "preview_vertex_color_mean", ())) or ()),
+                        preview_vertex_alpha_mean=getattr(mesh, "preview_vertex_alpha_mean", getattr(batch, "preview_vertex_alpha_mean", None)),
+                        preview_vertex_alpha_min=getattr(mesh, "preview_vertex_alpha_min", getattr(batch, "preview_vertex_alpha_min", None)),
+                        preview_vertex_color_count=int(getattr(mesh, "preview_vertex_color_count", getattr(batch, "preview_vertex_color_count", 0)) or 0),
                         preview_normal_texture_strength=float(getattr(mesh, "preview_normal_texture_strength", getattr(batch, "preview_normal_texture_strength", 0.0)) or 0.0),
                         preview_material_texture_type=str(getattr(mesh, "preview_material_texture_type", getattr(batch, "preview_material_texture_type", "")) or ""),
                         preview_material_texture_subtype=str(getattr(mesh, "preview_material_texture_subtype", getattr(batch, "preview_material_texture_subtype", "")) or ""),
@@ -49511,13 +49570,23 @@ def run_gui() -> int:
             dialog_title: str = "Write Mod-Ready Loose File",
             allow_dmm_texture_structure: bool = True,
             show_texture_resolution_manifest_option: bool = False,
+            show_active_file_authority_audit_option: bool = False,
             parent: Optional[QWidget] = None,
         ) -> Optional[Tuple[Path, ModPackageInfo, bool, bool, ModPackageExportOptions]]:
             dialog_parent = parent if parent is not None else self
             dialog = QDialog(dialog_parent)
             dialog.setWindowTitle(dialog_title)
             dialog.setModal(True)
-            dialog.resize(860, 480 if (show_include_related_files_option or show_texture_resolution_manifest_option) else 420)
+            dialog.resize(
+                860,
+                500
+                if (
+                    show_include_related_files_option
+                    or show_texture_resolution_manifest_option
+                    or show_active_file_authority_audit_option
+                )
+                else 420,
+            )
 
             layout = QVBoxLayout(dialog)
             layout.setContentsMargins(12, 12, 12, 12)
@@ -49574,6 +49643,13 @@ def run_gui() -> int:
                 "Optional Workbench diagnostic JSON for reviewing final texture binding decisions. "
                 "It is not required for DMM file-replace imports."
             )
+            active_file_authority_audit_checkbox = QCheckBox("Active file authority audit report")
+            active_file_authority_audit_checkbox.setChecked(False)
+            active_file_authority_audit_checkbox.setVisible(bool(show_active_file_authority_audit_option))
+            active_file_authority_audit_checkbox.setToolTip(
+                "Optional Workbench diagnostic JSON for checking whether stale active loose files or mod archives "
+                "may override this package in game."
+            )
 
             title_edit.setPlaceholderText(MOD_READY_PACKAGE_TITLE)
             version_edit.setPlaceholderText(MOD_READY_PACKAGE_VERSION)
@@ -49607,6 +49683,7 @@ def run_gui() -> int:
             form_layout.addWidget(target_language_help, 8, 3)
             form_layout.addWidget(include_related_files_checkbox, 9, 0, 1, 3)
             form_layout.addWidget(texture_resolution_manifest_checkbox, 10, 0, 1, 3)
+            form_layout.addWidget(active_file_authority_audit_checkbox, 11, 0, 1, 3)
             form_layout.setColumnStretch(1, 1)
             layout.addLayout(form_layout)
 
@@ -49685,6 +49762,9 @@ def run_gui() -> int:
                     create_texture_resolution_manifest=texture_resolution_manifest_checkbox.isChecked()
                     if show_texture_resolution_manifest_option
                     else False,
+                    create_active_file_authority_audit=active_file_authority_audit_checkbox.isChecked()
+                    if show_active_file_authority_audit_option
+                    else False,
                     conflict_mode=str(conflict_mode_combo.currentData() or "") if uses_manager_metadata else "",
                     target_language=target_language_edit.text().strip() if uses_manager_metadata else "",
                 )
@@ -49732,6 +49812,7 @@ def run_gui() -> int:
             dialog_title: str = "Write Mod-Ready Loose File",
             allow_dmm_texture_structure: bool = True,
             show_texture_resolution_manifest_option: bool = False,
+            show_active_file_authority_audit_option: bool = False,
             initial_package_title: str = "",
             initial_package_description: str = "",
             parent: Optional[QWidget] = None,
@@ -49774,6 +49855,7 @@ def run_gui() -> int:
                     dialog_title=dialog_title,
                     allow_dmm_texture_structure=allow_dmm_texture_structure,
                     show_texture_resolution_manifest_option=show_texture_resolution_manifest_option,
+                    show_active_file_authority_audit_option=show_active_file_authority_audit_option,
                     parent=parent,
                 )
             return (
@@ -51529,6 +51611,7 @@ def run_gui() -> int:
                 show_include_related_files_option=False,
                 dialog_title="Direct In-Game Source Swap Export",
                 allow_dmm_texture_structure=False,
+                show_active_file_authority_audit_option=True,
             )
             if loose_export_settings is None:
                 return
@@ -59503,6 +59586,10 @@ def run_gui() -> int:
                             tuple(getattr(mesh, "preview_texture_tint", ()) or ()),
                             float(getattr(mesh, "preview_texture_brightness", 1.0) or 1.0),
                             tuple(getattr(mesh, "preview_texture_uv_scale", ()) or ()),
+                            tuple(getattr(mesh, "preview_vertex_color_mean", ()) or ()),
+                            getattr(mesh, "preview_vertex_alpha_mean", None),
+                            getattr(mesh, "preview_vertex_alpha_min", None),
+                            int(getattr(mesh, "preview_vertex_color_count", 0) or 0),
                             bool(getattr(mesh, "preview_double_sided", False)),
                             material_inputs,
                         )
@@ -59646,6 +59733,10 @@ def run_gui() -> int:
                             tuple(getattr(mesh, "preview_texture_tint", ()) or ()),
                             float(getattr(mesh, "preview_texture_brightness", 1.0) or 1.0),
                             tuple(getattr(mesh, "preview_texture_uv_scale", ()) or ()),
+                            tuple(getattr(mesh, "preview_vertex_color_mean", ()) or ()),
+                            getattr(mesh, "preview_vertex_alpha_mean", None),
+                            getattr(mesh, "preview_vertex_alpha_min", None),
+                            int(getattr(mesh, "preview_vertex_color_count", 0) or 0),
                             str(getattr(mesh, "preview_alpha_mode", "") or ""),
                             bool(getattr(mesh, "preview_double_sided", False)),
                             material_inputs,
@@ -71316,6 +71407,10 @@ def run_gui() -> int:
                     "preview_texture_brightness",
                     "preview_texture_tint",
                     "preview_texture_uv_scale",
+                    "preview_vertex_color_mean",
+                    "preview_vertex_alpha_mean",
+                    "preview_vertex_alpha_min",
+                    "preview_vertex_color_count",
                     "preview_texture_approximation_note",
                     "preview_material_texture_inputs",
                     "preview_native_material_overrides",
@@ -80976,6 +81071,7 @@ def run_gui() -> int:
                         dialog_title="Mesh Loose Export Metadata",
                         allow_dmm_texture_structure=False,
                         show_texture_resolution_manifest_option=True,
+                        show_active_file_authority_audit_option=True,
                         parent=build_dialog_parent,
                     )
                     if loose_export_settings is None:
@@ -81066,6 +81162,8 @@ def run_gui() -> int:
                     return tuple(paths)
 
                 def _start_commit(preview_result: MeshImportPreviewResult) -> None:
+                    material_report_render_settings = self._current_model_preview_render_settings()
+
                     def _commit_task(log: Callable[[str], None]) -> object:
                         unsafe_material_preflight_override = bool(
                             destination == "loose"
@@ -81150,6 +81248,7 @@ def run_gui() -> int:
                             pre_export_preview = build_final_package_preview(
                                 preview_result,
                                 supplemental_file_specs=supplemental_specs_to_include,
+                                source_path=scene_path_obj,
                                 export_options=export_options,
                                 texconv_path=(Path(texconv_text).expanduser() if texconv_text else None),
                                 original_dds_resolver=_archive_dds_preview_source_for_path,
@@ -81158,6 +81257,7 @@ def run_gui() -> int:
                                 strict_source_owned_material_contract=_complete_swap_requires_true_source_authority(static_replacement_options),
                                 allow_inherited_layer_color_bindings=_complete_swap_allows_inherited_layer_color_bindings(static_replacement_options),
                                 material_authority_contract=_complete_swap_authority_contract(static_replacement_options),
+                                render_settings=material_report_render_settings,
                             )
                         except Exception as exc:
                             blocker_lines = (
@@ -81175,6 +81275,26 @@ def run_gui() -> int:
                                 "preflight_blocked": blocker_lines,
                                 "preflight_hard_blocked": blocker_lines,
                             }
+                        pre_export_authority_check = _check_final_preview_material_authority(pre_export_preview)
+                        pre_export_authority_blockers = _material_authority_check_blockers(pre_export_authority_check)
+                        if pre_export_authority_blockers:
+                            blockers = "\n".join(f"- {line}" for line in pre_export_authority_blockers[:12])
+                            if len(pre_export_authority_blockers) > 12:
+                                blockers += f"\n- ... {len(pre_export_authority_blockers) - 12:,} more blocker(s)"
+                            log(
+                                "Material authority report check blocked export because generated package evidence is incomplete:\n"
+                                + blockers
+                            )
+                            return {
+                                "preview": preview_result,
+                                "loose": None,
+                                "patch": None,
+                                "final_preview": pre_export_preview,
+                                "preflight_blocked": pre_export_authority_blockers,
+                                "preflight_hard_blocked": pre_export_authority_blockers,
+                            }
+                        for warning in _material_authority_check_review_lines(pre_export_authority_check, limit=6):
+                            log(f"Material authority review: {warning}")
                         if pre_export_preview.preflight_errors:
                             blocker_lines = tuple(str(line) for line in pre_export_preview.preflight_errors if str(line or "").strip())
                             hard_blockers = material_preflight_hard_blockers(blocker_lines)
@@ -81248,6 +81368,7 @@ def run_gui() -> int:
                             final_preview = build_final_package_preview(
                                 preview_result,
                                 supplemental_file_specs=supplemental_specs_to_include,
+                                source_path=scene_path_obj,
                                 export_options=export_options,
                                 texconv_path=(Path(texconv_text).expanduser() if texconv_text else None),
                                 original_dds_resolver=_archive_dds_preview_source_for_path,
@@ -81257,6 +81378,7 @@ def run_gui() -> int:
                                 strict_source_owned_material_contract=_complete_swap_requires_true_source_authority(static_replacement_options),
                                 allow_inherited_layer_color_bindings=_complete_swap_allows_inherited_layer_color_bindings(static_replacement_options),
                                 material_authority_contract=_complete_swap_authority_contract(static_replacement_options),
+                                render_settings=material_report_render_settings,
                             )
                             if final_preview.preflight_errors:
                                 if unsafe_material_preflight_override and not material_preflight_hard_blockers(final_preview.preflight_errors):
@@ -81278,6 +81400,26 @@ def run_gui() -> int:
                                 elif texture_resolution_manifest_path.exists():
                                     texture_resolution_manifest_path.unlink()
                                     log(f"Removed empty texture resolution manifest: {texture_resolution_manifest_path}")
+                            material_authority_report_path = loose_result.package_root / "cdmw_material_authority_report.json"
+                            material_authority_report_path.write_text(
+                                json.dumps(final_preview.material_authority_report.to_dict(), indent=2),
+                                encoding="utf-8",
+                            )
+                            log(f"Wrote material authority report: {material_authority_report_path}")
+                            material_authority_check = _check_final_preview_material_authority(final_preview)
+                            material_authority_check_path = loose_result.package_root / "cdmw_material_authority_report_check.json"
+                            material_authority_check_path.write_text(
+                                json.dumps(dict(material_authority_check), indent=2, sort_keys=True),
+                                encoding="utf-8",
+                            )
+                            log(
+                                "Wrote material authority report check: "
+                                f"{material_authority_check_path} ({material_authority_check.get('status', 'unknown')})"
+                            )
+                            for blocker in _material_authority_check_blockers(material_authority_check)[:12]:
+                                log(f"Material authority report blocker: {blocker}")
+                            for warning in _material_authority_check_review_lines(material_authority_check, limit=8):
+                                log(f"Material authority report review: {warning}")
                         except Exception as exc:
                             log(f"Final output preview could not be built: {exc}")
                         return {

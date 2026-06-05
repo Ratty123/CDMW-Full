@@ -4,7 +4,12 @@ import unittest
 from pathlib import Path
 from types import MethodType, SimpleNamespace
 
-from cdmw.ui.model_library_tab import ModelLibraryTab, model_library_texture_status_kind
+from cdmw.ui.model_library_tab import (
+    ModelLibraryTab,
+    _external_audit_material_inventory_rows,
+    _external_audit_texture_slot_text,
+    model_library_texture_status_kind,
+)
 
 
 class ModelLibraryUiSourceGuardTests(unittest.TestCase):
@@ -16,6 +21,63 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
 
         for status in ("Unknown", "Download to check", "Embedded/Unknown", "In ZIP", ""):
             self.assertEqual(model_library_texture_status_kind(status), "unknown")
+
+    def test_external_audit_inventory_keeps_texture_file_facts_for_details(self) -> None:
+        audit = SimpleNamespace(
+            material_inventory=(
+                SimpleNamespace(
+                    material_name="HeroArmor",
+                    submesh_names=("body",),
+                    pbr_workflow="metallic_roughness",
+                    alpha_mode="opaque",
+                    double_sided=False,
+                    vertex_color_factor=(),
+                    vertex_alpha=(),
+                    material_classes=(),
+                    warnings=(),
+                    texture_slots=(
+                        SimpleNamespace(
+                            slot_kind="material",
+                            parameter_name="_metallicRoughnessTexture",
+                            texture_name="Hero_MRA.png",
+                            texture_path="textures/Hero_MRA.png",
+                            image_format="png",
+                            resolution=(2048, 1024),
+                            semantic_type="material",
+                            semantic_subtype="metallic_roughness",
+                            packed_channels=("roughness", "metallic"),
+                            color_space="linear",
+                            source="gltf",
+                            confidence="high",
+                            evidence=("image facts",),
+                            channel_stats=(),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        rows = _external_audit_material_inventory_rows(audit)
+
+        slot_row = rows[0]["texture_slot_rows"][0]
+        self.assertEqual(slot_row["slot_kind"], "material")
+        self.assertEqual(slot_row["image_format"], "png")
+        self.assertEqual(slot_row["resolution"], (2048, 1024))
+        self.assertEqual(slot_row["color_space"], "linear")
+        self.assertEqual(slot_row["semantic_subtype"], "metallic_roughness")
+        self.assertEqual(slot_row["packed_channels"], ("roughness", "metallic"))
+        self.assertEqual(
+            _external_audit_texture_slot_text(slot_row),
+            "material Hero_MRA.png png 2048x1024 linear metallic_roughness channels=roughness/metallic",
+        )
+
+    def test_model_library_details_show_texture_slot_facts(self) -> None:
+        source = Path("cdmw/ui/model_library_tab.py").read_text(encoding="utf-8")
+
+        self.assertIn('"texture_slot_rows": texture_slot_rows', source)
+        self.assertIn('texture_slot_rows = tuple(item for item in tuple(row.get("texture_slot_rows", ()) or ())', source)
+        self.assertIn("_external_audit_texture_slot_text(item)", source)
+        self.assertIn("Texture files: {texture_file_text}", source)
 
     def test_local_download_rows_group_by_metadata_even_when_catalogue_root_differs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

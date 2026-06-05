@@ -1925,6 +1925,31 @@ class StaticTextureReplacementTests(unittest.TestCase):
             with Image.open(factored) as image:
                 self.assertEqual((50, 50, 50, 255), image.convert("RGBA").getpixel((0, 0)))
 
+    def test_gltf_base_texture_is_multiplied_by_vertex_color_and_alpha(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "image0.png"
+            Image.new("RGBA", (1, 1), (100, 200, 50, 200)).save(base_png)
+            submesh = SubMesh(
+                name="Blade",
+                material="Blade",
+                texture=str(base_png),
+                vertices=[(0.0, 0.0, 0.0)],
+                faces=[(0, 0, 0)],
+            )
+            submesh.preview_color = (0.5, 1.0, 0.8)
+            submesh.preview_vertex_color_mean = (0.5, 0.25, 1.0)
+            submesh.preview_vertex_alpha_mean = 0.5
+
+            texture_sets = group_replacement_texture_sets((base_png,), obj_mesh=ParsedMesh(submeshes=[submesh]))
+            base_slot = texture_sets["blade"].slots["base"]
+            factored = _source_slot_png_with_base_color_factor_path(base_slot)
+
+            with Image.open(factored) as image:
+                self.assertEqual((25, 50, 40, 100), image.convert("RGBA").getpixel((0, 0)))
+
     def test_mesh_clone_preserves_imported_material_contract_for_complete_swap(self) -> None:
         source = SubMesh(
             name="Helmet",
@@ -1937,6 +1962,10 @@ class StaticTextureReplacementTests(unittest.TestCase):
             ("base", Path("Helmet_baseColor.png")),
             ("metallicRoughness", Path("Helmet_metallicRoughness.png")),
         )
+        source.preview_vertex_color_mean = (0.9, 0.6, 0.3)
+        source.preview_vertex_alpha_mean = 0.5
+        source.preview_vertex_alpha_min = 0.25
+        source.preview_vertex_color_count = 3
         source.preview_material_texture_inputs = ("material contract marker",)
         mesh = ParsedMesh(submeshes=[source])
 
@@ -1947,6 +1976,10 @@ class StaticTextureReplacementTests(unittest.TestCase):
             source.preview_material_texture_inputs,
             getattr(cloned.submeshes[0], "preview_material_texture_inputs", ()),
         )
+        self.assertEqual(source.preview_vertex_color_mean, getattr(cloned.submeshes[0], "preview_vertex_color_mean", ()))
+        self.assertEqual(source.preview_vertex_alpha_mean, getattr(cloned.submeshes[0], "preview_vertex_alpha_mean", None))
+        self.assertEqual(source.preview_vertex_alpha_min, getattr(cloned.submeshes[0], "preview_vertex_alpha_min", None))
+        self.assertEqual(source.preview_vertex_color_count, getattr(cloned.submeshes[0], "preview_vertex_color_count", 0))
 
     def test_complete_external_swap_generates_base_dds_from_gltf_base_color_factor(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -4633,6 +4666,34 @@ class StaticTextureReplacementTests(unittest.TestCase):
         with Image.open(detail_mask) as image:
             self.assertEqual((0, 0, 0, 0), image.convert("RGBA").getpixel((0, 0)))
 
+    def test_material_authority_detail_mask_factor_only_mask_is_inert_detail_mask(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "Gem_outside_baseColor.png"
+            Image.new("RGBA", (2, 2), (247, 4, 0, 255)).save(base_png)
+            texture_set = ReplacementTextureSet(
+                "Gem_outside",
+                slots={"base": ReplacementTextureSlot("Gem_outside", "base", base_png, source_authority="gltf")},
+            )
+            profile = get_complete_swap_material_profile("material_authority_detail_mask")
+
+            slots = _source_driven_slots(
+                texture_set,
+                include_pbr_material_fallback=True,
+                include_complete_support_fallbacks=True,
+                material_profile=profile,
+            )
+
+            material_slot = next(slot for slot in slots if slot.slot_kind == "material_mask")
+            self.assertEqual("_detailMaskTexture", _source_driven_parameter_name("material_mask", material_profile=profile))
+            self.assertIn("_detail_mask_neutral_", material_slot.source_path.name)
+            with Image.open(material_slot.source_path) as image:
+                self.assertEqual((0, 0, 0, 0), image.convert("RGBA").getpixel((0, 0)))
+            preview_slots = material_authority_preview_texture_slots(texture_set, profile)
+            self.assertIn("_detail_mask_neutral_", preview_slots["material_mask"].source_path.name)
+
     def test_complete_swap_wrapper_clone_stays_inside_submesh_resource_vector_with_unique_item_id(self) -> None:
         sidecar_text = """
 <ModelPropertyList>
@@ -5238,6 +5299,46 @@ class StaticTextureReplacementTests(unittest.TestCase):
             warning_text = "\n".join(report.warnings)
             self.assertIn("Crimson DDS warning", warning_text)
             self.assertIn("mip chain", warning_text)
+
+    def test_dds_source_color_adjustment_is_baked_before_export(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            source_dds = root / "dark_base.dds"
+            original_dds = root / "original.dds"
+            Image.new("RGBA", (4, 4), (32, 32, 32, 255)).save(source_dds)
+            Image.new("RGBA", (4, 4), (32, 32, 32, 255)).save(original_dds)
+            entry = _entry("character/texture/sample.dds", root)
+            report = TextureReplacementReport()
+            encoded_sources: list[Path] = []
+
+            def fake_native_encode(source: Path, target: Path, **_kwargs: object) -> dict[str, object]:
+                encoded_sources.append(source)
+                with Image.open(source) as image:
+                    image.save(target)
+                return {"ok": True}
+
+            with patch("cdmw.core.texture_native.encode_dds_with_directxtex", side_effect=fake_native_encode):
+                payload = _build_texture_payload(
+                    ReplacementTextureSlot("replacement", "base", source_dds, base_color_lift=90),
+                    target_entry=entry,
+                    texconv_path=None,
+                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: original_dds,
+                    report=report,
+                    on_log=None,
+                )
+
+            output_dds = root / "output.dds"
+            output_dds.write_bytes(payload)
+            with Image.open(output_dds) as image:
+                pixel = image.convert("RGBA").getpixel((0, 0))
+
+            self.assertEqual(1, len(encoded_sources))
+            self.assertEqual(".png", encoded_sources[0].suffix.lower())
+            self.assertGreater(pixel[0], 32)
+            self.assertTrue(any("baking source color adjustment" in warning for warning in report.warnings))
 
     def test_shared_texture_layers_are_identified_as_optional(self) -> None:
         self.assertTrue(is_shared_material_layer_texture("character/texture/cd_texturelayer_003_0101.dds"))
@@ -6505,6 +6606,8 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     ),
                 ),
             )
+            stale_audit_path = root / "Mesh Mod_cdmw_active_file_authority_audit.json"
+            stale_audit_path.write_text("stale", encoding="utf-8")
 
             result = export_archive_mesh_payloads_to_mod_ready_loose(
                 (ArchivePatchRequest(primary, b"rebuilt"),),
@@ -6523,6 +6626,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertIsNone(result.authority_audit_path)
             self.assertEqual(0, result.authority_mismatch_count)
             self.assertFalse((result.package_root / "cdmw_active_file_authority_audit.json").exists())
+            self.assertFalse(stale_audit_path.exists())
             self.assertFalse(
                 (result.package_root.parent / f"{result.package_root.name}_cdmw_active_file_authority_audit.json").exists()
             )
@@ -6530,6 +6634,40 @@ class StaticTextureReplacementTests(unittest.TestCase):
             files = {item["path"]: item for item in manifest["files"]}
             self.assertIn("Generated replacement texture", files["character/texture/generated.dds"]["note"])
             self.assertIn("Patched material sidecar", files["character/modelproperty/test_weapon.pac_xml"]["note"])
+
+    def test_mesh_loose_export_active_file_authority_audit_is_opt_in(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            primary = _entry("character/model/weapon/test_weapon.pac", root)
+            active_loose = root / "character" / "model" / "weapon" / "test_weapon.pac"
+            active_loose.parent.mkdir(parents=True, exist_ok=True)
+            active_loose.write_bytes(b"stale")
+            preview = MeshImportPreviewResult(
+                rebuilt_data=b"rebuilt",
+                parsed_mesh=ParsedMesh(path=primary.path, format="pac"),
+                preview_model=ModelPreviewData(),
+                summary_lines=[],
+            )
+
+            result = export_archive_mesh_payloads_to_mod_ready_loose(
+                (ArchivePatchRequest(primary, b"rebuilt"),),
+                primary_entry=primary,
+                preview_result=preview,
+                source_obj_path=root / "source.obj",
+                parent_root=root,
+                package_info=ModPackageInfo(title="Mesh Mod Audit"),
+                export_options=ModPackageExportOptions(create_active_file_authority_audit=True),
+                related_entries_to_include=(),
+            )
+
+            expected_audit_path = root / "Mesh Mod Audit_cdmw_active_file_authority_audit.json"
+            self.assertEqual(expected_audit_path, result.authority_audit_path)
+            self.assertEqual(1, result.authority_mismatch_count)
+            self.assertTrue(expected_audit_path.exists())
+            audit = json.loads(expected_audit_path.read_text(encoding="utf-8"))
+            self.assertEqual("cdmw_active_file_authority_audit_v1", audit["schema"])
+            self.assertEqual(1, audit["mismatch_count"])
+            self.assertEqual("mismatch", audit["rows"][0]["status"])
 
     def test_mesh_loose_export_custom_compact_paths_keeps_textures_under_character_texture(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -332,6 +332,10 @@ def _clone_submesh_fast(submesh: SubMesh) -> SubMesh:
     for attr_name in (
         "texture_slots",
         "preview_color",
+        "preview_vertex_color_mean",
+        "preview_vertex_alpha_mean",
+        "preview_vertex_alpha_min",
+        "preview_vertex_color_count",
         "preview_normal_texture_path",
         "preview_normal_texture_name",
         "preview_normal_texture_strength",

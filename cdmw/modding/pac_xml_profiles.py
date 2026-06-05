@@ -11,6 +11,7 @@ import json
 import os
 import re
 import sqlite3
+import xml.etree.ElementTree as ET
 import zlib
 from collections.abc import Mapping as MappingABC
 from collections import Counter
@@ -40,6 +41,337 @@ class PacXmlTextureRef:
     texture_path: str
     role: str
     stock_runtime: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PacXmlAuthorityParameter:
+    wrapper_name: str
+    parameter_name: str
+    parameter_type: str
+    item_id: str = ""
+    index: str = ""
+    value: str = ""
+    texture_path: str = ""
+    role: str = ""
+    category: str = ""
+    reason: str = ""
+    stock_runtime: bool = False
+
+    def to_dict(self) -> dict[str, object]:
+        numeric_value = _authority_parameter_numeric_value(self.value)
+        color_rgba = _authority_parameter_color_rgba(self.value)
+        return {
+            "wrapper_name": self.wrapper_name,
+            "parameter_name": self.parameter_name,
+            "parameter_type": self.parameter_type,
+            "item_id": self.item_id,
+            "index": self.index,
+            "value": self.value,
+            "numeric_value": numeric_value,
+            "color_rgba": color_rgba,
+            "color_order": "rgba" if color_rgba else "",
+            "texture_path": self.texture_path,
+            "role": self.role,
+            "category": self.category,
+            "reason": self.reason,
+            "stock_runtime": bool(self.stock_runtime),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PacXmlNeutralizationAction:
+    wrapper_name: str
+    parameter_name: str
+    parameter_type: str
+    item_id: str = ""
+    index: str = ""
+    texture_path: str = ""
+    inherited_reason: str = ""
+    action: str = ""
+    action_status: str = ""
+    required: bool = False
+    preserve_runtime_abi: bool = True
+    replacement_target: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "wrapper_name": self.wrapper_name,
+            "parameter_name": self.parameter_name,
+            "parameter_type": self.parameter_type,
+            "item_id": self.item_id,
+            "index": self.index,
+            "texture_path": self.texture_path,
+            "inherited_reason": self.inherited_reason,
+            "action": self.action,
+            "action_status": self.action_status,
+            "required": bool(self.required),
+            "preserve_runtime_abi": bool(self.preserve_runtime_abi),
+            "replacement_target": self.replacement_target,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PacXmlAuthorityWrapper:
+    order: int
+    wrapper_name: str
+    item_id: str = ""
+    shader_name: str = ""
+    parameter_count: int = 0
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "order": int(self.order),
+            "wrapper_name": self.wrapper_name,
+            "item_id": self.item_id,
+            "shader_name": self.shader_name,
+            "parameter_count": int(self.parameter_count),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PacXmlSubmeshBinding:
+    order: int
+    wrapper_name: str
+    item_id: str = ""
+    id_base: str = ""
+    shader_name: str = ""
+    parameter_count: int = 0
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "order": int(self.order),
+            "wrapper_name": self.wrapper_name,
+            "item_id": self.item_id,
+            "id_base": self.id_base,
+            "shader_name": self.shader_name,
+            "parameter_count": int(self.parameter_count),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PacXmlMaterialAuthorityReport:
+    path: str
+    authority_contract: str
+    profile_family: str = "unknown"
+    profile_slot: str = ""
+    shader_families: tuple[str, ...] = ()
+    wrapper_count: int = 0
+    wrapper_order: tuple[PacXmlAuthorityWrapper, ...] = ()
+    submesh_bindings: tuple[PacXmlSubmeshBinding, ...] = ()
+    parameter_count: int = 0
+    runtime_abi_parameters: tuple[PacXmlAuthorityParameter, ...] = ()
+    source_authority_parameters: tuple[PacXmlAuthorityParameter, ...] = ()
+    inherited_influence_parameters: tuple[PacXmlAuthorityParameter, ...] = ()
+    unknown_material_response_parameters: tuple[PacXmlAuthorityParameter, ...] = ()
+    neutralization_actions: tuple[PacXmlNeutralizationAction, ...] = ()
+    warnings: tuple[str, ...] = ()
+    neutralization_policy: str = ""
+
+    @property
+    def status(self) -> str:
+        return "needs_review" if self.warnings else "ok"
+
+    def summary(self) -> str:
+        slot = f"/{self.profile_slot}" if self.profile_slot else ""
+        shaders = ", ".join(self.shader_families) if self.shader_families else "unknown"
+        return (
+            f"PAC XML material authority: contract={self.authority_contract or 'unspecified'}; "
+            f"profile={self.profile_family}{slot}; shaders={shaders}; wrappers={self.wrapper_count}; "
+            f"params={self.parameter_count}; inherited={len(self.inherited_influence_parameters)}; "
+            f"unknown={len(self.unknown_material_response_parameters)}; status={self.status}."
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "path": self.path,
+            "authority_contract": self.authority_contract,
+            "profile_family": self.profile_family,
+            "profile_slot": self.profile_slot,
+            "shader_families": list(self.shader_families),
+            "wrapper_count": int(self.wrapper_count),
+            "wrapper_order": [wrapper.to_dict() for wrapper in self.wrapper_order],
+            "submesh_bindings": [binding.to_dict() for binding in self.submesh_bindings],
+            "parameter_count": int(self.parameter_count),
+            "scalar_ranges": _authority_scalar_ranges(
+                self.runtime_abi_parameters,
+                self.source_authority_parameters,
+                self.inherited_influence_parameters,
+                self.unknown_material_response_parameters,
+            ),
+            "color_parameters": _authority_color_parameter_rows(
+                self.runtime_abi_parameters,
+                self.source_authority_parameters,
+                self.inherited_influence_parameters,
+                self.unknown_material_response_parameters,
+            ),
+            "alpha_controls": _authority_alpha_control_rows(
+                self.runtime_abi_parameters,
+                self.source_authority_parameters,
+                self.inherited_influence_parameters,
+                self.unknown_material_response_parameters,
+            ),
+            "runtime_abi_parameters": [parameter.to_dict() for parameter in self.runtime_abi_parameters],
+            "source_authority_parameters": [parameter.to_dict() for parameter in self.source_authority_parameters],
+            "inherited_influence_parameters": [parameter.to_dict() for parameter in self.inherited_influence_parameters],
+            "unknown_material_response_parameters": [
+                parameter.to_dict() for parameter in self.unknown_material_response_parameters
+            ],
+            "neutralization_actions": [action.to_dict() for action in self.neutralization_actions],
+            "warnings": list(self.warnings),
+            "neutralization_policy": self.neutralization_policy,
+            "status": self.status,
+            "summary": self.summary(),
+        }
+
+
+def _authority_parameter_numeric_value(value: object) -> float | None:
+    text = str(value or "").strip()
+    if not text or text.startswith("#") or len(text.split()) != 1:
+        return None
+    try:
+        return float(text)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _authority_parameter_color_rgba(value: object) -> tuple[int, int, int, int]:
+    text = str(value or "").strip()
+    if not text:
+        return ()
+    if text.startswith("#"):
+        hex_value = re.sub(r"[^0-9a-fA-F]+", "", text)
+        if len(hex_value) == 6:
+            hex_value += "ff"
+        if len(hex_value) == 8:
+            try:
+                return tuple(int(hex_value[index : index + 2], 16) for index in (0, 2, 4, 6))  # type: ignore[return-value]
+            except ValueError:
+                return ()
+    parts = text.split()
+    if len(parts) == 4:
+        try:
+            values = [float(part) for part in parts]
+        except (TypeError, ValueError, OverflowError):
+            return ()
+        if all(0.0 <= value <= 1.0 for value in values):
+            return tuple(max(0, min(255, int(round(value * 255.0)))) for value in values)  # type: ignore[return-value]
+        if all(0.0 <= value <= 255.0 for value in values):
+            return tuple(max(0, min(255, int(round(value)))) for value in values)  # type: ignore[return-value]
+    return ()
+
+
+def _authority_scalar_ranges(*groups: Sequence[PacXmlAuthorityParameter]) -> list[dict[str, object]]:
+    by_name: dict[str, dict[str, object]] = {}
+    for parameter in _authority_parameter_groups(*groups):
+        numeric_value = _authority_parameter_numeric_value(parameter.value)
+        if numeric_value is None:
+            continue
+        key = parameter.parameter_name or parameter.parameter_type or "<unknown>"
+        row = by_name.setdefault(
+            key,
+            {
+                "parameter_name": key,
+                "parameter_type": parameter.parameter_type,
+                "count": 0,
+                "min": numeric_value,
+                "max": numeric_value,
+                "categories": set(),
+            },
+        )
+        row["count"] = int(row["count"]) + 1
+        row["min"] = min(float(row["min"]), numeric_value)
+        row["max"] = max(float(row["max"]), numeric_value)
+        categories = row.get("categories")
+        if isinstance(categories, set) and parameter.category:
+            categories.add(parameter.category)
+    output: list[dict[str, object]] = []
+    for row in by_name.values():
+        categories = row.get("categories")
+        output.append(
+            {
+                "parameter_name": row["parameter_name"],
+                "parameter_type": row["parameter_type"],
+                "count": row["count"],
+                "min": row["min"],
+                "max": row["max"],
+                "categories": tuple(sorted(categories)) if isinstance(categories, set) else (),
+            }
+        )
+    return sorted(output, key=lambda item: str(item["parameter_name"]).lower())
+
+
+def _authority_color_parameter_rows(*groups: Sequence[PacXmlAuthorityParameter]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for parameter in _authority_parameter_groups(*groups):
+        color_rgba = _authority_parameter_color_rgba(parameter.value)
+        if not color_rgba:
+            continue
+        rows.append(
+            {
+                "wrapper_name": parameter.wrapper_name,
+                "parameter_name": parameter.parameter_name,
+                "parameter_type": parameter.parameter_type,
+                "item_id": parameter.item_id,
+                "index": parameter.index,
+                "value": parameter.value,
+                "color_rgba": color_rgba,
+                "color_order": "rgba",
+                "category": parameter.category,
+                "reason": parameter.reason,
+            }
+        )
+    return sorted(rows, key=lambda item: (str(item["wrapper_name"]).lower(), str(item["parameter_name"]).lower()))
+
+
+def _authority_alpha_control_rows(*groups: Sequence[PacXmlAuthorityParameter]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for parameter in _authority_parameter_groups(*groups):
+        key = _compact_parameter_name(parameter.parameter_name)
+        mode = _authority_alpha_control_mode(key)
+        if not mode:
+            continue
+        rows.append(
+            {
+                "wrapper_name": parameter.wrapper_name,
+                "parameter_name": parameter.parameter_name,
+                "parameter_type": parameter.parameter_type,
+                "item_id": parameter.item_id,
+                "index": parameter.index,
+                "value": parameter.value,
+                "numeric_value": _authority_parameter_numeric_value(parameter.value),
+                "mode": mode,
+                "category": parameter.category,
+                "reason": parameter.reason,
+            }
+        )
+    return sorted(rows, key=lambda item: (str(item["wrapper_name"]).lower(), str(item["parameter_name"]).lower()))
+
+
+def _authority_alpha_control_mode(key: str) -> str:
+    if not key or "colorblending" in key:
+        return ""
+    if "alphatest" in key:
+        return "alpha_test"
+    if "alphablend" in key or (("alpha" in key or "opacity" in key or "transparent" in key) and "blend" in key):
+        return "alpha_blend"
+    if "cutout" in key or "alphacutoff" in key or "alphacutout" in key:
+        return "alpha_cutout"
+    if "opacity" in key or "transparent" in key:
+        return "opacity"
+    if "alpha" in key:
+        return "alpha"
+    if "doublesided" in key or "twosided" in key:
+        return "two_sided"
+    if "cullmode" in key:
+        return "cull_mode"
+    return ""
+
+
+def _authority_parameter_groups(*groups: Sequence[PacXmlAuthorityParameter]) -> tuple[PacXmlAuthorityParameter, ...]:
+    rows: list[PacXmlAuthorityParameter] = []
+    for group in groups:
+        rows.extend(tuple(group or ()))
+    return tuple(rows)
 
 
 @dataclass(frozen=True, slots=True)
@@ -492,8 +824,24 @@ def _armor_slot_from_path(key: str) -> str:
 def infer_pac_xml_texture_role(parameter_name: str, texture_path: str = "") -> str:
     name = re.sub(r"[^a-z0-9]+", "", str(parameter_name or "").lower())
     path = _normalized_key(texture_path)
+    if "flow" in name:
+        return "flow"
+    if "wrinklemask" in name:
+        return "wrinkle_mask"
+    if "wrinklecolor" in name:
+        return "wrinkle_color"
+    if "hairdirection" in name or "ssdm" in name:
+        return "flow"
     if "normal" in name or path.endswith("_n.dds"):
         return "normal"
+    if path.endswith("_f.dds"):
+        return "flow"
+    if "pupil" in name:
+        return "pupil"
+    if "iris" in name:
+        return "iris"
+    if "alpha" in name or "opacity" in name or path.endswith("_alpha.dds"):
+        return "opacity"
     if "height" in name or "displacement" in name or path.endswith("_disp.dds"):
         return "height"
     if "detailmask" in name or path.endswith("_mg.dds"):
@@ -502,6 +850,10 @@ def infer_pac_xml_texture_role(parameter_name: str, texture_path: str = "") -> s
         return "material_mask"
     if "emissive" in name or path.endswith("_emi.dds"):
         return "emissive"
+    if (name == "masktexture" or name.endswith("masktexture")) and not path:
+        return "material_mask"
+    if name == "masktexture" or name.endswith("masktexture"):
+        return "mask"
     if any(token in name for token in ("overlaycolor", "basecolor", "diffuse", "albedo", "rgbtexture")):
         return "base"
     return "unknown"
@@ -588,6 +940,638 @@ def parse_pac_xml_profile(sidecar_text: str, sidecar_path: str | Path = "") -> P
         texture_ref_count=texture_ref_count,
         stock_texture_ref_count=stock_texture_ref_count,
     )
+
+
+def build_pac_xml_material_authority_report(
+    sidecar_text: str,
+    sidecar_path: str | Path = "",
+    *,
+    authority_contract: str = "true_source_authority",
+) -> PacXmlMaterialAuthorityReport:
+    """Classify target PAC/PAMI material parameters for source-authority replacement review."""
+
+    text = str(sidecar_text or "")
+    path = normalize_pac_xml_path(sidecar_path)
+    contract = _normalize_authority_contract(authority_contract)
+    profile_report = parse_pac_xml_profile(text, path)
+    wrapper_order = _parse_material_authority_wrappers(text)
+    submesh_bindings = _parse_material_authority_submesh_bindings(text)
+    parameters = _parse_material_authority_parameters(text)
+    runtime_abi: list[PacXmlAuthorityParameter] = []
+    source_authority: list[PacXmlAuthorityParameter] = []
+    inherited: list[PacXmlAuthorityParameter] = []
+    unknown: list[PacXmlAuthorityParameter] = []
+    for parameter in parameters:
+        category, reason = _classify_material_authority_parameter(parameter)
+        categorized = replace(parameter, category=category, reason=reason)
+        if category == "runtime_abi":
+            runtime_abi.append(categorized)
+        elif category == "inherited_influence":
+            inherited.append(categorized)
+        elif category == "unknown_material_response":
+            unknown.append(categorized)
+        else:
+            source_authority.append(categorized)
+
+    warnings: list[str] = []
+    if inherited:
+        if contract == "runtime_xml_preserve":
+            prefix = "Runtime XML preserve warning"
+            action = "keeps target-side influence"
+        else:
+            prefix = "True source authority warning"
+            action = "must neutralize or replace target-side influence"
+        for parameter in inherited[:12]:
+            location = _authority_parameter_location(parameter)
+            detail = f" ({parameter.texture_path})" if parameter.texture_path else ""
+            warnings.append(f"{prefix}: {location} {action}: {parameter.reason}{detail}.")
+        if len(inherited) > 12:
+            warnings.append(f"{prefix}: {len(inherited) - 12:,} more inherited target-side influence parameter(s).")
+    if unknown:
+        for parameter in unknown[:12]:
+            warnings.append(
+                "Material authority review: unknown material-response parameter "
+                f"{_authority_parameter_location(parameter)} ({parameter.parameter_type})."
+            )
+        if len(unknown) > 12:
+            warnings.append(f"Material authority review: {len(unknown) - 12:,} more unknown response parameter(s).")
+
+    neutralization_actions = _material_neutralization_actions(inherited, contract)
+    policy = (
+        "Preserve target PAC XML runtime ABI: wrapper order, shader family, render flags, IDs, and protected cloth/PBD hooks. "
+        "Runtime XML preserve keeps target tint/dye/detail/grime/shared texture-layer response and reports it as review risk."
+        if contract == "runtime_xml_preserve"
+        else "Preserve target PAC XML runtime ABI: wrapper order, shader family, render flags, IDs, and protected cloth/PBD hooks. "
+        "For active source-owned wrappers, neutralize or replace target tint/dye/detail/grime/shared texture-layer "
+        "parameters so source DDS/PBR is the visible material authority."
+    )
+    return PacXmlMaterialAuthorityReport(
+        path=path,
+        authority_contract=contract,
+        profile_family=profile_report.profile.family,
+        profile_slot=profile_report.profile.slot,
+        shader_families=profile_report.shader_families,
+        wrapper_count=len(profile_report.wrappers),
+        wrapper_order=wrapper_order,
+        submesh_bindings=submesh_bindings,
+        parameter_count=len(parameters),
+        runtime_abi_parameters=tuple(runtime_abi),
+        source_authority_parameters=tuple(source_authority),
+        inherited_influence_parameters=tuple(inherited),
+        unknown_material_response_parameters=tuple(unknown),
+        neutralization_actions=neutralization_actions,
+        warnings=tuple(dict.fromkeys(warnings)),
+        neutralization_policy=policy,
+    )
+
+
+def _normalize_authority_contract(value: str) -> str:
+    compact = re.sub(r"[^a-z0-9_]+", "_", str(value or "").strip().lower()).strip("_")
+    aliases = {
+        "runtime_xml": "runtime_xml_preserve",
+        "runtimexml": "runtime_xml_preserve",
+        "runtime_xml_authority": "runtime_xml_preserve",
+        "preserve": "runtime_xml_preserve",
+        "source": "true_source_authority",
+        "true_source": "true_source_authority",
+        "source_authority": "true_source_authority",
+        "strict_source": "true_source_authority",
+        "detail_mask_authority": "true_source_authority_detail_mask",
+        "true_source_detail_mask": "true_source_authority_detail_mask",
+    }
+    compact = aliases.get(compact, compact)
+    if compact in {"runtime_xml_preserve", "true_source_authority", "true_source_authority_detail_mask"}:
+        return compact
+    return compact or "true_source_authority"
+
+
+def _material_neutralization_actions(
+    inherited: Sequence[PacXmlAuthorityParameter],
+    contract: str,
+) -> tuple[PacXmlNeutralizationAction, ...]:
+    rows: list[PacXmlNeutralizationAction] = []
+    for parameter in tuple(inherited or ()):
+        if contract == "runtime_xml_preserve":
+            action = "preserve_and_report_target_influence"
+            action_status = "reported_only"
+            required = False
+            replacement_target = "runtime XML preserved target response"
+        elif contract == "true_source_authority_detail_mask" and parameter.role == "detail_mask":
+            action = "replace_with_source_owned_detail_mask_or_neutral_default"
+            action_status = "required"
+            required = True
+            replacement_target = "source DDS detail mask or neutral detail mask"
+        elif parameter.texture_path:
+            action = "replace_with_source_owned_texture_or_neutral_default"
+            action_status = "required"
+            required = True
+            replacement_target = "source DDS texture or neutral runtime-safe texture"
+        else:
+            action = "neutralize_scalar_or_color_to_source_neutral_default"
+            action_status = "required"
+            required = True
+            replacement_target = "neutral scalar/color value preserving ItemID and Index"
+        rows.append(
+            PacXmlNeutralizationAction(
+                wrapper_name=parameter.wrapper_name,
+                parameter_name=parameter.parameter_name,
+                parameter_type=parameter.parameter_type,
+                item_id=parameter.item_id,
+                index=parameter.index,
+                texture_path=parameter.texture_path,
+                inherited_reason=parameter.reason,
+                action=action,
+                action_status=action_status,
+                required=required,
+                preserve_runtime_abi=True,
+                replacement_target=replacement_target,
+            )
+        )
+    return tuple(rows)
+
+
+def _parse_material_authority_wrappers(sidecar_text: str) -> tuple[PacXmlAuthorityWrapper, ...]:
+    text = str(sidecar_text or "")
+    root = _safe_xml_root(text)
+    if root is not None:
+        rows: list[PacXmlAuthorityWrapper] = []
+        _collect_xml_material_authority_wrappers(root, rows)
+        return tuple(rows)
+    return tuple(_parse_material_authority_wrappers_regex(text))
+
+
+def _collect_xml_material_authority_wrappers(element: ET.Element, rows: list[PacXmlAuthorityWrapper]) -> None:
+    tag = _xml_local_name(element.tag)
+    if tag.endswith("MaterialWrapper"):
+        rows.append(
+            PacXmlAuthorityWrapper(
+                order=len(rows),
+                wrapper_name=_xml_element_attr(element, "_subMeshName", "SubMeshName", "Name", "name"),
+                item_id=_xml_element_attr(element, "ItemID", "_itemID", "itemID", "itemId", "id"),
+                shader_name=_xml_wrapper_shader_name(element),
+                parameter_count=sum(1 for child in element.iter() if _xml_local_name(child.tag).startswith("MaterialParameter")),
+            )
+        )
+    for child in list(element):
+        _collect_xml_material_authority_wrappers(child, rows)
+
+
+def _xml_wrapper_shader_name(element: ET.Element) -> str:
+    for child in element.iter():
+        if child is element:
+            continue
+        if _xml_local_name(child.tag) != "Material":
+            continue
+        shader_name = _xml_element_attr(child, "_materialName", "MaterialName", "Name", "name")
+        if shader_name:
+            return shader_name
+    return ""
+
+
+def _parse_material_authority_wrappers_regex(sidecar_text: str) -> list[PacXmlAuthorityWrapper]:
+    text = str(sidecar_text or "")
+    wrapper_pattern = re.compile(
+        r"<(?P<tag>[A-Za-z0-9_:.-]*MaterialWrapper)\b(?P<attrs>[^>]*)>(?P<body>.*?)</(?P=tag)>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    rows: list[PacXmlAuthorityWrapper] = []
+    for wrapper_match in wrapper_pattern.finditer(text):
+        attrs = wrapper_match.group("attrs") or ""
+        body = wrapper_match.group("body") or ""
+        rows.append(
+            PacXmlAuthorityWrapper(
+                order=len(rows),
+                wrapper_name=_xml_attr(attrs, "_subMeshName")
+                or _xml_attr(attrs, "SubMeshName")
+                or _xml_attr(attrs, "Name")
+                or _xml_attr(attrs, "name"),
+                item_id=_xml_attr(attrs, "ItemID")
+                or _xml_attr(attrs, "_itemID")
+                or _xml_attr(attrs, "itemID")
+                or _xml_attr(attrs, "itemId")
+                or _xml_attr(attrs, "id"),
+                shader_name=_first_match(
+                    body,
+                    r"<Material\b[^>]*(?:_materialName|MaterialName|Name|name)=\"([^\"]*)\"",
+                ),
+                parameter_count=len(
+                    re.findall(
+                        r"<MaterialParameter[A-Za-z0-9_:.-]*\b",
+                        body,
+                        flags=re.IGNORECASE,
+                    )
+                ),
+            )
+        )
+    return rows
+
+
+def _parse_material_authority_submesh_bindings(sidecar_text: str) -> tuple[PacXmlSubmeshBinding, ...]:
+    text = str(sidecar_text or "")
+    root = _safe_xml_root(text)
+    if root is not None:
+        rows: list[PacXmlSubmeshBinding] = []
+        _collect_xml_material_authority_submesh_bindings(root, rows)
+        return tuple(rows)
+    return tuple(_parse_material_authority_submesh_bindings_regex(text))
+
+
+def _collect_xml_material_authority_submesh_bindings(
+    element: ET.Element,
+    rows: list[PacXmlSubmeshBinding],
+) -> None:
+    tag = _xml_local_name(element.tag)
+    is_submesh_vector = tag.lower() == "vector" and _compact_parameter_name(
+        _xml_element_attr(element, "Name", "_name", "name", "StringItemID")
+    ) == "submeshresources"
+    if is_submesh_vector:
+        id_base = _xml_element_attr(element, "IdBase", "_idBase", "idBase", "idbase")
+        for child in list(element):
+            child_tag = _xml_local_name(child.tag)
+            if not child_tag.lower().endswith("materialwrapper"):
+                continue
+            rows.append(
+                PacXmlSubmeshBinding(
+                    order=len(rows),
+                    wrapper_name=_xml_element_attr(child, "_subMeshName", "SubMeshName", "Name", "name"),
+                    item_id=_xml_element_attr(child, "ItemID", "_itemID", "itemID", "itemId", "id"),
+                    id_base=id_base,
+                    shader_name=_xml_wrapper_shader_name(child),
+                    parameter_count=sum(
+                        1 for descendant in child.iter() if _xml_local_name(descendant.tag).startswith("MaterialParameter")
+                    ),
+                )
+            )
+    for child in list(element):
+        _collect_xml_material_authority_submesh_bindings(child, rows)
+
+
+def _parse_material_authority_submesh_bindings_regex(sidecar_text: str) -> list[PacXmlSubmeshBinding]:
+    text = str(sidecar_text or "")
+    vector_pattern = re.compile(
+        r"<(?P<tag>Vector)\b(?P<attrs>[^>]*)>(?P<body>.*?)</(?P=tag)>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    wrapper_pattern = re.compile(
+        r"<(?P<tag>[A-Za-z0-9_:.-]*MaterialWrapper)\b(?P<attrs>[^>]*?)(?:/>|>(?P<body>.*?)</(?P=tag)>)",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    rows: list[PacXmlSubmeshBinding] = []
+    for vector_match in vector_pattern.finditer(text):
+        attrs = vector_match.group("attrs") or ""
+        name = _xml_attr(attrs, "Name") or _xml_attr(attrs, "_name") or _xml_attr(attrs, "name") or _xml_attr(attrs, "StringItemID")
+        if _compact_parameter_name(name) != "submeshresources":
+            continue
+        id_base = _xml_attr(attrs, "IdBase") or _xml_attr(attrs, "_idBase") or _xml_attr(attrs, "idBase") or _xml_attr(attrs, "idbase")
+        body = vector_match.group("body") or ""
+        for wrapper_match in wrapper_pattern.finditer(body):
+            wrapper_attrs = wrapper_match.group("attrs") or ""
+            wrapper_body = wrapper_match.group("body") or ""
+            rows.append(
+                PacXmlSubmeshBinding(
+                    order=len(rows),
+                    wrapper_name=_xml_attr(wrapper_attrs, "_subMeshName")
+                    or _xml_attr(wrapper_attrs, "SubMeshName")
+                    or _xml_attr(wrapper_attrs, "Name")
+                    or _xml_attr(wrapper_attrs, "name"),
+                    item_id=_xml_attr(wrapper_attrs, "ItemID")
+                    or _xml_attr(wrapper_attrs, "_itemID")
+                    or _xml_attr(wrapper_attrs, "itemID")
+                    or _xml_attr(wrapper_attrs, "itemId")
+                    or _xml_attr(wrapper_attrs, "id"),
+                    id_base=id_base,
+                    shader_name=_first_match(
+                        wrapper_body,
+                        r"<Material\b[^>]*(?:_materialName|MaterialName|Name|name)=\"([^\"]*)\"",
+                    ),
+                    parameter_count=len(
+                        re.findall(
+                            r"<MaterialParameter[A-Za-z0-9_:.-]*\b",
+                            wrapper_body,
+                            flags=re.IGNORECASE,
+                        )
+                    ),
+                )
+            )
+    return rows
+
+
+def _parse_material_authority_parameters(sidecar_text: str) -> tuple[PacXmlAuthorityParameter, ...]:
+    text = str(sidecar_text or "")
+    root = _safe_xml_root(text)
+    if root is not None:
+        rows: list[PacXmlAuthorityParameter] = []
+        _collect_xml_material_authority_parameters(root, "", rows)
+        return tuple(rows)
+    return tuple(_parse_material_authority_parameters_regex(text))
+
+
+def _safe_xml_root(text: str) -> ET.Element | None:
+    stripped = str(text or "").strip()
+    if not stripped:
+        return None
+    for candidate in (stripped, f"<Root>{stripped}</Root>"):
+        try:
+            return ET.fromstring(candidate)
+        except ET.ParseError:
+            continue
+    return None
+
+
+def _xml_local_name(tag: object) -> str:
+    text = str(tag or "")
+    return text.rsplit("}", 1)[-1] if "}" in text else text
+
+
+def _xml_element_attr(element: ET.Element, *names: str) -> str:
+    lowered = {str(key).lower(): str(value) for key, value in element.attrib.items()}
+    for name in names:
+        value = lowered.get(str(name).lower())
+        if value not in (None, ""):
+            return value
+    return ""
+
+
+def _collect_xml_material_authority_parameters(
+    element: ET.Element,
+    wrapper_name: str,
+    rows: list[PacXmlAuthorityParameter],
+) -> None:
+    tag = _xml_local_name(element.tag)
+    current_wrapper = wrapper_name
+    if tag.endswith("MaterialWrapper"):
+        current_wrapper = _xml_element_attr(element, "_subMeshName", "SubMeshName", "Name", "name") or current_wrapper
+    if tag.startswith("MaterialParameter"):
+        kind = tag[len("MaterialParameter") :] or "Unknown"
+        parameter_name = _xml_element_attr(element, "StringItemID", "_name", "Name", "name")
+        value = _xml_element_attr(element, "_value", "Value", "value")
+        texture_path = ""
+        if kind.lower() == "texture":
+            texture_path = _xml_parameter_texture_path(element)
+        role = infer_pac_xml_texture_role(parameter_name, texture_path) if kind.lower() == "texture" else ""
+        rows.append(
+            PacXmlAuthorityParameter(
+                wrapper_name=current_wrapper,
+                parameter_name=parameter_name,
+                parameter_type=kind,
+                item_id=_xml_element_attr(element, "ItemID", "_itemID", "itemID", "itemId", "id"),
+                index=_xml_element_attr(element, "Index", "_index", "index"),
+                value=value,
+                texture_path=normalize_pac_xml_path(texture_path),
+                role=role,
+                stock_runtime=is_stock_runtime_texture_path(texture_path) if texture_path else False,
+            )
+        )
+    for child in list(element):
+        _collect_xml_material_authority_parameters(child, current_wrapper, rows)
+
+
+def _xml_parameter_texture_path(element: ET.Element) -> str:
+    direct = _xml_element_attr(element, "_path", "path", "Path", "_value", "Value", "value")
+    if direct:
+        return direct
+    for child in element.iter():
+        if child is element:
+            continue
+        if _xml_local_name(child.tag) not in {"ResourceReferencePath_ITexture", "TextureRef"}:
+            continue
+        value = _xml_element_attr(child, "_path", "path", "Path", "_value", "Value", "value")
+        if value:
+            return value
+    return ""
+
+
+def _parse_material_authority_parameters_regex(sidecar_text: str) -> list[PacXmlAuthorityParameter]:
+    text = str(sidecar_text or "")
+    wrapper_pattern = re.compile(
+        r"<(?P<tag>[A-Za-z0-9_:.-]*MaterialWrapper)\b(?P<attrs>[^>]*)>(?P<body>.*?)</(?P=tag)>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    rows: list[PacXmlAuthorityParameter] = []
+    matched = False
+    for wrapper_match in wrapper_pattern.finditer(text):
+        matched = True
+        wrapper_name = _xml_attr(wrapper_match.group("attrs") or "", "_subMeshName")
+        rows.extend(_parse_material_authority_parameter_body_regex(wrapper_match.group("body") or "", wrapper_name))
+    if not matched:
+        rows.extend(_parse_material_authority_parameter_body_regex(text, ""))
+    return rows
+
+
+def _parse_material_authority_parameter_body_regex(body: str, wrapper_name: str) -> list[PacXmlAuthorityParameter]:
+    parameter_pattern = re.compile(
+        r"<(?P<tag>MaterialParameter(?P<kind>[A-Za-z0-9_:.-]*))\b(?P<attrs>[^>]*?)(?:/>|>(?P<body>.*?)</(?P=tag)>)",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    rows: list[PacXmlAuthorityParameter] = []
+    for parameter_match in parameter_pattern.finditer(str(body or "")):
+        kind = str(parameter_match.group("kind") or "Unknown")
+        attrs = parameter_match.group("attrs") or ""
+        parameter_name = (
+            _xml_attr(attrs, "StringItemID")
+            or _xml_attr(attrs, "_name")
+            or _xml_attr(attrs, "Name")
+            or _xml_attr(attrs, "name")
+        )
+        value = _xml_attr(attrs, "_value") or _xml_attr(attrs, "Value") or _xml_attr(attrs, "value")
+        texture_path = ""
+        if kind.lower() == "texture":
+            texture_path = (
+                _xml_attr(attrs, "_path")
+                or _xml_attr(attrs, "path")
+                or _xml_attr(attrs, "Path")
+                or _xml_attr(attrs, "_value")
+                or _xml_attr(attrs, "Value")
+                or _xml_attr(attrs, "value")
+                or _first_match(parameter_match.group("body") or "", r'\b(?:_path|path|Path|_value|Value|value)="([^"]*)"')
+            )
+        role = infer_pac_xml_texture_role(parameter_name, texture_path) if kind.lower() == "texture" else ""
+        rows.append(
+            PacXmlAuthorityParameter(
+                wrapper_name=wrapper_name,
+                parameter_name=parameter_name,
+                parameter_type=kind,
+                item_id=_xml_attr(attrs, "ItemID")
+                or _xml_attr(attrs, "_itemID")
+                or _xml_attr(attrs, "itemID")
+                or _xml_attr(attrs, "itemId")
+                or _xml_attr(attrs, "id"),
+                index=_xml_attr(attrs, "Index") or _xml_attr(attrs, "_index") or _xml_attr(attrs, "index"),
+                value=value,
+                texture_path=normalize_pac_xml_path(texture_path),
+                role=role,
+                stock_runtime=is_stock_runtime_texture_path(texture_path) if texture_path else False,
+            )
+        )
+    return rows
+
+
+def _classify_material_authority_parameter(parameter: PacXmlAuthorityParameter) -> tuple[str, str]:
+    kind = str(parameter.parameter_type or "").strip().lower()
+    key = _compact_parameter_name(parameter.parameter_name)
+    path_key = _normalized_key(parameter.texture_path)
+    if _is_runtime_abi_parameter(key, kind):
+        return "runtime_abi", "runtime_abi"
+    inherited_reason = _inherited_material_influence_reason(parameter, key, path_key)
+    if inherited_reason:
+        return "inherited_influence", inherited_reason
+    if kind == "texture":
+        if parameter.role in {"base", "normal", "material_mask", "detail_mask", "height", "emissive", "opacity", "pupil", "iris"}:
+            return "source_authority", parameter.role
+        return "unknown_material_response", "unknown_texture_parameter"
+    if _is_known_material_response_parameter(key, kind):
+        return "source_authority", "known_material_response"
+    if kind in {"float", "float2", "float3", "float4", "half", "half2", "half3", "half4", "byte4", "color"}:
+        return "unknown_material_response", "unknown_scalar_or_color_response"
+    return "runtime_abi", "non_material_response"
+
+
+def _compact_parameter_name(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+
+
+def _is_runtime_abi_parameter(key: str, kind: str) -> bool:
+    if not key:
+        return True
+    if key in {
+        "cableuvscalex",
+        "frequencyu",
+        "speedu",
+        "speedv",
+    }:
+        return True
+    if key in {
+        "rendersettingflag",
+        "materialinfo",
+        "placementid",
+        "clothcategory",
+        "clothmaskbit",
+        "alphatest",
+        "alphablend",
+        "doublesided",
+        "twosided",
+        "cullmode",
+        "sortkey",
+    }:
+        return True
+    if any(
+        token in key
+        for token in (
+            "pbd",
+            "cloth",
+            "torn",
+            "hair",
+            "fur",
+            "skin",
+            "wrinkle",
+            "eye",
+            "jiggle",
+            "flow",
+            "wind",
+            "socket",
+            "bone",
+            "ssdm",
+            "cable",
+        )
+    ):
+        return True
+    return kind in {"bitflag32", "uint", "int", "bool"} and not any(
+        token in key for token in ("colorblending", "dye", "grime", "detail", "tint", "material")
+    )
+
+
+def _inherited_material_influence_reason(parameter: PacXmlAuthorityParameter, key: str, path_key: str) -> str:
+    if parameter.stock_runtime or is_stock_runtime_texture_path(path_key):
+        if "texturelayer" in path_key:
+            return "shared_texturelayer"
+        return "stock_runtime_texture"
+    for token, reason in (
+        ("texturelayer", "shared_texturelayer"),
+        ("grime", "grime_layer"),
+        ("dyeing", "dye_color"),
+        ("dye", "dye_color"),
+        ("tint", "tint_color"),
+        ("detaildiffuse", "detail_layer"),
+        ("detailmask", "detail_layer"),
+        ("detailnormal", "detail_layer"),
+        ("detailheight", "detail_layer"),
+        ("layerbasecolor", "layer_color"),
+        ("colorblending", "color_blending_mask"),
+        ("baseheighttint", "height_tint"),
+        ("damage", "damage_layer"),
+    ):
+        if token in key or token in path_key:
+            return reason
+    for token, reason in (
+        ("ghost", "target_ghost_shader"),
+        ("growth", "target_growth_shader"),
+        ("lava", "target_lava_shader"),
+        ("parallax", "target_parallax_shader"),
+        ("noise", "target_procedural_noise"),
+        ("uvtiling", "target_uv_transform"),
+        ("uvspeed", "target_uv_transform"),
+        ("fresnelmask", "target_fresnel_mask"),
+        ("vertexoffset", "target_vertex_offset"),
+        ("terrainblend", "target_terrain_blend"),
+        ("posterglow", "target_poster_shader"),
+        ("transientaging", "target_skin_aging"),
+    ):
+        if token in key or token in path_key:
+            return reason
+    if parameter.role == "mask" and path_key:
+        return "target_mask_effect"
+    if key in {"heighttexture", "materialtexture"}:
+        return "target_support_response"
+    if key == "brightness":
+        return "target_brightness"
+    return ""
+
+
+def _is_known_material_response_parameter(key: str, kind: str) -> bool:
+    if kind not in {"float", "float2", "float3", "float4", "half", "half2", "half3", "half4", "byte4", "color"}:
+        return False
+    return any(
+        token in key
+        for token in (
+            "roughness",
+            "metallic",
+            "metalness",
+            "specular",
+            "gloss",
+            "smoothness",
+            "shine",
+            "sheen",
+            "emissive",
+            "opacity",
+            "alpha",
+            "cutout",
+            "normal",
+            "ao",
+            "occlusion",
+            "displacement",
+            "height",
+            "brightness",
+            "color",
+            "tint",
+            "dye",
+            "grime",
+            "detail",
+            "scratch",
+            "pupil",
+            "iris",
+            "velvet",
+            "thickness",
+            "extinction",
+            "subsurface",
+            "translucent",
+        )
+    )
+
+
+def _authority_parameter_location(parameter: PacXmlAuthorityParameter) -> str:
+    wrapper = str(parameter.wrapper_name or "").strip() or "<flat>"
+    name = str(parameter.parameter_name or "").strip() or "<unnamed>"
+    return f"{wrapper} {name}"
 
 
 def build_pac_xml_profile_match_report(
@@ -1580,6 +2564,7 @@ def _protected_param_removal_warnings(original: PacXmlProfileReport, patched: Pa
     protected_tokens = (
         "pbd",
         "cloth",
+        "torn",
         "hair",
         "fur",
         "skin",

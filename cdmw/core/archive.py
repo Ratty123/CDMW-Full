@@ -2018,6 +2018,7 @@ _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS: Tuple[str, ...] = (
     ".seqmt",
     ".wem",
 )
+_ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS = {".paseq", ".paschedule", ".paschedulepath", ".pastage"}
 _ARCHIVE_SCAN_CACHE_SUPPORTED_VERSIONS = {3}
 _ARCHIVE_SIDECAR_CACHE_SUPPORTED_VERSIONS = {8, 9}
 _ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {10}
@@ -16078,6 +16079,336 @@ def _binary_sidecar_reference_document_rows(
     return rows
 
 
+_PASEQ_TIMELINE_FIELD_TOKENS = (
+    "animation",
+    "clip",
+    "duration",
+    "end",
+    "event",
+    "frame",
+    "key",
+    "loop",
+    "phase",
+    "sequence",
+    "start",
+    "time",
+    "timeline",
+    "track",
+    "trigger",
+)
+_PASEQ_EFFECT_FIELD_TOKENS = ("effect", "emitter", "particle", "sound", "seqmt", "visibility")
+_PASEQ_SCENE_FIELD_TOKENS = ("camera", "object", "prefab", "scene", "stage", "target")
+
+
+def _paseq_sequence_stem(virtual_path: str) -> str:
+    basename = PurePosixPath(str(virtual_path or "").replace("\\", "/")).name
+    lowered = basename.lower()
+    for extension in sorted(_ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS, key=len, reverse=True):
+        if lowered.endswith(extension):
+            return basename[: -len(extension)]
+    return PurePosixPath(basename).stem
+
+
+def _paseq_reference_role(path: str) -> str:
+    extension = PurePosixPath(str(path or "").replace("\\", "/")).suffix.lower()
+    if extension in {".paa", ".paa_metabin", ".motionblending"}:
+        return "animation_clip"
+    if extension in {".hkx", ".hkt"}:
+        return "havok_animation_or_skeleton"
+    if extension in {".pae", ".paem", ".seqmt", ".dds", ".wem", ".bnk"}:
+        return "effect_or_presentation"
+    if extension in _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS:
+        return "sequence_or_stage"
+    if extension in {".pac", ".pam", ".pamlod"}:
+        return "model_context"
+    if extension in {".pab", ".pabc", ".pabv", ".pabgb", ".pabgh", ".papr"}:
+        return "skeleton_or_rig_context"
+    if extension in {".prefab", ".prefabdata_xml", ".app_xml", ".xml"}:
+        return "scene_or_descriptor_context"
+    return "related_asset"
+
+
+def _paseq_timeline_field_role(name: str) -> str:
+    normalized = str(name or "").strip().lstrip("_").lower()
+    if not normalized:
+        return "field"
+    if any(token in normalized for token in ("animation", "clip", "motion")):
+        return "animation_track"
+    if any(token in normalized for token in _PASEQ_EFFECT_FIELD_TOKENS):
+        return "effect_track"
+    if any(token in normalized for token in ("event", "notify", "trigger", "condition")):
+        return "event"
+    if any(token in normalized for token in ("duration", "frame", "start", "end", "time", "tick")):
+        return "timing"
+    if any(token in normalized for token in ("parameter", "blend", "phase", "loop", "speed")):
+        return "motion_parameter"
+    if any(token in normalized for token in _PASEQ_SCENE_FIELD_TOKENS):
+        return "scene_context"
+    return "timeline_field"
+
+
+def _paseq_timeline_field_rows(
+    schema_member_rows: Sequence[Mapping[str, object]],
+    string_records: Sequence[_BinarySidecarStringRecord],
+    *,
+    max_rows: int = 96,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    seen: set[Tuple[str, str]] = set()
+
+    def add_row(
+        *,
+        name: str,
+        source: str,
+        offset: int,
+        declared_type: str = "",
+        descriptor_hex: str = "",
+        confidence: str = "",
+    ) -> None:
+        clean_name = str(name or "").strip()
+        if not clean_name:
+            return
+        normalized = clean_name.lstrip("_").lower()
+        if not any(token in normalized for token in (*_PASEQ_TIMELINE_FIELD_TOKENS, *_PASEQ_EFFECT_FIELD_TOKENS, *_PASEQ_SCENE_FIELD_TOKENS)):
+            return
+        key = (source, clean_name.lower())
+        if key in seen:
+            return
+        seen.add(key)
+        rows.append(
+            {
+                "name": clean_name,
+                "role": _paseq_timeline_field_role(clean_name),
+                "source": source,
+                "offset": int(offset),
+                "declared_type": declared_type,
+                "descriptor_hex": descriptor_hex,
+                "confidence": confidence or source,
+            }
+        )
+
+    for row in schema_member_rows:
+        if not isinstance(row, Mapping):
+            continue
+        add_row(
+            name=str(row.get("name") or ""),
+            source="schema_declaration",
+            offset=int(row.get("name_offset") or row.get("declaration_offset") or 0),
+            declared_type=str(row.get("declared_type") or ""),
+            descriptor_hex=str(row.get("descriptor_hex") or ""),
+            confidence=str(row.get("confidence") or "length_prefixed_declaration"),
+        )
+        if len(rows) >= max_rows:
+            return rows
+
+    for record in string_records:
+        if not _looks_like_structured_field_name(record.text):
+            continue
+        add_row(
+            name=record.text,
+            source="readable_string_identifier",
+            offset=int(record.offset),
+            confidence="readable_string_identifier",
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _paseq_event_marker_rows(
+    string_records: Sequence[_BinarySidecarStringRecord],
+    *,
+    max_rows: int = 64,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    seen: set[str] = set()
+    marker_tokens = (
+        "begin",
+        "camera",
+        "effect",
+        "end",
+        "event",
+        "loop",
+        "notify",
+        "phase",
+        "sound",
+        "start",
+        "trigger",
+    )
+    for record in string_records:
+        text = str(record.text or "").strip()
+        normalized = text.lower()
+        if normalized in seen:
+            continue
+        if not any(token in normalized for token in marker_tokens):
+            continue
+        seen.add(normalized)
+        rows.append(
+            {
+                "offset": int(record.offset),
+                "text": text,
+                "role": _paseq_timeline_field_role(text),
+                "confidence": "readable_event_or_phase_marker",
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _paseq_timing_candidate_rows(
+    data: bytes,
+    *,
+    sample_limit: int = 262_144,
+    max_rows: int = 64,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    seen_offsets: set[Tuple[int, str]] = set()
+    scan_limit = min(len(data), sample_limit)
+    if scan_limit < 4:
+        return rows
+
+    def add_row(offset: int, kind: str, value: object, confidence: str) -> None:
+        key = (offset, kind)
+        if key in seen_offsets:
+            return
+        seen_offsets.add(key)
+        rows.append(
+            {
+                "offset": int(offset),
+                "kind": kind,
+                "value": value,
+                "confidence": confidence,
+            }
+        )
+
+    for offset in range(0, scan_limit - 3, 4):
+        word = struct.unpack_from("<I", data, offset)[0]
+        if 0 < word <= 120_000 and (word <= 3600 or word % 15 == 0 or word % 30 == 0):
+            add_row(offset, "u32_frame_or_tick_candidate", int(word), "experimental_timing_scan")
+        try:
+            value = struct.unpack_from("<f", data, offset)[0]
+        except struct.error:
+            value = 0.0
+        if math.isfinite(value) and 0.0 < value <= 3600.0:
+            rounded = round(float(value), 6)
+            if abs(rounded) >= 1.0e-5 and rounded not in {1.0, 2.0, 3.0, 4.0}:
+                add_row(offset, "float_seconds_or_weight_candidate", rounded, "experimental_timing_scan")
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _paseq_timeline_lane_rows(
+    asset_reference_rows: Sequence[Mapping[str, object]],
+    *,
+    max_rows: int = 96,
+) -> List[Dict[str, object]]:
+    lanes: List[Dict[str, object]] = []
+    seen: set[str] = set()
+    for row in asset_reference_rows:
+        if not isinstance(row, Mapping):
+            continue
+        path = str(row.get("path") or "").replace("\\", "/").strip()
+        normalized = _normalize_model_texture_reference(path)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        role = _paseq_reference_role(path)
+        extension = PurePosixPath(path).suffix.lower()
+        lane_kind = "animation"
+        if role == "effect_or_presentation":
+            lane_kind = "effect"
+        elif role in {"model_context", "skeleton_or_rig_context", "scene_or_descriptor_context"}:
+            lane_kind = "context"
+        elif role == "sequence_or_stage":
+            lane_kind = "sequence"
+        elif role == "related_asset":
+            lane_kind = "asset"
+        lanes.append(
+            {
+                "index": len(lanes),
+                "path": path,
+                "extension": extension,
+                "kind": lane_kind,
+                "role": role,
+                "source_offset": int(row.get("offset") or 0),
+                "confidence": str(row.get("confidence") or "asset_reference"),
+            }
+        )
+        if len(lanes) >= max_rows:
+            break
+    return lanes
+
+
+def _paseq_playback_readiness(lanes: Sequence[Mapping[str, object]], timeline_fields: Sequence[Mapping[str, object]]) -> Dict[str, object]:
+    animation_lane_count = sum(1 for lane in lanes if str(lane.get("kind") or "") == "animation")
+    effect_lane_count = sum(1 for lane in lanes if str(lane.get("kind") or "") == "effect")
+    context_lane_count = sum(1 for lane in lanes if str(lane.get("kind") or "") == "context")
+    timing_field_count = sum(1 for row in timeline_fields if str(row.get("role") or "") == "timing")
+    blockers: List[str] = []
+    if animation_lane_count <= 0:
+        blockers.append("No referenced .paa/.hkx/.motionblending animation lane was recovered.")
+    if context_lane_count <= 0:
+        blockers.append("No model, skeleton, rig, or scene context lane was recovered.")
+    if timing_field_count <= 0:
+        blockers.append("No declared timing field was recovered; timeline timing remains candidate-only.")
+    blockers.append("Runtime binding from PASEQ lanes to the 3D model preview is not implemented yet.")
+    blockers.append("Exact sequence record semantics and no-edit rebuilds are not proven.")
+    return {
+        "status": "dependency_timeline_recovered_read_only" if lanes or timeline_fields else "no_timeline_evidence_recovered",
+        "ready_for_3d_playback": False,
+        "animation_lane_count": int(animation_lane_count),
+        "effect_lane_count": int(effect_lane_count),
+        "context_lane_count": int(context_lane_count),
+        "timing_field_count": int(timing_field_count),
+        "blocking_gaps": blockers,
+        "next_step": "Bind recovered lanes to a loaded model/skeleton preview after animation clip and PASEQ timing semantics are proven.",
+    }
+
+
+def _paseq_analysis_document(
+    data: bytes,
+    virtual_path: str,
+    *,
+    string_records: Sequence[_BinarySidecarStringRecord],
+    asset_reference_rows: Sequence[Mapping[str, object]],
+    schema_member_rows: Sequence[Mapping[str, object]],
+) -> Dict[str, object]:
+    timeline_fields = _paseq_timeline_field_rows(schema_member_rows, string_records)
+    event_markers = _paseq_event_marker_rows(string_records)
+    timing_candidates = _paseq_timing_candidate_rows(data)
+    lanes = _paseq_timeline_lane_rows(asset_reference_rows)
+    playback_readiness = _paseq_playback_readiness(lanes, timeline_fields)
+    lane_kind_counts = Counter(str(row.get("kind") or "asset") for row in lanes)
+    reference_role_counts = Counter(str(row.get("role") or "related_asset") for row in lanes)
+    return {
+        "recognized": bool(timeline_fields or event_markers or timing_candidates or lanes),
+        "format": "animation_sequence_schedule_metadata",
+        "sequence_stem": _paseq_sequence_stem(virtual_path),
+        "timeline": {
+            "status": "read_only_recovered_timeline_evidence",
+            "lane_count": len(lanes),
+            "lane_kind_counts": dict(sorted(lane_kind_counts.items())),
+            "reference_role_counts": dict(sorted(reference_role_counts.items())),
+            "timeline_field_count": len(timeline_fields),
+            "event_marker_count": len(event_markers),
+            "timing_candidate_count": len(timing_candidates),
+            "lanes": lanes,
+            "timeline_fields": timeline_fields,
+            "event_markers": event_markers,
+            "timing_candidates": timing_candidates,
+        },
+        "playback_readiness": playback_readiness,
+        "editing_supported": False,
+        "notes": [
+            "PASEQ schedule evidence is read-only; offsets are decoded-payload byte offsets.",
+            "Timeline lanes are recovered from asset reference strings and same payload evidence, not from proven executable game logic.",
+            "3D playback remains disabled until sequence timing, clip binding, and skeleton/model application are validated.",
+        ],
+    }
+
+
 def build_binary_sidecar_analysis_document(
     data: bytes,
     virtual_path: str,
@@ -16145,6 +16476,17 @@ def build_binary_sidecar_analysis_document(
         for row in schema_declarations.get("declared_member_rows", [])
         if isinstance(row, Mapping)
     ]
+    paseq_metadata = (
+        _paseq_analysis_document(
+            data,
+            virtual_path,
+            string_records=string_records,
+            asset_reference_rows=asset_reference_rows,
+            schema_member_rows=schema_member_rows,
+        )
+        if normalized_extension in _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS
+        else {}
+    )
     field_group_func = _binary_sidecar_group_func_for_extension(normalized_extension)
     prefab_evidence_rows = (
         _prefab_evidence_rows(schema_member_rows, asset_references)
@@ -16236,6 +16578,18 @@ def build_binary_sidecar_analysis_document(
             "animation_metadata_filename_hints": len(animation_metadata.get("filename_hints") or [])
             if isinstance(animation_metadata, Mapping)
             else 0,
+            "paseq_timeline_lanes": int(((paseq_metadata.get("timeline") or {}).get("lane_count") or 0))
+            if isinstance(paseq_metadata.get("timeline"), Mapping)
+            else 0,
+            "paseq_timeline_fields": int(((paseq_metadata.get("timeline") or {}).get("timeline_field_count") or 0))
+            if isinstance(paseq_metadata.get("timeline"), Mapping)
+            else 0,
+            "paseq_event_markers": int(((paseq_metadata.get("timeline") or {}).get("event_marker_count") or 0))
+            if isinstance(paseq_metadata.get("timeline"), Mapping)
+            else 0,
+            "paseq_timing_candidates": int(((paseq_metadata.get("timeline") or {}).get("timing_candidate_count") or 0))
+            if isinstance(paseq_metadata.get("timeline"), Mapping)
+            else 0,
         },
         "container": _binary_sidecar_container_summary(data, normalized_extension),
         "header_words_le": _binary_sidecar_header_words(data),
@@ -16252,6 +16606,7 @@ def build_binary_sidecar_analysis_document(
             "editing_supported": False,
             "note": ".paa animation clip rows are exposed as read-only recovery evidence. Channel ownership and write rules are not proven.",
         } if normalized_extension == ".paa" else {},
+        "paseq": paseq_metadata,
         "seqmt": seqmt_metadata,
         "paccd": paccd_metadata,
         "strings": {
@@ -16279,7 +16634,7 @@ def build_binary_sidecar_analysis_document(
             "supported": False,
             "policy": "read_only_until_schema_and_no_edit_roundtrip_are_proven",
             "reason": (
-                ".meshinfo, .motionblending, .paa, .paa_metabin, .prefab, .pappt, .pamhc, .paccd, and .seqmt layout/count semantics are not proven yet. "
+                ".meshinfo, .motionblending, .paa, .paa_metabin, .paseq/.paschedule/.pastage, .prefab, .pappt, .pamhc, .paccd, and .seqmt layout/count semantics are not proven yet. "
                 "The app can export decoded declarations and recovery evidence, but it will not write edited values "
                 "until exact value offsets, fixed-size fields, array counts, offsets, and no-edit binary rebuilds "
                 "are validated."
@@ -16319,6 +16674,10 @@ _BINARY_SIDECAR_CORPUS_EXTENSIONS = (
     ".meshinfo",
     ".motionblending",
     ".paa_metabin",
+    ".paseq",
+    ".paschedule",
+    ".paschedulepath",
+    ".pastage",
     ".prefab",
     ".pappt",
     ".pamhc",
@@ -16472,6 +16831,12 @@ def _build_binary_sidecar_corpus_extension_report(
     paccd_slot_counts: Counter[int] = Counter()
     paccd_stride_counts: Counter[int] = Counter()
     paccd_examples: Dict[str, str] = {}
+    paseq_playback_status_counts: Counter[str] = Counter()
+    paseq_lane_counts: Counter[int] = Counter()
+    paseq_animation_lane_counts: Counter[int] = Counter()
+    paseq_effect_lane_counts: Counter[int] = Counter()
+    paseq_context_lane_counts: Counter[int] = Counter()
+    paseq_examples: Dict[str, str] = {}
     scanned_count = 0
     failed_rows: List[Dict[str, object]] = []
 
@@ -16523,6 +16888,29 @@ def _build_binary_sidecar_corpus_extension_report(
             paccd_examples.setdefault(family, label)
             paccd_examples.setdefault(f"slot_{slot_count}", label)
             paccd_examples.setdefault(f"stride_{row_stride}", label)
+
+        paseq_metadata = document.get("paseq", {})
+        if isinstance(paseq_metadata, Mapping) and paseq_metadata:
+            timeline = paseq_metadata.get("timeline", {})
+            playback = paseq_metadata.get("playback_readiness", {})
+            if isinstance(timeline, Mapping):
+                lane_count = int(timeline.get("lane_count") or 0)
+                kind_counts = timeline.get("lane_kind_counts") if isinstance(timeline.get("lane_kind_counts"), Mapping) else {}
+                animation_lanes = int(kind_counts.get("animation") or 0) if isinstance(kind_counts, Mapping) else 0
+                effect_lanes = int(kind_counts.get("effect") or 0) if isinstance(kind_counts, Mapping) else 0
+                context_lanes = int(kind_counts.get("context") or 0) if isinstance(kind_counts, Mapping) else 0
+                paseq_lane_counts[lane_count] += 1
+                paseq_animation_lane_counts[animation_lanes] += 1
+                paseq_effect_lane_counts[effect_lanes] += 1
+                paseq_context_lane_counts[context_lanes] += 1
+                paseq_examples.setdefault(f"lanes_{lane_count}", label)
+                paseq_examples.setdefault(f"animation_{animation_lanes}", label)
+                paseq_examples.setdefault(f"effect_{effect_lanes}", label)
+                paseq_examples.setdefault(f"context_{context_lanes}", label)
+            if isinstance(playback, Mapping):
+                status = str(playback.get("status") or "unknown")
+                paseq_playback_status_counts[status] += 1
+                paseq_examples.setdefault(status, label)
 
         animation_metadata = document.get("animation_metadata", {})
         if isinstance(animation_metadata, Mapping) and animation_metadata:
@@ -16767,6 +17155,48 @@ def _build_binary_sidecar_corpus_extension_report(
             for value, count in paccd_stride_counts.most_common(16)
         ],
     }
+    paseq_rows = {
+        "playback_statuses": [
+            {
+                "status": name,
+                "file_count": int(count),
+                "example_path": paseq_examples.get(name, ""),
+            }
+            for name, count in paseq_playback_status_counts.most_common(16)
+        ],
+        "timeline_lane_buckets": [
+            {
+                "lane_count": int(value),
+                "file_count": int(count),
+                "example_path": paseq_examples.get(f"lanes_{value}", ""),
+            }
+            for value, count in paseq_lane_counts.most_common(16)
+        ],
+        "animation_lane_buckets": [
+            {
+                "lane_count": int(value),
+                "file_count": int(count),
+                "example_path": paseq_examples.get(f"animation_{value}", ""),
+            }
+            for value, count in paseq_animation_lane_counts.most_common(16)
+        ],
+        "effect_lane_buckets": [
+            {
+                "lane_count": int(value),
+                "file_count": int(count),
+                "example_path": paseq_examples.get(f"effect_{value}", ""),
+            }
+            for value, count in paseq_effect_lane_counts.most_common(16)
+        ],
+        "context_lane_buckets": [
+            {
+                "lane_count": int(value),
+                "file_count": int(count),
+                "example_path": paseq_examples.get(f"context_{value}", ""),
+            }
+            for value, count in paseq_context_lane_counts.most_common(16)
+        ],
+    }
 
     return {
         "files_scanned": scanned_count,
@@ -16779,6 +17209,7 @@ def _build_binary_sidecar_corpus_extension_report(
         "animation_metadata": animation_rows,
         "seqmt": seqmt_rows,
         "paccd": paccd_rows,
+        "paseq": paseq_rows,
     }
 
 
@@ -16836,6 +17267,10 @@ def build_binary_sidecar_corpus_report(
             "meshinfo_files_scanned": len(by_extension_paths.get(".meshinfo", [])),
             "motionblending_files_scanned": len(by_extension_paths.get(".motionblending", [])),
             "paa_metabin_files_scanned": len(by_extension_paths.get(".paa_metabin", [])),
+            "paseq_files_scanned": len(by_extension_paths.get(".paseq", [])),
+            "paschedule_files_scanned": len(by_extension_paths.get(".paschedule", [])),
+            "paschedulepath_files_scanned": len(by_extension_paths.get(".paschedulepath", [])),
+            "pastage_files_scanned": len(by_extension_paths.get(".pastage", [])),
             "prefab_files_scanned": len(by_extension_paths.get(".prefab", [])),
             "pappt_files_scanned": len(by_extension_paths.get(".pappt", [])),
             "pamhc_files_scanned": len(by_extension_paths.get(".pamhc", [])),
@@ -21493,6 +21928,13 @@ def build_par_structured_preview(
     )
 
     normalized_extension = str(extension or "").strip().lower()
+    paseq_metadata = (
+        sidecar_document.get("paseq", {})
+        if normalized_extension in _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS
+        else {}
+    )
+    paseq_timeline = paseq_metadata.get("timeline", {}) if isinstance(paseq_metadata, Mapping) else {}
+    paseq_playback = paseq_metadata.get("playback_readiness", {}) if isinstance(paseq_metadata, Mapping) else {}
     if normalized_extension == ".paa":
         title = "PAA animation inspector"
         metadata_label = "Animation"
@@ -21528,6 +21970,15 @@ def build_par_structured_preview(
             lines.append(f"- Animation stem: {animation_stem}")
         if isinstance(stream, Mapping):
             lines.append(f"- Packed metadata stream: {int(stream.get('stream_size') or 0):,} byte(s)")
+    if isinstance(paseq_timeline, Mapping) and paseq_timeline:
+        lane_kind_counts = paseq_timeline.get("lane_kind_counts") if isinstance(paseq_timeline.get("lane_kind_counts"), Mapping) else {}
+        lines.append(f"- Timeline lanes: {int(paseq_timeline.get('lane_count') or 0):,}")
+        if lane_kind_counts:
+            kind_text = ", ".join(f"{key}:{value}" for key, value in lane_kind_counts.items())
+            lines.append(f"- Timeline lane kinds: {kind_text}")
+        lines.append(f"- Timeline fields: {int(paseq_timeline.get('timeline_field_count') or 0):,}")
+        lines.append(f"- Event/phase markers: {int(paseq_timeline.get('event_marker_count') or 0):,}")
+        lines.append(f"- Timing candidates: {int(paseq_timeline.get('timing_candidate_count') or 0):,}")
     if asset_references:
         lines.append(f"- Related asset hints: {len(asset_references):,}")
     if related_references:
@@ -21550,6 +22001,8 @@ def build_par_structured_preview(
         lines.append("- Editing: read-only until animation channel ownership, compression rules, and no-edit rebuilds are proven.")
     elif normalized_extension == ".paa_metabin":
         lines.append("- Editing: read-only; this metadata sidecar is used for browsing and relationships only.")
+    elif normalized_extension in _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS:
+        lines.append("- Editing: read-only; playback is disabled until sequence timing and model/skeleton binding are proven.")
 
     if isinstance(animation_metadata, Mapping) and animation_metadata:
         hint_rows = [
@@ -21598,6 +22051,60 @@ def build_par_structured_preview(
                 lines.append("  - First packed bytes:")
                 for row in preview_rows[:6]:
                     lines.append(f"    0x{int(row.get('offset') or 0):X}: {row.get('hex') or ''}")
+
+    if isinstance(paseq_timeline, Mapping) and paseq_timeline:
+        lanes = [row for row in paseq_timeline.get("lanes") or [] if isinstance(row, Mapping)]
+        if lanes:
+            lines.extend(["", "Recovered timeline lanes:"])
+            for row in lanes[:18]:
+                lines.append(
+                    "  - "
+                    f"[{row.get('kind') or 'asset'}] {row.get('path') or ''} "
+                    f"({row.get('role') or 'related_asset'}, offset=0x{int(row.get('source_offset') or 0):X}, "
+                    f"confidence={row.get('confidence') or 'asset_reference'})"
+                )
+            if len(lanes) > 18:
+                lines.append(f"  ... {len(lanes) - 18} more")
+        timeline_fields = [row for row in paseq_timeline.get("timeline_fields") or [] if isinstance(row, Mapping)]
+        if timeline_fields:
+            lines.extend(["", "Timeline field evidence:"])
+            for row in timeline_fields[:18]:
+                declared_type = str(row.get("declared_type") or "").strip()
+                type_suffix = f": {declared_type}" if declared_type else ""
+                lines.append(
+                    "  - "
+                    f"[{row.get('role') or 'timeline_field'}] {row.get('name') or ''}{type_suffix} "
+                    f"@0x{int(row.get('offset') or 0):X} ({row.get('confidence') or row.get('source') or 'evidence'})"
+                )
+            if len(timeline_fields) > 18:
+                lines.append(f"  ... {len(timeline_fields) - 18} more")
+        event_markers = [row for row in paseq_timeline.get("event_markers") or [] if isinstance(row, Mapping)]
+        if event_markers:
+            lines.extend(["", "Event/phase marker strings:"])
+            for row in event_markers[:12]:
+                lines.append(
+                    "  - "
+                    f"0x{int(row.get('offset') or 0):X} {row.get('text') or ''} "
+                    f"({row.get('role') or 'event'})"
+                )
+            if len(event_markers) > 12:
+                lines.append(f"  ... {len(event_markers) - 12} more")
+        timing_candidates = [row for row in paseq_timeline.get("timing_candidates") or [] if isinstance(row, Mapping)]
+        if timing_candidates:
+            lines.extend(["", "Candidate timing values:"])
+            for row in timing_candidates[:10]:
+                lines.append(
+                    "  - "
+                    f"0x{int(row.get('offset') or 0):X} {row.get('kind') or 'candidate'} = {row.get('value')}"
+                )
+            if len(timing_candidates) > 10:
+                lines.append(f"  ... {len(timing_candidates) - 10} more")
+        if isinstance(paseq_playback, Mapping) and paseq_playback:
+            lines.extend(["", "Playback readiness:"])
+            lines.append(f"  - Status: {paseq_playback.get('status') or 'unknown'}")
+            lines.append(f"  - Ready for 3D playback: {bool(paseq_playback.get('ready_for_3d_playback'))}")
+            for blocker in [str(value) for value in paseq_playback.get("blocking_gaps") or [] if str(value).strip()][:6]:
+                lines.append(f"  - Blocker: {blocker}")
 
     if declared_rows:
         lines.extend(["", "Declared Fields:"])
@@ -21712,8 +22219,10 @@ def build_par_structured_preview(
         )
     elif normalized_extension in {".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
         detail_lines.append(
-            "This inspector summarizes animation schedule/sequence metadata and same-stem motion references. Editing and playback remain disabled."
+            "This inspector summarizes animation schedule/sequence timeline lanes, dependency references, timing candidates, and same-stem motion references. Editing and playback remain disabled."
         )
+        if isinstance(paseq_playback, Mapping) and paseq_playback.get("blocking_gaps"):
+            detail_lines.append("3D playback path is tracked in playback_readiness.blocking_gaps in the exported decode JSON.")
 
     return _StructuredBinaryPreviewBundle(
         preview_text="\n".join(lines),

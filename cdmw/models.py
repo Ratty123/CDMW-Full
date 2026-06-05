@@ -1133,6 +1133,10 @@ class ModelPreviewMesh:
     preview_texture_brightness: float = 1.0
     preview_texture_tint: Tuple[float, float, float] = ()
     preview_texture_uv_scale: Tuple[float, float] = ()
+    preview_vertex_color_mean: Tuple[float, float, float] = ()
+    preview_vertex_alpha_mean: Optional[float] = None
+    preview_vertex_alpha_min: Optional[float] = None
+    preview_vertex_color_count: int = 0
     preview_texture_approximation_note: str = ""
     preview_material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
     preview_native_material_overrides: Dict[str, object] = field(default_factory=dict)
@@ -1348,6 +1352,10 @@ class PreparedModelPreviewBatch:
     preview_texture_brightness: float = 1.0
     preview_texture_tint: Tuple[float, float, float] = ()
     preview_texture_uv_scale: Tuple[float, float] = ()
+    preview_vertex_color_mean: Tuple[float, float, float] = ()
+    preview_vertex_alpha_mean: Optional[float] = None
+    preview_vertex_alpha_min: Optional[float] = None
+    preview_vertex_color_count: int = 0
     preview_normal_texture_strength: float = 0.0
     preview_material_texture_type: str = ""
     preview_material_texture_subtype: str = ""

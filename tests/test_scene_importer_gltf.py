@@ -265,6 +265,264 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIsNotNone(result.external_audit)
             self.assertIn("base", result.external_audit.texture_slots)
             self.assertIn("normal", result.external_audit.texture_slots)
+            self.assertEqual(1, len(result.external_audit.material_inventory))
+            inventory = result.external_audit.material_inventory[0]
+            self.assertEqual("Body", inventory.material_name)
+            self.assertEqual("metallic_roughness", inventory.pbr_workflow)
+            self.assertEqual("MASK", inventory.alpha_mode)
+            self.assertTrue(inventory.double_sided)
+            slots_by_kind = {slot.slot_kind: slot for slot in inventory.texture_slots}
+            self.assertEqual("srgb", slots_by_kind["base"].color_space)
+            self.assertEqual("linear", slots_by_kind["material"].color_space)
+            self.assertEqual("srgb", slots_by_kind["emissive"].color_space)
+            self.assertIn("emissive", {item.material_class for item in inventory.material_classes})
+
+    def test_gltf_external_audit_records_material_class_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            (root / "triangle.bin").write_bytes(bin_chunk)
+            for name in (
+                "gold_base.png",
+                "gold_metallicRoughness.png",
+                "gold_emissive.png",
+                "gold_transmission.png",
+            ):
+                (root / name).write_bytes(b"png")
+            document["buffers"][0]["uri"] = "triangle.bin"
+            document["materials"][0] = {
+                "name": "Gold Crystal Emissive Metal",
+                "alphaMode": "BLEND",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [1.0, 0.72, 0.18, 0.55],
+                    "baseColorTexture": {"index": 0},
+                    "metallicRoughnessTexture": {"index": 1},
+                    "metallicFactor": 1.0,
+                    "roughnessFactor": 0.22,
+                },
+                "emissiveTexture": {"index": 2},
+                "emissiveFactor": [1.0, 0.6, 0.1],
+                "extensions": {
+                    "KHR_materials_transmission": {
+                        "transmissionFactor": 0.7,
+                        "transmissionTexture": {"index": 3},
+                    }
+                },
+            }
+            document["textures"] = [{"source": index} for index in range(4)]
+            document["images"] = [
+                {"uri": "gold_base.png"},
+                {"uri": "gold_metallicRoughness.png"},
+                {"uri": "gold_emissive.png"},
+                {"uri": "gold_transmission.png"},
+            ]
+            path = root / "gold_crystal.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+
+            audit = result.external_audit
+            self.assertIsNotNone(audit)
+            assert audit is not None
+            inventory = audit.material_inventory[0]
+            scalar_hints = dict(inventory.scalar_hints)
+            class_names = {item.material_class for item in inventory.material_classes}
+            aggregate_classes = {item.material_class for item in audit.material_classes}
+            transmission_slots = [slot for slot in inventory.texture_slots if slot.semantic_subtype == "transmission"]
+
+            self.assertEqual("metallic_roughness", inventory.pbr_workflow)
+            self.assertEqual("BLEND", inventory.alpha_mode)
+            self.assertAlmostEqual(1.0, scalar_hints["metalness"])
+            self.assertAlmostEqual(0.22, scalar_hints["roughness"])
+            self.assertAlmostEqual(0.7, scalar_hints["transmission"])
+            self.assertIn("gold", class_names)
+            self.assertIn("metal", class_names)
+            self.assertIn("emissive", class_names)
+            self.assertIn("glass_crystal", class_names)
+            self.assertIn("gold", aggregate_classes)
+            self.assertTrue(transmission_slots)
+            self.assertTrue(inventory.material_classes[0].evidence)
+
+    def test_gltf_external_audit_uses_texture_channel_stats_for_material_classes(self) -> None:
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            (root / "triangle.bin").write_bytes(bin_chunk)
+            Image.new("RGBA", (2, 2), (222, 174, 42, 128)).save(root / "ornament_base.png")
+            Image.new("RGBA", (2, 2), (255, 48, 235, 255)).save(root / "ornament_metallicRoughness.png")
+            document["buffers"][0]["uri"] = "triangle.bin"
+            document["materials"][0] = {
+                "name": "Ornament",
+                "pbrMetallicRoughness": {
+                    "baseColorTexture": {"index": 0},
+                    "metallicRoughnessTexture": {"index": 1},
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.5,
+                },
+            }
+            document["textures"] = [{"source": 0}, {"source": 1}]
+            document["images"] = [
+                {"uri": "ornament_base.png"},
+                {"uri": "ornament_metallicRoughness.png"},
+            ]
+            path = root / "ornament.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+
+            audit = result.external_audit
+            self.assertIsNotNone(audit)
+            assert audit is not None
+            inventory = audit.material_inventory[0]
+            slots_by_kind = {slot.slot_kind: slot for slot in inventory.texture_slots}
+            base_stats = dict(slots_by_kind["base"].channel_stats)
+            material_stats = dict(slots_by_kind["material"].channel_stats)
+            gold = next(item for item in inventory.material_classes if item.material_class == "gold")
+            metal = next(item for item in inventory.material_classes if item.material_class == "metal")
+            glass = next(item for item in inventory.material_classes if item.material_class == "glass_crystal")
+
+            self.assertAlmostEqual(222 / 255.0, base_stats["r_mean"], places=3)
+            self.assertAlmostEqual(128 / 255.0, base_stats["a_mean"], places=3)
+            self.assertAlmostEqual(235 / 255.0, material_stats["b_mean"], places=3)
+            self.assertTrue(any("base texture mean" in item for item in gold.evidence))
+            self.assertTrue(any("B channel mean" in item for item in metal.evidence))
+            self.assertTrue(any("source alpha channel" in item for item in glass.evidence))
+
+    def test_gltf_external_audit_classifies_compact_tokens_and_color_hints(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            (root / "triangle.bin").write_bytes(bin_chunk)
+            document["buffers"][0]["uri"] = "triangle.bin"
+            document["materials"] = [
+                {
+                    "name": "PaintedMetalPanel",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [0.82, 0.12, 0.08, 1.0],
+                        "metallicFactor": 0.75,
+                        "roughnessFactor": 0.4,
+                    },
+                },
+                {
+                    "name": "CopperWire",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [0.93, 0.43, 0.16, 1.0],
+                        "metallicFactor": 1.0,
+                        "roughnessFactor": 0.28,
+                    },
+                },
+                {
+                    "name": "FlagCloth",
+                    "doubleSided": True,
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [0.08, 0.16, 0.26, 1.0],
+                        "metallicFactor": 0.0,
+                        "roughnessFactor": 0.86,
+                    },
+                },
+                {
+                    "name": "RoughBrownPanel",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [0.34, 0.19, 0.08, 1.0],
+                        "metallicFactor": 0.0,
+                        "roughnessFactor": 0.9,
+                    },
+                },
+                {
+                    "name": "NeutralBlock",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [0.46, 0.44, 0.41, 1.0],
+                        "metallicFactor": 0.0,
+                        "roughnessFactor": 0.82,
+                    },
+                },
+                {
+                    "name": "OrganicFaceSkin",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [0.74, 0.45, 0.34, 1.0],
+                        "metallicFactor": 0.0,
+                        "roughnessFactor": 0.58,
+                    },
+                },
+            ]
+            primitive = document["meshes"][0]["primitives"][0]
+            document["meshes"][0]["primitives"] = [
+                dict(primitive, material=index)
+                for index in range(len(document["materials"]))
+            ]
+            path = root / "materials.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+
+            audit = result.external_audit
+            self.assertIsNotNone(audit)
+            assert audit is not None
+            by_name = {item.material_name: {row.material_class for row in item.material_classes} for item in audit.material_inventory}
+            painted = next(item for item in audit.material_inventory if item.material_name == "PaintedMetalPanel")
+            flag = next(item for item in audit.material_inventory if item.material_name == "FlagCloth")
+
+            self.assertIn("painted_metal", by_name["PaintedMetalPanel"])
+            self.assertIn("metal", by_name["PaintedMetalPanel"])
+            self.assertIn("copper", by_name["CopperWire"])
+            self.assertIn("cloth", by_name["FlagCloth"])
+            self.assertIn("leather", by_name["RoughBrownPanel"])
+            self.assertIn("wood", by_name["RoughBrownPanel"])
+            self.assertIn("stone", by_name["NeutralBlock"])
+            self.assertIn("skin_organic", by_name["OrganicFaceSkin"])
+            self.assertTrue(any("painted/coated token" in reason for item in painted.material_classes for reason in item.evidence))
+            self.assertTrue(any("double-sided" in reason for item in flag.material_classes for reason in item.evidence))
+
+    def test_gltf_external_audit_uses_vertex_colors_for_material_classes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_chunk, document = _triangle_payload()
+            color_bytes = struct.pack(
+                "<12f",
+                0.90, 0.64, 0.16, 0.40,
+                0.94, 0.70, 0.18, 0.55,
+                0.92, 0.67, 0.20, 0.65,
+            )
+            color_offset = len(bin_chunk)
+            bin_chunk += _pad4(color_bytes)
+            color_view = len(document["bufferViews"])
+            document["bufferViews"].append(
+                {"buffer": 0, "byteOffset": color_offset, "byteLength": len(color_bytes), "target": 34962}
+            )
+            color_accessor = len(document["accessors"])
+            document["accessors"].append(
+                {"bufferView": color_view, "componentType": 5126, "count": 3, "type": "VEC4"}
+            )
+            document["buffers"][0]["uri"] = "triangle.bin"
+            document["buffers"][0]["byteLength"] = len(bin_chunk)
+            document["materials"][0] = {
+                "name": "VertexTintedMetal",
+                "pbrMetallicRoughness": {
+                    "metallicFactor": 1.0,
+                    "roughnessFactor": 0.32,
+                },
+            }
+            document["meshes"][0]["primitives"][0]["attributes"]["COLOR_0"] = color_accessor
+            (root / "triangle.bin").write_bytes(bin_chunk)
+            path = root / "vertex_colors.gltf"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = import_scene_mesh_with_report(path)
+
+            audit = result.external_audit
+            self.assertIsNotNone(audit)
+            assert audit is not None
+            inventory = audit.material_inventory[0]
+            classes = {item.material_class: item for item in inventory.material_classes}
+
+            self.assertEqual((0.92, 0.67, 0.18), inventory.vertex_color_factor)
+            self.assertEqual((0.5333, 0.4), inventory.vertex_alpha)
+            self.assertIn("gold", classes)
+            self.assertIn("glass_crystal", classes)
+            self.assertTrue(any("vertex color mean" in reason for reason in classes["gold"].evidence))
+            self.assertTrue(any("vertex alpha" in reason for reason in classes["glass_crystal"].evidence))
 
     def test_gltf_material_extensions_webp_ao_factors_and_uv1_are_recorded(self) -> None:
         from PySide6.QtGui import QColor, QImage
@@ -382,6 +640,11 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIn("_gltfTexCoord_base", parameter_names)
             self.assertIn("occlusion", {slot for slot, _path in result.material_bindings[0].texture_slots})
             self.assertIn("unlit", result.material_bindings[0].pbr_workflow)
+            inventory_slots = {slot.slot_kind: slot for slot in result.external_audit.material_inventory[0].texture_slots}
+            self.assertEqual(1, inventory_slots["base"].texcoord)
+            self.assertEqual((0.0, 0.0, 2.0, 3.0, 0.0), inventory_slots["base"].uv_transform)
+            self.assertIn("texcoord:1", inventory_slots["base"].evidence)
+            self.assertIn("uv_transform", inventory_slots["base"].evidence)
             self.assertIn("TEXCOORD_1", " ".join(result.diagnostics))
             self.assertIn("KHR_materials_clearcoat", " ".join(result.diagnostics))
 
@@ -552,6 +815,58 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIn(("emissive", "emissive"), slot_subtypes)
             self.assertIn(("opacity", "opacity"), slot_subtypes)
 
+    def test_obj_mtl_scalar_properties_become_preview_material_parameters(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "triangle.mtl").write_text(
+                "\n".join(
+                    (
+                        "newmtl CrystalGem",
+                        "Kd 0.8 0.1 0.05",
+                        "Ks 0.2 0.2 0.2",
+                        "Ke 1.0 0.0 0.0",
+                        "Ns 500",
+                        "Pr 0.25",
+                        "Pm 0.0",
+                        "d 0.45",
+                        "Ni 1.45",
+                        "illum 2",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            path = root / "triangle.obj"
+            path.write_text(
+                "\n".join(
+                    (
+                        "mtllib triangle.mtl",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "vt 0 0",
+                        "vt 1 0",
+                        "vt 0 1",
+                        "vn 0 0 1",
+                        "usemtl CrystalGem",
+                        "f 1/1/1 2/2/1 3/3/1",
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(path)
+            submesh = result.mesh.submeshes[0]
+            overrides = dict(getattr(submesh, "preview_native_material_overrides", {}) or {})
+
+            self.assertEqual((0.8, 0.1, 0.05), submesh.preview_texture_tint)
+            self.assertEqual("BLEND", submesh.preview_alpha_mode)
+            self.assertAlmostEqual(0.45, submesh.preview_vertex_alpha_mean)
+            self.assertAlmostEqual(0.25, overrides["roughness"])
+            self.assertAlmostEqual(0.0, overrides["metalness"])
+            self.assertAlmostEqual(0.2, overrides["specular"])
+            self.assertEqual("#ff0000", overrides["emissive_color"])
+            self.assertAlmostEqual(1.0, overrides["emissive_intensity"])
+
     def test_obj_base_texture_attaches_sibling_support_maps_by_filename_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -670,6 +985,120 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIn(("specular", "specular"), slot_subtypes)
             self.assertIn(("opacity", "opacity"), slot_subtypes)
 
+    def test_dae_percent_encoded_image_refs_resolve_to_local_texture(self) -> None:
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            texture_dir = root / "Textures With Spaces"
+            texture_dir.mkdir()
+            Image.new("RGBA", (2, 2), (220, 20, 20, 255)).save(texture_dir / "red gem.png")
+            path = root / "triangle.dae"
+            path.write_text(
+                """<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <library_images><image id="baseImg"><init_from>Textures%20With%20Spaces/red%20gem.png</init_from></image></library_images>
+  <library_effects><effect id="matFx"><profile_COMMON>
+    <newparam sid="baseSurface"><surface type="2D"><init_from>baseImg</init_from></surface></newparam>
+    <newparam sid="baseSampler"><sampler2D><source>baseSurface</source></sampler2D></newparam>
+    <technique sid="common"><phong><diffuse><texture texture="baseSampler" texcoord="UVSET0"/></diffuse></phong></technique>
+  </profile_COMMON></effect></library_effects>
+  <library_materials><material id="RedGem" name="RedGem"><instance_effect url="#matFx"/></material></library_materials>
+  <library_geometries><geometry id="geo" name="Triangle"><mesh>
+    <source id="geo-pos"><float_array id="geo-pos-array" count="9">0 0 0 1 0 0 0 1 0</float_array><technique_common><accessor source="#geo-pos-array" count="3" stride="3"/></technique_common></source>
+    <source id="geo-norm"><float_array id="geo-norm-array" count="9">0 0 1 0 0 1 0 0 1</float_array><technique_common><accessor source="#geo-norm-array" count="3" stride="3"/></technique_common></source>
+    <source id="geo-uv"><float_array id="geo-uv-array" count="6">0 0 1 0 0 1</float_array><technique_common><accessor source="#geo-uv-array" count="3" stride="2"/></technique_common></source>
+    <vertices id="geo-verts"><input semantic="POSITION" source="#geo-pos"/></vertices>
+    <triangles material="RedGem" count="1">
+      <input semantic="VERTEX" source="#geo-verts" offset="0"/>
+      <input semantic="NORMAL" source="#geo-norm" offset="1"/>
+      <input semantic="TEXCOORD" source="#geo-uv" offset="2"/>
+      <p>0 0 0 1 1 1 2 2 2</p>
+    </triangles>
+  </mesh></geometry></library_geometries>
+  <library_visual_scenes><visual_scene id="Scene"><node id="Node"><instance_geometry url="#geo"><bind_material><technique_common><instance_material symbol="RedGem" target="#RedGem"/></technique_common></bind_material></instance_geometry></node></visual_scene></library_visual_scenes>
+  <scene><instance_visual_scene url="#Scene"/></scene>
+</COLLADA>
+""",
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(path)
+            preview_model = parsed_mesh_to_preview_model(result.mesh)
+            mesh = preview_model.meshes[0]
+            audit = result.external_audit
+
+            self.assertEqual("red gem.png", Path(mesh.preview_texture_path).name)
+            self.assertNotIn("%20", mesh.preview_texture_path)
+            self.assertTrue(Path(mesh.preview_texture_path).is_file())
+            self.assertIsNotNone(audit)
+            assert audit is not None
+            slot = audit.material_inventory[0].texture_slots[0]
+            self.assertEqual((2, 2), slot.resolution)
+            self.assertTrue(slot.channel_stats)
+            self.assertNotIn("%20", slot.texture_path)
+
+    def test_dae_scalar_effect_properties_become_preview_material_parameters(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "crystal_gem.dae"
+            path.write_text(
+                """<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <library_effects><effect id="crystalFx"><profile_COMMON>
+    <technique sid="common"><phong>
+      <emission><color>1 0 0 1</color></emission>
+      <diffuse><color>0.8 0.1 0.05 1</color></diffuse>
+      <specular><color>0.2 0.2 0.2 1</color></specular>
+      <shininess><float>25</float></shininess>
+      <transparent opaque="RGB_ZERO"><color>0.25 0.25 0.25 1</color></transparent>
+      <transparency><float>0.5</float></transparency>
+    </phong></technique>
+  </profile_COMMON></effect></library_effects>
+  <library_materials><material id="CrystalGem" name="CrystalGem"><instance_effect url="#crystalFx"/></material></library_materials>
+  <library_geometries><geometry id="geo" name="Triangle"><mesh>
+    <source id="geo-pos"><float_array id="geo-pos-array" count="9">0 0 0 1 0 0 0 1 0</float_array><technique_common><accessor source="#geo-pos-array" count="3" stride="3"/></technique_common></source>
+    <source id="geo-norm"><float_array id="geo-norm-array" count="9">0 0 1 0 0 1 0 0 1</float_array><technique_common><accessor source="#geo-norm-array" count="3" stride="3"/></technique_common></source>
+    <source id="geo-uv"><float_array id="geo-uv-array" count="6">0 0 1 0 0 1</float_array><technique_common><accessor source="#geo-uv-array" count="3" stride="2"/></technique_common></source>
+    <vertices id="geo-verts"><input semantic="POSITION" source="#geo-pos"/></vertices>
+    <triangles material="CrystalGem" count="1">
+      <input semantic="VERTEX" source="#geo-verts" offset="0"/>
+      <input semantic="NORMAL" source="#geo-norm" offset="1"/>
+      <input semantic="TEXCOORD" source="#geo-uv" offset="2"/>
+      <p>0 0 0 1 1 1 2 2 2</p>
+    </triangles>
+  </mesh></geometry></library_geometries>
+  <library_visual_scenes><visual_scene id="Scene"><node id="Node"><instance_geometry url="#geo"><bind_material><technique_common><instance_material symbol="CrystalGem" target="#CrystalGem"/></technique_common></bind_material></instance_geometry></node></visual_scene></library_visual_scenes>
+  <scene><instance_visual_scene url="#Scene"/></scene>
+</COLLADA>
+""",
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(path)
+            submesh = result.mesh.submeshes[0]
+            overrides = dict(getattr(submesh, "preview_native_material_overrides", {}) or {})
+            audit = result.external_audit
+            self.assertIsNotNone(audit)
+            assert audit is not None
+            inventory = audit.material_inventory[0]
+            scalar_hints = dict(inventory.scalar_hints)
+
+            self.assertEqual("dae", result.mesh.format)
+            self.assertEqual("CrystalGem", submesh.material)
+            self.assertEqual((0.8, 0.1, 0.05), submesh.preview_texture_tint)
+            self.assertEqual("BLEND", submesh.preview_alpha_mode)
+            self.assertAlmostEqual(0.375, submesh.preview_vertex_alpha_mean)
+            self.assertAlmostEqual(0.375, submesh.preview_vertex_alpha_min)
+            self.assertAlmostEqual(0.75, overrides["roughness"])
+            self.assertAlmostEqual(0.2, overrides["specular"])
+            self.assertEqual("#ff0000", overrides["emissive_color"])
+            self.assertAlmostEqual(1.0, overrides["emissive_intensity"])
+            self.assertEqual("specular_glossiness", inventory.pbr_workflow)
+            self.assertAlmostEqual(0.25, scalar_hints["glossiness"])
+            self.assertAlmostEqual(0.2, scalar_hints["specular"])
+            self.assertAlmostEqual(0.75, scalar_hints["roughness"])
+
     def test_dae_base_texture_attaches_sibling_support_maps_by_filename_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -778,6 +1207,11 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertEqual("specular", preview_model.meshes[0].preview_material_texture_subtype)
             self.assertEqual("specularGlossiness", result.material_bindings[0].pbr_workflow)
             self.assertIn("specular_glossiness", {slot for slot, _path in result.material_bindings[0].texture_slots})
+            self.assertIsNotNone(result.external_audit)
+            inventory = result.external_audit.material_inventory[0]
+            self.assertEqual("specular_glossiness", inventory.pbr_workflow)
+            self.assertIn("specular_glossiness", {slot.semantic_subtype for slot in inventory.texture_slots})
+            self.assertTrue(any("Specular-glossiness workflow" in warning for warning in inventory.warnings))
 
     def test_gltf_metallic_roughness_is_not_used_as_base_texture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

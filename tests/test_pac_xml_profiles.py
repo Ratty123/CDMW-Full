@@ -7,6 +7,7 @@ from pathlib import Path
 from cdmw.modding.pac_xml_profiles import (
     PAC_XML_PROFILE_INDEX_V1_CACHE_NAME,
     PAC_XML_PROFILE_INDEX_V2_CACHE_NAME,
+    build_pac_xml_material_authority_report,
     build_pac_xml_profile_match_report,
     build_pac_xml_corpus_index,
     build_pac_xml_corpus_sqlite_cache,
@@ -486,6 +487,315 @@ class PacXmlProfileTests(unittest.TestCase):
         self.assertEqual("SkinnedMeshStandard_Ver2", match.template_shader_name)
         self.assertEqual("Standard_Ver2", match.template_shader_family)
         self.assertEqual("character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_standard.pac", match.template_model_path)
+
+    def test_material_authority_report_flags_target_influence_and_unknowns(self) -> None:
+        text = (
+            '<Root><SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Blade">'
+            '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterBitFlag32 StringItemID="_renderSettingFlag" ItemID="8" _name="_renderSettingFlag" _value="6" Index="0"/>'
+            '<MaterialParameterClothCategory StringItemID="_clothCategory" ItemID="9" _name="_clothCategory" _value="Silk" Index="1"/>'
+            '<MaterialParameterTexture StringItemID="_overlayColorTexture" ItemID="3936485985222654" _name="_overlayColorTexture" Index="2"><ResourceReferencePath_ITexture _path="character/texture/source_base.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture StringItemID="_detailMaskTexture" ItemID="2838988925698046" _name="_detailMaskTexture" Index="3"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0202.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture StringItemID="_grimeDiffuseTextureR" ItemID="2838988925698047" _name="_grimeDiffuseTextureR" Index="4"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0203.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterColor StringItemID="_tintColorR" ItemID="31" _name="_tintColorR" _value="#402c1aff" Index="5"/>'
+            '<MaterialParameterColor StringItemID="_dyeingColorMaskG" ItemID="32" _name="_dyeingColorMaskG" _value="#1111114c" Index="6"/>'
+            '<MaterialParameterFloat StringItemID="_brightness" ItemID="33" _name="_brightness" _value="1.500000" Index="7"/>'
+            '<MaterialParameterFloat StringItemID="_wetnessBoost" ItemID="34" _name="_wetnessBoost" _value="0.250000" Index="8"/>'
+            '<MaterialParameterBool StringItemID="_alphaTest" ItemID="35" _name="_alphaTest" _value="1" Index="9"/>'
+            '<MaterialParameterBool StringItemID="_alphaBlend" ItemID="36" _name="_alphaBlend" _value="0" Index="10"/>'
+            '<MaterialParameterFloat StringItemID="_alphaCutoff" ItemID="37" _name="_alphaCutoff" _value="0.420000" Index="11"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+        )
+
+        report = build_pac_xml_material_authority_report(
+            text,
+            "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac_xml",
+            authority_contract="true_source_authority",
+        )
+
+        inherited_names = {parameter.parameter_name for parameter in report.inherited_influence_parameters}
+        unknown_names = {parameter.parameter_name for parameter in report.unknown_material_response_parameters}
+        abi_names = {parameter.parameter_name for parameter in report.runtime_abi_parameters}
+        source_names = {parameter.parameter_name for parameter in report.source_authority_parameters}
+        report_dict = report.to_dict()
+        wrapper_row = report_dict["wrapper_order"][0]
+        wetness_row = next(
+            parameter
+            for parameter in report_dict["unknown_material_response_parameters"]
+            if parameter["parameter_name"] == "_wetnessBoost"
+        )
+        overlay_row = next(
+            parameter
+            for parameter in report_dict["source_authority_parameters"]
+            if parameter["parameter_name"] == "_overlayColorTexture"
+        )
+        scalar_ranges = {row["parameter_name"]: row for row in report_dict["scalar_ranges"]}
+        color_rows = {row["parameter_name"]: row for row in report_dict["color_parameters"]}
+        alpha_controls = {row["parameter_name"]: row for row in report_dict["alpha_controls"]}
+        neutralization_actions = {row["parameter_name"]: row for row in report_dict["neutralization_actions"]}
+        warning_text = "\n".join(report.warnings)
+        self.assertEqual("needs_review", report.status)
+        self.assertEqual("Blade", wrapper_row["wrapper_name"])
+        self.assertEqual("1190", wrapper_row["item_id"])
+        self.assertEqual("SkinnedMeshStandard_Ver2", wrapper_row["shader_name"])
+        self.assertEqual(12, wrapper_row["parameter_count"])
+        self.assertEqual("34", wetness_row["item_id"])
+        self.assertEqual("8", wetness_row["index"])
+        self.assertEqual("0.250000", wetness_row["value"])
+        self.assertEqual("3936485985222654", overlay_row["item_id"])
+        self.assertEqual(1.5, scalar_ranges["_brightness"]["min"])
+        self.assertEqual(1.5, scalar_ranges["_brightness"]["max"])
+        self.assertEqual(0.25, scalar_ranges["_wetnessBoost"]["min"])
+        self.assertEqual((64, 44, 26, 255), color_rows["_tintColorR"]["color_rgba"])
+        self.assertEqual("rgba", color_rows["_tintColorR"]["color_order"])
+        self.assertEqual("alpha_test", alpha_controls["_alphaTest"]["mode"])
+        self.assertEqual("alpha_blend", alpha_controls["_alphaBlend"]["mode"])
+        self.assertEqual("alpha_cutout", alpha_controls["_alphaCutoff"]["mode"])
+        self.assertEqual(0.42, alpha_controls["_alphaCutoff"]["numeric_value"])
+        self.assertIn("_detailMaskTexture", inherited_names)
+        self.assertIn("_grimeDiffuseTextureR", inherited_names)
+        self.assertIn("_tintColorR", inherited_names)
+        self.assertIn("_dyeingColorMaskG", inherited_names)
+        self.assertIn("_brightness", inherited_names)
+        self.assertIn("_wetnessBoost", unknown_names)
+        self.assertIn("_renderSettingFlag", abi_names)
+        self.assertIn("_clothCategory", abi_names)
+        self.assertIn("_overlayColorTexture", source_names)
+        self.assertEqual(5, len(report.neutralization_actions))
+        self.assertEqual("replace_with_source_owned_texture_or_neutral_default", neutralization_actions["_detailMaskTexture"]["action"])
+        self.assertEqual("neutralize_scalar_or_color_to_source_neutral_default", neutralization_actions["_tintColorR"]["action"])
+        self.assertEqual("required", neutralization_actions["_grimeDiffuseTextureR"]["action_status"])
+        self.assertTrue(neutralization_actions["_dyeingColorMaskG"]["preserve_runtime_abi"])
+        self.assertEqual("31", neutralization_actions["_tintColorR"]["item_id"])
+        self.assertEqual("5", neutralization_actions["_tintColorR"]["index"])
+        self.assertIn("must neutralize or replace target-side influence", warning_text)
+        self.assertIn("shared_texturelayer", warning_text)
+        self.assertIn("unknown material-response parameter Blade _wetnessBoost", warning_text)
+        self.assertIn("inherited=5", report.summary())
+
+    def test_material_authority_report_records_submesh_resource_bindings(self) -> None:
+        text = (
+            '<Root><SkinnedMeshProperty><Vector Name="_subMeshResources" IdBase="1190">'
+            '<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Blade">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture StringItemID="_overlayColorTexture" ItemID="3936485985222654" _name="_overlayColorTexture" Index="0">'
+            '<ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper>"
+            '<SkinnedMeshMaterialWrapper ItemID="1191" _subMeshName="Guard">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshMetal_Ver2"/>'
+            "</SkinnedMeshMaterialWrapper></Vector></SkinnedMeshProperty></Root>"
+        )
+
+        report = build_pac_xml_material_authority_report(
+            text,
+            "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac_xml",
+        )
+
+        rows = report.to_dict()["submesh_bindings"]
+        self.assertEqual(2, len(rows))
+        self.assertEqual("Blade", rows[0]["wrapper_name"])
+        self.assertEqual("1190", rows[0]["item_id"])
+        self.assertEqual("1190", rows[0]["id_base"])
+        self.assertEqual("SkinnedMeshStandard_Ver2", rows[0]["shader_name"])
+        self.assertEqual(1, rows[0]["parameter_count"])
+        self.assertEqual("Guard", rows[1]["wrapper_name"])
+        self.assertEqual("1191", rows[1]["item_id"])
+        self.assertEqual("1190", rows[1]["id_base"])
+        self.assertEqual("SkinnedMeshMetal_Ver2", rows[1]["shader_name"])
+
+    def test_material_authority_report_keeps_flow_and_wrinkle_textures_runtime_abi(self) -> None:
+        text = (
+            '<Root><SkinnedMeshMaterialWrapper _subMeshName="Head">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshSkinWrinkle"><Vector Name="_parameters">'
+            '<MaterialParameterTexture _name="_flowTexture"><ResourceReferencePath_ITexture _path="character/texture/t0208_spiderwebhard_0001_f.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/cd_phm_0264_hel_hair_00_01_01_f.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_wrinkleMaskTexture0"><ResourceReferencePath_ITexture _path="character/texture/head_wrinkle_mask.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_wrinkleColorTexture0"><ResourceReferencePath_ITexture _path="character/texture/head_wrinkle_color.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_emissiveProgressMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/head_emi.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_maskTexture"><TextureRef Name="_value" _path="character/texture/head_m.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_maskTexture"></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+        )
+
+        report = build_pac_xml_material_authority_report(text, "character/modelproperty/head.pac_xml")
+
+        runtime = {parameter.parameter_name: parameter for parameter in report.runtime_abi_parameters}
+        source = {
+            (parameter.parameter_name, parameter.texture_path): parameter
+            for parameter in report.source_authority_parameters
+        }
+        unknown = {parameter.parameter_name: parameter for parameter in report.unknown_material_response_parameters}
+        self.assertEqual("flow", runtime["_flowTexture"].role)
+        self.assertEqual("normal", source[("_normalTexture", "character/texture/cd_phm_0264_hel_hair_00_01_01_f.dds")].role)
+        self.assertEqual("wrinkle_mask", runtime["_wrinkleMaskTexture0"].role)
+        self.assertEqual("wrinkle_color", runtime["_wrinkleColorTexture0"].role)
+        self.assertEqual("emissive", source[("_emissiveProgressMaskTexture", "character/texture/head_emi.dds")].role)
+        self.assertEqual("material_mask", source[("_maskTexture", "character/texture/head_m.dds")].role)
+        self.assertEqual("material_mask", source[("_maskTexture", "")].role)
+        self.assertEqual({}, unknown)
+
+    def test_material_authority_texture_ref_child_records_texture_path(self) -> None:
+        text = (
+            '<Root><SkinnedMeshMaterialWrapper _subMeshName="Head">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture ItemID="13821" _name="_maskTexture" Index="4">'
+            '<TextureRef Name="_value" _path="character/texture/cd_t0195_barnia_windchime_rope_0001_m.dds"/>'
+            "</MaterialParameterTexture>"
+            '<MaterialParameterTexture _name="_maskTexture"></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+        )
+
+        report = build_pac_xml_material_authority_report(text, "character/modelproperty/head.pac_xml")
+
+        source = {
+            (parameter.parameter_name, parameter.texture_path): parameter
+            for parameter in report.source_authority_parameters
+        }
+        unknown = {parameter.parameter_name: parameter for parameter in report.unknown_material_response_parameters}
+        self.assertEqual(
+            "character/texture/cd_t0195_barnia_windchime_rope_0001_m.dds",
+            source[("_maskTexture", "character/texture/cd_t0195_barnia_windchime_rope_0001_m.dds")].texture_path,
+        )
+        self.assertEqual("material_mask", source[("_maskTexture", "character/texture/cd_t0195_barnia_windchime_rope_0001_m.dds")].role)
+        self.assertEqual("material_mask", source[("_maskTexture", "")].role)
+        self.assertEqual({}, unknown)
+
+    def test_material_authority_report_classifies_eye_texture_and_property_authority(self) -> None:
+        text = (
+            '<Root><SkinnedMeshMaterialWrapper ItemID="884" _subMeshName="Eye">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshEye"><Vector Name="_parameters">'
+            '<MaterialParameterTexture ItemID="4501334226108414" _name="_alphaTexture" Index="3">'
+            '<ResourceReferencePath_ITexture _path="character/texture/head_alpha.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterByte4 ItemID="2730506844110846" _name="_pupilProperty" _value="4201215" Index="5"/>'
+            '<MaterialParameterTexture ItemID="4238362294616062" _name="_pupilTexture" Index="6">'
+            '<ResourceReferencePath_ITexture _path="character/texture/head_pupil.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterByte4 ItemID="1656570634043390" _name="_irisProperty" _value="118" Index="7"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+        )
+
+        report = build_pac_xml_material_authority_report(text, "character/modelproperty/head_eye.pac_xml")
+
+        source = {parameter.parameter_name: parameter for parameter in report.source_authority_parameters}
+        self.assertEqual((), report.unknown_material_response_parameters)
+        self.assertEqual("opacity", source["_alphaTexture"].role)
+        self.assertEqual("pupil", source["_pupilTexture"].role)
+        self.assertEqual("known_material_response", source["_pupilProperty"].reason)
+        self.assertEqual("known_material_response", source["_irisProperty"].reason)
+
+    def test_material_authority_report_classifies_shader_effect_and_translucent_buckets(self) -> None:
+        text = (
+            '<Root><SkinnedMeshMaterialWrapper ItemID="11" _subMeshName="Chain">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshChain"><Vector Name="_parameters">'
+            '<MaterialParameterFloat ItemID="2456033947549694" _name="_cableUVScaleX" _value="0.344000" Index="5"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper>"
+            '<SkinnedMeshMaterialWrapper ItemID="12" _subMeshName="Hair">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshHair"><Vector Name="_parameters">'
+            '<MaterialParameterFloat _name="_frequencyU" _value="2.000000" Index="7"/>'
+            '<MaterialParameterFloat _name="_speedU" _value="1.000000" Index="8"/>'
+            '<MaterialParameterFloat _name="_speedV" _value="1.000000" Index="9"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper>"
+            '<SkinnedMeshMaterialWrapper ItemID="13" _subMeshName="Ghost">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshGhost"><Vector Name="_parameters">'
+            '<MaterialParameterFloat2 _name="_ghostNoiseUVSpeed" _value="0.300000 0.300000" Index="0"/>'
+            '<MaterialParameterFloat _name="_ghostOpacity" _value="0.410000" Index="1"/>'
+            '<MaterialParameterColor _name="_ghostColor" _value="#0d9ed2ff" Index="2"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper>"
+            '<SkinnedMeshMaterialWrapper ItemID="14" _subMeshName="Effect">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard"><Vector Name="_parameters">'
+            '<MaterialParameterTexture _name="_maskTexture" Index="0">'
+            '<ResourceReferencePath_ITexture _path="effect/texture/pafx_ice_skinneddecal_snow_area_001a.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_lavaTex" Index="1">'
+            '<ResourceReferencePath_ITexture _path="texture/lava_d.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_lavaNormalTex" Index="2">'
+            '<ResourceReferencePath_ITexture _path="texture/lava_rock_n.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterFloat2 _name="_diffuseUVTiling" _value="1.500000 1.500000" Index="3"/>'
+            '<MaterialParameterTexture _name="_noiseTex" Index="4">'
+            '<ResourceReferencePath_ITexture _path="effect/texture/uvnoise_01b_ksh.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_parallaxTex" Index="5">'
+            '<ResourceReferencePath_ITexture _path="character/texture/pa_terrain_pebbles_0004.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterTexture _name="_parallaxNormalTex" Index="6">'
+            '<ResourceReferencePath_ITexture _path="character/texture/pa_terrain_pebbles_0004_n.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterFloat _name="_growthRatio" Index="7"/>'
+            '<MaterialParameterFloat _name="_terrainBlendRatio" _value="0.780000" Index="8"/>'
+            '<MaterialParameterTexture _name="_transientAgingColorTexture" Index="9">'
+            '<ResourceReferencePath_ITexture _path="character/texture/head_aging.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterFloat _name="_vertexOffsetScale" _value="7.000000" Index="10"/>'
+            '<MaterialParameterFloat _name="_fresnelMask" _value="5.520000" Index="11"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper>"
+            '<SkinnedMeshMaterialWrapper ItemID="15" _subMeshName="Translucent">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshTranslucent"><Vector Name="_parameters">'
+            '<MaterialParameterFloat _name="_thickness" _value="0.130000" Index="1"/>'
+            '<MaterialParameterFloat _name="_extinctionCoefficient" _value="0.750000" Index="2"/>'
+            '<MaterialParameterFloat _name="_velvetness" _value="0.800000" Index="3"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+        )
+
+        report = build_pac_xml_material_authority_report(text, "character/modelproperty/effect_buckets.pac_xml")
+
+        runtime = {parameter.parameter_name for parameter in report.runtime_abi_parameters}
+        inherited = {parameter.parameter_name: parameter for parameter in report.inherited_influence_parameters}
+        source = {parameter.parameter_name: parameter for parameter in report.source_authority_parameters}
+        self.assertEqual((), report.unknown_material_response_parameters)
+        self.assertTrue({"_cableUVScaleX", "_frequencyU", "_speedU", "_speedV"} <= runtime)
+        self.assertEqual("target_ghost_shader", inherited["_ghostOpacity"].reason)
+        self.assertEqual("target_mask_effect", inherited["_maskTexture"].reason)
+        self.assertEqual("target_lava_shader", inherited["_lavaNormalTex"].reason)
+        self.assertEqual("target_uv_transform", inherited["_diffuseUVTiling"].reason)
+        self.assertEqual("target_procedural_noise", inherited["_noiseTex"].reason)
+        self.assertEqual("target_parallax_shader", inherited["_parallaxNormalTex"].reason)
+        self.assertEqual("target_growth_shader", inherited["_growthRatio"].reason)
+        self.assertEqual("target_terrain_blend", inherited["_terrainBlendRatio"].reason)
+        self.assertEqual("target_skin_aging", inherited["_transientAgingColorTexture"].reason)
+        self.assertEqual("target_vertex_offset", inherited["_vertexOffsetScale"].reason)
+        self.assertEqual("target_fresnel_mask", inherited["_fresnelMask"].reason)
+        self.assertEqual("known_material_response", source["_thickness"].reason)
+        self.assertEqual("known_material_response", source["_extinctionCoefficient"].reason)
+        self.assertEqual("known_material_response", source["_velvetness"].reason)
+
+    def test_material_authority_report_keeps_torn_cloth_parameters_runtime_abi(self) -> None:
+        text = (
+            '<Root><SkinnedMeshMaterialWrapper ItemID="1191" _subMeshName="Cape">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshTornCloth_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture ItemID="414702243938302" _name="_tornPatternTexture" Index="40">'
+            '<ResourceReferencePath_ITexture _path="character/texture/cape_torn.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterFloat ItemID="1345291851661310" _name="_tornCrossGrainPower" _value="0.4" Index="41"/>'
+            '<MaterialParameterFloat ItemID="2139607801004030" _name="_tornLengthGrainUVScale" _value="0.1" Index="42"/>'
+            '<MaterialParameterFloat ItemID="958757867618302" _name="_tornCrossGrainUVScale" _value="0.06" Index="43"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+        )
+
+        report = build_pac_xml_material_authority_report(text, "character/modelproperty/cape.pac_xml")
+
+        runtime_names = {parameter.parameter_name for parameter in report.runtime_abi_parameters}
+        self.assertIn("_tornPatternTexture", runtime_names)
+        self.assertIn("_tornCrossGrainPower", runtime_names)
+        self.assertIn("_tornLengthGrainUVScale", runtime_names)
+        self.assertIn("_tornCrossGrainUVScale", runtime_names)
+        self.assertEqual((), report.unknown_material_response_parameters)
+
+    def test_material_authority_report_runtime_xml_preserve_warns_without_true_source_action(self) -> None:
+        text = (
+            '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+            '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture _name="_grimeDiffuseTextureR"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0203.dds"/></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></Root>"
+        )
+
+        report = build_pac_xml_material_authority_report(
+            text,
+            "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac_xml",
+            authority_contract="runtime_xml_preserve",
+        )
+
+        warning_text = "\n".join(report.warnings)
+        self.assertEqual("runtime_xml_preserve", report.authority_contract)
+        self.assertEqual(1, len(report.inherited_influence_parameters))
+        self.assertEqual(1, len(report.neutralization_actions))
+        self.assertEqual("reported_only", report.neutralization_actions[0].action_status)
+        self.assertFalse(report.neutralization_actions[0].required)
+        self.assertIn("Runtime XML preserve warning", warning_text)
+        self.assertIn("keeps target-side influence", warning_text)
+        self.assertIn("keeps target tint/dye/detail/grime/shared texture-layer response", report.neutralization_policy)
 
     def test_transition_validation_protects_stock_support_and_special_params(self) -> None:
         original = (

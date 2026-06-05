@@ -94,6 +94,147 @@ TEXTURE_STATUS_HAS_PREFIXES = ("Found (", "In ZIP (", "Resolved (")
 TEXTURE_STATUS_MISSING = "None found"
 
 
+def _external_audit_material_class_rows(audit: object) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for item in tuple(getattr(audit, "material_classes", ()) or ()):
+        material_class = str(getattr(item, "material_class", "") or "").strip()
+        if not material_class:
+            continue
+        rows.append(
+            {
+                "class": material_class,
+                "confidence": float(getattr(item, "confidence", 0.0) or 0.0),
+                "evidence": tuple(getattr(item, "evidence", ()) or ()),
+            }
+        )
+    return tuple(rows)
+
+
+def _external_audit_value(item: object, key: str, default: object = "") -> object:
+    if isinstance(item, dict):
+        return item.get(key, default)
+    return getattr(item, key, default)
+
+
+def _external_audit_resolution(value: object) -> tuple[int, int]:
+    resolution = tuple(value or ()) if not isinstance(value, str) else ()
+    if len(resolution) < 2:
+        return ()
+    try:
+        width = int(resolution[0])
+        height = int(resolution[1])
+    except (TypeError, ValueError):
+        return ()
+    if width <= 0 or height <= 0:
+        return ()
+    return (width, height)
+
+
+def _external_audit_texture_slot_rows(raw_slots: object) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for slot in tuple(raw_slots or ()):
+        slot_kind = str(_external_audit_value(slot, "slot_kind", "") or "").strip()
+        texture_name = str(_external_audit_value(slot, "texture_name", "") or "").strip()
+        texture_path = str(_external_audit_value(slot, "texture_path", "") or "").strip()
+        if not slot_kind and not texture_name and not texture_path:
+            continue
+        rows.append(
+            {
+                "slot_kind": slot_kind,
+                "parameter_name": str(_external_audit_value(slot, "parameter_name", "") or "").strip(),
+                "texture_name": texture_name,
+                "texture_path": texture_path,
+                "image_format": str(_external_audit_value(slot, "image_format", "") or "").strip().lower(),
+                "resolution": _external_audit_resolution(_external_audit_value(slot, "resolution", ())),
+                "semantic_type": str(_external_audit_value(slot, "semantic_type", "") or "").strip(),
+                "semantic_subtype": str(_external_audit_value(slot, "semantic_subtype", "") or "").strip(),
+                "packed_channels": tuple(
+                    str(value or "").strip()
+                    for value in tuple(_external_audit_value(slot, "packed_channels", ()) or ())
+                    if str(value or "").strip()
+                ),
+                "color_space": str(_external_audit_value(slot, "color_space", "") or "").strip().lower(),
+                "source": str(_external_audit_value(slot, "source", "") or "").strip(),
+                "confidence": str(_external_audit_value(slot, "confidence", "") or "").strip(),
+                "evidence": tuple(_external_audit_value(slot, "evidence", ()) or ()),
+            }
+        )
+    return tuple(rows)
+
+
+def _external_audit_texture_slot_text(slot: dict[str, object]) -> str:
+    slot_kind = str(slot.get("slot_kind", "") or "texture").strip()
+    texture_name = str(slot.get("texture_name", "") or slot.get("texture_path", "") or "").strip()
+    image_format = str(slot.get("image_format", "") or "").strip().lower()
+    color_space = str(slot.get("color_space", "") or "").strip().lower()
+    semantic = str(slot.get("semantic_subtype", "") or "").strip()
+    resolution = _external_audit_resolution(slot.get("resolution", ()))
+    pieces = [slot_kind]
+    if texture_name:
+        pieces.append(Path(texture_name).name)
+    if image_format:
+        pieces.append(image_format)
+    if resolution:
+        pieces.append(f"{resolution[0]}x{resolution[1]}")
+    if color_space:
+        pieces.append(color_space)
+    if semantic and semantic != slot_kind:
+        pieces.append(semantic)
+    packed = tuple(str(value or "").strip() for value in tuple(slot.get("packed_channels", ()) or ()) if str(value or "").strip())
+    if packed:
+        pieces.append("channels=" + "/".join(packed))
+    return " ".join(pieces)
+
+
+def _external_audit_material_inventory_rows(audit: object) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for material in tuple(getattr(audit, "material_inventory", ()) or ()):
+        raw_slots = tuple(getattr(material, "texture_slots", ()) or ())
+        texture_slot_rows = _external_audit_texture_slot_rows(raw_slots)
+        texture_slots = tuple(
+            str(getattr(slot, "slot_kind", "") or "").strip()
+            for slot in raw_slots
+            if str(getattr(slot, "slot_kind", "") or "").strip()
+        )
+        texture_stats: list[str] = []
+        for slot in raw_slots:
+            stats = {str(key): float(value) for key, value in tuple(getattr(slot, "channel_stats", ()) or ())}
+            if not stats:
+                continue
+            slot_kind = str(getattr(slot, "slot_kind", "") or "").strip() or "texture"
+            texture_name = str(getattr(slot, "texture_name", "") or "").strip()
+            label = f"{slot_kind}:{texture_name}" if texture_name else slot_kind
+            texture_stats.append(
+                f"{label} rgb={stats.get('r_mean', 0.0):.2f}/{stats.get('g_mean', 0.0):.2f}/{stats.get('b_mean', 0.0):.2f} "
+                f"a={stats.get('a_mean', 0.0):.2f}"
+            )
+        material_classes = tuple(
+            {
+                "class": str(getattr(item, "material_class", "") or ""),
+                "confidence": float(getattr(item, "confidence", 0.0) or 0.0),
+            }
+            for item in tuple(getattr(material, "material_classes", ()) or ())
+            if str(getattr(item, "material_class", "") or "").strip()
+        )
+        rows.append(
+            {
+                "material_name": str(getattr(material, "material_name", "") or ""),
+                "submesh_names": tuple(getattr(material, "submesh_names", ()) or ()),
+                "pbr_workflow": str(getattr(material, "pbr_workflow", "") or ""),
+                "alpha_mode": str(getattr(material, "alpha_mode", "") or ""),
+                "double_sided": bool(getattr(material, "double_sided", False)),
+                "vertex_color_factor": tuple(getattr(material, "vertex_color_factor", ()) or ()),
+                "vertex_alpha": tuple(getattr(material, "vertex_alpha", ()) or ()),
+                "texture_slots": texture_slots,
+                "texture_slot_rows": texture_slot_rows,
+                "texture_stats": tuple(texture_stats),
+                "material_classes": material_classes,
+                "warnings": tuple(getattr(material, "warnings", ()) or ()),
+            }
+        )
+    return tuple(rows)
+
+
 def model_library_texture_status_kind(status: str) -> str:
     text = str(status or "").strip()
     if text == TEXTURE_STATUS_MISSING:
@@ -1622,6 +1763,8 @@ class ModelLibraryTab(QWidget):
                 "audit_warnings": tuple(getattr(audit, "warnings", ()) or ()),
                 "audit_false_positive": bool(getattr(audit, "false_positive", False)),
                 "audit_mixed_model": bool(getattr(audit, "mixed_model", False)),
+                "audit_material_classes": _external_audit_material_class_rows(audit),
+                "audit_material_inventory": _external_audit_material_inventory_rows(audit),
             }
 
         def complete(result: object) -> None:
@@ -1668,6 +1811,8 @@ class ModelLibraryTab(QWidget):
                 payload["audit_warnings"] = tuple(result.get("audit_warnings", ()) or ())
                 payload["audit_false_positive"] = bool(result.get("audit_false_positive", False))
                 payload["audit_mixed_model"] = bool(result.get("audit_mixed_model", False))
+                payload["audit_material_classes"] = tuple(result.get("audit_material_classes", ()) or ())
+                payload["audit_material_inventory"] = tuple(result.get("audit_material_inventory", ()) or ())
             self._refresh_result_row_status(payload)
             audit_text = ""
             if audit_category:
@@ -2655,6 +2800,50 @@ class ModelLibraryTab(QWidget):
                 flags.append("mixed")
             suffix = f" ({', '.join(flags)})" if flags else ""
             lines.append(f"Audit: {audit_category} {confidence:.0%}{suffix}; textures: {texture_slots}; PBR: {workflows}")
+            class_rows = tuple(row for row in tuple(payload.get("audit_material_classes", ()) or ()) if isinstance(row, dict))
+            if class_rows:
+                class_text = ", ".join(
+                    f"{str(row.get('class', '') or '')} {float(row.get('confidence', 0.0) or 0.0):.0%}"
+                    for row in class_rows[:8]
+                    if str(row.get("class", "") or "").strip()
+                )
+                if class_text:
+                    lines.append(f"Material classes: {class_text}")
+            inventory_rows = tuple(row for row in tuple(payload.get("audit_material_inventory", ()) or ()) if isinstance(row, dict))
+            for row in inventory_rows[:5]:
+                material_name = str(row.get("material_name", "") or "-")
+                material_slots = ", ".join(str(slot) for slot in tuple(row.get("texture_slots", ()) or ())[:8]) or "-"
+                material_workflow = str(row.get("pbr_workflow", "") or "-")
+                alpha_mode = str(row.get("alpha_mode", "") or "-")
+                row_classes = tuple(item for item in tuple(row.get("material_classes", ()) or ()) if isinstance(item, dict))
+                material_class_text = ", ".join(
+                    f"{str(item.get('class', '') or '')} {float(item.get('confidence', 0.0) or 0.0):.0%}"
+                    for item in row_classes[:4]
+                    if str(item.get("class", "") or "").strip()
+                ) or "-"
+                lines.append(
+                    f"Material: {material_name}; class: {material_class_text}; slots: {material_slots}; PBR: {material_workflow}; alpha: {alpha_mode}"
+                )
+                texture_slot_rows = tuple(item for item in tuple(row.get("texture_slot_rows", ()) or ()) if isinstance(item, dict))
+                texture_file_text = ", ".join(
+                    text
+                    for text in (_external_audit_texture_slot_text(item) for item in texture_slot_rows[:4])
+                    if text
+                )
+                if texture_file_text:
+                    lines.append(f"Texture files: {texture_file_text}")
+                texture_stats = ", ".join(str(item) for item in tuple(row.get("texture_stats", ()) or ())[:3])
+                if texture_stats:
+                    lines.append(f"Texture stats: {texture_stats}")
+                vertex_color = tuple(row.get("vertex_color_factor", ()) or ())
+                vertex_alpha = tuple(row.get("vertex_alpha", ()) or ())
+                if len(vertex_color) >= 3:
+                    vertex_text = f"Vertex color: rgb={float(vertex_color[0]):.2f}/{float(vertex_color[1]):.2f}/{float(vertex_color[2]):.2f}"
+                    if len(vertex_alpha) >= 2:
+                        vertex_text += f"; alpha={float(vertex_alpha[0]):.2f} min={float(vertex_alpha[1]):.2f}"
+                    lines.append(vertex_text)
+                for warning in tuple(row.get("warnings", ()) or ())[:1]:
+                    lines.append(f"Material warning: {warning}")
             for warning in tuple(payload.get("audit_warnings", ()) or ())[:3]:
                 lines.append(f"Audit warning: {warning}")
         archive_path = str(payload.get("archive_path", "") or "")

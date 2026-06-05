@@ -1,6 +1,9 @@
+import hashlib
 from pathlib import Path
+import struct
 import tempfile
 import unittest
+import zipfile
 
 from cdmw.core.archive_modding import MeshImportPreviewResult, MeshImportSupplementalFileSpec
 from cdmw.core.final_package_preview import (
@@ -24,7 +27,7 @@ from cdmw.core.final_package_preview import (
     texture_plan_control_description,
 )
 from cdmw.core.mod_package import ModPackageExportOptions
-from cdmw.models import ArchiveModelTextureReference, ModelPreviewData, ModelPreviewMesh
+from cdmw.models import ArchiveModelTextureReference, ModelPreviewData, ModelPreviewMesh, ModelPreviewRenderSettings, PreviewMaterialTextureInput
 from cdmw.modding.material_replacer import ReplacementTextureSet, ReplacementTextureSlot
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.modding.static_mesh_replacer import StaticOutputDrawSection
@@ -56,6 +59,37 @@ def _sidecar(texture_path: str, parameter: str = "_overlayColorTexture", materia
     ).encode("utf-8")
 
 
+def _dds(
+    width: int = 4,
+    height: int = 4,
+    *,
+    mips: int = 3,
+    depth: int = 1,
+    fourcc: bytes | None = b"DXT1",
+    rgba: bool = False,
+    bgra: bool = False,
+) -> bytes:
+    header = bytearray(124)
+    struct.pack_into("<I", header, 0, 124)
+    struct.pack_into("<I", header, 4, 0x0002100F)
+    struct.pack_into("<I", header, 8, height)
+    struct.pack_into("<I", header, 12, width)
+    struct.pack_into("<I", header, 20, depth)
+    struct.pack_into("<I", header, 24, mips)
+    struct.pack_into("<I", header, 72, 32)
+    if rgba or bgra:
+        struct.pack_into("<I", header, 76, 0x41)
+        struct.pack_into("<I", header, 84, 32)
+        struct.pack_into("<I", header, 88, 0x00FF0000 if bgra else 0x000000FF)
+        struct.pack_into("<I", header, 92, 0x0000FF00)
+        struct.pack_into("<I", header, 96, 0x000000FF if bgra else 0x00FF0000)
+        struct.pack_into("<I", header, 100, 0xFF000000)
+    else:
+        struct.pack_into("<I", header, 76, 0x4)
+        header[80:84] = fourcc or b"DXT1"
+    return b"DDS " + bytes(header) + b"\x00" * 512
+
+
 class FinalPackagePreviewTests(unittest.TestCase):
     def test_generated_sidecar_resolves_generated_dds_and_binds_base_texture(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -77,7 +111,11 @@ class FinalPackagePreviewTests(unittest.TestCase):
                 ),
             )
 
-            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                render_settings=ModelPreviewRenderSettings(d3d11_normal_y_mode="force_no_flip"),
+            )
 
             self.assertEqual([], result.likely_grey_materials)
             self.assertEqual(FINAL_PREVIEW_READY, result.binding_rows[0].status)
@@ -123,7 +161,11 @@ class FinalPackagePreviewTests(unittest.TestCase):
                 MeshImportSupplementalFileSpec(source_path=root / "test_weapon.pac_xml", target_path="character/modelproperty/test_weapon.pac_xml", kind="sidecar_generated", payload_data=sidecar),
             )
 
-            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                render_settings=ModelPreviewRenderSettings(d3d11_normal_y_mode="force_no_flip"),
+            )
 
             self.assertEqual([], result.likely_grey_materials)
             self.assertEqual("cd_phm_02_sword_handle_0015", result.preview_model.meshes[0].texture_name)
@@ -148,7 +190,11 @@ class FinalPackagePreviewTests(unittest.TestCase):
                 MeshImportSupplementalFileSpec(source_path=root / "gem.pac_xml", target_path="character/modelproperty/gem.pac_xml", kind="sidecar_generated", payload_data=sidecar),
             )
 
-            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                render_settings=ModelPreviewRenderSettings(d3d11_normal_y_mode="force_no_flip"),
+            )
 
             self.assertIn("gem_base", result.preview_model.meshes[0].preview_texture_path)
             self.assertNotIn("gem_emi", result.preview_model.meshes[0].preview_texture_path)
@@ -1273,6 +1319,847 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertIn("inherits visible color from the game archive", warning_text)
             self.assertIn("no exact generated source-visible color authority", warning_text)
             self.assertIn("Runtime XML preserve", "\n".join(result.summary_lines))
+
+    def test_material_authority_report_records_source_routing_unknowns_and_risks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Blade")
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(0, 0, "Blade", [0], 0, 0, "Blade", 1, True),
+            )
+            original_sidecar_path = root / "blade.pac_xml"
+            original_sidecar_path.write_text(
+                (
+                    '<Root><Vector Name="_subMeshResources" IdBase="1190">'
+                    '<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Blade">'
+                    '<MaterialParameterTexture StringItemID="_overlayColorTexture" ItemID="3936485985222654" _name="_overlayColorTexture" Index="0"><ResourceReferencePath_ITexture _path="character/texture/original_base.dds"/></MaterialParameterTexture>'
+                    '<MaterialParameterTexture StringItemID="_detailMaskTexture" ItemID="2838988925698046" _name="_detailMaskTexture" Index="1"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0101.dds"/></MaterialParameterTexture>'
+                    "</SkinnedMeshMaterialWrapper></Vector></Root>"
+                ),
+                encoding="utf-8",
+            )
+            sidecar = (
+                '<Root><Vector Name="_subMeshResources" IdBase="1190">'
+                '<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Blade">'
+                '<MaterialParameterTexture StringItemID="_overlayColorTexture" ItemID="3936485985222654" _name="_overlayColorTexture" Index="0"><ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture StringItemID="_grimeDiffuseTextureR" ItemID="2838988925698047" _name="_grimeDiffuseTextureR" Index="1"><ResourceReferencePath_ITexture _path="character/texture/cd_texturelayer_003_0101.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterFloat StringItemID="_wetnessBoost" ItemID="34" _name="_wetnessBoost" _value="0.25" Index="2"/>'
+                '<MaterialParameterBool StringItemID="_alphaBlend" ItemID="36" _name="_alphaBlend" _value="1" Index="3"/>'
+                "</SkinnedMeshMaterialWrapper></Vector></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_base.dds",
+                    target_path="character/texture/blade_base.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS base",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=original_sidecar_path,
+                    target_path="character/modelproperty/blade.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=sidecar,
+                    note="Generated patched PAC XML for source-authority material.",
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                source_path=root / "source_blade.glb",
+                require_source_owned_colors=True,
+                material_authority_contract="true_source_authority",
+            )
+
+            report = result.material_authority_report.to_dict()
+            routing_params = {row["parameter_name"] for row in report["routing"]}
+            overlay_route = next(row for row in report["routing"] if row["parameter_name"] == "_overlayColorTexture")
+            texture_outputs = {row["target_path"]: row for row in report["texture_outputs"]}
+            unknowns = report["unknown_material_response_parameters"]
+            flags = set(report["risk_flags"])
+            sidecar_report = report["sidecar_reports"][0]
+            sidecar_output = report["sidecar_outputs"][0]
+            self.assertEqual("cdmw_material_authority_report_v1", report["schema"])
+            self.assertTrue(str(report["source_path"]).endswith("source_blade.glb"))
+            self.assertEqual("true_source_authority", report["authority_contract"])
+            self.assertIn("_overlayColorTexture", routing_params)
+            self.assertIn("_grimeDiffuseTextureR", routing_params)
+            for route in report["routing"]:
+                self.assertTrue(route["material_name"])
+                self.assertTrue(route["role"])
+                self.assertTrue(route["parameter_name"])
+                self.assertTrue(route["status"])
+                self.assertTrue(route["binding_source"])
+                self.assertTrue(route["confidence"])
+            self.assertEqual("ready", overlay_route["status"])
+            self.assertEqual("generated", overlay_route["binding_source"])
+            self.assertEqual("character/texture/blade_base.dds", overlay_route["resolved_texture_path"])
+            self.assertIn("character/texture/blade_base.dds", texture_outputs)
+            self.assertEqual(len(b"DDS base"), texture_outputs["character/texture/blade_base.dds"]["bytes"])
+            self.assertTrue(texture_outputs["character/texture/blade_base.dds"]["sha256"])
+            self.assertEqual("_wetnessBoost", unknowns[0]["parameter_name"])
+            self.assertIn("inherited_target_influence", flags)
+            self.assertIn("unknown_material_response", flags)
+            self.assertIn("missing_final_dds", flags)
+            self.assertEqual("character/modelproperty/blade.pac_xml", sidecar_output["target_path"])
+            self.assertTrue(sidecar_output["generated"])
+            self.assertEqual("sidecar_generated", sidecar_output["kind"])
+            self.assertEqual(len(sidecar), sidecar_output["bytes"])
+            self.assertTrue(sidecar_output["sha256"])
+            edit_summary = sidecar_output["pac_xml_edit_summary"]
+            self.assertEqual("source_compared", edit_summary["status"])
+            self.assertTrue(edit_summary["changed_from_source"])
+            self.assertEqual(2, edit_summary["source_texture_ref_count"])
+            self.assertEqual(2, edit_summary["payload_texture_ref_count"])
+            self.assertEqual(1, edit_summary["texture_refs_added_count"])
+            self.assertEqual(1, edit_summary["texture_refs_removed_count"])
+            self.assertEqual(1, edit_summary["texture_refs_changed_count"])
+            self.assertEqual(
+                {"_detailMaskTexture", "_grimeDiffuseTextureR", "_overlayColorTexture"},
+                set(edit_summary["changed_parameter_names"]),
+            )
+            self.assertEqual("source_compared", edit_summary["structural_compare_status"])
+            self.assertTrue(edit_summary["wrapper_order_preserved"])
+            self.assertTrue(edit_summary["wrapper_item_ids_preserved"])
+            self.assertTrue(edit_summary["submesh_bindings_preserved"])
+            self.assertTrue(edit_summary["submesh_item_ids_preserved"])
+            self.assertFalse(edit_summary["parameter_abi_preserved"])
+            self.assertEqual(1, edit_summary["source_wrapper_order_count"])
+            self.assertEqual(1, edit_summary["payload_wrapper_order_count"])
+            self.assertEqual(2, edit_summary["source_parameter_abi_count"])
+            self.assertEqual(4, edit_summary["payload_parameter_abi_count"])
+            self.assertEqual("needs_review", sidecar_output["authority_status"])
+            self.assertEqual(1, sidecar_output["wrapper_count"])
+            self.assertEqual(1, sidecar_output["submesh_binding_count"])
+            self.assertEqual(4, sidecar_output["parameter_count"])
+            self.assertEqual(1, sidecar_output["neutralization_action_count"])
+            self.assertIn("Generated patched PAC XML", sidecar_output["note"])
+            self.assertTrue(sidecar_report["inherited_influence_parameters"])
+            self.assertEqual(1, len(sidecar_report["neutralization_actions"]))
+            self.assertEqual(
+                "replace_with_source_owned_texture_or_neutral_default",
+                sidecar_report["neutralization_actions"][0]["action"],
+            )
+            self.assertTrue(sidecar_report["neutralization_actions"][0]["preserve_runtime_abi"])
+            self.assertEqual("Blade", sidecar_report["wrapper_order"][0]["wrapper_name"])
+            self.assertEqual("1190", sidecar_report["wrapper_order"][0]["item_id"])
+            self.assertEqual(4, sidecar_report["wrapper_order"][0]["parameter_count"])
+            self.assertEqual("Blade", sidecar_report["submesh_bindings"][0]["wrapper_name"])
+            self.assertEqual("1190", sidecar_report["submesh_bindings"][0]["item_id"])
+            self.assertEqual("1190", sidecar_report["submesh_bindings"][0]["id_base"])
+            self.assertEqual(4, sidecar_report["submesh_bindings"][0]["parameter_count"])
+            self.assertEqual("34", unknowns[0]["item_id"])
+            self.assertEqual("2", unknowns[0]["index"])
+            scalar_ranges = {row["parameter_name"]: row for row in sidecar_report["scalar_ranges"]}
+            self.assertEqual(0.25, scalar_ranges["_wetnessBoost"]["min"])
+            self.assertEqual(0.25, scalar_ranges["_wetnessBoost"]["max"])
+            alpha_controls = {row["parameter_name"]: row for row in sidecar_report["alpha_controls"]}
+            self.assertEqual("alpha_blend", alpha_controls["_alphaBlend"]["mode"])
+            self.assertEqual(1.0, alpha_controls["_alphaBlend"]["numeric_value"])
+            self.assertTrue(report["target_sections"])
+            self.assertIn("Material authority risk flags:", "\n".join(result.summary_lines))
+
+    def test_material_authority_report_validates_dds_payload_channels_and_roles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Blade")
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_rgba.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_n.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_colorBlendingMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_ma.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_roughnessTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_r.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_emissiveIntensityTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_bad.dds"/></MaterialParameterTexture>'
+                "</SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_rgba.dds",
+                    target_path="character/texture/blade_rgba.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(rgba=True),
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_n.dds",
+                    target_path="character/texture/blade_n.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(fourcc=b"DXT1"),
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_ma.dds",
+                    target_path="character/texture/blade_ma.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(fourcc=b"DXT1"),
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_r.dds",
+                    target_path="character/texture/blade_r.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(width=8, height=8, mips=1, fourcc=b"DXT1"),
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_bad.dds",
+                    target_path="character/texture/blade_bad.dds",
+                    kind="texture_generated",
+                    payload_data=b"not a DDS payload",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade.pac_xml",
+                    target_path="character/modelproperty/blade.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=sidecar,
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                render_settings=ModelPreviewRenderSettings(d3d11_normal_y_mode="force_no_flip"),
+            )
+
+            report = result.material_authority_report.to_dict()
+            outputs = {row["target_path"]: row for row in report["texture_outputs"]}
+            flags = set(report["risk_flags"])
+            rgba_validation = outputs["character/texture/blade_rgba.dds"]["dds_validation"]
+            rgba_conversion = outputs["character/texture/blade_rgba.dds"]["conversion_policy"]
+            rgba_visualization = outputs["character/texture/blade_rgba.dds"]["channel_visualization"][0]
+            normal_visualization = outputs["character/texture/blade_n.dds"]["channel_visualization"][0]
+            mask_visualization = outputs["character/texture/blade_ma.dds"]["channel_visualization"][0]
+            mask_conversion = outputs["character/texture/blade_ma.dds"]["conversion_policy"]
+            normal_diagnostics = {
+                row["code"]
+                for row in outputs["character/texture/blade_n.dds"]["role_diagnostics"]
+            }
+            normal_policy = next(
+                row
+                for row in outputs["character/texture/blade_n.dds"]["role_diagnostics"]
+                if row["code"] == "normal_y_policy"
+            )
+            rough_findings = {
+                row["code"]
+                for row in outputs["character/texture/blade_r.dds"]["dds_validation"]["findings"]
+            }
+
+            self.assertEqual("rgba", rgba_validation["channel_order"])
+            self.assertEqual("texture_generated", rgba_conversion["payload_kind"])
+            self.assertTrue(rgba_conversion["generated"])
+            self.assertTrue(rgba_conversion["inline_payload"])
+            self.assertIn("base_color", rgba_conversion["bound_role_classes"])
+            self.assertEqual("rgba", rgba_conversion["channel_order"])
+            self.assertEqual("visible_color", rgba_visualization["kind"])
+            self.assertEqual(["red", "green", "blue", "alpha"], [row["semantic"] for row in rgba_visualization["channels"]])
+            self.assertEqual("normal_xy", normal_visualization["kind"])
+            self.assertEqual(["normal_x", "normal_y"], [row["semantic"] for row in normal_visualization["channels"]])
+            self.assertEqual("packed_material_mask", mask_visualization["kind"])
+            self.assertIn("material", mask_conversion["bound_role_classes"])
+            self.assertEqual(("packed_material_mask",), tuple(mask_conversion["channel_visualization_kinds"]))
+            self.assertEqual(["ao", "roughness", "metallic", "alpha"], [row["semantic"] for row in mask_visualization["channels"]])
+            self.assertIn("uncompressed_channel_order", {row["code"] for row in outputs["character/texture/blade_rgba.dds"]["role_diagnostics"]})
+            self.assertEqual("BC1_UNORM", outputs["character/texture/blade_n.dds"]["dds_validation"]["texconv_format"])
+            self.assertIn("normal_y_policy", normal_diagnostics)
+            self.assertIn("normal_y_policy_unconfirmed", normal_diagnostics)
+            self.assertIn("normal_y_policy", report["preview_settings"])
+            self.assertEqual("force_no_flip", report["preview_settings"]["normal_y_policy"]["d3d11_normal_y_mode"])
+            self.assertEqual(1, report["preview_settings"]["source_preview_visible_texture_sets"])
+            self.assertGreaterEqual(report["preview_settings"]["final_preview_visible_texture_sets"], 0)
+            self.assertEqual(
+                report["preview_settings"]["source_preview_visible_texture_sets"]
+                - report["preview_settings"]["final_preview_visible_texture_sets"],
+                report["preview_settings"]["preview_visible_texture_delta"],
+            )
+            self.assertEqual("force_no_flip", normal_policy["d3d11_normal_y_mode"])
+            self.assertEqual("force_preserve_normal_y", normal_policy["effective_preview_policy"])
+            self.assertIn("normal_format_not_bc5", normal_diagnostics)
+            self.assertIn("missing_mips", rough_findings)
+            self.assertEqual("invalid", outputs["character/texture/blade_bad.dds"]["dds_validation"]["status"])
+            self.assertIn("invalid_dds_payload", flags)
+            self.assertIn("missing_dds_dimensions", flags)
+            self.assertIn("missing_dds_format", flags)
+            self.assertIn("missing_dds_mips", flags)
+            self.assertIn("normal_format_mismatch", flags)
+            self.assertIn("normal_y_policy_unconfirmed", flags)
+            self.assertLess(outputs["character/texture/blade_rgba.dds"]["visible_luma_mean"], 45.0)
+            self.assertIn("dark_visible_color_output", flags)
+
+    def test_material_authority_report_treats_emissive_intensity_texture_as_control_map(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Gem")
+            sidecar = _sidecar("character/texture/gem_base_red_emi.dds", "_emissiveIntensityTexture", "Gem")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_emi.dds",
+                    target_path="character/texture/gem_base_red_emi.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(fourcc=b"ATI2"),
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem.pac_xml",
+                    target_path="character/modelproperty/gem.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=sidecar,
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            output = result.material_authority_report.to_dict()["texture_outputs"][0]
+            diagnostic_codes = {row["code"] for row in output["role_diagnostics"]}
+            flags = set(result.material_authority_report.to_dict()["risk_flags"])
+            self.assertEqual("BC5_UNORM", output["dds_validation"]["texconv_format"])
+            self.assertEqual(("emissive_control",), tuple(output["conversion_policy"]["bound_role_classes"]))
+            self.assertEqual(("emissive_control",), tuple(output["conversion_policy"]["channel_visualization_kinds"]))
+            self.assertEqual("emissive_control", output["channel_visualization"][0]["kind"])
+            self.assertNotIn("visible_color_technical_format", diagnostic_codes)
+            self.assertNotIn("visible_color_format_mismatch", flags)
+
+    def test_material_authority_report_hashes_file_backed_dds_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Blade")
+            dds_payload = _dds()
+            dds_path = root / "blade_base.dds"
+            dds_path.write_bytes(dds_payload)
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+                '<MaterialParameterTexture _name="_overlayColorTexture">'
+                '<ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/>'
+                "</MaterialParameterTexture></SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=dds_path,
+                    target_path="character/texture/blade_base.dds",
+                    kind="texture_generated",
+                    payload_data=b"",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade.pac_xml",
+                    target_path="character/modelproperty/blade.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=sidecar,
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            output = result.material_authority_report.to_dict()["texture_outputs"][0]
+            expected_hash = hashlib.sha256(dds_payload).hexdigest()
+            self.assertEqual("source_file", output["payload_source"])
+            self.assertEqual(len(dds_payload), output["bytes"])
+            self.assertEqual(expected_hash, output["sha256"])
+            self.assertEqual(expected_hash, output["output_sha256"])
+            self.assertEqual(len(dds_payload), output["source_bytes"])
+            self.assertEqual(expected_hash, output["source_sha256"])
+
+    def test_material_authority_report_records_bgra_visible_color_mapping(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Blade")
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+                '<MaterialParameterTexture _name="_overlayColorTexture">'
+                '<ResourceReferencePath_ITexture _path="character/texture/blade_bgra.dds"/>'
+                "</MaterialParameterTexture></SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_bgra.dds",
+                    target_path="character/texture/blade_bgra.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(bgra=True),
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade.pac_xml",
+                    target_path="character/modelproperty/blade.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=sidecar,
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            output = result.material_authority_report.to_dict()["texture_outputs"][0]
+            visualization = output["channel_visualization"][0]
+            self.assertEqual("B8G8R8A8_UNORM", output["dds_validation"]["texconv_format"])
+            self.assertEqual("bgra", output["dds_validation"]["channel_order"])
+            self.assertEqual("bgra", output["conversion_policy"]["channel_order"])
+            self.assertEqual("visible_color", visualization["kind"])
+            self.assertEqual(
+                [("B", "red"), ("G", "green"), ("R", "blue"), ("A", "alpha")],
+                [(row["channel"], row["semantic"]) for row in visualization["channels"]],
+            )
+
+    def test_material_authority_report_records_render_preview_settings(self) -> None:
+        preview = _preview("Blade")
+        render_settings = ModelPreviewRenderSettings(
+            visible_texture_mode="sidecar_visible_first",
+            render_diagnostic_mode="source_pbr_preview",
+            alpha_handling_mode="show_alpha",
+            d3d11_view_mode="game_outdoor",
+            d3d11_normal_y_mode="force_no_flip",
+            d3d11_roughness_bias=0.25,
+            d3d11_metalness_scale=0.9,
+            d3d11_emissive_gain=1.7,
+            flip_texture_v=True,
+            disable_all_support_maps=True,
+        )
+
+        result = build_final_package_preview(preview, render_settings=render_settings)
+
+        settings = result.material_authority_report.to_dict()["preview_settings"]
+        self.assertEqual("provided", settings["render_settings_source"])
+        self.assertEqual(1, settings["source_preview_mesh_parts"])
+        self.assertEqual(1, settings["final_preview_mesh_parts"])
+        self.assertEqual(1, settings["source_preview_visible_texture_sets"])
+        self.assertEqual(0, settings["final_preview_visible_texture_sets"])
+        self.assertEqual(1, settings["preview_visible_texture_delta"])
+        self.assertEqual("sidecar_visible_first", settings["visible_texture_mode"])
+        self.assertEqual("source_pbr_preview", settings["render_diagnostic_mode"])
+        self.assertEqual("show_alpha", settings["alpha_handling_mode"])
+        self.assertEqual("game_outdoor", settings["d3d11_view_mode"])
+        self.assertEqual("force_no_flip", settings["d3d11_normal_y_mode"])
+        self.assertEqual("force_no_flip", settings["normal_y_policy"]["d3d11_normal_y_mode"])
+        self.assertTrue(settings["flip_texture_v"])
+        self.assertTrue(settings["disable_all_support_maps"])
+        self.assertAlmostEqual(0.25, settings["d3d11_roughness_bias"])
+        self.assertAlmostEqual(0.9, settings["d3d11_metalness_scale"])
+        self.assertAlmostEqual(1.7, settings["d3d11_emissive_gain"])
+
+    def test_material_authority_report_flags_base_texture_reused_as_emissive(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Blade")
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_emissiveIntensityTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/></MaterialParameterTexture>'
+                "</SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_base.dds",
+                    target_path="character/texture/blade_base.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(fourcc=b"DXT1"),
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade.pac_xml",
+                    target_path="character/modelproperty/blade.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=sidecar,
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            report = result.material_authority_report.to_dict()
+            output = report["texture_outputs"][0]
+            diagnostic_codes = {row["code"] for row in output["role_diagnostics"]}
+            flags = set(report["risk_flags"])
+            self.assertEqual(("Base / Color", "Emissive", "Normal"), output["bound_roles"])
+            self.assertIn("_normalTexture", output["bound_parameters"])
+            self.assertIn("base_texture_used_as_emissive", diagnostic_codes)
+            self.assertIn("texture_bound_to_visible_and_technical_roles", diagnostic_codes)
+            self.assertIn("multi_role_texture_binding", diagnostic_codes)
+            self.assertIn("base_texture_used_as_emissive", flags)
+            self.assertIn("visible_technical_role_conflict", flags)
+            self.assertIn("ambiguous_texture_role_binding", flags)
+
+    def test_material_authority_report_records_source_channel_gaps(self) -> None:
+        preview = _preview("Glass")
+        mesh = preview.preview_model.meshes[0]
+        mesh.preview_texture_path = "glass_base.png"
+        mesh.preview_alpha_mode = "BLEND"
+        mesh.preview_native_material_overrides = {"emissive_intensity": 2.0}
+
+        result = build_final_package_preview(preview)
+
+        report = result.material_authority_report.to_dict()
+        source_row = report["source_materials"][0]
+        diagnostic_codes = {row["code"] for row in source_row["diagnostics"]}
+        classes = {row["class"] for row in source_row["material_classification"]}
+        flags = set(report["risk_flags"])
+        section = source_row["sections"][0]
+        self.assertEqual(1, source_row["section_count"])
+        self.assertEqual(0, section["section_index"])
+        self.assertEqual(-1, section["source_submesh_index"])
+        self.assertEqual("Glass", section["section_name"])
+        self.assertEqual(3, section["vertex_count"])
+        self.assertEqual(1, section["face_count"])
+        self.assertTrue(section["has_uvs"])
+        self.assertFalse(section["has_normals"])
+        self.assertEqual((0.0, 0.0, 0.0), section["bounds_min"])
+        self.assertEqual((1.0, 1.0, 0.0), section["bounds_max"])
+        self.assertNotIn("missing_source_material_sections", flags)
+        self.assertIn("source_alpha_without_opacity_texture", diagnostic_codes)
+        self.assertIn("source_emissive_scalar_no_texture", diagnostic_codes)
+        self.assertIn("source_missing_roughness", diagnostic_codes)
+        self.assertIn("source_missing_metalness", diagnostic_codes)
+        self.assertNotIn("emissive", source_row["missing_channels"])
+        self.assertIn("roughness", source_row["missing_channels"])
+        self.assertIn("metalness", source_row["missing_channels"])
+        self.assertIn("transparent_or_cutout", classes)
+        self.assertIn("emissive", classes)
+        self.assertIn("source_alpha_missing_opacity", flags)
+        self.assertIn("source_missing_roughness_metalness", flags)
+        self.assertIn("source_emissive_scalar_no_texture", flags)
+
+    def test_material_authority_report_records_source_texture_facts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dds_path = root / "source_base.dds"
+            dds_path.write_bytes(_dds(width=8, height=4))
+            preview = _preview("Blade", texture_path=str(dds_path))
+
+            result = build_final_package_preview(preview, source_path=root / "source.glb")
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            facts = {row["slot_kind"]: row for row in source_row["texture_facts"]}
+            self.assertIn("base", facts)
+            self.assertEqual("dds", facts["base"]["image_format"])
+            self.assertEqual((8, 4), tuple(facts["base"]["resolution"]))
+            self.assertEqual("srgb", facts["base"]["color_space"])
+            self.assertEqual("preview_texture_path", facts["base"]["source"])
+
+    def test_material_authority_report_records_source_texture_channel_stats(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            png_path = root / "source_base.png"
+            image = Image.new("RGBA", (2, 1))
+            image.putdata([(64, 128, 255, 255), (128, 128, 0, 64)])
+            image.save(png_path)
+            preview = _preview("Blade", texture_path=str(png_path))
+
+            result = build_final_package_preview(preview, source_path=root / "source.glb")
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            facts = {row["slot_kind"]: row for row in source_row["texture_facts"]}
+            stats = dict(facts["base"]["channel_stats"])
+            self.assertEqual("available", facts["base"]["channel_stats_status"])
+            self.assertAlmostEqual(96 / 255.0, stats["r_mean"], places=4)
+            self.assertAlmostEqual(128 / 255.0, stats["g_mean"], places=4)
+            self.assertAlmostEqual(127.5 / 255.0, stats["b_mean"], places=4)
+            self.assertAlmostEqual(159.5 / 255.0, stats["a_mean"], places=4)
+            self.assertAlmostEqual(64 / 255.0, stats["a_min"], places=4)
+
+    def test_material_authority_report_uses_base_alpha_texture_stats_as_opacity_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            png_path = root / "glass_base.png"
+            Image.new("RGBA", (2, 2), (90, 120, 160, 96)).save(png_path)
+            preview = _preview("Glass", texture_path=str(png_path))
+            preview.preview_model.meshes[0].preview_alpha_mode = "BLEND"
+
+            result = build_final_package_preview(preview, source_path=root / "glass.glb")
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            diagnostic_codes = {row["code"] for row in source_row["diagnostics"]}
+            self.assertIn("opacity", source_row["detected_channels"])
+            self.assertIn("source_alpha_from_texture_channel", diagnostic_codes)
+            self.assertNotIn("source_alpha_without_opacity_texture", diagnostic_codes)
+            self.assertNotIn("source_alpha_missing_opacity", report["risk_flags"])
+
+    def test_material_authority_report_treats_material_mask_alpha_as_technical_source_channel(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_path = root / "plain_base.png"
+            material_path = root / "plain_metallicRoughness.png"
+            Image.new("RGBA", (2, 2), (220, 170, 40, 255)).save(base_path)
+            Image.new("RGBA", (2, 2), (20, 80, 240, 64)).save(material_path)
+            preview = _preview("PlainSurface", texture_path=str(base_path))
+            mesh = preview.preview_model.meshes[0]
+            mesh.preview_material_texture_path = str(material_path)
+            mesh.preview_material_texture_subtype = "metallic_roughness"
+            mesh.preview_material_texture_packed_channels = ("roughness", "metallic")
+
+            result = build_final_package_preview(preview, source_path=root / "plain.glb")
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            diagnostics = {row["code"]: row for row in source_row["diagnostics"]}
+            self.assertIn("source_packed_a_channel_technical", diagnostics)
+            self.assertEqual("material", diagnostics["source_packed_a_channel_technical"]["slot_kind"])
+            self.assertNotIn("source_alpha_from_texture_channel", diagnostics)
+            self.assertNotIn("opacity", source_row["detected_channels"])
+            self.assertNotIn("source_alpha_missing_opacity", report["risk_flags"])
+
+    def test_material_authority_report_classifies_source_from_texture_channel_stats(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_path = root / "plain_base.png"
+            material_path = root / "plain_metallicRoughness.png"
+            Image.new("RGBA", (2, 2), (220, 170, 40, 255)).save(base_path)
+            Image.new("RGBA", (2, 2), (20, 80, 240, 255)).save(material_path)
+            preview = _preview("PlainSurface", texture_path=str(base_path))
+            mesh = preview.preview_model.meshes[0]
+            mesh.preview_material_texture_path = str(material_path)
+            mesh.preview_material_texture_subtype = "metallic_roughness"
+            mesh.preview_material_texture_packed_channels = ("roughness", "metallic")
+
+            result = build_final_package_preview(preview, source_path=root / "plain.glb")
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            classes = {row["class"]: row for row in source_row["material_classification"]}
+            self.assertIn("metal", classes)
+            self.assertIn("gold", classes)
+            self.assertIn("B channel mean", classes["metal"]["evidence"])
+            self.assertIn("yellow base texture mean", classes["gold"]["evidence"])
+
+    def test_material_authority_report_reads_source_texture_facts_from_zip_member(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive_path = root / "source_textures.zip"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                archive.writestr("textures/source_base.dds", _dds(width=16, height=8))
+            preview = _preview("Blade", texture_path=f"{archive_path}::textures/source_base.dds")
+
+            result = build_final_package_preview(preview, source_path=archive_path)
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            facts = {row["slot_kind"]: row for row in source_row["texture_facts"]}
+            self.assertEqual("dds", facts["base"]["image_format"])
+            self.assertEqual((16, 8), tuple(facts["base"]["resolution"]))
+            self.assertEqual("srgb", facts["base"]["color_space"])
+
+    def test_material_authority_report_reads_source_texture_stats_from_zip_member(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+            import io
+
+            root = Path(temp_dir)
+            archive_path = root / "source_textures.zip"
+            buffer = io.BytesIO()
+            Image.new("RGBA", (2, 2), (20, 40, 60, 128)).save(buffer, format="PNG")
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                archive.writestr("textures/source_base.png", buffer.getvalue())
+            preview = _preview("Blade", texture_path=f"{archive_path}::textures/source_base.png")
+
+            result = build_final_package_preview(preview, source_path=archive_path)
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            facts = {row["slot_kind"]: row for row in source_row["texture_facts"]}
+            stats = dict(facts["base"]["channel_stats"])
+            self.assertEqual("png", facts["base"]["image_format"])
+            self.assertEqual((2, 2), tuple(facts["base"]["resolution"]))
+            self.assertEqual("available", facts["base"]["channel_stats_status"])
+            self.assertAlmostEqual(20 / 255.0, stats["r_mean"], places=4)
+            self.assertAlmostEqual(128 / 255.0, stats["a_mean"], places=4)
+
+    def test_material_authority_report_records_vertex_color_source_channels(self) -> None:
+        preview = _preview("VertexMetal")
+        mesh = preview.preview_model.meshes[0]
+        mesh.preview_texture_path = ""
+        mesh.preview_vertex_color_mean = (0.90, 0.62, 0.14)
+        mesh.preview_vertex_alpha_mean = 0.56
+        mesh.preview_vertex_alpha_min = 0.38
+        mesh.preview_native_material_overrides = {"metalness": 1.0, "roughness": 0.34}
+
+        result = build_final_package_preview(preview)
+
+        report = result.material_authority_report.to_dict()
+        source_row = report["source_materials"][0]
+        profile = source_row["channel_profile"]
+        diagnostic_codes = {row["code"] for row in source_row["diagnostics"]}
+        classes = {row["class"] for row in source_row["material_classification"]}
+        self.assertEqual((0.9, 0.62, 0.14), source_row["vertex_color_factor"])
+        self.assertEqual((0.56, 0.38), source_row["vertex_alpha"])
+        self.assertIn("base_color_scalar", source_row["detected_channels"])
+        self.assertIn("opacity_scalar", source_row["detected_channels"])
+        self.assertIn("source_vertex_color_present", diagnostic_codes)
+        self.assertIn("source_vertex_alpha_opacity", diagnostic_codes)
+        self.assertEqual((0.9, 0.62, 0.14), profile["vertex_color_factor"])
+        self.assertIn("gold", classes)
+        self.assertIn("transparent_or_cutout", classes)
+
+    def test_material_authority_report_classifies_named_source_material_families(self) -> None:
+        def mesh(name: str, *, double_sided: bool = False, alpha_mode: str = "", metalness: float | None = None) -> ModelPreviewMesh:
+            overrides = {}
+            if metalness is not None:
+                overrides["metalness"] = metalness
+            return ModelPreviewMesh(
+                material_name=name,
+                positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                indices=[0, 1, 2],
+                preview_texture_path=f"{name.lower()}_base.png",
+                preview_alpha_mode=alpha_mode,
+                preview_double_sided=double_sided,
+                preview_native_material_overrides=overrides,
+            )
+
+        preview = MeshImportPreviewResult(
+            rebuilt_data=b"not a parsed mesh in this focused test",
+            parsed_mesh=ParsedMesh(path="character/model/source_families.pac", format="pac"),
+            preview_model=ModelPreviewData(
+                path="source_families.glb",
+                meshes=[
+                    mesh("PaintedMetalPanel", metalness=1.0),
+                    mesh("CopperWire", metalness=1.0),
+                    mesh("FlagCloth", double_sided=True),
+                    mesh("LeatherWoodGrip"),
+                    mesh("StoneBlock"),
+                    mesh("OrganicFaceSkin"),
+                    mesh("CrystalGlassLens", alpha_mode="BLEND"),
+                ],
+            ),
+            summary_lines=[],
+        )
+
+        result = build_final_package_preview(preview)
+
+        by_name = {
+            row["material_name"]: {item["class"] for item in row["material_classification"]}
+            for row in result.material_authority_report.to_dict()["source_materials"]
+        }
+        self.assertIn("metal", by_name["PaintedMetalPanel"])
+        self.assertIn("painted_metal", by_name["PaintedMetalPanel"])
+        self.assertIn("copper", by_name["CopperWire"])
+        self.assertIn("cloth", by_name["FlagCloth"])
+        self.assertIn("leather", by_name["LeatherWoodGrip"])
+        self.assertIn("wood", by_name["LeatherWoodGrip"])
+        self.assertIn("stone", by_name["StoneBlock"])
+        self.assertIn("skin_organic", by_name["OrganicFaceSkin"])
+        self.assertIn("glass_crystal", by_name["CrystalGlassLens"])
+        self.assertIn("transparent_or_cutout", by_name["CrystalGlassLens"])
+
+    def test_material_authority_report_uses_source_material_name_for_mapped_runtime_section(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("CD_PHM_02_Sword_0036")
+            mesh = preview.preview_model.meshes[0]
+            mesh.source_submesh_index = 1
+            mesh.preview_texture_path = "gem_outside_base.png"
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(
+                    0,
+                    0,
+                    "cd_phm_02_sword_0036",
+                    [1],
+                    0,
+                    0,
+                    "",
+                    3,
+                    False,
+                    runtime_material_name="CD_PHM_02_Sword_0036",
+                    source_material_name="Gem_outside",
+                ),
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_base.dds",
+                    target_path="character/texture/gem_base.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(),
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem.pac_xml",
+                    target_path="character/modelproperty/gem.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=_sidecar(
+                        "character/texture/gem_base.dds",
+                        "_overlayColorTexture",
+                        "CD_PHM_02_Sword_0036",
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+        report = result.material_authority_report.to_dict()
+        source_row = report["source_materials"][0]
+        output = report["texture_outputs"][0]
+        classes = {row["class"] for row in source_row["material_classification"]}
+        self.assertEqual("Gem_outside", source_row["material_name"])
+        self.assertEqual("CD_PHM_02_Sword_0036", source_row["runtime_material_name"])
+        self.assertEqual("Gem_outside", source_row["sections"][0]["section_name"])
+        self.assertEqual(("Gem_outside",), tuple(output["conversion_policy"]["source_material_names"]))
+        self.assertIn("glass_crystal", classes)
+        self.assertNotIn("metal", classes)
+
+    def test_material_authority_report_flags_spec_gloss_used_as_base_color(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Blade")
+            mesh = preview.preview_model.meshes[0]
+            mesh.preview_texture_path = "blade_specularGlossiness.png"
+            mesh.preview_material_texture_path = "blade_specularGlossiness.png"
+            mesh.preview_material_texture_subtype = "specular_glossiness"
+            mesh.preview_material_texture_inputs = (
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    parameter_name="_specularGlossinessTexture",
+                    preview_texture_path="blade_specularGlossiness.png",
+                    semantic_type="material",
+                    semantic_subtype="specular_glossiness",
+                    packed_channels=("specular", "glossiness"),
+                    visualized=True,
+                ),
+            )
+            sidecar = (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Blade">'
+                '<MaterialParameterTexture _name="_colorBlendingMaskTexture">'
+                '<ResourceReferencePath_ITexture _path="character/texture/blade_ma.dds"/>'
+                "</MaterialParameterTexture></SkinnedMeshMaterialWrapper></Root>"
+            ).encode("utf-8")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_ma.dds",
+                    target_path="character/texture/blade_ma.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(fourcc=b"DXT1"),
+                    note="Generated packed material mask from source spec/gloss workflow.",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade.pac_xml",
+                    target_path="character/modelproperty/blade.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=sidecar,
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+        report = result.material_authority_report.to_dict()
+        source_row = report["source_materials"][0]
+        mask_policy = {
+            row["target_path"]: row["conversion_policy"]
+            for row in report["texture_outputs"]
+        }["character/texture/blade_ma.dds"]
+        diagnostic_codes = {row["code"] for row in source_row["diagnostics"]}
+        flags = set(report["risk_flags"])
+        self.assertEqual("specular_glossiness", source_row["channel_profile"]["workflow"])
+        self.assertIn("specular", source_row["detected_channels"])
+        self.assertIn("glossiness", source_row["detected_channels"])
+        self.assertIn("roughness", source_row["detected_channels"])
+        self.assertIn("metalness", source_row["detected_channels"])
+        self.assertEqual(("metalness", "roughness"), source_row["channel_profile"]["derived_channels"])
+        self.assertNotIn("roughness", source_row["missing_channels"])
+        self.assertNotIn("metalness", source_row["missing_channels"])
+        self.assertIn("source_spec_gloss_derived_material_channels", diagnostic_codes)
+        self.assertNotIn("source_missing_roughness", diagnostic_codes)
+        self.assertNotIn("source_missing_metalness", diagnostic_codes)
+        self.assertIn("source_spec_gloss_texture_as_base_color", diagnostic_codes)
+        self.assertEqual(("specular_glossiness",), mask_policy["source_workflows"])
+        self.assertEqual(("metalness", "roughness"), mask_policy["source_derived_channels"])
+        self.assertTrue(mask_policy["spec_gloss_conversion"])
+        self.assertIn("glossiness is inverted to roughness", mask_policy["spec_gloss_conversion_note"])
+        self.assertIn("source_spec_gloss_base_conflict", flags)
 
     def test_true_source_contract_blocks_inherited_stock_layer_and_support(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

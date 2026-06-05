@@ -2326,6 +2326,12 @@ float4 ps_dot(DotOut input) : SV_Target {
 }
 )";
 
+static const char* kOverlayPixelShaderSource = R"(
+float4 ps_overlay(VSOut input) : SV_Target {
+    return float4(saturate(input.color), 1.0);
+}
+)";
+
 class Renderer {
 public:
     Renderer(
@@ -3208,8 +3214,13 @@ private:
         if (FAILED(device_->CreateBuffer(&desc, &init, buffer.GetAddressOf()))) return;
         UINT stride = kVertexStrideBytes;
         UINT offset = 0;
+        context_->IASetInputLayout(input_layout_.Get());
         context_->IASetVertexBuffers(0, 1, buffer.GetAddressOf(), &stride, &offset);
         context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+        context_->VSSetShader(vertex_shader_.Get(), nullptr, 0);
+        if (overlay_pixel_shader_) {
+            context_->PSSetShader(overlay_pixel_shader_.Get(), nullptr, 0);
+        }
         context_->OMSetDepthStencilState(no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
         ConstantBuffer constants{};
         DirectX::XMStoreFloat4x4(&constants.mvp, mvp);
@@ -3225,6 +3236,7 @@ private:
         ID3D11ShaderResourceView* clear_srvs[kTotalSrvCount] = {};
         context_->PSSetShaderResources(0, kTotalSrvCount, clear_srvs);
         context_->Draw(static_cast<UINT>(vertices.size() / 23u), 0);
+        context_->PSSetShader(pixel_shader_.Get(), nullptr, 0);
         context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     }
 
@@ -3240,8 +3252,13 @@ private:
         if (FAILED(device_->CreateBuffer(&desc, &init, buffer.GetAddressOf()))) return;
         UINT stride = kVertexStrideBytes;
         UINT offset = 0;
+        context_->IASetInputLayout(input_layout_.Get());
         context_->IASetVertexBuffers(0, 1, buffer.GetAddressOf(), &stride, &offset);
         context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        context_->VSSetShader(vertex_shader_.Get(), nullptr, 0);
+        if (overlay_pixel_shader_) {
+            context_->PSSetShader(overlay_pixel_shader_.Get(), nullptr, 0);
+        }
         context_->OMSetDepthStencilState(no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
         ConstantBuffer constants{};
         DirectX::XMStoreFloat4x4(&constants.mvp, mvp);
@@ -3257,6 +3274,7 @@ private:
         ID3D11ShaderResourceView* clear_srvs[kTotalSrvCount] = {};
         context_->PSSetShaderResources(0, kTotalSrvCount, clear_srvs);
         context_->Draw(static_cast<UINT>(vertices.size() / 23u), 0);
+        context_->PSSetShader(pixel_shader_.Get(), nullptr, 0);
     }
 
     void draw_workspace_grid(const PreviewRenderView& view, const DirectX::XMMATRIX& world_view_projection) {
@@ -3350,6 +3368,45 @@ private:
                 add_triangle(o0, i1, i0, r, g, blue);
             }
         };
+        auto add_axis_label = [&](const char* label, ScreenPoint end, ScreenPoint center, const DirectX::XMFLOAT3& color, bool active) {
+            if (!label || !label[0]) return;
+            const float dx = end.x - center.x;
+            const float dy = end.y - center.y;
+            const float length = std::max(1.0f, std::hypot(dx, dy));
+            const float ux = dx / length;
+            const float uy = dy / length;
+            const float size = active ? 20.0f : 18.0f;
+            ScreenPoint label_center{
+                std::clamp(end.x + ux * 28.0f, view.viewport.TopLeftX + size, view.viewport.TopLeftX + view.viewport.Width - size),
+                std::clamp(end.y + uy * 28.0f, view.viewport.TopLeftY + size, view.viewport.TopLeftY + view.viewport.Height - size)
+            };
+            auto glyph_point = [&](float x, float y) -> ScreenPoint {
+                return ScreenPoint{
+                    label_center.x + (x - 0.5f) * size,
+                    label_center.y + (y - 0.5f) * size
+                };
+            };
+            auto add_label_line = [&](float x0, float y0, float x1, float y1, float width, float r, float g, float blue) {
+                add_thick_line(glyph_point(x0, y0), glyph_point(x1, y1), width, r, g, blue);
+            };
+            auto draw_pass = [&](float width, float r, float g, float blue) {
+                if (label[0] == 'X') {
+                    add_label_line(0.08f, 0.08f, 0.92f, 0.92f, width, r, g, blue);
+                    add_label_line(0.92f, 0.08f, 0.08f, 0.92f, width, r, g, blue);
+                } else if (label[0] == 'Y') {
+                    add_label_line(0.08f, 0.08f, 0.50f, 0.48f, width, r, g, blue);
+                    add_label_line(0.92f, 0.08f, 0.50f, 0.48f, width, r, g, blue);
+                    add_label_line(0.50f, 0.48f, 0.50f, 0.92f, width, r, g, blue);
+                } else if (label[0] == 'Z') {
+                    add_label_line(0.10f, 0.10f, 0.90f, 0.10f, width, r, g, blue);
+                    add_label_line(0.90f, 0.10f, 0.10f, 0.90f, width, r, g, blue);
+                    add_label_line(0.10f, 0.90f, 0.90f, 0.90f, width, r, g, blue);
+                }
+            };
+            draw_pass(active ? 9.0f : 8.0f, 0.92f, 0.96f, 1.0f);
+            draw_pass(active ? 6.0f : 5.2f, 0.0f, 0.0f, 0.0f);
+            draw_pass(active ? 3.8f : 3.2f, color.x, color.y, color.z);
+        };
         auto axis_color = [](const std::string& axis) -> DirectX::XMFLOAT3 {
             if (axis == "x") return DirectX::XMFLOAT3(1.0f, 0.05f, 0.03f);
             if (axis == "y") return DirectX::XMFLOAT3(0.0f, 1.0f, 0.24f);
@@ -3366,6 +3423,7 @@ private:
             add_disc(segment.second, active ? 16.0f : 14.5f, 0.92f, 0.96f, 1.0f);
             add_disc(segment.second, active ? 13.0f : 11.7f, 0.0f, 0.0f, 0.0f);
             add_disc(segment.second, active ? 10.8f : 9.6f, color.x, color.y, color.z);
+            add_axis_label(axis == "x" ? "X" : (axis == "y" ? "Y" : "Z"), segment.second, segment.first, color, active);
         }
 
         const bool screen_active = alignment_.drag_axis == "screen" || alignment_.hover_axis == "screen";
@@ -4693,8 +4751,8 @@ private:
     }
 
     void draw_alignment_overlay_gdi() const {
-        // Text labels are omitted in the native path to keep interaction fully
-        // inside the D3D frame. The visible handles are rendered before Present.
+        // Text labels stay in the D3D frame so interaction remains stable.
+        // The visible handles are rendered before Present.
     }
 
     int source_part_at(int x, int y, float radius_pixels) const {
@@ -5934,12 +5992,18 @@ private:
         std::string shader_error;
         ComPtr<ID3DBlob> vs_blob;
         ComPtr<ID3DBlob> ps_blob;
+        ComPtr<ID3DBlob> overlay_ps_blob;
         if (FAILED(compile_shader(kShaderSource, "vs_main", "vs_4_0", vs_blob.GetAddressOf(), shader_error))) {
             stats_.skipped.push_back("vertex shader compile failed: " + shader_error);
             return false;
         }
         if (FAILED(compile_shader(kShaderSource, "ps_main", "ps_4_0", ps_blob.GetAddressOf(), shader_error))) {
             stats_.skipped.push_back("pixel shader compile failed: " + shader_error);
+            return false;
+        }
+        const std::string overlay_shader_source = std::string(kShaderSourceCommon) + kOverlayPixelShaderSource;
+        if (FAILED(compile_shader(overlay_shader_source, "ps_overlay", "ps_4_0", overlay_ps_blob.GetAddressOf(), shader_error))) {
+            stats_.skipped.push_back("overlay pixel shader compile failed: " + shader_error);
             return false;
         }
         ComPtr<ID3DBlob> dot_vs_blob;
@@ -5955,6 +6019,8 @@ private:
         HRESULT hr = device_->CreateVertexShader(vs_blob->GetBufferPointer(), vs_blob->GetBufferSize(), nullptr, vertex_shader_.GetAddressOf());
         if (FAILED(hr)) return false;
         hr = device_->CreatePixelShader(ps_blob->GetBufferPointer(), ps_blob->GetBufferSize(), nullptr, pixel_shader_.GetAddressOf());
+        if (FAILED(hr)) return false;
+        hr = device_->CreatePixelShader(overlay_ps_blob->GetBufferPointer(), overlay_ps_blob->GetBufferSize(), nullptr, overlay_pixel_shader_.GetAddressOf());
         if (FAILED(hr)) return false;
         hr = device_->CreateVertexShader(dot_vs_blob->GetBufferPointer(), dot_vs_blob->GetBufferSize(), nullptr, vertex_dot_shader_.GetAddressOf());
         if (FAILED(hr)) return false;
@@ -6698,6 +6764,7 @@ private:
     ComPtr<ID3D11DepthStencilView> depth_view_;
     ComPtr<ID3D11VertexShader> vertex_shader_;
     ComPtr<ID3D11PixelShader> pixel_shader_;
+    ComPtr<ID3D11PixelShader> overlay_pixel_shader_;
     ComPtr<ID3D11InputLayout> input_layout_;
     ComPtr<ID3D11VertexShader> vertex_dot_shader_;
     ComPtr<ID3D11PixelShader> vertex_dot_pixel_shader_;
@@ -6941,11 +7008,14 @@ int wmain(int argc, wchar_t** argv) {
         std::string shader_error;
         ComPtr<ID3DBlob> vs_blob;
         ComPtr<ID3DBlob> ps_blob;
+        ComPtr<ID3DBlob> overlay_ps_blob;
         ComPtr<ID3DBlob> dot_vs_blob;
         ComPtr<ID3DBlob> dot_ps_blob;
+        const std::string overlay_shader_source = std::string(kShaderSourceCommon) + kOverlayPixelShaderSource;
         const bool shader_ok =
             SUCCEEDED(compile_shader(kShaderSource, "vs_main", "vs_4_0", vs_blob.GetAddressOf(), shader_error))
             && SUCCEEDED(compile_shader(kShaderSource, "ps_main", "ps_4_0", ps_blob.GetAddressOf(), shader_error))
+            && SUCCEEDED(compile_shader(overlay_shader_source, "ps_overlay", "ps_4_0", overlay_ps_blob.GetAddressOf(), shader_error))
             && SUCCEEDED(compile_shader(kVertexDotShaderSource, "vs_dot", "vs_4_0", dot_vs_blob.GetAddressOf(), shader_error))
             && SUCCEEDED(compile_shader(kVertexDotShaderSource, "ps_dot", "ps_4_0", dot_ps_blob.GetAddressOf(), shader_error));
         if (FAILED(hr)) {

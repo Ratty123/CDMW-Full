@@ -102,6 +102,69 @@ class SceneMaterialTextureSlot:
     parameters: tuple[PreviewMaterialParameterInput, ...] = ()
 
 
+@dataclass(slots=True, frozen=True)
+class ExternalMaterialTextureInventory:
+    slot_kind: str = ""
+    parameter_name: str = ""
+    texture_path: str = ""
+    texture_name: str = ""
+    image_format: str = ""
+    resolution: tuple[int, int] = ()
+    channel_stats: tuple[tuple[str, float], ...] = ()
+    semantic_type: str = ""
+    semantic_subtype: str = ""
+    packed_channels: tuple[str, ...] = ()
+    color_space: str = ""
+    texcoord: int = 0
+    uv_transform: tuple[float, ...] = ()
+    source: str = ""
+    confidence: str = ""
+    evidence: tuple[str, ...] = ()
+
+
+@dataclass(slots=True, frozen=True)
+class ExternalMaterialClassEvidence:
+    material_class: str = "unknown"
+    confidence: float = 0.0
+    evidence: tuple[str, ...] = ()
+
+
+@dataclass(slots=True, frozen=True)
+class ExternalMaterialSectionInventory:
+    section_index: int = -1
+    section_name: str = ""
+    material_name: str = ""
+    vertex_count: int = 0
+    face_count: int = 0
+    has_uvs: bool = False
+    has_normals: bool = False
+    has_tangents: bool = False
+    has_skinning: bool = False
+    texture_texcoord_sets: tuple[int, ...] = ()
+    bounds_min: tuple[float, ...] = ()
+    bounds_max: tuple[float, ...] = ()
+
+
+@dataclass(slots=True, frozen=True)
+class ExternalMaterialInventory:
+    material_index: int = -1
+    material_name: str = ""
+    submesh_indices: tuple[int, ...] = ()
+    submesh_names: tuple[str, ...] = ()
+    sections: tuple[ExternalMaterialSectionInventory, ...] = ()
+    texture_slots: tuple[ExternalMaterialTextureInventory, ...] = ()
+    pbr_workflow: str = ""
+    alpha_mode: str = ""
+    double_sided: bool = False
+    scalar_hints: tuple[tuple[str, float], ...] = ()
+    color_factor: tuple[float, float, float] = ()
+    vertex_color_factor: tuple[float, float, float] = ()
+    vertex_alpha: tuple[float, float] = ()
+    emissive_color: tuple[float, float, float] = ()
+    material_classes: tuple[ExternalMaterialClassEvidence, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+
 @dataclass(slots=True)
 class ExternalModelAudit:
     source_path: str = ""
@@ -115,6 +178,8 @@ class ExternalModelAudit:
     false_positive: bool = False
     mixed_model: bool = False
     evidence: tuple[str, ...] = ()
+    material_inventory: tuple[ExternalMaterialInventory, ...] = ()
+    material_classes: tuple[ExternalMaterialClassEvidence, ...] = ()
 
 
 @dataclass(slots=True)
@@ -826,12 +891,15 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
         if not str(getattr(mesh, "path", "") or "").strip():
             mesh.path = source_path.as_posix()
         material_slots = _obj_material_texture_slots(source_path)
+        material_parameters = _obj_material_parameters(source_path)
         material_slots_by_lower = {str(name or "").strip().lower(): slots for name, slots in material_slots.items()}
+        material_parameters_by_lower = {str(name or "").strip().lower(): parameters for name, parameters in material_parameters.items()}
         for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
             material_key = str(getattr(submesh, "material", "") or "").strip()
             slots = material_slots.get(material_key) or material_slots_by_lower.get(material_key.lower()) or ()
-            if slots:
-                _apply_scene_material_slots_to_submesh(submesh, slots, confidence="obj_mtl")
+            parameters = material_parameters.get(material_key) or material_parameters_by_lower.get(material_key.lower()) or ()
+            if slots or parameters:
+                _apply_scene_material_slots_to_submesh(submesh, slots, material_parameters=parameters, confidence="obj_mtl")
         discovered_textures = discover_scene_texture_files(source_path, mesh)
         _attach_fallback_texture_references(mesh, discovered_textures)
         attached_slots = _attach_sibling_material_texture_slots(mesh, discovered_textures)
@@ -918,6 +986,7 @@ def audit_external_model(source_path: str | Path, scene_result: SceneImportResul
     source = Path(source_path)
     mesh = scene_result.mesh
     submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    material_inventory = _build_external_material_inventory(scene_result)
     material_names = {
         str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or "").strip()
         for submesh in submeshes
@@ -935,7 +1004,21 @@ def audit_external_model(source_path: str | Path, scene_result: SceneImportResul
         for binding in tuple(getattr(scene_result, "material_bindings", ()) or ())
         for slot_kind, _path in tuple(getattr(binding, "texture_slots", ()) or ())
     ]
-    texture_slots = tuple(sorted(set(binding_slots + [_audit_texture_slot_from_path(path) for path in texture_paths if _audit_texture_slot_from_path(path)])))
+    inventory_slots = [
+        slot.slot_kind
+        for material in material_inventory
+        for slot in tuple(material.texture_slots or ())
+        if str(slot.slot_kind or "").strip()
+    ]
+    texture_slots = tuple(
+        sorted(
+            set(
+                binding_slots
+                + inventory_slots
+                + [_audit_texture_slot_from_path(path) for path in texture_paths if _audit_texture_slot_from_path(path)]
+            )
+        )
+    )
     workflows = tuple(
         sorted(
             {
@@ -996,6 +1079,12 @@ def audit_external_model(source_path: str | Path, scene_result: SceneImportResul
         evidence.append("texture roles " + ", ".join(texture_slots[:8]))
     if workflows:
         evidence.append("PBR " + ", ".join(workflows))
+    material_classes = _aggregate_external_material_classes(material_inventory)
+    if material_classes:
+        evidence.append(
+            "material classes "
+            + ", ".join(f"{item.material_class}:{item.confidence:.0%}" for item in material_classes[:6])
+        )
     return ExternalModelAudit(
         source_path=str(source),
         verified_category=category,
@@ -1008,7 +1097,815 @@ def audit_external_model(source_path: str | Path, scene_result: SceneImportResul
         false_positive=false_positive,
         mixed_model=len(mixed_categories) > 1 or false_positive,
         evidence=tuple(evidence),
+        material_inventory=material_inventory,
+        material_classes=material_classes,
     )
+
+
+def _build_external_material_inventory(scene_result: SceneImportResult) -> tuple[ExternalMaterialInventory, ...]:
+    mesh = getattr(scene_result, "mesh", None)
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    bindings = tuple(getattr(scene_result, "material_bindings", ()) or ())
+    if bindings:
+        groups: OrderedDict[tuple[int, str], list[ImportedMaterialBinding]] = OrderedDict()
+        for binding in bindings:
+            material_index = _safe_int(getattr(binding, "material_index", -1), -1)
+            material_name = str(getattr(binding, "material_name", "") or "").strip()
+            key = (material_index, material_name.casefold())
+            groups.setdefault(key, []).append(binding)
+        return tuple(
+            _external_material_inventory_from_binding_group(group, submeshes)
+            for group in groups.values()
+        )
+
+    by_material: OrderedDict[str, list[tuple[int, SubMesh]]] = OrderedDict()
+    for index, submesh in enumerate(submeshes):
+        material_name = str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or f"submesh_{index}").strip()
+        by_material.setdefault(material_name.casefold(), []).append((index, submesh))
+    return tuple(
+        _external_material_inventory_from_submesh_group(group, material_index=index)
+        for index, group in enumerate(by_material.values())
+    )
+
+
+def _external_material_inventory_from_binding_group(
+    bindings: Sequence[ImportedMaterialBinding],
+    submeshes: Sequence[SubMesh],
+) -> ExternalMaterialInventory:
+    binding_tuple = tuple(bindings or ())
+    first = binding_tuple[0] if binding_tuple else ImportedMaterialBinding()
+    submesh_indices = tuple(
+        _safe_int(getattr(binding, "submesh_index", -1), -1)
+        for binding in binding_tuple
+        if _safe_int(getattr(binding, "submesh_index", -1), -1) >= 0
+    )
+    group_submeshes = tuple(
+        submeshes[index]
+        for index in submesh_indices
+        if 0 <= index < len(submeshes)
+    )
+    section_pairs = tuple((index, submeshes[index]) for index in submesh_indices if 0 <= index < len(submeshes))
+    material_name = str(getattr(first, "material_name", "") or "").strip()
+    if not material_name and group_submeshes:
+        material_name = str(getattr(group_submeshes[0], "material", "") or getattr(group_submeshes[0], "name", "") or "").strip()
+    texture_slots = _external_inventory_texture_slots(group_submeshes, binding_tuple)
+    sections = _external_material_section_inventory(section_pairs)
+    workflow = _normalize_external_pbr_workflow(
+        next((str(getattr(binding, "pbr_workflow", "") or "") for binding in binding_tuple if str(getattr(binding, "pbr_workflow", "") or "").strip()), "")
+    )
+    alpha_mode = _external_inventory_alpha_mode(group_submeshes, binding_tuple)
+    double_sided = any(bool(getattr(binding, "double_sided", False)) for binding in binding_tuple) or any(
+        bool(getattr(submesh, "preview_double_sided", False)) for submesh in group_submeshes
+    )
+    scalar_hints = _external_inventory_scalar_hints(group_submeshes)
+    color_factor = _external_inventory_color_factor(group_submeshes)
+    vertex_color_factor = _external_inventory_vertex_color_factor(group_submeshes)
+    vertex_alpha = _external_inventory_vertex_alpha(group_submeshes)
+    emissive_color = _external_inventory_emissive_color(group_submeshes)
+    classes = _classify_external_material(
+        material_name=material_name,
+        texture_slots=texture_slots,
+        pbr_workflow=workflow,
+        alpha_mode=alpha_mode,
+        double_sided=double_sided,
+        scalar_hints=scalar_hints,
+        color_factor=color_factor,
+        vertex_color_factor=vertex_color_factor,
+        vertex_alpha=vertex_alpha,
+        emissive_color=emissive_color,
+    )
+    warnings = _external_inventory_warnings(texture_slots, workflow, alpha_mode, classes)
+    return ExternalMaterialInventory(
+        material_index=_safe_int(getattr(first, "material_index", -1), -1),
+        material_name=material_name,
+        submesh_indices=submesh_indices,
+        submesh_names=tuple(_dedupe_text([str(getattr(binding, "submesh_name", "") or "") for binding in binding_tuple])),
+        sections=sections,
+        texture_slots=texture_slots,
+        pbr_workflow=workflow,
+        alpha_mode=alpha_mode,
+        double_sided=double_sided,
+        scalar_hints=scalar_hints,
+        color_factor=color_factor,
+        vertex_color_factor=vertex_color_factor,
+        vertex_alpha=vertex_alpha,
+        emissive_color=emissive_color,
+        material_classes=classes,
+        warnings=warnings,
+    )
+
+
+def _external_material_inventory_from_submesh_group(
+    group: Sequence[tuple[int, SubMesh]],
+    *,
+    material_index: int,
+) -> ExternalMaterialInventory:
+    group_tuple = tuple(group or ())
+    submesh_indices = tuple(index for index, _submesh in group_tuple)
+    submeshes = tuple(submesh for _index, submesh in group_tuple)
+    material_name = ""
+    if submeshes:
+        material_name = str(getattr(submeshes[0], "material", "") or getattr(submeshes[0], "name", "") or "").strip()
+    texture_slots = _external_inventory_texture_slots(submeshes, ())
+    sections = _external_material_section_inventory(group_tuple)
+    alpha_mode = _external_inventory_alpha_mode(submeshes, ())
+    double_sided = any(bool(getattr(submesh, "preview_double_sided", False)) for submesh in submeshes)
+    scalar_hints = _external_inventory_scalar_hints(submeshes)
+    workflow = _external_inventory_workflow_from_slots(texture_slots, scalar_hints)
+    color_factor = _external_inventory_color_factor(submeshes)
+    vertex_color_factor = _external_inventory_vertex_color_factor(submeshes)
+    vertex_alpha = _external_inventory_vertex_alpha(submeshes)
+    emissive_color = _external_inventory_emissive_color(submeshes)
+    classes = _classify_external_material(
+        material_name=material_name,
+        texture_slots=texture_slots,
+        pbr_workflow=workflow,
+        alpha_mode=alpha_mode,
+        double_sided=double_sided,
+        scalar_hints=scalar_hints,
+        color_factor=color_factor,
+        vertex_color_factor=vertex_color_factor,
+        vertex_alpha=vertex_alpha,
+        emissive_color=emissive_color,
+    )
+    return ExternalMaterialInventory(
+        material_index=material_index,
+        material_name=material_name,
+        submesh_indices=submesh_indices,
+        submesh_names=tuple(_dedupe_text([str(getattr(submesh, "name", "") or "") for submesh in submeshes])),
+        sections=sections,
+        texture_slots=texture_slots,
+        pbr_workflow=workflow,
+        alpha_mode=alpha_mode,
+        double_sided=double_sided,
+        scalar_hints=scalar_hints,
+        color_factor=color_factor,
+        vertex_color_factor=vertex_color_factor,
+        vertex_alpha=vertex_alpha,
+        emissive_color=emissive_color,
+        material_classes=classes,
+        warnings=_external_inventory_warnings(texture_slots, workflow, alpha_mode, classes),
+    )
+
+
+def _external_inventory_texture_slots(
+    submeshes: Sequence[SubMesh],
+    bindings: Sequence[ImportedMaterialBinding],
+) -> tuple[ExternalMaterialTextureInventory, ...]:
+    output: list[ExternalMaterialTextureInventory] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    def add(slot: ExternalMaterialTextureInventory) -> None:
+        key = (
+            str(slot.slot_kind or "").strip().lower(),
+            str(slot.parameter_name or "").strip().lower(),
+            str(slot.texture_path or "").replace("\\", "/").lower(),
+        )
+        if not key[0] or not key[2] or key in seen:
+            return
+        seen.add(key)
+        output.append(slot)
+
+    for submesh in tuple(submeshes or ()):
+        for texture_input in tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ()):
+            if isinstance(texture_input, PreviewMaterialTextureInput):
+                add(_external_texture_inventory_from_input(texture_input))
+    for binding in tuple(bindings or ()):
+        for slot_kind, path in tuple(getattr(binding, "texture_slots", ()) or ()):
+            path_text = str(path or "").strip()
+            if not path_text:
+                continue
+            add(_external_texture_inventory_from_path(str(slot_kind or ""), path_text, source="binding"))
+    return tuple(sorted(output, key=lambda item: (item.slot_kind, item.semantic_subtype, item.texture_name.lower())))
+
+
+def _external_material_section_inventory(
+    section_pairs: Sequence[tuple[int, SubMesh]],
+) -> tuple[ExternalMaterialSectionInventory, ...]:
+    sections: list[ExternalMaterialSectionInventory] = []
+    seen: set[int] = set()
+    for section_index, submesh in tuple(section_pairs or ()):
+        index = _safe_int(section_index, -1)
+        if index in seen:
+            continue
+        seen.add(index)
+        vertices = list(getattr(submesh, "vertices", ()) or ())
+        faces = list(getattr(submesh, "faces", ()) or ())
+        uvs = list(getattr(submesh, "uvs", ()) or ())
+        normals = list(getattr(submesh, "normals", ()) or ())
+        tangents = list(getattr(submesh, "tangents", ()) or ())
+        bone_indices = list(getattr(submesh, "bone_indices", ()) or ())
+        bone_weights = list(getattr(submesh, "bone_weights", ()) or ())
+        bounds_min, bounds_max = _bbox(vertices)
+        texcoord_sets = sorted(
+            {
+                _external_texture_input_texcoord(texture_input)
+                for texture_input in tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ())
+                if isinstance(texture_input, PreviewMaterialTextureInput)
+            }
+        )
+        sections.append(
+            ExternalMaterialSectionInventory(
+                section_index=index,
+                section_name=str(getattr(submesh, "name", "") or ""),
+                material_name=str(getattr(submesh, "material", "") or ""),
+                vertex_count=len(vertices) or _safe_int(getattr(submesh, "vertex_count", 0), 0),
+                face_count=len(faces) or _safe_int(getattr(submesh, "face_count", 0), 0),
+                has_uvs=bool(uvs and (not vertices or len(uvs) == len(vertices))),
+                has_normals=bool(normals and (not vertices or len(normals) == len(vertices))),
+                has_tangents=bool(tangents and (not vertices or len(tangents) == len(vertices))),
+                has_skinning=bool((bone_indices or bone_weights) and (not vertices or len(bone_indices) == len(vertices) or len(bone_weights) == len(vertices))),
+                texture_texcoord_sets=tuple(texcoord_sets),
+                bounds_min=tuple(round(float(value), 6) for value in bounds_min),
+                bounds_max=tuple(round(float(value), 6) for value in bounds_max),
+            )
+        )
+    return tuple(sections)
+
+
+def _external_texture_inventory_from_input(texture_input: PreviewMaterialTextureInput) -> ExternalMaterialTextureInventory:
+    path_text = str(
+        getattr(texture_input, "preview_texture_path", "")
+        or getattr(texture_input, "source_texture_path", "")
+        or getattr(texture_input, "source_dds_path", "")
+        or ""
+    ).strip()
+    slot_kind = str(getattr(texture_input, "slot_kind", "") or "").strip().lower()
+    parameter_name = str(getattr(texture_input, "parameter_name", "") or "").strip()
+    semantic_type = str(getattr(texture_input, "semantic_type", "") or "").strip()
+    semantic_subtype = str(getattr(texture_input, "semantic_subtype", "") or "").strip()
+    packed_channels = tuple(str(value or "").strip().lower() for value in tuple(getattr(texture_input, "packed_channels", ()) or ()) if str(value or "").strip())
+    texcoord = _external_texture_input_texcoord(texture_input)
+    uv_transform = _external_texture_input_uv_transform(texture_input)
+    resolution, channel_stats = _texture_image_facts(path_text)
+    evidence = [
+        f"slot:{slot_kind}",
+        f"parameter:{parameter_name}" if parameter_name else "",
+        f"semantic:{semantic_type}/{semantic_subtype}" if semantic_type or semantic_subtype else "",
+        f"packed:{','.join(packed_channels)}" if packed_channels else "",
+        f"texcoord:{texcoord}" if texcoord else "",
+        "uv_transform" if uv_transform else "",
+        _channel_stats_evidence(channel_stats),
+        f"confidence:{getattr(texture_input, 'confidence', '')}" if str(getattr(texture_input, "confidence", "") or "").strip() else "",
+    ]
+    return ExternalMaterialTextureInventory(
+        slot_kind=slot_kind,
+        parameter_name=parameter_name,
+        texture_path=path_text,
+        texture_name=str(getattr(texture_input, "texture_name", "") or Path(path_text).name),
+        image_format=Path(path_text).suffix.lower().lstrip("."),
+        resolution=resolution,
+        channel_stats=channel_stats,
+        semantic_type=semantic_type,
+        semantic_subtype=semantic_subtype,
+        packed_channels=packed_channels,
+        color_space=_external_slot_color_space(slot_kind, semantic_subtype, str(getattr(texture_input, "srgb_mode", "") or "")),
+        texcoord=texcoord,
+        uv_transform=uv_transform,
+        source=_external_texture_input_source(texture_input),
+        confidence=str(getattr(texture_input, "confidence", "") or ""),
+        evidence=tuple(item for item in evidence if item),
+    )
+
+
+def _external_texture_inventory_from_path(slot_kind: str, path_text: str, *, source: str) -> ExternalMaterialTextureInventory:
+    slot, semantic_type, semantic_subtype, packed_channels = _scene_slot_semantics(slot_kind)
+    resolution, channel_stats = _texture_image_facts(path_text)
+    return ExternalMaterialTextureInventory(
+        slot_kind=slot,
+        parameter_name=_SCENE_SLOT_PARAMETER_NAMES.get(slot_kind.strip().lower(), ""),
+        texture_path=path_text,
+        texture_name=Path(path_text).name,
+        image_format=Path(path_text).suffix.lower().lstrip("."),
+        resolution=resolution,
+        channel_stats=channel_stats,
+        semantic_type=semantic_type,
+        semantic_subtype=semantic_subtype,
+        packed_channels=packed_channels,
+        color_space=_external_slot_color_space(slot, semantic_subtype, ""),
+        texcoord=0,
+        uv_transform=(),
+        source=source,
+        confidence="binding",
+        evidence=tuple(item for item in (f"slot:{slot}", f"source:{source}", _channel_stats_evidence(channel_stats)) if item),
+    )
+
+
+def _external_texture_input_source(texture_input: PreviewMaterialTextureInput) -> str:
+    for flag in tuple(getattr(texture_input, "blend_flags", ()) or ()):
+        text = str(flag or "").strip()
+        if text.startswith("source:"):
+            return text.split(":", 1)[1]
+    sidecar_kind = str(getattr(texture_input, "sidecar_kind", "") or "").strip()
+    if sidecar_kind:
+        return sidecar_kind
+    return str(getattr(texture_input, "confidence", "") or "scene")
+
+
+def _external_texture_input_texcoord(texture_input: PreviewMaterialTextureInput) -> int:
+    for flag in tuple(getattr(texture_input, "blend_flags", ()) or ()):
+        match = re.match(r"texcoord:(\d+)\s*$", str(flag or "").strip(), flags=re.IGNORECASE)
+        if match:
+            return max(0, _safe_int(match.group(1), 0))
+    for parameter in tuple(getattr(texture_input, "material_parameters", ()) or ()):
+        name = str(getattr(parameter, "parameter_name", "") or "")
+        if "_gltfTexCoord" not in name:
+            continue
+        value = getattr(parameter, "numeric_value", None)
+        if value is None:
+            value = getattr(parameter, "value", 0)
+        return max(0, _safe_int(value, 0))
+    return 0
+
+
+def _external_texture_input_uv_transform(texture_input: PreviewMaterialTextureInput) -> tuple[float, ...]:
+    for parameter in tuple(getattr(texture_input, "material_parameters", ()) or ()):
+        name = str(getattr(parameter, "parameter_name", "") or "")
+        if "_gltfTextureTransform" not in name:
+            continue
+        raw_values = re.split(r"[\s,]+", str(getattr(parameter, "value", "") or "").strip())
+        try:
+            values = tuple(float(value) for value in raw_values if value)
+        except (TypeError, ValueError, OverflowError):
+            return ()
+        return tuple(round(float(value), 6) for value in values[:5]) if len(values) >= 5 else ()
+    return ()
+
+
+def _texture_image_facts(path_text: str) -> tuple[tuple[int, int], tuple[tuple[str, float], ...]]:
+    if not str(path_text or "").strip():
+        return (), ()
+    try:
+        from PIL import Image, ImageStat
+
+        with Image.open(path_text) as image:
+            resolution = (int(image.width), int(image.height))
+            rgba = image.convert("RGBA")
+            if max(rgba.size or (0, 0)) > 64:
+                rgba.thumbnail((64, 64))
+            stat = ImageStat.Stat(rgba)
+            means = [max(0.0, min(1.0, float(value) / 255.0)) for value in stat.mean[:4]]
+            extrema = rgba.getextrema()
+            alpha_min = max(0.0, min(1.0, float(extrema[3][0]) / 255.0))
+            alpha_max = max(0.0, min(1.0, float(extrema[3][1]) / 255.0))
+            luma = max(0.0, min(1.0, 0.2126 * means[0] + 0.7152 * means[1] + 0.0722 * means[2]))
+            return resolution, (
+                ("r_mean", round(means[0], 4)),
+                ("g_mean", round(means[1], 4)),
+                ("b_mean", round(means[2], 4)),
+                ("a_mean", round(means[3], 4)),
+                ("a_min", round(alpha_min, 4)),
+                ("a_max", round(alpha_max, 4)),
+                ("luma_mean", round(luma, 4)),
+            )
+    except Exception:
+        return (), ()
+
+
+def _texture_resolution(path_text: str) -> tuple[int, int]:
+    resolution, _stats = _texture_image_facts(path_text)
+    return resolution
+
+
+def _channel_stats_evidence(channel_stats: Sequence[tuple[str, float]]) -> str:
+    stats = {str(key): float(value) for key, value in tuple(channel_stats or ())}
+    if not stats:
+        return ""
+    return (
+        "channels:"
+        f"r={stats.get('r_mean', 0.0):.2f},"
+        f"g={stats.get('g_mean', 0.0):.2f},"
+        f"b={stats.get('b_mean', 0.0):.2f},"
+        f"a={stats.get('a_mean', 0.0):.2f}"
+    )
+
+
+def _external_slot_color_space(slot_kind: str, semantic_subtype: str, srgb_mode: str) -> str:
+    mode = str(srgb_mode or "").strip().lower()
+    if mode in {"srgb", "s_rgb", "true", "1", "yes"}:
+        return "srgb"
+    if mode in {"linear", "false", "0", "no"}:
+        return "linear"
+    slot = str(slot_kind or "").strip().lower()
+    subtype = str(semantic_subtype or "").strip().lower()
+    if slot in {"base", "emissive"} or subtype in {"albedo", "emissive", "specular"}:
+        return "srgb"
+    return "linear"
+
+
+def _normalize_external_pbr_workflow(value: object) -> str:
+    text = str(value or "").strip()
+    compact = re.sub(r"[^a-z0-9]+", "", text.lower())
+    if compact in {"metallicroughness", "metalnessroughness", "pbrmetallicroughness"}:
+        return "metallic_roughness"
+    if compact in {"specularglossiness", "specgloss", "pbrspecularglossiness"}:
+        return "specular_glossiness"
+    if compact == "unlit":
+        return "unlit"
+    return text
+
+
+def _external_inventory_workflow_from_slots(
+    slots: Sequence[ExternalMaterialTextureInventory],
+    scalar_hints: Sequence[tuple[str, float]] = (),
+) -> str:
+    subtypes = {str(slot.semantic_subtype or "").strip().lower() for slot in tuple(slots or ())}
+    kinds = {str(slot.slot_kind or "").strip().lower() for slot in tuple(slots or ())}
+    scalar_keys = {str(key or "").strip().lower() for key, _value in tuple(scalar_hints or ())}
+    if "specular_glossiness" in subtypes or {"specular", "glossiness"} <= kinds:
+        return "specular_glossiness"
+    if {"specular", "glossiness"} <= scalar_keys and "metalness" not in scalar_keys:
+        return "specular_glossiness"
+    if "metallic_roughness" in subtypes or "metalness" in kinds or "roughness" in kinds:
+        return "metallic_roughness"
+    if "metalness" in scalar_keys or "roughness" in scalar_keys:
+        return "metallic_roughness"
+    return ""
+
+
+def _external_inventory_alpha_mode(
+    submeshes: Sequence[SubMesh],
+    bindings: Sequence[ImportedMaterialBinding],
+) -> str:
+    for binding in tuple(bindings or ()):
+        alpha_mode = str(getattr(binding, "alpha_mode", "") or "").strip()
+        if alpha_mode:
+            return alpha_mode
+    for submesh in tuple(submeshes or ()):
+        alpha_mode = str(getattr(submesh, "preview_alpha_mode", "") or "").strip()
+        if alpha_mode:
+            return alpha_mode
+    return ""
+
+
+def _external_inventory_scalar_hints(submeshes: Sequence[SubMesh]) -> tuple[tuple[str, float], ...]:
+    values: OrderedDict[str, float] = OrderedDict()
+    for submesh in tuple(submeshes or ()):
+        for parameter in tuple(getattr(submesh, "preview_material_parameters", ()) or ()):
+            normalized = _normalized_material_scalar_name(getattr(parameter, "parameter_name", ""))
+            if not normalized:
+                continue
+            numeric = getattr(parameter, "numeric_value", None)
+            if numeric is None:
+                numeric = _safe_float_or_none(getattr(parameter, "value", ""))
+            else:
+                numeric = _safe_float_or_none(numeric)
+            if numeric is not None:
+                values.setdefault(normalized, numeric)
+        overrides = getattr(submesh, "preview_native_material_overrides", {}) or {}
+        if isinstance(overrides, Mapping):
+            for key, value in overrides.items():
+                normalized = _normalized_material_scalar_name(key)
+                if not normalized:
+                    continue
+                numeric = _safe_float_or_none(value)
+                if numeric is not None:
+                    values.setdefault(normalized, numeric)
+        for texture_input in tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ()):
+            if not isinstance(texture_input, PreviewMaterialTextureInput):
+                continue
+            for parameter in tuple(getattr(texture_input, "material_parameters", ()) or ()):
+                normalized = _normalized_material_scalar_name(getattr(parameter, "parameter_name", ""))
+                if not normalized:
+                    continue
+                numeric = getattr(parameter, "numeric_value", None)
+                if numeric is None:
+                    numeric = _safe_float_or_none(getattr(parameter, "value", ""))
+                else:
+                    numeric = _safe_float_or_none(numeric)
+                if numeric is not None:
+                    values.setdefault(normalized, numeric)
+    return tuple(values.items())
+
+
+def _safe_float_or_none(value: object) -> float | None:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _normalized_material_scalar_name(value: object) -> str:
+    key = re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+    if "roughness" in key:
+        return "roughness"
+    if "metallic" in key or "metalness" in key:
+        return "metalness"
+    if "glossiness" in key or key == "gloss":
+        return "glossiness"
+    if "specular" in key:
+        return "specular"
+    if "emissiveintensity" in key or key == "emissive":
+        return "emissive_intensity"
+    if "transmission" in key or "thickness" in key or "attenuation" in key:
+        return "transmission"
+    if "alphacutoff" in key or "alphathreshold" in key:
+        return "alpha_cutoff"
+    if "clearcoat" in key:
+        return "clearcoat"
+    if key == "ior":
+        return "ior"
+    return ""
+
+
+def _external_inventory_color_factor(submeshes: Sequence[SubMesh]) -> tuple[float, float, float]:
+    for submesh in tuple(submeshes or ()):
+        for attr_name in ("preview_texture_tint", "preview_color"):
+            values = tuple(getattr(submesh, attr_name, ()) or ())
+            if len(values) >= 3:
+                try:
+                    return tuple(max(0.0, min(1.0, float(value))) for value in values[:3])  # type: ignore[return-value]
+                except (TypeError, ValueError, OverflowError):
+                    continue
+    return ()
+
+
+def _external_inventory_vertex_color_factor(submeshes: Sequence[SubMesh]) -> tuple[float, float, float]:
+    for submesh in tuple(submeshes or ()):
+        values = tuple(getattr(submesh, "preview_vertex_color_mean", ()) or ())
+        if len(values) >= 3:
+            try:
+                return tuple(max(0.0, min(1.0, float(value))) for value in values[:3])  # type: ignore[return-value]
+            except (TypeError, ValueError, OverflowError):
+                continue
+    return ()
+
+
+def _external_inventory_vertex_alpha(submeshes: Sequence[SubMesh]) -> tuple[float, float]:
+    for submesh in tuple(submeshes or ()):
+        mean_value = getattr(submesh, "preview_vertex_alpha_mean", None)
+        min_value = getattr(submesh, "preview_vertex_alpha_min", None)
+        if mean_value is None and min_value is None:
+            continue
+        try:
+            alpha_mean = max(0.0, min(1.0, float(1.0 if mean_value is None else mean_value)))
+            alpha_min = max(0.0, min(1.0, float(alpha_mean if min_value is None else min_value)))
+            return (alpha_mean, alpha_min)
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return ()
+
+
+def _external_inventory_emissive_color(submeshes: Sequence[SubMesh]) -> tuple[float, float, float]:
+    for submesh in tuple(submeshes or ()):
+        overrides = getattr(submesh, "preview_native_material_overrides", {}) or {}
+        if isinstance(overrides, Mapping):
+            color = _hex_color_to_rgb(overrides.get("emissive_color"))
+            if color:
+                return color
+        for texture_input in tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ()):
+            if not isinstance(texture_input, PreviewMaterialTextureInput):
+                continue
+            for parameter in tuple(getattr(texture_input, "material_parameters", ()) or ()):
+                key = re.sub(r"[^a-z0-9]+", "", str(getattr(parameter, "parameter_name", "") or "").lower())
+                if "emissivecolor" not in key:
+                    continue
+                color = tuple(getattr(parameter, "color_value", ()) or ())
+                if len(color) >= 3:
+                    try:
+                        return tuple(max(0.0, min(1.0, float(value))) for value in color[:3])  # type: ignore[return-value]
+                    except (TypeError, ValueError, OverflowError):
+                        pass
+                color = _hex_color_to_rgb(getattr(parameter, "value", ""))
+                if color:
+                    return color
+    return ()
+
+
+def _hex_color_to_rgb(value: object) -> tuple[float, float, float]:
+    text = str(value or "").strip().lstrip("#")
+    if len(text) < 6:
+        return ()
+    try:
+        return (int(text[0:2], 16) / 255.0, int(text[2:4], 16) / 255.0, int(text[4:6], 16) / 255.0)
+    except ValueError:
+        return ()
+
+
+def _classify_external_material(
+    *,
+    material_name: str,
+    texture_slots: Sequence[ExternalMaterialTextureInventory],
+    pbr_workflow: str,
+    alpha_mode: str,
+    double_sided: bool,
+    scalar_hints: Sequence[tuple[str, float]],
+    color_factor: Sequence[float],
+    vertex_color_factor: Sequence[float],
+    vertex_alpha: Sequence[float],
+    emissive_color: Sequence[float],
+) -> tuple[ExternalMaterialClassEvidence, ...]:
+    evidence_by_class: dict[str, list[str]] = defaultdict(list)
+    scores: dict[str, float] = defaultdict(float)
+    raw_text = " ".join(
+        [material_name]
+        + [slot.texture_name for slot in tuple(texture_slots or ())]
+        + [slot.semantic_subtype for slot in tuple(texture_slots or ())]
+        + [pbr_workflow]
+    )
+    split_text = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", raw_text)
+    text = split_text.lower()
+    tokens = set(re.findall(r"[a-z0-9]+", text))
+    compact_tokens = {
+        re.sub(r"[^a-z0-9]+", "", token)
+        for token in re.split(r"[\s._/\-\\]+", raw_text.lower())
+        if re.sub(r"[^a-z0-9]+", "", token)
+    }
+    tokens.update(compact_tokens)
+    scalar_map = {str(key): float(value) for key, value in tuple(scalar_hints or ())}
+    slot_kinds = {str(slot.slot_kind or "").strip().lower() for slot in tuple(texture_slots or ())}
+    slot_subtypes = {str(slot.semantic_subtype or "").strip().lower() for slot in tuple(texture_slots or ())}
+    slots = tuple(texture_slots or ())
+
+    def slot_stats(slot: ExternalMaterialTextureInventory) -> dict[str, float]:
+        return {str(key): float(value) for key, value in tuple(getattr(slot, "channel_stats", ()) or ())}
+
+    def first_stats_for(*slot_names: str) -> dict[str, float]:
+        wanted = {str(name or "").strip().lower() for name in slot_names if str(name or "").strip()}
+        for slot in slots:
+            if (
+                str(slot.slot_kind or "").strip().lower() in wanted
+                or str(slot.semantic_subtype or "").strip().lower() in wanted
+            ):
+                stats = slot_stats(slot)
+                if stats:
+                    return stats
+        return {}
+
+    def add(material_class: str, amount: float, reason: str) -> None:
+        if amount <= 0.0:
+            return
+        scores[material_class] += amount
+        if reason not in evidence_by_class[material_class]:
+            evidence_by_class[material_class].append(reason)
+
+    def has_any(*terms: str) -> bool:
+        wanted = {str(term or "").strip().lower() for term in terms if str(term or "").strip()}
+        if tokens & wanted:
+            return True
+        for token in tokens:
+            for term in wanted:
+                if len(term) >= 5 and (token.startswith(term) or token.endswith(term)):
+                    return True
+        return False
+
+    metalness = float(scalar_map.get("metalness", 0.0) or 0.0)
+    roughness = float(scalar_map.get("roughness", 0.0) or 0.0)
+    if metalness >= 0.5:
+        add("metal", 0.55 + min(0.25, metalness * 0.25), f"metallic factor {metalness:.2f}")
+    if "metalness" in slot_kinds or "metallic" in slot_subtypes or "metallic_roughness" in slot_subtypes:
+        add("metal", 0.35, "metallic/roughness texture slot")
+    material_stats = first_stats_for("material", "metallic_roughness")
+    metallic_channel = material_stats.get("b_mean")
+    if metallic_channel is not None and "metallic_roughness" in slot_subtypes:
+        if metallic_channel >= 0.45:
+            add("metal", 0.35 + min(0.25, metallic_channel * 0.25), f"metallic-roughness B channel mean {metallic_channel:.2f}")
+    metalness_stats = first_stats_for("metalness", "metallic")
+    metalness_luma = metalness_stats.get("luma_mean")
+    if metalness_luma is not None and metalness_luma >= 0.45:
+        add("metal", 0.35 + min(0.25, metalness_luma * 0.25), f"metalness texture mean {metalness_luma:.2f}")
+    if has_any("metal", "steel", "iron", "silver", "chrome", "blade", "sword", "armor", "armour"):
+        add("metal", 0.35, "metal material/name token")
+    if has_any("painted", "paint", "paintjob", "coated", "enamel") and (metalness >= 0.2 or "metal" in scores):
+        add("painted_metal", 0.70, "painted/coated token with metal evidence")
+
+    rgb = tuple(float(value) for value in tuple(color_factor or ())[:3]) if len(tuple(color_factor or ())) >= 3 else ()
+    rgb_source = "base factor"
+    base_stats = first_stats_for("base", "albedo")
+    if base_stats and (not rgb or all(abs(value - 1.0) <= 1e-6 for value in rgb)):
+        if {"r_mean", "g_mean", "b_mean"} <= set(base_stats):
+            rgb = (base_stats["r_mean"], base_stats["g_mean"], base_stats["b_mean"])
+            rgb_source = "base texture mean"
+    vertex_rgb = (
+        tuple(float(value) for value in tuple(vertex_color_factor or ())[:3])
+        if len(tuple(vertex_color_factor or ())) >= 3
+        else ()
+    )
+    if vertex_rgb and (not rgb or all(abs(value - 1.0) <= 1e-6 for value in rgb)):
+        rgb = vertex_rgb
+        rgb_source = "vertex color mean"
+    if has_any("gold", "gilded"):
+        add("gold", 0.90, "gold material/name token")
+    if has_any("bronze", "brass"):
+        add("bronze", 0.88, "bronze/brass material/name token")
+    if has_any("copper"):
+        add("copper", 0.88, "copper material/name token")
+    if rgb and (metalness >= 0.35 or scores.get("metal", 0.0) >= 0.35):
+        r, g, b = rgb
+        if r >= 0.65 and g >= 0.45 and b <= 0.38:
+            add("gold", 0.60, f"metallic yellow {rgb_source} {r:.2f},{g:.2f},{b:.2f}")
+        elif r >= 0.55 and 0.20 <= g <= 0.55 and b <= 0.35:
+            add("copper", 0.50, f"warm metallic {rgb_source} {r:.2f},{g:.2f},{b:.2f}")
+        elif r >= 0.45 and g >= 0.25 and b <= 0.30:
+            add("bronze", 0.45, f"bronze-like metallic {rgb_source} {r:.2f},{g:.2f},{b:.2f}")
+
+    if has_any("cloth", "fabric", "linen", "cotton", "canvas", "textile", "garment"):
+        add("cloth", 0.80, "cloth/fabric material/name token")
+    if double_sided and has_any("cloth", "fabric", "linen", "cotton", "canvas", "textile", "garment", "cape", "flag"):
+        add("cloth", 0.18, "double-sided fabric surface")
+    if has_any("leather", "hide", "suede"):
+        add("leather", 0.85, "leather material/name token")
+    if has_any("wood", "wooden", "timber", "oak", "pine", "walnut", "bark"):
+        add("wood", 0.85, "wood material/name token")
+    if has_any("stone", "rock", "granite", "marble", "concrete", "slate", "ceramic"):
+        add("stone", 0.85, "stone/rock material/name token")
+    if has_any("skin", "organic", "flesh", "body", "face", "hand", "arm", "leg", "head"):
+        add("skin_organic", 0.82, "skin/organic material/name token")
+    if rgb and metalness < 0.2:
+        r, g, b = rgb
+        spread = max(rgb) - min(rgb)
+        if r >= 0.22 and g >= 0.12 and b <= 0.18 and r >= g >= b:
+            if roughness >= 0.55:
+                add("leather", 0.28, f"rough warm brown {rgb_source} {r:.2f},{g:.2f},{b:.2f}")
+            add("wood", 0.24, f"warm brown {rgb_source} {r:.2f},{g:.2f},{b:.2f}")
+        if spread <= 0.12 and 0.20 <= max(rgb) <= 0.75 and roughness >= 0.45:
+            add("stone", 0.22, f"rough neutral {rgb_source} {r:.2f},{g:.2f},{b:.2f}")
+
+    alpha_text = str(alpha_mode or "").strip().upper()
+    transmission = float(scalar_map.get("transmission", 0.0) or 0.0)
+    if has_any("glass", "crystal", "gem", "lens", "transparent", "translucent", "transmission"):
+        add("glass_crystal", 0.86, "glass/crystal material/name token")
+    if transmission > 0.0 or "transmission" in slot_subtypes:
+        add("glass_crystal", 0.62, f"transmission evidence {transmission:.2f}")
+    if alpha_text in {"BLEND", "MASK"} or "opacity" in slot_kinds:
+        add("glass_crystal", 0.24, f"alpha mode {alpha_text or 'opacity texture'}")
+    alpha_stats = first_stats_for("base", "opacity")
+    if alpha_stats.get("a_min", 1.0) < 0.98 or alpha_stats.get("a_mean", 1.0) < 0.98:
+        add(
+            "glass_crystal",
+            0.22,
+            f"source alpha channel mean {alpha_stats.get('a_mean', 1.0):.2f} min {alpha_stats.get('a_min', 1.0):.2f}",
+        )
+    vertex_alpha_values = tuple(float(value) for value in tuple(vertex_alpha or ())[:2]) if len(tuple(vertex_alpha or ())) >= 2 else ()
+    if vertex_alpha_values and (vertex_alpha_values[0] < 0.98 or vertex_alpha_values[1] < 0.98):
+        add(
+            "glass_crystal",
+            0.16,
+            f"vertex alpha mean {vertex_alpha_values[0]:.2f} min {vertex_alpha_values[1]:.2f}",
+        )
+
+    emissive_intensity = float(scalar_map.get("emissive_intensity", 0.0) or 0.0)
+    emissive_stats = first_stats_for("emissive")
+    if "emissive" in slot_kinds or emissive_intensity > 0.0 or len(tuple(emissive_color or ())) >= 3 or emissive_stats.get("luma_mean", 0.0) > 0.03:
+        reasons = []
+        if "emissive" in slot_kinds:
+            reasons.append("emissive texture slot")
+        if emissive_intensity > 0.0:
+            reasons.append(f"emissive intensity {emissive_intensity:.2f}")
+        if len(tuple(emissive_color or ())) >= 3:
+            reasons.append("emissive color factor")
+        if emissive_stats.get("luma_mean", 0.0) > 0.03:
+            reasons.append(f"emissive texture luma {emissive_stats.get('luma_mean', 0.0):.2f}")
+        add("emissive", 0.90, ", ".join(reasons))
+
+    if not scores:
+        return (
+            ExternalMaterialClassEvidence(
+                material_class="unknown",
+                confidence=0.0,
+                evidence=("no decisive material-class evidence",),
+            ),
+        )
+    results = [
+        ExternalMaterialClassEvidence(
+            material_class=material_class,
+            confidence=max(0.0, min(1.0, score)),
+            evidence=tuple(evidence_by_class.get(material_class, ())),
+        )
+        for material_class, score in scores.items()
+    ]
+    return tuple(sorted(results, key=lambda item: (-item.confidence, item.material_class)))
+
+
+def _external_inventory_warnings(
+    texture_slots: Sequence[ExternalMaterialTextureInventory],
+    workflow: str,
+    alpha_mode: str,
+    material_classes: Sequence[ExternalMaterialClassEvidence],
+) -> tuple[str, ...]:
+    warnings: list[str] = []
+    slot_kinds = {str(slot.slot_kind or "").strip().lower() for slot in tuple(texture_slots or ())}
+    if texture_slots and "base" not in slot_kinds:
+        warnings.append("Material has support textures but no explicit base/albedo slot.")
+    if workflow == "specular_glossiness" and "material" in slot_kinds and "roughness" not in slot_kinds:
+        warnings.append("Specular-glossiness workflow needs conversion before Crimson metallic/roughness export.")
+    if str(alpha_mode or "").strip().upper() in {"MASK", "BLEND"} and "opacity" not in slot_kinds:
+        warnings.append("Alpha mode is active without a separate opacity texture; base alpha must be preserved.")
+    if material_classes and material_classes[0].material_class == "unknown":
+        warnings.append("Material class is ambiguous; keep evidence in the authority report.")
+    return tuple(warnings)
+
+
+def _aggregate_external_material_classes(
+    inventory: Sequence[ExternalMaterialInventory],
+) -> tuple[ExternalMaterialClassEvidence, ...]:
+    by_class: dict[str, ExternalMaterialClassEvidence] = {}
+    for material in tuple(inventory or ()):
+        for item in tuple(material.material_classes or ()):
+            current = by_class.get(item.material_class)
+            if current is None or item.confidence > current.confidence:
+                by_class[item.material_class] = item
+    return tuple(sorted(by_class.values(), key=lambda item: (-item.confidence, item.material_class)))
 
 
 def _mesh_extent(mesh: ParsedMesh) -> tuple[float, float, float]:
@@ -1488,6 +2385,7 @@ def import_dae(path: str | Path) -> ParsedMesh:
 
     material_names = _collada_material_names(root, prefix, ns)
     material_texture_slots = _collada_material_texture_slots(root, prefix, ns, dae_path)
+    material_parameters = _collada_material_parameters(root, prefix, ns)
     geometries: dict[str, _ColladaGeometry] = {}
     for geometry in root.findall(f".//{prefix}library_geometries/{prefix}geometry", ns):
         parsed = _parse_collada_geometry(geometry, material_names, prefix, ns)
@@ -1514,8 +2412,14 @@ def import_dae(path: str | Path) -> ParsedMesh:
                 or material_texture_slots.get(str(primitive.material))
                 or ()
             )
-            if slots:
-                _apply_scene_material_slots_to_submesh(copied, slots, confidence="dae")
+            parameters = (
+                material_parameters.get(str(material))
+                or material_parameters.get(str(copied.material))
+                or material_parameters.get(str(primitive.material))
+                or ()
+            )
+            if slots or parameters:
+                _apply_scene_material_slots_to_submesh(copied, slots, material_parameters=parameters, confidence="dae")
             submeshes.append(copied)
 
     if not submeshes:
@@ -1526,8 +2430,9 @@ def import_dae(path: str | Path) -> ParsedMesh:
                 copied.material = material_names.get(primitive.material, primitive.material) or copied.name
                 copied.texture = _guess_scene_material_texture(dae_path, copied.material)
                 slots = material_texture_slots.get(str(primitive.material)) or material_texture_slots.get(str(copied.material)) or ()
-                if slots:
-                    _apply_scene_material_slots_to_submesh(copied, slots, confidence="dae")
+                parameters = material_parameters.get(str(primitive.material)) or material_parameters.get(str(copied.material)) or ()
+                if slots or parameters:
+                    _apply_scene_material_slots_to_submesh(copied, slots, material_parameters=parameters, confidence="dae")
                 submeshes.append(copied)
 
     if not submeshes:
@@ -1731,6 +2636,90 @@ def _obj_material_texture_slots(obj_path: Path) -> dict[str, tuple[SceneMaterial
             logger.warning("Failed to read OBJ material library %s: %s", material_path, exc)
             continue
     return {material: tuple(slots) for material, slots in output.items()}
+
+
+def _obj_material_parameters(obj_path: Path) -> dict[str, tuple[PreviewMaterialParameterInput, ...]]:
+    output: dict[str, list[PreviewMaterialParameterInput]] = {}
+
+    def parse_float(parts: Sequence[str]) -> Optional[float]:
+        if not parts:
+            return None
+        try:
+            return float(parts[0])
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+    def parse_color(parts: Sequence[str]) -> tuple[float, float, float]:
+        if len(parts) < 3:
+            return ()
+        try:
+            return tuple(max(0.0, min(1.0, float(value))) for value in parts[:3])  # type: ignore[return-value]
+        except (TypeError, ValueError, OverflowError):
+            return ()
+
+    def add_parameter(material: str, parameter: Optional[PreviewMaterialParameterInput]) -> None:
+        if parameter is not None:
+            output.setdefault(material, []).append(parameter)
+
+    for material_path in _obj_material_library_paths(obj_path):
+        if not material_path.is_file():
+            continue
+        current_material = ""
+        try:
+            with material_path.open("r", encoding="utf-8", errors="ignore") as handle:
+                for raw_line in handle:
+                    line = raw_line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    parts = line.split()
+                    if not parts:
+                        continue
+                    key = parts[0].lower()
+                    values = parts[1:]
+                    if key == "newmtl":
+                        current_material = " ".join(values).strip()
+                        continue
+                    if not current_material:
+                        continue
+                    if key == "kd":
+                        add_parameter(current_material, _scene_preview_color_parameter("_diffuseFactor", parse_color(values)))
+                    elif key == "ks":
+                        add_parameter(current_material, _scene_preview_color_parameter("_specularColorFactor", parse_color(values)))
+                    elif key == "ke":
+                        color = parse_color(values)
+                        add_parameter(current_material, _scene_preview_color_parameter("_emissiveColor", color))
+                        if color and any(component > 0.003 for component in color):
+                            add_parameter(current_material, _scene_preview_float_parameter("_emissiveIntensity", 1.0))
+                    elif key == "ns":
+                        numeric = parse_float(values)
+                        if numeric is not None:
+                            add_parameter(current_material, _scene_preview_float_parameter("_glossinessFactor", max(0.0, min(1.0, numeric / 1000.0))))
+                    elif key in {"pr", "roughness"}:
+                        numeric = parse_float(values)
+                        if numeric is not None:
+                            add_parameter(current_material, _scene_preview_float_parameter("_roughnessFactor", max(0.0, min(1.0, numeric))))
+                    elif key in {"pm", "metallic"}:
+                        numeric = parse_float(values)
+                        if numeric is not None:
+                            add_parameter(current_material, _scene_preview_float_parameter("_metallicFactor", max(0.0, min(1.0, numeric))))
+                    elif key == "d":
+                        numeric = parse_float(values)
+                        if numeric is not None:
+                            add_parameter(current_material, _scene_preview_float_parameter("_alphaFactor", max(0.0, min(1.0, numeric))))
+                    elif key == "tr":
+                        numeric = parse_float(values)
+                        if numeric is not None:
+                            add_parameter(current_material, _scene_preview_float_parameter("_alphaFactor", 1.0 - max(0.0, min(1.0, numeric))))
+                    elif key == "ni":
+                        numeric = parse_float(values)
+                        if numeric is not None:
+                            add_parameter(current_material, _scene_preview_float_parameter("_ior", max(0.0, numeric)))
+                    elif key == "illum":
+                        add_parameter(current_material, _scene_preview_string_parameter("_objIlluminationModel", " ".join(values)))
+        except OSError as exc:
+            logger.warning("Failed to read OBJ material library %s: %s", material_path, exc)
+            continue
+    return {material: tuple(parameters) for material, parameters in output.items()}
 
 
 def _obj_material_texture_paths(obj_path: Path) -> list[Path]:
@@ -2672,6 +3661,9 @@ def _apply_scene_material_parameters_to_submesh(
     parameters: Sequence[PreviewMaterialParameterInput],
 ) -> None:
     parameter_tuple = tuple(parameters or ())
+    if parameter_tuple:
+        existing = tuple(getattr(submesh, "preview_material_parameters", ()) or ())
+        submesh.preview_material_parameters = tuple(existing + tuple(parameter for parameter in parameter_tuple if parameter not in existing))
     base_tint = _scene_parameter_color(parameter_tuple, "basecolorfactor") or _scene_parameter_color(parameter_tuple, "diffusefactor")
     if base_tint:
         submesh.preview_texture_tint = base_tint
@@ -2679,6 +3671,13 @@ def _apply_scene_material_parameters_to_submesh(
     native_overrides = dict(getattr(submesh, "preview_native_material_overrides", {}) or {})
     if alpha_cutoff is not None:
         native_overrides["alpha_threshold"] = max(0.0, min(0.95, float(alpha_cutoff)))
+    alpha_factor = _scene_parameter_numeric(parameter_tuple, "alphafactor", "opacityfactor")
+    if alpha_factor is not None:
+        alpha_value = max(0.0, min(1.0, float(alpha_factor)))
+        if alpha_value < 0.999:
+            submesh.preview_alpha_mode = "BLEND"
+            submesh.preview_vertex_alpha_mean = alpha_value
+            submesh.preview_vertex_alpha_min = alpha_value
     if _scene_parameter_numeric(parameter_tuple, "gltfunlit") is not None:
         native_overrides.setdefault("material_shader_family", "gltf_unlit")
         native_overrides.setdefault("roughness", 1.0)
@@ -3143,6 +4142,7 @@ def _parse_gltf_primitive(
         payload.diagnostics.append(f"glTF primitive {name} does not provide {texcoord_name}; falling back to TEXCOORD_0.")
         texcoord_accessor = _safe_int(attributes.get("TEXCOORD_0"), -1)
     uvs = _read_gltf_accessor(payload, texcoord_accessor, expected_components=2)
+    vertex_colors = _read_gltf_vertex_colors(payload, _safe_int(attributes.get("COLOR_0"), -1))
     index_accessor = _safe_int(primitive.get("indices"), -1)
     if index_accessor >= 0:
         raw_indices = [int(values[0]) for values in _read_gltf_accessor(payload, index_accessor, expected_components=1)]
@@ -3158,7 +4158,7 @@ def _parse_gltf_primitive(
         normalized_uvs = [(0.0, 0.0)] * len(positions)
     if len(normals) != len(positions):
         normals = _compute_smooth_normals(positions, faces)
-    return SubMesh(
+    submesh = SubMesh(
         name=name,
         material=material,
         texture=texture,
@@ -3169,6 +4169,40 @@ def _parse_gltf_primitive(
         vertex_count=len(positions),
         face_count=len(faces),
     )
+    if len(vertex_colors) == len(positions):
+        _attach_gltf_vertex_color_summary(submesh, vertex_colors)
+    return submesh
+
+
+def _read_gltf_vertex_colors(payload: _GltfPayload, accessor_index: int) -> list[tuple[float, float, float, float]]:
+    if accessor_index < 0:
+        return []
+    color_rows = _read_gltf_accessor(payload, accessor_index, expected_components=4)
+    if not color_rows:
+        rgb_rows = _read_gltf_accessor(payload, accessor_index, expected_components=3)
+        color_rows = [tuple(row[:3]) + (1.0,) for row in rgb_rows]
+    output: list[tuple[float, float, float, float]] = []
+    for row in color_rows:
+        if len(row) < 3:
+            continue
+        rgba = tuple(max(0.0, min(1.0, float(value))) for value in (tuple(row[:4]) + (1.0,))[:4])
+        output.append(rgba)  # type: ignore[arg-type]
+    return output
+
+
+def _attach_gltf_vertex_color_summary(
+    submesh: SubMesh,
+    vertex_colors: Sequence[Sequence[float]],
+) -> None:
+    rows = [tuple(float(value) for value in tuple(row or ())[:4]) for row in tuple(vertex_colors or ()) if len(tuple(row or ())) >= 4]
+    if not rows:
+        return
+    count = float(len(rows))
+    mean = tuple(sum(row[index] for row in rows) / count for index in range(4))
+    setattr(submesh, "preview_vertex_color_mean", tuple(round(max(0.0, min(1.0, value)), 4) for value in mean[:3]))
+    setattr(submesh, "preview_vertex_alpha_mean", round(max(0.0, min(1.0, mean[3])), 4))
+    setattr(submesh, "preview_vertex_alpha_min", round(max(0.0, min(1.0, min(row[3] for row in rows))), 4))
+    setattr(submesh, "preview_vertex_color_count", len(rows))
 
 
 def _read_gltf_accessor(payload: _GltfPayload, accessor_index: int, *, expected_components: int) -> list[tuple[float, ...]]:
@@ -3476,12 +4510,8 @@ def _collada_material_texture_slots(
         raw_text = str((image.findtext(f"{prefix}init_from", default="", namespaces=ns) or "")).strip()
         if not raw_text:
             continue
-        candidate = Path(raw_text)
-        if not candidate.is_absolute():
-            candidate = dae_path.parent / raw_text
-        try:
-            resolved = candidate.expanduser().resolve()
-        except OSError:
+        resolved = _resolve_collada_image_reference(dae_path, raw_text)
+        if resolved is None:
             continue
         for key in (image.attrib.get("id", ""), image.attrib.get("name", ""), resolved.name):
             if key:
@@ -3572,6 +4602,110 @@ def _collada_material_texture_slots(
     return material_slots
 
 
+def _collada_material_parameters(
+    root: ET.Element,
+    prefix: str,
+    ns: dict[str, str],
+) -> dict[str, tuple[PreviewMaterialParameterInput, ...]]:
+    effect_parameters: dict[str, tuple[PreviewMaterialParameterInput, ...]] = {}
+
+    def channel_element(effect: ET.Element, tag_name: str) -> Optional[ET.Element]:
+        return effect.find(f".//{prefix}{tag_name}", ns)
+
+    def channel_color(effect: ET.Element, tag_name: str) -> tuple[float, ...]:
+        channel = channel_element(effect, tag_name)
+        if channel is None:
+            return ()
+        color = channel.find(f"{prefix}color", ns)
+        if color is None:
+            return ()
+        values = _parse_float_list(color.text or "")
+        return tuple(max(0.0, min(1.0, float(value))) for value in values[:4]) if len(values) >= 3 else ()
+
+    def channel_float(effect: ET.Element, tag_name: str) -> Optional[float]:
+        value = effect.find(f".//{prefix}{tag_name}/{prefix}float", ns)
+        if value is None:
+            return None
+        values = _parse_float_list(value.text or "")
+        return float(values[0]) if values else None
+
+    def append_parameter(target: list[PreviewMaterialParameterInput], parameter: Optional[PreviewMaterialParameterInput]) -> None:
+        if parameter is not None:
+            target.append(parameter)
+
+    def transparent_opacity(effect: ET.Element) -> Optional[float]:
+        transparent_element = channel_element(effect, "transparent")
+        transparent_color = channel_color(effect, "transparent") if transparent_element is not None else ()
+        transparency = channel_float(effect, "transparency")
+        if not transparent_color and transparency is None:
+            return None
+        opacity = 1.0
+        if transparent_color:
+            mode = str(transparent_element.attrib.get("opaque", "A_ONE") if transparent_element is not None else "A_ONE").strip().upper()
+            alpha = float(transparent_color[3]) if len(transparent_color) >= 4 else 1.0
+            luminance = (
+                (0.299 * float(transparent_color[0]))
+                + (0.587 * float(transparent_color[1]))
+                + (0.114 * float(transparent_color[2]))
+            )
+            if mode == "A_ZERO":
+                opacity = 1.0 - alpha
+            elif mode == "RGB_ZERO":
+                opacity = 1.0 - luminance
+            elif mode == "RGB_ONE":
+                opacity = luminance
+            else:
+                opacity = alpha
+        if transparency is not None:
+            opacity *= float(transparency)
+        return max(0.0, min(1.0, opacity))
+
+    for effect in root.findall(f".//{prefix}library_effects/{prefix}effect", ns):
+        effect_id = effect.attrib.get("id", "")
+        if not effect_id:
+            continue
+        parameters: list[PreviewMaterialParameterInput] = []
+        alpha_candidates: list[float] = []
+        diffuse = channel_color(effect, "diffuse")
+        if diffuse:
+            append_parameter(parameters, _scene_preview_color_parameter("_diffuseFactor", diffuse[:3]))
+            if len(diffuse) >= 4 and diffuse[3] < 0.999:
+                alpha_candidates.append(float(diffuse[3]))
+        specular = channel_color(effect, "specular")
+        if specular:
+            append_parameter(parameters, _scene_preview_color_parameter("_specularColorFactor", specular[:3]))
+        emission = channel_color(effect, "emission")
+        if emission:
+            append_parameter(parameters, _scene_preview_color_parameter("_emissiveColor", emission[:3]))
+            if any(component > 0.003 for component in emission[:3]):
+                append_parameter(parameters, _scene_preview_float_parameter("_emissiveIntensity", 1.0))
+        shininess = channel_float(effect, "shininess")
+        if shininess is not None:
+            glossiness = shininess if 0.0 <= shininess <= 1.0 else shininess / 100.0
+            append_parameter(parameters, _scene_preview_float_parameter("_glossinessFactor", max(0.0, min(1.0, glossiness))))
+        opacity = transparent_opacity(effect)
+        if opacity is not None:
+            alpha_candidates.append(float(opacity))
+        if alpha_candidates:
+            append_parameter(parameters, _scene_preview_float_parameter("_alphaFactor", min(alpha_candidates)))
+        if parameters:
+            effect_parameters[effect_id] = tuple(parameters)
+
+    material_parameters: dict[str, tuple[PreviewMaterialParameterInput, ...]] = {}
+    for material in root.findall(f".//{prefix}library_materials/{prefix}material", ns):
+        effect_ref = ""
+        instance_effect = material.find(f"{prefix}instance_effect", ns)
+        if instance_effect is not None:
+            effect_ref = instance_effect.attrib.get("url", "").lstrip("#")
+        parameters = effect_parameters.get(effect_ref, ())
+        if not parameters:
+            continue
+        for key in (material.attrib.get("id", ""), material.attrib.get("name", "")):
+            if key:
+                material_parameters[str(key)] = parameters
+    return material_parameters
+
+
 def _iter_collada_geometry_instances(
     root: ET.Element,
     prefix: str,
@@ -3653,6 +4787,10 @@ def _copy_submesh_with_transform(
         "preview_texture_tint",
         "preview_texture_brightness",
         "preview_texture_uv_scale",
+        "preview_vertex_color_mean",
+        "preview_vertex_alpha_mean",
+        "preview_vertex_alpha_min",
+        "preview_vertex_color_count",
         "preview_alpha_mode",
         "preview_double_sided",
         "preview_native_material_overrides",
@@ -3826,11 +4964,30 @@ def _collada_image_paths(dae_path: Path) -> list[Path]:
         raw_text = str(init_from.text or "").strip()
         if not raw_text:
             continue
-        candidate = Path(raw_text)
-        if not candidate.is_absolute():
-            candidate = dae_path.parent / raw_text
-        paths.append(candidate.expanduser().resolve())
+        resolved = _resolve_collada_image_reference(dae_path, raw_text)
+        if resolved is not None:
+            paths.append(resolved)
     return paths
+
+
+def _resolve_collada_image_reference(dae_path: Path, image_reference: str) -> Optional[Path]:
+    resolved = _resolve_local_texture_reference(dae_path, image_reference)
+    if resolved is not None:
+        return resolved
+
+    normalized_reference = unquote(str(image_reference or "").replace("\\", "/")).strip().strip("/")
+    if not normalized_reference:
+        return None
+    parsed = urlparse(normalized_reference)
+    suffix_source = parsed.path if parsed.scheme == "file" else normalized_reference
+    if PurePosixPath(suffix_source).suffix.lower() not in SCENE_TEXTURE_SOURCE_EXTENSIONS:
+        return None
+    if parsed.scheme and parsed.scheme != "file" and len(parsed.scheme) != 1:
+        return None
+    try:
+        return _resolve_scene_uri(dae_path.parent, normalized_reference)
+    except OSError:
+        return None
 
 
 def _guess_scene_material_texture(scene_path: Path, material: str) -> str:

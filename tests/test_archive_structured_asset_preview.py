@@ -82,6 +82,22 @@ def _paccd_sample() -> bytes:
     return header + bytes(rows)
 
 
+def _paseq_sample() -> bytes:
+    data = bytearray(b"PAR " + b"\x00" * 12)
+    data.extend(_decl("_animationFileNames", "staticstringA", bytes.fromhex("0A 00 01 00 20 10 00 00")))
+    data.extend(_decl("_effectFileName", "staticstringA", bytes.fromhex("01 00 01 00 40 00 00 00")))
+    data.extend(_decl("_startFrame", "uint32", bytes.fromhex("00 00 04 00 20 00 00 00")))
+    data.extend(_decl("_endFrame", "uint32", bytes.fromhex("00 00 04 00 20 00 00 00")))
+    data.extend(_decl("_eventTriggerNames", "staticstringA", bytes.fromhex("0A 00 01 00 20 10 00 00")))
+    data.extend(b"StartEvent_PlayerAttack\x00LoopPhase_Main\x00EndEvent_Recover\x00")
+    data.extend(b"actionchart/bin__/animation/test_combo_attack.paa\x00")
+    data.extend(b"character/bin__/animation/test_combo.hkx\x00")
+    data.extend(b"effect/bin__/test_combo_hit.paem\x00")
+    data.extend(b"character/model/test_actor.pac\x00")
+    data.extend(struct.pack("<IIff", 0, 90, 1.25, 30.0))
+    return bytes(data)
+
+
 class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
     def test_meshinfo_preview_and_json_include_sidecar_recovery_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -289,6 +305,70 @@ class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
             self.assertEqual(document["animation_metadata"]["declared_type"], "AnimationMetaData")
             self.assertGreater(document["summary"]["animation_metadata_stream_bytes"], 0)
             self.assertFalse(document["editing"]["supported"])
+
+    def test_paseq_preview_recovers_timeline_lanes_and_playback_gaps(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = _entry("actionchart/bin__/sequence/test_combo.paseq", root)
+            paa = _entry("actionchart/bin__/animation/test_combo_attack.paa", root)
+            hkx = _entry("character/bin__/animation/test_combo.hkx", root)
+            effect = _entry("effect/bin__/test_combo_hit.paem", root)
+            model = _entry("character/model/test_actor.pac", root)
+            path_index, basename_index = _indexes((source, paa, hkx, effect, model))
+
+            preview = build_par_structured_preview(
+                _paseq_sample(),
+                source.path,
+                extension=".paseq",
+                source_entry=source,
+                archive_entries_by_normalized_path=path_index,
+                archive_entries_by_basename=basename_index,
+            )
+            document = json.loads(
+                build_binary_sidecar_analysis_json(
+                    _paseq_sample(),
+                    source.path,
+                    extension=".paseq",
+                    source_entry=source,
+                    archive_entries_by_normalized_path=path_index,
+                    archive_entries_by_basename=basename_index,
+                )
+            )
+
+            resolved_paths = {reference.resolved_archive_path for reference in preview.related_references}
+            timeline = document["paseq"]["timeline"]
+            playback = document["paseq"]["playback_readiness"]
+
+            self.assertIn("Animation schedule inspector", preview.preview_text)
+            self.assertIn("Recovered timeline lanes", preview.preview_text)
+            self.assertIn("Timeline field evidence", preview.preview_text)
+            self.assertIn("Playback readiness", preview.preview_text)
+            self.assertIn(paa.path, resolved_paths)
+            self.assertIn(hkx.path, resolved_paths)
+            self.assertIn(effect.path, resolved_paths)
+            self.assertGreaterEqual(timeline["lane_kind_counts"]["animation"], 2)
+            self.assertGreaterEqual(timeline["lane_kind_counts"]["effect"], 1)
+            self.assertGreaterEqual(timeline["lane_kind_counts"]["context"], 1)
+            self.assertGreaterEqual(timeline["timeline_field_count"], 4)
+            self.assertGreaterEqual(timeline["event_marker_count"], 2)
+            self.assertFalse(playback["ready_for_3d_playback"])
+            self.assertTrue(any("Runtime binding" in gap for gap in playback["blocking_gaps"]))
+            self.assertFalse(document["editing"]["supported"])
+
+    def test_binary_sidecar_corpus_report_summarizes_paseq_timeline_lanes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            paseq = root / "test_combo.paseq"
+            paseq.write_bytes(_paseq_sample())
+
+            report = build_binary_sidecar_corpus_report((root,), discovery_limit=10, detail_scan_limit=10)
+            paseq_report = report["by_extension"][".paseq"]
+
+            self.assertEqual(report["summary"]["paseq_files_scanned"], 1)
+            self.assertEqual(paseq_report["files_scanned"], 1)
+            self.assertGreaterEqual(paseq_report["paseq"]["timeline_lane_buckets"][0]["lane_count"], 4)
+            self.assertGreaterEqual(paseq_report["paseq"]["animation_lane_buckets"][0]["lane_count"], 2)
+            self.assertFalse(report["editing"]["supported"])
 
     def test_binary_sidecar_corpus_report_ranks_layouts_and_stable_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

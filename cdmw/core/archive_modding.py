@@ -2890,48 +2890,57 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
             "variant, paired LOD, and physics/PBD companion files.",
         )
     authority_audit: Optional[ActiveFileAuthorityAuditResult] = None
-    try:
-        authority_audit = audit_loose_package_active_file_authority(
-            package_root,
-            game_root=_package_root_from_entry(primary_entry),
-            payload_files=written_files,
-            write_audit_file=True,
-            audit_output_path=package_root.with_name(f"{package_root.name}_cdmw_active_file_authority_audit.json"),
-            on_log=on_log,
-        )
-        if authority_audit.audit_path is not None:
-            try:
-                audit_display = authority_audit.audit_path.relative_to(package_root.parent).as_posix()
-            except ValueError:
-                audit_display = authority_audit.audit_path.as_posix()
-            _safe_log(
-                on_log,
-                "Active file authority audit report written outside package: "
-                f"{audit_display}",
+    authority_audit_output_path = package_root.with_name(f"{package_root.name}_cdmw_active_file_authority_audit.json")
+    if bool(getattr(active_export_options, "create_active_file_authority_audit", False)):
+        try:
+            authority_audit = audit_loose_package_active_file_authority(
+                package_root,
+                game_root=_package_root_from_entry(primary_entry),
+                payload_files=written_files,
+                write_audit_file=True,
+                audit_output_path=authority_audit_output_path,
+                on_log=on_log,
             )
-        for row in authority_audit.rows[:8]:
-            _safe_log(
-                on_log,
-                "Active file authority: "
-                f"{row.status} {row.virtual_path} "
-                f"(package {row.local_size:,} bytes {row.local_sha256[:16]}"
-                + (
-                    f"; active {row.active_source} {row.active_size:,} bytes {row.active_sha256[:16]}"
-                    if row.active_source
-                    else "; no active archive/loose match"
+            if authority_audit.audit_path is not None:
+                try:
+                    audit_display = authority_audit.audit_path.relative_to(package_root.parent).as_posix()
+                except ValueError:
+                    audit_display = authority_audit.audit_path.as_posix()
+                _safe_log(
+                    on_log,
+                    "Active file authority audit report written outside package: "
+                    f"{audit_display}",
                 )
-                + ").",
-            )
-        for warning in authority_audit.warnings[:12]:
-            _safe_log(on_log, warning)
-        if authority_audit.mismatch_count:
-            _safe_log(
-                on_log,
-                f"Active file authority audit found {authority_audit.mismatch_count:,} mismatch(es); "
-                "clean/disable stale active archives before judging in-game materials.",
-            )
-    except Exception as exc:
-        _safe_log(on_log, f"Warning: active file authority audit failed: {exc}")
+            for row in authority_audit.rows[:8]:
+                _safe_log(
+                    on_log,
+                    "Active file authority: "
+                    f"{row.status} {row.virtual_path} "
+                    f"(package {row.local_size:,} bytes {row.local_sha256[:16]}"
+                    + (
+                        f"; active {row.active_source} {row.active_size:,} bytes {row.active_sha256[:16]}"
+                        if row.active_source
+                        else "; no active archive/loose match"
+                    )
+                    + ").",
+                )
+            for warning in authority_audit.warnings[:12]:
+                _safe_log(on_log, warning)
+            if authority_audit.mismatch_count:
+                _safe_log(
+                    on_log,
+                    f"Active file authority audit found {authority_audit.mismatch_count:,} mismatch(es); "
+                    "clean/disable stale active archives before judging in-game materials.",
+                )
+        except Exception as exc:
+            _safe_log(on_log, f"Warning: active file authority audit failed: {exc}")
+    elif _is_active_file_authority_audit_path(authority_audit_output_path):
+        try:
+            if authority_audit_output_path.is_file():
+                authority_audit_output_path.unlink()
+                _safe_log(on_log, f"Removed stale active file authority audit: {authority_audit_output_path}")
+        except OSError as exc:
+            _safe_log(on_log, f"Warning: could not remove stale active file authority audit: {exc}")
     _safe_log(
         on_log,
         f"Finished mod-ready mesh package with {len(written_files):,} payload file(s) and {len(metadata_files):,} metadata file(s).",
@@ -3864,6 +3873,22 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
         preview_texture_uv_scale = tuple(getattr(submesh, "preview_texture_uv_scale", ()) or ())
         if len(preview_texture_uv_scale) >= 2:
             preview_mesh.preview_texture_uv_scale = tuple(float(component) for component in preview_texture_uv_scale[:2])
+        preview_vertex_color = tuple(getattr(submesh, "preview_vertex_color_mean", ()) or ())
+        if len(preview_vertex_color) >= 3:
+            preview_mesh.preview_vertex_color_mean = tuple(float(component) for component in preview_vertex_color[:3])
+            preview_mesh.preview_vertex_color_count = int(getattr(submesh, "preview_vertex_color_count", 0) or 0)
+        preview_vertex_alpha_mean = getattr(submesh, "preview_vertex_alpha_mean", None)
+        if preview_vertex_alpha_mean is not None:
+            try:
+                preview_mesh.preview_vertex_alpha_mean = float(preview_vertex_alpha_mean)
+            except (TypeError, ValueError, OverflowError):
+                pass
+        preview_vertex_alpha_min = getattr(submesh, "preview_vertex_alpha_min", None)
+        if preview_vertex_alpha_min is not None:
+            try:
+                preview_mesh.preview_vertex_alpha_min = float(preview_vertex_alpha_min)
+            except (TypeError, ValueError, OverflowError):
+                pass
         preview_texture_brightness = getattr(submesh, "preview_texture_brightness", None)
         if preview_texture_brightness is not None:
             try:

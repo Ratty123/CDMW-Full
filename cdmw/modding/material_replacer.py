@@ -42,6 +42,7 @@ class ReplacementTextureSlot:
     packed_channels: tuple[str, ...] = ()
     source_authority: str = ""
     base_color_factor: tuple[float, float, float] = ()
+    base_alpha_factor: Optional[float] = None
     base_color_scale: float = 1.0
     base_color_lift: int = 0
     base_color_gamma: float = 1.0
@@ -4023,7 +4024,7 @@ def _source_driven_slots(
             and _profile_uses_factor_only_material_mask(profile)
             and _texture_set_has_source_authority_data(texture_set)
         ):
-            source_slot = _complete_swap_neutral_support_slot(texture_set, "material_mask", material_profile=profile)
+            source_slot = _complete_swap_factor_only_material_mask_slot(texture_set, profile)
             key = (str(source_slot.source_path.expanduser().resolve()).lower(), str(source_slot.slot_kind).lower())
             if key not in seen_paths:
                 seen_paths.add(key)
@@ -4372,6 +4373,8 @@ def _source_slot_is_synthetic_factor_authority(source_slot: ReplacementTextureSl
         return False
     if tuple(getattr(source_slot, "base_color_factor", ()) or ()):
         return True
+    if _source_slot_needs_base_alpha_factor(source_slot):
+        return True
     source_name = str(getattr(source_slot, "source_path", "") or "").replace("\\", "/").lower()
     return "_base_" in source_name or "_emissive_" in source_name
 
@@ -4445,6 +4448,20 @@ def _complete_swap_runtime_material_mask_slot(
         normal_space="",
         source_authority="synthetic",
     )
+
+
+def _complete_swap_factor_only_material_mask_slot(
+    texture_set: ReplacementTextureSet,
+    material_profile: CDMaterialRuntimeProfile,
+) -> ReplacementTextureSlot:
+    if _profile_mask_binding_mode(material_profile) == "detail_mask_material":
+        detail_slot = _complete_swap_neutral_support_slot(
+            texture_set,
+            "detail_mask",
+            material_profile=material_profile,
+        )
+        return replace(detail_slot, slot_kind="material_mask", source_authority="synthetic")
+    return _complete_swap_neutral_support_slot(texture_set, "material_mask", material_profile=material_profile)
 
 
 def _is_complete_swap_runtime_material_mask_path(source_slot: ReplacementTextureSlot) -> bool:
@@ -8177,6 +8194,7 @@ def _attach_source_material_factor_slots(
         if existing_texture_set is not None and role_tags:
             _merge_source_role_tags(existing_texture_set, role_tags)
         preview_color = _source_preview_rgb(source_submesh)
+        preview_alpha = _source_preview_alpha(source_submesh)
         emissive_color = _source_emissive_rgb(source_submesh)
         roughness_factor = _source_material_numeric_parameter(source_submesh, "_roughnessFactor")
         metallic_factor = _source_material_numeric_parameter(source_submesh, "_metallicFactor")
@@ -8189,6 +8207,7 @@ def _attach_source_material_factor_slots(
         )
         if (
             preview_color is None
+            and preview_alpha is None
             and emissive_color is None
             and roughness_factor is None
             and metallic_factor is None
@@ -8216,6 +8235,11 @@ def _attach_source_material_factor_slots(
             if existing_base is not None:
                 existing_base.base_color_factor = preview_color
                 existing_base.source_authority = existing_base.source_authority or "gltf"
+        if preview_alpha is not None:
+            existing_base = texture_set.slots.get("base")
+            if existing_base is not None:
+                existing_base.base_alpha_factor = preview_alpha
+                existing_base.source_authority = existing_base.source_authority or "gltf"
         base_color = preview_color if "base" not in texture_set.slots else None
         if base_color is not None and "base" not in texture_set.slots:
             source_path = _solid_material_factor_png_path(material_name, "base", base_color)
@@ -8226,6 +8250,7 @@ def _attach_source_material_factor_slots(
                 normal_space="",
                 source_authority="synthetic",
                 base_color_factor=base_color,
+                base_alpha_factor=preview_alpha,
             )
         if emissive_color is not None and "emissive" not in texture_set.slots:
             source_path = _solid_material_factor_png_path(material_name, "emissive", emissive_color)
@@ -8408,15 +8433,35 @@ def _source_material_specular_factor(source_submesh: object) -> Optional[float]:
 
 def _source_preview_rgb(source_submesh: object) -> Optional[tuple[float, float, float]]:
     color = tuple(getattr(source_submesh, "preview_color", ()) or ())
-    if len(color) < 3:
+    vertex_color = tuple(getattr(source_submesh, "preview_vertex_color_mean", ()) or ())
+    if len(color) < 3 and len(vertex_color) < 3:
         return None
     try:
-        rgb = tuple(max(0.0, min(1.0, float(component))) for component in color[:3])
+        if len(color) >= 3:
+            rgb = tuple(max(0.0, min(1.0, float(component))) for component in color[:3])
+        else:
+            rgb = (1.0, 1.0, 1.0)
+        if len(vertex_color) >= 3:
+            vertex_rgb = tuple(max(0.0, min(1.0, float(component))) for component in vertex_color[:3])
+            rgb = tuple(max(0.0, min(1.0, rgb[index] * vertex_rgb[index])) for index in range(3))
     except (TypeError, ValueError, OverflowError):
         return None
     if all(abs(component - 1.0) <= 0.003 for component in rgb):
         return None
     return rgb  # type: ignore[return-value]
+
+
+def _source_preview_alpha(source_submesh: object) -> Optional[float]:
+    alpha = getattr(source_submesh, "preview_vertex_alpha_mean", None)
+    if alpha is None:
+        return None
+    try:
+        scalar = max(0.0, min(1.0, float(alpha)))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if abs(scalar - 1.0) <= 0.003:
+        return None
+    return scalar
 
 
 def _source_material_parameters(source_submesh: object) -> tuple[object, ...]:
@@ -11506,12 +11551,13 @@ def _build_texture_payload(
         with Image.open(path) as image:
             return int(image.width), int(image.height)
 
-    if source_slot.source_path.suffix.lower() == ".dds":
-        if _source_slot_needs_base_color_factor(source_slot) or _source_slot_needs_base_color_adjustment(source_slot):
-            _warn_once(
-                report,
-                f"{source_slot.source_path.name}: source color adjustment could not be baked into DDS source; convert source base texture to PNG for source-authoritative color.",
-            )
+    source_is_dds = source_slot.source_path.suffix.lower() == ".dds"
+    needs_source_color_bake = (
+        _source_slot_needs_base_color_factor(source_slot)
+        or _source_slot_needs_base_alpha_factor(source_slot)
+        or _source_slot_needs_base_color_adjustment(source_slot)
+    )
+    if source_is_dds and not needs_source_color_bake:
         target_vpath = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()
         _append_crimson_dds_validation_warnings(source_slot.source_path, vpath=target_vpath, report=report)
         source_info = parse_dds(source_slot.source_path)
@@ -11530,6 +11576,11 @@ def _build_texture_payload(
                 f"DDS replacement {source_slot.source_path.name} differs from target template: {', '.join(mismatch_parts)}."
             )
         return source_slot.source_path.read_bytes()
+    if source_is_dds:
+        _warn_once(
+            report,
+            f"{source_slot.source_path.name}: baking source color adjustment by re-encoding DDS source.",
+        )
     original_source = original_texture_source_path(target_entry)
     original_info = parse_dds(original_source)
     resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
@@ -11643,6 +11694,19 @@ def _source_slot_needs_base_color_factor(source_slot: ReplacementTextureSlot) ->
     return any(abs(component - 1.0) > 0.003 for component in rgb)
 
 
+def _source_slot_needs_base_alpha_factor(source_slot: ReplacementTextureSlot) -> bool:
+    if str(source_slot.slot_kind or "").strip().lower() != "base":
+        return False
+    alpha = getattr(source_slot, "base_alpha_factor", None)
+    if alpha is None:
+        return False
+    try:
+        scalar = max(0.0, min(1.0, float(alpha)))
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return abs(scalar - 1.0) > 0.003
+
+
 def _source_slot_needs_base_color_adjustment(source_slot: ReplacementTextureSlot) -> bool:
     if str(source_slot.slot_kind or "").strip().lower() not in {"base", "emissive"}:
         return False
@@ -11703,11 +11767,18 @@ def _auto_balance_source_base_rgb(rgb: object, alpha: object, strength_percent: 
 
 
 def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTextureSlot) -> Path:
-    if not _source_slot_needs_base_color_factor(source_slot) and not _source_slot_needs_base_color_adjustment(source_slot):
+    if (
+        not _source_slot_needs_base_color_factor(source_slot)
+        and not _source_slot_needs_base_alpha_factor(source_slot)
+        and not _source_slot_needs_base_color_adjustment(source_slot)
+    ):
         return source_slot.source_path
     factor = tuple(max(0.0, min(1.0, float(component))) for component in tuple(source_slot.base_color_factor[:3]))
     if len(factor) < 3:
         factor = (1.0, 1.0, 1.0)
+    alpha_factor = 1.0
+    if _source_slot_needs_base_alpha_factor(source_slot):
+        alpha_factor = max(0.0, min(1.0, float(getattr(source_slot, "base_alpha_factor", 1.0) or 1.0)))
     scale_rgb = max(0.0, min(4.0, float(getattr(source_slot, "base_color_scale", 1.0) or 1.0)))
     lift = max(0, min(254, int(getattr(source_slot, "base_color_lift", 0) or 0)))
     gamma = max(0.1, min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0)))
@@ -11720,19 +11791,23 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
     try:
         stat = source_path.stat()
         fingerprint = (
-            f"{source_path}|{stat.st_mtime_ns}|{stat.st_size}|{factor}|"
+            f"{source_path}|{stat.st_mtime_ns}|{stat.st_size}|{factor}|{alpha_factor:.6f}|"
             f"{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}|"
             f"{auto_balance}|{shadow_lift}|{tone_contrast:.6f}"
         )
     except OSError:
         fingerprint = (
-            f"{source_path}|{factor}|{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}|"
+            f"{source_path}|{factor}|{alpha_factor:.6f}|{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}|"
             f"{auto_balance}|{shadow_lift}|{tone_contrast:.6f}"
         )
     digest = hashlib.sha1(fingerprint.encode("utf-8", errors="ignore")).hexdigest()[:12]
     root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
     root.mkdir(parents=True, exist_ok=True)
-    suffix = "basecolorfactor" if _source_slot_needs_base_color_factor(source_slot) else "basecolorprofile"
+    suffix = (
+        "basecolorfactor"
+        if _source_slot_needs_base_color_factor(source_slot) or _source_slot_needs_base_alpha_factor(source_slot)
+        else "basecolorprofile"
+    )
     path = root / f"{_sanitize_texture_component(source_path.stem) or 'base'}_{suffix}_{digest}.png"
     if path.is_file():
         return path
@@ -11744,6 +11819,8 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
         r = r.point(lambda value: max(0, min(255, int(round(int(value) * factor[0] * scale_rgb)))))
         g = g.point(lambda value: max(0, min(255, int(round(int(value) * factor[1] * scale_rgb)))))
         b = b.point(lambda value: max(0, min(255, int(round(int(value) * factor[2] * scale_rgb)))))
+        if _source_slot_needs_base_alpha_factor(source_slot):
+            a = a.point(lambda value: max(0, min(255, int(round(int(value) * alpha_factor)))))
         if abs(gamma - 1.0) > 0.0001:
             r = r.point(lambda value: max(0, min(255, int(round(((int(value) / 255.0) ** gamma) * 255.0)))))
             g = g.point(lambda value: max(0, min(255, int(round(((int(value) / 255.0) ** gamma) * 255.0)))))
@@ -11845,12 +11922,13 @@ def material_authority_preview_texture_slots(
         if accent_slot is not None:
             preview_slots["emissive"] = adjusted_slot(accent_slot)
 
-    preview_slots["material_mask"] = ReplacementTextureSlot(
-        str(getattr(texture_set, "material_name", "") or "material"),
-        "material_mask",
-        _complete_swap_runtime_material_mask_png_path(texture_set, profile),
-        source_authority="synthetic",
-    )
+    if "material_mask" not in preview_slots or _profile_mask_binding_mode(profile) != "detail_mask_material":
+        preview_slots["material_mask"] = ReplacementTextureSlot(
+            str(getattr(texture_set, "material_name", "") or "material"),
+            "material_mask",
+            _complete_swap_runtime_material_mask_png_path(texture_set, profile),
+            source_authority="synthetic",
+        )
     return preview_slots
 
 

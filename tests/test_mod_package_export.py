@@ -367,6 +367,7 @@ class ModPackageExportTests(unittest.TestCase):
         self.assertFalse(universal.create_modinfo_json)
         self.assertFalse(universal.create_info_json)
         self.assertFalse(universal.create_texture_resolution_manifest)
+        self.assertFalse(universal.create_active_file_authority_audit)
 
         retired_manager = mod_package_export_options_for_manager("retired_manager")
         self.assertTrue(retired_manager.create_manifest_json)
@@ -387,6 +388,7 @@ class ModPackageExportTests(unittest.TestCase):
         self.assertTrue(dmm.create_modinfo_json)
         self.assertFalse(dmm.create_info_json)
         self.assertFalse(dmm.create_texture_resolution_manifest)
+        self.assertFalse(dmm.create_active_file_authority_audit)
 
         field_json = mod_package_export_options_for_manager("field_json")
         self.assertFalse(field_json.create_manifest_json)
@@ -430,11 +432,16 @@ class ModPackageExportTests(unittest.TestCase):
         self.assertEqual("override", cdumm.conflict_mode)
         self.assertEqual("ko", cdumm.target_language)
 
-        jmm = mod_package_export_options_for_profiles(("jmm",), create_zip=True)
+        jmm = mod_package_export_options_for_profiles(
+            ("jmm",),
+            create_zip=True,
+            create_active_file_authority_audit=True,
+        )
         self.assertEqual(("jmm",), jmm.manager_targets)
         self.assertEqual("game_relative", jmm.structure)
         self.assertFalse(jmm.create_manifest_json)
         self.assertTrue(jmm.create_zip)
+        self.assertTrue(jmm.create_active_file_authority_audit)
 
     def test_profile_helper_expands_multi_manager_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -55,6 +55,10 @@ def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
     extra_submesh_attrs = (
         "texture_slots",
         "preview_color",
+        "preview_vertex_color_mean",
+        "preview_vertex_alpha_mean",
+        "preview_vertex_alpha_min",
+        "preview_vertex_color_count",
         "preview_normal_texture_path",
         "preview_normal_texture_name",
         "preview_normal_texture_strength",
