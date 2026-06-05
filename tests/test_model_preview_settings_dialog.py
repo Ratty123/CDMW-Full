@@ -36,6 +36,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
 
         self.assertIn("normal_strength_cap", dialog._slider_controls)
         self.assertIn("height_effect_max", dialog._slider_controls)
+        self.assertIn("diffuse_wrap_bias", dialog._slider_controls)
         self.assertIn("specular_max", dialog._slider_controls)
         self.assertIn("shininess_max", dialog._slider_controls)
         self.assertEqual(
@@ -239,9 +240,11 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
 
         self.assertIn("preview/d3d11_lighting_defaults_version", source)
-        self.assertIn("old_saved_defaults", source)
+        self.assertIn("old_saved_defaults_v2", source)
         self.assertIn("_near(d3d11_environment_strength, 1.0)", source)
         self.assertIn("d3d11_environment_strength = defaults.d3d11_environment_strength", source)
+        self.assertIn("diffuse_wrap_bias = defaults.diffuse_wrap_bias", source)
+        self.assertIn('self.settings.setValue("preview/diffuse_wrap_bias", diffuse_wrap_bias)', source)
         self.assertIn('self.settings.setValue("preview/specular_max", specular_max)', source)
 
 

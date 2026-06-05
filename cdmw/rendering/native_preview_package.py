@@ -4286,26 +4286,16 @@ def write_isolated_d3d11_preview_package(
     lighting_preset = _lighting_preset_for_settings(settings)
     if has_metal_preview_response and lighting_preset == "neutral_studio":
         lighting_preset = "shiny_metal_inspection"
-    ambient_strength = _safe_float(getattr(settings, "ambient_strength", 0.55), 0.55)
-    diffuse_light_scale = _safe_float(getattr(settings, "diffuse_light_scale", 0.65), 0.65)
-    specular_base = _safe_float(getattr(settings, "specular_base", 0.05), 0.05)
-    specular_max = _safe_float(getattr(settings, "specular_max", 0.18), 0.18)
+    ambient_strength = _safe_float(getattr(settings, "ambient_strength", 0.72), 0.72)
+    diffuse_wrap_bias = _safe_float(getattr(settings, "diffuse_wrap_bias", 0.72), 0.72)
+    diffuse_light_scale = _safe_float(getattr(settings, "diffuse_light_scale", 0.95), 0.95)
+    specular_base = _safe_float(getattr(settings, "specular_base", 0.07), 0.07)
+    specular_max = _safe_float(getattr(settings, "specular_max", 0.32), 0.32)
     shininess_min = _safe_float(getattr(settings, "shininess_min", 28.0), 28.0)
     shininess_max = _safe_float(getattr(settings, "shininess_max", 72.0), 72.0)
-    if has_metal_preview_response:
-        ambient_strength = max(min(ambient_strength, 0.62), 0.46)
-        diffuse_light_scale = max(diffuse_light_scale, 0.72)
-        specular_base = max(specular_base, 0.055)
-        specular_max = max(specular_max, 0.42)
-        shininess_min = min(shininess_min, 24.0)
-        shininess_max = max(shininess_max, 128.0)
     tone_exposure = _safe_float(getattr(settings, "d3d11_tone_exposure", 1.0), 1.0)
     tone_contrast = _safe_float(getattr(settings, "d3d11_tone_contrast", 1.0), 1.0)
     tone_gamma = _safe_float(getattr(settings, "d3d11_tone_gamma", 1.0), 1.0)
-    if has_metal_preview_response:
-        tone_exposure = min(tone_exposure, 0.82)
-        tone_contrast = max(tone_contrast, 1.08)
-        tone_gamma = max(tone_gamma, 1.04)
     if aggregate_geometry_chunks:
         (geometry_dir / "geometry.bin").write_bytes(b"".join(aggregate_geometry_chunks))
     if aggregate_identity_chunks:
@@ -4368,6 +4358,7 @@ def write_isolated_d3d11_preview_package(
         "lighting_preset": lighting_preset,
         "max_anisotropy": int(getattr(settings, "max_anisotropy", 16) or 16),
         "ambient_strength": ambient_strength,
+        "diffuse_wrap_bias": diffuse_wrap_bias,
         "diffuse_light_scale": diffuse_light_scale,
         "specular_base": specular_base,
         "specular_max": specular_max,

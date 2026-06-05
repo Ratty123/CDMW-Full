@@ -334,6 +334,13 @@ class ModelPreviewSettingsDialog(QDialog):
         )
         self._add_slider_row(
             quality_form,
+            "Diffuse wrap",
+            "diffuse_wrap_bias",
+            step=0.01,
+            decimals=2,
+        )
+        self._add_slider_row(
+            quality_form,
             "Light azimuth",
             "d3d11_light_azimuth_degrees",
             step=5.0,

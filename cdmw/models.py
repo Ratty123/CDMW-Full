@@ -1429,7 +1429,7 @@ MODEL_PREVIEW_RENDER_LIMITS: Dict[str, Tuple[float, float]] = {
     "d3d11_mip_lod_bias": (-2.0, 1.0),
     "ambient_strength": (0.35, 1.0),
     "diffuse_wrap_bias": (0.20, 1.0),
-    "diffuse_light_scale": (0.20, 1.0),
+    "diffuse_light_scale": (0.20, 1.5),
     "d3d11_light_azimuth_degrees": (-180.0, 180.0),
     "d3d11_light_elevation_degrees": (-80.0, 80.0),
     "d3d11_ao_strength": (0.0, 2.0),
@@ -1706,16 +1706,16 @@ class ModelPreviewRenderSettings:
     d3d11_normal_y_mode: str = "asset"
     d3d11_ao_strength: float = 0.65
     d3d11_roughness_bias: float = 0.10
-    d3d11_metalness_scale: float = 0.75
-    d3d11_environment_strength: float = 0.45
+    d3d11_metalness_scale: float = 1.00
+    d3d11_environment_strength: float = 0.85
     d3d11_emissive_gain: float = 1.0
     d3d11_tone_exposure: float = 1.0
     d3d11_tone_contrast: float = 1.0
     d3d11_tone_gamma: float = 1.0
     d3d11_texture_address_mode: str = "wrap"
-    ambient_strength: float = 0.55
-    diffuse_wrap_bias: float = 0.60
-    diffuse_light_scale: float = 0.65
+    ambient_strength: float = 0.72
+    diffuse_wrap_bias: float = 0.72
+    diffuse_light_scale: float = 0.95
     orbit_sensitivity: float = 0.22
     pan_sensitivity: float = 0.60
     invert_orbit_x: bool = False
@@ -1727,9 +1727,9 @@ class ModelPreviewRenderSettings:
     height_effect_max: float = 0.35
     cavity_clamp_min: float = 0.75
     cavity_clamp_max: float = 1.25
-    specular_base: float = 0.050
+    specular_base: float = 0.070
     specular_min: float = 0.050
-    specular_max: float = 0.14
+    specular_max: float = 0.32
     shininess_base: float = 36.0
     shininess_min: float = 28.0
     shininess_max: float = 72.0

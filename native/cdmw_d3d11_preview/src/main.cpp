@@ -550,17 +550,18 @@ struct RenderTuning {
     int normal_y_mode = 0;
     float ao_strength = 0.65f;
     float roughness_bias = 0.10f;
-    float metalness_scale = 0.75f;
-    float environment_strength = 0.45f;
+    float metalness_scale = 1.0f;
+    float environment_strength = 0.85f;
     float emissive_gain = 1.0f;
     float tone_exposure = 1.0f;
     float tone_contrast = 1.0f;
     float tone_gamma = 1.0f;
     std::string texture_address_mode = "wrap";
-    float ambient_strength = 0.55f;
-    float diffuse_light_scale = 0.65f;
-    float specular_base = 0.05f;
-    float specular_max = 0.14f;
+    float ambient_strength = 0.72f;
+    float diffuse_wrap_bias = 0.72f;
+    float diffuse_light_scale = 0.95f;
+    float specular_base = 0.07f;
+    float specular_max = 0.32f;
     float shininess_min = 28.0f;
     float shininess_max = 72.0f;
 };
@@ -1494,6 +1495,7 @@ static RenderTuning parse_render_tuning(const std::string& manifest) {
     tuning.texture_address_mode = lower_copy(json_string_field(manifest, "d3d11_texture_address_mode", tuning.texture_address_mode));
     if (tuning.texture_address_mode != "clamp") tuning.texture_address_mode = "wrap";
     tuning.ambient_strength = std::clamp(json_float_field(manifest, "ambient_strength", tuning.ambient_strength), 0.05f, 1.20f);
+    tuning.diffuse_wrap_bias = std::clamp(json_float_field(manifest, "diffuse_wrap_bias", tuning.diffuse_wrap_bias), 0.0f, 1.0f);
     tuning.diffuse_light_scale = std::clamp(json_float_field(manifest, "diffuse_light_scale", tuning.diffuse_light_scale), 0.05f, 1.50f);
     tuning.specular_base = std::clamp(json_float_field(manifest, "specular_base", tuning.specular_base), 0.0f, 0.50f);
     tuning.specular_max = std::clamp(json_float_field(manifest, "specular_max", tuning.specular_max), tuning.specular_base, 1.00f);
@@ -1507,6 +1509,7 @@ static RenderTuning parse_render_tuning(const std::string& manifest) {
         tuning.environment_strength = std::max(tuning.environment_strength, 0.70f);
         tuning.emissive_gain = std::max(tuning.emissive_gain, 1.80f);
         tuning.ambient_strength = std::max(tuning.ambient_strength, 0.78f);
+        tuning.diffuse_wrap_bias = std::max(tuning.diffuse_wrap_bias, 0.70f);
         tuning.diffuse_light_scale = std::max(tuning.diffuse_light_scale, 1.05f);
         tuning.specular_max = std::max(tuning.specular_max, 0.22f);
     }
@@ -1910,14 +1913,20 @@ float3 preview_environment_color(float3 reflected_view, float roughness) {
     float front_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.18, 0.36, -0.92)))), lerp(14.0, 4.0, roughness));
     float top_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.32, 0.88, -0.34)))), lerp(28.0, 7.0, roughness));
     float side_softbox = pow(saturate(dot(reflected_view, normalize(float3(0.82, 0.20, -0.54)))), lerp(18.0, 5.0, roughness));
+    float back_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.72, 0.26, 0.64)))), lerp(18.0, 5.0, roughness));
     float dark_band = pow(saturate(1.0 - abs(reflected_view.x * 1.8 + reflected_view.y * 0.35)), 3.2) * saturate(0.85 - reflected_view.z);
-    float3 env_color = lerp(float3(0.030, 0.034, 0.040), float3(0.28, 0.31, 0.36), env_lobe);
-    env_color = lerp(env_color, env_color * float3(0.42, 0.45, 0.50), dark_band * (1.0 - roughness) * 0.45);
-    env_color += horizon_band * float3(0.08, 0.09, 0.11);
-    env_color += front_softbox.xxx * float3(0.18, 0.21, 0.24);
-    env_color += top_softbox.xxx * float3(0.34, 0.32, 0.28);
-    env_color += side_softbox.xxx * float3(0.12, 0.15, 0.19);
+    float3 env_color = lerp(float3(0.095, 0.105, 0.120), float3(0.48, 0.52, 0.58), env_lobe);
+    env_color = lerp(env_color, env_color * float3(0.72, 0.74, 0.78), dark_band * (1.0 - roughness) * 0.18);
+    env_color += horizon_band * float3(0.16, 0.17, 0.19);
+    env_color += front_softbox.xxx * float3(0.34, 0.39, 0.44);
+    env_color += top_softbox.xxx * float3(0.48, 0.46, 0.40);
+    env_color += side_softbox.xxx * float3(0.24, 0.28, 0.34);
+    env_color += back_softbox.xxx * float3(0.20, 0.23, 0.28);
     return env_color;
+}
+float wrapped_ndotl(float3 normal_value, float3 light_value, float wrap_amount) {
+    float wrap = saturate(wrap_amount);
+    return saturate((dot(normalize(normal_value), normalize(light_value)) + wrap) / (1.0 + wrap));
 }
 VSOut vs_main(VSIn input) {
     VSOut output;
@@ -2064,11 +2073,12 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float roughness = 0.55;
     float specular = 0.15;
     float metalness = 0.0;
+    float user_metalness_scale = max(render_tuning3.z, 0.0);
     if (material_hints.x > 0.02) {
         roughness = lerp(roughness, material_hints.x, 0.32);
     }
     if (material_hints.y > 0.02) {
-        metalness = max(metalness, material_hints.y);
+        metalness = max(metalness, saturate(material_hints.y * user_metalness_scale));
     }
     if (material_hints.z > 0.02) {
         specular = max(specular, material_hints.z);
@@ -2122,7 +2132,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float category_specular_cap = category_metal ? 1.0 : (category_glass ? 0.42 : (category_gem ? 0.48 : (category_eye ? 0.44 : (category_leather ? 0.24 : (category_wood ? 0.16 : (category_cloth ? 0.12 : (category_skin ? 0.16 : (category_hair ? 0.22 : (category_stone ? 0.10 : (category_tooth ? 0.18 : 0.18))))))))));
     float category_env_scale = category_metal ? 0.82 : (category_glass ? 0.26 : (category_gem ? 0.30 : (category_eye ? 0.24 : (category_leather ? 0.10 : (category_wood ? 0.06 : (category_cloth ? 0.05 : (category_skin ? 0.05 : (category_hair ? 0.08 : (category_stone ? 0.04 : (category_tooth ? 0.08 : 0.08))))))))));
     float category_roughness_floor = category_metal ? 0.16 : (category_glass ? 0.30 : (category_gem ? 0.26 : (category_eye ? 0.30 : (category_leather ? 0.64 : (category_wood ? 0.70 : (category_cloth ? 0.74 : (category_skin ? 0.68 : (category_hair ? 0.64 : (category_stone ? 0.82 : (category_tooth ? 0.58 : 0.66))))))))));
-    metal_scale *= render_tuning3.z * category_metal_cap;
+    metal_scale *= user_metalness_scale * category_metal_cap;
     specular_scale *= category_specular_cap;
     if (conservative_nonmetal) {
         roughness = max(roughness, category_roughness_floor);
@@ -2237,7 +2247,9 @@ static const char kShaderSourcePixelLighting[] = R"(
         n = -n;
     }
     float3 v = normalize(-view_dir);
-    float ndotl = saturate(dot(n, l));
+    float raw_ndotl = dot(n, l);
+    float diffuse_wrap = saturate(render_tuning2.z);
+    float ndotl = wrapped_ndotl(n, l, diffuse_wrap * 0.65);
     float ndotv = max(0.045, saturate(abs(dot(n, v))));
     float3 h = normalize(l + v);
     float ndoth = saturate(dot(n, h));
@@ -2253,8 +2265,19 @@ static const char kShaderSourcePixelLighting[] = R"(
     float3 kd = (1.0 - f) * (1.0 - metalness);
     float height_light = lerp(1.0 - material_params.y, 1.0 + material_params.y, height_value);
     float3 diffuse_brdf = kd * albedo * (1.0 / 3.14159265);
-    float3 key_light = float3(1.0, 0.94, 0.86) * max(render_tuning.y, 0.05) * 3.6;
-    float3 direct = (diffuse_brdf + specular_brdf) * key_light * ndotl * ao * height_light;
+    float3 key_light = float3(1.0, 0.94, 0.86) * max(render_tuning.y, 0.05) * 3.2;
+    float3 fill_dir = normalize(float3(-l.x * 0.72, max(0.22, abs(l.y) * 0.38), -l.z * 0.72));
+    float3 side_dir = normalize(float3(l.z, 0.30, -l.x));
+    float3 back_dir = normalize(float3(-l.x, 0.26, l.z));
+    float fill_light = wrapped_ndotl(n, fill_dir, diffuse_wrap) * (0.22 + diffuse_wrap * 0.24);
+    float side_light = wrapped_ndotl(n, side_dir, diffuse_wrap * 0.90) * (0.12 + diffuse_wrap * 0.18);
+    float back_light = wrapped_ndotl(n, back_dir, diffuse_wrap * 1.15) * (0.09 + diffuse_wrap * 0.17);
+    float up_hemi = saturate(n.y * 0.5 + 0.5);
+    float hemi_light = lerp(0.10 + diffuse_wrap * 0.14, 0.18 + diffuse_wrap * 0.16, up_hemi);
+    float diffuse_light = ndotl + fill_light + side_light + back_light + hemi_light;
+    float3 direct_diffuse = diffuse_brdf * key_light * diffuse_light * ao * height_light;
+    float3 direct_specular = specular_brdf * key_light * saturate(raw_ndotl) * ao * height_light;
+    float3 direct = direct_diffuse + direct_specular;
     float3 ambient_diffuse = albedo * max(render_tuning.x, 0.58) * ao * (1.0 - metalness) * lerp(0.92, 0.62, smoothness);
     float3 reflected_view = normalize(reflect(-v, n));
     float3 env_color = preview_environment_color(reflected_view, roughness);
@@ -3614,7 +3637,7 @@ private:
             : DirectX::XMFLOAT4(
                 render_tuning_.shininess_min,
                 render_tuning_.shininess_max,
-                0.0f,
+                render_tuning_.diffuse_wrap_bias,
                 0.0f);
         constants.render_tuning3 = mesh_edit_flat
             ? DirectX::XMFLOAT4(0.0f, 0.30f, 0.0f, 0.05f)
@@ -5517,6 +5540,7 @@ private:
                     {"d3d11_cull_back_faces", render_tuning_.cull_back_faces ? "true" : "false"},
                     {"d3d11_texture_address_mode", render_tuning_.texture_address_mode},
                     {"ambient_strength", std::to_string(render_tuning_.ambient_strength)},
+                    {"diffuse_wrap_bias", std::to_string(render_tuning_.diffuse_wrap_bias)},
                     {"diffuse_light_scale", std::to_string(render_tuning_.diffuse_light_scale)},
                     {"specular_max", std::to_string(render_tuning_.specular_max)},
                     {"sampler_ok", sampler_ok ? "true" : "false"}
@@ -5529,6 +5553,7 @@ private:
                   << ",\"d3d11_cull_back_faces\":" << (render_tuning_.cull_back_faces ? "true" : "false")
                   << ",\"d3d11_texture_address_mode\":\"" << json_escape(render_tuning_.texture_address_mode) << "\""
                   << ",\"ambient_strength\":" << render_tuning_.ambient_strength
+                  << ",\"diffuse_wrap_bias\":" << render_tuning_.diffuse_wrap_bias
                   << ",\"diffuse_light_scale\":" << render_tuning_.diffuse_light_scale
                   << ",\"specular_max\":" << render_tuning_.specular_max
                   << ",\"sampler_max_anisotropy\":" << stats_.sampler_max_anisotropy

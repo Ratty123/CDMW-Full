@@ -1235,10 +1235,11 @@ def run_gui() -> int:
                     "d3d11_texture_address_mode": str(
                         getattr(settings, "d3d11_texture_address_mode", "wrap") or "wrap"
                     ),
-                    "ambient_strength": float(getattr(settings, "ambient_strength", 0.55) or 0.55),
-                    "diffuse_light_scale": float(getattr(settings, "diffuse_light_scale", 0.65) or 0.65),
-                    "specular_base": float(getattr(settings, "specular_base", 0.05) or 0.05),
-                    "specular_max": float(getattr(settings, "specular_max", 0.18) or 0.18),
+                    "ambient_strength": float(getattr(settings, "ambient_strength", 0.72) or 0.72),
+                    "diffuse_wrap_bias": float(getattr(settings, "diffuse_wrap_bias", 0.72) or 0.72),
+                    "diffuse_light_scale": float(getattr(settings, "diffuse_light_scale", 0.95) or 0.95),
+                    "specular_base": float(getattr(settings, "specular_base", 0.07) or 0.07),
+                    "specular_max": float(getattr(settings, "specular_max", 0.32) or 0.32),
                     "shininess_min": float(getattr(settings, "shininess_min", 28.0) or 28.0),
                     "shininess_max": float(getattr(settings, "shininess_max", 72.0) or 72.0),
                     "orbit_sensitivity": float(getattr(settings, "orbit_sensitivity", 0.22) or 0.22),
@@ -30629,33 +30630,52 @@ def run_gui() -> int:
                 "preview/d3d11_environment_strength",
                 defaults.d3d11_environment_strength,
             )
+            ambient_strength = self._read_float("preview/ambient_strength", defaults.ambient_strength)
+            diffuse_wrap_bias = self._read_float("preview/diffuse_wrap_bias", defaults.diffuse_wrap_bias)
+            diffuse_light_scale = self._read_float("preview/diffuse_light_scale", defaults.diffuse_light_scale)
+            specular_base = self._read_float("preview/specular_base", defaults.specular_base)
             specular_max = self._read_float("preview/specular_max", defaults.specular_max)
-            if legacy_lighting_version < 2:
+            if legacy_lighting_version < 3:
                 def _near(current: float, expected: float) -> bool:
                     try:
                         return abs(float(current) - float(expected)) <= 1e-6
                     except (TypeError, ValueError):
                         return False
 
-                old_saved_defaults = (
+                old_saved_defaults_v1 = (
                     _near(d3d11_ao_strength, 1.0)
                     and _near(d3d11_roughness_bias, 0.0)
                     and _near(d3d11_metalness_scale, 1.0)
                     and _near(d3d11_environment_strength, 1.0)
                     and _near(specular_max, 0.18)
                 )
-                if old_saved_defaults:
+                old_saved_defaults_v2 = (
+                    _near(d3d11_ao_strength, 0.65)
+                    and _near(d3d11_roughness_bias, 0.10)
+                    and _near(d3d11_metalness_scale, 0.75)
+                    and _near(d3d11_environment_strength, 0.45)
+                    and _near(specular_max, 0.14)
+                )
+                if old_saved_defaults_v1 or old_saved_defaults_v2:
                     d3d11_ao_strength = defaults.d3d11_ao_strength
                     d3d11_roughness_bias = defaults.d3d11_roughness_bias
                     d3d11_metalness_scale = defaults.d3d11_metalness_scale
                     d3d11_environment_strength = defaults.d3d11_environment_strength
+                    ambient_strength = defaults.ambient_strength
+                    diffuse_wrap_bias = defaults.diffuse_wrap_bias
+                    diffuse_light_scale = defaults.diffuse_light_scale
+                    specular_base = defaults.specular_base
                     specular_max = defaults.specular_max
                     self.settings.setValue("preview/d3d11_ao_strength", d3d11_ao_strength)
                     self.settings.setValue("preview/d3d11_roughness_bias", d3d11_roughness_bias)
                     self.settings.setValue("preview/d3d11_metalness_scale", d3d11_metalness_scale)
                     self.settings.setValue("preview/d3d11_environment_strength", d3d11_environment_strength)
+                    self.settings.setValue("preview/ambient_strength", ambient_strength)
+                    self.settings.setValue("preview/diffuse_wrap_bias", diffuse_wrap_bias)
+                    self.settings.setValue("preview/diffuse_light_scale", diffuse_light_scale)
+                    self.settings.setValue("preview/specular_base", specular_base)
                     self.settings.setValue("preview/specular_max", specular_max)
-                self.settings.setValue("preview/d3d11_lighting_defaults_version", 2)
+                self.settings.setValue("preview/d3d11_lighting_defaults_version", 3)
             return clamp_model_preview_render_settings(
                 ModelPreviewRenderSettings(
                     use_textures_by_default=self._read_bool("archive/model_use_textures", defaults.use_textures_by_default),
@@ -30764,9 +30784,9 @@ def run_gui() -> int:
                     ),
                     max_anisotropy=self._read_int("preview/max_anisotropy", defaults.max_anisotropy),
                     d3d11_mip_lod_bias=self._read_float("preview/d3d11_mip_lod_bias", defaults.d3d11_mip_lod_bias),
-                    ambient_strength=self._read_float("preview/ambient_strength", defaults.ambient_strength),
-                    diffuse_wrap_bias=self._read_float("preview/diffuse_wrap_bias", defaults.diffuse_wrap_bias),
-                    diffuse_light_scale=self._read_float("preview/diffuse_light_scale", defaults.diffuse_light_scale),
+                    ambient_strength=ambient_strength,
+                    diffuse_wrap_bias=diffuse_wrap_bias,
+                    diffuse_light_scale=diffuse_light_scale,
                     d3d11_light_azimuth_degrees=self._read_float(
                         "preview/d3d11_light_azimuth_degrees",
                         defaults.d3d11_light_azimuth_degrees,
@@ -30786,7 +30806,7 @@ def run_gui() -> int:
                     height_effect_max=self._read_float("preview/height_effect_max", defaults.height_effect_max),
                     cavity_clamp_min=self._read_float("preview/cavity_clamp_min", defaults.cavity_clamp_min),
                     cavity_clamp_max=self._read_float("preview/cavity_clamp_max", defaults.cavity_clamp_max),
-                    specular_base=self._read_float("preview/specular_base", defaults.specular_base),
+                    specular_base=specular_base,
                     specular_min=self._read_float("preview/specular_min", defaults.specular_min),
                     specular_max=specular_max,
                     shininess_base=self._read_float("preview/shininess_base", defaults.shininess_base),
