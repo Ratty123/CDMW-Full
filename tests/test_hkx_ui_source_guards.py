@@ -294,12 +294,8 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("finder_icon_timer = QTimer(finder)", source)
         self.assertIn("def _queue_item_finder_donor_icons_for_visible_rows() -> None:", source)
         self.assertIn("QTimer.singleShot(140, _queue_item_finder_donor_icons_for_visible_rows)", source)
-        self.assertIn("def _first_item_finder_donor_icon_rows(", source)
-        self.assertIn(
-            "self._warm_item_finder_icon_rows_before_exec(\n"
-            "                    _first_item_finder_donor_icon_rows(),",
-            source,
-        )
+        self.assertNotIn("def _first_item_finder_donor_icon_rows(", source)
+        self.assertNotIn("self._warm_item_finder_icon_rows_before_exec(", source)
         self.assertIn(
             "self._cached_archive_asset_catalog_inventory_icon_pixmap(\n"
             "                            row,\n"

@@ -147,10 +147,10 @@ class RecolorVariantTests(unittest.TestCase):
             analysis = analyze_recolor_variant_package(source)
             profiles = (
                 RecolorVariantOutputProfile(
-                    profile_id="universal",
-                    label="Universal",
+                    profile_id="dmm",
+                    label="Definitive Mod Manager",
                     enabled=True,
-                    export_options=recolor_export_options_for_manager("universal"),
+                    export_options=recolor_export_options_for_manager("dmm"),
                 ),
                 RecolorVariantOutputProfile(
                     profile_id="jmm",
@@ -176,10 +176,10 @@ class RecolorVariantTests(unittest.TestCase):
             self.assertTrue(result.succeeded)
             self.assertEqual(original_source_bytes, source_base.read_bytes())
             self.assertEqual(2, len(result.output_roots))
-            universal_root = next(path for path in result.output_roots if not path.name.endswith("_jmm"))
+            dmm_root = next(path for path in result.output_roots if not path.name.endswith("_jmm"))
             jmm_root = next(path for path in result.output_roots if path.name.endswith("_jmm"))
-            self.assertEqual(b"RECOLORED", (universal_root / "character" / "texture" / "blade_basecolor.dds").read_bytes())
-            self.assertNotEqual(b"RECOLORED", (universal_root / "character" / "texture" / "blade_n.dds").read_bytes())
+            self.assertEqual(b"RECOLORED", (dmm_root / "character" / "texture" / "blade_basecolor.dds").read_bytes())
+            self.assertNotEqual(b"RECOLORED", (dmm_root / "character" / "texture" / "blade_n.dds").read_bytes())
             self.assertTrue((jmm_root / "mod.json").exists())
             self.assertFalse((jmm_root / "manifest.json").exists())
 
@@ -210,10 +210,10 @@ class RecolorVariantTests(unittest.TestCase):
                     root / "out",
                     (
                         RecolorVariantOutputProfile(
-                            profile_id="universal",
-                            label="Universal",
+                            profile_id="dmm",
+                            label="Definitive Mod Manager",
                             enabled=True,
-                            export_options=recolor_export_options_for_manager("universal"),
+                            export_options=recolor_export_options_for_manager("dmm"),
                         ),
                     ),
                     overwrite_existing=True,
@@ -273,10 +273,10 @@ class RecolorVariantTests(unittest.TestCase):
             )
             profiles = (
                 RecolorVariantOutputProfile(
-                    profile_id="universal",
-                    label="Universal",
+                    profile_id="dmm",
+                    label="Definitive Mod Manager",
                     enabled=True,
-                    export_options=recolor_export_options_for_manager("universal"),
+                    export_options=recolor_export_options_for_manager("dmm"),
                 ),
             )
 

@@ -279,7 +279,11 @@ class NativePreviewCoreServiceClient:
         thread.start()
         deadline = time.monotonic() + max(0.1, float(timeout_seconds))
         while thread.is_alive():
-            raise_if_cancelled(stop_event, "Native preview-core job cancelled.")
+            try:
+                raise_if_cancelled(stop_event, "Native preview-core job cancelled.")
+            except RunCancelled:
+                self._kill_locked()
+                raise
             if time.monotonic() >= deadline:
                 self._kill_locked()
                 raise TimeoutError("native preview-core service timed out")

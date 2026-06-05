@@ -135,6 +135,7 @@ class SceneMaterialTextureSlot:
     transform: tuple[float, ...] = ()
     source: str = ""
     parameters: tuple[PreviewMaterialParameterInput, ...] = ()
+    reference_path: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -305,6 +306,7 @@ def _scene_material_slot(
     transform: Sequence[float] = (),
     source: str = "",
     parameters: Sequence[PreviewMaterialParameterInput] = (),
+    reference_path: str = "",
 ) -> SceneMaterialTextureSlot:
     input_slot, semantic_type, semantic_subtype, packed_channels = _scene_slot_semantics(slot_kind)
     parameter = str(parameter_name or "").strip() or _SCENE_SLOT_PARAMETER_NAMES.get(str(slot_kind or "").strip().lower(), "")
@@ -320,6 +322,7 @@ def _scene_material_slot(
         transform=tuple(float(value) for value in tuple(transform or ())[:5]),
         source=str(source or "").strip(),
         parameters=tuple(parameters),
+        reference_path=str(reference_path or "").strip(),
     )
 
 
@@ -2684,6 +2687,7 @@ def _obj_material_texture_slots(obj_path: Path) -> dict[str, tuple[SceneMaterial
                                 "map_pbr": "_objMapPbr",
                             }.get(key, ""),
                             source="obj_mtl",
+                            reference_path=reference,
                         )
                     )
         except OSError as exc:
@@ -3819,11 +3823,12 @@ def _apply_scene_material_slots_to_submesh(
         path_text = str(slot.path or "").strip()
         if not path_text:
             continue
+        reference_text = str(getattr(slot, "reference_path", "") or "").strip() or path_text
         add_input(slot)
         slot_kind = str(slot.slot_kind or "").strip().lower()
         subtype = str(slot.semantic_subtype or "").strip().lower()
         if slot_kind == "base":
-            submesh.texture = path_text
+            submesh.texture = reference_text
             submesh.preview_texture_path = path_text
             submesh.preview_texture_name = Path(path_text).name
             if len(slot.transform) >= 5:

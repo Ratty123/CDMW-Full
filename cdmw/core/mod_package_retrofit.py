@@ -657,7 +657,7 @@ def _append_cdumm_merge_readme_note(readme_path: Path, packages: Sequence[Retrof
 
 def _normalize_retrofit_manager_profile(profile: str) -> str:
     normalized = normalize_mod_package_manager_profile(profile)
-    return normalized if normalized in RETROFIT_MANAGER_PROFILES else "universal"
+    return normalized if normalized in RETROFIT_MANAGER_PROFILES else "dmm"
 
 
 def build_retrofit_path_repair_summary(

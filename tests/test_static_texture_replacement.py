@@ -1564,6 +1564,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 auto_brightness_balance=30,
                 dark_detail_lift=100,
                 tone_contrast=10,
+                accent_glow_strength=100,
             )
 
             slots = material_authority_preview_texture_slots(texture_set, profile)
@@ -2370,6 +2371,35 @@ class StaticTextureReplacementTests(unittest.TestCase):
 
         self.assertIn("glow", texture_set.source_role_tags)
         self.assertTrue(_texture_set_is_accent_glow_candidate(texture_set, "cd_phm_02_sword_blade_0015"))
+
+    def test_accent_glow_zero_suppresses_source_emissive_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            emissive_png = Path(temp_dir) / "def_cloud_001_emissive.png"
+            Image.new("RGBA", (2, 2), (0, 255, 128, 255)).save(emissive_png)
+            texture_set = ReplacementTextureSet(
+                material_name="def_cloud_001",
+                slots={
+                    "emissive": ReplacementTextureSlot(
+                        material_name="def_cloud_001",
+                        slot_kind="emissive",
+                        source_path=emissive_png,
+                    )
+                },
+            )
+
+            off_profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority"),
+                accent_glow_strength=0,
+            )
+            on_profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority"),
+                accent_glow_strength=100,
+            )
+
+            self.assertFalse(any(slot.slot_kind == "emissive" for slot in _source_driven_slots(texture_set, material_profile=off_profile)))
+            self.assertTrue(any(slot.slot_kind == "emissive" for slot in _source_driven_slots(texture_set, material_profile=on_profile)))
 
     def test_source_part_glow_role_can_override_emissive_color(self) -> None:
         from PIL import Image
@@ -3226,7 +3256,10 @@ class StaticTextureReplacementTests(unittest.TestCase):
             base_image.putpixel((1, 0), (255, 255, 255))
             base_image.save(base_png)
             Image.new("RGB", (2, 2), (255, 64, 255)).save(pbr_png)
-            profile = get_complete_swap_material_profile("material_authority_clean_source")
+            profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority_clean_source"),
+                accent_glow_strength=100,
+            )
             texture_set = ReplacementTextureSet("lambert1")
             texture_set.slots["base"] = ReplacementTextureSlot("lambert1", "base", base_png, source_authority="gltf")
             texture_set.slots["material"] = ReplacementTextureSlot(
@@ -3271,7 +3304,10 @@ class StaticTextureReplacementTests(unittest.TestCase):
             gem_emissive = root / "gem_outside_emissive.png"
             Image.new("RGB", (2, 2), (255, 0, 0)).save(gem_base)
             Image.new("RGB", (2, 2), (255, 0, 0)).save(gem_emissive)
-            profile = get_complete_swap_material_profile("material_authority_clean_source")
+            profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority_clean_source"),
+                accent_glow_strength=100,
+            )
             texture_set = ReplacementTextureSet("Gem_outside")
             texture_set.slots["base"] = ReplacementTextureSlot(
                 "Gem_outside",

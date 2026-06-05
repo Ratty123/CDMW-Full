@@ -9,6 +9,61 @@ The format is intentionally simple:
 - `Fixed` for bug fixes
 - `Docs` for README, guide, or release-note changes
 
+## [0.10.0-alpha.1] - 2026-06-05
+
+### Added
+- Added a new grouped workspace surface with `Dashboard`, `Assets`, `Textures`, `Research`, and `Settings` navigation. The dashboard now shows workspace health, configured tool paths, archive-cache status, recent work, and latest run output shortcuts.
+- Added detachable work tabs for Archive Browser, Texture Workflow, Texture Editor, Texture Replacer, Mesh Editor, Model Library, Icon Creator, Texture Research, and Text Search, with saved main-window and detached-window geometry.
+- Added `Mesh Editor` as a first-class asset workspace for supported archive meshes, including Modify Original, Import Replacement, Import Preview, and In-Game Swap entry points from the selected Archive Browser target.
+- Added a native D3D11 preview pipeline for archive preview and mesh-alignment work. Archive mesh preview now defaults to the native D3D11 host, supports durable preview packages, embedded child-process rendering, live reloads, diagnostics, memory/timing reports, component visibility toggles, and renderer tuning from preview settings.
+- Added native D3D11 alignment controls for mesh replacement and editing, including move/rotate handles, hover/selection, part picking, source-part picking, brush/vertex stroke transport, view modes, live texture flip, and package caching so visual edits can refresh without rebuilding everything.
+- Added a native preview core path that can parse supported PAC/PAM/PAMLOD data and generate D3D11 preview packages without the older Python mesh-preparation path when supported.
+- Added native DDS and DirectX texture helper paths for preview, staging, and rebuild workflows, with `texconv` kept as an optional legacy fallback instead of the primary requirement.
+- Added archive shard caches for scan data, basic indexes, and deferred name-search indexes. Changed PAMT shards can rescan independently, PAZ-only changes can reuse existing scan/index shards, and cache health is surfaced in the dashboard/performance flow.
+- Added archive item-icon thumbnail caching so item-icon discovery and preview can warm in the background and stay responsive on large archive sets.
+- Added `Model Library` for local/importable model discovery, mirror-catalogue search, ZIP/importable model detection, model preview, companion texture/sidecar discovery, and routing compatible models into Archive Browser mesh-import setup.
+- Added external model audit support for Model Library and mesh import, including material inventory, texture slot evidence, material class hints, packed-channel/color-space details, and source-authority checks.
+- Added `Icon Creator` for item-icon source libraries, favorite/tag/note metadata, archive target matching, template-based compatible DDS payload generation, preview generation, open-in-Archive-Browser routing, Texture Editor import, generated model-preview icons, and adding icon overrides into existing loose mod packages.
+- Added `Recolor Variants` workspace for texture/material variant work alongside Workflow, Replacer, and Editor.
+- Added retrofit packaged-mod tooling that can scan folder or ZIP mod packages, identify existing metadata, repair package paths against archive basename evidence, convert packages to selected manager profiles, preserve mesh manifests where possible, and merge CDUMM-style packages.
+- Added broader mod-package metadata output and compatibility paths, including manager-specific manifests, payload path repair summaries, optional `.no_encrypt`, `README.txt`, `manifest.json`, `mod.json`, `modinfo.json`, `info.json`, `mod.field.json`, and zipped converted packages.
+- Added direct archive patch support for selected mesh workflows while keeping archive mutation explicit, preflighted, backed up, and recoverable.
+- Added Material Authority as the main material-replacement route, with source color through overlay color, source PBR/material mask through detail mask, runtime XML preservation, true source authority, manual override knobs, and legacy profiles kept for repair/debug compatibility.
+- Added Material Authority adjustment controls for roughness, metalness, AO, alpha, color scale, emissive/color relief behavior, gloss/matte bias, detail preservation, and generated mask tuning.
+- Added Material Authority audit tooling, authority reports, source-aware support preflight, DDS channel evidence reads, audit evidence-gap reporting, FBX source-authority checks, and standalone report-check helpers.
+- Added corpus-learned PAC XML material profiles and runtime XML material controls so mesh replacement packages can preserve target/corpus wrapper order, stock masks, detail/height/grime/dye/PBD response, and compatible source-owned slots more deliberately.
+- Added material truth tooling, preview comparison helpers, RenderDoc truth-pass import/export support, shader binding summaries, shader blob extraction, D3D12 draw/dispatch candidate finders, DDS/resource correlation, capture launch helpers, replay probes, and long-run shader status reports.
+- Added reverse-engineering support for Crimson material/channel contracts, shader registry evidence, table catalog evidence, texture relationship audits, PAT asset decoding, PBD cloth data, skeleton resolving, native HKX/tagfile inspection, and richer connected-physics/context previews.
+- Added HKX body/physics previews, visual body/placement source previews, placement evidence resolution, socket/placement editing support, weapon placement templates, and placement-piece tuning documentation.
+- Added richer archive relationship discovery for item icons, physics/HKX, PAB/prefab companions, appearance composites, source mixes, model families, and raw table/asset family/uses/used-by/placement views.
+- Added expanded archive structured preview coverage and text/XML helpers, including XML encoding handling, syntax-highlighted previews, structured binary editing scaffolding, table-catalog evidence, and archive extension preview matrix updates.
+- Added mesh editing and import/export expansion: exact face delete, part removal export, display clone target handling, source part mapping, scene append/import improvements, glTF/DAE/GLB support hardening, mesh deformation helpers, morph slider support, and safer display-target diagnostics.
+- Added appearance composite and source-mix helpers for building replacement packages that understand target/source family context instead of treating every file as an isolated payload.
+- Added native archive acceleration, archive list batching, preview package caching, asynchronous placement/body preview work, archive startup progress smoothing, archive preview memory diagnostics, and idle-render throttling for large archive sessions.
+- Added app and theme icon generation, per-theme icon assets, selected/refined app icon assets, and build helpers for PyInstaller/native Windows packaging.
+- Added runtime dependency smoke checks, full QA runner support, hidden-subprocess handling, PyInstaller temp cleanup checks, and repo-hygiene guards for local corpus/build artifacts.
+
+### Changed
+- Changed the public workflow language from `Replace Assistant` to `Texture Replacer`, and reorganized user-facing tools into grouped navigation rather than one long top-level tab row.
+- Changed archive preview from an approximate in-process preview surface into a D3D11-first asset-inspection pipeline with explicit diagnostics for material layers, texture failures, sampler state, PBD preview, overlay metadata, and package source.
+- Changed archive scan/index behavior toward shard-backed, health-checkable caches so large installations do less repeated work and stale data can be isolated to the changed shard.
+- Changed archive preview and mesh alignment work so heavy D3D11 package generation, cache writes, preview reloads, placement preview, and alignment refreshes happen off the UI thread where possible.
+- Changed mesh replacement from a single dialog-heavy flow into a persistent Mesh Editor workspace with an embedded builder, vertical tool palette, live native preview, part routing, material controls, diagnostics, and final package checks.
+- Changed model import flows so local Model Library assets can carry companion textures and sidecars into Archive Browser import setup, then preview through the same D3D11/package path used by archive meshes.
+- Changed material replacement strategy toward source/target authority: source-owned visible material data can be used where compatible, while target/corpus runtime XML, wrapper order, cloth/PBD hooks, and stock support layers remain protected unless the selected profile says otherwise.
+- Changed Material Authority exports so source audit results, support-map preflights, material-class evidence, and adjustment summaries are recorded beside package diagnostics instead of being hidden inside preview behavior.
+- Changed final-package preview/export behavior to better separate generated DDS payloads, copied source files, original archive references, diagnostic JSON, manager metadata, and actual mod payloads.
+- Changed settings/profile coverage to include appearance, language, startup, performance, preview, Texture Replacer, Texture Editor, safety, window/layout, D3D11, and archive-cache preferences.
+- Changed DDS handling so normal preview/rebuild paths prefer bundled native helpers and broader DXGI format handling, while optional `texconv` remains available for legacy fallback cases.
+- Changed archive search, item discovery, and relationship views to use broader item-name/icon/model family evidence without forcing every inferred companion into a recommended include target.
+- Changed preview guidance and help text around Material Authority, D3D11 preview, package retrofit, model import, icon creation, cache health, and archive mutation safety.
+
+### Docs
+- Added reverse-engineering documentation for texture relationship audits and placement-piece tuning.
+- Updated README guidance around grouped navigation, Dashboard, Texture Replacer, Model Library, Icon Creator, native DDS helpers, D3D11 preview, Material Authority, mod-package retrofit, diagnostics, and detachable tabs.
+- Updated release version references from `0.9.0-beta.3` to `0.10.0-alpha.1` in the README and app version metadata.
+- Expanded tool and test coverage around archive shard caches, native preview core, D3D11 preview packages, Material Authority profiles/audits, RenderDoc truth tooling, model catalogue/library, item-icon generation, package retrofit, mesh editing, source mix, appearance composites, HKX/PBD/PAT helpers, and UI source guards.
+
 ## [0.9.0-beta.3] - 2026-05-02
 
 ### Added

@@ -194,7 +194,7 @@ class AppConfig:
     mod_ready_package_author: str = MOD_READY_PACKAGE_AUTHOR
     mod_ready_package_description: str = MOD_READY_PACKAGE_DESCRIPTION
     mod_ready_package_nexus_url: str = MOD_READY_PACKAGE_NEXUS_URL
-    mod_ready_manager_profile: str = "universal"
+    mod_ready_manager_profile: str = "dmm"
     mod_ready_manager_profiles: Tuple[str, ...] = field(default_factory=tuple)
     mod_ready_package_structure: str = ""
     mod_ready_create_manifest_json: bool = True

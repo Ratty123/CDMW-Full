@@ -58,7 +58,7 @@ class MeshLooseModFile:
 
 @dataclasses.dataclass(slots=True)
 class ModPackageExportOptions:
-    manager_targets: tuple[str, ...] = ("universal",)
+    manager_targets: tuple[str, ...] = ("dmm",)
     export_profiles: tuple[str, ...] = ()
     output_profile_suffix: str = ""
     structure: str = "game_relative"
@@ -99,9 +99,8 @@ class ModPackageMetadataArtifactInfo:
     primary: bool = False
 
 
-MOD_PACKAGE_MANAGER_PROFILES = ("universal", "dmm", "jmm", "cdumm", "crimson_sharp", "field_json")
+MOD_PACKAGE_MANAGER_PROFILES = ("dmm", "jmm", "cdumm", "crimson_sharp", "field_json")
 MOD_PACKAGE_MANAGER_PROFILE_LABELS = {
-    "universal": "Universal",
     "dmm": "Definitive Mod Manager",
     "jmm": "JMM JSON",
     "cdumm": "CDUMM",
@@ -207,12 +206,12 @@ _README_LOGO_LINES = (
 
 
 def mod_package_profile_uses_manager_metadata(profile: str) -> bool:
-    normalized = str(profile or "universal").strip().lower()
+    normalized = str(profile or "dmm").strip().lower()
     return normalized in {"cdumm", "ultimate", "ultimate_mods_manager"}
 
 
 def normalize_mod_package_manager_profile(profile: str) -> str:
-    normalized = str(profile or "universal").strip().lower()
+    normalized = str(profile or "dmm").strip().lower()
     aliases = {
         "field_json_v31": "field_json",
         "field-json": "field_json",
@@ -227,7 +226,7 @@ def normalize_mod_package_manager_profile(profile: str) -> str:
         "ultimate_mods_manager": "cdumm",
     }
     normalized = aliases.get(normalized, normalized)
-    return normalized if normalized in MOD_PACKAGE_MANAGER_PROFILES else "universal"
+    return normalized if normalized in MOD_PACKAGE_MANAGER_PROFILES else "dmm"
 
 
 def mod_package_export_options_for_manager(profile: str) -> ModPackageExportOptions:
@@ -274,7 +273,15 @@ def mod_package_export_options_for_manager(profile: str) -> ModPackageExportOpti
             structure="files_wrapper",
             create_mod_json=True,
         )
-    return ModPackageExportOptions(manager_targets=("universal",), structure="game_relative")
+    return ModPackageExportOptions(
+        manager_targets=("dmm",),
+        structure="dmm_texture",
+        create_manifest_json=False,
+        create_mod_json=False,
+        create_modinfo_json=True,
+        create_info_json=False,
+        create_no_encrypt_file=False,
+    )
 
 
 def mod_package_export_options_for_profiles(
@@ -296,7 +303,7 @@ def mod_package_export_options_for_profiles(
         seen.add(normalized)
         selected_profiles.append(normalized)
     if not selected_profiles:
-        selected_profiles.append("universal")
+        selected_profiles.append("dmm")
 
     primary = selected_profiles[0]
     defaults = mod_package_export_options_for_manager(primary)
@@ -342,7 +349,7 @@ def mod_package_expanded_export_options(options: ModPackageExportOptions, *, kin
         selected_profiles.append(normalized)
     if not selected_profiles:
         manager_targets = _normalize_manager_targets(options.manager_targets)
-        selected_profiles = [manager_targets[0] if manager_targets else "universal"]
+        selected_profiles = [manager_targets[0] if manager_targets else "dmm"]
 
     if len(selected_profiles) == 1:
         profile = selected_profiles[0]
@@ -481,7 +488,7 @@ def _normalize_manager_targets(values: Sequence[str]) -> list[str]:
             continue
         seen.add(normalized)
         targets.append(normalized)
-    return targets or ["universal"]
+    return targets or ["dmm"]
 
 
 def _safe_files_dir(value: str) -> str:
@@ -520,10 +527,12 @@ def _effective_export_options_for_kind(
             create_no_encrypt_file=False,
         )
     if "dmm" in set(manager_targets) and normalized_kind == "mesh_loose_mod":
+        requested_structure = str(options.structure or "").strip().lower()
+        mesh_structure = "game_relative" if requested_structure == "dmm_texture" else options.structure
         return dataclasses.replace(
             options,
             manager_targets=manager_targets,
-            structure="game_relative",
+            structure=mesh_structure,
             create_manifest_json=True,
             create_mod_json=False,
             create_modinfo_json=True,
@@ -1462,6 +1471,8 @@ def write_mesh_loose_mod_package_metadata(
         ),
         created_utc=created_utc,
     )
+    if resolved_export_options.create_manifest_json:
+        manifest_path.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
     ready_zip_path = root.with_suffix(".zip") if resolved_export_options.create_zip else None
     metadata_files = [
         *([manifest_path] if manifest_path.exists() else []),

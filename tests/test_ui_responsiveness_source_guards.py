@@ -82,6 +82,10 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("icon_visible_queue_timer.setInterval(80)", source)
         self.assertIn("search_edit.textChanged.connect(lambda _text: catalog_filter_timer.start())", source)
         self.assertIn("category_tree.itemSelectionChanged.connect(lambda: catalog_filter_timer.start())", source)
+        self.assertIn("self.archive_asset_catalog_fallback_icon_cache: OrderedDict[Tuple[str, str], QIcon] = OrderedDict()", source)
+        self.assertIn("cached_icon = self.archive_asset_catalog_fallback_icon_cache.get(cache_key)", source)
+        self.assertIn("display_limit = 600 if not query_tokens and not selected_category and not selected_group else 2500", source)
+        self.assertIn("First matching rows shown; refine search or choose a category to narrow the result.", source)
         self.assertIn("if not dialog.isVisible():\n                    return", source)
         self.assertIn("loaded_count >= 4 or (time.perf_counter() - batch_started_at) >= 0.010", source)
         self.assertIn("allow_sync_prepare=False", source)
@@ -131,6 +135,9 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         catalog_callback_index = source.index("self.archive_item_icon_prepared_callbacks.append(_handle_catalog_icon_prepared)")
         catalog_populate_index = source.index("_populate_catalog()", catalog_callback_index)
         self.assertLess(catalog_callback_index, catalog_populate_index)
+        dialog_exec_index = source.index("dialog.exec()", catalog_populate_index)
+        open_body = source[catalog_populate_index:dialog_exec_index]
+        self.assertNotIn("_warm_item_finder_icon_rows_before_exec", open_body)
         preview_start = source.index("            def _refresh_selected_icon_preview() -> None:")
         preview_body = source[preview_start: source.index("            def _handle_catalog_icon_prepared", preview_start)]
         self.assertNotIn("_archive_asset_catalog_preview_pixmap(row, 120)", preview_body)

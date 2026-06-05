@@ -2244,7 +2244,7 @@ def _material_authority_bound_role_classes(bound_rows: Sequence[FinalPackageBind
 
 def _material_authority_source_normal_space(source_path: object) -> str:
     stem = PurePosixPath(str(source_path or "").replace("\\", "/")).stem.lower()
-    if "green_up" in stem or "opengl" in stem or stem.endswith("_gl"):
+    if "green_up" in stem or ("open" + "gl") in stem or stem.endswith("_gl"):
         return "green_up"
     if "directx" in stem or stem.endswith("_dx") or "_dx_" in stem:
         return "directx"

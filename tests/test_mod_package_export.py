@@ -41,7 +41,7 @@ def _entry(path: str, root: Path) -> ArchiveEntry:
 
 
 class ModPackageExportTests(unittest.TestCase):
-    def test_universal_game_relative_metadata_is_minimal_by_default(self) -> None:
+    def test_default_package_options_target_dmm(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "ExampleMod"
             payload = root / "object" / "texture" / "sample.dds"
@@ -56,16 +56,11 @@ class ModPackageExportTests(unittest.TestCase):
                 options=ModPackageExportOptions(structure="game_relative", create_zip=False),
             )
 
-            manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-
-            self.assertEqual(manifest.get("manager_targets"), ["universal"])
-            self.assertEqual(manifest.get("files_dir"), ".")
-            self.assertNotIn("files_root", manifest)
-            self.assertNotIn("new_paths", manifest)
-            self.assertTrue((root / ".no_encrypt").exists())
+            self.assertFalse((root / "manifest.json").exists())
             self.assertFalse((root / "mod.json").exists())
-            self.assertFalse((root / "modinfo.json").exists())
+            self.assertTrue((root / "modinfo.json").exists())
             self.assertFalse((root / "info.json").exists())
+            self.assertFalse((root / ".no_encrypt").exists())
 
     def test_explicit_compatibility_metadata_is_consistent(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -80,6 +75,7 @@ class ModPackageExportTests(unittest.TestCase):
                 kind="dds_loose_mod",
                 payload_paths=("object/texture/sample.dds",),
                 options=ModPackageExportOptions(
+                    manager_targets=("cdumm",),
                     structure="game_relative",
                     create_mod_json=True,
                     create_modinfo_json=True,
@@ -313,7 +309,7 @@ class ModPackageExportTests(unittest.TestCase):
                 ModPackageInfo(title="Compact"),
                 kind="mesh_loose_mod",
                 payload_paths=("character/sample.pac",),
-                options=ModPackageExportOptions(structure="custom_compact_paths"),
+                options=ModPackageExportOptions(manager_targets=("cdumm",), structure="custom_compact_paths"),
             )
 
             manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
@@ -407,21 +403,12 @@ class ModPackageExportTests(unittest.TestCase):
             self.assertNotIn(".no_encrypt", names)
 
     def test_manager_profiles_write_only_targeted_metadata_by_default(self) -> None:
-        universal = mod_package_export_options_for_manager("universal")
-        self.assertTrue(universal.create_manifest_json)
-        self.assertFalse(universal.create_mod_json)
-        self.assertFalse(universal.create_modinfo_json)
-        self.assertFalse(universal.create_info_json)
-        self.assertFalse(universal.create_texture_resolution_manifest)
-        self.assertFalse(universal.create_material_authority_report)
-        self.assertFalse(universal.create_active_file_authority_audit)
-
         retired_manager = mod_package_export_options_for_manager("retired_manager")
-        self.assertTrue(retired_manager.create_manifest_json)
+        self.assertFalse(retired_manager.create_manifest_json)
         self.assertFalse(retired_manager.create_mod_json)
-        self.assertFalse(retired_manager.create_modinfo_json)
+        self.assertTrue(retired_manager.create_modinfo_json)
         self.assertFalse(retired_manager.create_info_json)
-        self.assertEqual(("universal",), retired_manager.manager_targets)
+        self.assertEqual(("dmm",), retired_manager.manager_targets)
 
         cdumm = mod_package_export_options_for_manager("cdumm")
         self.assertTrue(cdumm.create_manifest_json)
@@ -457,8 +444,8 @@ class ModPackageExportTests(unittest.TestCase):
     def test_multi_profile_config_keeps_cdumm_conflict_options(self) -> None:
         options = build_mod_package_export_options_from_config(
             AppConfig(
-                mod_ready_manager_profile="universal",
-                mod_ready_manager_profiles=("universal", "cdumm"),
+                mod_ready_manager_profile="dmm",
+                mod_ready_manager_profiles=("dmm", "cdumm"),
                 mod_ready_conflict_mode="override",
                 mod_ready_target_language="ko",
             )
@@ -668,6 +655,7 @@ class ModPackageExportTests(unittest.TestCase):
                     "papgt_crc": "0x12345678",
                     "pamt_crc": "0xABCDEF01",
                 },
+                export_options=ModPackageExportOptions(manager_targets=("cdumm",)),
             )
 
             manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
@@ -738,6 +726,7 @@ class ModPackageExportTests(unittest.TestCase):
                 kind="dds_loose_mod",
                 all_payload_paths=("object/texture/sample.dds",),
                 export_options=ModPackageExportOptions(
+                    manager_targets=("cdumm",),
                     create_mod_json=True,
                     create_modinfo_json=True,
                     create_info_json=True,

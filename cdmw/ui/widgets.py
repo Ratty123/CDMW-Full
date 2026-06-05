@@ -67,6 +67,10 @@ from PySide6.QtWidgets import (
     QFrame,
     QWidget,
 )
+try:
+    import shiboken6
+except Exception:  # pragma: no cover - shipped with PySide6, defensive for test-only imports.
+    shiboken6 = None
 
 from cdmw.models import (
     MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS,
@@ -137,18 +141,44 @@ _RENDER_DIAGNOSTIC_MODE_CODES = {
 class NonIntrusiveWheelGuard(QObject):
     """Prevents accidental wheel changes on setting widgets while scrolling containers."""
 
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # type: ignore[override]
-        if event.type() != QEvent.Wheel:
+    @staticmethod
+    def _watched_is_valid(watched: object) -> bool:
+        if watched is None:
             return False
-        if isinstance(watched, QComboBox):
-            event.ignore()
+        if shiboken6 is not None:
+            try:
+                return bool(shiboken6.isValid(watched))
+            except Exception:
+                return False
+        try:
+            watched.objectName()  # type: ignore[attr-defined]
             return True
-        if isinstance(watched, QAbstractSpinBox):
-            event.ignore()
+        except RuntimeError:
+            return False
+        except Exception:
             return True
-        if isinstance(watched, QSlider):
-            event.ignore()
-            return True
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # type: ignore[override]
+        try:
+            event_type = event.type()
+        except RuntimeError:
+            return False
+        if event_type != QEvent.Type.Wheel:
+            return False
+        if not self._watched_is_valid(watched):
+            return False
+        try:
+            if isinstance(watched, QComboBox):
+                event.ignore()
+                return True
+            if isinstance(watched, QAbstractSpinBox):
+                event.ignore()
+                return True
+            if isinstance(watched, QSlider):
+                event.ignore()
+                return True
+        except RuntimeError:
+            return False
         return False
 
 

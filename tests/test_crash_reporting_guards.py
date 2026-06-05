@@ -21,6 +21,30 @@ ITEM_ICONS_TAB = ROOT / "cdmw" / "ui" / "item_icons_tab.py"
 
 
 class CrashReportingGuardTests(unittest.TestCase):
+    def test_qt_event_filters_ignore_deleted_wrappers(self) -> None:
+        main_source = MAIN_WINDOW.read_text(encoding="utf-8")
+        widgets_source = WIDGETS.read_text(encoding="utf-8")
+
+        self.assertIn("def _qt_wrapper_is_valid(obj: object) -> bool:", main_source)
+        self.assertIn("shiboken6.isValid(obj)", main_source)
+        self.assertIn("not _qt_wrapper_is_valid(tree) or not isinstance(tree, QTreeWidget)", main_source)
+        self.assertIn("and _qt_wrapper_is_valid(watched)", main_source)
+        self.assertIn("self._viewport = tree.viewport()", main_source)
+        self.assertIn("watched is not self._viewport or not _qt_object_is_valid(self._tree)", main_source)
+        self.assertIn("selected_items = tuple(source_tree.selectedItems())", main_source)
+        self.assertIn("except RuntimeError:\n                            selected_items = ()", main_source)
+        self.assertIn("import shiboken6", widgets_source)
+        self.assertIn("def _watched_is_valid(watched: object) -> bool:", widgets_source)
+        self.assertIn("shiboken6.isValid(watched)", widgets_source)
+        self.assertIn("if event_type != QEvent.Type.Wheel:", widgets_source)
+
+    def test_morph_slider_topology_crash_uses_existing_refresh_helper(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+
+        self.assertNotIn("_refresh_morph_slider_controls", source)
+        self.assertIn("def _morph_slider_refresh_controls() -> None:", source)
+        self.assertIn("_morph_slider_refresh_controls()", source)
+
     def test_bootstrap_import_failures_are_reported(self) -> None:
         source = APP.read_text(encoding="utf-8")
         self.assertIn("def _write_bootstrap_report", source)

@@ -211,13 +211,12 @@ class ModPackageRetrofitTests(unittest.TestCase):
             package = scan_retrofittable_mod_packages(source)[0]
             output = Path(temp_dir) / "converted"
 
-            universal = retrofit_mod_package(package, output, manager_profile="universal").package_root
+            dmm = retrofit_mod_package(package, output, manager_profile="dmm").package_root
             cdumm = retrofit_mod_package(package, output, manager_profile="cdumm").package_root
             crimson = retrofit_mod_package(package, output, manager_profile="crimson_sharp").package_root
             field_json = retrofit_mod_package(package, output, manager_profile="field_json").package_root
 
-            self.assertTrue((universal / "manifest.json").is_file())
-            self.assertTrue((universal / ".no_encrypt").is_file())
+            self.assertTrue((dmm / "modinfo.json").is_file())
             self.assertTrue((cdumm / "modinfo.json").is_file())
             self.assertTrue((cdumm / "files" / "character" / "texture" / "sample.dds").is_file())
             self.assertTrue((crimson / "mod.json").is_file())

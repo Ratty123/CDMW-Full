@@ -1056,7 +1056,7 @@ class ReplaceAssistantTab(QWidget):
         self.overwrite_package_checkbox.setToolTip(
             _wrapped_help_tooltip(overwrite_help_text)
         )
-        default_package_options = mod_package_export_options_for_manager("universal")
+        default_package_options = mod_package_export_options_for_manager("dmm")
         self.create_no_encrypt_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["no_encrypt"].label)
         self.create_no_encrypt_checkbox.setChecked(default_package_options.create_no_encrypt_file)
         self.build_package_button = QPushButton("Build Package")
@@ -1094,10 +1094,9 @@ class ReplaceAssistantTab(QWidget):
         self.package_description_edit = QLineEdit("")
         self.package_nexus_edit = QLineEdit("")
         self.package_manager_combo = QComboBox()
-        self.package_manager_combo.addItem("Universal / minimal metadata", "universal")
-        self.package_manager_combo.addItem("CDUMM", "cdumm")
         self.package_manager_combo.addItem("Definitive Mod Manager", "dmm")
         self.package_manager_combo.addItem("JMM JSON", "jmm")
+        self.package_manager_combo.addItem("CDUMM", "cdumm")
         self.package_manager_combo.addItem("Crimson Sharp / Crimson Browser", "crimson_sharp")
         self.package_manager_combo.addItem("Field-JSON v3.1", "field_json")
         self.package_profile_checkboxes: Dict[str, QCheckBox] = {}
@@ -1109,7 +1108,7 @@ class ReplaceAssistantTab(QWidget):
             label = MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile)
             checkbox = QCheckBox(label)
             checkbox.setToolTip(label)
-            checkbox.setChecked(profile == "universal")
+            checkbox.setChecked(profile == "dmm")
             package_profiles_layout.addWidget(checkbox)
             self.package_profile_checkboxes[profile] = checkbox
         package_profiles_layout.addStretch(1)
@@ -1162,7 +1161,7 @@ class ReplaceAssistantTab(QWidget):
         settings_layout.addWidget(package_group)
 
         def _apply_package_manager_profile() -> None:
-            profile_options = mod_package_export_options_for_manager(str(self.package_manager_combo.currentData() or "universal"))
+            profile_options = mod_package_export_options_for_manager(str(self.package_manager_combo.currentData() or "dmm"))
             index = self.package_structure_combo.findData(profile_options.structure)
             if index >= 0:
                 self.package_structure_combo.setCurrentIndex(index)
@@ -1593,7 +1592,7 @@ class ReplaceAssistantTab(QWidget):
             str(self.settings.value("replace_assistant/package_output_root", str((self.base_dir / "replace_assistant_export").resolve())))
         )
         self.overwrite_package_checkbox.setChecked(bool(self.settings.value("replace_assistant/overwrite_existing", True)))
-        package_profile_value = str(self.settings.value("replace_assistant/package_manager_profile", "universal"))
+        package_profile_value = str(self.settings.value("replace_assistant/package_manager_profile", "dmm"))
         package_profile_defaults = mod_package_export_options_for_manager(package_profile_value)
         self.create_no_encrypt_checkbox.setChecked(
             bool(self.settings.value("replace_assistant/create_no_encrypt", package_profile_defaults.create_no_encrypt_file))
@@ -1619,7 +1618,7 @@ class ReplaceAssistantTab(QWidget):
         except Exception:
             saved_profile_values = []
         if not saved_profile_values:
-            saved_profile_values = [package_profile_value if package_profile_value in MOD_PACKAGE_MANAGER_PROFILES else "universal"]
+            saved_profile_values = [package_profile_value if package_profile_value in MOD_PACKAGE_MANAGER_PROFILES else "dmm"]
         for profile, checkbox in self.package_profile_checkboxes.items():
             checkbox.setChecked(profile in set(saved_profile_values))
         self._set_combo_by_value(
@@ -1767,7 +1766,7 @@ class ReplaceAssistantTab(QWidget):
             self.package_structure_combo.blockSignals(True)
             self.package_structure_combo.setCurrentIndex(structure_index)
             self.package_structure_combo.blockSignals(False)
-        first_profile = checked_profiles[0] if checked_profiles else "universal"
+        first_profile = checked_profiles[0] if checked_profiles else "dmm"
         manager_index = self.package_manager_combo.findData(first_profile)
         if manager_index >= 0 and self.package_manager_combo.currentIndex() != manager_index:
             self.package_manager_combo.blockSignals(True)
@@ -2703,10 +2702,10 @@ class ReplaceAssistantTab(QWidget):
             str(value or "").strip()
             for value in tuple(getattr(config, "mod_ready_manager_profiles", ()) or ())
             if str(value or "").strip() in MOD_PACKAGE_MANAGER_PROFILES
-        ) or (str(getattr(config, "mod_ready_manager_profile", "universal") or "universal"),)
+        ) or (str(getattr(config, "mod_ready_manager_profile", "dmm") or "dmm"),)
         for profile, checkbox in self.package_profile_checkboxes.items():
             checkbox.setChecked(profile in set(mirrored_profiles))
-        profile_defaults = mod_package_export_options_for_manager(str(getattr(config, "mod_ready_manager_profile", "universal")))
+        profile_defaults = mod_package_export_options_for_manager(str(getattr(config, "mod_ready_manager_profile", "dmm")))
         self._set_combo_by_value(
             self.package_structure_combo,
             str(getattr(config, "mod_ready_package_structure", self._combo_value(self.package_structure_combo))),
@@ -2735,7 +2734,7 @@ class ReplaceAssistantTab(QWidget):
             profile
             for profile, checkbox in self.package_profile_checkboxes.items()
             if checkbox.isChecked()
-        ) or (str(self.package_manager_combo.currentData() or "universal"),)
+        ) or (str(self.package_manager_combo.currentData() or "dmm"),)
         uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in selected_profiles)
         export_options = mod_package_export_options_for_profiles(
             selected_profiles,

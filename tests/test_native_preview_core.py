@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -237,6 +238,40 @@ class NativePreviewCoreTests(unittest.TestCase):
 
             self.assertTrue((job_root / "job.json").is_file())
             self.assertIn("native_preview_core_cancel_after_dispatch", diagnostic_log.read_text(encoding="utf-8"))
+
+    def test_service_stdout_wait_kills_native_process_on_cancel(self) -> None:
+        class _BlockingStdout:
+            def __init__(self) -> None:
+                self.released = threading.Event()
+
+            def readline(self) -> str:
+                self.released.wait(1.0)
+                return ""
+
+        class _FakeProcess:
+            def __init__(self) -> None:
+                self.stdout = _BlockingStdout()
+                self.killed = False
+
+            def poll(self) -> None:
+                return None
+
+            def kill(self) -> None:
+                self.killed = True
+                self.stdout.released.set()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            client = NativePreviewCoreServiceClient(Path(temp_dir) / "cdmw-preview-core.exe")
+            fake_process = _FakeProcess()
+            client._process = fake_process  # type: ignore[assignment]
+            stop_event = threading.Event()
+            stop_event.set()
+
+            with self.assertRaises(RunCancelled):
+                client._read_stdout_line_locked(1.0, stop_event=stop_event)
+
+        self.assertTrue(fake_process.killed)
+        self.assertIsNone(client._process)
 
     def test_native_preview_core_is_bundled_and_archive_worker_attempts_it(self) -> None:
         spec_text = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")

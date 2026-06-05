@@ -116,6 +116,23 @@ try:
 except Exception:  # pragma: no cover - shipped with PySide6, defensive for test-only imports.
     shiboken6 = None
 
+
+def _qt_wrapper_is_valid(obj: object) -> bool:
+    if obj is None:
+        return False
+    if shiboken6 is not None:
+        try:
+            return bool(shiboken6.isValid(obj))
+        except Exception:
+            return False
+    try:
+        obj.objectName()  # type: ignore[attr-defined]
+        return True
+    except RuntimeError:
+        return False
+    except Exception:
+        return True
+
 from cdmw.constants import *
 from cdmw.models import *
 from cdmw.core.archive import *
@@ -2593,7 +2610,7 @@ def run_gui() -> int:
         return Path(tempfile.gettempdir()) / "CrimsonDesertModWorkbench" / "activate_existing.json"
 
     def expand_tree_columns_to_available_width(tree: QTreeWidget) -> None:
-        if not isinstance(tree, QTreeWidget):
+        if not _qt_wrapper_is_valid(tree) or not isinstance(tree, QTreeWidget):
             return
         try:
             if bool(tree.property("cdmw_disable_auto_column_fill")):
@@ -2635,7 +2652,15 @@ def run_gui() -> int:
 
     class AutoTreeColumnWidthEventFilter(QObject):
         def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # type: ignore[override]
-            if event.type() in (QEvent.Type.Show, QEvent.Type.Resize, QEvent.Type.LayoutRequest) and isinstance(watched, QTreeWidget):
+            try:
+                event_type = event.type()
+            except RuntimeError:
+                return False
+            if (
+                event_type in (QEvent.Type.Show, QEvent.Type.Resize, QEvent.Type.LayoutRequest)
+                and _qt_wrapper_is_valid(watched)
+                and isinstance(watched, QTreeWidget)
+            ):
                 QTimer.singleShot(0, lambda tree=watched: expand_tree_columns_to_available_width(tree))
             return False
 
@@ -2681,14 +2706,19 @@ def run_gui() -> int:
             self._app_icon = QIcon(app_icon)
 
         def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # type: ignore[override]
+            try:
+                event_type = event.type()
+            except RuntimeError:
+                return False
             if (
-                event.type() in (QEvent.Type.Show, QEvent.Type.WindowActivate)
+                event_type in (QEvent.Type.Show, QEvent.Type.WindowActivate)
+                and _qt_wrapper_is_valid(watched)
                 and isinstance(watched, QWidget)
-                and watched.isWindow()
                 and not self._app_icon.isNull()
             ):
                 try:
-                    watched.setWindowIcon(self._app_icon)
+                    if watched.isWindow():
+                        watched.setWindowIcon(self._app_icon)
                 except RuntimeError:
                     pass
             return False
@@ -7426,6 +7456,7 @@ def run_gui() -> int:
                 Tuple[Tuple[str, ...], str],
                 Tuple[float, str],
             ] = OrderedDict()
+            self.archive_asset_catalog_fallback_icon_cache: OrderedDict[Tuple[str, str], QIcon] = OrderedDict()
             self.archive_item_icon_prepared_callbacks: List[Callable[[Tuple[Tuple[str, ...], str]], None]] = []
             self.archive_item_icon_preload_queue: List[Dict[str, object]] = []
             self.archive_item_icon_preload_next_index = 0
@@ -8526,7 +8557,7 @@ def run_gui() -> int:
             self.enable_mod_ready_loose_export_checkbox = QCheckBox("Create ready mod package after rebuild")
             self.mod_ready_export_root_edit = QLineEdit()
             self.mod_ready_export_browse_button = QPushButton("Browse")
-            default_mod_package_options = mod_package_export_options_for_manager("universal")
+            default_mod_package_options = mod_package_export_options_for_manager("dmm")
             self.mod_ready_create_no_encrypt_checkbox = QCheckBox(MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY["no_encrypt"].label)
             self.mod_ready_create_no_encrypt_checkbox.setChecked(default_mod_package_options.create_no_encrypt_file)
             self.mod_ready_package_title_edit = QLineEdit()
@@ -8535,10 +8566,9 @@ def run_gui() -> int:
             self.mod_ready_package_description_edit = QLineEdit()
             self.mod_ready_package_nexus_url_edit = QLineEdit()
             self.mod_ready_manager_combo = QComboBox()
-            self.mod_ready_manager_combo.addItem("Universal / minimal metadata", "universal")
-            self.mod_ready_manager_combo.addItem("CDUMM", "cdumm")
             self.mod_ready_manager_combo.addItem("Definitive Mod Manager", "dmm")
             self.mod_ready_manager_combo.addItem("JMM JSON", "jmm")
+            self.mod_ready_manager_combo.addItem("CDUMM", "cdumm")
             self.mod_ready_manager_combo.addItem("Crimson Sharp / Crimson Browser", "crimson_sharp")
             self.mod_ready_manager_combo.addItem("Field-JSON v3.1", "field_json")
             self.mod_ready_profile_checkboxes: Dict[str, QCheckBox] = {}
@@ -8548,7 +8578,7 @@ def run_gui() -> int:
             mod_ready_profiles_layout.setSpacing(10)
             for profile in MOD_PACKAGE_MANAGER_PROFILES:
                 checkbox = QCheckBox(MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile))
-                checkbox.setChecked(profile == "universal")
+                checkbox.setChecked(profile == "dmm")
                 mod_ready_profiles_layout.addWidget(checkbox)
                 self.mod_ready_profile_checkboxes[profile] = checkbox
             mod_ready_profiles_layout.addStretch(1)
@@ -17235,7 +17265,7 @@ def run_gui() -> int:
                 )
             )
             mod_ready_profile_value = str(
-                self.settings.value("upscale/mod_ready_manager_profile", getattr(defaults, "mod_ready_manager_profile", "universal"))
+                self.settings.value("upscale/mod_ready_manager_profile", getattr(defaults, "mod_ready_manager_profile", "dmm"))
             )
             mod_ready_profile_defaults = mod_package_export_options_for_manager(mod_ready_profile_value)
             self._set_combo_by_value(
@@ -17254,7 +17284,7 @@ def run_gui() -> int:
             except Exception:
                 saved_profile_values = []
             if not saved_profile_values:
-                saved_profile_values = [mod_ready_profile_value if mod_ready_profile_value in MOD_PACKAGE_MANAGER_PROFILES else "universal"]
+                saved_profile_values = [mod_ready_profile_value if mod_ready_profile_value in MOD_PACKAGE_MANAGER_PROFILES else "dmm"]
             for profile, checkbox in self.mod_ready_profile_checkboxes.items():
                 checkbox.setChecked(profile in set(saved_profile_values))
             self._set_combo_by_value(
@@ -18075,7 +18105,7 @@ def run_gui() -> int:
                 conflict_mode=self._combo_value(self.mod_ready_conflict_mode_combo) if uses_manager_metadata else "",
                 target_language=self.mod_ready_target_language_edit.text().strip() if uses_manager_metadata else "",
             )
-            first_profile = checked_profiles[0] if checked_profiles else "universal"
+            first_profile = checked_profiles[0] if checked_profiles else "dmm"
             manager_index = self.mod_ready_manager_combo.findData(first_profile)
             if manager_index >= 0 and self.mod_ready_manager_combo.currentIndex() != manager_index:
                 self.mod_ready_manager_combo.blockSignals(True)
@@ -18125,7 +18155,7 @@ def run_gui() -> int:
             self._save_settings()
 
         def _apply_mod_ready_manager_profile_state(self) -> None:
-            current_profile = str(self.mod_ready_manager_combo.currentData() or "universal")
+            current_profile = str(self.mod_ready_manager_combo.currentData() or "dmm")
             profile_options = mod_package_export_options_for_manager(current_profile)
             index = self.mod_ready_structure_combo.findData(profile_options.structure)
             if index >= 0:
@@ -21871,6 +21901,12 @@ def run_gui() -> int:
 
         def _build_archive_asset_catalog_icon(self, category: str, label: str = "") -> QIcon:
             key = str(category or "Item").strip().lower()
+            letter = (str(label or category or "I").strip()[:1] or "I").upper()
+            cache_key = (key, letter)
+            cached_icon = self.archive_asset_catalog_fallback_icon_cache.get(cache_key)
+            if cached_icon is not None:
+                self.archive_asset_catalog_fallback_icon_cache.move_to_end(cache_key)
+                return cached_icon
             colors = {
                 "weapon": ("#ff9f43", "#3b2412"),
                 "armor": ("#4aa3ff", "#122538"),
@@ -21932,7 +21968,6 @@ def run_gui() -> int:
                 painter.drawLine(13, 13, 22, 13)
                 painter.drawLine(13, 18, 22, 18)
             else:
-                letter = (str(label or category or "I").strip()[:1] or "I").upper()
                 painter.setPen(QColor(fg))
                 font = QFont(painter.font())
                 font.setBold(True)
@@ -21940,7 +21975,12 @@ def run_gui() -> int:
                 painter.setFont(font)
                 painter.drawText(QRectF(2, 2, 30, 30), Qt.AlignCenter, letter)
             painter.end()
-            return QIcon(pixmap)
+            icon = QIcon(pixmap)
+            self.archive_asset_catalog_fallback_icon_cache[cache_key] = icon
+            self.archive_asset_catalog_fallback_icon_cache.move_to_end(cache_key)
+            while len(self.archive_asset_catalog_fallback_icon_cache) > 128:
+                self.archive_asset_catalog_fallback_icon_cache.popitem(last=False)
+            return icon
 
         def _archive_asset_catalog_icon_cache_key(
             self,
@@ -22373,97 +22413,6 @@ def run_gui() -> int:
             else:
                 self.archive_item_icon_priority_queue.extend(priority_rows)
             self._start_archive_item_icon_priority_warmup()
-
-        def _warm_item_finder_icon_rows_before_exec(
-            self,
-            rows: Sequence[Mapping[str, object]],
-            *,
-            apply_ready: Callable[[], int],
-            ready_count: Callable[[], int],
-            status_label: Optional[QLabel] = None,
-            label: str = "Item Finder",
-            min_ready: int = 24,
-            max_rows: int = 96,
-            timeout_ms: int = 0,
-            cache_prime_budget_ms: int = 120,
-        ) -> None:
-            if not rows:
-                return
-            selected_rows: List[Mapping[str, object]] = []
-            seen_keys: set[Tuple[Tuple[str, ...], str]] = set()
-            for row in rows:
-                if not isinstance(row, Mapping):
-                    continue
-                prepared_key = self._archive_asset_catalog_prepared_icon_cache_key(row)
-                icon_paths, _texconv_key = prepared_key
-                if not icon_paths or prepared_key in seen_keys:
-                    continue
-                seen_keys.add(prepared_key)
-                selected_rows.append(row)
-                if len(selected_rows) >= max(1, int(max_rows or 96)):
-                    break
-            if not selected_rows:
-                return
-
-            target_ready = min(max(1, int(min_ready or 24)), len(selected_rows))
-            prime_deadline = time.monotonic() + max(0.01, float(cache_prime_budget_ms or 120) / 1000.0)
-            for row in selected_rows:
-                self._prime_archive_asset_catalog_icon_prepared_cache_from_persistent(row, size=120)
-                if time.monotonic() >= prime_deadline:
-                    break
-            if apply_ready() >= target_ready or ready_count() >= target_ready:
-                return
-
-            if int(timeout_ms or 0) <= 0:
-                if status_label is not None:
-                    status_label.setText(f"{label}: icons are warming in the background.")
-                queued_rows = tuple(dict(row) for row in selected_rows)
-                QTimer.singleShot(
-                    180,
-                    lambda rows=queued_rows: self._queue_archive_asset_catalog_icon_warmup_rows(
-                        rows,
-                        front=True,
-                        user_visible=True,
-                        delay_ms=0,
-                    ),
-                )
-                return
-
-            if status_label is not None:
-                status_label.setText(f"{label}: preparing first inventory icons...")
-            self._queue_archive_asset_catalog_icon_warmup_rows(
-                selected_rows,
-                front=True,
-                user_visible=True,
-                delay_ms=0,
-            )
-
-            app = QApplication.instance()
-            deadline = time.monotonic() + min(0.5, max(0.05, float(timeout_ms or 0) / 1000.0))
-            last_status_at = 0.0
-            while time.monotonic() < deadline:
-                if app is not None:
-                    app.processEvents()
-                ready = max(apply_ready(), ready_count())
-                if ready >= target_ready:
-                    break
-                active = bool(
-                    self.archive_item_icon_priority_thread is not None
-                    or self.archive_item_icon_priority_queue
-                    or self.archive_item_icon_warmup_thread is not None
-                    or self.archive_basic_index_thread is not None
-                    or str(getattr(self, "archive_basic_index_state", "") or "") == "warming"
-                )
-                if not active:
-                    break
-                now = time.monotonic()
-                if status_label is not None and now - last_status_at >= 0.25:
-                    last_status_at = now
-                    status_label.setText(f"{label}: preparing first inventory icons... {ready:,} / {target_ready:,}")
-                QThread.msleep(25)
-            apply_ready()
-            if status_label is not None and ready_count() < target_ready:
-                status_label.setText(f"{label}: icons are still warming; visible rows will fill in as cache finishes.")
 
         def _start_archive_item_icon_priority_warmup(self) -> None:
             if self._shutting_down or not self.archive_item_icon_priority_queue:
@@ -23389,47 +23338,6 @@ def run_gui() -> int:
                     icon_preview_timer.start(0)
                 return True, note
 
-            def _first_catalog_icon_rows(limit: int = 96) -> Tuple[Mapping[str, object], ...]:
-                rows: List[Mapping[str, object]] = []
-                for row_index in range(item_grid.count()):
-                    item = item_grid.item(row_index)
-                    if item is None:
-                        continue
-                    row = item.data(Qt.UserRole)
-                    if not isinstance(row, Mapping):
-                        continue
-                    if not self._archive_asset_catalog_row_values(row, "icon_paths"):
-                        continue
-                    rows.append(row)
-                    if len(rows) >= max(1, int(limit or 96)):
-                        break
-                return tuple(rows)
-
-            def _apply_ready_catalog_icons(limit: int = 96) -> int:
-                loaded = 0
-                for row_index in range(min(item_grid.count(), max(1, int(limit or 96)))):
-                    item = item_grid.item(row_index)
-                    if item is None:
-                        continue
-                    row = item.data(Qt.UserRole)
-                    if not isinstance(row, Mapping):
-                        continue
-                    if item.data(Qt.UserRole + 1) == "thumb_loaded":
-                        loaded += 1
-                        continue
-                    ready, _note = _apply_catalog_item_cached_icon(item, row)
-                    if ready:
-                        loaded += 1
-                return loaded
-
-            def _ready_catalog_icon_count(limit: int = 96) -> int:
-                count = 0
-                for row_index in range(min(item_grid.count(), max(1, int(limit or 96)))):
-                    item = item_grid.item(row_index)
-                    if item is not None and item.data(Qt.UserRole + 1) == "thumb_loaded":
-                        count += 1
-                return count
-
             def _queue_catalog_row_icons_for_visible_rows() -> None:
                 if not dialog.isVisible():
                     remaining = int(icon_visible_retry_budget.get("remaining", 0) or 0)
@@ -23562,6 +23470,7 @@ def run_gui() -> int:
                 item_grid.clear()
                 shown = 0
                 hidden = 0
+                display_limit = 600 if not query_tokens and not selected_category and not selected_group else 2500
                 for row in self.archive_item_asset_catalog:
                     category = str(row.get("category", "") or "Item")
                     if selected_category and category != selected_category:
@@ -23621,7 +23530,7 @@ def run_gui() -> int:
                     item.setToolTip("\n".join(tooltip_lines))
                     item_grid.addItem(item)
                     shown += 1
-                    if shown >= 2500:
+                    if shown >= display_limit:
                         hidden += 1
                         break
                 item_grid.setUpdatesEnabled(True)
@@ -23630,7 +23539,7 @@ def run_gui() -> int:
                     filter_text = f"{selected_category} / {selected_group}"
                 elif selected_category:
                     filter_text = selected_category
-                limit_note = " Refine search to narrow the result." if hidden else ""
+                limit_note = " First matching rows shown; refine search or choose a category to narrow the result." if hidden else ""
                 status_label.setText(
                     f"{shown:,} shown in {filter_text}. Double-click an item, use Show Exact Links, or use Show Related Set to scope the Archive Browser through indexed links.{limit_note}"
                 )
@@ -23905,13 +23814,6 @@ def run_gui() -> int:
                 search_edit.setText(restored_search_text)
             category_tree.itemSelectionChanged.connect(lambda: catalog_filter_timer.start())
             _populate_catalog()
-            self._warm_item_finder_icon_rows_before_exec(
-                _first_catalog_icon_rows(),
-                apply_ready=_apply_ready_catalog_icons,
-                ready_count=_ready_catalog_icon_count,
-                status_label=status_label,
-                label="Item Finder",
-            )
             try:
                 dialog.exec()
             finally:
@@ -41985,58 +41887,6 @@ def run_gui() -> int:
                     if finder_icon_queue:
                         finder_icon_timer.start(3)
 
-                def _first_item_finder_donor_icon_rows(limit: int = 96) -> Tuple[Mapping[str, object], ...]:
-                    rows: List[Mapping[str, object]] = []
-                    for row_index in range(item_grid.count()):
-                        item = item_grid.item(row_index)
-                        if item is None:
-                            continue
-                        row = item.data(Qt.UserRole)
-                        if not isinstance(row, Mapping):
-                            continue
-                        if not self._archive_asset_catalog_row_values(row, "icon_paths"):
-                            continue
-                        rows.append(row)
-                        if len(rows) >= max(1, int(limit or 96)):
-                            break
-                    return tuple(rows)
-
-                def _apply_ready_item_finder_donor_icons(limit: int = 96) -> int:
-                    loaded = 0
-                    for row_index in range(min(item_grid.count(), max(1, int(limit or 96)))):
-                        item = item_grid.item(row_index)
-                        if item is None:
-                            continue
-                        row = item.data(Qt.UserRole)
-                        if not isinstance(row, Mapping):
-                            continue
-                        if item.data(Qt.UserRole + 1) == "thumb_loaded":
-                            loaded += 1
-                            continue
-                        pixmap, note = self._cached_archive_asset_catalog_inventory_icon_pixmap(
-                            row,
-                            78,
-                            allow_sync_prepare=False,
-                        )
-                        if pixmap is None or pixmap.isNull():
-                            continue
-                        item.setIcon(QIcon(pixmap))
-                        if note:
-                            tooltip = item.toolTip()
-                            if note not in tooltip:
-                                item.setToolTip(f"{tooltip}\n{note}" if tooltip else note)
-                        item.setData(Qt.UserRole + 1, "thumb_loaded")
-                        loaded += 1
-                    return loaded
-
-                def _ready_item_finder_donor_icon_count(limit: int = 96) -> int:
-                    count = 0
-                    for row_index in range(min(item_grid.count(), max(1, int(limit or 96)))):
-                        item = item_grid.item(row_index)
-                        if item is not None and item.data(Qt.UserRole + 1) == "thumb_loaded":
-                            count += 1
-                    return count
-
                 def _handle_item_finder_donor_icon_prepared(prepared_key: Tuple[Tuple[str, ...], str]) -> None:
                     if not finder.isVisible():
                         return
@@ -42261,13 +42111,6 @@ def run_gui() -> int:
                 finder_cancel_button.clicked.connect(finder.reject)
                 self.archive_item_icon_prepared_callbacks.append(_handle_item_finder_donor_icon_prepared)
                 _populate_item_finder_grid()
-                self._warm_item_finder_icon_rows_before_exec(
-                    _first_item_finder_donor_icon_rows(),
-                    apply_ready=_apply_ready_item_finder_donor_icons,
-                    ready_count=_ready_item_finder_donor_icon_count,
-                    status_label=finder_status,
-                    label="Placement Item Finder",
-                )
                 try:
                     if finder.exec() == QDialog.Accepted:
                         donor = finder_result.get("donor")
@@ -49253,8 +49096,8 @@ def run_gui() -> int:
             def _manager_for_row(row: int) -> str:
                 combo = table.cellWidget(row, 5)
                 if isinstance(combo, QComboBox):
-                    return str(combo.currentData() or "universal")
-                return "universal"
+                    return str(combo.currentData() or "dmm")
+                return "dmm"
 
             def _structure_for_row(row: int) -> str:
                 combo = table.cellWidget(row, 6)
@@ -49650,7 +49493,7 @@ def run_gui() -> int:
             version_edit = QLineEdit(str(getattr(initial_package_info, "version", "") or "").strip())
             author_edit = QLineEdit(str(getattr(initial_package_info, "author", "") or "").strip())
             description_edit = QLineEdit(str(getattr(initial_package_info, "description", "") or "").strip())
-            default_dialog_options = mod_package_export_options_for_profiles(("universal",))
+            default_dialog_options = mod_package_export_options_for_profiles(("dmm",))
             profile_checks_widget = QWidget()
             profile_checks_layout = QHBoxLayout(profile_checks_widget)
             profile_checks_layout.setContentsMargins(0, 0, 0, 0)
@@ -49658,7 +49501,7 @@ def run_gui() -> int:
             profile_checkboxes: Dict[str, QCheckBox] = {}
             for profile in MOD_PACKAGE_MANAGER_PROFILES:
                 checkbox = QCheckBox(MOD_PACKAGE_MANAGER_PROFILE_LABELS.get(profile, profile))
-                checkbox.setChecked(profile == "universal")
+                checkbox.setChecked(profile == "dmm")
                 profile_checks_layout.addWidget(checkbox)
                 profile_checkboxes[profile] = checkbox
             profile_checks_layout.addStretch(1)
@@ -49736,7 +49579,7 @@ def run_gui() -> int:
                     profile
                     for profile, checkbox in profile_checkboxes.items()
                     if checkbox.isChecked()
-                ) or ("universal",)
+                ) or ("dmm",)
 
             def _apply_manager_profile() -> None:
                 uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in _selected_profiles())
@@ -61827,7 +61670,13 @@ def run_gui() -> int:
                     source_role_overrides.pop(source_index, None)
                 adjustment = _ensure_source_part_adjustment(source_index)
                 adjustment.material_role = normalized_role
-                if normalized_role != "glow":
+                if normalized_role == "glow":
+                    try:
+                        if part_glow_color_checkbox.isChecked():  # type: ignore[name-defined]
+                            adjustment.emissive_color_rgb = _selected_part_glow_rgb_from_controls()
+                    except NameError:
+                        pass
+                else:
                     adjustment.emissive_color_rgb = ()
                 if _is_default_source_part_adjustment(adjustment):
                     source_part_adjustments.pop(source_index, None)
@@ -62477,7 +62326,13 @@ def run_gui() -> int:
 
                 def _selected_source_indices_from_tree(*, include_fallback: bool = True) -> List[int]:
                     indices: List[int] = []
-                    for item in source_tree.selectedItems():
+                    selected_items: Sequence[QTreeWidgetItem] = ()
+                    if _qt_object_is_valid(source_tree):
+                        try:
+                            selected_items = tuple(source_tree.selectedItems())
+                        except RuntimeError:
+                            selected_items = ()
+                    for item in selected_items:
                         source_index = _source_index_from_tree_item(item)
                         if source_index >= 0 and source_index not in indices:
                             indices.append(source_index)
@@ -62493,8 +62348,19 @@ def run_gui() -> int:
                 }
 
                 class _SourceTreeContextSelectionFilter(QObject):
+                    def __init__(self, tree: QTreeWidget) -> None:
+                        super().__init__(tree)
+                        self._tree = tree
+                        self._viewport = tree.viewport()
+
                     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # type: ignore[override]
-                        if watched is source_tree.viewport() and event.type() == QEvent.MouseButtonPress:
+                        if watched is not self._viewport or not _qt_object_is_valid(self._tree):
+                            return False
+                        try:
+                            event_type = event.type()
+                        except RuntimeError:
+                            return False
+                        if event_type == QEvent.MouseButtonPress:
                             try:
                                 button = event.button()
                             except Exception:
@@ -65459,44 +65325,13 @@ def run_gui() -> int:
                 part_top_row.addWidget(QLabel("Map to"))
                 part_top_row.addWidget(part_target_combo, 1)
                 part_layout.addLayout(part_top_row, 4, 0, 1, 4)
-                part_glow_color_checkbox = QCheckBox("Custom glow color")
-                part_glow_color_checkbox.setObjectName("MeshAlignmentSourceGlowColorOverrideCheckBox")
-                part_glow_color_checkbox.setToolTip("Override the emitted color for a source part marked Role: Glow / emissive.")
-                part_glow_color_spins: list[QSpinBox] = []
-                for channel_label, object_name in (
-                    ("R", "MeshAlignmentSourceGlowColorRSpinBox"),
-                    ("G", "MeshAlignmentSourceGlowColorGSpinBox"),
-                    ("B", "MeshAlignmentSourceGlowColorBSpinBox"),
-                ):
-                    channel_spin = QSpinBox()
-                    channel_spin.setObjectName(object_name)
-                    channel_spin.setRange(0, 255)
-                    channel_spin.setPrefix(f"{channel_label} ")
-                    channel_spin.setKeyboardTracking(False)
-                    channel_spin.setValue(255)
-                    channel_spin.setMinimumWidth(64)
-                    channel_spin.setToolTip("Glow/emissive color channel for the selected source part.")
-                    part_glow_color_spins.append(channel_spin)
-                part_glow_color_pick_button = QPushButton("Pick")
-                part_glow_color_pick_button.setObjectName("MeshAlignmentSourceGlowColorPickButton")
-                part_glow_color_pick_button.setMinimumWidth(0)
-                part_glow_color_pick_button.setToolTip("Choose a glow/emissive color for the selected source part.")
-                part_glow_color_row = QHBoxLayout()
-                part_glow_color_row.setContentsMargins(0, 0, 0, 0)
-                part_glow_color_row.setSpacing(3)
-                part_glow_color_row.addWidget(part_glow_color_checkbox)
-                for channel_spin in part_glow_color_spins:
-                    part_glow_color_row.addWidget(channel_spin)
-                part_glow_color_row.addWidget(part_glow_color_pick_button)
-                part_glow_color_row.addStretch(1)
-                part_layout.addLayout(part_glow_color_row, 5, 0, 1, 4)
                 part_map_button_row = QHBoxLayout()
                 part_map_button_row.setContentsMargins(0, 0, 0, 0)
                 part_map_button_row.setSpacing(3)
                 part_map_button_row.addWidget(part_replace_target_button)
                 part_map_button_row.addWidget(part_add_target_button)
                 part_map_button_row.addWidget(part_remove_target_button)
-                part_layout.addLayout(part_map_button_row, 6, 0, 1, 4)
+                part_layout.addLayout(part_map_button_row, 5, 0, 1, 4)
                 part_copied_texture_row = QHBoxLayout()
                 part_copied_texture_row.setContentsMargins(0, 0, 0, 0)
                 part_copied_texture_row.setSpacing(3)
@@ -65518,7 +65353,7 @@ def run_gui() -> int:
                 part_copied_texture_row.addWidget(part_use_copied_texture_button)
                 part_copied_texture_row.addWidget(part_use_route_texture_button)
                 part_copied_texture_row.addWidget(part_remove_copied_texture_button)
-                part_layout.addLayout(part_copied_texture_row, 7, 0, 1, 4)
+                part_layout.addLayout(part_copied_texture_row, 6, 0, 1, 4)
 
                 def _part_spin(value: float, minimum: float, maximum: float, decimals: int, step: float, suffix: str = "") -> QDoubleSpinBox:
                     spin = QDoubleSpinBox()
@@ -65653,10 +65488,10 @@ def run_gui() -> int:
                     slider.setValue(slider_value)
                     slider.blockSignals(False)
 
-                part_layout.addWidget(QLabel("Translate"), 8, 0)
-                part_layout.addWidget(_part_spin_with_slider(part_offset_x_spin, scale=2000.0, tooltip="Selected part X translate slider."), 8, 1)
-                part_layout.addWidget(_part_spin_with_slider(part_offset_y_spin, scale=2000.0, tooltip="Selected part Y translate slider."), 8, 2)
-                part_layout.addWidget(_part_spin_with_slider(part_offset_z_spin, scale=2000.0, tooltip="Selected part Z translate slider."), 8, 3)
+                part_layout.addWidget(QLabel("Translate"), 7, 0)
+                part_layout.addWidget(_part_spin_with_slider(part_offset_x_spin, scale=2000.0, tooltip="Selected part X translate slider."), 7, 1)
+                part_layout.addWidget(_part_spin_with_slider(part_offset_y_spin, scale=2000.0, tooltip="Selected part Y translate slider."), 7, 2)
+                part_layout.addWidget(_part_spin_with_slider(part_offset_z_spin, scale=2000.0, tooltip="Selected part Z translate slider."), 7, 3)
                 part_nudge_step_spin = _part_spin(0.005, 0.00001, 1.0, 5, 0.0005)
                 part_nudge_step_spin.setPrefix("Step ")
                 part_nudge_step_spin.setToolTip("Distance used by the selected-part nudge buttons and keyboard shortcuts.")
@@ -65684,14 +65519,14 @@ def run_gui() -> int:
                     nudge_button.setToolTip("Nudge the selected part by the configured step.")
                     part_nudge_row.addWidget(nudge_button)
                 part_nudge_row.addWidget(center_part_button)
-                part_layout.addLayout(part_nudge_row, 9, 0, 1, 4)
-                part_layout.addWidget(QLabel("Rotate"), 10, 0)
-                part_layout.addWidget(_part_spin_with_slider(part_rotate_x_spin, scale=10.0, tooltip="Selected part X rotation slider."), 10, 1)
-                part_layout.addWidget(_part_spin_with_slider(part_rotate_y_spin, scale=10.0, tooltip="Selected part Y rotation slider."), 10, 2)
-                part_layout.addWidget(_part_spin_with_slider(part_rotate_z_spin, scale=10.0, tooltip="Selected part Z rotation slider."), 10, 3)
+                part_layout.addLayout(part_nudge_row, 8, 0, 1, 4)
+                part_layout.addWidget(QLabel("Rotate"), 9, 0)
+                part_layout.addWidget(_part_spin_with_slider(part_rotate_x_spin, scale=10.0, tooltip="Selected part X rotation slider."), 9, 1)
+                part_layout.addWidget(_part_spin_with_slider(part_rotate_y_spin, scale=10.0, tooltip="Selected part Y rotation slider."), 9, 2)
+                part_layout.addWidget(_part_spin_with_slider(part_rotate_z_spin, scale=10.0, tooltip="Selected part Z rotation slider."), 9, 3)
                 axis_scale_label = QLabel("Axis Scale")
                 axis_scale_label.setToolTip("Non-uniform scale: change X, Y, and Z independently.")
-                part_layout.addWidget(axis_scale_label, 11, 0)
+                part_layout.addWidget(axis_scale_label, 10, 0)
                 part_layout.addWidget(
                     _part_spin_with_slider(
                         part_scale_x_spin,
@@ -65700,7 +65535,7 @@ def run_gui() -> int:
                         slider_maximum=3.0,
                         tooltip="Selected part X fine scale slider. Type larger values above.",
                     ),
-                    11,
+                    10,
                     1,
                 )
                 part_layout.addWidget(
@@ -65711,7 +65546,7 @@ def run_gui() -> int:
                         slider_maximum=3.0,
                         tooltip="Selected part Y fine scale slider. Type larger values above.",
                     ),
-                    11,
+                    10,
                     2,
                 )
                 part_layout.addWidget(
@@ -65722,12 +65557,12 @@ def run_gui() -> int:
                         slider_maximum=3.0,
                         tooltip="Selected part Z fine scale slider. Type larger values above.",
                     ),
-                    11,
+                    10,
                     3,
                 )
                 uniform_scale_label = QLabel("Uniform Scale")
                 uniform_scale_label.setToolTip("Equal scale applied to all axes.")
-                part_layout.addWidget(uniform_scale_label, 12, 0)
+                part_layout.addWidget(uniform_scale_label, 11, 0)
                 part_layout.addWidget(
                     _part_spin_with_slider(
                         part_uniform_spin,
@@ -65736,7 +65571,7 @@ def run_gui() -> int:
                         slider_maximum=3.0,
                         tooltip="Selected part uniform fine scale slider. Type larger values above.",
                     ),
-                    12,
+                    11,
                     1,
                 )
                 reset_part_button = QPushButton("Reset Part")
@@ -65762,13 +65597,19 @@ def run_gui() -> int:
                 part_button_row.addWidget(undo_geometry_button)
                 part_button_row.addWidget(reset_geometry_button)
                 part_button_row.addStretch(1)
-                part_layout.addLayout(part_button_row, 13, 0, 1, 4)
+                part_layout.addLayout(part_button_row, 12, 0, 1, 4)
                 part_inspector_loading = {"active": False}
 
                 def _selected_part_glow_rgb_from_controls() -> tuple[int, int, int]:
                     return tuple(max(0, min(255, int(spin.value()))) for spin in part_glow_color_spins)  # type: ignore[return-value]
 
                 def _sync_part_glow_color_button() -> None:
+                    try:
+                        controls_ready = bool(part_glow_color_spins)
+                    except NameError:
+                        return
+                    if not controls_ready:
+                        return
                     rgb = _selected_part_glow_rgb_from_controls()
                     enabled = part_glow_color_checkbox.isChecked() and part_glow_color_checkbox.isEnabled()
                     color = f"#{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}"
@@ -65780,9 +65621,16 @@ def run_gui() -> int:
                     )
 
                 def _refresh_part_glow_color_controls_enabled() -> None:
-                    source_index = int(selected_source_part.get("index", -1))
-                    role_is_glow = str(part_role_combo.currentData() or "").strip() == "glow"
-                    can_override = source_index >= 0 and role_is_glow
+                    try:
+                        controls_ready = bool(part_glow_color_spins)
+                    except NameError:
+                        return
+                    if not controls_ready:
+                        return
+                    try:
+                        can_override = bool(_complete_external_swap_enabled())
+                    except Exception:
+                        can_override = True
                     part_glow_color_checkbox.setEnabled(can_override)
                     color_enabled = can_override and part_glow_color_checkbox.isChecked()
                     for spin in part_glow_color_spins:
@@ -65791,25 +65639,23 @@ def run_gui() -> int:
                     _sync_part_glow_color_button()
 
                 def _load_part_glow_color_controls(adjustment: Optional[StaticSourcePartAdjustment]) -> None:
-                    raw_rgb = tuple(getattr(adjustment, "emissive_color_rgb", ()) or ()) if adjustment is not None else ()
-                    has_override = len(raw_rgb) >= 3
-                    try:
-                        rgb = tuple(max(0, min(255, int(round(float(value))))) for value in raw_rgb[:3])
-                    except (TypeError, ValueError, OverflowError):
-                        rgb = ()
-                        has_override = False
-                    if len(rgb) < 3:
-                        rgb = (255, 255, 255)
-                    signal_widgets = [part_glow_color_checkbox, *part_glow_color_spins]
-                    blocked = [widget.blockSignals(True) for widget in signal_widgets]
-                    try:
-                        part_glow_color_checkbox.setChecked(bool(has_override))
-                        for spin, value in zip(part_glow_color_spins, rgb):
-                            spin.setValue(int(value))
-                    finally:
-                        for widget, was_blocked in zip(signal_widgets, blocked):
-                            widget.blockSignals(was_blocked)
+                    _ = adjustment
                     _refresh_part_glow_color_controls_enabled()
+
+                def _apply_current_glow_color_to_role_overrides() -> None:
+                    rgb = _selected_part_glow_rgb_from_controls()
+                    use_color = bool(part_glow_color_checkbox.isChecked())
+                    changed = False
+                    for adjustment in tuple(source_part_adjustments.values()):
+                        if str(getattr(adjustment, "material_role", "") or "").strip() != "glow":
+                            continue
+                        next_rgb = rgb if use_color else ()
+                        if tuple(getattr(adjustment, "emissive_color_rgb", ()) or ()) == next_rgb:
+                            continue
+                        adjustment.emissive_color_rgb = next_rgb
+                        changed = True
+                    if changed:
+                        _refresh_ui_texture_sets_after_source_part_material_override()
 
                 def _refresh_ui_texture_sets_after_source_part_material_override() -> None:
                     nonlocal texture_sets
@@ -66119,22 +65965,16 @@ def run_gui() -> int:
                     )
 
                 def _set_selected_source_glow_color() -> None:
-                    if part_inspector_loading["active"]:
-                        return
-                    source_index = int(selected_source_part.get("index", -1))
-                    if source_index < 0:
-                        return
-                    _push_geometry_undo_snapshot("Change source glow color")
-                    adjustment = _ensure_source_part_adjustment(source_index)
-                    if str(part_role_combo.currentData() or "").strip() == "glow" and part_glow_color_checkbox.isChecked():
-                        adjustment.emissive_color_rgb = _selected_part_glow_rgb_from_controls()
-                    else:
-                        adjustment.emissive_color_rgb = ()
-                    if _is_default_source_part_adjustment(adjustment):
-                        source_part_adjustments.pop(source_index, None)
+                    _push_geometry_undo_snapshot("Change accent glow color")
+                    self.settings.setValue(
+                        "settings/complete_swap_accent_glow_color_enabled",
+                        "1" if part_glow_color_checkbox.isChecked() else "0",
+                    )
+                    rgb = _selected_part_glow_rgb_from_controls()
+                    self.settings.setValue("settings/complete_swap_accent_glow_color_rgb", ",".join(str(value) for value in rgb))
+                    _apply_current_glow_color_to_role_overrides()
                     texture_overrides_dirty["dirty"] = True
                     _refresh_part_glow_color_controls_enabled()
-                    _refresh_ui_texture_sets_after_source_part_material_override()
                     _queue_material_edit_refresh(
                         refresh_plan=True,
                         force_plan=True,
@@ -67476,10 +67316,6 @@ def run_gui() -> int:
                 part_source_combo.currentIndexChanged.connect(_selected_part_source_changed)
                 part_enabled_checkbox.toggled.connect(_update_selected_part_adjustment)
                 part_role_combo.currentIndexChanged.connect(_set_selected_source_role)
-                part_glow_color_checkbox.toggled.connect(_set_selected_source_glow_color)
-                for part_glow_spin in part_glow_color_spins:
-                    part_glow_spin.valueChanged.connect(_set_selected_source_glow_color)
-                part_glow_color_pick_button.clicked.connect(_pick_selected_source_glow_color)
                 part_target_combo.currentIndexChanged.connect(_select_part_target_row)
                 part_replace_target_button.clicked.connect(lambda _checked=False: _map_selected_part_to_combo_target(replace=True))
                 part_add_target_button.clicked.connect(lambda _checked=False: _map_selected_part_to_combo_target(replace=False))
@@ -68225,7 +68061,7 @@ def run_gui() -> int:
                 def _morph_slider_mark_topology_changed(reason: str) -> None:
                     morph_slider_topology_blocked["blocked"] = True
                     morph_slider_topology_blocked["reason"] = str(reason or "Topology changed; reset the edited scope before using Morph Sliders.")
-                    _refresh_morph_slider_controls()
+                    _morph_slider_refresh_controls()
 
                 def _morph_slider_refresh_topology_block_state() -> bool:
                     if replacement_mesh_base_for_mapping is None or replacement_mesh_for_mapping is None:
@@ -68295,7 +68131,7 @@ def run_gui() -> int:
                         morph_slider_topology_blocked["blocked"] = True
                         morph_slider_topology_blocked["reason"] = str(exc)
                         if refresh_controls:
-                            _refresh_morph_slider_controls()
+                            _morph_slider_refresh_controls()
                         return False
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
                     if increment_revision:
@@ -78203,6 +78039,56 @@ def run_gui() -> int:
             accent_glow_row.setSpacing(5)
             accent_glow_row.addWidget(accent_glow_slider, 1)
             accent_glow_row.addWidget(accent_glow_spin)
+            part_glow_color_checkbox = QCheckBox("Custom glow color")
+            part_glow_color_checkbox.setObjectName("MeshAlignmentSourceGlowColorOverrideCheckBox")
+            part_glow_color_checkbox.setToolTip(
+                "Optional color override for source parts explicitly marked Role: Glow / emissive. "
+                "Accent glow at 0% disables emissive output."
+            )
+            saved_glow_color_enabled = str(
+                self.settings.value("settings/complete_swap_accent_glow_color_enabled", "0") or "0"
+            ).strip().lower() in {"1", "true", "yes", "on"}
+            saved_glow_color_text = str(
+                self.settings.value("settings/complete_swap_accent_glow_color_rgb", "255,255,255") or "255,255,255"
+            )
+            saved_glow_rgb: list[int] = []
+            for part in re.split(r"[^0-9]+", saved_glow_color_text):
+                if not part:
+                    continue
+                try:
+                    saved_glow_rgb.append(max(0, min(255, int(part))))
+                except (TypeError, ValueError, OverflowError):
+                    continue
+            while len(saved_glow_rgb) < 3:
+                saved_glow_rgb.append(255)
+            part_glow_color_checkbox.setChecked(saved_glow_color_enabled)
+            part_glow_color_spins: list[QSpinBox] = []
+            for channel_label, object_name, channel_value in (
+                ("R", "MeshAlignmentSourceGlowColorRSpinBox", saved_glow_rgb[0]),
+                ("G", "MeshAlignmentSourceGlowColorGSpinBox", saved_glow_rgb[1]),
+                ("B", "MeshAlignmentSourceGlowColorBSpinBox", saved_glow_rgb[2]),
+            ):
+                channel_spin = QSpinBox()
+                channel_spin.setObjectName(object_name)
+                channel_spin.setRange(0, 255)
+                channel_spin.setPrefix(f"{channel_label} ")
+                channel_spin.setKeyboardTracking(False)
+                channel_spin.setValue(int(channel_value))
+                channel_spin.setMinimumWidth(64)
+                channel_spin.setToolTip("Custom glow/emissive color channel for source parts marked Role: Glow / emissive.")
+                part_glow_color_spins.append(channel_spin)
+            part_glow_color_pick_button = QPushButton("Pick")
+            part_glow_color_pick_button.setObjectName("MeshAlignmentSourceGlowColorPickButton")
+            part_glow_color_pick_button.setMinimumWidth(0)
+            part_glow_color_pick_button.setToolTip("Choose a custom glow/emissive color for glow-role source parts.")
+            part_glow_color_row = QHBoxLayout()
+            part_glow_color_row.setContentsMargins(0, 0, 0, 0)
+            part_glow_color_row.setSpacing(3)
+            part_glow_color_row.addWidget(part_glow_color_checkbox)
+            for channel_spin in part_glow_color_spins:
+                part_glow_color_row.addWidget(channel_spin)
+            part_glow_color_row.addWidget(part_glow_color_pick_button)
+            part_glow_color_row.addStretch(1)
 
             true_source_basic_reset_button = QPushButton("Reset Adjustments")
             true_source_basic_reset_button.setObjectName("MeshAlignmentMaterialAuthorityResetAdjustmentsButton")
@@ -78224,8 +78110,10 @@ def run_gui() -> int:
             true_source_basic_form.addWidget(edge_relief_source_combo, 6, 1)
             true_source_basic_form.addWidget(QLabel("Accent glow"), 7, 0)
             true_source_basic_form.addLayout(accent_glow_row, 7, 1)
-            true_source_basic_form.addWidget(true_source_basic_reset_button, 8, 0, 1, 2, Qt.AlignmentFlag.AlignRight)
-            true_source_basic_form.addWidget(true_source_basic_hint, 9, 0, 1, 2)
+            true_source_basic_form.addWidget(QLabel("Glow color"), 8, 0)
+            true_source_basic_form.addLayout(part_glow_color_row, 8, 1)
+            true_source_basic_form.addWidget(true_source_basic_reset_button, 9, 0, 1, 2, Qt.AlignmentFlag.AlignRight)
+            true_source_basic_form.addWidget(true_source_basic_hint, 10, 0, 1, 2)
             unsafe_material_preflight_checkbox = QCheckBox("Allow unsafe material preflight export")
             unsafe_material_preflight_checkbox.setObjectName("MeshAlignmentUnsafeMaterialPreflightExportCheckbox")
             unsafe_material_preflight_checkbox.setChecked(False)
@@ -79330,6 +79218,7 @@ def run_gui() -> int:
                     "settings/complete_swap_accent_glow_strength",
                     refresh=refresh,
                 )
+                _refresh_part_glow_color_controls_enabled()
 
             def _set_edge_relief_source_value(value: str, *, refresh: bool = True) -> None:
                 index = edge_relief_source_combo.findData(str(value or "hybrid"))
@@ -79396,6 +79285,7 @@ def run_gui() -> int:
                 tone_contrast_spin.setEnabled(bool(complete_mode))
                 accent_glow_slider.setEnabled(bool(complete_mode))
                 accent_glow_spin.setEnabled(bool(complete_mode))
+                _refresh_part_glow_color_controls_enabled()
                 true_source_basic_reset_button.setEnabled(bool(complete_mode))
                 unsafe_material_preflight_checkbox.setEnabled(bool(complete_mode))
                 if not complete_mode and unsafe_material_preflight_checkbox.isChecked():
@@ -79440,6 +79330,12 @@ def run_gui() -> int:
             edge_relief_source_combo.currentIndexChanged.connect(lambda _index: _set_edge_relief_source())
             accent_glow_slider.valueChanged.connect(lambda value: _set_accent_glow(int(value)))
             accent_glow_spin.valueChanged.connect(lambda value: _set_accent_glow(int(value)))
+            part_glow_color_checkbox.toggled.connect(_set_selected_source_glow_color)
+            for part_glow_spin in part_glow_color_spins:
+                part_glow_spin.valueChanged.connect(_set_selected_source_glow_color)
+            part_glow_color_pick_button.clicked.connect(_pick_selected_source_glow_color)
+            _refresh_part_glow_color_controls_enabled()
+            _apply_current_glow_color_to_role_overrides()
             true_source_basic_reset_button.clicked.connect(_reset_material_authority_adjustments)
             complete_external_swap_checkbox.toggled.connect(_sync_complete_external_swap_mode)
             if preferred_complete_source_swap:

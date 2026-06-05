@@ -7,25 +7,18 @@ MAIN_WINDOW = REPO_ROOT / "cdmw" / "ui" / "main_window.py"
 
 
 class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
-    def test_item_finder_uses_persistent_icon_cache_and_preopen_warmup(self) -> None:
+    def test_item_finder_uses_persistent_icon_cache_and_visible_warmup(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
 
         self.assertIn("load_archive_item_icon_thumbnail_cache(", source)
         self.assertIn("save_archive_item_icon_thumbnail_cache(", source)
         self.assertIn("ensure_directxtex_dds_preview_pngs(", source)
-        self.assertIn("def _warm_item_finder_icon_rows_before_exec(", source)
-        self.assertIn("timeout_ms: int = 0", source)
-        self.assertIn("cache_prime_budget_ms: int = 120", source)
-        self.assertIn("deadline = time.monotonic() + min(0.5", source)
-        self.assertIn("QTimer.singleShot(\n                    180,", source)
+        self.assertNotIn("def _warm_item_finder_icon_rows_before_exec(", source)
+        self.assertNotIn("QApplication.instance()\n            deadline = time.monotonic() + min(0.5", source)
         self.assertIn("batch = self.archive_item_icon_priority_queue[:16]", source)
         self.assertIn("QTimer.singleShot(140, _queue_catalog_row_icons_for_visible_rows)", source)
-        self.assertIn("def _first_catalog_icon_rows(", source)
-        self.assertIn(
-            "self._warm_item_finder_icon_rows_before_exec(\n"
-            "                _first_catalog_icon_rows(),",
-            source,
-        )
+        self.assertIn("finder_icon_visible_timer.setInterval(80)", source)
+        self.assertIn("display_limit = 600 if not query_tokens and not selected_category and not selected_group else 2500", source)
         self.assertIn("allow_sync_prepare=False", source)
 
     def test_item_icon_worker_prefers_persistent_and_batch_conversion(self) -> None:
@@ -722,6 +715,14 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn('QLabel("Target Mod Managers")', source)
         self.assertIn('QLabel("Package output")', source)
         self.assertIn("Choose target mod managers. The app will write the right folders and metadata", source)
+        self.assertNotIn("Universal / minimal metadata", source)
+        self.assertNotIn("Universal / minimal metadata", replace_source)
+        self.assertNotIn("Universal / game-relative", source)
+        self.assertIn("Definitive Mod Manager", source)
+        self.assertIn("JMM JSON", source)
+        self.assertIn("CDUMM", source)
+        self.assertIn("Crimson Sharp / Crimson Browser", source)
+        self.assertIn("Field-JSON v3.1", source)
         self.assertNotIn('form_layout.addWidget(QLabel("Manager profile"), 5, 0)', source)
         self.assertNotIn('form_layout.addWidget(QLabel("Folder structure"), 7, 0)', source)
         self.assertNotIn('form_layout.addWidget(QLabel("Generate"), 10, 0)', source)

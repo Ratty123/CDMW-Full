@@ -4,11 +4,11 @@ Windows desktop tool for **Crimson Desert texture workflows**, **archive browsin
 
 Project changelog: [CHANGELOG.md](CHANGELOG.md)
 
-Latest release: `0.9.0-beta.3`
+Latest release: `0.10.0-alpha.1`
 
-- improves in-game character/body swap planning with shared archive relationship discovery for `.pac`, `.pac_xml`, `.app_xml`, `.prefabdata_xml`, DDS, skeleton, and physics links
-- makes swap texture-slot suggestions safer by preferring exact original DDS paths/names before heuristics and avoiding body/hand cross-assignment
-- fixes Archive Browser swap-scope freezes, loose-preview toggle popups, export progress visibility, and clarifies advanced swap-scope options while keeping risky sidecar/skeleton/physics replacement explicit
+- adds grouped Dashboard / Assets / Textures / Research / Settings navigation with detachable work tabs and workspace health shortcuts
+- expands archive and mesh work with native D3D11 preview, Mesh Editor, Model Library, Icon Creator, shard-backed archive caches, and explicit patch/restore flows
+- moves material replacement toward Material Authority, richer mod-package retrofit/export metadata, native DDS helpers, and broader research/audit tooling
 
 Project guidelines:
 

@@ -1729,7 +1729,7 @@ def resolve_default_mod_ready_export_root(output_root: Path) -> Path:
 
 
 def build_mod_package_export_options_from_config(config: AppConfig) -> ModPackageExportOptions:
-    profile = str(getattr(config, "mod_ready_manager_profile", "universal") or "universal").strip() or "universal"
+    profile = str(getattr(config, "mod_ready_manager_profile", "dmm") or "dmm").strip() or "dmm"
     raw_profiles = tuple(
         str(value or "").strip()
         for value in tuple(getattr(config, "mod_ready_manager_profiles", ()) or ())

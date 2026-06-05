@@ -968,6 +968,37 @@ def _profile_accent_glow_intensity(material_profile: Optional[CDMaterialRuntimeP
     return max(0.0, min(20.0, maximum)) * (strength / 100.0)
 
 
+def _profile_requires_accent_glow_for_source_emissive(
+    material_profile: Optional[CDMaterialRuntimeProfile],
+) -> bool:
+    if material_profile is None:
+        return False
+    name = str(getattr(material_profile, "name", "") or "").strip().lower()
+    contract = str(getattr(material_profile, "authority_contract", "") or "").strip().lower()
+    return name.startswith("material_authority") or contract.startswith("true_source_authority")
+
+
+def _profile_source_emissive_enabled(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
+    if material_profile is None:
+        return False
+    if str(getattr(material_profile, "emissive_mode", "") or "").strip().lower() != "intensity":
+        return False
+    if _profile_requires_accent_glow_for_source_emissive(material_profile):
+        return _profile_accent_glow_strength(material_profile) > 0.0
+    return True
+
+
+def _profile_source_emissive_parameter_intensity(
+    material_profile: Optional[CDMaterialRuntimeProfile],
+) -> float:
+    if not _profile_source_emissive_enabled(material_profile):
+        return 0.0
+    accent_intensity = _profile_accent_glow_intensity(material_profile)
+    if accent_intensity > 0.0:
+        return accent_intensity
+    return 1.0
+
+
 def _profile_gloss_reduction_mode(material_profile: CDMaterialRuntimeProfile) -> str:
     mode = _sanitize_texture_component(str(getattr(material_profile, "gloss_reduction_mode", "") or "cd_smoothness_low"))
     aliases = {
@@ -3236,13 +3267,12 @@ def _build_source_driven_pac_material_payloads(
                     )
             bindings.append((parameter_name, output_texture_path, source_slot.slot_kind))
             if str(source_slot.slot_kind or "").strip().lower() == "emissive":
-                emissive_intensity = _profile_accent_glow_intensity(material_profile)
-                if emissive_intensity <= 0.0:
-                    emissive_intensity = 1.0
-                target_emissive_settings[target_name] = (
-                    _texture_set_accent_glow_color_hex(texture_set, source_slot),
-                    emissive_intensity,
-                )
+                emissive_intensity = _profile_source_emissive_parameter_intensity(material_profile)
+                if emissive_intensity > 0.0:
+                    target_emissive_settings[target_name] = (
+                        _texture_set_accent_glow_color_hex(texture_set, source_slot),
+                        emissive_intensity,
+                    )
             report.slot_mappings.append(
                 TextureSlotMapping(
                     target_material_name=target_name,
@@ -3978,6 +4008,8 @@ def _source_driven_slots(
         if slot_kind == "material_mask" and mask_binding_mode == "disabled":
             continue
         if runtime_xml_profile and slot_kind in {"height", "material_mask", "detail_mask"}:
+            continue
+        if slot_kind == "emissive" and not _profile_source_emissive_enabled(profile):
             continue
         if slot_kind == "emissive" and include_complete_support_fallbacks and profile.emissive_mode != "intensity":
             continue

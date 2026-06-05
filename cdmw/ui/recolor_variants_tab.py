@@ -485,10 +485,9 @@ class RecolorVariantsTab(QWidget):
         profiles_group = CollapsibleSection("Manager outputs", expanded=False)
         profiles_layout = profiles_group.body_layout
         for profile_id, label, checked in (
-            ("universal", "Universal / game-relative", True),
-            ("cdumm", "CDUMM files/ wrapper", False),
+            ("dmm", "Definitive Mod Manager", True),
             ("jmm", "JMM JSON", False),
-            ("dmm", "Definitive Mod Manager", False),
+            ("cdumm", "CDUMM files/ wrapper", False),
             ("crimson_sharp", "Crimson Sharp / Browser", False),
             ("field_json", "Field-JSON v3.1", False),
         ):
@@ -947,7 +946,6 @@ class RecolorVariantsTab(QWidget):
     def _selected_profiles(self) -> tuple[RecolorVariantOutputProfile, ...]:
         profiles: list[RecolorVariantOutputProfile] = []
         labels = {
-            "universal": "Universal",
             "cdumm": "CDUMM",
             "jmm": "JMM JSON",
             "dmm": "Definitive Mod Manager",
@@ -955,7 +953,6 @@ class RecolorVariantsTab(QWidget):
             "field_json": "Field-JSON v3.1",
         }
         suffixes = {
-            "universal": "",
             "cdumm": "CDUMM",
             "jmm": "JMM",
             "dmm": "DMM",

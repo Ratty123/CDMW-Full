@@ -127,8 +127,8 @@ class RecolorVariantAnalysis:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RecolorVariantOutputProfile:
-    profile_id: str = "universal"
-    label: str = "Universal"
+    profile_id: str = "dmm"
+    label: str = "Definitive Mod Manager"
     enabled: bool = True
     package_title_suffix: str = ""
     package_info: Optional[ModPackageInfo] = None
@@ -641,7 +641,7 @@ def build_recolor_variant_outputs(
 
 
 def recolor_export_options_for_manager(profile_id: str) -> ModPackageExportOptions:
-    normalized = str(profile_id or "universal").strip().lower()
+    normalized = str(profile_id or "dmm").strip().lower()
     if normalized == "jmm":
         return ModPackageExportOptions(
             manager_targets=("jmm",),
@@ -661,10 +661,10 @@ def recolor_export_options_for_manager(profile_id: str) -> ModPackageExportOptio
 def default_recolor_output_profiles() -> tuple[RecolorVariantOutputProfile, ...]:
     return (
         RecolorVariantOutputProfile(
-            profile_id="universal",
-            label="Universal",
+            profile_id="dmm",
+            label="Definitive Mod Manager",
             enabled=True,
-            export_options=recolor_export_options_for_manager("universal"),
+            export_options=recolor_export_options_for_manager("dmm"),
         ),
         RecolorVariantOutputProfile(
             profile_id="cdumm",
@@ -1080,7 +1080,7 @@ def _profile_package_info(
 
 def _profile_output_root(output_root: Path, package_info: ModPackageInfo, profile: RecolorVariantOutputProfile) -> Path:
     root = resolve_mod_package_root(output_root, package_info)
-    if profile.profile_id and profile.profile_id.strip().lower() not in {"", "universal"}:
+    if profile.profile_id and profile.profile_id.strip().lower() not in {"", "dmm"}:
         return root.with_name(f"{root.name}_{_safe_slug(profile.profile_id)}")
     return root
 
