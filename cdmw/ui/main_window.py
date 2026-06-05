@@ -273,6 +273,7 @@ from cdmw.modding.mesh_deformer import (
     build_x_mirror_pairs,
     clone_mesh_for_editing,
     compact_orphan_vertices,
+    delete_faces_by_indices,
     delete_faces_touching_vertices,
     grow_vertex_selection,
     mesh_topology_signature,
@@ -58250,6 +58251,7 @@ def run_gui() -> int:
             mesh_edit_redo_adjustment_stack: List[Dict[int, bool]] = []
             mesh_edit_active_stroke: Dict[str, object] = {}
             mesh_edit_selected_vertices_by_submesh: Dict[int, set[int]] = {}
+            mesh_edit_selected_faces_by_submesh: Dict[int, set[int]] = {}
             morph_slider_profile_root = self.settings_file_path.parent / "mesh_slider_profiles"
             morph_slider_profiles: List[MeshMorphSliderProfile] = []
             morph_slider_deltas: Dict[str, MeshMorphSliderDelta] = {}
@@ -62135,6 +62137,7 @@ def run_gui() -> int:
                     static_preview_prepared_cache.clear()
                     mesh_edit_active_stroke.clear()
                     mesh_edit_selected_vertices_by_submesh.clear()
+                    mesh_edit_selected_faces_by_submesh.clear()
                     mesh_edit_undo_stack.clear()
                     mesh_edit_redo_stack.clear()
                     mesh_edit_undo_adjustment_stack.clear()
@@ -64819,6 +64822,7 @@ def run_gui() -> int:
                             copy_values=True,
                         )
                     mesh_edit_selected_vertices_by_submesh.clear()
+                    mesh_edit_selected_faces_by_submesh.clear()
                     if morph_slider_post_edit_deltas and len(morph_slider_post_edit_deltas) == source_count:
                         morph_slider_post_edit_deltas[:] = [
                             deltas
@@ -68837,6 +68841,7 @@ def run_gui() -> int:
                             adjustment = _ensure_source_part_adjustment(source_index)
                             adjustment.enabled = True
                     mesh_edit_selected_vertices_by_submesh.clear()
+                    mesh_edit_selected_faces_by_submesh.clear()
                     if _morph_slider_has_loaded_deltas():
                         _morph_slider_zero_post_edit_deltas_for_sources(source_indices)
                         _morph_slider_refresh_topology_block_state()
@@ -69198,6 +69203,7 @@ def run_gui() -> int:
                             "base": clone_mesh_for_editing(snapshot),
                             "before_topology": None if tool == "remove" else mesh_topology_signature(snapshot),
                             "changed": False,
+                            "remove_faces_by_submesh": {},
                             "remove_vertices_by_submesh": {},
                             "live_delete_submeshes": set(),
                             "mirror_pairs": {
@@ -69259,12 +69265,45 @@ def run_gui() -> int:
                                     selected.setdefault(source_submesh_index, set()).add(vertex_index)
                     return selected
 
+                def _mesh_edit_faces_from_payload(payload: Mapping[object, object]) -> Dict[int, set[int]]:
+                    selected: Dict[int, set[int]] = {}
+                    if replacement_mesh_for_mapping is None:
+                        return selected
+                    allowed_indices = set(_mesh_edit_allowed_source_indices())
+                    for group in tuple(payload.get("groups") or ()):
+                        if not isinstance(group, Mapping):
+                            continue
+                        try:
+                            editor_submesh_index = int(group.get("source_submesh_index", -1))
+                        except (TypeError, ValueError):
+                            continue
+                        source_indices = _alignment_d3d11_source_indices_for_editor_id(editor_submesh_index)
+                        for source_submesh_index in source_indices:
+                            if source_submesh_index not in allowed_indices:
+                                continue
+                            if source_submesh_index < 0 or source_submesh_index >= len(replacement_mesh_for_mapping.submeshes):
+                                continue
+                            face_count = len(getattr(replacement_mesh_for_mapping.submeshes[source_submesh_index], "faces", ()) or ())
+                            for raw_face_index in tuple(group.get("source_face_indices") or ()):
+                                try:
+                                    face_index = int(raw_face_index)
+                                except (TypeError, ValueError):
+                                    continue
+                                if 0 <= face_index < face_count:
+                                    selected.setdefault(source_submesh_index, set()).add(face_index)
+                    return selected
+
                 def _mesh_edit_merge_vertex_groups(target: Dict[int, set[int]], source: Mapping[int, set[int]]) -> None:
                     for source_index, vertices in source.items():
                         target.setdefault(int(source_index), set()).update(int(vertex_index) for vertex_index in vertices if int(vertex_index) >= 0)
 
+                def _mesh_edit_merge_face_groups(target: Dict[int, set[int]], source: Mapping[int, set[int]]) -> None:
+                    for source_index, faces in source.items():
+                        target.setdefault(int(source_index), set()).update(int(face_index) for face_index in faces if int(face_index) >= 0)
+
                 def _mesh_edit_clear_topology_selection() -> None:
                     mesh_edit_selected_vertices_by_submesh.clear()
+                    mesh_edit_selected_faces_by_submesh.clear()
                     if _alignment_d3d11_preview_active():
                         alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()
                     for preview_widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):
@@ -69322,19 +69361,29 @@ def run_gui() -> int:
                             or "release"
                         ).strip().lower()
                         vertices_by_submesh = _mesh_edit_vertices_from_payload(payload)
-                        if not vertices_by_submesh:
+                        faces_by_submesh = _mesh_edit_faces_from_payload(payload)
+                        if not vertices_by_submesh and not faces_by_submesh:
                             return
                         if delete_mode == "selection":
                             _mesh_edit_merge_vertex_groups(mesh_edit_selected_vertices_by_submesh, vertices_by_submesh)
+                            _mesh_edit_merge_face_groups(mesh_edit_selected_faces_by_submesh, faces_by_submesh)
                             _refresh_mesh_edit_controls()
                             return
                         if delete_mode == "live":
-                            result = delete_faces_touching_vertices(
-                                replacement_mesh_for_mapping,
-                                vertices_by_submesh,
-                                remove_orphans=False,
-                                recompute_normals=False,
-                            )
+                            if faces_by_submesh:
+                                result = delete_faces_by_indices(
+                                    replacement_mesh_for_mapping,
+                                    faces_by_submesh,
+                                    remove_orphans=False,
+                                    recompute_normals=False,
+                                )
+                            else:
+                                result = delete_faces_touching_vertices(
+                                    replacement_mesh_for_mapping,
+                                    vertices_by_submesh,
+                                    remove_orphans=False,
+                                    recompute_normals=False,
+                                )
                             if int(result.removed_face_count or 0) <= 0:
                                 return
                             live_submeshes = mesh_edit_active_stroke.setdefault("live_delete_submeshes", set())
@@ -69349,6 +69398,9 @@ def run_gui() -> int:
                             else:
                                 _mesh_edit_update_live_preview()
                             return
+                        remove_faces = mesh_edit_active_stroke.setdefault("remove_faces_by_submesh", {})
+                        if isinstance(remove_faces, dict):
+                            _mesh_edit_merge_face_groups(remove_faces, faces_by_submesh)  # type: ignore[arg-type]
                         remove_vertices = mesh_edit_active_stroke.setdefault("remove_vertices_by_submesh", {})
                         if isinstance(remove_vertices, dict):
                             _mesh_edit_merge_vertex_groups(remove_vertices, vertices_by_submesh)  # type: ignore[arg-type]
@@ -69537,24 +69589,38 @@ def run_gui() -> int:
                                 topology_source_indices=topology_sources,
                             )
                             return
+                        remove_faces = mesh_edit_active_stroke.get("remove_faces_by_submesh", {})
+                        selected_faces = {
+                            int(source_index): sorted({int(face_index) for face_index in faces if int(face_index) >= 0})
+                            for source_index, faces in (remove_faces.items() if isinstance(remove_faces, Mapping) else ())
+                            if faces
+                        }
                         remove_vertices = mesh_edit_active_stroke.get("remove_vertices_by_submesh", {})
                         selected_vertices = {
                             int(source_index): sorted({int(vertex_index) for vertex_index in vertices if int(vertex_index) >= 0})
                             for source_index, vertices in (remove_vertices.items() if isinstance(remove_vertices, Mapping) else ())
                             if vertices
                         }
-                        if not selected_vertices:
+                        if not selected_faces and not selected_vertices:
                             _mesh_edit_pop_undo_snapshot()
                             _pop_geometry_undo_snapshot()
                             mesh_edit_active_stroke.clear()
                             _refresh_mesh_edit_controls()
                             return
-                        result = delete_faces_touching_vertices(
-                            replacement_mesh_for_mapping,
-                            selected_vertices,
-                            remove_orphans=True,
-                            recompute_normals=True,
-                        )
+                        if selected_faces:
+                            result = delete_faces_by_indices(
+                                replacement_mesh_for_mapping,
+                                selected_faces,
+                                remove_orphans=True,
+                                recompute_normals=True,
+                            )
+                        else:
+                            result = delete_faces_touching_vertices(
+                                replacement_mesh_for_mapping,
+                                selected_vertices,
+                                remove_orphans=True,
+                                recompute_normals=True,
+                            )
                         if int(result.removed_face_count or 0) <= 0:
                             _mesh_edit_pop_undo_snapshot()
                             _pop_geometry_undo_snapshot()
@@ -69650,6 +69716,13 @@ def run_gui() -> int:
                         QMessageBox.information(dialog, "Mesh Editing", "Bake or reset Morph Sliders before removing faces.")
                         return
                     allowed_indices = set(_mesh_edit_allowed_source_indices())
+                    selected_faces = {
+                        int(source_index): sorted({int(face_index) for face_index in faces if int(face_index) >= 0})
+                        for source_index, faces in mesh_edit_selected_faces_by_submesh.items()
+                        if int(source_index) in allowed_indices
+                        and 0 <= int(source_index) < len(replacement_mesh_for_mapping.submeshes)
+                        and faces
+                    }
                     selected_vertices = {
                         int(source_index): sorted({int(vertex_index) for vertex_index in vertices if int(vertex_index) >= 0})
                         for source_index, vertices in mesh_edit_selected_vertices_by_submesh.items()
@@ -69657,16 +69730,24 @@ def run_gui() -> int:
                         and 0 <= int(source_index) < len(replacement_mesh_for_mapping.submeshes)
                         and vertices
                     }
-                    if not selected_vertices:
-                        QMessageBox.information(dialog, "Mesh Editing", "Select vertices before deleting faces.")
+                    if not selected_faces and not selected_vertices:
+                        QMessageBox.information(dialog, "Mesh Editing", "Select faces or vertices before deleting faces.")
                         return
                     _mesh_edit_record_snapshot()
-                    result = delete_faces_touching_vertices(
-                        replacement_mesh_for_mapping,
-                        selected_vertices,
-                        remove_orphans=True,
-                        recompute_normals=True,
-                    )
+                    if selected_faces:
+                        result = delete_faces_by_indices(
+                            replacement_mesh_for_mapping,
+                            selected_faces,
+                            remove_orphans=True,
+                            recompute_normals=True,
+                        )
+                    else:
+                        result = delete_faces_touching_vertices(
+                            replacement_mesh_for_mapping,
+                            selected_vertices,
+                            remove_orphans=True,
+                            recompute_normals=True,
+                        )
                     if int(result.removed_face_count or 0) <= 0:
                         _mesh_edit_pop_undo_snapshot()
                         _pop_geometry_undo_snapshot()
@@ -69729,6 +69810,7 @@ def run_gui() -> int:
                         return
                     _morph_slider_mark_topology_changed("Subdivide Selection changed topology. Use Reset Scope to restore Morph Slider compatibility.")
                     mesh_edit_selected_vertices_by_submesh.clear()
+                    mesh_edit_selected_faces_by_submesh.clear()
                     for source_index, vertices in (result.changed_vertices_by_submesh or {}).items():
                         mesh_edit_selected_vertices_by_submesh[int(source_index)] = {int(vertex_index) for vertex_index in vertices}
                     _mesh_edit_update_mesh_totals()
@@ -69750,6 +69832,7 @@ def run_gui() -> int:
 
                 def _mesh_edit_clear_vertex_selection() -> None:
                     mesh_edit_selected_vertices_by_submesh.clear()
+                    mesh_edit_selected_faces_by_submesh.clear()
                     if _alignment_d3d11_preview_active():
                         alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()
                         _refresh_mesh_edit_controls()
@@ -69760,6 +69843,7 @@ def run_gui() -> int:
 
                 def _mesh_edit_set_vertex_selection(selected_vertices_by_submesh: Mapping[int, Iterable[int]]) -> None:
                     mesh_edit_selected_vertices_by_submesh.clear()
+                    mesh_edit_selected_faces_by_submesh.clear()
                     for raw_source_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
                         try:
                             source_index = int(raw_source_index)
@@ -69836,6 +69920,7 @@ def run_gui() -> int:
 
                 def _mesh_edit_selection_changed(payload: object) -> None:
                     mesh_edit_selected_vertices_by_submesh.clear()
+                    mesh_edit_selected_faces_by_submesh.clear()
                     allowed_indices = set(_mesh_edit_allowed_source_indices())
                     if isinstance(payload, Mapping):
                         for group in tuple(payload.get("groups") or ()):
@@ -69867,12 +69952,24 @@ def run_gui() -> int:
                                         continue
                                     if 0 <= vertex_index < vertex_count:
                                         selected.add(vertex_index)
+                                face_count = len(
+                                    getattr(replacement_mesh_for_mapping.submeshes[source_submesh_index], "faces", ()) or ()
+                                )
+                                selected_faces = mesh_edit_selected_faces_by_submesh.setdefault(source_submesh_index, set())
+                                for raw_face_index in tuple(group.get("source_face_indices") or ()):
+                                    try:
+                                        face_index = int(raw_face_index)
+                                    except (TypeError, ValueError):
+                                        continue
+                                    if 0 <= face_index < face_count:
+                                        selected_faces.add(face_index)
                     selected_count = sum(len(vertices) for vertices in mesh_edit_selected_vertices_by_submesh.values())
+                    selected_face_count = sum(len(faces) for faces in mesh_edit_selected_faces_by_submesh.values())
                     can_edit, reason = _mesh_edit_can_edit_scope()
                     if can_edit and mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active():
                         revision_text = int(mesh_edit_revision.get("value", 0) or 0)
                         mesh_edit_status_label.setText(
-                            f"{reason} Selected vertices {selected_count:,}. Edited revision {revision_text}."
+                            f"{reason} Selected vertices {selected_count:,}; faces {selected_face_count:,}. Edited revision {revision_text}."
                         )
                     _refresh_mesh_edit_controls()
 

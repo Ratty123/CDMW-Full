@@ -1103,7 +1103,12 @@ def _binding_material_name(binding: object) -> str:
     )
 
 
-def _candidate_mesh_indices(preview_model: ModelPreviewData, binding: object) -> Tuple[int, ...]:
+def _candidate_mesh_indices(
+    preview_model: ModelPreviewData,
+    binding: object,
+    *,
+    allow_single_mesh_fallback: bool = True,
+) -> Tuple[int, ...]:
     meshes = list(getattr(preview_model, "meshes", []) or [])
     if not meshes:
         return ()
@@ -1139,7 +1144,7 @@ def _candidate_mesh_indices(preview_model: ModelPreviewData, binding: object) ->
                 matched.append(index)
     if matched:
         return tuple(matched)
-    if len(meshes) == 1:
+    if allow_single_mesh_fallback and len(meshes) == 1:
         return (0,)
     return ()
 
@@ -3931,6 +3936,8 @@ def _assign_row_to_meshes(
 def _assign_unmatched_visible_textures_by_order(
     preview_model: ModelPreviewData,
     binding_rows: Sequence[FinalPackageBindingRow],
+    *,
+    exclude_kept_original_sidecar: bool = False,
 ) -> Tuple[int, Tuple[str, ...]]:
     ready_visible_rows = [
         row
@@ -3939,6 +3946,10 @@ def _assign_unmatched_visible_textures_by_order(
         and row.status == FINAL_PREVIEW_READY
         and row.confidence == "exact"
         and str(row.preview_texture_path or "").strip()
+        and not (
+            exclude_kept_original_sidecar
+            and str(row.sidecar_path or "").strip().lower() == "kept original sidecar bindings"
+        )
     ]
     if not ready_visible_rows:
         return 0, ()
@@ -4434,6 +4445,14 @@ def build_final_package_preview(
                 )
             )
 
+    kept_original_material_keys = {
+        _material_key(_binding_material_name(binding))
+        for sidecar_path, binding in binding_sources
+        if str(sidecar_path or "").strip().lower() == "kept original sidecar bindings"
+        and _material_key(_binding_material_name(binding))
+    }
+    conservative_kept_original_binding_fallback = bool(not sidecars and len(kept_original_material_keys) > 1)
+
     for sidecar_path, binding in binding_sources:
             texture_path = str(getattr(binding, "texture_path", "") or "").replace("\\", "/").strip()
             if not texture_path.lower().endswith(".dds"):
@@ -4511,7 +4530,12 @@ def build_final_package_preview(
 
             binding_material = _binding_material_name(binding)
             binding_key = _material_key(binding_material)
-            mesh_indices = _candidate_mesh_indices(preview_model, binding)
+            kept_original_binding = str(sidecar_path or "").strip().lower() == "kept original sidecar bindings"
+            mesh_indices = _candidate_mesh_indices(
+                preview_model,
+                binding,
+                allow_single_mesh_fallback=not (conservative_kept_original_binding_fallback and kept_original_binding),
+            )
             if mesh_indices:
                 for mesh_index in mesh_indices:
                     mesh = preview_model.meshes[mesh_index]
@@ -4579,12 +4603,21 @@ def build_final_package_preview(
             + (" ..." if len(orphan_payload_paths) > 8 else "")
         )
 
-    fallback_assignment_count, fallback_assignment_details = _assign_unmatched_visible_textures_by_order(preview_model, binding_rows)
+    fallback_assignment_count, fallback_assignment_details = _assign_unmatched_visible_textures_by_order(
+        preview_model,
+        binding_rows,
+        exclude_kept_original_sidecar=conservative_kept_original_binding_fallback,
+    )
     if fallback_assignment_count:
         warnings.append(
             "Final preview assigned visible textures by draw-order fallback for "
             f"{fallback_assignment_count:,} unmatched mesh batch(es). This is preview-only; material names did not match final sidecar bindings exactly."
             + _fallback_assignment_detail(fallback_assignment_details)
+        )
+    if conservative_kept_original_binding_fallback:
+        warnings.append(
+            "Final preview ignored unmatched kept-original sidecar material bindings because the rebuilt mesh has fewer visible draw sections than the original sidecar. "
+            "This prevents deleted or empty original material wrappers from overriding the remaining visible mesh texture."
         )
 
     source_visible_texture_count = _visible_preview_texture_count(getattr(preview_result, "preview_model", None))

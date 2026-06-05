@@ -10,6 +10,7 @@ from cdmw.modding.mesh_deformer import (
     build_vertex_adjacency,
     build_x_mirror_pairs,
     compact_orphan_vertices,
+    delete_faces_by_indices,
     delete_faces_touching_vertices,
     mesh_topology_signature,
     recompute_submesh_normals,
@@ -241,6 +242,42 @@ class MeshDeformerTests(unittest.TestCase):
         self.assertEqual(3, mesh.total_vertices)
         self.assertEqual(1, mesh.total_faces)
         self.assertEqual(3, len(sm.normals))
+
+    def test_delete_faces_by_indices_removes_only_requested_shared_vertex_face(self) -> None:
+        sm = _submesh()
+        sm.uvs = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]
+        sm.normals = [(0.0, 0.0, 1.0)] * 4
+        sm.bone_indices = [(0,), (1,), (2,), (3,)]
+        sm.bone_weights = [(1.0,), (1.0,), (1.0,), (1.0,)]
+        sm.source_vertex_map = [10, 11, 12, 13]
+        sm.source_vertex_offsets = [100, 110, 120, 130]
+        mesh = ParsedMesh(format="obj", submeshes=[sm])
+
+        result = delete_faces_by_indices(mesh, {0: [0]})
+
+        self.assertEqual(1, result.removed_face_count)
+        self.assertEqual(1, result.removed_vertex_count)
+        self.assertEqual((0,), result.affected_submesh_indices)
+        self.assertEqual([], list(result.emptied_submesh_indices))
+        self.assertEqual([(1.0, 0.0, 0.0), (-1.0, 1.0, 0.0), (1.0, 1.0, 0.0)], sm.vertices)
+        self.assertEqual([(0, 2, 1)], sm.faces)
+        self.assertEqual([(1.0, 0.0), (0.0, 1.0), (1.0, 1.0)], sm.uvs)
+        self.assertEqual([(1,), (2,), (3,)], sm.bone_indices)
+        self.assertEqual([11, 12, 13], sm.source_vertex_map)
+        self.assertEqual([110, 120, 130], sm.source_vertex_offsets)
+
+    def test_delete_faces_by_indices_can_defer_orphan_compaction(self) -> None:
+        sm = _submesh()
+        sm.source_vertex_map = [10, 11, 12, 13]
+        mesh = ParsedMesh(format="obj", submeshes=[sm])
+
+        result = delete_faces_by_indices(mesh, {0: [0]}, remove_orphans=False, recompute_normals=False)
+
+        self.assertEqual(1, result.removed_face_count)
+        self.assertEqual(0, result.removed_vertex_count)
+        self.assertEqual(4, len(sm.vertices))
+        self.assertEqual([(1, 3, 2)], sm.faces)
+        self.assertEqual([10, 11, 12, 13], sm.source_vertex_map)
 
     def test_delete_faces_can_empty_submesh(self) -> None:
         sm = _submesh()

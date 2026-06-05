@@ -2940,6 +2940,72 @@ Connections:  {
             self.assertIn("cd_phw_00_nude_00_0001", result.preview_model.meshes[0].preview_texture_path)
             self.assertIn("cd_phw_00_nude_00_0001_n", result.preview_model.meshes[0].preview_normal_texture_path)
 
+    def test_kept_original_sidecar_does_not_assign_deleted_material_to_single_remaining_mesh(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview(material_name="Visible_Jacket")
+            preview.texture_references = (
+                ArchiveModelTextureReference(
+                    reference_name="character/texture/jacket_base.dds",
+                    material_name="Visible_Jacket",
+                    sidecar_parameter_name="_overlayColorTexture",
+                    resolved_archive_path="character/texture/jacket_base.dds",
+                ),
+                ArchiveModelTextureReference(
+                    reference_name="character/texture/jacket_n.dds",
+                    material_name="Visible_Jacket",
+                    sidecar_parameter_name="_normalTexture",
+                    resolved_archive_path="character/texture/jacket_n.dds",
+                ),
+                ArchiveModelTextureReference(
+                    reference_name="character/texture/deleted_cloak_base.dds",
+                    material_name="Deleted_Cloak",
+                    sidecar_parameter_name="_overlayColorTexture",
+                    resolved_archive_path="character/texture/deleted_cloak_base.dds",
+                ),
+                ArchiveModelTextureReference(
+                    reference_name="character/texture/deleted_cloak_n.dds",
+                    material_name="Deleted_Cloak",
+                    sidecar_parameter_name="_normalTexture",
+                    resolved_archive_path="character/texture/deleted_cloak_n.dds",
+                ),
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "jacket_base.dds",
+                    target_path="character/texture/jacket_base.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS jacket base",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "jacket_n.dds",
+                    target_path="character/texture/jacket_n.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS jacket normal",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "deleted_cloak_base.dds",
+                    target_path="character/texture/deleted_cloak_base.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS deleted cloak base",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "deleted_cloak_n.dds",
+                    target_path="character/texture/deleted_cloak_n.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS deleted cloak normal",
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            mesh = result.preview_model.meshes[0]
+            self.assertIn("jacket_base", mesh.preview_texture_path)
+            self.assertIn("jacket_n", mesh.preview_normal_texture_path)
+            self.assertNotIn("deleted_cloak", mesh.preview_texture_path)
+            self.assertNotIn("deleted_cloak", mesh.preview_normal_texture_path)
+            self.assertTrue(any("ignored unmatched kept-original sidecar material bindings" in warning for warning in result.warnings))
+
     def test_final_preview_matches_character_materials_with_extra_numeric_segment(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -25,6 +25,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "../../common/native_diagnostics.h"
@@ -276,6 +277,7 @@ struct EditorCandidate {
     int batch_index = -1;
     int source_submesh_index = -1;
     int source_vertex_index = -1;
+    int source_face_index = -1;
     DirectX::XMFLOAT3 position{0.0f, 0.0f, 0.0f};
     float screen_x = 0.0f;
     float screen_y = 0.0f;
@@ -3885,6 +3887,55 @@ private:
         return (cx - ax) * (by - ay) - (cy - ay) * (bx - ax);
     }
 
+    static float distance_to_screen_segment(float px, float py, ScreenPoint a, ScreenPoint b) {
+        const float vx = b.x - a.x;
+        const float vy = b.y - a.y;
+        const float length_sq = vx * vx + vy * vy;
+        if (length_sq <= 1.0e-6f) {
+            return std::hypot(px - a.x, py - a.y);
+        }
+        const float t = std::clamp(((px - a.x) * vx + (py - a.y) * vy) / length_sq, 0.0f, 1.0f);
+        const float closest_x = a.x + vx * t;
+        const float closest_y = a.y + vy * t;
+        return std::hypot(px - closest_x, py - closest_y);
+    }
+
+    static float distance_to_screen_triangle(
+        float px,
+        float py,
+        ScreenPoint a,
+        ScreenPoint b,
+        ScreenPoint c,
+        float* out_w0 = nullptr,
+        float* out_w1 = nullptr,
+        float* out_w2 = nullptr) {
+        const float area = edge_function(a.x, a.y, b.x, b.y, c.x, c.y);
+        if (std::abs(area) <= 1.0e-6f) {
+            if (out_w0) *out_w0 = 1.0f;
+            if (out_w1) *out_w1 = 0.0f;
+            if (out_w2) *out_w2 = 0.0f;
+            return std::min({
+                distance_to_screen_segment(px, py, a, b),
+                distance_to_screen_segment(px, py, b, c),
+                distance_to_screen_segment(px, py, c, a),
+            });
+        }
+        const float w0 = edge_function(b.x, b.y, c.x, c.y, px, py) / area;
+        const float w1 = edge_function(c.x, c.y, a.x, a.y, px, py) / area;
+        const float w2 = edge_function(a.x, a.y, b.x, b.y, px, py) / area;
+        if (out_w0) *out_w0 = w0;
+        if (out_w1) *out_w1 = w1;
+        if (out_w2) *out_w2 = w2;
+        if (w0 >= -0.001f && w1 >= -0.001f && w2 >= -0.001f) {
+            return 0.0f;
+        }
+        return std::min({
+            distance_to_screen_segment(px, py, a, b),
+            distance_to_screen_segment(px, py, b, c),
+            distance_to_screen_segment(px, py, c, a),
+        });
+    }
+
     const MeshEditDepthMaskCache& mesh_edit_depth_mask_for_view(const PreviewRenderView& view) const {
         const std::string key = mesh_edit_screen_vertex_cache_key(view) + "|depth";
         if (mesh_edit_depth_mask_cache_.valid && mesh_edit_depth_mask_cache_.key == key) {
@@ -3978,6 +4029,24 @@ private:
         return screen_vertex.depth_z <= front_depth + 0.0035f;
     }
 
+    bool mesh_edit_screen_point_visible_in_depth_mask(
+        float screen_x,
+        float screen_y,
+        float depth_z,
+        const MeshEditDepthMaskCache& depth_mask
+    ) const {
+        if (!mesh_edit_depth_filter_enabled()) return true;
+        if (!depth_mask.valid || depth_mask.width <= 0 || depth_mask.height <= 0 || depth_mask.depths.empty()) return true;
+        const int x = static_cast<int>(std::floor((screen_x - depth_mask.viewport_x) * depth_mask.scale_x));
+        const int y = static_cast<int>(std::floor((screen_y - depth_mask.viewport_y) * depth_mask.scale_y));
+        if (x < 0 || y < 0 || x >= depth_mask.width || y >= depth_mask.height) return false;
+        const size_t offset = static_cast<size_t>(y) * static_cast<size_t>(depth_mask.width) + static_cast<size_t>(x);
+        if (offset >= depth_mask.depths.size()) return true;
+        const float front_depth = depth_mask.depths[offset];
+        if (!std::isfinite(front_depth)) return true;
+        return depth_z <= front_depth + 0.0035f;
+    }
+
     std::vector<EditorCandidate> mesh_edit_candidates_at_in_view(
         const PreviewRenderView& view,
         int x,
@@ -4014,6 +4083,129 @@ private:
         constexpr size_t kMaxBrushCandidates = 3000;
         if (!nearest_only && candidates.size() > kMaxBrushCandidates) {
             candidates.resize(kMaxBrushCandidates);
+        }
+        return candidates;
+    }
+
+    std::vector<EditorCandidate> mesh_edit_face_candidates_at_in_view(
+        const PreviewRenderView& view,
+        int x,
+        int y,
+        float radius_pixels,
+        bool nearest_only) const {
+        std::vector<EditorCandidate> candidates;
+        if (!mesh_edit_.enabled || width_ <= 0 || height_ <= 0) return candidates;
+        const bool xray_mode = !mesh_edit_depth_filter_enabled();
+        const MeshEditDepthMaskCache* depth_mask = xray_mode ? nullptr : &mesh_edit_depth_mask_for_view(view);
+        const float px = static_cast<float>(x);
+        const float py = static_cast<float>(y);
+        std::set<std::tuple<int, int, int>> emitted;
+        for (const PreviewBatch& batch : batches_) {
+            if (!mesh_edit_batch_editable_in_view(batch, view)) continue;
+            const size_t triangle_count = batch.cpu_positions.size() / 3u;
+            for (size_t triangle_index = 0; triangle_index < triangle_count; ++triangle_index) {
+                const size_t base = triangle_index * 3u;
+                ScreenPoint p[3]{};
+                float depth_z[3]{};
+                DirectX::XMFLOAT3 world_p[3]{};
+                int source_submesh = -1;
+                int source_vertices[3]{-1, -1, -1};
+                bool projected = true;
+                for (size_t corner = 0; corner < 3u; ++corner) {
+                    const size_t vertex_index = base + corner;
+                    float screen_x = 0.0f;
+                    float screen_y = 0.0f;
+                    if (!project_batch_position_for_view(batch, batch.cpu_positions[vertex_index], view, screen_x, screen_y, &depth_z[corner])) {
+                        projected = false;
+                        break;
+                    }
+                    p[corner] = ScreenPoint{screen_x, screen_y};
+                    world_p[corner] = transformed_batch_position(batch, batch.cpu_positions[vertex_index]);
+                    const std::pair<int, int> source_key = mesh_edit_source_key(batch, vertex_index);
+                    if (source_submesh < 0 && source_key.first >= 0) {
+                        source_submesh = source_key.first;
+                    }
+                    source_vertices[corner] = source_key.second;
+                }
+                if (!projected || source_submesh < 0 || !mesh_edit_source_allowed(source_submesh)) continue;
+                const float min_x = std::min({p[0].x, p[1].x, p[2].x}) - radius_pixels;
+                const float max_x = std::max({p[0].x, p[1].x, p[2].x}) + radius_pixels;
+                const float min_y = std::min({p[0].y, p[1].y, p[2].y}) - radius_pixels;
+                const float max_y = std::max({p[0].y, p[1].y, p[2].y}) + radius_pixels;
+                if (px < min_x || px > max_x || py < min_y || py > max_y) continue;
+                float w0 = 1.0f;
+                float w1 = 0.0f;
+                float w2 = 0.0f;
+                const float distance = distance_to_screen_triangle(px, py, p[0], p[1], p[2], &w0, &w1, &w2);
+                if (distance > radius_pixels) continue;
+                const float hit_depth = w0 * depth_z[0] + w1 * depth_z[1] + w2 * depth_z[2];
+                const float centroid_x = (p[0].x + p[1].x + p[2].x) / 3.0f;
+                const float centroid_y = (p[0].y + p[1].y + p[2].y) / 3.0f;
+                const float centroid_depth = (depth_z[0] + depth_z[1] + depth_z[2]) / 3.0f;
+                if (depth_mask) {
+                    const bool hit_visible = mesh_edit_screen_point_visible_in_depth_mask(
+                        distance <= 0.001f ? px : centroid_x,
+                        distance <= 0.001f ? py : centroid_y,
+                        distance <= 0.001f ? hit_depth : centroid_depth,
+                        *depth_mask);
+                    if (!hit_visible) continue;
+                }
+                const int source_face = static_cast<int>(triangle_index);
+                const float weight = mesh_edit_falloff_weight(distance, std::max(radius_pixels, 1.0f));
+                if (weight <= 0.0f && distance > 0.001f) continue;
+                DirectX::XMFLOAT3 center(
+                    (world_p[0].x + world_p[1].x + world_p[2].x) / 3.0f,
+                    (world_p[0].y + world_p[1].y + world_p[2].y) / 3.0f,
+                    (world_p[0].z + world_p[1].z + world_p[2].z) / 3.0f);
+                bool emitted_any_vertex = false;
+                for (int corner = 0; corner < 3; ++corner) {
+                    const int source_vertex = source_vertices[corner];
+                    const std::tuple<int, int, int> key(source_submesh, source_face, source_vertex);
+                    if (emitted.find(key) != emitted.end()) continue;
+                    emitted.insert(key);
+                    EditorCandidate candidate;
+                    candidate.batch_index = batch.index;
+                    candidate.source_submesh_index = source_submesh;
+                    candidate.source_vertex_index = source_vertex;
+                    candidate.source_face_index = source_face;
+                    candidate.position = center;
+                    candidate.screen_x = centroid_x;
+                    candidate.screen_y = centroid_y;
+                    candidate.depth_z = centroid_depth;
+                    candidate.distance = distance;
+                    candidate.weight = std::max(weight, distance <= 0.001f ? 1.0f : 0.0f);
+                    candidates.push_back(candidate);
+                    emitted_any_vertex = true;
+                }
+                if (!emitted_any_vertex) {
+                    const std::tuple<int, int, int> key(source_submesh, source_face, -1);
+                    if (emitted.find(key) == emitted.end()) {
+                        emitted.insert(key);
+                        EditorCandidate candidate;
+                        candidate.batch_index = batch.index;
+                        candidate.source_submesh_index = source_submesh;
+                        candidate.source_vertex_index = -1;
+                        candidate.source_face_index = source_face;
+                        candidate.position = center;
+                        candidate.screen_x = centroid_x;
+                        candidate.screen_y = centroid_y;
+                        candidate.depth_z = centroid_depth;
+                        candidate.distance = distance;
+                        candidate.weight = std::max(weight, distance <= 0.001f ? 1.0f : 0.0f);
+                        candidates.push_back(candidate);
+                    }
+                }
+            }
+        }
+        std::sort(candidates.begin(), candidates.end(), [](const EditorCandidate& left, const EditorCandidate& right) {
+            return left.distance < right.distance;
+        });
+        if (nearest_only && candidates.size() > 1) {
+            candidates.resize(1);
+        }
+        constexpr size_t kMaxFaceBrushCandidates = 3000;
+        if (!nearest_only && candidates.size() > kMaxFaceBrushCandidates) {
+            candidates.resize(kMaxFaceBrushCandidates);
         }
         return candidates;
     }
@@ -4185,16 +4377,25 @@ private:
             && static_cast<float>(cursor_y_) <= view.viewport.TopLeftY + view.viewport.Height;
         overlay_vertices = &screen_overlay_vertices;
         if (cursor_in_view) {
-            std::vector<EditorCandidate> brush_candidates = mesh_edit_candidates_at_in_view(
-                view,
-                cursor_x_,
-                cursor_y_,
-                mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex" ? 12.0f : mesh_edit_.radius_pixels,
-                mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex");
-            for (const EditorCandidate& candidate : brush_candidates) {
-                brush_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_vertex_index));
-            }
             const bool remove_tool = mesh_edit_.tool == "remove";
+            std::vector<EditorCandidate> brush_candidates = (
+                remove_tool && mesh_edit_.delete_mode != "selection"
+            )
+                ? mesh_edit_face_candidates_at_in_view(view, cursor_x_, cursor_y_, std::max(mesh_edit_.radius_pixels, 4.0f), false)
+                : mesh_edit_candidates_at_in_view(
+                    view,
+                    cursor_x_,
+                    cursor_y_,
+                    mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex" ? 12.0f : mesh_edit_.radius_pixels,
+                    mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex");
+            if (brush_candidates.empty() && remove_tool && mesh_edit_.delete_mode != "selection") {
+                brush_candidates = mesh_edit_candidates_at_in_view(view, cursor_x_, cursor_y_, mesh_edit_.radius_pixels, false);
+            }
+            for (const EditorCandidate& candidate : brush_candidates) {
+                if (candidate.source_vertex_index >= 0) {
+                    brush_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_vertex_index));
+                }
+            }
             add_ring(ScreenPoint{static_cast<float>(cursor_x_), static_cast<float>(cursor_y_)}, mesh_edit_.radius_pixels + 2.0f, 3.8f, 0.0f, 0.0f, 0.0f);
             add_ring(
                 ScreenPoint{static_cast<float>(cursor_x_), static_cast<float>(cursor_y_)},
@@ -4855,6 +5056,27 @@ private:
         return mesh_edit_candidates_at_in_view(view, x, y, radius_pixels, nearest_only);
     }
 
+    std::vector<EditorCandidate> mesh_edit_face_candidates_at(int x, int y, float radius_pixels, bool nearest_only) const {
+        PreviewRenderView view;
+        view.viewport = replacement_editor_viewport();
+        view.role = PreviewViewRole::Replacement;
+        return mesh_edit_face_candidates_at_in_view(view, x, y, radius_pixels, nearest_only);
+    }
+
+    std::vector<EditorCandidate> mesh_edit_brush_candidates_at(int x, int y, float radius_pixels, bool nearest_only) const {
+        if (mesh_edit_.tool == "remove" && mesh_edit_.delete_mode != "selection") {
+            std::vector<EditorCandidate> face_candidates = mesh_edit_face_candidates_at(
+                x,
+                y,
+                std::max(radius_pixels, 4.0f),
+                nearest_only);
+            if (!face_candidates.empty()) {
+                return face_candidates;
+            }
+        }
+        return mesh_edit_candidates_at(x, y, radius_pixels, nearest_only);
+    }
+
     std::vector<EditorCandidate> mesh_edit_selected_candidates() const {
         std::vector<EditorCandidate> candidates;
         if (mesh_edit_.selected_vertices.empty()) return candidates;
@@ -4919,18 +5141,36 @@ private:
     }
 
     std::string mesh_edit_groups_json(const std::vector<EditorCandidate>& candidates, bool full_weight) const {
-        std::map<int, std::map<int, float>> grouped;
+        std::map<int, std::map<int, float>> grouped_vertices;
+        std::map<int, std::set<int>> grouped_faces;
+        std::set<int> source_submeshes;
         for (const EditorCandidate& candidate : candidates) {
-            if (candidate.source_submesh_index < 0 || candidate.source_vertex_index < 0) continue;
+            if (candidate.source_submesh_index < 0) continue;
+            source_submeshes.insert(candidate.source_submesh_index);
+            if (candidate.source_face_index >= 0) {
+                grouped_faces[candidate.source_submesh_index].insert(candidate.source_face_index);
+            }
+            if (candidate.source_vertex_index < 0) continue;
             float weight = full_weight ? 1.0f : std::clamp(candidate.weight, 0.0f, 1.0f);
             if (weight <= 0.0f) continue;
-            float& slot = grouped[candidate.source_submesh_index][candidate.source_vertex_index];
+            float& slot = grouped_vertices[candidate.source_submesh_index][candidate.source_vertex_index];
             slot = std::max(slot, weight);
         }
         std::ostringstream out;
         out << "[";
         size_t group_index = 0;
-        for (const auto& [source_submesh, weights] : grouped) {
+        static const std::map<int, float> empty_weights;
+        static const std::set<int> empty_faces;
+        for (const int source_submesh : source_submeshes) {
+            const auto vertices_it = grouped_vertices.find(source_submesh);
+            const auto faces_it = grouped_faces.find(source_submesh);
+            const std::map<int, float>& weights = vertices_it != grouped_vertices.end()
+                ? vertices_it->second
+                : empty_weights;
+            const std::set<int>& faces = faces_it != grouped_faces.end()
+                ? faces_it->second
+                : empty_faces;
+            if (weights.empty() && faces.empty()) continue;
             if (group_index++) out << ",";
             out << "{\"source_submesh_index\":" << source_submesh << ",\"source_vertex_indices\":[";
             size_t index = 0;
@@ -4943,6 +5183,12 @@ private:
             for (const auto& [source_vertex, weight] : weights) {
                 if (index++) out << ",";
                 out << "[" << source_vertex << "," << weight << "]";
+            }
+            out << "],\"source_face_indices\":[";
+            index = 0;
+            for (const int source_face : faces) {
+                if (index++) out << ",";
+                out << source_face;
             }
             out << "]}";
         }
@@ -5338,7 +5584,7 @@ private:
             SetCapture(hwnd_);
             return true;
         }
-        std::vector<EditorCandidate> candidates = mesh_edit_candidates_at(
+        std::vector<EditorCandidate> candidates = mesh_edit_brush_candidates_at(
             x,
             y,
             mesh_edit_.radius_pixels,
@@ -5387,7 +5633,7 @@ private:
         bool drag_mode = mesh_edit_.tool == "grab" || mesh_edit_.tool == "vertex";
         std::vector<EditorCandidate> candidates = drag_mode
             ? mesh_edit_.drag_candidates
-            : mesh_edit_candidates_at(x, y, mesh_edit_.radius_pixels, false);
+            : mesh_edit_brush_candidates_at(x, y, mesh_edit_.radius_pixels, false);
         if (candidates.empty()) return true;
         if (mesh_edit_.tool == "remove" && mesh_edit_.delete_mode == "selection") {
             for (const EditorCandidate& candidate : candidates) {
