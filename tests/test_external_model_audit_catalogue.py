@@ -146,6 +146,34 @@ def _write_triangle_dae_with_base_texture(path: Path, image_reference: str) -> N
     )
 
 
+def _write_triangle_dae_with_diffuse_color(path: Path, material_name: str = "Color_I22") -> None:
+    path.write_text(
+        f"""<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <library_effects><effect id="matFx"><profile_COMMON>
+    <technique sid="common"><phong><diffuse><color>0.6 0.42 0.18 1</color></diffuse></phong></technique>
+  </profile_COMMON></effect></library_effects>
+  <library_materials><material id="{material_name}" name="{material_name}"><instance_effect url="#matFx"/></material></library_materials>
+  <library_geometries><geometry id="geo" name="Triangle"><mesh>
+    <source id="geo-pos"><float_array id="geo-pos-array" count="9">0 0 0 1 0 0 0 1 0</float_array><technique_common><accessor source="#geo-pos-array" count="3" stride="3"/></technique_common></source>
+    <source id="geo-norm"><float_array id="geo-norm-array" count="9">0 0 1 0 0 1 0 0 1</float_array><technique_common><accessor source="#geo-norm-array" count="3" stride="3"/></technique_common></source>
+    <source id="geo-uv"><float_array id="geo-uv-array" count="6">0 0 1 0 0 1</float_array><technique_common><accessor source="#geo-uv-array" count="3" stride="2"/></technique_common></source>
+    <vertices id="geo-verts"><input semantic="POSITION" source="#geo-pos"/></vertices>
+    <triangles material="{material_name}" count="1">
+      <input semantic="VERTEX" source="#geo-verts" offset="0"/>
+      <input semantic="NORMAL" source="#geo-norm" offset="1"/>
+      <input semantic="TEXCOORD" source="#geo-uv" offset="2"/>
+      <p>0 0 0 1 1 1 2 2 2</p>
+    </triangles>
+  </mesh></geometry></library_geometries>
+  <library_visual_scenes><visual_scene id="Scene"><node id="Node"><instance_geometry url="#geo"><bind_material><technique_common><instance_material symbol="{material_name}" target="#{material_name}"/></technique_common></bind_material></instance_geometry></node></visual_scene></library_visual_scenes>
+  <scene><instance_visual_scene url="#Scene"/></scene>
+</COLLADA>
+""",
+        encoding="utf-8",
+    )
+
+
 def _write_spec_gloss_gltf(path: Path) -> None:
     root = path.parent
     chunks: list[bytes] = []
@@ -366,6 +394,23 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertEqual(1, check["counts"]["materials_without_texture_slots"])
         self.assertEqual(0, check["counts"]["materials_missing_texture_facts"])
         self.assertNotIn("missing_texture_slot_facts", check["risk_flags"])
+
+    def test_catalogue_marks_color_only_dae_as_legacy_workflow(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_triangle_dae_with_diffuse_color(root / "legacy_color.dae")
+
+            report = build_external_model_audit_catalogue([root])
+            check = check_external_model_audit_report(report)
+
+        inventory = report["models"][0]["material_inventory"][0]
+        diagnostic_codes = {row["code"] for row in inventory["channel_diagnostics"]}
+        self.assertEqual("legacy_fixed_function", inventory["pbr_workflow"])
+        self.assertIn("base_color_scalar", inventory["detected_channels"])
+        self.assertIn("source_legacy_fixed_function_workflow", diagnostic_codes)
+        self.assertEqual(1, report["summary"]["pbr_workflow_counts"]["legacy_fixed_function"])
+        self.assertEqual(0, check["counts"]["materials_missing_workflow"])
+        self.assertNotIn("missing_pbr_workflow", check["risk_flags"])
 
     def test_catalogue_treats_alpha_warning_as_alpha_diagnostic_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
