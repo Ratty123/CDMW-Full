@@ -1,4 +1,5 @@
 import hashlib
+import json
 from pathlib import Path
 import struct
 import tempfile
@@ -31,6 +32,10 @@ from cdmw.models import ArchiveModelTextureReference, ModelPreviewData, ModelPre
 from cdmw.modding.material_replacer import ReplacementTextureSet, ReplacementTextureSlot
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.modding.static_mesh_replacer import StaticOutputDrawSection
+
+
+def _pad4(data: bytes) -> bytes:
+    return data + (b"\x00" * ((4 - (len(data) % 4)) % 4))
 
 
 def _preview(material_name: str = "Blade", texture_path: str = "source_preview.png") -> MeshImportPreviewResult:
@@ -100,6 +105,69 @@ def _dds_rgba_pixels(pixels: list[tuple[int, int, int, int]], *, bgra: bool = Fa
         else:
             payload.extend((red, green, blue, alpha))
     return header + bytes(payload)
+
+
+def _write_factor_material_gltf(path: Path) -> None:
+    chunks: list[bytes] = []
+    buffer_views: list[dict[str, object]] = []
+
+    def add_view(data: bytes, target: int = 0) -> int:
+        offset = sum(len(chunk) for chunk in chunks)
+        chunks.append(_pad4(data))
+        view: dict[str, object] = {"buffer": 0, "byteOffset": offset, "byteLength": len(data)}
+        if target:
+            view["target"] = target
+        buffer_views.append(view)
+        return len(buffer_views) - 1
+
+    position_view = add_view(struct.pack("<9f", 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0), 34962)
+    normal_view = add_view(struct.pack("<9f", 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0), 34962)
+    uv_view = add_view(struct.pack("<6f", 0.0, 0.0, 1.0, 0.0, 0.0, 1.0), 34962)
+    index_view = add_view(struct.pack("<3H", 0, 1, 2), 34963)
+    bin_chunk = b"".join(chunks)
+    (path.parent / "factor_materials.bin").write_bytes(bin_chunk)
+    document = {
+        "asset": {"version": "2.0"},
+        "extensionsUsed": ["KHR_materials_emissive_strength", "KHR_materials_transmission"],
+        "buffers": [{"uri": "factor_materials.bin", "byteLength": len(bin_chunk)}],
+        "bufferViews": buffer_views,
+        "accessors": [
+            {"bufferView": position_view, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": normal_view, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": uv_view, "componentType": 5126, "count": 3, "type": "VEC2"},
+            {"bufferView": index_view, "componentType": 5123, "count": 3, "type": "SCALAR"},
+        ],
+        "materials": [
+            {
+                "name": "Gem_outside",
+                "alphaMode": "BLEND",
+                "doubleSided": True,
+                "pbrMetallicRoughness": {"baseColorFactor": [1.0, 0.0, 0.0, 0.5], "roughnessFactor": 0.0},
+                "extensions": {"KHR_materials_transmission": {"transmissionFactor": 0.5}},
+            },
+            {
+                "name": "Gem_inside",
+                "doubleSided": True,
+                "emissiveFactor": [1.0, 0.0, 0.0],
+                "pbrMetallicRoughness": {"baseColorFactor": [0.0, 1.0, 0.79, 1.0], "roughnessFactor": 0.92},
+                "extensions": {"KHR_materials_emissive_strength": {"emissiveStrength": 10.0}},
+            },
+        ],
+        "meshes": [
+            {
+                "name": "GemOutsideMesh",
+                "primitives": [{"attributes": {"POSITION": 0, "NORMAL": 1, "TEXCOORD_0": 2}, "indices": 3, "material": 0}],
+            },
+            {
+                "name": "GemInsideMesh",
+                "primitives": [{"attributes": {"POSITION": 0, "NORMAL": 1, "TEXCOORD_0": 2}, "indices": 3, "material": 1}],
+            },
+        ],
+        "nodes": [{"mesh": 0}, {"mesh": 1}],
+        "scenes": [{"nodes": [0, 1]}],
+        "scene": 0,
+    }
+    path.write_text(json.dumps(document), encoding="utf-8")
 
 
 class FinalPackagePreviewTests(unittest.TestCase):
@@ -2173,6 +2241,36 @@ class FinalPackagePreviewTests(unittest.TestCase):
         self.assertEqual(("Gem_outside",), tuple(output["conversion_policy"]["source_material_names"]))
         self.assertIn("glass_crystal", classes)
         self.assertNotIn("metal", classes)
+
+    def test_material_authority_report_uses_external_audit_factor_materials(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_path = root / "factor_materials.gltf"
+            _write_factor_material_gltf(source_path)
+            preview = _preview("CD_PHM_02_Sword_0036")
+
+            result = build_final_package_preview(preview, source_path=source_path)
+
+        report = result.material_authority_report.to_dict()
+        by_name = {row["material_name"]: row for row in report["source_materials"]}
+        self.assertEqual({"Gem_inside", "Gem_outside"}, set(by_name))
+        outside = by_name["Gem_outside"]
+        inside = by_name["Gem_inside"]
+        outside_classes = {row["class"] for row in outside["material_classification"]}
+        inside_classes = {row["class"] for row in inside["material_classification"]}
+        outside_diagnostics = {row["code"] for row in outside["diagnostics"]}
+        self.assertEqual("external_model_audit", outside["source"])
+        self.assertEqual((1.0, 0.0, 0.0), tuple(outside["color_factor"]))
+        self.assertEqual((1.0, 0.0, 0.0), tuple(inside["emissive_color"]))
+        self.assertIn("base_color_scalar", outside["detected_channels"])
+        self.assertIn("roughness_scalar", outside["detected_channels"])
+        self.assertIn("emissive_scalar", inside["detected_channels"])
+        self.assertIn("source_alpha_without_opacity_texture", outside_diagnostics)
+        self.assertIn("glass_crystal", outside_classes)
+        self.assertIn("emissive", inside_classes)
+        self.assertEqual(1, outside["section_count"])
+        self.assertEqual("GemOutsideMesh", outside["sections"][0]["section_name"])
+        self.assertNotIn("CD_PHM_02_Sword_0036", by_name)
 
     def test_material_authority_report_flags_spec_gloss_used_as_base_color(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

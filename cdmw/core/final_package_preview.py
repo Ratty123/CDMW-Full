@@ -1228,7 +1228,7 @@ def _build_material_authority_report(
     normal_y_mode = _material_authority_render_normal_y_mode(render_settings)
     routing = tuple(_material_authority_routing_row(row) for row in binding_rows)
     target_sections = tuple(_material_authority_target_section_rows(preview_result, material_statuses, binding_rows))
-    source_materials = tuple(_material_authority_source_material_rows(preview_result))
+    source_materials = _material_authority_source_material_rows_for_report(preview_result, source_path)
     texture_outputs = tuple(
         _material_authority_texture_output_row(
             payload,
@@ -2290,6 +2290,152 @@ def _material_authority_source_material_rows(preview_result: MeshImportPreviewRe
             "material_classification": tuple(channel_profile.get("material_classification", ())),
             "diagnostics": tuple(channel_profile.get("diagnostics", ())),
         }
+
+
+def _material_authority_source_material_rows_for_report(
+    preview_result: MeshImportPreviewResult,
+    source_path: object,
+) -> Tuple[Mapping[str, object], ...]:
+    external_rows = _material_authority_external_source_material_rows(source_path)
+    if external_rows:
+        return external_rows
+    return tuple(_material_authority_source_material_rows(preview_result))
+
+
+def _material_authority_external_source_material_rows(source_path: object) -> Tuple[Mapping[str, object], ...]:
+    path_text = str(source_path or "").strip()
+    if not path_text:
+        return ()
+    path = Path(path_text).expanduser()
+    if not path.is_file() or path.suffix.lower() not in {".glb", ".gltf", ".obj", ".dae", ".zip"}:
+        return ()
+    try:
+        from cdmw.core.external_model_audit import _material_row_with_channel_profile
+        from cdmw.modding.scene_importer import import_scene_mesh_with_report
+
+        scene_result = import_scene_mesh_with_report(path)
+        audit = getattr(scene_result, "external_audit", None)
+    except Exception:
+        return ()
+    rows: List[Mapping[str, object]] = []
+    for material in tuple(getattr(audit, "material_inventory", ()) or ()):
+        row = _material_authority_external_inventory_source_row(material, _material_row_with_channel_profile)
+        if row:
+            rows.append(row)
+    return tuple(rows)
+
+
+def _material_authority_external_inventory_source_row(
+    material: object,
+    profile_builder: Callable[[Mapping[str, object]], Mapping[str, object]],
+) -> Mapping[str, object]:
+    texture_slots = tuple(_material_authority_external_texture_slot_row(slot) for slot in tuple(getattr(material, "texture_slots", ()) or ()))
+    texture_facts = tuple(_material_authority_external_texture_fact_row(slot) for slot in tuple(getattr(material, "texture_slots", ()) or ()))
+    sections = tuple(_material_authority_external_section_row(section) for section in tuple(getattr(material, "sections", ()) or ()))
+    classes = tuple(_material_authority_external_class_row(row) for row in tuple(getattr(material, "material_classes", ()) or ()))
+    scalar_hints = {
+        str(key or ""): _material_authority_float(value, 0.0)
+        for key, value in tuple(getattr(material, "scalar_hints", ()) or ())
+        if str(key or "").strip()
+    }
+    payload: Dict[str, object] = {
+        "material_name": str(getattr(material, "material_name", "") or ""),
+        "texture_name": next((str(slot.get("texture_name", "") or "") for slot in texture_slots if str(slot.get("texture_name", "") or "")), ""),
+        "texture_slots": texture_slots,
+        "material_classes": classes,
+        "pbr_workflow": str(getattr(material, "pbr_workflow", "") or ""),
+        "alpha_mode": str(getattr(material, "alpha_mode", "") or ""),
+        "double_sided": bool(getattr(material, "double_sided", False)),
+        "scalar_hints": scalar_hints,
+        "color_factor": tuple(getattr(material, "color_factor", ()) or ()),
+        "vertex_color_factor": tuple(getattr(material, "vertex_color_factor", ()) or ()),
+        "vertex_alpha": tuple(getattr(material, "vertex_alpha", ()) or ()),
+        "emissive_color": tuple(getattr(material, "emissive_color", ()) or ()),
+    }
+    profiled = dict(profile_builder(payload))
+    channel_profile = dict(profiled.get("channel_profile", {}) or {})
+    return {
+        "mesh_index": _material_authority_safe_int(getattr(material, "material_index", -1), -1),
+        "material_name": payload["material_name"],
+        "runtime_material_name": "",
+        "texture_name": payload["texture_name"],
+        "preview_texture_path": next((str(slot.get("texture_path", "") or "") for slot in texture_slots if str(slot.get("slot_kind", "") or "") == "base"), ""),
+        "preview_normal_texture_path": next((str(slot.get("texture_path", "") or "") for slot in texture_slots if str(slot.get("slot_kind", "") or "") == "normal"), ""),
+        "preview_material_texture_path": next((str(slot.get("texture_path", "") or "") for slot in texture_slots if str(slot.get("slot_kind", "") or "") == "material"), ""),
+        "preview_material_texture_subtype": next((str(slot.get("semantic_subtype", "") or "") for slot in texture_slots if str(slot.get("slot_kind", "") or "") == "material"), ""),
+        "alpha_mode": payload["alpha_mode"],
+        "double_sided": payload["double_sided"],
+        "color_factor": payload["color_factor"],
+        "vertex_color_factor": payload["vertex_color_factor"],
+        "vertex_alpha": payload["vertex_alpha"],
+        "emissive_color": payload["emissive_color"],
+        "scalar_hints": tuple(scalar_hints.items()),
+        "pbr_workflow": str(profiled.get("pbr_workflow", "") or payload["pbr_workflow"]),
+        "sections": sections,
+        "section_count": len(sections),
+        "material_inputs": texture_slots,
+        "texture_facts": texture_facts,
+        "channel_profile": channel_profile,
+        "detected_channels": tuple(profiled.get("detected_channels", ()) or ()),
+        "missing_channels": tuple(profiled.get("missing_channels", ()) or ()),
+        "material_classification": classes,
+        "diagnostics": tuple(profiled.get("channel_diagnostics", ()) or ()),
+        "source": "external_model_audit",
+    }
+
+
+def _material_authority_external_texture_slot_row(slot: object) -> Mapping[str, object]:
+    return {
+        "slot_kind": str(getattr(slot, "slot_kind", "") or ""),
+        "parameter_name": str(getattr(slot, "parameter_name", "") or ""),
+        "texture_path": str(getattr(slot, "texture_path", "") or "").replace("\\", "/"),
+        "texture_name": str(getattr(slot, "texture_name", "") or ""),
+        "image_format": str(getattr(slot, "image_format", "") or ""),
+        "resolution": tuple(getattr(slot, "resolution", ()) or ()),
+        "channel_stats": tuple(getattr(slot, "channel_stats", ()) or ()),
+        "semantic_type": str(getattr(slot, "semantic_type", "") or ""),
+        "semantic_subtype": str(getattr(slot, "semantic_subtype", "") or ""),
+        "packed_channels": tuple(getattr(slot, "packed_channels", ()) or ()),
+        "color_space": str(getattr(slot, "color_space", "") or ""),
+        "source": str(getattr(slot, "source", "") or ""),
+        "confidence": str(getattr(slot, "confidence", "") or ""),
+    }
+
+
+def _material_authority_external_texture_fact_row(slot: object) -> Mapping[str, object]:
+    row = dict(_material_authority_external_texture_slot_row(slot))
+    row["resolution_status"] = "available" if len(tuple(row.get("resolution", ()) or ())) >= 2 else "missing_or_unreadable"
+    row["channel_stats_status"] = "available" if tuple(row.get("channel_stats", ()) or ()) else "missing_or_unreadable"
+    return row
+
+
+def _material_authority_external_section_row(section: object) -> Mapping[str, object]:
+    return {
+        "section_index": _material_authority_safe_int(getattr(section, "section_index", -1), -1),
+        "source_submesh_index": _material_authority_safe_int(getattr(section, "section_index", -1), -1),
+        "section_name": str(getattr(section, "section_name", "") or ""),
+        "material_name": str(getattr(section, "material_name", "") or ""),
+        "runtime_material_name": "",
+        "vertex_count": _material_authority_safe_int(getattr(section, "vertex_count", 0), 0),
+        "face_count": _material_authority_safe_int(getattr(section, "face_count", 0), 0),
+        "has_uvs": bool(getattr(section, "has_uvs", False)),
+        "has_normals": bool(getattr(section, "has_normals", False)),
+        "has_tangents": bool(getattr(section, "has_tangents", False)),
+        "has_skinning": bool(getattr(section, "has_skinning", False)),
+        "texture_texcoord_sets": tuple(getattr(section, "texture_texcoord_sets", ()) or ()),
+        "bounds_min": tuple(getattr(section, "bounds_min", ()) or ()),
+        "bounds_max": tuple(getattr(section, "bounds_max", ()) or ()),
+    }
+
+
+def _material_authority_external_class_row(row: object) -> Mapping[str, object]:
+    material_class = str(getattr(row, "material_class", "") or "unknown")
+    return {
+        "class": material_class,
+        "material_class": material_class,
+        "confidence": _material_authority_float(getattr(row, "confidence", 0.0), 0.0),
+        "evidence": tuple(getattr(row, "evidence", ()) or ()),
+    }
 
 
 def _material_authority_source_material_name_lookup(
