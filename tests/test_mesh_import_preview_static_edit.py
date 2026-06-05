@@ -161,6 +161,73 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
         self.assertEqual(tuple(edited_mesh.submeshes[0].vertices), captured["mapping_vertices"])
         self.assertEqual((0.5, 0.0, 0.0), result.parsed_mesh.submeshes[0].vertices[0])
 
+    def test_material_authority_export_settings_flow_through_static_import_preview(self) -> None:
+        entry = ArchiveEntry(
+            path="character/model/test.pac",
+            pamt_path=Path("test.pamt"),
+            paz_file=Path("test.paz"),
+            offset=0,
+            comp_size=0,
+            orig_size=0,
+            flags=0,
+            paz_index=0,
+        )
+        original_mesh = _mesh(entry.path, [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)])
+        imported_mesh = _mesh("replacement.obj", [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)])
+        options = StaticMeshReplacementOptions(
+            complete_external_material_reset=True,
+            complete_swap_material_profile="material_authority_detail_mask",
+            auto_brightness_balance=50.0,
+            dark_detail_lift=20.0,
+            tone_contrast=-10.0,
+        )
+
+        def fake_parse_mesh(data: bytes, virtual_path: str) -> ParsedMesh:
+            if data == b"original":
+                return original_mesh
+            if data == b"rebuilt":
+                return original_mesh
+            raise AssertionError(f"Unexpected parse payload for {virtual_path}: {data!r}")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            obj_path = Path(temp_dir) / "replacement.obj"
+            obj_path.write_text("# source OBJ\n", encoding="utf-8")
+
+            with (
+                patch.object(
+                    archive_modding,
+                    "read_archive_entry_baseline_data",
+                    return_value=MeshBaselineData(data=b"original", from_cache=False),
+                ),
+                patch.object(archive_modding, "parse_mesh", side_effect=fake_parse_mesh),
+                patch.object(
+                    archive_modding,
+                    "build_static_mesh_replacement",
+                    return_value=(b"rebuilt", StaticMeshReplacementReport()),
+                ),
+                patch.object(
+                    archive_modding,
+                    "_build_mesh_import_validation",
+                    return_value=((), (), ImportAutoFixResult(), []),
+                ),
+                patch.object(archive_modding, "_load_obj_roundtrip_sidecar", return_value=None),
+                patch("cdmw.core.archive.build_archive_model_texture_references", return_value=()),
+            ):
+                result = archive_modding.build_mesh_import_preview(
+                    entry,
+                    obj_path,
+                    import_mode="static_replacement",
+                    static_replacement_options=options,
+                    scene_import_result=SceneImportResult(mesh=imported_mesh),
+                )
+
+        settings = result.material_authority_settings
+        self.assertTrue(settings["enabled"])
+        self.assertEqual("material_authority_detail_mask", settings["requested_profile"])
+        self.assertEqual(50.0, settings["auto_brightness_balance"])
+        self.assertEqual(20.0, settings["dark_detail_lift"])
+        self.assertEqual(-10.0, settings["tone_contrast"])
+
     def test_local_sidecar_preview_does_not_promote_unrelated_named_base(self) -> None:
         preview_model = ModelPreviewData(
             path="character/model/test.pac",
