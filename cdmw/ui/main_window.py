@@ -298,6 +298,7 @@ from cdmw.modding.material_replacer import (
     ReplacementTextureSet,
     ReplacementTextureSlot,
     SidecarPatchPlan,
+    _apply_source_part_role_overrides,
     build_source_material_routing_plan,
     complete_swap_material_allows_inherited_layer_color_bindings,
     complete_swap_material_authority_contract,
@@ -305,6 +306,7 @@ from cdmw.modding.material_replacer import (
     classify_texture_assignment_guidance,
     complete_swap_material_runtime_profiles,
     get_complete_swap_material_profile,
+    complete_swap_material_profile_to_dict,
     group_replacement_texture_sets,
     is_static_replacement_helper_material_name,
     is_shared_material_layer_texture,
@@ -59335,6 +59337,12 @@ def run_gui() -> int:
                         source_path=source_path,
                         normal_space=normal_space,
                     )
+                if replacement_mesh_for_mapping is not None and source_part_adjustments:
+                    _apply_source_part_role_overrides(
+                        texture_sets_by_key,
+                        replacement_mesh_for_mapping,
+                        tuple(source_part_adjustments.values()),
+                    )
 
             def _alignment_d3d11_preview_active() -> bool:
                 return (
@@ -59729,6 +59737,9 @@ def run_gui() -> int:
                 )
                 material_authority_payload = {
                     "donor_material_plans": _current_donor_material_plan_payload(),
+                    "material_authority_preview_signature": str(
+                        material_authority_preview_signature_state.get("cache", "") or ""
+                    ),
                 }
                 mesh_signatures = []
                 for mesh in getattr(model, "meshes", ()) or ():
@@ -61792,6 +61803,7 @@ def run_gui() -> int:
                     and abs(float(adjustment.uniform_scale) - 1.0) <= 1e-8
                     and str(adjustment.pivot_mode or "part_center") == "part_center"
                     and not str(getattr(adjustment, "material_role", "") or "").strip()
+                    and not tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())
                 )
 
             def _current_source_part_adjustments() -> List[StaticSourcePartAdjustment]:
@@ -61815,8 +61827,11 @@ def run_gui() -> int:
                     source_role_overrides.pop(source_index, None)
                 adjustment = _ensure_source_part_adjustment(source_index)
                 adjustment.material_role = normalized_role
+                if normalized_role != "glow":
+                    adjustment.emissive_color_rgb = ()
                 if _is_default_source_part_adjustment(adjustment):
                     source_part_adjustments.pop(source_index, None)
+                _refresh_ui_texture_sets_after_source_part_material_override()
                 texture_overrides_dirty["dirty"] = True
                 return normalized_role
 
@@ -65444,13 +65459,44 @@ def run_gui() -> int:
                 part_top_row.addWidget(QLabel("Map to"))
                 part_top_row.addWidget(part_target_combo, 1)
                 part_layout.addLayout(part_top_row, 4, 0, 1, 4)
+                part_glow_color_checkbox = QCheckBox("Custom glow color")
+                part_glow_color_checkbox.setObjectName("MeshAlignmentSourceGlowColorOverrideCheckBox")
+                part_glow_color_checkbox.setToolTip("Override the emitted color for a source part marked Role: Glow / emissive.")
+                part_glow_color_spins: list[QSpinBox] = []
+                for channel_label, object_name in (
+                    ("R", "MeshAlignmentSourceGlowColorRSpinBox"),
+                    ("G", "MeshAlignmentSourceGlowColorGSpinBox"),
+                    ("B", "MeshAlignmentSourceGlowColorBSpinBox"),
+                ):
+                    channel_spin = QSpinBox()
+                    channel_spin.setObjectName(object_name)
+                    channel_spin.setRange(0, 255)
+                    channel_spin.setPrefix(f"{channel_label} ")
+                    channel_spin.setKeyboardTracking(False)
+                    channel_spin.setValue(255)
+                    channel_spin.setMinimumWidth(64)
+                    channel_spin.setToolTip("Glow/emissive color channel for the selected source part.")
+                    part_glow_color_spins.append(channel_spin)
+                part_glow_color_pick_button = QPushButton("Pick")
+                part_glow_color_pick_button.setObjectName("MeshAlignmentSourceGlowColorPickButton")
+                part_glow_color_pick_button.setMinimumWidth(0)
+                part_glow_color_pick_button.setToolTip("Choose a glow/emissive color for the selected source part.")
+                part_glow_color_row = QHBoxLayout()
+                part_glow_color_row.setContentsMargins(0, 0, 0, 0)
+                part_glow_color_row.setSpacing(3)
+                part_glow_color_row.addWidget(part_glow_color_checkbox)
+                for channel_spin in part_glow_color_spins:
+                    part_glow_color_row.addWidget(channel_spin)
+                part_glow_color_row.addWidget(part_glow_color_pick_button)
+                part_glow_color_row.addStretch(1)
+                part_layout.addLayout(part_glow_color_row, 5, 0, 1, 4)
                 part_map_button_row = QHBoxLayout()
                 part_map_button_row.setContentsMargins(0, 0, 0, 0)
                 part_map_button_row.setSpacing(3)
                 part_map_button_row.addWidget(part_replace_target_button)
                 part_map_button_row.addWidget(part_add_target_button)
                 part_map_button_row.addWidget(part_remove_target_button)
-                part_layout.addLayout(part_map_button_row, 5, 0, 1, 4)
+                part_layout.addLayout(part_map_button_row, 6, 0, 1, 4)
                 part_copied_texture_row = QHBoxLayout()
                 part_copied_texture_row.setContentsMargins(0, 0, 0, 0)
                 part_copied_texture_row.setSpacing(3)
@@ -65472,7 +65518,7 @@ def run_gui() -> int:
                 part_copied_texture_row.addWidget(part_use_copied_texture_button)
                 part_copied_texture_row.addWidget(part_use_route_texture_button)
                 part_copied_texture_row.addWidget(part_remove_copied_texture_button)
-                part_layout.addLayout(part_copied_texture_row, 6, 0, 1, 4)
+                part_layout.addLayout(part_copied_texture_row, 7, 0, 1, 4)
 
                 def _part_spin(value: float, minimum: float, maximum: float, decimals: int, step: float, suffix: str = "") -> QDoubleSpinBox:
                     spin = QDoubleSpinBox()
@@ -65607,10 +65653,10 @@ def run_gui() -> int:
                     slider.setValue(slider_value)
                     slider.blockSignals(False)
 
-                part_layout.addWidget(QLabel("Translate"), 7, 0)
-                part_layout.addWidget(_part_spin_with_slider(part_offset_x_spin, scale=2000.0, tooltip="Selected part X translate slider."), 7, 1)
-                part_layout.addWidget(_part_spin_with_slider(part_offset_y_spin, scale=2000.0, tooltip="Selected part Y translate slider."), 7, 2)
-                part_layout.addWidget(_part_spin_with_slider(part_offset_z_spin, scale=2000.0, tooltip="Selected part Z translate slider."), 7, 3)
+                part_layout.addWidget(QLabel("Translate"), 8, 0)
+                part_layout.addWidget(_part_spin_with_slider(part_offset_x_spin, scale=2000.0, tooltip="Selected part X translate slider."), 8, 1)
+                part_layout.addWidget(_part_spin_with_slider(part_offset_y_spin, scale=2000.0, tooltip="Selected part Y translate slider."), 8, 2)
+                part_layout.addWidget(_part_spin_with_slider(part_offset_z_spin, scale=2000.0, tooltip="Selected part Z translate slider."), 8, 3)
                 part_nudge_step_spin = _part_spin(0.005, 0.00001, 1.0, 5, 0.0005)
                 part_nudge_step_spin.setPrefix("Step ")
                 part_nudge_step_spin.setToolTip("Distance used by the selected-part nudge buttons and keyboard shortcuts.")
@@ -65638,14 +65684,14 @@ def run_gui() -> int:
                     nudge_button.setToolTip("Nudge the selected part by the configured step.")
                     part_nudge_row.addWidget(nudge_button)
                 part_nudge_row.addWidget(center_part_button)
-                part_layout.addLayout(part_nudge_row, 8, 0, 1, 4)
-                part_layout.addWidget(QLabel("Rotate"), 9, 0)
-                part_layout.addWidget(_part_spin_with_slider(part_rotate_x_spin, scale=10.0, tooltip="Selected part X rotation slider."), 9, 1)
-                part_layout.addWidget(_part_spin_with_slider(part_rotate_y_spin, scale=10.0, tooltip="Selected part Y rotation slider."), 9, 2)
-                part_layout.addWidget(_part_spin_with_slider(part_rotate_z_spin, scale=10.0, tooltip="Selected part Z rotation slider."), 9, 3)
+                part_layout.addLayout(part_nudge_row, 9, 0, 1, 4)
+                part_layout.addWidget(QLabel("Rotate"), 10, 0)
+                part_layout.addWidget(_part_spin_with_slider(part_rotate_x_spin, scale=10.0, tooltip="Selected part X rotation slider."), 10, 1)
+                part_layout.addWidget(_part_spin_with_slider(part_rotate_y_spin, scale=10.0, tooltip="Selected part Y rotation slider."), 10, 2)
+                part_layout.addWidget(_part_spin_with_slider(part_rotate_z_spin, scale=10.0, tooltip="Selected part Z rotation slider."), 10, 3)
                 axis_scale_label = QLabel("Axis Scale")
                 axis_scale_label.setToolTip("Non-uniform scale: change X, Y, and Z independently.")
-                part_layout.addWidget(axis_scale_label, 10, 0)
+                part_layout.addWidget(axis_scale_label, 11, 0)
                 part_layout.addWidget(
                     _part_spin_with_slider(
                         part_scale_x_spin,
@@ -65654,7 +65700,7 @@ def run_gui() -> int:
                         slider_maximum=3.0,
                         tooltip="Selected part X fine scale slider. Type larger values above.",
                     ),
-                    10,
+                    11,
                     1,
                 )
                 part_layout.addWidget(
@@ -65665,7 +65711,7 @@ def run_gui() -> int:
                         slider_maximum=3.0,
                         tooltip="Selected part Y fine scale slider. Type larger values above.",
                     ),
-                    10,
+                    11,
                     2,
                 )
                 part_layout.addWidget(
@@ -65676,12 +65722,12 @@ def run_gui() -> int:
                         slider_maximum=3.0,
                         tooltip="Selected part Z fine scale slider. Type larger values above.",
                     ),
-                    10,
+                    11,
                     3,
                 )
                 uniform_scale_label = QLabel("Uniform Scale")
                 uniform_scale_label.setToolTip("Equal scale applied to all axes.")
-                part_layout.addWidget(uniform_scale_label, 11, 0)
+                part_layout.addWidget(uniform_scale_label, 12, 0)
                 part_layout.addWidget(
                     _part_spin_with_slider(
                         part_uniform_spin,
@@ -65690,7 +65736,7 @@ def run_gui() -> int:
                         slider_maximum=3.0,
                         tooltip="Selected part uniform fine scale slider. Type larger values above.",
                     ),
-                    11,
+                    12,
                     1,
                 )
                 reset_part_button = QPushButton("Reset Part")
@@ -65716,8 +65762,64 @@ def run_gui() -> int:
                 part_button_row.addWidget(undo_geometry_button)
                 part_button_row.addWidget(reset_geometry_button)
                 part_button_row.addStretch(1)
-                part_layout.addLayout(part_button_row, 12, 0, 1, 4)
+                part_layout.addLayout(part_button_row, 13, 0, 1, 4)
                 part_inspector_loading = {"active": False}
+
+                def _selected_part_glow_rgb_from_controls() -> tuple[int, int, int]:
+                    return tuple(max(0, min(255, int(spin.value()))) for spin in part_glow_color_spins)  # type: ignore[return-value]
+
+                def _sync_part_glow_color_button() -> None:
+                    rgb = _selected_part_glow_rgb_from_controls()
+                    enabled = part_glow_color_checkbox.isChecked() and part_glow_color_checkbox.isEnabled()
+                    color = f"#{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}"
+                    part_glow_color_pick_button.setText(color if enabled else "Pick")
+                    part_glow_color_pick_button.setStyleSheet(
+                        f"QPushButton {{ background-color: {color}; color: #0d1117; }}"
+                        if enabled
+                        else ""
+                    )
+
+                def _refresh_part_glow_color_controls_enabled() -> None:
+                    source_index = int(selected_source_part.get("index", -1))
+                    role_is_glow = str(part_role_combo.currentData() or "").strip() == "glow"
+                    can_override = source_index >= 0 and role_is_glow
+                    part_glow_color_checkbox.setEnabled(can_override)
+                    color_enabled = can_override and part_glow_color_checkbox.isChecked()
+                    for spin in part_glow_color_spins:
+                        spin.setEnabled(color_enabled)
+                    part_glow_color_pick_button.setEnabled(color_enabled)
+                    _sync_part_glow_color_button()
+
+                def _load_part_glow_color_controls(adjustment: Optional[StaticSourcePartAdjustment]) -> None:
+                    raw_rgb = tuple(getattr(adjustment, "emissive_color_rgb", ()) or ()) if adjustment is not None else ()
+                    has_override = len(raw_rgb) >= 3
+                    try:
+                        rgb = tuple(max(0, min(255, int(round(float(value))))) for value in raw_rgb[:3])
+                    except (TypeError, ValueError, OverflowError):
+                        rgb = ()
+                        has_override = False
+                    if len(rgb) < 3:
+                        rgb = (255, 255, 255)
+                    signal_widgets = [part_glow_color_checkbox, *part_glow_color_spins]
+                    blocked = [widget.blockSignals(True) for widget in signal_widgets]
+                    try:
+                        part_glow_color_checkbox.setChecked(bool(has_override))
+                        for spin, value in zip(part_glow_color_spins, rgb):
+                            spin.setValue(int(value))
+                    finally:
+                        for widget, was_blocked in zip(signal_widgets, blocked):
+                            widget.blockSignals(was_blocked)
+                    _refresh_part_glow_color_controls_enabled()
+
+                def _refresh_ui_texture_sets_after_source_part_material_override() -> None:
+                    nonlocal texture_sets
+                    if replacement_mesh_for_mapping is None:
+                        return
+                    try:
+                        texture_sets = group_replacement_texture_sets(texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
+                        _apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
+                    except Exception:
+                        return
 
                 def _part_mapped_target_indices(source_index: int) -> List[int]:
                     try:
@@ -65828,6 +65930,7 @@ def run_gui() -> int:
                             part_role_combo.blockSignals(True)
                             part_role_combo.setCurrentIndex(0)
                             part_role_combo.blockSignals(False)
+                            _load_part_glow_color_controls(None)
                             part_target_combo.blockSignals(True)
                             part_target_combo.setCurrentIndex(0)
                             part_target_combo.blockSignals(False)
@@ -65875,6 +65978,7 @@ def run_gui() -> int:
                         role_index = part_role_combo.findData(role_value)
                         part_role_combo.setCurrentIndex(max(0, role_index))
                         part_role_combo.blockSignals(False)
+                        _load_part_glow_color_controls(adjustment)
                         selected_target_choice = _selected_target_index()
                         mapped_target_indices = _part_mapped_target_indices(source_index)
                         if selected_target_choice in mapped_target_indices:
@@ -66001,6 +66105,7 @@ def run_gui() -> int:
                     _push_geometry_undo_snapshot("Change source part role")
                     role_value = str(part_role_combo.currentData() or "").strip()
                     _set_source_role_override_value(source_index, role_value)
+                    _load_part_glow_color_controls(source_part_adjustments.get(source_index))
                     _refresh_source_assignment_columns()
                     try:
                         _refresh_parts_outliner()
@@ -66012,6 +66117,43 @@ def run_gui() -> int:
                         refresh_preview=True,
                         reason="source role change",
                     )
+
+                def _set_selected_source_glow_color() -> None:
+                    if part_inspector_loading["active"]:
+                        return
+                    source_index = int(selected_source_part.get("index", -1))
+                    if source_index < 0:
+                        return
+                    _push_geometry_undo_snapshot("Change source glow color")
+                    adjustment = _ensure_source_part_adjustment(source_index)
+                    if str(part_role_combo.currentData() or "").strip() == "glow" and part_glow_color_checkbox.isChecked():
+                        adjustment.emissive_color_rgb = _selected_part_glow_rgb_from_controls()
+                    else:
+                        adjustment.emissive_color_rgb = ()
+                    if _is_default_source_part_adjustment(adjustment):
+                        source_part_adjustments.pop(source_index, None)
+                    texture_overrides_dirty["dirty"] = True
+                    _refresh_part_glow_color_controls_enabled()
+                    _refresh_ui_texture_sets_after_source_part_material_override()
+                    _queue_material_edit_refresh(
+                        refresh_plan=True,
+                        force_plan=True,
+                        refresh_preview=True,
+                        reason="source glow color change",
+                    )
+
+                def _pick_selected_source_glow_color() -> None:
+                    if not part_glow_color_pick_button.isEnabled():
+                        return
+                    rgb = _selected_part_glow_rgb_from_controls()
+                    color = QColorDialog.getColor(QColor(rgb[0], rgb[1], rgb[2]), dialog, "Choose Glow Color")
+                    if not color.isValid():
+                        return
+                    for spin, value in zip(part_glow_color_spins, (color.red(), color.green(), color.blue())):
+                        spin.blockSignals(True)
+                        spin.setValue(int(value))
+                        spin.blockSignals(False)
+                    _set_selected_source_glow_color()
 
                 def _selected_part_target_index() -> int:
                     try:
@@ -67334,6 +67476,10 @@ def run_gui() -> int:
                 part_source_combo.currentIndexChanged.connect(_selected_part_source_changed)
                 part_enabled_checkbox.toggled.connect(_update_selected_part_adjustment)
                 part_role_combo.currentIndexChanged.connect(_set_selected_source_role)
+                part_glow_color_checkbox.toggled.connect(_set_selected_source_glow_color)
+                for part_glow_spin in part_glow_color_spins:
+                    part_glow_spin.valueChanged.connect(_set_selected_source_glow_color)
+                part_glow_color_pick_button.clicked.connect(_pick_selected_source_glow_color)
                 part_target_combo.currentIndexChanged.connect(_select_part_target_row)
                 part_replace_target_button.clicked.connect(lambda _checked=False: _map_selected_part_to_combo_target(replace=True))
                 part_add_target_button.clicked.connect(lambda _checked=False: _map_selected_part_to_combo_target(replace=False))
@@ -71020,7 +71166,7 @@ def run_gui() -> int:
                         edge_relief_source=str(edge_relief_source or "hybrid"),
                         accent_glow_strength=max(0.0, min(100.0, float(accent_glow_strength or 0.0))),
                         auto_brightness_balance=max(0.0, min(100.0, float(auto_brightness_balance or 0.0))),
-                        dark_detail_lift=max(0.0, min(100.0, float(dark_detail_lift or 0.0))),
+                        dark_detail_lift=max(-100.0, min(100.0, float(dark_detail_lift or 0.0))),
                         tone_contrast=max(-100.0, min(100.0, float(tone_contrast or 0.0))),
                         allow_unsafe_material_preflight_export=bool(allow_unsafe_material_preflight_export),
                         texture_uv_transforms=list(placement_snapshot.get("texture_uv_transforms", []) or []),
@@ -71972,6 +72118,37 @@ def run_gui() -> int:
                         intensity = maximum * (strength / 100.0)
                         return max(1.0, intensity) if strength > 0.0 else 1.0
 
+                    def _current_material_authority_preview_parameters() -> tuple[PreviewMaterialParameterInput, ...]:
+                        if not (_complete_external_swap_enabled() and _basic_controls_profile_enabled()):
+                            return ()
+                        try:
+                            profile = _current_material_authority_preview_profile()
+                        except Exception:
+                            return ()
+                        parameters: list[PreviewMaterialParameterInput] = []
+                        for attr_name, parameter_name in (
+                            ("scratch_roughness", "_scratchRoughness"),
+                            ("scratch_metallic", "_scratchMetallic"),
+                            ("shine_scalar", "_specularAmount"),
+                            ("displacement_scale_multiplier", "_heightIntensity"),
+                        ):
+                            value = getattr(profile, attr_name, None)
+                            if value is None:
+                                continue
+                            try:
+                                numeric_value = max(0.0, min(1.0, float(value)))
+                            except (TypeError, ValueError, OverflowError):
+                                continue
+                            parameters.append(
+                                PreviewMaterialParameterInput(
+                                    parameter_kind="float",
+                                    parameter_name=parameter_name,
+                                    value=f"{numeric_value:.6f}",
+                                    numeric_value=numeric_value,
+                                )
+                            )
+                        return tuple(parameters)
+
                     def _texture_set_for_mapping(mapping: StaticSubmeshMapping) -> Optional[object]:
                         if not texture_sets:
                             return None
@@ -72101,6 +72278,9 @@ def run_gui() -> int:
                                 )
                             return tuple(parameters)
 
+                        def _material_authority_preview_parameters() -> tuple[PreviewMaterialParameterInput, ...]:
+                            return _current_material_authority_preview_parameters()
+
                         def _current_material_authority_preview_slots(texture_set_obj: ReplacementTextureSet) -> Dict[str, ReplacementTextureSlot]:
                             if not (_complete_external_swap_enabled() and _basic_controls_profile_enabled()):
                                 return material_authority_preview_texture_slots(texture_set_obj, enabled=False)
@@ -72197,6 +72377,8 @@ def run_gui() -> int:
 
                         slots = _current_material_authority_preview_slots(texture_set)
                         material_factor_parameters = _texture_set_factor_parameters(texture_set)
+                        material_authority_parameters = _material_authority_preview_parameters()
+                        material_preview_parameters = material_factor_parameters + material_authority_parameters
                         base_slot = slots.get("base")
                         if base_slot is not None:
                             source_path = getattr(base_slot, "source_path", None)
@@ -72215,6 +72397,7 @@ def run_gui() -> int:
                                     source_path=source_path,
                                     semantic_type="color",
                                     semantic_subtype="albedo",
+                                    parameters=material_authority_parameters,
                                 )
                         normal_slot = slots.get("normal")
                         if normal_slot is not None:
@@ -72238,6 +72421,7 @@ def run_gui() -> int:
                                     source_path=source_path,
                                     semantic_type="normal",
                                     semantic_subtype="normal",
+                                    parameters=material_authority_parameters,
                                 )
                         height_slot = slots.get("height")
                         if height_slot is not None:
@@ -72255,6 +72439,7 @@ def run_gui() -> int:
                                     source_path=source_path,
                                     semantic_type="height",
                                     semantic_subtype="height",
+                                    parameters=material_authority_parameters,
                                 )
                         material_slot = slots.get("material")
                         if material_slot is not None:
@@ -72294,7 +72479,7 @@ def run_gui() -> int:
                                     packed_channels=tuple(packed_channels),
                                     parameter_name=declared_parameter_name
                                     or ("_metallicRoughnessTexture" if semantic_subtype == "metallic_roughness" else ""),
-                                    parameters=material_factor_parameters,
+                                    parameters=material_preview_parameters,
                                 )
                         for source_slot_name, semantic_type, semantic_subtype, packed_channels in (
                             ("material_mask", "material", "orm", ("ao", "roughness", "metallic")),
@@ -72329,6 +72514,7 @@ def run_gui() -> int:
                                     semantic_subtype=semantic_subtype,
                                     packed_channels=packed_channels,
                                     parameter_name="_detailMaskTexture" if source_slot_name == "detail_mask" else "_materialTexture",
+                                    parameters=material_preview_parameters,
                                 )
                                 continue
                             (
@@ -72355,7 +72541,7 @@ def run_gui() -> int:
                                     semantic_subtype=declared_semantic_subtype,
                                     packed_channels=declared_packed_channels,
                                     parameter_name=declared_parameter_name,
-                                    parameters=material_factor_parameters,
+                                    parameters=material_preview_parameters,
                                 )
                             elif _is_gltf_metallic_roughness(source_path):
                                 _set_preview_texture_slot_path(
@@ -72375,7 +72561,7 @@ def run_gui() -> int:
                                     semantic_subtype="metallic_roughness",
                                     packed_channels=("roughness", "metallic"),
                                     parameter_name="_metallicRoughnessTexture",
-                                    parameters=material_factor_parameters,
+                                    parameters=material_preview_parameters,
                                 )
                             else:
                                 _add_preview_material_input(
@@ -72384,7 +72570,7 @@ def run_gui() -> int:
                                     semantic_type=semantic_type,
                                     semantic_subtype=semantic_subtype,
                                     packed_channels=packed_channels,
-                                    parameters=material_factor_parameters,
+                                    parameters=material_preview_parameters,
                                 )
                         emissive_slot = slots.get("emissive")
                         if emissive_slot is not None:
@@ -72542,6 +72728,7 @@ def run_gui() -> int:
                                     mesh.preview_material_texture_dds_path = (
                                         str(source_path_obj) if source_path_obj.suffix.lower() == ".dds" else ""
                                     )
+                                    manual_preview_parameters = _current_material_authority_preview_parameters()
                                     if slot_kind == "emissive":
                                         emissive_intensity = _current_accent_glow_preview_intensity()
                                         mesh.preview_sidecar_shader_family = "SkinnedMeshEmissive_Ver2"
@@ -72566,7 +72753,8 @@ def run_gui() -> int:
                                                         value=f"{emissive_intensity:.6f}",
                                                         numeric_value=emissive_intensity,
                                                     ),
-                                                ),
+                                                )
+                                                + manual_preview_parameters,
                                             ),
                                         )
                                     else:
@@ -72589,6 +72777,7 @@ def run_gui() -> int:
                                                 material_name=str(target_name or "").strip(),
                                                 confidence="manual",
                                                 visualized=True,
+                                                material_parameters=manual_preview_parameters,
                                             ),
                                         )
                                     mesh.preview_material_texture_type = semantic_type
@@ -77868,16 +78057,16 @@ def run_gui() -> int:
 
             source_brightness_slider = QSlider(Qt.Horizontal)
             source_brightness_slider.setObjectName("MeshAlignmentSourceBrightnessSlider")
-            source_brightness_slider.setRange(0, 100)
+            source_brightness_slider.setRange(-100, 100)
             source_brightness_slider.setSingleStep(1)
             source_brightness_slider.setPageStep(10)
             source_brightness_spin = QSpinBox()
             source_brightness_spin.setObjectName("MeshAlignmentSourceBrightnessSpinBox")
-            source_brightness_spin.setRange(0, 100)
+            source_brightness_spin.setRange(-100, 100)
             source_brightness_spin.setSuffix("%")
             source_brightness_tooltip = (
-                "Lifts dark and midtone source base color before DDS export. "
-                "Use when Material Authority output is correct but too dark."
+                "Signed source base-color brightness before DDS export. "
+                "Negative dims the generated source color; positive lifts dark and midtone detail."
             )
             source_brightness_slider.setToolTip(source_brightness_tooltip)
             source_brightness_spin.setToolTip(source_brightness_tooltip)
@@ -77885,7 +78074,7 @@ def run_gui() -> int:
                 saved_source_brightness = int(round(float(self.settings.value("settings/complete_swap_source_brightness", 0) or 0)))
             except (TypeError, ValueError, OverflowError):
                 saved_source_brightness = 0
-            saved_source_brightness = max(0, min(100, saved_source_brightness))
+            saved_source_brightness = max(-100, min(100, saved_source_brightness))
             source_brightness_slider.setValue(saved_source_brightness)
             source_brightness_spin.setValue(saved_source_brightness)
             source_brightness_row = QHBoxLayout()
@@ -78188,6 +78377,12 @@ def run_gui() -> int:
                 _save_complete_swap_material_profile()
                 _refresh_manual_profile_control_effects(values)
                 _set_manual_profile_dirty(True)
+                if str(complete_swap_material_profile_combo.currentData() or "") == "material_authority_manual":
+                    try:
+                        _refresh_output_impact_review()
+                        _queue_material_authority_adjustment_preview_refresh()
+                    except NameError:
+                        pass
 
             def _manual_combo(row: int, key: str, label: str, choices: Sequence[tuple[str, str]], tooltip: str) -> None:
                 label_widget = QLabel(label)
@@ -78454,7 +78649,7 @@ def run_gui() -> int:
             manual_profile_layout.addWidget(manual_profile_preset_group, 41, 0, 1, 4)
             manual_profile_apply_button = QPushButton("Apply Manual Settings")
             manual_profile_apply_button.setObjectName("MeshAlignmentManualMaterialProfileApplyButton")
-            manual_profile_apply_button.setToolTip("Apply current manual values to the preview/build impact. Sliders do not refresh the model until this is pressed.")
+            manual_profile_apply_button.setToolTip("Force the current manual values into the preview/build impact now. Slider edits also queue a debounced preview refresh.")
             manual_profile_apply_button.setEnabled(False)
             manual_profile_reset_button = QPushButton("Reset To Material Authority")
             manual_profile_reset_button.setObjectName("MeshAlignmentManualMaterialProfileResetButton")
@@ -78466,7 +78661,7 @@ def run_gui() -> int:
             manual_profile_apply_row.addWidget(manual_profile_reset_button)
             manual_profile_layout.addLayout(manual_profile_apply_row, 4, 0, 1, 4)
             manual_profile_change_status = QLabel(
-                "<span style='color:#8b949e;'>Manual changes apply on button press; sliders do not refresh the model live.</span>"
+                "<span style='color:#8b949e;'>Manual sliders queue preview refresh after input settles; Apply forces the current values now.</span>"
             )
             manual_profile_change_status.setObjectName("HintLabel")
             manual_profile_change_status.setTextFormat(Qt.RichText)
@@ -78570,9 +78765,9 @@ def run_gui() -> int:
                 manual_profile_dirty["dirty"] = bool(dirty)
                 manual_profile_apply_button.setEnabled(bool(dirty))
                 if dirty:
-                    manual_profile_change_status.setText("Manual settings changed. Press Apply Manual Settings to rebuild the preview/impact notes.")
+                    manual_profile_change_status.setText("Manual settings changed. Preview refresh queued; press Apply Manual Settings to force it now.")
                 else:
-                    manual_profile_change_status.setText("Manual settings applied. Further slider changes will wait until Apply.")
+                    manual_profile_change_status.setText("Manual settings applied. Further slider changes queue live preview refresh.")
 
             def _apply_manual_material_profile_values(values: Mapping[str, object], *, persist: bool, refresh_preview: bool = False) -> None:
                 was_ready = bool(manual_profile_ready.get("ready"))
@@ -78621,7 +78816,7 @@ def run_gui() -> int:
                         _set_manual_profile_dirty(True)
 
             def _reset_manual_material_profile_to_material_authority() -> None:
-                _apply_manual_material_profile_values(manual_profile_default_values, persist=True, refresh_preview=False)
+                _apply_manual_material_profile_values(manual_profile_default_values, persist=True, refresh_preview=True)
 
             def _apply_current_manual_material_profile_to_preview() -> None:
                 if str(complete_swap_material_profile_combo.currentData() or "") != "material_authority_manual":
@@ -78700,7 +78895,7 @@ def run_gui() -> int:
                     QMessageBox.information(dialog, "Load Manual Profile", "Select a saved manual profile first.")
                     return
                 _show_selected_manual_profile_preset_metadata()
-                _apply_manual_material_profile_values(_coerce_manual_profile_values(preset.get("values")), persist=True, refresh_preview=False)
+                _apply_manual_material_profile_values(_coerce_manual_profile_values(preset.get("values")), persist=True, refresh_preview=True)
 
             def _delete_selected_manual_profile_preset() -> None:
                 preset = _selected_manual_profile_preset()
@@ -79009,8 +79204,13 @@ def run_gui() -> int:
                     str(edge_relief_source_combo.currentData() or "hybrid"),
                     int(accent_glow_spin.value()),
                 )
+                try:
+                    profile_payload = complete_swap_material_profile_to_dict(profile)
+                except Exception:
+                    profile_payload = {"name": str(getattr(profile, "name", "") or "")}
                 visible_payload = (
                     str(getattr(profile, "name", "") or ""),
+                    profile_payload,
                     tuple(slot_rows),
                 )
                 cache_payload = (visible_payload, controls)
@@ -79088,6 +79288,8 @@ def run_gui() -> int:
                     source_brightness_spin,
                     value,
                     "settings/complete_swap_source_brightness",
+                    minimum=-100,
+                    maximum=100,
                     refresh=refresh,
                 )
 
@@ -79165,7 +79367,7 @@ def run_gui() -> int:
                         f"Settings apply on export. Preview unchanged: {_material_authority_preview_inactive_reason()}"
                     )
                 else:
-                    true_source_basic_hint.setText("Auto brightness normalizes source base DDS exposure; Source brightness and Tone contrast are manual overrides.")
+                    true_source_basic_hint.setText("Auto brightness normalizes source base DDS exposure; Source brightness can dim or lift source color; Tone contrast shapes the curve.")
 
             def _refresh_sidecar_option_state() -> None:
                 enabled = rebuild_sidecar_checkbox.isChecked()

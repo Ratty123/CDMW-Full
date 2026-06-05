@@ -32,7 +32,7 @@ def resolve_preview_texture_flip_vertical(
     flip_texture_v: bool = False,
 ) -> bool:
     if value is None:
-        resolved = False if scene_import_normalizes_texture_v(source_format, source_path) else bool(default)
+        resolved = bool(default)
     else:
         resolved = bool(value)
     return not resolved if bool(flip_texture_v) else resolved

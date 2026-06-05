@@ -1025,6 +1025,116 @@ def build_pac_xml_material_authority_report(
     )
 
 
+def compare_pac_xml_material_authority_structure(
+    source_sidecar_text: str,
+    payload_sidecar_text: str,
+    sidecar_path: str | Path = "",
+) -> dict[str, object]:
+    """Compare sidecar structure that must stay stable while texture refs change."""
+
+    path = normalize_pac_xml_path(sidecar_path)
+    source_report = _material_authority_sidecar_report_dict(source_sidecar_text, path)
+    payload_report = _material_authority_sidecar_report_dict(payload_sidecar_text, path)
+    if not source_report or not payload_report:
+        return {
+            "structural_compare_status": "source_unavailable" if not source_report else "payload_unavailable",
+            "wrapper_order_preserved": False,
+            "wrapper_item_ids_preserved": False,
+            "submesh_bindings_preserved": False,
+            "submesh_item_ids_preserved": False,
+            "parameter_abi_preserved": False,
+            "source_wrapper_order_count": len(tuple(source_report.get("wrapper_order", ()) or ())) if source_report else 0,
+            "payload_wrapper_order_count": len(tuple(payload_report.get("wrapper_order", ()) or ())) if payload_report else 0,
+            "source_submesh_binding_count": len(tuple(source_report.get("submesh_bindings", ()) or ())) if source_report else 0,
+            "payload_submesh_binding_count": len(tuple(payload_report.get("submesh_bindings", ()) or ())) if payload_report else 0,
+            "source_parameter_abi_count": len(_material_authority_parameter_abi_rows(source_report)) if source_report else 0,
+            "payload_parameter_abi_count": len(_material_authority_parameter_abi_rows(payload_report)) if payload_report else 0,
+        }
+    source_wrappers = _material_authority_named_rows(
+        source_report.get("wrapper_order"),
+        ("order", "wrapper_name", "item_id", "shader_name"),
+    )
+    payload_wrappers = _material_authority_named_rows(
+        payload_report.get("wrapper_order"),
+        ("order", "wrapper_name", "item_id", "shader_name"),
+    )
+    source_wrapper_ids = _material_authority_named_rows(source_report.get("wrapper_order"), ("order", "wrapper_name", "item_id"))
+    payload_wrapper_ids = _material_authority_named_rows(payload_report.get("wrapper_order"), ("order", "wrapper_name", "item_id"))
+    source_bindings = _material_authority_named_rows(
+        source_report.get("submesh_bindings"),
+        ("order", "wrapper_name", "item_id", "id_base", "shader_name"),
+    )
+    payload_bindings = _material_authority_named_rows(
+        payload_report.get("submesh_bindings"),
+        ("order", "wrapper_name", "item_id", "id_base", "shader_name"),
+    )
+    source_binding_ids = _material_authority_named_rows(
+        source_report.get("submesh_bindings"),
+        ("order", "wrapper_name", "item_id", "id_base"),
+    )
+    payload_binding_ids = _material_authority_named_rows(
+        payload_report.get("submesh_bindings"),
+        ("order", "wrapper_name", "item_id", "id_base"),
+    )
+    source_parameter_abi = _material_authority_parameter_abi_rows(source_report)
+    payload_parameter_abi = _material_authority_parameter_abi_rows(payload_report)
+    return {
+        "structural_compare_status": "source_compared",
+        "wrapper_order_preserved": source_wrappers == payload_wrappers,
+        "wrapper_item_ids_preserved": source_wrapper_ids == payload_wrapper_ids,
+        "submesh_bindings_preserved": source_bindings == payload_bindings,
+        "submesh_item_ids_preserved": source_binding_ids == payload_binding_ids,
+        "parameter_abi_preserved": source_parameter_abi == payload_parameter_abi,
+        "source_wrapper_order_count": len(source_wrappers),
+        "payload_wrapper_order_count": len(payload_wrappers),
+        "source_submesh_binding_count": len(source_bindings),
+        "payload_submesh_binding_count": len(payload_bindings),
+        "source_parameter_abi_count": len(source_parameter_abi),
+        "payload_parameter_abi_count": len(payload_parameter_abi),
+    }
+
+
+def _material_authority_sidecar_report_dict(sidecar_text: str, sidecar_path: str) -> Mapping[str, object]:
+    if not str(sidecar_text or "").strip():
+        return {}
+    try:
+        return build_pac_xml_material_authority_report(sidecar_text, sidecar_path).to_dict()
+    except Exception:
+        return {}
+
+
+def _material_authority_named_rows(rows: object, fields: Sequence[str]) -> tuple[tuple[str, ...], ...]:
+    output: list[tuple[str, ...]] = []
+    for row in tuple(rows or ()):
+        if not isinstance(row, MappingABC):
+            continue
+        output.append(tuple(str(row.get(field, "") or "") for field in fields))
+    return tuple(output)
+
+
+def _material_authority_parameter_abi_rows(report: Mapping[str, object]) -> tuple[tuple[str, ...], ...]:
+    rows: list[tuple[str, ...]] = []
+    for group_name in (
+        "runtime_abi_parameters",
+        "source_authority_parameters",
+        "inherited_influence_parameters",
+        "unknown_material_response_parameters",
+    ):
+        for row in tuple(report.get(group_name, ()) or ()):
+            if not isinstance(row, MappingABC):
+                continue
+            rows.append(
+                (
+                    str(row.get("wrapper_name", "") or ""),
+                    str(row.get("parameter_name", "") or ""),
+                    str(row.get("parameter_type", "") or ""),
+                    str(row.get("item_id", "") or ""),
+                    str(row.get("index", "") or ""),
+                )
+            )
+    return tuple(sorted(rows))
+
+
 def _normalize_authority_contract(value: str) -> str:
     compact = re.sub(r"[^a-z0-9_]+", "_", str(value or "").strip().lower()).strip("_")
     aliases = {
@@ -1675,6 +1785,7 @@ def validate_pac_xml_sidecar_transition(
     original_sidecar_text: str,
     patched_sidecar_text: str,
     *,
+    sidecar_path: str | Path = "",
     allow_stock_mask_override: bool = False,
 ) -> tuple[str, ...]:
     original = parse_pac_xml_profile(original_sidecar_text)
@@ -1684,7 +1795,51 @@ def validate_pac_xml_sidecar_transition(
     warnings.extend(_protected_param_removal_warnings(original, patched))
     if not allow_stock_mask_override:
         warnings.extend(_stock_runtime_support_replacement_warnings(original, patched))
+    warnings.extend(
+        _pac_xml_structural_transition_warnings(
+            compare_pac_xml_material_authority_structure(
+                original_sidecar_text,
+                patched_sidecar_text,
+                sidecar_path,
+            )
+        )
+    )
     return tuple(dict.fromkeys(warnings))
+
+
+def _pac_xml_structural_transition_warnings(compare: Mapping[str, object]) -> tuple[str, ...]:
+    status = str(compare.get("structural_compare_status", "") or "").strip()
+    source_wrappers = int(compare.get("source_wrapper_order_count", 0) or 0)
+    payload_wrappers = int(compare.get("payload_wrapper_order_count", 0) or 0)
+    source_bindings = int(compare.get("source_submesh_binding_count", 0) or 0)
+    payload_bindings = int(compare.get("payload_submesh_binding_count", 0) or 0)
+    source_params = int(compare.get("source_parameter_abi_count", 0) or 0)
+    payload_params = int(compare.get("payload_parameter_abi_count", 0) or 0)
+    if status != "source_compared":
+        if not any((source_wrappers, payload_wrappers, source_bindings, payload_bindings, source_params, payload_params)):
+            return ()
+        return (f"PAC XML runtime ABI structural compare unavailable: {status or 'unknown'}.",)
+    warnings: list[str] = []
+    if not bool(compare.get("wrapper_order_preserved")):
+        warnings.append(
+            "PAC XML runtime ABI changed: wrapper order/name/shader differs "
+            f"({source_wrappers} source wrapper(s), {payload_wrappers} payload wrapper(s))."
+        )
+    if not bool(compare.get("wrapper_item_ids_preserved")):
+        warnings.append("PAC XML runtime ABI changed: wrapper ItemID sequence differs.")
+    if not bool(compare.get("submesh_bindings_preserved")):
+        warnings.append(
+            "PAC XML runtime ABI changed: _subMeshResources binding order/name/shader differs "
+            f"({source_bindings} source binding(s), {payload_bindings} payload binding(s))."
+        )
+    if not bool(compare.get("submesh_item_ids_preserved")):
+        warnings.append("PAC XML runtime ABI changed: _subMeshResources ItemID/IdBase sequence differs.")
+    if not bool(compare.get("parameter_abi_preserved")):
+        warnings.append(
+            "PAC XML runtime ABI changed: material parameter names/types/ItemIDs/indexes differ "
+            f"({source_params} source parameter(s), {payload_params} payload parameter(s))."
+        )
+    return tuple(warnings)
 
 
 def expected_texture_suffixes_for_parameter(parameter_name: str) -> tuple[str, ...]:

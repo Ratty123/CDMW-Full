@@ -170,6 +170,66 @@ def _write_factor_material_gltf(path: Path) -> None:
     path.write_text(json.dumps(document), encoding="utf-8")
 
 
+def _write_misrouted_material_gltf(path: Path) -> None:
+    from PIL import Image
+
+    chunks: list[bytes] = []
+    buffer_views: list[dict[str, object]] = []
+
+    def add_view(data: bytes, target: int = 0) -> int:
+        offset = sum(len(chunk) for chunk in chunks)
+        chunks.append(_pad4(data))
+        view: dict[str, object] = {"buffer": 0, "byteOffset": offset, "byteLength": len(data)}
+        if target:
+            view["target"] = target
+        buffer_views.append(view)
+        return len(buffer_views) - 1
+
+    position_view = add_view(struct.pack("<9f", 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0), 34962)
+    normal_view = add_view(struct.pack("<9f", 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0), 34962)
+    uv_view = add_view(struct.pack("<6f", 0.0, 0.0, 1.0, 0.0, 0.0, 1.0), 34962)
+    index_view = add_view(struct.pack("<3H", 0, 1, 2), 34963)
+    bin_chunk = b"".join(chunks)
+    (path.parent / "misrouted_materials.bin").write_bytes(bin_chunk)
+    Image.new("RGBA", (2, 2), (210, 190, 170, 225)).save(path.parent / "blade_specularGlossiness.png")
+    Image.new("RGBA", (2, 2), (180, 50, 30, 255)).save(path.parent / "blade_base.png")
+    document = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": "misrouted_materials.bin", "byteLength": len(bin_chunk)}],
+        "bufferViews": buffer_views,
+        "accessors": [
+            {"bufferView": position_view, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": normal_view, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": uv_view, "componentType": 5126, "count": 3, "type": "VEC2"},
+            {"bufferView": index_view, "componentType": 5123, "count": 3, "type": "SCALAR"},
+        ],
+        "materials": [
+            {
+                "name": "Misrouted Blade",
+                "pbrMetallicRoughness": {
+                    "baseColorTexture": {"index": 0},
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.4,
+                },
+                "emissiveTexture": {"index": 1},
+                "emissiveFactor": [1.0, 1.0, 1.0],
+            }
+        ],
+        "textures": [{"source": 0}, {"source": 1}],
+        "images": [{"uri": "blade_specularGlossiness.png"}, {"uri": "blade_base.png"}],
+        "meshes": [
+            {
+                "name": "MisroutedBladeMesh",
+                "primitives": [{"attributes": {"POSITION": 0, "NORMAL": 1, "TEXCOORD_0": 2}, "indices": 3, "material": 0}],
+            }
+        ],
+        "nodes": [{"mesh": 0}],
+        "scenes": [{"nodes": [0]}],
+        "scene": 0,
+    }
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+
 class FinalPackagePreviewTests(unittest.TestCase):
     def test_generated_sidecar_resolves_generated_dds_and_binds_base_texture(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2129,6 +2189,52 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertNotIn("opacity", source_row["detected_channels"])
             self.assertNotIn("source_alpha_missing_opacity", report["risk_flags"])
 
+    def test_material_authority_report_records_source_packed_channel_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("PlainSurface")
+            mesh = preview.preview_model.meshes[0]
+            mesh.preview_material_texture_path = "plain_metallicRoughness.png"
+            mesh.preview_material_texture_subtype = "metallic_roughness"
+            mesh.preview_material_texture_packed_channels = ("roughness", "metallic")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "plain_ma.dds",
+                    target_path="character/texture/plain_ma.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(fourcc=b"DXT1"),
+                    note="Generated packed material mask from source metallic/roughness workflow.",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "plain.pac_xml",
+                    target_path="character/modelproperty/plain.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=_sidecar("character/texture/plain_ma.dds", "_colorBlendingMaskTexture", "PlainSurface"),
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs, source_path=root / "plain.glb")
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            output = {
+                row["target_path"]: row
+                for row in report["texture_outputs"]
+            }["character/texture/plain_ma.dds"]
+            policy = output["conversion_policy"]
+            self.assertEqual(("roughness", "metallic"), tuple(source_row["preview_material_texture_packed_channels"]))
+            self.assertEqual(("roughness", "metallic"), tuple(policy["source_packed_channels"]))
+            self.assertEqual(
+                [{"channel": "G", "semantic": "roughness"}, {"channel": "B", "semantic": "metallic"}],
+                list(policy["source_packed_channel_semantics"]),
+            )
+            self.assertEqual(("packed_material_mask",), tuple(policy["channel_visualization_kinds"]))
+            self.assertEqual(
+                ["ao", "roughness", "metallic", "alpha"],
+                [row["semantic"] for row in output["channel_visualization"][0]["channels"]],
+            )
+            self.assertIn("separately", policy["source_packed_channel_note"])
+
     def test_material_authority_report_classifies_source_from_texture_channel_stats(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             from PIL import Image
@@ -2437,6 +2543,68 @@ Connections:  {
         self.assertEqual(1, outside["section_count"])
         self.assertEqual("GemOutsideMesh", outside["sections"][0]["section_name"])
         self.assertNotIn("CD_PHM_02_Sword_0036", by_name)
+
+    def test_material_authority_report_preserves_external_route_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_path = root / "misrouted_materials.gltf"
+            _write_misrouted_material_gltf(source_path)
+            preview = _preview("CD_PHM_02_Sword_0036")
+
+            result = build_final_package_preview(preview, source_path=source_path)
+
+        report = result.material_authority_report.to_dict()
+        source_row = report["source_materials"][0]
+        diagnostic_codes = {row["code"] for row in source_row["diagnostics"]}
+        risk_flags = set(report["risk_flags"])
+
+        self.assertEqual("external_model_audit", source_row["source"])
+        self.assertEqual("Misrouted Blade", source_row["material_name"])
+        self.assertIn("source_spec_gloss_texture_bound_as_base", diagnostic_codes)
+        self.assertIn("source_base_texture_bound_as_emissive", diagnostic_codes)
+        self.assertIn("source_spec_gloss_base_conflict", risk_flags)
+        self.assertIn("base_texture_used_as_emissive", risk_flags)
+
+    def test_material_authority_texture_output_records_source_route_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_path = root / "misrouted_materials.gltf"
+            _write_misrouted_material_gltf(source_path)
+            preview = _preview("Misrouted Blade")
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "misrouted_base.dds",
+                    target_path="character/texture/misrouted_base.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(fourcc=b"DXT1"),
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "misrouted.pac_xml",
+                    target_path="character/modelproperty/misrouted.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=_sidecar("character/texture/misrouted_base.dds", "_overlayColorTexture", "Misrouted Blade"),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=specs,
+                source_path=source_path,
+            )
+
+        report = result.material_authority_report.to_dict()
+        policy = {
+            row["target_path"]: row["conversion_policy"]
+            for row in report["texture_outputs"]
+        }["character/texture/misrouted_base.dds"]
+        codes = set(policy["source_route_diagnostic_codes"])
+        diagnostics = {row["code"]: row for row in policy["source_route_diagnostics"]}
+        self.assertIn("source_spec_gloss_texture_bound_as_base", codes)
+        self.assertIn("source_base_texture_bound_as_emissive", codes)
+        self.assertEqual("Misrouted Blade", diagnostics["source_base_texture_bound_as_emissive"]["material_name"])
+        self.assertEqual("emissive", diagnostics["source_base_texture_bound_as_emissive"]["slot_kind"])
+        self.assertIn("blade_base", diagnostics["source_base_texture_bound_as_emissive"]["texture_path"])
+        self.assertIn("routing needs review", policy["source_route_diagnostic_note"])
 
     def test_material_authority_report_flags_spec_gloss_used_as_base_color(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -3005,6 +3173,38 @@ Connections:  {
             self.assertNotIn("deleted_cloak", mesh.preview_texture_path)
             self.assertNotIn("deleted_cloak", mesh.preview_normal_texture_path)
             self.assertTrue(any("ignored unmatched kept-original sidecar material bindings" in warning for warning in result.warnings))
+
+    def test_kept_original_normal_binding_does_not_warn_for_original_base_like_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original = root / "cd_phm_00_cloak_0009.dds"
+            original.write_bytes(_dds())
+            preview = _preview(material_name="CD_PHM_00_Cloak_0009")
+            preview.texture_references = (
+                ArchiveModelTextureReference(
+                    reference_name="character/texture/cd_phm_00_cloak_0009.dds",
+                    material_name="CD_PHM_00_Cloak_0009",
+                    sidecar_parameter_name="_overlayColorTexture",
+                    resolved_archive_path="character/texture/cd_phm_00_cloak_0009.dds",
+                ),
+                ArchiveModelTextureReference(
+                    reference_name="character/texture/cd_phm_00_cloak_0009.dds",
+                    material_name="CD_PHM_00_Cloak_0009",
+                    sidecar_parameter_name="_normalTexture",
+                    resolved_archive_path="character/texture/cd_phm_00_cloak_0009.dds",
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                supplemental_file_specs=(),
+                original_dds_resolver=lambda path: original if path == "character/texture/cd_phm_00_cloak_0009.dds" else None,
+            )
+
+            warning_text = "\n".join(result.warnings)
+            report = result.material_authority_report.to_dict()
+            self.assertNotIn("_normalTexture points at a non-normal-looking DDS path", warning_text)
+            self.assertNotIn("normal_slot_suspicious", report["risk_flags"])
 
     def test_final_preview_matches_character_materials_with_extra_numeric_segment(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

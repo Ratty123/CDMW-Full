@@ -613,6 +613,38 @@ class MaterialAuthorityReportCheckTests(unittest.TestCase):
         self.assertIn("base_texture_used_as_emissive", result["blocking_risk_flags"])
         self.assertTrue(any("DDS validation failed" in error for error in result["errors"]))
 
+    def test_texture_conversion_policy_source_route_diagnostics_drive_review(self) -> None:
+        report = _report()
+        conversion_policy = report["texture_outputs"][0]["conversion_policy"]
+        conversion_policy["source_route_diagnostics"] = (
+            {
+                "severity": "warning",
+                "code": "source_base_texture_bound_as_emissive",
+                "material_name": "DiveSuit",
+                "slot_kind": "emissive",
+                "texture_path": "textures/5_DiveSuit_baseColor.jpeg",
+            },
+            {
+                "severity": "warning",
+                "code": "source_material_response_texture_bound_as_base",
+                "material_name": "Blade",
+                "slot_kind": "base",
+                "texture_path": "blade_metallicRoughness.png",
+            },
+        )
+
+        result = check_material_authority_report(report, fail_on_risk_flags=())
+
+        self.assertEqual("needs_review", result["status"])
+        self.assertIn("base_texture_used_as_emissive", result["review_risk_flags"])
+        self.assertIn("visible_technical_role_conflict", result["review_risk_flags"])
+        self.assertEqual(2, result["counts"]["texture_conversion_source_route_diagnostic_rows"])
+        self.assertEqual(
+            1,
+            result["counts"]["texture_conversion_source_route_diagnostics"]["source_base_texture_bound_as_emissive"],
+        )
+        self.assertTrue(any("Texture conversion source-route diagnostic warning" in warning for warning in result["warnings"]))
+
     def test_review_flags_and_role_warnings_do_not_fail_when_allowed(self) -> None:
         report = _report(
             risk_flags=["missing_dds_mips", "normal_format_mismatch", "ambiguous_texture_role_binding"],
@@ -1159,6 +1191,36 @@ class MaterialAuthorityReportCheckTests(unittest.TestCase):
         self.assertEqual(0, result["counts"]["source_materials_missing_alpha_diagnostics"])
         self.assertNotIn("missing_source_alpha_diagnostics", result["review_risk_flags"])
         self.assertTrue(any("Source material diagnostic warning" in warning for warning in result["warnings"]))
+
+    def test_maps_external_audit_route_diagnostics_from_channel_diagnostics(self) -> None:
+        report = _report(
+            source_materials=[
+                {
+                    "material_name": "Misrouted Source",
+                    "detected_channels": ["base_color", "normal", "emissive", "roughness", "metalness"],
+                    "missing_channels": [],
+                    "material_classification": [{"class": "metal", "confidence": 0.8}],
+                    "sections": [_source_section()],
+                    "channel_diagnostics": [
+                        {"severity": "warning", "code": "source_base_texture_bound_as_emissive"},
+                        {"severity": "warning", "code": "source_spec_gloss_texture_bound_as_base"},
+                        {"severity": "warning", "code": "source_material_response_texture_bound_as_base"},
+                        {"severity": "warning", "code": "source_base_texture_bound_as_normal"},
+                    ],
+                }
+            ],
+        )
+
+        result = check_material_authority_report(report)
+
+        self.assertEqual("failed", result["status"])
+        self.assertIn("base_texture_used_as_emissive", result["blocking_risk_flags"])
+        self.assertIn("source_spec_gloss_base_conflict", result["blocking_risk_flags"])
+        self.assertIn("visible_technical_role_conflict", result["blocking_risk_flags"])
+        self.assertIn("normal_slot_suspicious", result["review_risk_flags"])
+        self.assertEqual(1, result["counts"]["source_diagnostics"]["source_base_texture_bound_as_emissive"])
+        self.assertEqual(1, result["counts"]["source_diagnostics"]["source_spec_gloss_texture_bound_as_base"])
+        self.assertEqual(0, result["counts"]["source_materials_missing_channel_diagnostics"])
 
     def test_counts_complete_source_channel_evidence(self) -> None:
         report = _report(

@@ -11,7 +11,7 @@ import time
 import atexit
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled, run_process_with_cancellation
 from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
@@ -23,6 +23,9 @@ NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES = 192 * 1024 * 1024
 NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES = 768 * 1024 * 1024
 NATIVE_PREVIEW_CORE_DDS_CACHE_MAX_BYTES = 96 * 1024 * 1024
 NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES = 64 * 1024 * 1024
+NATIVE_PREVIEW_CORE_MATERIAL_CONTRACT_SCHEMA_VERSION = 2
+NATIVE_PREVIEW_CORE_MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION = 2
+NATIVE_PREVIEW_CORE_TEXTURE_QUALITY_SCHEMA_VERSION = 1
 
 
 def _repo_root() -> Path:
@@ -505,6 +508,161 @@ def render_settings_to_native_preview_core_dict(settings: Optional[ModelPreviewR
     return result
 
 
+def _safe_float(value: object, fallback: float = 0.0) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return fallback
+    return result if result == result and result not in (float("inf"), float("-inf")) else fallback
+
+
+def _clamp(value: object, low: float, high: float, fallback: float) -> float:
+    return max(low, min(high, _safe_float(value, fallback)))
+
+
+def _native_preview_core_lighting_preset(
+    render_settings: Optional[ModelPreviewRenderSettings],
+    batches: Sequence[object],
+    current: object = "",
+) -> str:
+    current_text = str(current or "").strip()
+    if current_text and current_text != "neutral_studio":
+        return current_text
+    d3d11_mode = str(getattr(render_settings, "d3d11_view_mode", "") or "").strip().lower()
+    if d3d11_mode in {"game_outdoor", "cd_outdoor", "outdoor_game"}:
+        return "game_outdoor_approx"
+    mode = str(getattr(render_settings, "render_diagnostic_mode", "lit") or "lit").strip().lower()
+    if mode in {"texture_probe", "base_direct", "base_no_tint", "normal_raw", "material_raw", "height_raw", "uv_checker"}:
+        return "texture_debug"
+    if mode in {"metal_shine", "roughness_response", "material_response"}:
+        return "shiny_metal_inspection"
+    if mode in {"rich_lit", "height_depth", "height_calibrated"}:
+        return "cloth_skin_inspection"
+    for batch in batches:
+        if not isinstance(batch, Mapping):
+            continue
+        if (
+            str(batch.get("material_category", "") or "").strip().lower() == "metal"
+            and _safe_float(batch.get("material_category_confidence"), 0.0) >= 0.45
+        ):
+            return "shiny_metal_inspection"
+    return current_text or "neutral_studio"
+
+
+def _native_preview_core_repair_metal_batch(batch: Dict[str, Any]) -> bool:
+    category = str(batch.get("material_category", "") or "").strip().lower()
+    confidence = _clamp(batch.get("material_category_confidence"), 0.0, 1.0, 0.0)
+    if category != "metal" or confidence < 0.45:
+        return False
+    response = str(batch.get("material_response_disposition", "") or "").strip().lower()
+    strong_response = any(token in response for token in ("metal_response", "metallic", "promoted"))
+    metalness_floor = 0.68 if strong_response else 0.56
+    specular_floor = 0.68 if strong_response else 0.56
+    roughness_target = 0.24 if strong_response else 0.32
+    existing_metalness = _clamp(batch.get("metalness"), 0.0, 1.0, 0.0)
+    existing_specular = _clamp(batch.get("specular"), 0.0, 1.0, 0.0)
+    existing_roughness = _clamp(batch.get("roughness"), 0.0, 1.0, 0.0)
+    batch["metalness"] = max(existing_metalness, metalness_floor)
+    batch["specular"] = max(existing_specular, specular_floor)
+    batch["roughness"] = roughness_target if existing_roughness <= 0.02 else min(existing_roughness, roughness_target)
+    hints = batch.get("native_material_hints")
+    if not isinstance(hints, Mapping):
+        hints = {}
+    merged_hints = dict(hints)
+    merged_hints["metalness"] = max(_clamp(merged_hints.get("metalness"), 0.0, 1.0, 0.0), batch["metalness"])
+    merged_hints["specular"] = max(_clamp(merged_hints.get("specular"), 0.0, 1.0, 0.0), batch["specular"])
+    merged_hints["roughness"] = min(
+        _clamp(merged_hints.get("roughness"), 0.0, 1.0, batch["roughness"]),
+        batch["roughness"],
+    )
+    merged_hints.setdefault("source", "native_core_material_category_repair")
+    batch["native_material_hints"] = merged_hints
+    contract = batch.get("material_contract")
+    if not isinstance(contract, Mapping):
+        contract = {}
+    merged_contract = dict(contract)
+    merged_contract.setdefault("status", "ok")
+    merged_contract["schema_version"] = NATIVE_PREVIEW_CORE_MATERIAL_CONTRACT_SCHEMA_VERSION
+    pbr_hints = merged_contract.get("pbr_scalar_hints")
+    if not isinstance(pbr_hints, Mapping):
+        pbr_hints = {}
+    merged_pbr_hints = dict(pbr_hints)
+    for key in ("roughness", "metalness", "specular"):
+        merged_pbr_hints[key] = merged_hints[key]
+    merged_contract["pbr_scalar_hints"] = merged_pbr_hints
+    batch["material_contract"] = merged_contract
+    channel_contract = batch.get("material_channel_contract")
+    if not isinstance(channel_contract, Mapping):
+        channel_contract = {}
+    merged_channel_contract = dict(channel_contract)
+    merged_channel_contract["schema_version"] = NATIVE_PREVIEW_CORE_MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION
+    merged_channel_contract.setdefault("workflow", "crimson_native_material_response")
+    batch["material_channel_contract"] = merged_channel_contract
+    return True
+
+
+def _repair_native_preview_core_manifest(
+    package_path: str | Path,
+    render_settings: Optional[ModelPreviewRenderSettings],
+) -> Dict[str, Any]:
+    manifest_path = Path(package_path) / "manifest.json"
+    if not manifest_path.is_file():
+        return {}
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return {}
+    if not isinstance(manifest, Mapping):
+        return {}
+    updated: Dict[str, Any] = dict(manifest)
+    batches_raw = updated.get("batches")
+    batches = list(batches_raw) if isinstance(batches_raw, list) else []
+    repaired_metal_batches = 0
+    for index, batch in enumerate(batches):
+        if not isinstance(batch, Mapping):
+            continue
+        mutable_batch = dict(batch)
+        if _native_preview_core_repair_metal_batch(mutable_batch):
+            repaired_metal_batches += 1
+            batches[index] = mutable_batch
+    updated["batches"] = batches
+    updated["material_contract_schema"] = max(
+        int(updated.get("material_contract_schema", 0) or 0),
+        NATIVE_PREVIEW_CORE_MATERIAL_CONTRACT_SCHEMA_VERSION,
+    )
+    updated["material_channel_contract_schema"] = max(
+        int(updated.get("material_channel_contract_schema", 0) or 0),
+        NATIVE_PREVIEW_CORE_MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION,
+    )
+    updated["texture_quality_schema"] = max(
+        int(updated.get("texture_quality_schema", 0) or 0),
+        NATIVE_PREVIEW_CORE_TEXTURE_QUALITY_SCHEMA_VERSION,
+    )
+    updated["lighting_preset"] = _native_preview_core_lighting_preset(
+        render_settings,
+        batches,
+        updated.get("lighting_preset", ""),
+    )
+    updated["diffuse_wrap_bias"] = _clamp(
+        updated.get("diffuse_wrap_bias", getattr(render_settings, "diffuse_wrap_bias", 0.72)),
+        0.0,
+        1.0,
+        _safe_float(getattr(render_settings, "diffuse_wrap_bias", 0.72), 0.72),
+    )
+    if "render_settings" not in updated:
+        updated["render_settings"] = render_settings_to_native_preview_core_dict(render_settings)
+    if dict(manifest) != updated:
+        manifest_path.write_text(json.dumps(updated, separators=(",", ":")), encoding="utf-8")
+    return {
+        "native_preview_core_manifest_repaired": True,
+        "native_preview_core_repaired_metal_batches": repaired_metal_batches,
+        "native_preview_core_lighting_preset": updated.get("lighting_preset", ""),
+        "native_preview_core_material_contract_schema": updated.get("material_contract_schema", 0),
+        "native_preview_core_material_channel_contract_schema": updated.get("material_channel_contract_schema", 0),
+        "native_preview_core_texture_quality_schema": updated.get("texture_quality_schema", 0),
+    }
+
+
 def archive_entry_to_native_preview_core_dict(entry: Optional[ArchiveEntry]) -> Dict[str, Any]:
     if entry is None:
         return {}
@@ -695,6 +853,8 @@ def run_native_preview_core_preview_job(
     report.setdefault("native_preview_core_job_root", str(job_root))
     status = str(report.get("status") or "error").strip().lower()
     package_path = str(report.get("package_path") or "").strip()
+    if status == "ok" and package_path:
+        report.update(_repair_native_preview_core_manifest(package_path, render_settings))
     fallback_reason = str(report.get("fallback_reason") or report.get("message") or "").strip()
     return NativePreviewCoreAttempt(
         status=status,

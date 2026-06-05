@@ -810,6 +810,7 @@ def _material_channel_profile(row: Mapping[str, object]) -> dict[str, object]:
                     "a_max": _slot_channel_stat(slot, "a_max", 1.0),
                 }
             )
+        diagnostics.extend(_slot_route_diagnostics(slot))
     scalar_hints = row.get("scalar_hints")
     if isinstance(scalar_hints, Mapping):
         for key in tuple(scalar_hints.keys()):
@@ -946,6 +947,93 @@ def _add_material_channel(channels: set[str], value: object) -> None:
         channels.add("ao")
     if any(token in text for token in ("height", "displacement", "bump", "parallax")):
         channels.add("height")
+
+
+def _slot_route_diagnostics(slot: Mapping[str, object]) -> tuple[dict[str, object], ...]:
+    slot_kind = str(slot.get("slot_kind", "") or "").strip().lower()
+    semantic_type = str(slot.get("semantic_type", "") or "").strip().lower()
+    semantic_subtype = str(slot.get("semantic_subtype", "") or "").strip().lower()
+    parameter_name = str(slot.get("parameter_name", "") or "").strip()
+    texture_name = str(slot.get("texture_name", "") or "").strip()
+    texture_path = str(slot.get("texture_path", "") or "").strip()
+    texture_text = " ".join((texture_name, texture_path)).lower()
+    texture_compact = re.sub(r"[^a-z0-9]+", "", texture_text)
+    route = " ".join((slot_kind, semantic_type, semantic_subtype, parameter_name.lower()))
+    output: list[dict[str, object]] = []
+
+    def has_texture_token(*tokens: str) -> bool:
+        for token in tokens:
+            compact = re.sub(r"[^a-z0-9]+", "", str(token or "").lower())
+            if not compact:
+                continue
+            if compact in texture_compact:
+                return True
+        return False
+
+    def append(code: str, message: str, expected_role: str, observed_hint: str) -> None:
+        output.append(
+            {
+                "severity": "warning",
+                "code": code,
+                "slot_kind": slot_kind,
+                "parameter_name": parameter_name,
+                "texture_name": texture_name,
+                "texture_path": texture_path,
+                "expected_role": expected_role,
+                "observed_hint": observed_hint,
+                "message": message,
+            }
+        )
+
+    is_base_route = slot_kind in {"base", "diffuse", "albedo"} or semantic_type in {"base", "base_color"} or "basecolor" in route or "diffuse" in route
+    is_emissive_route = slot_kind == "emissive" or semantic_type == "emissive" or "emissive" in route
+    is_normal_route = slot_kind == "normal" or semantic_type == "normal" or "normal" in route
+    has_emissive_name = has_texture_token("emissive", "emission", "glow", "illum")
+    has_base_name = has_texture_token("basecolor", "basecolour", "base", "albedo", "diffuse", "color", "colour")
+    has_normal_name = has_texture_token("normal", "normalmap", "nrm")
+    has_spec_gloss_name = has_texture_token("specularglossiness", "speculargloss", "specgloss", "specular", "glossiness")
+    has_material_response_name = has_texture_token(
+        "metallicroughness",
+        "roughnessmetallic",
+        "metallic",
+        "metalness",
+        "roughness",
+        "occlusion",
+        "ambientocclusion",
+        "orm",
+        "rma",
+        "mra",
+    )
+
+    if is_emissive_route and has_base_name and not has_emissive_name:
+        append(
+            "source_base_texture_bound_as_emissive",
+            "Texture name/path looks like a base color texture but is routed through an emissive slot.",
+            "emissive",
+            "base_color_name",
+        )
+    if is_base_route and has_spec_gloss_name:
+        append(
+            "source_spec_gloss_texture_bound_as_base",
+            "Texture name/path looks like specular-glossiness data but is routed through a base color slot.",
+            "base_color",
+            "specular_glossiness_name",
+        )
+    elif is_base_route and has_material_response_name:
+        append(
+            "source_material_response_texture_bound_as_base",
+            "Texture name/path looks like packed material response data but is routed through a base color slot.",
+            "base_color",
+            "material_response_name",
+        )
+    if is_normal_route and has_base_name and not has_normal_name:
+        append(
+            "source_base_texture_bound_as_normal",
+            "Texture name/path looks like a base color texture but is routed through a normal slot.",
+            "normal",
+            "base_color_name",
+        )
+    return tuple(output)
 
 
 def _slot_alpha_channel_usage(slot: Mapping[str, object]) -> str:

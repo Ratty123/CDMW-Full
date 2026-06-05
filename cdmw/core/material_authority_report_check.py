@@ -112,6 +112,10 @@ SOURCE_DIAGNOSTIC_RISK_FLAGS = {
     "source_missing_base_color": "source_missing_base_color",
     "source_alpha_without_opacity_texture": "source_alpha_missing_opacity",
     "source_spec_gloss_texture_as_base_color": "source_spec_gloss_base_conflict",
+    "source_spec_gloss_texture_bound_as_base": "source_spec_gloss_base_conflict",
+    "source_base_texture_bound_as_emissive": "base_texture_used_as_emissive",
+    "source_material_response_texture_bound_as_base": "visible_technical_role_conflict",
+    "source_base_texture_bound_as_normal": "normal_slot_suspicious",
     "source_emissive_scalar_no_texture": "source_emissive_scalar_no_texture",
 }
 
@@ -192,6 +196,7 @@ def check_material_authority_report(
     channel_visualization_counts: Counter[str] = Counter()
     texture_conversion_source_counts: Counter[str] = Counter()
     texture_conversion_role_counts: Counter[str] = Counter()
+    texture_conversion_source_route_diagnostic_counts: Counter[str] = Counter()
     source_diagnostic_counts: Counter[str] = Counter()
     source_material_class_counts: Counter[str] = Counter()
     routing_status_counts: Counter[str] = Counter()
@@ -222,6 +227,7 @@ def check_material_authority_report(
     packed_mask_semantics_mismatches = 0
     spec_gloss_conversion_policy_rows = 0
     spec_gloss_conversion_policy_missing = 0
+    texture_conversion_source_route_diagnostic_rows = 0
     source_vertex_color_materials = 0
     source_vertex_alpha_materials = 0
     source_material_class_rows = 0
@@ -470,6 +476,20 @@ def check_material_authority_report(
                 role_text = str(role_class or "").strip()
                 if role_text:
                     texture_conversion_role_counts[role_text] += 1
+            for diagnostic in tuple(conversion_policy.get("source_route_diagnostics", ()) or ()):
+                if not isinstance(diagnostic, Mapping):
+                    continue
+                code = str(diagnostic.get("code", "") or "").strip()
+                if not code:
+                    continue
+                severity = str(diagnostic.get("severity", "") or "")
+                texture_conversion_source_route_diagnostic_rows += 1
+                texture_conversion_source_route_diagnostic_counts[code] += 1
+                risk_flag = SOURCE_DIAGNOSTIC_RISK_FLAGS.get(code)
+                if risk_flag:
+                    derived_risk_flags.append(risk_flag)
+                if severity == "warning":
+                    warnings.append(f"Texture conversion source-route diagnostic warning for {target_path}: {code}.")
             missing_policy_roles = expected_role_classes - policy_role_classes
             if missing_policy_roles:
                 derived_risk_flags.append("texture_conversion_role_mismatch")
@@ -705,7 +725,10 @@ def check_material_authority_report(
             except (TypeError, ValueError, OverflowError):
                 pass
         diagnostic_codes: set[str] = set()
-        for diagnostic in tuple(material.get("diagnostics", ()) or ()):
+        source_diagnostics = tuple(material.get("diagnostics", ()) or ()) + tuple(
+            material.get("channel_diagnostics", ()) or ()
+        )
+        for diagnostic in source_diagnostics:
             if not isinstance(diagnostic, Mapping):
                 continue
             code = str(diagnostic.get("code", "") or "unknown")
@@ -794,10 +817,12 @@ def check_material_authority_report(
             derived_risk_flags.append(flag)
 
     all_risk_flags = tuple(_dedupe_text((*risk_flags, *derived_risk_flags)))
-    blocking_flags = tuple(flag for flag in all_risk_flags if flag in set(fail_on_risk_flags))
+    active_blocking_risk_flags = set(fail_on_risk_flags)
+    blocking_flags = tuple(flag for flag in all_risk_flags if flag in active_blocking_risk_flags)
     if blocking_flags:
         errors.append("Blocking material authority risk flag(s): " + ", ".join(blocking_flags))
-    review_flags = tuple(flag for flag in all_risk_flags if flag in set(REVIEW_RISK_FLAGS) and flag not in blocking_flags)
+    review_risk_flag_set = set(REVIEW_RISK_FLAGS) | (set(DEFAULT_BLOCKING_RISK_FLAGS) - active_blocking_risk_flags)
+    review_flags = tuple(flag for flag in all_risk_flags if flag in review_risk_flag_set and flag not in blocking_flags)
     for flag in review_flags:
         warnings.append(f"Review material authority risk flag: {flag}.")
 
@@ -850,6 +875,8 @@ def check_material_authority_report(
             "packed_mask_semantics_mismatches": packed_mask_semantics_mismatches,
             "spec_gloss_conversion_policy_rows": spec_gloss_conversion_policy_rows,
             "spec_gloss_conversion_policy_missing": spec_gloss_conversion_policy_missing,
+            "texture_conversion_source_route_diagnostic_rows": texture_conversion_source_route_diagnostic_rows,
+            "texture_conversion_source_route_diagnostics": dict(sorted(texture_conversion_source_route_diagnostic_counts.items())),
             "source_materials": len(source_materials),
             "source_material_class_rows": source_material_class_rows,
             "source_material_classes": dict(sorted(source_material_class_counts.items())),

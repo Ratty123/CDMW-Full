@@ -2387,7 +2387,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
         self.assertEqual([0.2, 0.4, 0.8], batch["texture_tint"])
         self.assertEqual(0.85, batch["base_tint_strength"])
 
-    def test_scene_import_package_defaults_to_unflipped_texture_v(self) -> None:
+    def test_scene_import_package_defaults_to_flipped_texture_v(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             base = temp_path / "base.png"
@@ -2414,7 +2414,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             )
             manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
-        self.assertFalse(manifest["batches"][0]["texture_flip_vertical"])
+        self.assertTrue(manifest["batches"][0]["texture_flip_vertical"])
 
     def test_scene_import_package_flip_texture_v_toggles_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2444,7 +2444,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             )
             manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
-        self.assertTrue(manifest["batches"][0]["texture_flip_vertical"])
+        self.assertFalse(manifest["batches"][0]["texture_flip_vertical"])
 
     def test_archive_explicit_unflipped_texture_v_stays_unflipped(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

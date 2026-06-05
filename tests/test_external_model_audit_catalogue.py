@@ -369,6 +369,48 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertEqual(1, report["summary"]["source_detected_channel_counts"]["roughness"])
         self.assertEqual(1, report["summary"]["source_detected_channel_counts"]["metalness"])
 
+    def test_catalogue_flags_suspicious_source_texture_slot_routing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "misrouted_blade.gltf"
+            _write_triangle_gltf(path)
+            _write_png(root / "blade_specularGlossiness.png", (210, 190, 170, 225))
+            _write_png(root / "blade_base.png", (180, 50, 30, 255))
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["materials"][0] = {
+                "name": "Misrouted Blade",
+                "pbrMetallicRoughness": {
+                    "baseColorTexture": {"index": 0},
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.7,
+                },
+                "emissiveTexture": {"index": 1},
+                "emissiveFactor": [1.0, 1.0, 1.0],
+            }
+            document["textures"] = [{"source": 0}, {"source": 1}]
+            document["images"] = [
+                {"uri": "blade_specularGlossiness.png"},
+                {"uri": "blade_base.png"},
+            ]
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            report = build_external_model_audit_catalogue([root])
+            check = check_external_model_audit_report(report)
+
+        inventory = report["models"][0]["material_inventory"][0]
+        diagnostic_codes = {row["code"] for row in inventory["channel_diagnostics"]}
+        check_diagnostics = check["counts"]["source_channel_diagnostics"]
+
+        self.assertIn("source_spec_gloss_texture_bound_as_base", diagnostic_codes)
+        self.assertIn("source_base_texture_bound_as_emissive", diagnostic_codes)
+        self.assertEqual(1, report["summary"]["source_channel_diagnostic_counts"]["source_spec_gloss_texture_bound_as_base"])
+        self.assertEqual(1, report["summary"]["source_channel_diagnostic_counts"]["source_base_texture_bound_as_emissive"])
+        self.assertEqual(1, check_diagnostics["source_spec_gloss_texture_bound_as_base"])
+        self.assertEqual(1, check_diagnostics["source_base_texture_bound_as_emissive"])
+        self.assertEqual(2, check["counts"]["source_texture_route_mismatches"])
+        self.assertIn("source_texture_route_mismatch", check["risk_flags"])
+        self.assertIn("source_texture_route_mismatch", check["review_risk_flags"])
+
     def test_catalogue_treats_pbr_scalars_as_roughness_metalness_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1327,6 +1369,42 @@ Connections:  {
                                 },
                             ),
                         },
+                        {
+                            "material_name": "Misrouted",
+                            "material_index": 2,
+                            "pbr_workflow": "metallic_roughness",
+                            "material_classes": ({"material_class": "metal"},),
+                            "detected_channels": ("base_color", "roughness", "metalness"),
+                            "missing_channels": ("emissive",),
+                            "channel_diagnostics": (
+                                {
+                                    "code": "source_base_texture_bound_as_emissive",
+                                    "message": "Base-color texture is also wired to emissive.",
+                                    "slot_kind": "emissive",
+                                    "texture_path": "shared_base.png",
+                                },
+                            ),
+                            "texture_slots": (
+                                {
+                                    "slot_kind": "base",
+                                    "texture_path": "shared_base.png",
+                                    "texture_name": "shared_base.png",
+                                    "image_format": "png",
+                                    "color_space": "srgb",
+                                    "resolution": (2, 2),
+                                    "channel_stats": (("r_mean", 0.7),),
+                                },
+                            ),
+                            "sections": (
+                                {
+                                    "section_name": "MisroutedPart",
+                                    "vertex_count": 3,
+                                    "face_count": 1,
+                                    "has_uvs": True,
+                                    "has_normals": True,
+                                },
+                            ),
+                        },
                     ],
                 },
                 {
@@ -1369,11 +1447,23 @@ Connections:  {
         self.assertIn("missing_alpha_diagnostics", warn_only["review_risk_flags"])
         self.assertIn("missing_emissive_diagnostics", warn_only["review_risk_flags"])
         self.assertIn("missing_roughness_metalness_diagnostics", warn_only["review_risk_flags"])
+        self.assertIn("source_texture_route_mismatch", warn_only["review_risk_flags"])
         self.assertEqual(1, warn_only["counts"]["audited_model_without_material_inventory"])
         self.assertEqual(1, warn_only["counts"]["archive_indexed_with_audit_members"])
         self.assertEqual(1, warn_only["counts"]["zip_content_audit_skipped_by_limit"])
         self.assertEqual(1, warn_only["counts"]["materials_missing_texture_facts"])
         self.assertEqual(1, warn_only["counts"]["sections_missing_geometry"])
+        self.assertEqual(1, warn_only["counts"]["source_texture_route_mismatches"])
+        examples = warn_only["examples"]
+        self.assertEqual("missing_base.png", examples["missing_texture_refs"][0]["texture_ref"])
+        self.assertEqual("Weak Glass", examples["missing_pbr_workflow"][0]["material_name"])
+        self.assertEqual("base", examples["texture_missing_resolution"][0]["slot_kind"])
+        self.assertEqual("WeakPart", examples["section_missing_geometry"][0]["section_name"])
+        self.assertEqual("packed.zip", examples["archive_content_not_audited"][0]["path"])
+        self.assertEqual(["scene/model.gltf"], examples["archive_content_not_audited"][0]["zip_audit_members"])
+        self.assertEqual("source_base_texture_bound_as_emissive", examples["source_texture_route_mismatch"][0]["code"])
+        self.assertEqual("Misrouted", examples["source_texture_route_mismatch"][0]["material_name"])
+        self.assertEqual("shared_base.png", examples["source_texture_route_mismatch"][0]["texture_path"])
 
     def test_external_model_audit_checker_cli_writes_result_json(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

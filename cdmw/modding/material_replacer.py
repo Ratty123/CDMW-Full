@@ -65,6 +65,7 @@ class ReplacementTextureSet:
     occlusion_strength: Optional[float] = None
     base_color_factor: Optional[tuple[float, float, float]] = None
     source_role_tags: tuple[str, ...] = ()
+    accent_glow_color_rgb: tuple[float, float, float] = ()
 
 
 _SPECULAR_GLOSSINESS_SUBTYPES = {"specular_glossiness", "specularglossiness", "specular_gloss", "specgloss"}
@@ -266,6 +267,8 @@ _MANUAL_PROFILE_FIELD_NAMES = (
     "base_color_saturation",
     "base_color_value_max",
     "base_color_auto_balance",
+    "base_color_shadow_lift",
+    "base_color_tone_contrast",
     "emissive_color_scale",
     "emissive_color_saturation",
     "emissive_color_value_max",
@@ -291,6 +294,11 @@ _MANUAL_PROFILE_FIELD_NAMES = (
     "mask_binding_mode",
     "support_policy",
     "authority_contract",
+    "edge_relief_strength",
+    "edge_relief_source",
+    "global_gloss_reduction",
+    "accent_glow_strength",
+    "accent_glow_intensity_max",
 )
 
 
@@ -528,7 +536,6 @@ def _manual_material_profile_from_payload(payload: Mapping[str, object]) -> CDMa
         "base_color_scale",
         "base_color_gamma",
         "base_color_saturation",
-        "base_color_tone_contrast",
         "emissive_color_scale",
         "emissive_color_saturation",
         "roughness_scale",
@@ -536,6 +543,16 @@ def _manual_material_profile_from_payload(payload: Mapping[str, object]) -> CDMa
     ):
         if key in payload:
             updates[key] = _coerce_optional_float(payload.get(key))
+    if "accent_glow_intensity_max" in payload:
+        intensity_max = _coerce_optional_float(
+            payload.get("accent_glow_intensity_max"),
+            minimum=0.0,
+            maximum=20.0,
+        )
+        if intensity_max is not None:
+            updates["accent_glow_intensity_max"] = intensity_max
+    if "base_color_tone_contrast" in payload:
+        updates["base_color_tone_contrast"] = normalize_tone_contrast(payload.get("base_color_tone_contrast"))
     for key in (
         "roughness_inverted",
         "roughness_invert",
@@ -567,6 +584,8 @@ def _manual_material_profile_from_payload(payload: Mapping[str, object]) -> CDMa
         updates["edge_relief_source"] = normalize_edge_relief_source(payload.get("edge_relief_source"))
     if "global_gloss_reduction" in payload:
         updates["global_gloss_reduction"] = normalize_global_gloss_reduction(payload.get("global_gloss_reduction"))
+    if "accent_glow_strength" in payload:
+        updates["accent_glow_strength"] = normalize_basic_control_percent(payload.get("accent_glow_strength"))
     raw_rgb = payload.get("neutral_color_rgb")
     if isinstance(raw_rgb, Sequence) and not isinstance(raw_rgb, (str, bytes)) and len(raw_rgb) >= 3:
         try:
@@ -873,6 +892,18 @@ def normalize_basic_control_percent(value: object) -> float:
     return max(0.0, min(100.0, number))
 
 
+def normalize_signed_basic_control_percent(value: object) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    if number == 0.0:
+        return 0.0
+    if -1.0 <= number <= 1.0:
+        number *= 100.0
+    return max(-100.0, min(100.0, number))
+
+
 def normalize_tone_contrast(value: object) -> float:
     try:
         number = float(value)
@@ -1148,13 +1179,22 @@ def apply_true_source_basic_controls_to_profile(
     auto_balance_strength = normalize_basic_control_percent(auto_brightness_balance)
     if auto_balance_strength > 0.0:
         updates["base_color_auto_balance"] = int(round(auto_balance_strength))
-    brightness_strength = normalize_basic_control_percent(dark_detail_lift)
+    brightness_strength = normalize_signed_basic_control_percent(dark_detail_lift)
     if brightness_strength > 0.0:
         strength = brightness_strength / 100.0
         current_shadow_lift = int(max(0, min(100, int(getattr(profile, "base_color_shadow_lift", 0) or 0))))
         current_gamma = _profile_base_color_gamma(profile)
         updates["base_color_shadow_lift"] = max(current_shadow_lift, int(round(brightness_strength)))
         updates["base_color_gamma"] = min(current_gamma, 1.0 - (0.18 * strength))
+    elif brightness_strength < 0.0:
+        strength = abs(brightness_strength) / 100.0
+        try:
+            raw_scale = getattr(profile, "base_color_scale", None)
+            current_scale = float(raw_scale if raw_scale is not None else 1.0)
+        except (TypeError, ValueError, OverflowError):
+            current_scale = 1.0
+        dim_scale = max(0.10, min(4.0, current_scale * (1.0 - 0.55 * strength)))
+        updates["base_color_scale"] = dim_scale
     tone_strength = normalize_tone_contrast(tone_contrast)
     if abs(tone_strength) > 0.0001:
         updates["base_color_tone_contrast"] = tone_strength
@@ -5242,6 +5282,21 @@ _ACCENT_GLOW_FACTOR_SHELL_TOKENS = {
 }
 
 
+def _normalized_accent_glow_rgb(value: object) -> tuple[float, float, float]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return ()
+    raw = tuple(value)
+    if len(raw) < 3:
+        return ()
+    try:
+        components = tuple(float(component) for component in raw[:3])
+    except (TypeError, ValueError, OverflowError):
+        return ()
+    if any(component > 1.0 for component in components):
+        components = tuple(component / 255.0 for component in components)
+    return tuple(max(0.0, min(1.0, component)) for component in components[:3])
+
+
 def _complete_swap_accent_emissive_slot(
     texture_set: ReplacementTextureSet,
     target_name: str,
@@ -5249,8 +5304,11 @@ def _complete_swap_accent_emissive_slot(
 ) -> Optional[ReplacementTextureSlot]:
     if _profile_accent_glow_intensity(material_profile) <= 0.0:
         return None
+    override_rgb = _normalized_accent_glow_rgb(getattr(texture_set, "accent_glow_color_rgb", ()))
     existing = texture_set.slots.get("emissive")
     if existing is not None:
+        if override_rgb:
+            return replace(existing, base_color_factor=override_rgb)
         return existing
     if not _texture_set_is_accent_glow_candidate(texture_set, target_name):
         return None
@@ -5269,8 +5327,9 @@ def _complete_swap_accent_emissive_slot(
             base_color_value_max=255,
             base_color_shadow_lift=0,
             base_color_tone_contrast=0.0,
+            base_color_factor=override_rgb or tuple(base_slot.base_color_factor or ()),
         )
-    color = tuple(texture_set.base_color_factor or ())
+    color = override_rgb or tuple(texture_set.base_color_factor or ())
     if len(color) >= 3:
         try:
             rgb = tuple(max(0.0, min(1.0, float(component))) for component in color[:3])
@@ -5498,13 +5557,15 @@ def _texture_set_accent_glow_color_hex(
     texture_set: ReplacementTextureSet,
     source_slot: Optional[ReplacementTextureSlot],
 ) -> str:
-    color = tuple(texture_set.base_color_factor or ())
+    color = _normalized_accent_glow_rgb(getattr(texture_set, "accent_glow_color_rgb", ()))
+    if not color:
+        color = tuple(texture_set.base_color_factor or ())
     if len(color) < 3 and source_slot is not None:
         color = tuple(getattr(source_slot, "base_color_factor", ()) or ())
     if len(color) >= 3:
         try:
             rgb = tuple(max(0, min(255, int(round(float(component) * 255.0)))) for component in color[:3])
-            if any(component > 0 for component in rgb):
+            if any(component > 0 for component in rgb) or _normalized_accent_glow_rgb(getattr(texture_set, "accent_glow_color_rgb", ())):
                 return f"#{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}FF"
         except (TypeError, ValueError, OverflowError):
             pass
@@ -8876,6 +8937,10 @@ def _apply_source_part_role_overrides(
         existing = tuple(str(tag or "").strip().lower() for tag in (texture_set.source_role_tags or ()) if str(tag or "").strip())
         if role not in existing:
             texture_set.source_role_tags = (*existing, role)
+        if role == "glow":
+            glow_rgb = _normalized_accent_glow_rgb(getattr(adjustment, "emissive_color_rgb", ()))
+            if glow_rgb:
+                texture_set.accent_glow_color_rgb = glow_rgb
 
 
 def _choose_source_materials_for_targets(
@@ -11682,7 +11747,7 @@ def _build_texture_payload(
 
 
 def _source_slot_needs_base_color_factor(source_slot: ReplacementTextureSlot) -> bool:
-    if str(source_slot.slot_kind or "").strip().lower() != "base":
+    if str(source_slot.slot_kind or "").strip().lower() not in {"base", "emissive"}:
         return False
     factor = tuple(getattr(source_slot, "base_color_factor", ()) or ())
     if len(factor) < 3:

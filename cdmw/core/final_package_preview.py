@@ -31,7 +31,10 @@ from cdmw.core.pipeline import inspect_crimson_dds
 from cdmw.models import ModelPreviewData, ModelPreviewMesh, PreviewMaterialTextureInput
 from cdmw.modding.asset_replacement import classify_texture_binding
 from cdmw.modding.mesh_parser import _find_pac_descriptors, _parse_par_sections, parse_mesh
-from cdmw.modding.pac_xml_profiles import build_pac_xml_material_authority_report
+from cdmw.modding.pac_xml_profiles import (
+    build_pac_xml_material_authority_report,
+    compare_pac_xml_material_authority_structure,
+)
 from cdmw.rendering.asset_fidelity_preflight import normal_y_policy_report
 
 
@@ -95,6 +98,13 @@ MATERIAL_PREFLIGHT_HARD_BLOCKER_TOKENS = (
     "_submeshresources idbase",
     "_submeshresources wrapper order does not match",
 )
+
+MATERIAL_AUTHORITY_SOURCE_ROUTE_DIAGNOSTIC_CODES = {
+    "source_base_texture_bound_as_emissive",
+    "source_spec_gloss_texture_bound_as_base",
+    "source_material_response_texture_bound_as_base",
+    "source_base_texture_bound_as_normal",
+}
 
 
 TEXTURE_PLAN_STATUS_READY = "Ready"
@@ -1352,106 +1362,7 @@ def _material_authority_sidecar_structural_compare(
     source_text: str,
     payload_text: str,
 ) -> Mapping[str, object]:
-    source_report = _material_authority_sidecar_report_dict(source_text, sidecar_path)
-    payload_report = _material_authority_sidecar_report_dict(payload_text, sidecar_path)
-    if not source_report or not payload_report:
-        return {
-            "structural_compare_status": "source_unavailable" if not source_report else "payload_unavailable",
-            "wrapper_order_preserved": False,
-            "wrapper_item_ids_preserved": False,
-            "submesh_bindings_preserved": False,
-            "submesh_item_ids_preserved": False,
-            "parameter_abi_preserved": False,
-            "source_wrapper_order_count": len(tuple(source_report.get("wrapper_order", ()) or ())) if source_report else 0,
-            "payload_wrapper_order_count": len(tuple(payload_report.get("wrapper_order", ()) or ())) if payload_report else 0,
-            "source_submesh_binding_count": len(tuple(source_report.get("submesh_bindings", ()) or ())) if source_report else 0,
-            "payload_submesh_binding_count": len(tuple(payload_report.get("submesh_bindings", ()) or ())) if payload_report else 0,
-            "source_parameter_abi_count": len(_material_authority_parameter_abi_rows(source_report)) if source_report else 0,
-            "payload_parameter_abi_count": len(_material_authority_parameter_abi_rows(payload_report)) if payload_report else 0,
-        }
-    source_wrappers = _material_authority_named_rows(
-        source_report.get("wrapper_order"),
-        ("order", "wrapper_name", "item_id", "shader_name"),
-    )
-    payload_wrappers = _material_authority_named_rows(
-        payload_report.get("wrapper_order"),
-        ("order", "wrapper_name", "item_id", "shader_name"),
-    )
-    source_wrapper_ids = _material_authority_named_rows(source_report.get("wrapper_order"), ("order", "wrapper_name", "item_id"))
-    payload_wrapper_ids = _material_authority_named_rows(payload_report.get("wrapper_order"), ("order", "wrapper_name", "item_id"))
-    source_bindings = _material_authority_named_rows(
-        source_report.get("submesh_bindings"),
-        ("order", "wrapper_name", "item_id", "id_base", "shader_name"),
-    )
-    payload_bindings = _material_authority_named_rows(
-        payload_report.get("submesh_bindings"),
-        ("order", "wrapper_name", "item_id", "id_base", "shader_name"),
-    )
-    source_binding_ids = _material_authority_named_rows(
-        source_report.get("submesh_bindings"),
-        ("order", "wrapper_name", "item_id", "id_base"),
-    )
-    payload_binding_ids = _material_authority_named_rows(
-        payload_report.get("submesh_bindings"),
-        ("order", "wrapper_name", "item_id", "id_base"),
-    )
-    source_parameter_abi = _material_authority_parameter_abi_rows(source_report)
-    payload_parameter_abi = _material_authority_parameter_abi_rows(payload_report)
-    return {
-        "structural_compare_status": "source_compared",
-        "wrapper_order_preserved": source_wrappers == payload_wrappers,
-        "wrapper_item_ids_preserved": source_wrapper_ids == payload_wrapper_ids,
-        "submesh_bindings_preserved": source_bindings == payload_bindings,
-        "submesh_item_ids_preserved": source_binding_ids == payload_binding_ids,
-        "parameter_abi_preserved": source_parameter_abi == payload_parameter_abi,
-        "source_wrapper_order_count": len(source_wrappers),
-        "payload_wrapper_order_count": len(payload_wrappers),
-        "source_submesh_binding_count": len(source_bindings),
-        "payload_submesh_binding_count": len(payload_bindings),
-        "source_parameter_abi_count": len(source_parameter_abi),
-        "payload_parameter_abi_count": len(payload_parameter_abi),
-    }
-
-
-def _material_authority_sidecar_report_dict(sidecar_text: str, sidecar_path: str) -> Mapping[str, object]:
-    if not str(sidecar_text or "").strip():
-        return {}
-    try:
-        return build_pac_xml_material_authority_report(sidecar_text, sidecar_path).to_dict()
-    except Exception:
-        return {}
-
-
-def _material_authority_named_rows(rows: object, fields: Sequence[str]) -> Tuple[Tuple[str, ...], ...]:
-    output: List[Tuple[str, ...]] = []
-    for row in tuple(rows or ()):
-        if not isinstance(row, Mapping):
-            continue
-        output.append(tuple(str(row.get(field, "") or "") for field in fields))
-    return tuple(output)
-
-
-def _material_authority_parameter_abi_rows(report: Mapping[str, object]) -> Tuple[Tuple[str, ...], ...]:
-    rows: List[Tuple[str, ...]] = []
-    for group_name in (
-        "runtime_abi_parameters",
-        "source_authority_parameters",
-        "inherited_influence_parameters",
-        "unknown_material_response_parameters",
-    ):
-        for row in tuple(report.get(group_name, ()) or ()):
-            if not isinstance(row, Mapping):
-                continue
-            rows.append(
-                (
-                    str(row.get("wrapper_name", "") or ""),
-                    str(row.get("parameter_name", "") or ""),
-                    str(row.get("parameter_type", "") or ""),
-                    str(row.get("item_id", "") or ""),
-                    str(row.get("index", "") or ""),
-                )
-            )
-    return tuple(sorted(rows))
+    return compare_pac_xml_material_authority_structure(source_text, payload_text, sidecar_path)
 
 
 def _material_authority_sidecar_texture_ref_changes(
@@ -1740,6 +1651,24 @@ def _material_authority_texture_conversion_policy(
             if isinstance(item, Mapping) and str(item.get("class", "") or item.get("material_class", "") or "").strip()
         )
     )
+    source_packed_channels = tuple(
+        _dedupe(
+            channel
+            for row in source_rows
+            for channel in _material_authority_source_row_packed_channels(row)
+        )
+    )
+    source_packed_semantics = _material_authority_source_packed_channel_semantics(
+        source_packed_channels,
+        source_workflows,
+    )
+    source_route_diagnostics = tuple(
+        _material_authority_dedupe_source_route_diagnostics(
+            diagnostic
+            for row in source_rows
+            for diagnostic in _material_authority_source_row_route_diagnostics(row)
+        )
+    )
     spec_gloss_conversion = "material" in role_classes and "specular_glossiness" in source_workflows
     return {
         "source_extension": source_extension,
@@ -1758,6 +1687,20 @@ def _material_authority_texture_conversion_policy(
         "source_workflows": source_workflows,
         "source_derived_channels": source_derived_channels,
         "source_material_classes": source_classes,
+        "source_packed_channels": source_packed_channels,
+        "source_packed_channel_semantics": tuple(dict(row) for row in source_packed_semantics),
+        "source_packed_channel_note": (
+            "Source packed-channel evidence is recorded separately from the generated Crimson material-mask channel layout."
+            if source_packed_channels
+            else ""
+        ),
+        "source_route_diagnostic_codes": tuple(_dedupe(str(row.get("code", "") or "") for row in source_route_diagnostics)),
+        "source_route_diagnostics": source_route_diagnostics,
+        "source_route_diagnostic_note": (
+            "Source material texture routing needs review before trusting this DDS output as source-authoritative."
+            if source_route_diagnostics
+            else ""
+        ),
         "spec_gloss_conversion": spec_gloss_conversion,
         "spec_gloss_conversion_note": (
             "Specular/glossiness source workflow: glossiness is inverted to roughness and specular luminance is mapped into the Crimson packed material mask."
@@ -2155,6 +2098,125 @@ def _material_authority_source_row_derived_channels(row: Mapping[str, object]) -
     return ()
 
 
+def _material_authority_source_row_packed_channels(row: Mapping[str, object]) -> Tuple[str, ...]:
+    output: List[str] = []
+    for packed in tuple(row.get("preview_material_texture_packed_channels", ()) or ()):
+        normalized = str(packed or "").strip().lower()
+        if normalized:
+            output.append(normalized)
+    for slot in tuple(row.get("material_inputs", ()) or ()):
+        if not isinstance(slot, Mapping):
+            continue
+        slot_text = " ".join(
+            str(slot.get(key, "") or "").strip().lower()
+            for key in ("slot_kind", "semantic_type", "semantic_subtype", "parameter_name", "texture_path")
+        )
+        packed = tuple(
+            str(channel or "").strip().lower()
+            for channel in tuple(slot.get("packed_channels", ()) or ())
+            if str(channel or "").strip()
+        )
+        if not packed:
+            continue
+        if not any(token in slot_text for token in ("material", "metal", "rough", "specular", "gloss", "occlusion", "ao", "mask")):
+            continue
+        output.extend(packed)
+    return tuple(_dedupe(output))
+
+
+def _material_authority_source_row_route_diagnostics(row: Mapping[str, object]) -> Tuple[Mapping[str, object], ...]:
+    output: List[Mapping[str, object]] = []
+    material_name = str(row.get("material_name", "") or "")
+    for diagnostic in tuple(row.get("diagnostics", ()) or ()) + tuple(row.get("channel_diagnostics", ()) or ()):
+        if not isinstance(diagnostic, Mapping):
+            continue
+        code = str(diagnostic.get("code", "") or "").strip()
+        if code not in MATERIAL_AUTHORITY_SOURCE_ROUTE_DIAGNOSTIC_CODES:
+            continue
+        payload = {
+            "code": code,
+            "severity": str(diagnostic.get("severity", "") or ""),
+            "message": str(diagnostic.get("message", "") or ""),
+            "material_name": material_name,
+            "slot_kind": str(diagnostic.get("slot_kind", "") or ""),
+            "texture_name": str(diagnostic.get("texture_name", "") or ""),
+            "texture_path": str(diagnostic.get("texture_path", "") or ""),
+        }
+        output.append({key: value for key, value in payload.items() if str(value or "").strip()})
+    return tuple(output)
+
+
+def _material_authority_dedupe_source_route_diagnostics(
+    diagnostics: Iterable[Mapping[str, object]],
+) -> Tuple[Mapping[str, object], ...]:
+    output: List[Mapping[str, object]] = []
+    seen: set[Tuple[str, str, str, str]] = set()
+    for diagnostic in tuple(diagnostics or ()):
+        if not isinstance(diagnostic, Mapping):
+            continue
+        key = (
+            str(diagnostic.get("code", "") or ""),
+            str(diagnostic.get("material_name", "") or ""),
+            str(diagnostic.get("slot_kind", "") or ""),
+            str(diagnostic.get("texture_path", "") or diagnostic.get("texture_name", "") or ""),
+        )
+        if not any(key) or key in seen:
+            continue
+        seen.add(key)
+        output.append(dict(diagnostic))
+        if len(output) >= 8:
+            break
+    return tuple(output)
+
+
+def _material_authority_source_packed_channel_semantics(
+    packed_channels: Sequence[str],
+    source_workflows: Sequence[str],
+) -> Tuple[Mapping[str, object], ...]:
+    channels = tuple(
+        str(channel or "").strip().lower()
+        for channel in tuple(packed_channels or ())
+        if str(channel or "").strip()
+    )
+    channel_set = set(channels)
+    workflows = {str(workflow or "").strip().lower() for workflow in tuple(source_workflows or ()) if str(workflow or "").strip()}
+    if not channels:
+        return ()
+    if "specular_glossiness" in workflows or {"specular", "glossiness"}.issubset(channel_set):
+        return (
+            {"channel": "R", "semantic": "specular_red"},
+            {"channel": "G", "semantic": "specular_green"},
+            {"channel": "B", "semantic": "specular_blue"},
+            {"channel": "A", "semantic": "glossiness"},
+        )
+    if {"roughness", "metallic"}.issubset(channel_set) or {"roughness", "metalness"}.issubset(channel_set):
+        rows: List[Mapping[str, object]] = []
+        if channel_set.intersection({"ao", "occlusion", "ambientocclusion"}):
+            rows.append({"channel": "R", "semantic": "ao"})
+        rows.extend(
+            (
+                {"channel": "G", "semantic": "roughness"},
+                {"channel": "B", "semantic": "metallic"},
+            )
+        )
+        if channel_set.intersection({"alpha", "opacity"}):
+            rows.append({"channel": "A", "semantic": "alpha"})
+        return tuple(rows)
+    if channel_set.intersection({"ao", "occlusion", "ambientocclusion"}):
+        return ({"channel": "R", "semantic": "ao"},)
+    if "roughness" in channel_set:
+        return ({"channel": "R", "semantic": "roughness"},)
+    if channel_set.intersection({"metallic", "metalness"}):
+        return ({"channel": "R", "semantic": "metallic"},)
+    if channel_set.intersection({"alpha", "opacity"}):
+        return ({"channel": "A", "semantic": "alpha"},)
+    fallback_channels = ("R", "G", "B", "A")
+    return tuple(
+        {"channel": fallback_channels[index], "semantic": semantic}
+        for index, semantic in enumerate(channels[: len(fallback_channels)])
+    )
+
+
 def _material_authority_bound_role_classes(bound_rows: Sequence[FinalPackageBindingRow]) -> set[str]:
     classes: set[str] = set()
     for row in tuple(bound_rows or ()):
@@ -2288,6 +2350,7 @@ def _material_authority_source_material_rows(preview_result: MeshImportPreviewRe
             "preview_normal_texture_path": str(getattr(mesh, "preview_normal_texture_path", "") or "").replace("\\", "/"),
             "preview_material_texture_path": str(getattr(mesh, "preview_material_texture_path", "") or "").replace("\\", "/"),
             "preview_material_texture_subtype": str(getattr(mesh, "preview_material_texture_subtype", "") or ""),
+            "preview_material_texture_packed_channels": tuple(getattr(mesh, "preview_material_texture_packed_channels", ()) or ()),
             "alpha_mode": str(getattr(mesh, "preview_alpha_mode", "") or ""),
             "double_sided": bool(getattr(mesh, "preview_double_sided", False)),
             "vertex_color_factor": tuple(channel_profile.get("vertex_color_factor", ())),
@@ -3507,8 +3570,14 @@ def _material_authority_risk_flags(
             flags.append("source_missing_base_color")
         if "source_alpha_without_opacity_texture" in diagnostic_codes:
             flags.append("source_alpha_missing_opacity")
-        if "source_spec_gloss_texture_as_base_color" in diagnostic_codes:
+        if "source_spec_gloss_texture_as_base_color" in diagnostic_codes or "source_spec_gloss_texture_bound_as_base" in diagnostic_codes:
             flags.append("source_spec_gloss_base_conflict")
+        if "source_base_texture_bound_as_emissive" in diagnostic_codes:
+            flags.append("base_texture_used_as_emissive")
+        if "source_material_response_texture_bound_as_base" in diagnostic_codes:
+            flags.append("visible_technical_role_conflict")
+        if "source_base_texture_bound_as_normal" in diagnostic_codes:
+            flags.append("normal_slot_suspicious")
         if {"roughness", "metalness"}.issubset(missing_channels):
             flags.append("source_missing_roughness_metalness")
         if "source_emissive_scalar_no_texture" in diagnostic_codes:
@@ -4459,7 +4528,12 @@ def build_final_package_preview(
             if not texture_path.lower().endswith(".dds"):
                 continue
             parameter_name = str(getattr(binding, "parameter_name", "") or "").strip()
-            if parameter_name.lower() == "_normaltexture" and not _looks_like_normal_texture_path(texture_path):
+            kept_original_binding = str(sidecar_path or "").strip().lower() == "kept original sidecar bindings"
+            if (
+                parameter_name.lower() == "_normaltexture"
+                and not kept_original_binding
+                and not _looks_like_normal_texture_path(texture_path)
+            ):
                 warnings.append(
                     f"Texture contract warning: _normalTexture points at a non-normal-looking DDS path: {texture_path}."
                 )
@@ -4531,7 +4605,6 @@ def build_final_package_preview(
 
             binding_material = _binding_material_name(binding)
             binding_key = _material_key(binding_material)
-            kept_original_binding = str(sidecar_path or "").strip().lower() == "kept original sidecar bindings"
             mesh_indices = _candidate_mesh_indices(
                 preview_model,
                 binding,

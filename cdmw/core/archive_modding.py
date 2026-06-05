@@ -3966,7 +3966,7 @@ def parsed_mesh_to_preview_model(parsed_mesh: ParsedMesh) -> ModelPreviewData:
     if scene_import_normalizes_texture_v(parsed_mesh.format, parsed_mesh.path):
         for mesh in getattr(preview_model, "meshes", ()) or ():
             if getattr(mesh, "preview_texture_flip_vertical", None) is None:
-                mesh.preview_texture_flip_vertical = False
+                mesh.preview_texture_flip_vertical = True
     return preview_model
 
 
@@ -5602,7 +5602,7 @@ def build_mesh_import_preview(
         complete_swap_auto_brightness_balance = 0.0
     try:
         complete_swap_dark_detail_lift = max(
-            0.0,
+            -100.0,
             min(100.0, float(getattr(static_replacement_options, "dark_detail_lift", 0.0) or 0.0)),
         )
     except (TypeError, ValueError, OverflowError):
@@ -5665,6 +5665,11 @@ def build_mesh_import_preview(
             summary_lines.append(
                 "Source brightness requested: "
                 f"{complete_swap_dark_detail_lift:.0f}%; source base DDS shadows and midtones will be lifted."
+            )
+        elif complete_swap_dark_detail_lift < 0.0:
+            summary_lines.append(
+                "Source brightness requested: "
+                f"{complete_swap_dark_detail_lift:.0f}%; source base DDS color will be dimmed before export."
             )
         if complete_swap_auto_brightness_balance > 0.0:
             summary_lines.append(

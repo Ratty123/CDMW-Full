@@ -598,6 +598,76 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertEqual(str(output_root), attempt.package_path)
         self.assertEqual([str(output_root)], captured_output_roots)
 
+    def test_run_native_preview_core_repairs_metal_manifest_contract(self) -> None:
+        def fake_run_process(cmd, **_kwargs):
+            report_path = Path(cmd[3])
+            job = json.loads(Path(cmd[2]).read_text(encoding="utf-8"))
+            package = Path(job["output_root"])
+            package.mkdir(parents=True)
+            (package / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 8,
+                        "backend": "d3d11",
+                        "render_diagnostic_mode": "lit",
+                        "d3d11_view_mode": "lit",
+                        "batches": [
+                            {
+                                "index": 0,
+                                "material_name": "CD_PHM_Gold_Armor",
+                                "material_category": "metal",
+                                "material_category_confidence": 0.95,
+                                "material_category_reason": "metal:armor_family_material_response",
+                                "material_response_disposition": "specular_gloss_metal_response",
+                                "dds_textures": {"material": {"source_path": "cd_temp_r_m.dds"}},
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            report_path.write_text(
+                json.dumps({"status": "ok", "package_path": str(package)}),
+                encoding="utf-8",
+            )
+            return 0, "", ""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            fake_binary = temp_path / "cdmw-preview-core.exe"
+            fake_binary.write_text("stub", encoding="utf-8")
+            output_root = temp_path / "package"
+            settings = ModelPreviewRenderSettings(diffuse_wrap_bias=0.91)
+            with (
+                patch.object(native_preview_core, "find_native_preview_core_binary", return_value=fake_binary),
+                patch.object(native_preview_core, "run_process_with_cancellation", side_effect=fake_run_process),
+            ):
+                attempt = run_native_preview_core_preview_job(
+                    _entry(),
+                    cache_root=temp_path / "cache",
+                    output_root=output_root,
+                    render_settings=settings,
+                    timeout_seconds=0.5,
+                    use_service=False,
+                )
+
+            manifest = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
+
+        self.assertTrue(attempt.succeeded)
+        self.assertEqual(2, manifest["material_contract_schema"])
+        self.assertEqual(2, manifest["material_channel_contract_schema"])
+        self.assertEqual(1, manifest["texture_quality_schema"])
+        self.assertEqual("shiny_metal_inspection", manifest["lighting_preset"])
+        self.assertAlmostEqual(0.91, manifest["diffuse_wrap_bias"])
+        batch = manifest["batches"][0]
+        self.assertGreaterEqual(batch["metalness"], 0.68)
+        self.assertGreaterEqual(batch["specular"], 0.68)
+        self.assertLessEqual(batch["roughness"], 0.24)
+        self.assertEqual(2, batch["material_contract"]["schema_version"])
+        self.assertEqual(2, batch["material_channel_contract"]["schema_version"])
+        self.assertGreaterEqual(batch["material_contract"]["pbr_scalar_hints"]["metalness"], 0.68)
+        self.assertEqual(1, attempt.diagnostics["native_preview_core_repaired_metal_batches"])
+
     def test_native_preview_core_prunes_extracted_dds_cache(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_root = Path(temp_dir) / "native_preview_core"
@@ -1203,6 +1273,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("direct_metal_response", source)
         self.assertIn("user_metalness_scale", source)
         self.assertIn("category_metal_fallback", source)
+        self.assertIn("metalness = max(metalness, category_metal_fallback);", source)
+        self.assertIn("roughness = min(roughness, lerp(0.34, 0.16, category_confidence));", source)
         self.assertIn("normalized_lighting_preset", source)
         self.assertIn("apply_render_tuning_preset(", source)
         self.assertIn("lower_copy(stats_.lighting_preset)", source)
@@ -1250,6 +1322,15 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("material_response_disposition", source)
         self.assertIn("material_response_promoted", source)
         self.assertIn('material_category == "metal" && promoted_global_material_response(material)', source)
+        self.assertIn("has_metal_preview_response", source)
+        self.assertIn("native_lighting_preset_for_job(job, has_metal_preview_response)", source)
+        self.assertIn('\\"lighting_preset\\":\\"', source)
+        self.assertIn('\\"material_contract_schema\\":2', source)
+        self.assertIn('\\"material_channel_contract_schema\\":2', source)
+        self.assertIn('\\"texture_quality_schema\\":1', source)
+        self.assertIn('\\"diffuse_wrap_bias\\":', source)
+        self.assertIn('\\"metalness\\":', source)
+        self.assertIn('\\"native_material_hints\\":{', source)
         self.assertIn("material_category_reason_for_bindings", source)
         self.assertIn('\\"material_category_reason\\"', source)
         self.assertIn("add_support_base_sibling_ref", source)

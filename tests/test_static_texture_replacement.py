@@ -46,6 +46,7 @@ from cdmw.modding.material_replacer import (
     _bruteforce_source_authority_texture_parameters,
     _build_source_driven_sidecar_text,
     _choose_source_materials_for_targets,
+    _complete_swap_accent_emissive_slot,
     _complete_swap_runtime_material_mask_png_path,
     _complete_swap_neutral_support_png_path,
     _neutralize_inherited_material_layers,
@@ -63,6 +64,7 @@ from cdmw.modding.material_replacer import (
     _source_slot_needs_base_color_adjustment,
     _source_driven_parameter_name,
     _source_driven_slots,
+    _texture_set_accent_glow_color_hex,
     _texture_set_is_accent_glow_candidate,
     _visible_gem_sensitive_wrappers_touched,
     build_texture_replacement_payloads,
@@ -1254,6 +1256,37 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertLess(profile.base_color_gamma, 1.0)
             self.assertGreater(lifted_pixel[0], 24)
 
+    def test_source_brightness_control_dims_bright_base_color(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            base_png = root / "Blade_baseColor.png"
+            Image.new("RGBA", (2, 1), (220, 220, 220, 255)).save(base_png)
+            profile = apply_true_source_basic_controls_to_profile(
+                get_complete_swap_material_profile("material_authority"),
+                dark_detail_lift=-75,
+            )
+            texture_set = ReplacementTextureSet(
+                "Blade",
+                slots={"base": ReplacementTextureSlot("Blade", "base", base_png)},
+            )
+            base_slot = next(
+                slot
+                for slot in _source_driven_slots(
+                    texture_set,
+                    include_complete_support_fallbacks=True,
+                    material_profile=profile,
+                )
+                if slot.slot_kind == "base"
+            )
+            with Image.open(_source_slot_png_with_base_color_factor_path(base_slot)) as image:
+                dimmed_pixel = image.convert("RGB").getpixel((0, 0))
+
+            self.assertLess(profile.base_color_scale, 1.0)
+            self.assertEqual(0, profile.base_color_shadow_lift)
+            self.assertLess(dimmed_pixel[0], 220)
+
     def test_material_authority_spec_gloss_keeps_real_diffuse_runtime_base(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             from PIL import Image
@@ -2338,6 +2371,88 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn("glow", texture_set.source_role_tags)
         self.assertTrue(_texture_set_is_accent_glow_candidate(texture_set, "cd_phm_02_sword_blade_0015"))
 
+    def test_source_part_glow_role_can_override_emissive_color(self) -> None:
+        from PIL import Image
+
+        texture_set = ReplacementTextureSet(
+            material_name="plain_gem",
+            base_color_factor=(0.35, 0.35, 0.35),
+            source_face_count=12000,
+        )
+        texture_sets = {"plain_gem": texture_set}
+        mesh = ParsedMesh(
+            submeshes=[
+                SubMesh(
+                    name="Gem",
+                    material="plain_gem",
+                    faces=[(0, 1, 2)] * 12000,
+                )
+            ]
+        )
+
+        _apply_source_part_role_overrides(
+            texture_sets,
+            mesh,
+            [
+                StaticSourcePartAdjustment(
+                    source_submesh_index=0,
+                    material_role="glow",
+                    emissive_color_rgb=(0, 128, 255),
+                )
+            ],
+        )
+
+        profile = apply_true_source_basic_controls_to_profile(
+            get_complete_swap_material_profile("material_authority"),
+            accent_glow_strength=100,
+        )
+        emissive_slot = _complete_swap_accent_emissive_slot(texture_set, "cd_phm_02_sword_blade_0015", profile)
+
+        self.assertIsNotNone(emissive_slot)
+        self.assertEqual((0.0, 128.0 / 255.0, 1.0), texture_set.accent_glow_color_rgb)
+        self.assertEqual("#0080FFFF", _texture_set_accent_glow_color_hex(texture_set, emissive_slot))
+        with Image.open(emissive_slot.source_path) as image:  # type: ignore[union-attr]
+            pixel = image.convert("RGB").getpixel((0, 0))
+        self.assertEqual((0, 128, 255), pixel)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            emissive_png = Path(temp_dir) / "existing_emissive.png"
+            Image.new("RGBA", (2, 2), (255, 255, 255, 255)).save(emissive_png)
+            existing_set = ReplacementTextureSet(
+                material_name="existing_gem",
+                slots={
+                    "emissive": ReplacementTextureSlot(
+                        material_name="existing_gem",
+                        slot_kind="emissive",
+                        source_path=emissive_png,
+                    )
+                },
+            )
+            existing_sets = {"existing_gem": existing_set}
+            existing_mesh = ParsedMesh(
+                submeshes=[SubMesh(name="Gem", material="existing_gem", faces=[(0, 1, 2)])]
+            )
+            _apply_source_part_role_overrides(
+                existing_sets,
+                existing_mesh,
+                [
+                    StaticSourcePartAdjustment(
+                        source_submesh_index=0,
+                        material_role="glow",
+                        emissive_color_rgb=(255, 64, 0),
+                    )
+                ],
+            )
+            existing_slot = _complete_swap_accent_emissive_slot(
+                existing_set,
+                "cd_phm_02_sword_blade_0015",
+                profile,
+            )
+            tinted_path = _source_slot_png_with_base_color_factor_path(existing_slot)  # type: ignore[arg-type]
+            with Image.open(tinted_path) as image:
+                pixel = image.convert("RGB").getpixel((0, 0))
+            self.assertEqual((255, 64, 0), pixel)
+
     def test_emissive_factor_material_uses_base_factor_not_emissive_as_base(self) -> None:
         from PIL import Image
 
@@ -3339,6 +3454,8 @@ class StaticTextureReplacementTests(unittest.TestCase):
             "base_color_saturation": 0.77,
             "base_color_value_max": 210,
             "base_color_auto_balance": 65,
+            "base_color_shadow_lift": 35,
+            "base_color_tone_contrast": -55.0,
             "emissive_color_scale": 0.22,
             "emissive_color_saturation": 0.33,
             "emissive_color_value_max": 99,
@@ -3364,6 +3481,11 @@ class StaticTextureReplacementTests(unittest.TestCase):
             "mask_binding_mode": "scratch_scalars",
             "support_policy": "generated_or_neutral",
             "authority_contract": "true_source_authority",
+            "edge_relief_strength": 40,
+            "edge_relief_source": "generate_source",
+            "global_gloss_reduction": -20.0,
+            "accent_glow_strength": 60,
+            "accent_glow_intensity_max": 8.0,
         }
         self.assertLessEqual(set(_MANUAL_PROFILE_FIELD_NAMES), set(values))
 

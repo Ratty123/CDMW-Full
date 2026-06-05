@@ -37,12 +37,20 @@ REVIEW_RISK_FLAGS = (
     "missing_alpha_diagnostics",
     "missing_emissive_diagnostics",
     "missing_roughness_metalness_diagnostics",
+    "source_texture_route_mismatch",
 )
 
 _AUDITED_STATUSES = {"audited", "archive_audited"}
 _FAILED_STATUSES = {"failed", "archive_failed"}
 _METADATA_ONLY_STATUSES = {"browsable_material_inferred", "browsable_unsupported"}
 _ALPHA_MODES = {"alpha", "blend", "coverage", "cutout", "mask", "transparent"}
+_SOURCE_TEXTURE_ROUTE_MISMATCH_CODES = {
+    "source_base_texture_bound_as_emissive",
+    "source_spec_gloss_texture_bound_as_base",
+    "source_material_response_texture_bound_as_base",
+    "source_base_texture_bound_as_normal",
+}
+_MAX_EXAMPLES_PER_RISK = 8
 
 
 def resolve_external_model_audit_report_path(path: str | Path) -> Path:
@@ -70,6 +78,7 @@ def check_external_model_audit_report(
     derived_risk_flags: list[str] = []
     errors: list[str] = []
     warnings: list[str] = []
+    examples: dict[str, list[dict[str, object]]] = {}
 
     schema_version = report.get("schema_version")
     if schema_version != 1:
@@ -121,6 +130,7 @@ def check_external_model_audit_report(
     materials_missing_alpha_diagnostics = 0
     materials_missing_emissive_diagnostics = 0
     materials_missing_roughness_metalness_diagnostics = 0
+    source_texture_route_mismatches = 0
 
     if not models:
         derived_risk_flags.append("missing_models")
@@ -131,23 +141,53 @@ def check_external_model_audit_report(
         status_counts[status] += 1
         if status in _FAILED_STATUSES:
             failed_models += 1
+            _append_example(examples, "failed_models", _model_example(model))
 
         row_missing_refs = len(tuple(model.get("missing_texture_refs", ()) or ()))
         row_ambiguous_refs = len(tuple(model.get("ambiguous_texture_refs", ()) or ()))
         missing_texture_refs += row_missing_refs
         ambiguous_texture_refs += row_ambiguous_refs
         unresolved_texture_candidates += len(tuple(model.get("unresolved_texture_candidates", ()) or ()))
+        for missing_ref in tuple(model.get("missing_texture_refs", ()) or ()):
+            _append_example(examples, "missing_texture_refs", {**_model_example(model), "texture_ref": str(missing_ref)})
+        for ambiguous_ref in tuple(model.get("ambiguous_texture_refs", ()) or ()):
+            _append_example(examples, "ambiguous_texture_refs", {**_model_example(model), "texture_ref": str(ambiguous_ref)})
+        for candidate in tuple(model.get("unresolved_texture_candidates", ()) or ()):
+            _append_example(
+                examples,
+                "unresolved_texture_candidates",
+                {**_model_example(model), **_compact_mapping(candidate, fallback_key="candidate")},
+            )
 
         if status == "archive_indexed" and tuple(model.get("zip_audit_members", ()) or ()):
             archive_indexed_with_audit_members += 1
+            _append_example(
+                examples,
+                "archive_content_not_audited",
+                {
+                    **_model_example(model),
+                    "zip_audit_members": list(tuple(model.get("zip_audit_members", ()) or ())[:4]),
+                },
+            )
         if bool(model.get("zip_content_audit_skipped")):
             zip_content_audit_skipped_by_limit += 1
+            _append_example(
+                examples,
+                "zip_audit_limit_skipped",
+                {
+                    **_model_example(model),
+                    "skip_reason": str(model.get("zip_content_audit_skip_reason", "") or ""),
+                },
+            )
 
         inventory = tuple(material for material in tuple(model.get("material_inventory", ()) or ()) if isinstance(material, Mapping))
         if status in _AUDITED_STATUSES and not inventory:
             audited_model_without_material_inventory += 1
+            _append_example(examples, "audited_model_without_material_inventory", _model_example(model))
         if inventory and (status in _METADATA_ONLY_STATUSES or (status == "archive_audited" and not bool(model.get("import_supported")))):
             metadata_only_inventory_rows += len(inventory)
+            for material in inventory:
+                _append_example(examples, "metadata_only_inventory", _material_example(model, material))
 
         geometry_required = status in _AUDITED_STATUSES and bool(model.get("import_supported", True))
         for material in inventory:
@@ -157,6 +197,7 @@ def check_external_model_audit_report(
                 pbr_workflow_counts[workflow] += 1
             else:
                 materials_missing_workflow += 1
+                _append_example(examples, "missing_pbr_workflow", _material_example(model, material))
 
             material_classes = tuple(item for item in tuple(material.get("material_classes", ()) or ()) if isinstance(item, Mapping))
             if material_classes:
@@ -167,6 +208,7 @@ def check_external_model_audit_report(
                         material_class_counts[class_name] += 1
             else:
                 materials_missing_classes += 1
+                _append_example(examples, "missing_material_classes", _material_example(model, material))
 
             detected_channels = _source_channel_values(material.get("detected_channels"))
             missing_channels = _source_channel_values(material.get("missing_channels"))
@@ -174,12 +216,31 @@ def check_external_model_audit_report(
             detected_channel_counts.update(detected_channels)
             missing_channel_counts.update(missing_channels)
             channel_diagnostic_counts.update(diagnostic_codes)
+            source_texture_route_mismatches += len(diagnostic_codes & _SOURCE_TEXTURE_ROUTE_MISMATCH_CODES)
+            for diagnostic in tuple(material.get("channel_diagnostics", ()) or ()):
+                if not isinstance(diagnostic, Mapping):
+                    continue
+                diagnostic_code = str(diagnostic.get("code", "") or "").strip()
+                if diagnostic_code not in _SOURCE_TEXTURE_ROUTE_MISMATCH_CODES:
+                    continue
+                _append_example(
+                    examples,
+                    "source_texture_route_mismatch",
+                    {
+                        **_material_example(model, material),
+                        "code": diagnostic_code,
+                        "message": str(diagnostic.get("message", "") or ""),
+                        "texture_path": str(diagnostic.get("texture_path", "") or diagnostic.get("texture_name", "") or ""),
+                        "slot_kind": str(diagnostic.get("slot_kind", "") or ""),
+                    },
+                )
 
             texture_slots = tuple(slot for slot in tuple(material.get("texture_slots", ()) or ()) if isinstance(slot, Mapping))
             if not texture_slots:
                 materials_without_texture_slots += 1
                 if not _material_has_scalar_or_channel_evidence(material, detected_channels, missing_channels, diagnostic_codes):
                     materials_missing_texture_facts += 1
+                    _append_example(examples, "missing_texture_slot_facts", _material_example(model, material))
             if (
                 not isinstance(material.get("channel_profile"), Mapping)
                 and not detected_channels
@@ -187,6 +248,7 @@ def check_external_model_audit_report(
                 and not diagnostic_codes
             ):
                 materials_missing_channel_diagnostics += 1
+                _append_example(examples, "missing_channel_diagnostics", _material_example(model, material))
 
             for slot in texture_slots:
                 texture_slot_rows += 1
@@ -198,20 +260,25 @@ def check_external_model_audit_report(
                     texture_format_counts[image_format] += 1
                 else:
                     texture_slots_missing_format += 1
+                    _append_example(examples, "texture_missing_format", _texture_slot_example(model, material, slot))
                 color_space = str(slot.get("color_space", "") or "").strip().lower()
                 if color_space:
                     texture_color_space_counts[color_space] += 1
                 else:
                     texture_slots_missing_color_space += 1
+                    _append_example(examples, "texture_missing_color_space", _texture_slot_example(model, material, slot))
                 if not _valid_resolution(slot.get("resolution")):
                     texture_slots_missing_resolution += 1
+                    _append_example(examples, "texture_missing_resolution", _texture_slot_example(model, material, slot))
                 if not tuple(slot.get("channel_stats", ()) or ()):
                     texture_slots_missing_channel_stats += 1
+                    _append_example(examples, "texture_missing_channel_stats", _texture_slot_example(model, material, slot))
 
             if geometry_required:
                 sections = tuple(section for section in tuple(material.get("sections", ()) or ()) if isinstance(section, Mapping))
                 if not sections:
                     materials_missing_sections += 1
+                    _append_example(examples, "material_missing_sections", _material_example(model, material))
                 for section in sections:
                     material_section_rows += 1
                     vertex_count = _report_int(section.get("vertex_count"), 0)
@@ -220,10 +287,13 @@ def check_external_model_audit_report(
                     section_face_count += face_count
                     if vertex_count <= 0 or face_count <= 0:
                         sections_missing_geometry += 1
+                        _append_example(examples, "section_missing_geometry", _section_example(model, material, section))
                     if not bool(section.get("has_uvs")):
                         sections_missing_uvs += 1
+                        _append_example(examples, "section_missing_uvs", _section_example(model, material, section))
                     if not bool(section.get("has_normals")):
                         sections_missing_normals += 1
+                        _append_example(examples, "section_missing_normals", _section_example(model, material, section))
 
             if _source_alpha_relevant(material, detected_channels, missing_channels, diagnostic_codes, texture_slots) and not _source_channel_has_evidence(
                 detected_channels,
@@ -233,6 +303,7 @@ def check_external_model_audit_report(
                 ("alpha", "opacity"),
             ):
                 materials_missing_alpha_diagnostics += 1
+                _append_example(examples, "missing_alpha_diagnostics", _material_example(model, material))
             if not _source_channel_has_evidence(
                 detected_channels,
                 missing_channels,
@@ -241,6 +312,7 @@ def check_external_model_audit_report(
                 ("emissive",),
             ):
                 materials_missing_emissive_diagnostics += 1
+                _append_example(examples, "missing_emissive_diagnostics", _material_example(model, material))
             if not (
                 (
                     _source_channel_has_evidence(
@@ -267,6 +339,7 @@ def check_external_model_audit_report(
                 )
             ):
                 materials_missing_roughness_metalness_diagnostics += 1
+                _append_example(examples, "missing_roughness_metalness_diagnostics", _material_example(model, material))
 
     _append_count_flag(derived_risk_flags, warnings, failed_models, "failed_models", "model audit row(s) failed")
     _append_count_flag(
@@ -381,6 +454,13 @@ def check_external_model_audit_report(
         "missing_roughness_metalness_diagnostics",
         "material row(s) lack roughness/metalness or spec/gloss evidence",
     )
+    _append_count_flag(
+        derived_risk_flags,
+        warnings,
+        source_texture_route_mismatches,
+        "source_texture_route_mismatch",
+        "source texture slot-route mismatch diagnostic(s) need review",
+    )
 
     all_risk_flags = tuple(_dedupe_text((*source_risk_flags, *derived_risk_flags)))
     blocking_flags = tuple(flag for flag in all_risk_flags if flag in set(fail_on_risk_flags))
@@ -440,6 +520,7 @@ def check_external_model_audit_report(
             "materials_missing_alpha_diagnostics": materials_missing_alpha_diagnostics,
             "materials_missing_emissive_diagnostics": materials_missing_emissive_diagnostics,
             "materials_missing_roughness_metalness_diagnostics": materials_missing_roughness_metalness_diagnostics,
+            "source_texture_route_mismatches": source_texture_route_mismatches,
             "status_counts": dict(sorted(status_counts.items())),
             "texture_slot_counts": dict(sorted(texture_slot_counts.items())),
             "texture_format_counts": dict(sorted(texture_format_counts.items())),
@@ -450,6 +531,7 @@ def check_external_model_audit_report(
             "source_missing_channels": dict(sorted(missing_channel_counts.items())),
             "source_channel_diagnostics": dict(sorted(channel_diagnostic_counts.items())),
         },
+        "examples": {key: value for key, value in sorted(examples.items()) if value},
         "errors": _dedupe_text(errors),
         "warnings": _dedupe_text(warnings),
     }
@@ -461,6 +543,118 @@ def check_external_model_audit_report_path(
     fail_on_risk_flags: Sequence[str] = DEFAULT_BLOCKING_RISK_FLAGS,
 ) -> dict[str, object]:
     return check_external_model_audit_report(load_external_model_audit_report(path), fail_on_risk_flags=fail_on_risk_flags)
+
+
+def _append_example(examples: dict[str, list[dict[str, object]]], key: str, payload: Mapping[str, object]) -> None:
+    clean_key = str(key or "").strip()
+    if not clean_key:
+        return
+    rows = examples.setdefault(clean_key, [])
+    if len(rows) >= _MAX_EXAMPLES_PER_RISK:
+        return
+    clean_payload = {
+        str(item_key): _json_safe_example_value(item_value)
+        for item_key, item_value in dict(payload or {}).items()
+        if str(item_key or "").strip() and _example_value_present(item_value)
+    }
+    if clean_payload:
+        rows.append(clean_payload)
+
+
+def _model_example(model: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "path": str(
+            model.get("zip_audited_member", "")
+            or model.get("path", "")
+            or model.get("relative_path", "")
+            or ""
+        ),
+        "audit_status": str(model.get("audit_status", "") or ""),
+    }
+
+
+def _material_example(model: Mapping[str, object], material: Mapping[str, object]) -> dict[str, object]:
+    return {
+        **_model_example(model),
+        "material_name": str(material.get("material_name", "") or ""),
+        "material_index": _report_int(material.get("material_index"), -1),
+        "pbr_workflow": str(material.get("pbr_workflow", "") or ""),
+    }
+
+
+def _texture_slot_example(
+    model: Mapping[str, object],
+    material: Mapping[str, object],
+    slot: Mapping[str, object],
+) -> dict[str, object]:
+    return {
+        **_material_example(model, material),
+        "slot_kind": str(slot.get("slot_kind", "") or ""),
+        "texture_name": str(slot.get("texture_name", "") or ""),
+        "texture_path": str(slot.get("texture_path", "") or ""),
+        "source": str(slot.get("source", "") or ""),
+        "confidence": str(slot.get("confidence", "") or ""),
+    }
+
+
+def _section_example(
+    model: Mapping[str, object],
+    material: Mapping[str, object],
+    section: Mapping[str, object],
+) -> dict[str, object]:
+    return {
+        **_material_example(model, material),
+        "section_name": str(section.get("section_name", "") or ""),
+        "vertex_count": _report_int(section.get("vertex_count"), 0),
+        "face_count": _report_int(section.get("face_count"), 0),
+        "has_uvs": bool(section.get("has_uvs")),
+        "has_normals": bool(section.get("has_normals")),
+    }
+
+
+def _compact_mapping(value: object, *, fallback_key: str) -> dict[str, object]:
+    if isinstance(value, Mapping):
+        output: dict[str, object] = {}
+        for key in (
+            "wanted_slot",
+            "slot_kind",
+            "texture_name",
+            "texture_path",
+            "candidate",
+            "candidate_path",
+            "confidence",
+            "missing_ref",
+            "archive_member",
+        ):
+            if key in value and _example_value_present(value.get(key)):
+                output[key] = _json_safe_example_value(value.get(key))
+        if output:
+            return output
+    return {fallback_key: str(value)}
+
+
+def _example_value_present(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set, dict)):
+        return bool(value)
+    return True
+
+
+def _json_safe_example_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _json_safe_example_value(item)
+            for key, item in value.items()
+            if str(key or "").strip() and _example_value_present(item)
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe_example_value(item) for item in value if _example_value_present(item)]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 def _append_count_flag(

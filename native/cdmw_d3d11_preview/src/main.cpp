@@ -2221,6 +2221,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
         category_env_scale = max(category_env_scale, 0.86);
         category_specular_cap = max(category_specular_cap, 0.82);
         category_roughness_floor = min(category_roughness_floor, 0.08);
+        metalness = max(metalness, category_metal_fallback);
+        specular = max(specular, lerp(0.42, 0.72, category_confidence));
+        roughness = min(roughness, lerp(0.34, 0.16, category_confidence));
     }
     roughness = saturate(roughness + roughness_bias + render_tuning3.y);
     roughness = max(roughness, category_roughness_floor);

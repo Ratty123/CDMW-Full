@@ -464,7 +464,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertEqual((), payloads[0].material_texture_slots)
         self.assertTrue(payloads[0].texture_flip_vertical)
 
-    def test_scene_format_payload_defaults_to_unflipped_texture_v_and_flip_override_toggles(self) -> None:
+    def test_scene_format_payload_defaults_to_flipped_texture_v_and_flip_override_toggles(self) -> None:
         blob = b"".join(
             (
                 _vertex(0.0, 0.0, 0.0),
@@ -491,8 +491,8 @@ class NativePreviewPayloadTests(unittest.TestCase):
             render_settings=ModelPreviewRenderSettings(flip_texture_v=True),
         )
 
-        self.assertFalse(payloads[0].texture_flip_vertical)
-        self.assertTrue(flipped_payloads[0].texture_flip_vertical)
+        self.assertTrue(payloads[0].texture_flip_vertical)
+        self.assertFalse(flipped_payloads[0].texture_flip_vertical)
 
     def test_material_mask_slots_avoid_opacity_and_generic_blackout_sources(self) -> None:
         blob = b"".join(

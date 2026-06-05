@@ -344,6 +344,7 @@ struct EntryJob {
     float d3d11_tone_gamma = 1.0f;
     std::string d3d11_texture_address_mode = "wrap";
     float ambient_strength = 0.55f;
+    float diffuse_wrap_bias = 0.72f;
     float diffuse_light_scale = 0.65f;
     float specular_base = 0.05f;
     float specular_max = 0.14f;
@@ -358,6 +359,30 @@ struct EntryJob {
     std::string visible_texture_mode = "mesh_base_first";
     std::string render_diagnostic_mode = "lit";
 };
+
+static std::string native_lighting_preset_for_job(const EntryJob& job, bool has_metal_preview_response) {
+    const std::string view_mode = lower_copy(job.d3d11_view_mode);
+    if (view_mode == "game_outdoor" || view_mode == "cd_outdoor" || view_mode == "outdoor_game") return "game_outdoor_approx";
+    const std::string diagnostic_mode = lower_copy(job.render_diagnostic_mode);
+    if (
+        diagnostic_mode == "texture_probe"
+        || diagnostic_mode == "base_direct"
+        || diagnostic_mode == "base_no_tint"
+        || diagnostic_mode == "normal_raw"
+        || diagnostic_mode == "material_raw"
+        || diagnostic_mode == "height_raw"
+        || diagnostic_mode == "uv_checker"
+    ) {
+        return "texture_debug";
+    }
+    if (diagnostic_mode == "metal_shine" || diagnostic_mode == "roughness_response" || diagnostic_mode == "material_response") {
+        return "shiny_metal_inspection";
+    }
+    if (diagnostic_mode == "rich_lit" || diagnostic_mode == "height_depth" || diagnostic_mode == "height_calibrated") {
+        return "cloth_skin_inspection";
+    }
+    return has_metal_preview_response ? "shiny_metal_inspection" : "neutral_studio";
+}
 
 ArchiveEntryRef parse_archive_entry_ref(const std::string& object) {
     ArchiveEntryRef entry;
@@ -756,6 +781,7 @@ EntryJob parse_job(const fs::path& job_path) {
         job.d3d11_tone_contrast = std::clamp(find_float_value(render_settings, "d3d11_tone_contrast", job.d3d11_tone_contrast), 0.50f, 1.75f);
         job.d3d11_tone_gamma = std::clamp(find_float_value(render_settings, "d3d11_tone_gamma", job.d3d11_tone_gamma), 0.50f, 2.20f);
         job.ambient_strength = std::clamp(find_float_value(render_settings, "ambient_strength", job.ambient_strength), 0.05f, 1.2f);
+        job.diffuse_wrap_bias = std::clamp(find_float_value(render_settings, "diffuse_wrap_bias", job.diffuse_wrap_bias), 0.0f, 1.0f);
         job.diffuse_light_scale = std::clamp(find_float_value(render_settings, "diffuse_light_scale", job.diffuse_light_scale), 0.05f, 1.5f);
         job.specular_base = std::clamp(find_float_value(render_settings, "specular_base", job.specular_base), 0.0f, 0.5f);
         job.specular_max = std::clamp(find_float_value(render_settings, "specular_max", job.specular_max), job.specular_base, 1.0f);
@@ -8729,6 +8755,7 @@ static NativePackage write_d3d11_package(
     int cloth_runtime_batch_count = 0;
     int cloth_runtime_particle_count = 0;
     int cloth_runtime_constraint_count = 0;
+    bool has_metal_preview_response = false;
     for (size_t batch_index = 0; batch_index < submeshes.size(); ++batch_index) {
         const NativeSubmesh& mesh = submeshes[batch_index];
         if (mesh.indices.size() < 3) continue;
@@ -8930,6 +8957,19 @@ static NativePackage write_d3d11_package(
         const float material_category_conf = material_category_confidence(material_category, batch_bindings, base);
         const bool material_response_promoted = material_category == "metal" && promoted_global_material_response(material);
         const std::string material_response = material_response_disposition(material, specular, material_category);
+        has_metal_preview_response = has_metal_preview_response || (material_category == "metal" && material_category_conf >= 0.45f);
+        const bool strong_metal_response = material_response.find("metal_response") != std::string::npos
+            || material_response.find("metallic") != std::string::npos
+            || material_response.find("promoted") != std::string::npos;
+        const float batch_metalness_hint = material_category == "metal"
+            ? std::max(material_hints.metalness, strong_metal_response ? 0.68f : 0.56f)
+            : material_hints.metalness;
+        const float batch_specular_hint = material_category == "metal"
+            ? std::max(material_hints.specular, strong_metal_response ? 0.68f : 0.56f)
+            : material_hints.specular;
+        const float batch_roughness_hint = material_category == "metal"
+            ? std::min(material_hints.roughness, strong_metal_response ? 0.24f : 0.32f)
+            : material_hints.roughness;
         const float base_tint_strength = native_preview_base_tint_strength(base, color, material_layers, visible_layer_tint_applied);
         const MaterialLayer* primary_layer = nullptr;
         for (const MaterialLayer& layer : material_layers) {
@@ -9030,6 +9070,15 @@ static NativePackage write_d3d11_package(
             << ",\"part_label\":\"" << json_escape(mesh.source_component_label.empty() ? mesh.material : mesh.source_component_label) << "\""
             << ",\"identity_file\":\"" << json_escape(identity_path.lexically_relative(package_dir).generic_string()) << "\"},"
             << "\"base_color\":[" << color[0] << "," << color[1] << "," << color[2] << "],"
+            << "\"roughness\":" << batch_roughness_hint << ","
+            << "\"metalness\":" << batch_metalness_hint << ","
+            << "\"specular\":" << batch_specular_hint << ","
+            << "\"height_scale\":" << material_hints.height_scale << ","
+            << "\"native_material_hints\":{\"roughness\":" << batch_roughness_hint
+            << ",\"metalness\":" << batch_metalness_hint
+            << ",\"specular\":" << batch_specular_hint
+            << ",\"height_scale\":" << material_hints.height_scale
+            << ",\"source\":\"native_core_material_category\"},"
             << "\"material_category\":\"" << json_escape(material_category) << "\","
             << "\"material_category_confidence\":" << material_category_conf << ","
             << "\"material_category_reason\":\"" << json_escape(material_category_reason) << "\","
@@ -9350,6 +9399,7 @@ static NativePackage write_d3d11_package(
     const std::string format = job.extension.size() > 1 && job.extension.front() == '.'
         ? job.extension.substr(1)
         : job.extension;
+    const std::string lighting_preset = native_lighting_preset_for_job(job, has_metal_preview_response);
     std::ostringstream manifest;
     manifest << "{"
         << "\"schema_version\":" << std::max(kNativePackageSchemaVersion, job.schema_version) << ","
@@ -9362,6 +9412,10 @@ static NativePackage write_d3d11_package(
         << "\"visible_texture_mode\":\"" << json_escape(job.visible_texture_mode) << "\","
         << "\"render_diagnostic_mode\":\"" << json_escape(job.render_diagnostic_mode) << "\","
         << "\"d3d11_view_mode\":\"" << json_escape(job.d3d11_view_mode) << "\","
+        << "\"lighting_preset\":\"" << json_escape(lighting_preset) << "\","
+        << "\"material_contract_schema\":2,"
+        << "\"material_channel_contract_schema\":2,"
+        << "\"texture_quality_schema\":1,"
         << "\"mesh_count\":" << emitted_batch_count << ","
         << "\"source_vertex_count\":" << source_vertex_total << ","
         << "\"vertex_count\":" << emitted_vertex_count << ","
@@ -9390,6 +9444,7 @@ static NativePackage write_d3d11_package(
         << "\"d3d11_tone_gamma\":" << job.d3d11_tone_gamma << ","
         << "\"d3d11_texture_address_mode\":\"" << json_escape(job.d3d11_texture_address_mode) << "\","
         << "\"ambient_strength\":" << job.ambient_strength << ","
+        << "\"diffuse_wrap_bias\":" << job.diffuse_wrap_bias << ","
         << "\"diffuse_light_scale\":" << job.diffuse_light_scale << ","
         << "\"specular_base\":" << job.specular_base << ","
         << "\"specular_max\":" << job.specular_max << ","

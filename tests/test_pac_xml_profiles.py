@@ -816,6 +816,58 @@ class PacXmlProfileTests(unittest.TestCase):
         self.assertTrue(any("protected PAC XML param removed" in warning for warning in warnings))
         self.assertTrue(any("protected shader changed" in warning for warning in warnings))
 
+    def test_transition_validation_warns_on_runtime_abi_drift(self) -> None:
+        original = (
+            '<Root><SkinnedMeshProperty><Vector Name="_subMeshResources" IdBase="1190">'
+            '<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="Blade">'
+            '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture StringItemID="_overlayColorTexture" ItemID="11" _name="_overlayColorTexture" Index="0">'
+            '<ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper>"
+            '<SkinnedMeshMaterialWrapper ItemID="1191" _subMeshName="Guard">'
+            '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture StringItemID="_normalTexture" ItemID="12" _name="_normalTexture" Index="1">'
+            '<ResourceReferencePath_ITexture _path="character/texture/guard_n.dds"/></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper>"
+            "</Vector></SkinnedMeshProperty></Root>"
+        )
+        texture_only = original.replace("blade_base.dds", "blade_replacement_base.dds")
+        drifted = (
+            '<Root><SkinnedMeshProperty><Vector Name="_subMeshResources" IdBase="777">'
+            '<SkinnedMeshMaterialWrapper ItemID="1191" _subMeshName="Guard">'
+            '<Material _materialName="SkinnedMeshMetal_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture StringItemID="_normalTexture" ItemID="120" _name="_normalTexture" Index="9">'
+            '<ResourceReferencePath_ITexture _path="character/texture/guard_n.dds"/></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper>"
+            '<SkinnedMeshMaterialWrapper ItemID="9999" _subMeshName="Blade">'
+            '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture StringItemID="_overlayColorTexture" ItemID="11" _name="_overlayColorTexture" Index="0">'
+            '<ResourceReferencePath_ITexture _path="character/texture/blade_base.dds"/></MaterialParameterTexture>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper>"
+            "</Vector></SkinnedMeshProperty></Root>"
+        )
+
+        texture_warnings = validate_pac_xml_sidecar_transition(
+            original,
+            texture_only,
+            sidecar_path="character/modelproperty/sword.pac_xml",
+            allow_stock_mask_override=True,
+        )
+        drift_warnings = validate_pac_xml_sidecar_transition(
+            original,
+            drifted,
+            sidecar_path="character/modelproperty/sword.pac_xml",
+            allow_stock_mask_override=True,
+        )
+        drift_text = "\n".join(drift_warnings)
+
+        self.assertFalse(any("PAC XML runtime ABI changed" in warning for warning in texture_warnings))
+        self.assertIn("wrapper order/name/shader differs", drift_text)
+        self.assertIn("wrapper ItemID sequence differs", drift_text)
+        self.assertIn("_subMeshResources binding order/name/shader differs", drift_text)
+        self.assertIn("_subMeshResources ItemID/IdBase sequence differs", drift_text)
+        self.assertIn("material parameter names/types/ItemIDs/indexes differ", drift_text)
+
     def test_runtime_xml_profile_engine_has_no_machine_local_default_paths(self) -> None:
         source_root = Path(__file__).resolve().parents[1]
         for relative in (
