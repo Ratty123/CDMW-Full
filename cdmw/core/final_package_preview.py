@@ -1539,6 +1539,12 @@ def _material_authority_preview_settings(
         "texture_resolution_manifest_rows": len(tuple(texture_resolution_manifest.rows or ())),
         "normal_y_policy": normal_y_policy_report(normal_y_mode),
     }
+    material_authority_settings = getattr(preview_result, "material_authority_settings", None)
+    if isinstance(material_authority_settings, Mapping) and material_authority_settings:
+        settings["material_authority_export"] = {
+            str(key): value if isinstance(value, (bool, int, float, str)) or value is None else str(value)
+            for key, value in material_authority_settings.items()
+        }
     if render_settings is None:
         settings["render_settings_source"] = "not_provided"
         return settings

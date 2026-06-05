@@ -1693,6 +1693,42 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertNotIn("visible_color_technical_format", diagnostic_codes)
             self.assertNotIn("visible_color_format_mismatch", flags)
 
+    def test_material_authority_report_records_export_adjustment_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preview = _preview("Blade")
+            preview.material_authority_settings = {
+                "enabled": True,
+                "requested_profile": "material_authority_detail_mask",
+                "resolved_profile": "material_authority_detail_mask",
+                "auto_brightness_balance": 50.0,
+                "dark_detail_lift": 25.0,
+                "tone_contrast": -10.0,
+            }
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade_base.dds",
+                    target_path="character/texture/blade_base.dds",
+                    kind="texture_generated",
+                    payload_data=_dds(),
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "blade.pac_xml",
+                    target_path="character/modelproperty/blade.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=_sidecar("character/texture/blade_base.dds"),
+                ),
+            )
+
+            result = build_final_package_preview(preview, supplemental_file_specs=specs)
+
+            export_settings = result.material_authority_report.to_dict()["preview_settings"]["material_authority_export"]
+            self.assertTrue(export_settings["enabled"])
+            self.assertEqual("material_authority_detail_mask", export_settings["requested_profile"])
+            self.assertEqual(50.0, export_settings["auto_brightness_balance"])
+            self.assertEqual(25.0, export_settings["dark_detail_lift"])
+            self.assertEqual(-10.0, export_settings["tone_contrast"])
+
     def test_material_authority_report_records_inline_uncompressed_dds_luma(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

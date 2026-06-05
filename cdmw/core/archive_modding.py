@@ -158,6 +158,7 @@ class MeshImportPreviewResult:
     auto_fix_result: ImportAutoFixResult = field(default_factory=ImportAutoFixResult)
     roundtrip_manifest: Optional[dict] = None
     source_owned_output_draw_sections: Tuple[object, ...] = ()
+    material_authority_settings: Mapping[str, object] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -5612,6 +5613,18 @@ def build_mesh_import_preview(
         )
     except (TypeError, ValueError, OverflowError):
         complete_swap_tone_contrast = 0.0
+    material_authority_settings: dict[str, object] = {
+        "enabled": bool(complete_external_material_reset),
+        "requested_profile": complete_swap_material_profile,
+        "resolved_profile": "",
+        "global_gloss_reduction": float(complete_swap_global_gloss_reduction),
+        "edge_relief_strength": float(complete_swap_edge_relief_strength),
+        "edge_relief_source": complete_swap_edge_relief_source,
+        "accent_glow_strength": float(complete_swap_accent_glow_strength),
+        "auto_brightness_balance": float(complete_swap_auto_brightness_balance),
+        "dark_detail_lift": float(complete_swap_dark_detail_lift),
+        "tone_contrast": float(complete_swap_tone_contrast),
+    }
     if (
         normalized_import_mode == "static_replacement"
         and bool(getattr(static_replacement_options, "neutralize_inherited_material_layers", False))
@@ -5739,6 +5752,8 @@ def build_mesh_import_preview(
                 summary_lines.append(f"Static texture replacement failed: {exc}")
             if texture_replacement_report is not None:
                 material_profile_name = str(getattr(texture_replacement_report, "material_profile_name", "") or "").strip()
+                if material_profile_name:
+                    material_authority_settings["resolved_profile"] = material_profile_name
                 probe_variants = tuple(getattr(texture_replacement_report, "material_probe_variants", ()) or ())
                 if material_profile_name:
                     summary_lines.append(f"Complete swap material profile active: {material_profile_name}")
@@ -5882,6 +5897,7 @@ def build_mesh_import_preview(
         auto_fix_result=auto_fix_result,
         roundtrip_manifest=manifest_payload if isinstance(manifest_payload, dict) else None,
         source_owned_output_draw_sections=tuple(getattr(static_report, "output_draw_sections", ()) or ()),
+        material_authority_settings=material_authority_settings,
     )
 
 

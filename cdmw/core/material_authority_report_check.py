@@ -150,6 +150,14 @@ def check_material_authority_report(
 
     source_path = str(report.get("source_path", "") or "").strip()
     package_root = str(report.get("package_root", "") or "").strip()
+    preview_settings = report.get("preview_settings")
+    material_authority_export = (
+        preview_settings.get("material_authority_export", {})
+        if isinstance(preview_settings, Mapping)
+        else {}
+    )
+    if not isinstance(material_authority_export, Mapping):
+        material_authority_export = {}
     if not source_path:
         derived_risk_flags.append("missing_source_path")
         warnings.append("Report is missing source path evidence.")
@@ -604,10 +612,20 @@ def check_material_authority_report(
             if luma_mean is not None and luma_mean < 45.0:
                 dark_visible_color_output_rows += 1
                 derived_risk_flags.append("dark_visible_color_output")
-                warnings.append(
-                    f"Visible base-color output is very dark for {target_path} "
-                    f"(luma mean {luma_mean:.1f}); preview/in-game lighting may diverge unless source brightness is lifted."
-                )
+                auto_brightness = _report_float(material_authority_export.get("auto_brightness_balance"), 0.0)
+                source_brightness = _report_float(material_authority_export.get("dark_detail_lift"), 0.0)
+                tone_contrast = _report_float(material_authority_export.get("tone_contrast"), 0.0)
+                if auto_brightness <= 0.0 and source_brightness <= 0.0 and abs(tone_contrast) <= 0.0001:
+                    warnings.append(
+                        "Visible base-color output is very dark for "
+                        f"{target_path} (luma mean {luma_mean:.1f}); no Material Authority brightness/tone adjustment was recorded."
+                    )
+                else:
+                    warnings.append(
+                        "Visible base-color output is still very dark for "
+                        f"{target_path} (luma mean {luma_mean:.1f}) after recorded Material Authority brightness/tone adjustment "
+                        f"(auto {auto_brightness:.0f}%, source {source_brightness:.0f}%, tone {tone_contrast:+.0f}%)."
+                    )
     for material in source_materials:
         material_name = str(material.get("material_name", "") or material.get("texture_name", "") or "<unknown>")
         channel_profile = material.get("channel_profile")
@@ -1194,6 +1212,13 @@ def _source_material_texture_ref_paths(material: Mapping[str, object]) -> set[st
 def _report_int(value: object, default: int = 0) -> int:
     try:
         return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _report_float(value: object, default: float = 0.0) -> float:
+    try:
+        return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError, OverflowError):
         return default
 

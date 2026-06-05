@@ -178,6 +178,7 @@ class MaterialAuthorityReportCheckTests(unittest.TestCase):
         self.assertEqual("needs_review", result["status"])
         self.assertIn("dark_visible_color_output", result["review_risk_flags"])
         self.assertEqual(1, result["counts"]["dark_visible_color_output_rows"])
+        self.assertTrue(any("no Material Authority brightness/tone adjustment was recorded" in warning for warning in result["warnings"]))
 
     def test_reviews_recorded_dark_visible_base_luma_without_package_file(self) -> None:
         report = _report(package_root="missing-package")
@@ -188,6 +189,20 @@ class MaterialAuthorityReportCheckTests(unittest.TestCase):
         self.assertEqual("needs_review", result["status"])
         self.assertIn("dark_visible_color_output", result["review_risk_flags"])
         self.assertEqual(1, result["counts"]["dark_visible_color_output_rows"])
+
+    def test_dark_visible_base_warning_reports_recorded_brightness_adjustment(self) -> None:
+        report = _report(package_root="missing-package")
+        report["texture_outputs"][0]["visible_luma_mean"] = 33.5
+        report["preview_settings"]["material_authority_export"] = {
+            "auto_brightness_balance": 50.0,
+            "dark_detail_lift": 20.0,
+            "tone_contrast": -10.0,
+        }
+
+        result = check_material_authority_report(report, fail_on_risk_flags=())
+
+        self.assertEqual("needs_review", result["status"])
+        self.assertTrue(any("after recorded Material Authority brightness/tone adjustment" in warning for warning in result["warnings"]))
 
     def test_warns_when_pac_xml_binding_evidence_missing(self) -> None:
         report = _report(
