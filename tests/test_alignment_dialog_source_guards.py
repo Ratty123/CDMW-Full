@@ -283,6 +283,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('if not bool(getattr(export_options, "create_material_authority_report", False)):', source)
         self.assertIn("Removed stale material authority report", source)
         self.assertIn('if bool(getattr(export_options, "create_material_authority_report", False)):', source)
+        final_preview_source = _final_package_preview_source()
+        self.assertIn('"cdmw_material_authority_report.json"', final_preview_source)
+        self.assertIn('"cdmw_material_authority_report_check.json"', final_preview_source)
         self.assertIn("The preview is using final package texture paths where they could be validated.", source)
 
     def test_complete_swap_preflight_blocker_uses_visible_result_path(self) -> None:
@@ -1219,6 +1222,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("clone_mesh_for_editing(replacement_mesh_for_mapping)", main_source)
         self.assertIn("mesh.source_submesh_index = -1", main_source)
         self.assertIn("mesh.source_vertex_indices = []", main_source)
+        self.assertIn("mesh.source_face_indices = []", main_source)
 
         self.assertIn("mesh_edit_stroke_finished = Signal(object)", widget_source)
         self.assertIn("mesh_edit_stroke_started = Signal(object)", widget_source)
@@ -1258,6 +1262,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
 
         self.assertIn("source_submesh_index=submesh_index", archive_source)
         self.assertIn("source_vertex_indices=list(range(len(submesh.vertices)))", archive_source)
+        self.assertIn("source_face_indices=list(range(len(submesh.faces)))", archive_source)
+        self.assertIn("identity_stride_bytes", Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8"))
+        self.assertIn("batch.cpu_source_faces", native_source)
         self.assertIn("edited_source_mesh: ParsedMesh | None = None", static_source)
         self.assertIn("class StaticIndependentPart", static_source)
         self.assertIn("independent_output_parts: list[StaticIndependentPart] = field(default_factory=list)", static_source)

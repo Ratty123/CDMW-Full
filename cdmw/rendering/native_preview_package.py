@@ -6,7 +6,8 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import re
 import shutil
 import struct
 import tempfile
@@ -49,8 +50,8 @@ from cdmw.rendering.crimson_shader_registry import (
 )
 
 
-ISOLATED_PREVIEW_SCHEMA_VERSION = 9
-SUPPORTED_ISOLATED_PREVIEW_SCHEMA_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+ISOLATED_PREVIEW_SCHEMA_VERSION = 10
+SUPPORTED_ISOLATED_PREVIEW_SCHEMA_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 MATERIAL_CONTRACT_SCHEMA_VERSION = 2
 TEXTURE_QUALITY_SCHEMA_VERSION = 1
 CLOTH_RUNTIME_SCHEMA_VERSION = 1
@@ -58,7 +59,7 @@ PREVIEW_OVERLAY_SCHEMA_VERSION = 1
 ISOLATED_PREVIEW_VERTEX_FLOATS = 23
 ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES = ISOLATED_PREVIEW_VERTEX_FLOATS * 4
 _VERTEX_STRUCT = struct.Struct("<23f")
-_IDENTITY_STRUCT = struct.Struct("<ii")
+_IDENTITY_STRUCT = struct.Struct("<iii")
 MESH_EDITOR_LOAD_TRACE_ENV = "CDMW_MESH_EDITOR_LOAD_TRACE"
 
 
@@ -210,6 +211,7 @@ def _editor_identity_blob(
 ) -> Tuple[Dict[str, object], bytes]:
     source_submesh_index = _safe_int(getattr(batch, "source_submesh_index", -1), -1)
     raw_source_vertices = tuple(int(index) for index in tuple(getattr(batch, "source_vertex_indices", ()) or ()))
+    raw_source_faces = tuple(int(index) for index in tuple(getattr(batch, "source_face_indices", ()) or ()))
     identity_blob = bytearray()
     for vertex_offset in range(vertex_count):
         source_vertex_index = (
@@ -217,10 +219,18 @@ def _editor_identity_blob(
             if vertex_offset < len(raw_source_vertices)
             else int(vertex_offset)
         )
-        identity_blob.extend(_IDENTITY_STRUCT.pack(source_submesh_index, source_vertex_index))
+        face_offset = int(vertex_offset) // 3
+        source_face_index = (
+            int(raw_source_faces[face_offset])
+            if face_offset < len(raw_source_faces)
+            else int(face_offset)
+        )
+        identity_blob.extend(_IDENTITY_STRUCT.pack(source_submesh_index, source_vertex_index, source_face_index))
     return {
         "source_submesh_index": source_submesh_index,
         "source_vertex_count": len(raw_source_vertices),
+        "source_face_count": len(raw_source_faces),
+        "identity_stride_bytes": _IDENTITY_STRUCT.size,
         "identity_file": "",
         "identity_offset": 0,
         "identity_size": len(identity_blob),
@@ -610,7 +620,15 @@ def _payload_material_slots(batch: PreparedModelPreviewBatch) -> Tuple[str, ...]
 def _payload_material_inputs(batch: PreparedModelPreviewBatch) -> Tuple[PreviewMaterialTextureInput, ...]:
     explicit = tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
     if explicit:
-        return explicit
+        return tuple(
+            texture_input
+            for texture_input in explicit
+            if not (
+                isinstance(texture_input, PreviewMaterialTextureInput)
+                and _input_texture_kind(texture_input) == "normal"
+                and not _normal_texture_input_binding_allowed(texture_input)
+            )
+        )
     inputs: list[PreviewMaterialTextureInput] = []
     base_path = str(getattr(batch, "preview_texture_path", "") or "").strip()
     if base_path:
@@ -624,7 +642,11 @@ def _payload_material_inputs(batch: PreparedModelPreviewBatch) -> Tuple[PreviewM
             )
         )
     normal_path = str(getattr(batch, "preview_normal_texture_path", "") or "").strip()
-    if normal_path:
+    if normal_path and _normal_texture_binding_allowed(
+        normal_path,
+        getattr(batch, "preview_normal_texture_dds_path", ""),
+        getattr(batch, "preview_normal_texture_name", ""),
+    ):
         inputs.append(
             PreviewMaterialTextureInput(
                 slot_kind="normal",
@@ -661,6 +683,49 @@ def _payload_material_inputs(batch: PreparedModelPreviewBatch) -> Tuple[PreviewM
     return tuple(inputs)
 
 
+def _looks_like_normal_texture_path(texture_path: object) -> bool:
+    text = str(texture_path or "").replace("\\", "/").strip()
+    if not text:
+        return False
+    if text.lower().startswith("file:"):
+        try:
+            text = unquote(urlparse(text).path or text)
+        except Exception:
+            pass
+    stem = PurePosixPath(text).stem.lower()
+    if not stem:
+        return False
+    if "normal" in stem or stem.endswith(("_n", "_wn", "_nm", "_nrm", "_nor", "_no")):
+        return True
+    if re.search(r"(?:^|[_\-.])n(?:$|[_\-.])", stem):
+        return True
+    return bool("0xff7f7f" in stem or "defaultnormal" in stem or "neutralnormal" in stem)
+
+
+def _normal_texture_binding_allowed(*values: object) -> bool:
+    candidates = tuple(str(value or "").strip() for value in values if str(value or "").strip())
+    if not candidates:
+        return False
+    return any(_looks_like_normal_texture_path(value) for value in candidates)
+
+
+def _batch_normal_texture_binding_allowed(batch: object) -> bool:
+    return _normal_texture_binding_allowed(
+        getattr(batch, "preview_normal_texture_path", ""),
+        getattr(batch, "preview_normal_texture_dds_path", ""),
+        getattr(batch, "preview_normal_texture_name", ""),
+    )
+
+
+def _normal_texture_input_binding_allowed(texture_input: PreviewMaterialTextureInput) -> bool:
+    return _normal_texture_binding_allowed(
+        getattr(texture_input, "source_dds_path", ""),
+        getattr(texture_input, "source_texture_path", ""),
+        getattr(texture_input, "preview_texture_path", ""),
+        getattr(texture_input, "texture_name", ""),
+    )
+
+
 def build_native_preview_payloads(
     prepared: PreparedModelPreviewData,
     *,
@@ -683,6 +748,7 @@ def build_native_preview_payloads(
                 flip_texture_v=bool(getattr(settings, "flip_texture_v", False)),
             )
         material_channels = tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ())
+        normal_texture_allowed = _batch_normal_texture_binding_allowed(batch)
         payloads.append(
             NativePreviewBatchPayload(
                 material_name=str(getattr(batch, "material_name", "") or ""),
@@ -692,10 +758,14 @@ def build_native_preview_payloads(
                 bounds_max=bounds_max,
                 base_color=_first_vertex_color(vertex_blob),
                 texture_source=_local_file_url(getattr(batch, "preview_texture_path", "")),
-                normal_texture_source=_local_file_url(getattr(batch, "preview_normal_texture_path", "")),
+                normal_texture_source=_local_file_url(getattr(batch, "preview_normal_texture_path", ""))
+                if normal_texture_allowed
+                else "",
                 material_texture_source=_local_file_url(getattr(batch, "preview_material_texture_path", "")),
                 height_texture_source=_local_file_url(getattr(batch, "preview_height_texture_path", "")),
-                normal_texture_strength=float(getattr(batch, "preview_normal_texture_strength", 1.0) or 1.0),
+                normal_texture_strength=float(getattr(batch, "preview_normal_texture_strength", 1.0) or 1.0)
+                if normal_texture_allowed
+                else 0.0,
                 material_texture_packed_channels=tuple(str(channel) for channel in material_channels),
                 material_texture_slots=_payload_material_slots(batch),
                 material_texture_inputs=_payload_material_inputs(batch),
@@ -2836,10 +2906,12 @@ def _dds_textures_for_batch(
         or _source_dds_for_preview_path(str(getattr(batch, "preview_texture_path", "") or "")),
     }
     if include_support_slots:
+        if _batch_normal_texture_binding_allowed(batch):
+            slots["normal"] = str(getattr(batch, "preview_normal_texture_dds_path", "") or "") or _source_dds_for_preview_path(
+                str(getattr(batch, "preview_normal_texture_path", "") or "")
+            )
         slots.update(
             {
-                "normal": str(getattr(batch, "preview_normal_texture_dds_path", "") or "")
-                or _source_dds_for_preview_path(str(getattr(batch, "preview_normal_texture_path", "") or "")),
                 "material": str(getattr(batch, "preview_material_texture_dds_path", "") or "")
                 or _source_dds_for_preview_path(str(getattr(batch, "preview_material_texture_path", "") or "")),
                 "height": str(getattr(batch, "preview_height_texture_dds_path", "") or "")
@@ -2879,6 +2951,8 @@ def _dds_textures_for_batch(
         if not source_path:
             source_path = _source_dds_for_preview_path(str(getattr(texture_input, "preview_texture_path", "") or ""))
         if not source_path:
+            continue
+        if input_kind == "normal" and not _normal_texture_input_binding_allowed(texture_input):
             continue
         slot_name = str(getattr(texture_input, "slot_kind", "") or "material").strip().lower() or "material"
         entry = _dds_manifest_entry(source_path, slot_name=slot_name, inspect_cache=inspect_cache)
@@ -2946,7 +3020,9 @@ def _batch_dds_manifest_cache_key(
                 str(getattr(texture_input, "slot_kind", "") or ""),
                 str(getattr(texture_input, "parameter_name", "") or ""),
                 str(getattr(texture_input, "source_dds_path", "") or ""),
+                str(getattr(texture_input, "source_texture_path", "") or ""),
                 str(getattr(texture_input, "preview_texture_path", "") or ""),
+                str(getattr(texture_input, "texture_name", "") or ""),
                 tuple(str(value) for value in tuple(getattr(texture_input, "packed_channels", ()) or ())),
                 str(getattr(texture_input, "semantic_type", "") or ""),
                 str(getattr(texture_input, "semantic_subtype", "") or ""),
@@ -2962,6 +3038,7 @@ def _batch_dds_manifest_cache_key(
             "base_preview": str(getattr(batch, "preview_texture_path", "") or ""),
             "normal_dds": str(getattr(batch, "preview_normal_texture_dds_path", "") or ""),
             "normal_preview": str(getattr(batch, "preview_normal_texture_path", "") or ""),
+            "normal_name": str(getattr(batch, "preview_normal_texture_name", "") or ""),
             "material_dds": str(getattr(batch, "preview_material_texture_dds_path", "") or ""),
             "material_preview": str(getattr(batch, "preview_material_texture_path", "") or ""),
             "height_dds": str(getattr(batch, "preview_height_texture_dds_path", "") or ""),
@@ -2999,6 +3076,8 @@ def _filter_dds_textures_for_preview_settings(
             ("height", "disable_height_map"),
         ):
             if bool(getattr(render_settings, disabled_attr, False)):
+                continue
+            if slot_name == "normal" and not _batch_normal_texture_binding_allowed(batch):
                 continue
             entry = dds_textures.get(slot_name)
             if _dds_manifest_entry_is_native_usable(entry):
@@ -3044,7 +3123,11 @@ def _filter_dds_textures_for_preview_settings(
                 filtered_inputs.append(dict(raw_entry))
             elif not support_enabled:
                 continue
-            elif role == "normal" and not bool(getattr(render_settings, "disable_normal_map", False)):
+            elif (
+                role == "normal"
+                and not bool(getattr(render_settings, "disable_normal_map", False))
+                and _normal_texture_binding_allowed(raw_entry.get("source_path", ""))
+            ):
                 filtered_inputs.append(dict(raw_entry))
             elif role == "height" and not bool(getattr(render_settings, "disable_height_map", False)):
                 filtered_inputs.append(dict(raw_entry))
@@ -3141,6 +3224,7 @@ def _texture_sources_for_batch(
         for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
         if isinstance(texture_input, PreviewMaterialTextureInput)
     )
+    normal_texture_allowed = _batch_normal_texture_binding_allowed(batch)
 
     def _direct_dds_entry_available(entry: object) -> bool:
         return bool(
@@ -3309,7 +3393,13 @@ def _texture_sources_for_batch(
         notes.append("no reliable base DDS")
 
     if support_enabled and not bool(getattr(render_settings, "disable_normal_map", False)):
-        if has_direct_dds("normal"):
+        if not normal_texture_allowed:
+            suspicious_source = str(getattr(batch, "preview_normal_texture_dds_path", "") or "") or str(
+                getattr(batch, "preview_normal_texture_path", "") or ""
+            )
+            if suspicious_source:
+                notes.append("normal map skipped; binding does not look like a normal texture")
+        elif has_direct_dds("normal"):
             notes.append("normal PNG fallback skipped; direct DDS available")
         else:
             textures["normal"] = _copy_texture(
@@ -3397,7 +3487,9 @@ def _texture_sources_for_batch(
                 ),
                 material_texture_inputs=synthesized_inputs,
                 tangents_usable=bool(tangents_usable),
-                normal_texture_strength=max(0.0, _safe_float(getattr(batch, "preview_normal_texture_strength", 0.0), 0.0)),
+                normal_texture_strength=max(0.0, _safe_float(getattr(batch, "preview_normal_texture_strength", 0.0), 0.0))
+                if normal_texture_allowed
+                else 0.0,
             )
             combiner_settings = MaterialPreviewCombinerSettings(
                 normal_strength_floor=max(0.0, _safe_float(getattr(render_settings, "normal_strength_floor", 0.5), 0.5)),
@@ -3422,7 +3514,12 @@ def _texture_sources_for_batch(
             notes.extend(str(note) for note in tuple(combined.notes or ()) if str(note))
             if combined.base_source:
                 textures["base"] = package_relative(combined.base_source, "base")
-            if support_enabled and not bool(getattr(render_settings, "disable_normal_map", False)) and combined.normal_source:
+            if (
+                support_enabled
+                and not bool(getattr(render_settings, "disable_normal_map", False))
+                and normal_texture_allowed
+                and combined.normal_source
+            ):
                 textures["normal"] = package_relative(combined.normal_source, "normal")
             if support_enabled and not bool(getattr(render_settings, "disable_material_map", False)):
                 if combined.occlusion_source:
@@ -3436,7 +3533,7 @@ def _texture_sources_for_batch(
             if support_enabled and not bool(getattr(render_settings, "disable_height_map", False)) and combined.height_source:
                 textures["height"] = package_relative(combined.height_source, "height")
                 combiner_metadata["height_amount"] = float(combined.height_amount)
-            if combined.normal_source:
+            if normal_texture_allowed and combined.normal_source:
                 combiner_metadata["normal_strength"] = float(combined.normal_strength)
             combiner_metadata["texture_flip_vertical"] = bool(combined.texture_flip_vertical)
         except Exception as exc:
@@ -3451,6 +3548,9 @@ def _texture_sources_for_batch(
         nonlocal combiner_metadata
         combiner_decoded = bool(tuple(combiner_metadata.get("decode_modes", ()) or ()) or tuple(combiner_metadata.get("outputs", ()) or ()))
         if kind in {"base", "normal", "height"}:
+            if kind == "normal" and not _normal_texture_binding_allowed(texture_source_path, label):
+                notes.append(f"normal material input skipped; binding does not look like a normal texture:{label}")
+                return
             if textures.get(kind):
                 return
             if prefer_direct_dds and _preview_source_has_direct_dds_upload(texture_source_path):
@@ -3522,7 +3622,9 @@ def _texture_sources_for_batch(
                     normal_texture_strength=max(
                         0.0,
                         _safe_float(getattr(batch, "preview_normal_texture_strength", 0.0), 0.0),
-                    ),
+                    )
+                    if normal_texture_allowed
+                    else 0.0,
                 )
                 combiner_settings = MaterialPreviewCombinerSettings(
                     normal_strength_floor=max(0.0, _safe_float(getattr(render_settings, "normal_strength_floor", 0.5), 0.5)),
@@ -3609,7 +3711,9 @@ def _texture_sources_for_batch(
                     normal_texture_strength=max(
                         0.0,
                         _safe_float(getattr(batch, "preview_normal_texture_strength", 0.0), 0.0),
-                    ),
+                    )
+                    if normal_texture_allowed
+                    else 0.0,
                 )
                 combined = combine_preview_material(
                     combiner_payload,
@@ -4028,6 +4132,8 @@ def write_isolated_d3d11_preview_package(
         )
         if _safe_float(combiner_metadata.get("normal_strength", 0.0), 0.0) > 0.0:
             normal_strength = _safe_float(combiner_metadata.get("normal_strength"), normal_strength)
+        if not (textures.get("normal") or dds_textures.get("normal")):
+            normal_strength = 0.0
         height_amount = max(0.0, min(0.08, _safe_float(getattr(settings, "height_effect_max", 0.35), 0.35) * 0.08))
         if _safe_float(combiner_metadata.get("height_amount", 0.0), 0.0) > 0.0:
             height_amount = max(0.0, min(0.12, _safe_float(combiner_metadata.get("height_amount"), height_amount)))

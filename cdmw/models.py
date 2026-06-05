@@ -1094,6 +1094,7 @@ class ModelPreviewMesh:
     indices: List[int] = field(default_factory=list)
     source_submesh_index: int = -1
     source_vertex_indices: List[int] = field(default_factory=list)
+    source_face_indices: List[int] = field(default_factory=list)
     preview_texture_path: str = ""
     preview_texture_dds_path: str = ""
     preview_texture_image: object = None
@@ -1372,6 +1373,7 @@ class PreparedModelPreviewBatch:
     position_y_max: float = 0.0
     source_submesh_index: int = -1
     source_vertex_indices: Tuple[int, ...] = ()
+    source_face_indices: Tuple[int, ...] = ()
     editor_role: str = ""
     editor_part_name: str = ""
     editor_editable: bool = True

@@ -106,6 +106,7 @@ _GLTF_IMAGE_MIME_EXTENSIONS = {
 }
 _SCENE_TEXTURE_DISCOVERY_MAX_FILES = 5000
 _SCENE_TEXTURE_DISCOVERY_FALLBACK_MAX_TEXTURES = 256
+_SCENE_TEXTURE_FACT_CHANNEL_STATS_MAX_PIXELS = 64 * 1024 * 1024
 
 
 @dataclass(slots=True)
@@ -1472,9 +1473,17 @@ def _texture_image_facts(path_text: str) -> tuple[tuple[int, int], tuple[tuple[s
     try:
         from PIL import Image, ImageStat
 
-        with Image.open(path_text) as image:
-            resolution = (int(image.width), int(image.height))
-            rgba = image.convert("RGBA")
+        previous_max_pixels = Image.MAX_IMAGE_PIXELS
+        try:
+            Image.MAX_IMAGE_PIXELS = None
+            with Image.open(path_text) as image:
+                resolution = (int(image.width), int(image.height))
+                if int(image.width) * int(image.height) > _SCENE_TEXTURE_FACT_CHANNEL_STATS_MAX_PIXELS:
+                    return resolution, ()
+                rgba = image.convert("RGBA")
+        finally:
+            Image.MAX_IMAGE_PIXELS = previous_max_pixels
+        try:
             if max(rgba.size or (0, 0)) > 64:
                 rgba.thumbnail((64, 64))
             stat = ImageStat.Stat(rgba)
@@ -1492,6 +1501,11 @@ def _texture_image_facts(path_text: str) -> tuple[tuple[int, int], tuple[tuple[s
                 ("a_max", round(alpha_max, 4)),
                 ("luma_mean", round(luma, 4)),
             )
+        finally:
+            try:
+                rgba.close()
+            except Exception:
+                pass
     except Exception:
         return (), ()
 
@@ -2649,7 +2663,7 @@ def _obj_material_texture_slots(obj_path: Path) -> dict[str, tuple[SceneMaterial
                     output.setdefault(current_material, []).append(
                         _scene_material_slot(
                             slot_kind,
-                            str(reference).replace("\\", "/"),
+                            resolved.as_posix(),
                             parameter_name={
                                 "map_kd": "_objMapKd",
                                 "map_ka": "_objMapKa",

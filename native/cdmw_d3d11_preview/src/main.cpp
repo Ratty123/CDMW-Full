@@ -241,6 +241,7 @@ struct PreviewBatch {
     std::wstring identity_file;
     std::uint64_t identity_offset = 0;
     std::uint64_t identity_size = 0;
+    std::uint64_t identity_stride_bytes = 0;
     std::string source_model_path;
     std::string source_component_label;
     std::string part_label;
@@ -251,6 +252,7 @@ struct PreviewBatch {
     std::vector<DirectX::XMFLOAT3> cpu_positions;
     std::vector<int> cpu_source_submeshes;
     std::vector<int> cpu_source_vertices;
+    std::vector<int> cpu_source_faces;
     std::map<std::pair<int, int>, std::vector<size_t>> cpu_source_vertex_lookup;
     std::vector<float> cpu_vertices;
     ClothRuntime cloth;
@@ -1369,6 +1371,7 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.identity_file = absolute_from_manifest_path(package_dir, json_string_field(editor_identity, "identity_file"));
         batch.identity_offset = json_uint64_field(editor_identity, "identity_offset", 0);
         batch.identity_size = json_uint64_field(editor_identity, "identity_size", 0);
+        batch.identity_stride_bytes = json_uint64_field(editor_identity, "identity_stride_bytes", 0);
         batch.source_model_path = json_string_field(editor_identity, "source_model_path");
         batch.source_component_label = json_string_field(editor_identity, "source_component_label");
         batch.part_label = json_string_field(editor_identity, "part_label");
@@ -1474,10 +1477,36 @@ static ViewSettings parse_view_settings(const std::string& manifest) {
     return settings;
 }
 
+static void apply_render_tuning_preset(RenderTuning& tuning, const std::string& normalized_view_mode, const std::string& normalized_lighting_preset) {
+    if (normalized_view_mode == "shiny_metal_inspection" || normalized_lighting_preset == "shiny_metal_inspection") {
+        tuning.diagnostic_mode = 0;
+        tuning.ao_strength = std::min(tuning.ao_strength, 0.48f);
+        tuning.roughness_bias = std::min(tuning.roughness_bias, 0.02f);
+        tuning.environment_strength = std::max(tuning.environment_strength, 1.05f);
+        tuning.ambient_strength = std::max(tuning.ambient_strength, 0.84f);
+        tuning.diffuse_wrap_bias = std::max(tuning.diffuse_wrap_bias, 0.82f);
+        tuning.diffuse_light_scale = std::max(tuning.diffuse_light_scale, 1.08f);
+        tuning.specular_max = std::max(tuning.specular_max, 0.58f);
+        tuning.tone_exposure = std::max(tuning.tone_exposure, 1.05f);
+    } else if (normalized_view_mode == "game_outdoor" || normalized_view_mode == "cd_outdoor" || normalized_view_mode == "outdoor_game") {
+        tuning.diagnostic_mode = 0;
+        tuning.light_elevation_degrees = std::max(tuning.light_elevation_degrees, 42.0f);
+        tuning.ao_strength = std::min(tuning.ao_strength, 0.55f);
+        tuning.roughness_bias = std::min(tuning.roughness_bias, 0.04f);
+        tuning.environment_strength = std::max(tuning.environment_strength, 0.70f);
+        tuning.emissive_gain = std::max(tuning.emissive_gain, 1.80f);
+        tuning.ambient_strength = std::max(tuning.ambient_strength, 0.78f);
+        tuning.diffuse_wrap_bias = std::max(tuning.diffuse_wrap_bias, 0.70f);
+        tuning.diffuse_light_scale = std::max(tuning.diffuse_light_scale, 1.05f);
+        tuning.specular_max = std::max(tuning.specular_max, 0.22f);
+    }
+}
+
 static RenderTuning parse_render_tuning(const std::string& manifest) {
     RenderTuning tuning;
     const std::string d3d11_view_mode = json_string_field(manifest, "d3d11_view_mode");
     const std::string normalized_view_mode = lower_copy(d3d11_view_mode);
+    const std::string normalized_lighting_preset = lower_copy(json_string_field(manifest, "lighting_preset"));
     tuning.diagnostic_mode = diagnostic_mode_code(d3d11_view_mode.empty() ? json_string_field(manifest, "render_diagnostic_mode") : d3d11_view_mode);
     tuning.max_anisotropy = std::clamp(json_int_field(manifest, "max_anisotropy", tuning.max_anisotropy), 1, 16);
     tuning.mip_lod_bias = std::clamp(json_float_field(manifest, "d3d11_mip_lod_bias", tuning.mip_lod_bias), -2.0f, 1.0f);
@@ -1503,18 +1532,7 @@ static RenderTuning parse_render_tuning(const std::string& manifest) {
     tuning.specular_max = std::clamp(json_float_field(manifest, "specular_max", tuning.specular_max), tuning.specular_base, 1.00f);
     tuning.shininess_min = std::clamp(json_float_field(manifest, "shininess_min", tuning.shininess_min), 1.0f, 128.0f);
     tuning.shininess_max = std::clamp(json_float_field(manifest, "shininess_max", tuning.shininess_max), tuning.shininess_min, 256.0f);
-    if (normalized_view_mode == "game_outdoor" || normalized_view_mode == "cd_outdoor" || normalized_view_mode == "outdoor_game") {
-        tuning.diagnostic_mode = 0;
-        tuning.light_elevation_degrees = std::max(tuning.light_elevation_degrees, 42.0f);
-        tuning.ao_strength = std::min(tuning.ao_strength, 0.55f);
-        tuning.roughness_bias = std::min(tuning.roughness_bias, 0.04f);
-        tuning.environment_strength = std::max(tuning.environment_strength, 0.70f);
-        tuning.emissive_gain = std::max(tuning.emissive_gain, 1.80f);
-        tuning.ambient_strength = std::max(tuning.ambient_strength, 0.78f);
-        tuning.diffuse_wrap_bias = std::max(tuning.diffuse_wrap_bias, 0.70f);
-        tuning.diffuse_light_scale = std::max(tuning.diffuse_light_scale, 1.05f);
-        tuning.specular_max = std::max(tuning.specular_max, 0.22f);
-    }
+    apply_render_tuning_preset(tuning, normalized_view_mode, normalized_lighting_preset);
     return tuning;
 }
 
@@ -1916,14 +1934,16 @@ float3 preview_environment_color(float3 reflected_view, float roughness) {
     float top_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.32, 0.88, -0.34)))), lerp(28.0, 7.0, roughness));
     float side_softbox = pow(saturate(dot(reflected_view, normalize(float3(0.82, 0.20, -0.54)))), lerp(18.0, 5.0, roughness));
     float back_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.72, 0.26, 0.64)))), lerp(18.0, 5.0, roughness));
+    float opposite_softbox = pow(saturate(dot(reflected_view, normalize(float3(0.58, 0.30, 0.76)))), lerp(20.0, 6.0, roughness));
     float dark_band = pow(saturate(1.0 - abs(reflected_view.x * 1.8 + reflected_view.y * 0.35)), 3.2) * saturate(0.85 - reflected_view.z);
-    float3 env_color = lerp(float3(0.095, 0.105, 0.120), float3(0.48, 0.52, 0.58), env_lobe);
-    env_color = lerp(env_color, env_color * float3(0.72, 0.74, 0.78), dark_band * (1.0 - roughness) * 0.18);
-    env_color += horizon_band * float3(0.16, 0.17, 0.19);
-    env_color += front_softbox.xxx * float3(0.34, 0.39, 0.44);
-    env_color += top_softbox.xxx * float3(0.48, 0.46, 0.40);
-    env_color += side_softbox.xxx * float3(0.24, 0.28, 0.34);
-    env_color += back_softbox.xxx * float3(0.20, 0.23, 0.28);
+    float3 env_color = lerp(float3(0.17, 0.18, 0.205), float3(0.68, 0.72, 0.80), env_lobe);
+    env_color = lerp(env_color, env_color * float3(0.82, 0.84, 0.88), dark_band * (1.0 - roughness) * 0.10);
+    env_color += horizon_band * float3(0.24, 0.25, 0.28);
+    env_color += front_softbox.xxx * float3(0.46, 0.52, 0.60);
+    env_color += top_softbox.xxx * float3(0.58, 0.56, 0.48);
+    env_color += side_softbox.xxx * float3(0.34, 0.40, 0.50);
+    env_color += back_softbox.xxx * float3(0.32, 0.37, 0.46);
+    env_color += opposite_softbox.xxx * float3(0.26, 0.30, 0.38);
     return env_color;
 }
 float wrapped_ndotl(float3 normal_value, float3 light_value, float wrap_amount) {
@@ -2132,8 +2152,14 @@ float4 ps_main(VSOut input) : SV_TARGET {
     }
     float category_metal_cap = category_metal ? 1.0 : (known_nonmetal ? 0.0 : lerp(0.12, 0.32, category_confidence));
     float category_specular_cap = category_metal ? 1.0 : (category_glass ? 0.42 : (category_gem ? 0.48 : (category_eye ? 0.44 : (category_leather ? 0.24 : (category_wood ? 0.16 : (category_cloth ? 0.12 : (category_skin ? 0.16 : (category_hair ? 0.22 : (category_stone ? 0.10 : (category_tooth ? 0.18 : 0.18))))))))));
-    float category_env_scale = category_metal ? 0.82 : (category_glass ? 0.26 : (category_gem ? 0.30 : (category_eye ? 0.24 : (category_leather ? 0.10 : (category_wood ? 0.06 : (category_cloth ? 0.05 : (category_skin ? 0.05 : (category_hair ? 0.08 : (category_stone ? 0.04 : (category_tooth ? 0.08 : 0.08))))))))));
+    float category_env_scale = category_metal ? 0.94 : (category_glass ? 0.26 : (category_gem ? 0.30 : (category_eye ? 0.24 : (category_leather ? 0.10 : (category_wood ? 0.06 : (category_cloth ? 0.05 : (category_skin ? 0.05 : (category_hair ? 0.08 : (category_stone ? 0.04 : (category_tooth ? 0.08 : 0.08))))))))));
     float category_roughness_floor = category_metal ? 0.16 : (category_glass ? 0.30 : (category_gem ? 0.26 : (category_eye ? 0.30 : (category_leather ? 0.64 : (category_wood ? 0.70 : (category_cloth ? 0.74 : (category_skin ? 0.68 : (category_hair ? 0.64 : (category_stone ? 0.82 : (category_tooth ? 0.58 : 0.66))))))))));
+    float category_metal_fallback = category_metal ? saturate(lerp(0.28, 0.62, category_confidence) * user_metalness_scale) : 0.0;
+    if (category_metal && material_hints.y <= 0.02 && flags.z <= 0.5 && flags2.z <= 0.5) {
+        metalness = max(metalness, category_metal_fallback);
+        specular = max(specular, lerp(0.34, 0.62, category_confidence));
+        roughness = min(roughness, lerp(0.46, 0.28, category_confidence));
+    }
     metal_scale *= user_metalness_scale * category_metal_cap;
     specular_scale *= category_specular_cap;
     if (conservative_nonmetal) {
@@ -2271,11 +2297,11 @@ static const char kShaderSourcePixelLighting[] = R"(
     float3 fill_dir = normalize(float3(-l.x * 0.72, max(0.22, abs(l.y) * 0.38), -l.z * 0.72));
     float3 side_dir = normalize(float3(l.z, 0.30, -l.x));
     float3 back_dir = normalize(float3(-l.x, 0.26, l.z));
-    float fill_light = wrapped_ndotl(n, fill_dir, diffuse_wrap) * (0.22 + diffuse_wrap * 0.24);
-    float side_light = wrapped_ndotl(n, side_dir, diffuse_wrap * 0.90) * (0.12 + diffuse_wrap * 0.18);
-    float back_light = wrapped_ndotl(n, back_dir, diffuse_wrap * 1.15) * (0.09 + diffuse_wrap * 0.17);
+    float fill_light = wrapped_ndotl(n, fill_dir, diffuse_wrap) * (0.36 + diffuse_wrap * 0.30);
+    float side_light = wrapped_ndotl(n, side_dir, diffuse_wrap * 0.95) * (0.26 + diffuse_wrap * 0.24);
+    float back_light = wrapped_ndotl(n, back_dir, diffuse_wrap * 1.20) * (0.24 + diffuse_wrap * 0.22);
     float up_hemi = saturate(n.y * 0.5 + 0.5);
-    float hemi_light = lerp(0.10 + diffuse_wrap * 0.14, 0.18 + diffuse_wrap * 0.16, up_hemi);
+    float hemi_light = lerp(0.22 + diffuse_wrap * 0.18, 0.32 + diffuse_wrap * 0.20, up_hemi);
     float diffuse_light = ndotl + fill_light + side_light + back_light + hemi_light;
     float3 direct_diffuse = diffuse_brdf * key_light * diffuse_light * ao * height_light;
     float3 direct_specular = specular_brdf * key_light * saturate(raw_ndotl) * ao * height_light;
@@ -2284,7 +2310,7 @@ static const char kShaderSourcePixelLighting[] = R"(
     float3 reflected_view = normalize(reflect(-v, n));
     float3 env_color = preview_environment_color(reflected_view, roughness);
     float3 env_fresnel = fresnel_schlick(ndotv, f0);
-    float env_roughness_scale = lerp(0.62, 0.06, roughness);
+    float env_roughness_scale = lerp(0.82, 0.12, roughness);
     float3 env_reflection = env_color * env_fresnel * env_roughness_scale * render_tuning3.w * category_env_scale;
     float rim = pow(1.0 - ndotv, 2.4) * (0.015 + smoothness * (0.035 + metalness * 0.24));
     float3 color = direct + ambient_diffuse + env_reflection + rim.xxx;
@@ -4150,7 +4176,14 @@ private:
                         *depth_mask);
                     if (!hit_visible) continue;
                 }
-                const int source_face = static_cast<int>(triangle_index);
+                int source_face = static_cast<int>(triangle_index);
+                for (size_t corner = 0; corner < 3u; ++corner) {
+                    const size_t face_vertex_index = base + corner;
+                    if (face_vertex_index < batch.cpu_source_faces.size() && batch.cpu_source_faces[face_vertex_index] >= 0) {
+                        source_face = batch.cpu_source_faces[face_vertex_index];
+                        break;
+                    }
+                }
                 const float weight = mesh_edit_falloff_weight(distance, std::max(radius_pixels, 1.0f));
                 if (weight <= 0.0f && distance > 0.001f) continue;
                 DirectX::XMFLOAT3 center(
@@ -5378,6 +5411,7 @@ private:
             const std::vector<float> positions = json_float_array_field(group, "positions");
             const std::vector<float> normals = json_float_array_field(group, "normals");
             const std::vector<int> source_vertices = json_int_array_field(group, "source_vertex_indices");
+            const std::vector<int> source_faces = json_int_array_field(group, "source_face_indices");
             const std::vector<int> indices = json_int_array_field(group, "indices");
             const bool indexed_payload = group.find("\"indices\"") != std::string::npos;
             const size_t source_vertex_count = positions.size() / 3u;
@@ -5386,6 +5420,7 @@ private:
                 batch.cpu_positions.clear();
                 batch.cpu_source_submeshes.clear();
                 batch.cpu_source_vertices.clear();
+                batch.cpu_source_faces.clear();
                 batch.cpu_source_vertex_lookup.clear();
                 batch.cpu_vertices.clear();
                 batch.vertex_buffer.Reset();
@@ -5393,11 +5428,12 @@ private:
                 batch.cpu_positions.reserve(output_vertex_count);
                 batch.cpu_source_submeshes.reserve(output_vertex_count);
                 batch.cpu_source_vertices.reserve(output_vertex_count);
+                batch.cpu_source_faces.reserve(output_vertex_count);
                 batch.cpu_vertices.reserve(output_vertex_count * (kVertexStrideBytes / sizeof(float)));
                 const float color_r = std::clamp(batch.base_color[0], 0.0f, 1.0f);
                 const float color_g = std::clamp(batch.base_color[1], 0.0f, 1.0f);
                 const float color_b = std::clamp(batch.base_color[2], 0.0f, 1.0f);
-                auto append_vertex = [&](size_t source_slot) {
+                auto append_vertex = [&](size_t source_slot, int source_face) {
                     if (source_slot >= source_vertex_count) return;
                     const DirectX::XMFLOAT3 position(
                         positions[source_slot * 3u],
@@ -5413,6 +5449,7 @@ private:
                     batch.cpu_positions.push_back(position);
                     batch.cpu_source_submeshes.push_back(source_submesh);
                     batch.cpu_source_vertices.push_back(source_slot < source_vertices.size() ? source_vertices[source_slot] : static_cast<int>(source_slot));
+                    batch.cpu_source_faces.push_back(source_face >= 0 ? source_face : static_cast<int>(source_slot / 3u));
                     const float values[23] = {
                         position.x, position.y, position.z,
                         normal.x, normal.y, normal.z,
@@ -5426,12 +5463,17 @@ private:
                     batch.cpu_vertices.insert(batch.cpu_vertices.end(), values, values + 23);
                 };
                 if (indexed_payload) {
-                    for (int raw_index : indices) {
-                        if (raw_index >= 0) append_vertex(static_cast<size_t>(raw_index));
+                    for (size_t index_position = 0; index_position < indices.size(); ++index_position) {
+                        const int raw_index = indices[index_position];
+                        const size_t face_slot = index_position / 3u;
+                        const int source_face = face_slot < source_faces.size()
+                            ? source_faces[face_slot]
+                            : static_cast<int>(face_slot);
+                        if (raw_index >= 0) append_vertex(static_cast<size_t>(raw_index), source_face);
                     }
                 } else {
                     for (size_t index = 0; index < source_vertex_count; ++index) {
-                        append_vertex(index);
+                        append_vertex(index, static_cast<int>(index / 3u));
                     }
                 }
                 batch.vertex_count = static_cast<int>(batch.cpu_positions.size());
@@ -5763,6 +5805,12 @@ private:
         }
         if (command == "set_render_tuning") {
             render_tuning_ = parse_render_tuning(payload);
+            if (json_string_field(payload, "lighting_preset").empty() && !stats_.lighting_preset.empty()) {
+                apply_render_tuning_preset(
+                    render_tuning_,
+                    lower_copy(json_string_field(payload, "d3d11_view_mode")),
+                    lower_copy(stats_.lighting_preset));
+            }
             view_settings_ = parse_view_settings(payload);
             cloth_state_.enabled = json_bool_field(payload, "enable_tool_pbd_cloth_preview", cloth_state_.enabled);
             cloth_state_.paused = json_bool_field(payload, "pause_tool_pbd_cloth_preview", cloth_state_.paused);
@@ -6739,33 +6787,50 @@ private:
             batch.cpu_positions.clear();
             batch.cpu_source_submeshes.clear();
             batch.cpu_source_vertices.clear();
+            batch.cpu_source_faces.clear();
             batch.cpu_positions.reserve(static_cast<size_t>(batch.vertex_count));
             for (int vertex_index = 0; vertex_index < batch.vertex_count; ++vertex_index) {
                 const float* values = reinterpret_cast<const float*>(data.data() + static_cast<size_t>(vertex_index) * kVertexStrideBytes);
                 batch.cpu_positions.push_back(DirectX::XMFLOAT3(values[0], values[1], values[2]));
             }
-            const std::uint64_t expected_identity = static_cast<std::uint64_t>(batch.vertex_count) * sizeof(int32_t) * 2u;
+            const std::uint64_t expected_identity_v1 = static_cast<std::uint64_t>(batch.vertex_count) * sizeof(int32_t) * 2u;
+            const std::uint64_t expected_identity_v2 = static_cast<std::uint64_t>(batch.vertex_count) * sizeof(int32_t) * 3u;
+            const std::uint64_t preferred_identity_size = batch.identity_stride_bytes >= sizeof(int32_t) * 3u
+                ? expected_identity_v2
+                : expected_identity_v1;
             std::vector<uint8_t> identity_data = batch.identity_file.empty()
                 ? std::vector<uint8_t>()
                 : ((batch.identity_offset > 0 || batch.identity_size > 0)
                     ? read_binary_range(
                         batch.identity_file,
                         batch.identity_offset,
-                        batch.identity_size > 0 ? batch.identity_size : expected_identity)
+                        batch.identity_size > 0 ? batch.identity_size : preferred_identity_size)
                     : read_binary(batch.identity_file));
-            if (identity_data.size() >= static_cast<size_t>(batch.vertex_count) * sizeof(int32_t) * 2u) {
+            const size_t identity_stride_ints = (
+                batch.identity_stride_bytes >= sizeof(int32_t) * 3u
+                || identity_data.size() >= static_cast<size_t>(expected_identity_v2)
+            ) ? 3u : 2u;
+            if (identity_data.size() >= static_cast<size_t>(batch.vertex_count) * sizeof(int32_t) * identity_stride_ints) {
                 batch.cpu_source_submeshes.reserve(static_cast<size_t>(batch.vertex_count));
                 batch.cpu_source_vertices.reserve(static_cast<size_t>(batch.vertex_count));
+                batch.cpu_source_faces.reserve(static_cast<size_t>(batch.vertex_count));
                 const int32_t* identity = reinterpret_cast<const int32_t*>(identity_data.data());
                 for (int vertex_index = 0; vertex_index < batch.vertex_count; ++vertex_index) {
-                    batch.cpu_source_submeshes.push_back(static_cast<int>(identity[vertex_index * 2]));
-                    batch.cpu_source_vertices.push_back(static_cast<int>(identity[vertex_index * 2 + 1]));
+                    const size_t base_index = static_cast<size_t>(vertex_index) * identity_stride_ints;
+                    batch.cpu_source_submeshes.push_back(static_cast<int>(identity[base_index]));
+                    batch.cpu_source_vertices.push_back(static_cast<int>(identity[base_index + 1u]));
+                    batch.cpu_source_faces.push_back(
+                        identity_stride_ints >= 3u
+                            ? static_cast<int>(identity[base_index + 2u])
+                            : vertex_index / 3);
                 }
             } else {
                 batch.cpu_source_submeshes.assign(static_cast<size_t>(batch.vertex_count), batch.source_submesh_index);
                 batch.cpu_source_vertices.reserve(static_cast<size_t>(batch.vertex_count));
+                batch.cpu_source_faces.reserve(static_cast<size_t>(batch.vertex_count));
                 for (int vertex_index = 0; vertex_index < batch.vertex_count; ++vertex_index) {
                     batch.cpu_source_vertices.push_back(vertex_index);
+                    batch.cpu_source_faces.push_back(vertex_index / 3);
                 }
             }
             rebuild_batch_source_vertex_lookup(batch);

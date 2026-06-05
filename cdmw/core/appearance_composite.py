@@ -567,6 +567,7 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
                 indices=indices,
                 source_submesh_index=submesh_index,
                 source_vertex_indices=list(range(len(submesh.vertices))),
+                source_face_indices=list(range(len(submesh.faces))),
             )
         )
     return preview_meshes

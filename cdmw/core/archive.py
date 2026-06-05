@@ -23763,6 +23763,7 @@ def _clone_hkx_context_model_preview(model_preview: ModelPreviewData) -> ModelPr
         mesh_values["normals"] = list(getattr(mesh, "normals", ()) or ())
         mesh_values["indices"] = list(getattr(mesh, "indices", ()) or ())
         mesh_values["source_vertex_indices"] = list(getattr(mesh, "source_vertex_indices", ()) or ())
+        mesh_values["source_face_indices"] = list(getattr(mesh, "source_face_indices", ()) or ())
         meshes.append(ModelPreviewMesh(**mesh_values))
     values = {field_info.name: getattr(model_preview, field_info.name) for field_info in fields(ModelPreviewData)}
     values["meshes"] = meshes
@@ -23852,11 +23853,16 @@ def _reduce_archive_preview_model_geometry(
         target_faces = max(1, int(mesh_face_count * ratio))
         step = max(1, math.ceil(mesh_face_count / target_faces))
         selected_triangles: List[Tuple[int, int, int]] = []
+        selected_source_faces: List[int] = []
+        raw_source_faces = list(getattr(mesh, "source_face_indices", ()) or ())
         for face_index in range(0, mesh_face_count, step):
             base = face_index * 3
             if base + 2 >= len(indices):
                 continue
             selected_triangles.append((indices[base], indices[base + 1], indices[base + 2]))
+            selected_source_faces.append(
+                int(raw_source_faces[face_index]) if face_index < len(raw_source_faces) else int(face_index)
+            )
             if len(selected_triangles) >= target_faces:
                 break
         used_indices: List[int] = []
@@ -23888,6 +23894,7 @@ def _reduce_archive_preview_model_geometry(
         mesh_values["texture_coordinates"] = remap(getattr(mesh, "texture_coordinates", ()) or ())
         mesh_values["normals"] = remap(getattr(mesh, "normals", ()) or ())
         mesh_values["source_vertex_indices"] = remap(getattr(mesh, "source_vertex_indices", ()) or ())
+        mesh_values["source_face_indices"] = selected_source_faces[: len(reduced_indices) // 3]
         mesh_values["indices"] = reduced_indices
         reduced_meshes.append(ModelPreviewMesh(**mesh_values))
 

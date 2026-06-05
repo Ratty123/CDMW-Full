@@ -102,6 +102,51 @@ class ModPackageExportTests(unittest.TestCase):
             self.assertEqual(modinfo.get("description"), "Desc")
             self.assertNotIn("manager_targets", modinfo)
 
+    def test_ready_zip_excludes_stale_material_authority_reports_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "ExampleMod"
+            payload = root / "character" / "texture" / "sample.dds"
+            payload.parent.mkdir(parents=True)
+            payload.write_bytes(b"DDS ")
+            (root / "cdmw_material_authority_report.json").write_text("{}", encoding="utf-8")
+            (root / "cdmw_material_authority_report_check.json").write_text("{}", encoding="utf-8")
+
+            finalize_mod_package_export(
+                root,
+                ModPackageInfo(title="Example"),
+                kind="dds_loose_mod",
+                payload_paths=("character/texture/sample.dds",),
+                options=ModPackageExportOptions(create_zip=True, create_material_authority_report=False),
+            )
+
+            with zipfile.ZipFile(root.with_suffix(".zip")) as archive:
+                names = set(archive.namelist())
+            self.assertIn("character/texture/sample.dds", names)
+            self.assertNotIn("cdmw_material_authority_report.json", names)
+            self.assertNotIn("cdmw_material_authority_report_check.json", names)
+
+    def test_ready_zip_can_include_material_authority_reports_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "ExampleMod"
+            payload = root / "character" / "texture" / "sample.dds"
+            payload.parent.mkdir(parents=True)
+            payload.write_bytes(b"DDS ")
+            (root / "cdmw_material_authority_report.json").write_text("{}", encoding="utf-8")
+            (root / "cdmw_material_authority_report_check.json").write_text("{}", encoding="utf-8")
+
+            finalize_mod_package_export(
+                root,
+                ModPackageInfo(title="Example"),
+                kind="dds_loose_mod",
+                payload_paths=("character/texture/sample.dds",),
+                options=ModPackageExportOptions(create_zip=True, create_material_authority_report=True),
+            )
+
+            with zipfile.ZipFile(root.with_suffix(".zip")) as archive:
+                names = set(archive.namelist())
+            self.assertIn("cdmw_material_authority_report.json", names)
+            self.assertIn("cdmw_material_authority_report_check.json", names)
+
     def test_files_wrapper_moves_payload_and_preserves_new_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "WrappedMod"

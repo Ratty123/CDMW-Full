@@ -209,6 +209,7 @@ def build_pat_model_preview(
             continue
         remap = {source_index: new_index for new_index, source_index in enumerate(used_vertex_indices)}
         remapped_indices = [remap[index] for index in draw_indices if index in remap]
+        source_face_indices = list(range(len(remapped_indices) // 3))
         material = mesh.materials[draw.material_id] if 0 <= draw.material_id < len(mesh.materials) else None
         material_name = material.name if material is not None else f"material_{draw.material_id:03d}"
         texture_name = _preview_color_texture_name(material)
@@ -222,6 +223,7 @@ def build_pat_model_preview(
                 indices=remapped_indices,
                 source_submesh_index=draw_index,
                 source_vertex_indices=used_vertex_indices,
+                source_face_indices=source_face_indices,
                 preview_double_sided=True,
                 preview_alpha_mode="cutout",
                 preview_role=f"LOD {selected_lod + 1} draw {draw_index + 1}",

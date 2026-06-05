@@ -12,7 +12,7 @@ from collections import Counter
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping, Sequence
 
-from cdmw.core.model_catalogue import LocalModelFile, safe_extract_zip, scan_local_model_files, zip_importable_members
+from cdmw.core.model_catalogue import LocalModelFile, safe_extract_zip, scan_local_model_files, zip_importable_member_refs
 from cdmw.modding.scene_importer import (
     SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS,
     SCENE_TEXTURE_SOURCE_EXTENSIONS,
@@ -26,8 +26,17 @@ _IMPORTABLE_EXTERNAL_MODEL_EXTENSIONS = (".glb", ".gltf", ".obj", ".dae")
 _ZIP_EXTERNAL_METADATA_EXTENSIONS = (".fbx",)
 _AUDIT_TEXTURE_EXTENSIONS = SCENE_TEXTURE_SOURCE_EXTENSIONS | SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS
 _AUDIT_TEXTURE_FACT_MAX_IMAGE_BYTES = 256 * 1024 * 1024
+_AUDIT_TEXTURE_FACT_CHANNEL_STATS_MAX_PIXELS = 64 * 1024 * 1024
+_ZIP_NESTED_AUDIT_ARCHIVE_MAX_BYTES = 128 * 1024 * 1024
 _FBX_BINARY_HEADER = b"Kaydara FBX Binary"
 _FBX_BINARY_PRINTABLE = re.compile(rb"[A-Za-z0-9_ ./\\:\-+()\[\]{}@#$%&=~'\",]{4,}")
+
+
+@dataclasses.dataclass(frozen=True)
+class _ResolvedZipAuditMember:
+    path: Path
+    nested_archive_member: str = ""
+    nested_extract_root: Path | None = None
 
 
 def build_external_model_audit_catalogue(
@@ -51,7 +60,7 @@ def build_external_model_audit_catalogue(
         skip_reason = ""
         source_path = Path(str(getattr(row, "path", "") or ""))
         if bool(audit_zip_contents) and zip_audit_limit is not None and source_path.suffix.lower() == ".zip":
-            importable_members = zip_importable_members(source_path)
+            importable_members = zip_importable_member_refs(source_path)
             audit_members = _zip_external_model_members(source_path, importable_members)
             if audit_members:
                 if zip_audits_used >= zip_audit_limit:
@@ -104,7 +113,7 @@ def _audit_external_model_file(
     extension = source_path.suffix.lower()
     companion_textures = _companion_texture_inventory(source_path)
     if extension == ".zip":
-        importable_members = zip_importable_members(source_path)
+        importable_members = zip_importable_member_refs(source_path)
         audit_members = _zip_external_model_members(source_path, importable_members)
         zip_textures = _zip_texture_inventory(source_path)
         skip_reason = str(zip_content_audit_skip_reason or "").strip()
@@ -258,16 +267,25 @@ def _audit_zip_external_model_file(
     base = row.to_dict()
     with tempfile.TemporaryDirectory(prefix="cdmw_external_zip_audit_") as temp_dir:
         extract_root = Path(temp_dir) / source_path.stem
+        nested_extract_base = Path(temp_dir) / "_nested_zip"
+        resolved_member: _ResolvedZipAuditMember | None = None
         try:
             safe_extract_zip(source_path, extract_root)
-            resolved_path = _first_existing_zip_audit_member(extract_root, audit_members)
-            if resolved_path is None:
+            resolved_member = _first_existing_zip_audit_member(
+                extract_root,
+                audit_members,
+                nested_extract_base=nested_extract_base,
+            )
+            if resolved_member is None:
                 raise ValueError(f"ZIP file does not contain an auditable external model: {source_path}.")
+            resolved_path = resolved_member.path
             if resolved_path.suffix.lower() == ".fbx":
                 return _audit_zip_fbx_metadata_file(
                     row,
                     source_path=source_path,
                     extract_root=extract_root,
+                    nested_archive_member=resolved_member.nested_archive_member,
+                    nested_extract_root=resolved_member.nested_extract_root,
                     resolved_path=resolved_path,
                     companion_textures=companion_textures,
                     importable_members=importable_members,
@@ -290,13 +308,27 @@ def _audit_zip_external_model_file(
                 "material_classes": (),
             }
         audit = scene_result.external_audit
-        missing_refs = _rewrite_extracted_paths(_missing_texture_refs(audit), source_path, extract_root)
+        missing_refs = _rewrite_extracted_paths(
+            _missing_texture_refs(audit),
+            source_path,
+            extract_root,
+            nested_archive_member=resolved_member.nested_archive_member,
+            nested_extract_root=resolved_member.nested_extract_root,
+        )
         material_inventory = tuple(_material_inventory_rows(audit))
-        ambiguous_refs = _rewrite_extracted_paths(_ambiguous_texture_refs(material_inventory), source_path, extract_root)
+        ambiguous_refs = _rewrite_extracted_paths(
+            _ambiguous_texture_refs(material_inventory),
+            source_path,
+            extract_root,
+            nested_archive_member=resolved_member.nested_archive_member,
+            nested_extract_root=resolved_member.nested_extract_root,
+        )
         unresolved_candidates = _rewrite_extracted_paths(
             _unresolved_texture_candidates(audit, companion_textures),
             source_path,
             extract_root,
+            nested_archive_member=resolved_member.nested_archive_member,
+            nested_extract_root=resolved_member.nested_extract_root,
         )
         warnings = list(tuple(getattr(audit, "warnings", ()) or ()))
         if missing_refs:
@@ -306,27 +338,59 @@ def _audit_zip_external_model_file(
         if ambiguous_refs:
             warnings.append(f"{len(tuple(ambiguous_refs or ())):,} ambiguous texture role assignment(s) need manual review.")
         warnings.append("ZIP material inventory audited from temporary extraction; downloads root was not modified.")
-        resolved_member = _archive_member_reference(source_path, extract_root, resolved_path)
+        resolved_member_ref = _archive_member_reference(
+            source_path,
+            extract_root,
+            resolved_path,
+            nested_archive_member=resolved_member.nested_archive_member,
+            nested_extract_root=resolved_member.nested_extract_root,
+        )
         return {
             **base,
             "audit_status": "archive_audited",
             "import_supported": True,
             "zip_importable_members": tuple(importable_members),
             "zip_audit_members": tuple(audit_members),
-            "zip_audited_member": str(resolved_member).split("::", 1)[-1],
-            "diagnostics": _rewrite_extracted_paths(tuple(scene_result.diagnostics or ()), source_path, extract_root),
+            "zip_audited_member": str(resolved_member_ref).split("::", 1)[-1],
+            "diagnostics": _rewrite_extracted_paths(
+                tuple(scene_result.diagnostics or ()),
+                source_path,
+                extract_root,
+                nested_archive_member=resolved_member.nested_archive_member,
+                nested_extract_root=resolved_member.nested_extract_root,
+            ),
             "discovered_texture_files": _rewrite_extracted_paths(
                 tuple(str(path) for path in tuple(scene_result.discovered_texture_files or ())),
                 source_path,
                 extract_root,
+                nested_archive_member=resolved_member.nested_archive_member,
+                nested_extract_root=resolved_member.nested_extract_root,
             ),
             "companion_textures": tuple(companion_textures),
             "missing_texture_refs": missing_refs,
             "ambiguous_texture_refs": ambiguous_refs,
             "unresolved_texture_candidates": unresolved_candidates,
-            "audit": _rewrite_extracted_paths(_external_audit_to_dict(audit), source_path, extract_root),
-            "material_inventory": _rewrite_extracted_paths(material_inventory, source_path, extract_root),
-            "material_classes": _rewrite_extracted_paths(tuple(_material_class_rows(audit)), source_path, extract_root),
+            "audit": _rewrite_extracted_paths(
+                _external_audit_to_dict(audit),
+                source_path,
+                extract_root,
+                nested_archive_member=resolved_member.nested_archive_member,
+                nested_extract_root=resolved_member.nested_extract_root,
+            ),
+            "material_inventory": _rewrite_extracted_paths(
+                material_inventory,
+                source_path,
+                extract_root,
+                nested_archive_member=resolved_member.nested_archive_member,
+                nested_extract_root=resolved_member.nested_extract_root,
+            ),
+            "material_classes": _rewrite_extracted_paths(
+                tuple(_material_class_rows(audit)),
+                source_path,
+                extract_root,
+                nested_archive_member=resolved_member.nested_archive_member,
+                nested_extract_root=resolved_member.nested_extract_root,
+            ),
             "warnings": _dedupe_preserve_order(warnings),
         }
 
@@ -337,27 +401,106 @@ def _zip_external_model_members(archive_path: Path, importable_members: Sequence
     try:
         with zipfile.ZipFile(archive_path, "r") as archive:
             for member in archive.infolist():
-                member_name = member.filename.replace("\\", "/")
-                if member.is_dir() or not member_name or member_name.startswith("/") or "../" in f"/{member_name}":
+                member_name = _safe_zip_member_name(member.filename)
+                if not member_name:
                     continue
-                if Path(member_name).suffix.lower() not in _ZIP_EXTERNAL_METADATA_EXTENSIONS:
+                suffix = Path(member_name).suffix.lower()
+                if suffix == ".zip":
+                    for nested_member in _nested_zip_metadata_members(archive, member):
+                        ref = f"{member_name}::{nested_member}"
+                        key = ref.lower()
+                        if key not in seen:
+                            seen.add(key)
+                            members.append(ref)
+                    continue
+                if suffix not in _ZIP_EXTERNAL_METADATA_EXTENSIONS:
                     continue
                 key = member_name.lower()
                 if key not in seen:
                     seen.add(key)
-                    members.append(member.filename)
+                    members.append(member_name)
     except (OSError, zipfile.BadZipFile):
         return tuple(importable_members or ())
     priority = {".gltf": 0, ".glb": 1, ".obj": 2, ".dae": 3, ".fbx": 4, ".pac": 5, ".pam": 6, ".pamlod": 7}
-    return tuple(sorted(members, key=lambda value: (priority.get(Path(value).suffix.lower(), 99), str(value).lower())))
+    return tuple(sorted(members, key=lambda value: (priority.get(_zip_member_ref_suffix(value), 99), "::" in str(value), str(value).lower())))
 
 
-def _first_existing_zip_audit_member(extract_root: Path, members: Sequence[str]) -> Path | None:
+def _nested_zip_metadata_members(parent_archive: zipfile.ZipFile, member: zipfile.ZipInfo) -> tuple[str, ...]:
+    try:
+        size = int(getattr(member, "file_size", 0) or 0)
+        if size <= 0 or size > _ZIP_NESTED_AUDIT_ARCHIVE_MAX_BYTES:
+            return ()
+        with parent_archive.open(member, "r") as stream:
+            payload = stream.read(_ZIP_NESTED_AUDIT_ARCHIVE_MAX_BYTES + 1)
+    except (OSError, zipfile.BadZipFile):
+        return ()
+    if len(payload) > _ZIP_NESTED_AUDIT_ARCHIVE_MAX_BYTES:
+        return ()
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload), "r") as nested_archive:
+            members = []
+            for nested_member in nested_archive.infolist():
+                member_name = _safe_zip_member_name(nested_member.filename)
+                if not member_name:
+                    continue
+                if Path(member_name).suffix.lower() in _ZIP_EXTERNAL_METADATA_EXTENSIONS:
+                    members.append(member_name)
+    except (OSError, zipfile.BadZipFile):
+        return ()
+    return tuple(sorted(members, key=lambda value: str(value).lower()))
+
+
+def _zip_member_ref_suffix(value: str) -> str:
+    outer, nested = _split_nested_zip_member_ref(value)
+    return Path(nested or outer).suffix.lower()
+
+
+def _safe_zip_member_name(value: str) -> str:
+    member_name = str(value or "").replace("\\", "/")
+    if not member_name or member_name.startswith("/") or "../" in f"/{member_name}":
+        return ""
+    return member_name
+
+
+def _split_nested_zip_member_ref(value: str) -> tuple[str, str]:
+    text = str(value or "").replace("\\", "/")
+    if "::" not in text:
+        return text, ""
+    outer, nested = text.split("::", 1)
+    return outer, nested
+
+
+def _nested_zip_extract_dir_name(member_name: str) -> str:
+    clean = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(member_name or "").replace("\\", "/")).strip("._")
+    return clean[:96] or "nested_zip"
+
+
+def _first_existing_zip_audit_member(
+    extract_root: Path,
+    members: Sequence[str],
+    *,
+    nested_extract_base: Path,
+) -> _ResolvedZipAuditMember | None:
     for member in tuple(members or ()):
-        member_path = PurePosixPath(str(member).replace("\\", "/"))
+        outer_member, nested_member = _split_nested_zip_member_ref(member)
+        member_path = PurePosixPath(outer_member)
         candidate = extract_root.joinpath(*member_path.parts)
+        if nested_member:
+            if not candidate.is_file() or candidate.suffix.lower() != ".zip":
+                continue
+            nested_root = nested_extract_base / _nested_zip_extract_dir_name(outer_member)
+            safe_extract_zip(candidate, nested_root)
+            nested_path = PurePosixPath(nested_member)
+            candidate = nested_root.joinpath(*nested_path.parts)
+            if candidate.is_file():
+                return _ResolvedZipAuditMember(
+                    path=candidate,
+                    nested_archive_member=outer_member,
+                    nested_extract_root=nested_root,
+                )
+            continue
         if candidate.is_file():
-            return candidate
+            return _ResolvedZipAuditMember(path=candidate)
     return None
 
 
@@ -366,6 +509,8 @@ def _audit_zip_fbx_metadata_file(
     *,
     source_path: Path,
     extract_root: Path,
+    nested_archive_member: str = "",
+    nested_extract_root: Path | None = None,
     resolved_path: Path,
     companion_textures: Sequence[Mapping[str, object]],
     importable_members: Sequence[str],
@@ -394,13 +539,31 @@ def _audit_zip_fbx_metadata_file(
             import_supported=False,
         )
     audited = _audit_external_model_file(extracted_row, audit_zip_contents=False)
-    material_inventory = _rewrite_extracted_paths(tuple(audited.get("material_inventory", ()) or ()), source_path, extract_root)
-    ambiguous_refs = _rewrite_extracted_paths(_ambiguous_texture_refs(material_inventory), source_path, extract_root)
+    material_inventory = _rewrite_extracted_paths(
+        tuple(audited.get("material_inventory", ()) or ()),
+        source_path,
+        extract_root,
+        nested_archive_member=nested_archive_member,
+        nested_extract_root=nested_extract_root,
+    )
+    ambiguous_refs = _rewrite_extracted_paths(
+        _ambiguous_texture_refs(material_inventory),
+        source_path,
+        extract_root,
+        nested_archive_member=nested_archive_member,
+        nested_extract_root=nested_extract_root,
+    )
     warnings = list(tuple(audited.get("warnings", ()) or ()))
     if ambiguous_refs:
         warnings.append(f"{len(tuple(ambiguous_refs or ())):,} ambiguous texture role assignment(s) need manual review.")
     warnings.append("ZIP FBX material inventory audited from temporary extraction; downloads root was not modified.")
-    resolved_member = _archive_member_reference(source_path, extract_root, resolved_path)
+    resolved_member = _archive_member_reference(
+        source_path,
+        extract_root,
+        resolved_path,
+        nested_archive_member=nested_archive_member,
+        nested_extract_root=nested_extract_root,
+    )
     return {
         **base,
         "audit_status": "archive_audited",
@@ -408,31 +571,96 @@ def _audit_zip_fbx_metadata_file(
         "zip_importable_members": tuple(importable_members),
         "zip_audit_members": tuple(audit_members),
         "zip_audited_member": str(resolved_member).split("::", 1)[-1],
-        "companion_textures": _rewrite_extracted_paths(tuple(audited.get("companion_textures", ()) or companion_textures), source_path, extract_root),
+        "companion_textures": _rewrite_extracted_paths(
+            tuple(audited.get("companion_textures", ()) or companion_textures),
+            source_path,
+            extract_root,
+            nested_archive_member=nested_archive_member,
+            nested_extract_root=nested_extract_root,
+        ),
         "missing_texture_refs": (),
         "ambiguous_texture_refs": ambiguous_refs,
         "unresolved_texture_candidates": (),
         "material_inventory": material_inventory,
-        "material_classes": _rewrite_extracted_paths(tuple(audited.get("material_classes", ()) or ()), source_path, extract_root),
+        "material_classes": _rewrite_extracted_paths(
+            tuple(audited.get("material_classes", ()) or ()),
+            source_path,
+            extract_root,
+            nested_archive_member=nested_archive_member,
+            nested_extract_root=nested_extract_root,
+        ),
         "warnings": _dedupe_preserve_order(warnings),
     }
 
 
-def _rewrite_extracted_paths(value: object, archive_path: Path, extract_root: Path) -> object:
+def _rewrite_extracted_paths(
+    value: object,
+    archive_path: Path,
+    extract_root: Path,
+    *,
+    nested_archive_member: str = "",
+    nested_extract_root: Path | None = None,
+) -> object:
     if isinstance(value, Mapping):
-        return {str(key): _rewrite_extracted_paths(item, archive_path, extract_root) for key, item in value.items()}
+        return {
+            str(key): _rewrite_extracted_paths(
+                item,
+                archive_path,
+                extract_root,
+                nested_archive_member=nested_archive_member,
+                nested_extract_root=nested_extract_root,
+            )
+            for key, item in value.items()
+        }
     if isinstance(value, tuple):
-        return tuple(_rewrite_extracted_paths(item, archive_path, extract_root) for item in value)
+        return tuple(
+            _rewrite_extracted_paths(
+                item,
+                archive_path,
+                extract_root,
+                nested_archive_member=nested_archive_member,
+                nested_extract_root=nested_extract_root,
+            )
+            for item in value
+        )
     if isinstance(value, list):
-        return [_rewrite_extracted_paths(item, archive_path, extract_root) for item in value]
+        return [
+            _rewrite_extracted_paths(
+                item,
+                archive_path,
+                extract_root,
+                nested_archive_member=nested_archive_member,
+                nested_extract_root=nested_extract_root,
+            )
+            for item in value
+        ]
     if isinstance(value, Path):
-        return _archive_member_reference(archive_path, extract_root, value)
+        return _archive_member_reference(
+            archive_path,
+            extract_root,
+            value,
+            nested_archive_member=nested_archive_member,
+            nested_extract_root=nested_extract_root,
+        )
     if isinstance(value, str):
-        return _archive_member_reference(archive_path, extract_root, value)
+        return _archive_member_reference(
+            archive_path,
+            extract_root,
+            value,
+            nested_archive_member=nested_archive_member,
+            nested_extract_root=nested_extract_root,
+        )
     return value
 
 
-def _archive_member_reference(archive_path: Path, extract_root: Path, value: object) -> object:
+def _archive_member_reference(
+    archive_path: Path,
+    extract_root: Path,
+    value: object,
+    *,
+    nested_archive_member: str = "",
+    nested_extract_root: Path | None = None,
+) -> object:
     text = str(value or "")
     if not text:
         return text
@@ -440,6 +668,12 @@ def _archive_member_reference(archive_path: Path, extract_root: Path, value: obj
         path = Path(text).expanduser()
         if not path.is_absolute():
             return text
+        if nested_archive_member and nested_extract_root is not None:
+            try:
+                relative_nested = path.resolve().relative_to(nested_extract_root.resolve())
+                return f"{archive_path}::{nested_archive_member}::{relative_nested.as_posix()}"
+            except (OSError, ValueError):
+                pass
         relative = path.resolve().relative_to(extract_root.resolve())
     except (OSError, ValueError):
         return text
@@ -998,10 +1232,13 @@ def _zip_texture_inventory(archive_path: Path) -> tuple[dict[str, object], ...]:
     try:
         with zipfile.ZipFile(archive_path, "r") as archive:
             for member in archive.infolist():
-                member_name = member.filename.replace("\\", "/")
-                if member.is_dir() or not member_name or member_name.startswith("/") or "../" in f"/{member_name}":
+                member_name = _safe_zip_member_name(member.filename)
+                if not member_name:
                     continue
                 suffix = Path(member_name).suffix.lower()
+                if suffix == ".zip":
+                    rows.extend(_nested_zip_texture_inventory(archive_path, archive, member))
+                    continue
                 if suffix not in _AUDIT_TEXTURE_EXTENSIONS:
                     continue
                 slot = _guess_texture_slot(Path(member_name))
@@ -1026,6 +1263,60 @@ def _zip_texture_inventory(archive_path: Path) -> tuple[dict[str, object], ...]:
     except (OSError, zipfile.BadZipFile):
         return ()
     return tuple(sorted(rows, key=lambda row: str(row.get("archive_member", "")).lower()))
+
+
+def _nested_zip_texture_inventory(
+    archive_path: Path,
+    parent_archive: zipfile.ZipFile,
+    member: zipfile.ZipInfo,
+) -> tuple[dict[str, object], ...]:
+    member_name = _safe_zip_member_name(member.filename)
+    if not member_name:
+        return ()
+    try:
+        size = int(getattr(member, "file_size", 0) or 0)
+        if size <= 0 or size > _ZIP_NESTED_AUDIT_ARCHIVE_MAX_BYTES:
+            return ()
+        with parent_archive.open(member, "r") as stream:
+            payload = stream.read(_ZIP_NESTED_AUDIT_ARCHIVE_MAX_BYTES + 1)
+    except (OSError, zipfile.BadZipFile):
+        return ()
+    if len(payload) > _ZIP_NESTED_AUDIT_ARCHIVE_MAX_BYTES:
+        return ()
+    rows: list[dict[str, object]] = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload), "r") as nested_archive:
+            for nested_member in nested_archive.infolist():
+                nested_name = _safe_zip_member_name(nested_member.filename)
+                if not nested_name:
+                    continue
+                suffix = Path(nested_name).suffix.lower()
+                if suffix not in _AUDIT_TEXTURE_EXTENSIONS:
+                    continue
+                slot = _guess_texture_slot(Path(nested_name))
+                diagnostic_only = suffix in SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS
+                resolution, channel_stats = _zip_member_texture_facts(nested_archive, nested_member)
+                archive_member = f"{member_name}::{nested_name}"
+                rows.append(
+                    {
+                        "path": f"{archive_path}::{archive_member}",
+                        "name": PurePosixPath(nested_name).name,
+                        "extension": suffix,
+                        "slot_guess": slot,
+                        "diagnostic_only": diagnostic_only,
+                        "resolution": resolution,
+                        "channel_stats": channel_stats,
+                        "resolution_status": "available" if len(resolution) >= 2 else "missing_or_unreadable",
+                        "channel_stats_status": "available" if channel_stats else "missing_or_unreadable",
+                        "archive_member": archive_member,
+                        "nested_archive_member": member_name,
+                        "bytes": int(getattr(nested_member, "file_size", 0) or 0),
+                        "evidence": f"nested zip filename token:{slot}" if slot else "nested zip texture member",
+                    }
+                )
+    except (OSError, zipfile.BadZipFile):
+        return ()
+    return tuple(rows)
 
 
 def _resolve_path(path: Path) -> Path:
@@ -1729,10 +2020,19 @@ def _unsupported_companion_material_classes(
     vertex_alpha: Sequence[float] = (),
     emissive_color: Sequence[float] = (),
 ) -> tuple[dict[str, object], ...]:
-    text = " ".join(
+    raw_text = " ".join(
         [model_path.stem, str(material_name or "")]
         + [str(slot.get("texture_name", "") or "") for slot in tuple(texture_slots or ()) if isinstance(slot, Mapping)]
-    ).lower()
+    )
+    split_text = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", raw_text)
+    text = split_text.lower()
+    tokens = set(re.findall(r"[a-z0-9]+", text))
+    compact_tokens = {
+        re.sub(r"[^a-z0-9]+", "", token)
+        for token in re.split(r"[\s._/\-\\]+", raw_text.lower())
+        if re.sub(r"[^a-z0-9]+", "", token)
+    }
+    tokens.update(compact_tokens)
     evidence: dict[str, list[str]] = {}
     scalar_map = {
         str(key or "").strip().lower(): _safe_float(value, 0.0)
@@ -1744,6 +2044,17 @@ def _unsupported_companion_material_classes(
         evidence.setdefault(material_class, [])
         if reason not in evidence[material_class]:
             evidence[material_class].append(reason)
+
+    def has_any(*terms: str) -> bool:
+        wanted = {str(term or "").strip().lower() for term in tuple(terms or ()) if str(term or "").strip()}
+        if tokens & wanted:
+            return True
+        for token in tuple(tokens):
+            for term in wanted:
+                normalized = re.sub(r"[^a-z0-9]+", "", term)
+                if normalized and (token == normalized or (len(normalized) >= 5 and (token.startswith(normalized) or token.endswith(normalized)))):
+                    return True
+        return any(term in text for term in wanted if len(term) >= 5)
 
     def slot_stats(*slot_names: str) -> dict[str, float]:
         wanted = {str(name or "").strip().lower() for name in tuple(slot_names or ()) if str(name or "").strip()}
@@ -1762,22 +2073,30 @@ def _unsupported_companion_material_classes(
                     return stats
         return {}
 
-    for material_class, tokens in (
-        ("gold", ("gold", "gilded")),
-        ("bronze", ("bronze",)),
-        ("copper", ("copper",)),
-        ("metal", ("metal", "steel", "iron", "gold", "gilded", "bronze", "copper", "blade", "armor", "armour")),
-        ("painted_metal", ("paintedmetal", "painted_metal")),
-        ("cloth", ("cloth", "fabric", "cape", "robe")),
-        ("leather", ("leather", "hide")),
-        ("wood", ("wood", "timber")),
-        ("stone", ("stone", "rock")),
-        ("glass_crystal", ("glass", "crystal", "gem")),
-        ("emissive", ("emissive", "emission", "glow")),
-        ("skin_organic", ("skin", "face", "body", "organic", "flesh")),
-    ):
-        if any(token in text for token in tokens):
-            add(material_class, f"name_token:{material_class}")
+    if has_any("gold", "gilded"):
+        add("gold", "gold material/name token")
+    if has_any("bronze", "brass"):
+        add("bronze", "bronze/brass material/name token")
+    if has_any("copper"):
+        add("copper", "copper material/name token")
+    if has_any("metal", "metallic", "steel", "iron", "silver", "chrome", "blade", "sword", "armor", "armour"):
+        add("metal", "metal material/name token")
+    if has_any("gold", "gilded", "bronze", "brass", "copper"):
+        add("metal", "metal family material/name token")
+    if has_any("cloth", "fabric", "cape", "robe", "linen", "cotton", "canvas", "textile", "garment", "flag"):
+        add("cloth", "cloth/fabric material/name token")
+    if has_any("leather", "hide", "suede", "strap", "belt"):
+        add("leather", "leather material/name token")
+    if has_any("wood", "wooden", "timber", "oak", "pine", "walnut", "bark", "plank"):
+        add("wood", "wood material/name token")
+    if has_any("stone", "rock", "granite", "marble", "concrete", "slate", "ceramic"):
+        add("stone", "stone/rock material/name token")
+    if has_any("glass", "crystal", "gem", "lens", "transparent", "translucent"):
+        add("glass_crystal", "glass/crystal material/name token")
+    if has_any("emissive", "emission", "glow", "illum"):
+        add("emissive", "emissive material/name token")
+    if has_any("skin", "face", "body", "organic", "flesh", "hand", "arm", "leg", "head"):
+        add("skin_organic", "skin/organic material/name token")
 
     slots = {str(slot.get("slot_kind", "") or "").strip().lower() for slot in tuple(texture_slots or ()) if isinstance(slot, Mapping)}
     if slots.intersection({"metalness", "material", "specular"}):
@@ -1789,16 +2108,21 @@ def _unsupported_companion_material_classes(
     material_stats = slot_stats("material", "metallic_roughness")
     if material_stats.get("b_mean", 0.0) >= 0.45:
         add("metal", f"metallic-roughness B channel mean {material_stats.get('b_mean', 0.0):.2f}")
+    roughness_evidence = max(roughness, material_stats.get("g_mean", 0.0))
+    roughness_stats = slot_stats("roughness")
+    roughness_evidence = max(roughness_evidence, roughness_stats.get("luma_mean", 0.0))
     metalness_stats = slot_stats("metalness", "metallic")
     if metalness_stats.get("luma_mean", 0.0) >= 0.45:
         add("metal", f"metalness texture mean {metalness_stats.get('luma_mean', 0.0):.2f}")
+    metal_evidence = "metal" in evidence or metalness >= 0.35 or material_stats.get("b_mean", 0.0) >= 0.45 or metalness_stats.get("luma_mean", 0.0) >= 0.45
+    if has_any("painted", "paint", "paintjob", "coated", "enamel") and metal_evidence:
+        add("painted_metal", "painted/coated token with metal evidence")
     rgb: tuple[float, float, float] = ()
     if len(tuple(color_factor or ())) >= 3:
         rgb = tuple(max(0.0, min(1.0, _safe_float(value, 0.0))) for value in tuple(color_factor)[:3])  # type: ignore[assignment]
     base_stats = slot_stats("base", "albedo")
     if (not rgb or all(abs(value - 1.0) <= 1e-6 for value in rgb)) and {"r_mean", "g_mean", "b_mean"} <= set(base_stats):
         rgb = (base_stats["r_mean"], base_stats["g_mean"], base_stats["b_mean"])
-    metal_evidence = "metal" in evidence or metalness >= 0.35 or material_stats.get("b_mean", 0.0) >= 0.45
     if rgb and metal_evidence:
         r, g, b = rgb
         if r >= 0.65 and g >= 0.45 and b <= 0.38:
@@ -1807,12 +2131,14 @@ def _unsupported_companion_material_classes(
             add("copper", f"warm metallic color {r:.2f},{g:.2f},{b:.2f}")
         elif r >= 0.45 and g >= 0.25 and b <= 0.30:
             add("bronze", f"bronze-like metallic color {r:.2f},{g:.2f},{b:.2f}")
-    if rgb and metalness < 0.2:
+    if rgb and metalness < 0.2 and not metal_evidence:
         r, g, b = rgb
         spread = max(rgb) - min(rgb)
-        if r >= 0.22 and g >= 0.12 and b <= 0.18 and r >= g >= b and roughness >= 0.55:
-            add("leather", f"rough warm brown color {r:.2f},{g:.2f},{b:.2f}")
-        if spread <= 0.12 and 0.20 <= max(rgb) <= 0.75 and roughness >= 0.45:
+        if r >= 0.22 and g >= 0.12 and b <= 0.18 and r >= g >= b:
+            if roughness_evidence >= 0.55:
+                add("leather", f"rough warm brown color {r:.2f},{g:.2f},{b:.2f}")
+            add("wood", f"warm brown color {r:.2f},{g:.2f},{b:.2f}")
+        if spread <= 0.12 and 0.20 <= max(rgb) <= 0.75 and roughness_evidence >= 0.45:
             add("stone", f"rough neutral color {r:.2f},{g:.2f},{b:.2f}")
     if "emissive" in slots:
         add("emissive", "companion_emissive_texture")
@@ -1856,9 +2182,16 @@ def _texture_image_facts(path: Path) -> tuple[tuple[int, int], tuple[tuple[str, 
             return _dds_image_facts(path), _decoded_image_channel_stats(path)
         from PIL import Image
 
-        with Image.open(path) as image:
-            resolution = (int(image.width), int(image.height))
-            return resolution, _image_channel_stats(image)
+        previous_max_pixels = Image.MAX_IMAGE_PIXELS
+        try:
+            Image.MAX_IMAGE_PIXELS = None
+            with Image.open(path) as image:
+                resolution = (int(image.width), int(image.height))
+                if int(image.width) * int(image.height) > _AUDIT_TEXTURE_FACT_CHANNEL_STATS_MAX_PIXELS:
+                    return resolution, ()
+                return resolution, _image_channel_stats(image)
+        finally:
+            Image.MAX_IMAGE_PIXELS = previous_max_pixels
     except Exception:
         return (), ()
 
@@ -1887,9 +2220,16 @@ def _texture_image_facts_from_bytes(
             return _dds_image_facts_from_bytes(payload), _decoded_image_channel_stats_from_bytes(payload)
         from PIL import Image
 
-        with Image.open(io.BytesIO(payload)) as image:
-            resolution = (int(image.width), int(image.height))
-            return resolution, _image_channel_stats(image)
+        previous_max_pixels = Image.MAX_IMAGE_PIXELS
+        try:
+            Image.MAX_IMAGE_PIXELS = None
+            with Image.open(io.BytesIO(payload)) as image:
+                resolution = (int(image.width), int(image.height))
+                if int(image.width) * int(image.height) > _AUDIT_TEXTURE_FACT_CHANNEL_STATS_MAX_PIXELS:
+                    return resolution, ()
+                return resolution, _image_channel_stats(image)
+        finally:
+            Image.MAX_IMAGE_PIXELS = previous_max_pixels
     except Exception:
         return (), ()
 

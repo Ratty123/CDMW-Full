@@ -224,10 +224,11 @@ class NativeD3D11PreviewHostFrame(QFrame):
                 "d3d11_texture_address_mode": str(
                     getattr(settings, "d3d11_texture_address_mode", "wrap") or "wrap"
                 ),
-                "ambient_strength": float(getattr(settings, "ambient_strength", 0.55) or 0.55),
-                "diffuse_light_scale": float(getattr(settings, "diffuse_light_scale", 0.65) or 0.65),
-                "specular_base": float(getattr(settings, "specular_base", 0.05) or 0.05),
-                "specular_max": float(getattr(settings, "specular_max", 0.18) or 0.18),
+                "ambient_strength": float(getattr(settings, "ambient_strength", 0.72) or 0.72),
+                "diffuse_wrap_bias": float(getattr(settings, "diffuse_wrap_bias", 0.72) or 0.72),
+                "diffuse_light_scale": float(getattr(settings, "diffuse_light_scale", 0.95) or 0.95),
+                "specular_base": float(getattr(settings, "specular_base", 0.07) or 0.07),
+                "specular_max": float(getattr(settings, "specular_max", 0.32) or 0.32),
                 "shininess_min": float(getattr(settings, "shininess_min", 28.0) or 28.0),
                 "shininess_max": float(getattr(settings, "shininess_max", 72.0) or 72.0),
                 "orbit_sensitivity": float(getattr(settings, "orbit_sensitivity", 0.22) or 0.22),

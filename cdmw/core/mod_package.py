@@ -868,13 +868,21 @@ def _remove_empty_moved_payload_dirs(root: Path, moved_paths: Sequence[str], fil
             continue
 
 
-def _write_package_zip(root: Path) -> Path:
+_OPTIONAL_AUTHORITY_REPORT_FILENAMES = {
+    "cdmw_material_authority_report.json",
+    "cdmw_material_authority_report_check.json",
+}
+
+
+def _write_package_zip(root: Path, *, include_material_authority_reports: bool = False) -> Path:
     zip_path = root.with_suffix(".zip")
     if zip_path.exists():
         zip_path.unlink()
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(root.rglob("*")):
             if not path.is_file():
+                continue
+            if not include_material_authority_reports and path.name.lower() in _OPTIONAL_AUTHORITY_REPORT_FILENAMES:
                 continue
             archive.write(path, path.relative_to(root).as_posix())
     return zip_path
@@ -1088,7 +1096,14 @@ def finalize_mod_package_export(
         )
         metadata_files.append(field_manifest_path)
 
-    zip_path = _write_package_zip(root) if resolved_options.create_zip else None
+    zip_path = (
+        _write_package_zip(
+            root,
+            include_material_authority_reports=bool(resolved_options.create_material_authority_report),
+        )
+        if resolved_options.create_zip
+        else None
+    )
     return ModPackageFinalizeResult(
         metadata_files=metadata_files,
         zip_path=zip_path,
@@ -1305,7 +1320,10 @@ def write_mod_package_manifest(
         kind=kind,
     )
     if ready_zip_path is not None:
-        _write_package_zip(root)
+        _write_package_zip(
+            root,
+            include_material_authority_reports=bool(resolved_export_options.create_material_authority_report),
+        )
     return manifest_path if manifest_path.exists() else (metadata_files[0] if metadata_files else readme_path)
 
 
@@ -1476,7 +1494,10 @@ def write_mesh_loose_mod_package_metadata(
         kind="mesh_loose_mod",
     )
     if ready_zip_path is not None:
-        ready_zip_path = _write_package_zip(root)
+        ready_zip_path = _write_package_zip(
+            root,
+            include_material_authority_reports=bool(resolved_export_options.create_material_authority_report),
+        )
     return [
         *([manifest_path] if manifest_path.exists() else []),
         readme_path,

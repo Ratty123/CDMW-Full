@@ -3860,6 +3860,7 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
             indices=indices,
             source_submesh_index=submesh_index,
             source_vertex_indices=list(range(len(submesh.vertices))),
+            source_face_indices=list(range(len(submesh.faces))),
         )
         preview_color = tuple(getattr(submesh, "preview_color", ()) or ())
         if len(preview_color) >= 3:
@@ -22458,6 +22459,7 @@ def _hkx_preview_box_mesh(
         indices=indices,
         source_submesh_index=source_submesh_index,
         source_vertex_indices=list(range(len(positions))),
+        source_face_indices=list(range(len(indices) // 3)),
         preview_role=preview_role,
     )
 
@@ -22545,6 +22547,7 @@ def _hkx_preview_cylinder_mesh(
         indices=indices,
         source_submesh_index=source_submesh_index,
         source_vertex_indices=list(range(len(positions))),
+        source_face_indices=list(range(len(indices) // 3)),
         preview_role=preview_role,
     )
 
@@ -22581,6 +22584,7 @@ def _hkx_preview_marker_mesh(
         indices=indices,
         source_submesh_index=source_submesh_index,
         source_vertex_indices=list(range(len(positions))),
+        source_face_indices=list(range(len(indices) // 3)),
         preview_role=preview_role,
     )
 
@@ -22626,6 +22630,7 @@ def _hkx_preview_sphere_mesh(
         indices=indices,
         source_submesh_index=source_submesh_index,
         source_vertex_indices=list(range(len(positions))),
+        source_face_indices=list(range(len(indices) // 3)),
         preview_role=preview_role,
     )
 
@@ -22695,6 +22700,7 @@ def _hkx_preview_shape_meshes(
                 indices=indices,
                 source_submesh_index=shape_index,
                 source_vertex_indices=list(range(len(vertices))),
+                source_face_indices=list(range(len(indices) // 3)),
                 preview_role="hkx_collision_shape",
             )
         )

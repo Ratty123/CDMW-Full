@@ -60,6 +60,7 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
             index_count=3,
             source_submesh_index=4,
             source_vertex_indices=(10, 11, 12),
+            source_face_indices=(100,),
         )
         batch_b = PreparedModelPreviewBatch(
             material_name="b",
@@ -67,6 +68,7 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
             index_count=6,
             source_submesh_index=8,
             source_vertex_indices=(20, 21, 22, 23, 24, 25),
+            source_face_indices=(200, 201),
         )
         prepared = PreparedModelPreviewData(
             source_path="aggregate.pac",
@@ -96,10 +98,12 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
             self.assertEqual(3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES, second["vertex_offset"])
             self.assertEqual("geometry/identity.bin", first["editor_identity"]["identity_file"])
             self.assertEqual(0, first["editor_identity"]["identity_offset"])
-            self.assertEqual(3 * 8, second["editor_identity"]["identity_offset"])
+            self.assertEqual(3 * 12, second["editor_identity"]["identity_offset"])
+            self.assertEqual(12, first["editor_identity"]["identity_stride_bytes"])
+            self.assertEqual(12, second["editor_identity"]["identity_stride_bytes"])
             identity_blob = identity_path.read_bytes()
-            self.assertEqual((4, 10, 4, 11, 4, 12), struct.unpack_from("<iiiiii", identity_blob, 0))
-            self.assertEqual((8, 20, 8, 21, 8, 22), struct.unpack_from("<iiiiii", identity_blob, 3 * 8))
+            self.assertEqual((4, 10, 100, 4, 11, 100, 4, 12, 100), struct.unpack_from("<iiiiiiiii", identity_blob, 0))
+            self.assertEqual((8, 20, 200, 8, 21, 200, 8, 22, 200), struct.unpack_from("<iiiiiiiii", identity_blob, 3 * 12))
 
     def test_main_window_cache_split_source_guards(self) -> None:
         source = _read("cdmw/ui/main_window.py")

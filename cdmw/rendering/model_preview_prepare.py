@@ -1182,17 +1182,38 @@ def prepare_model_preview(
         end = start + (int(batch.vertex_count) * bytes_per_vertex)
         mesh_source_submesh_index = int_or_default(getattr(mesh, "source_submesh_index", -1), -1)
         mesh_source_vertices = tuple(int(index) for index in tuple(getattr(mesh, "source_vertex_indices", ()) or ()))
+        mesh_source_faces = tuple(int(index) for index in tuple(getattr(mesh, "source_face_indices", ()) or ()))
         mesh_indices = tuple(int(index) for index in tuple(getattr(mesh, "indices", ()) or ()))
         emitted_source_vertices: Tuple[int, ...] = ()
-        if mesh_source_vertices and mesh_indices:
-            emitted = []
-            for index in mesh_indices[: int(batch.vertex_count)]:
-                emitted.append(int(mesh_source_vertices[int(index)]) if 0 <= int(index) < len(mesh_source_vertices) else int(index))
-            emitted_source_vertices = tuple(emitted)
-        elif mesh_indices:
-            emitted_source_vertices = tuple(mesh_indices[: int(batch.vertex_count)])
+        emitted_source_faces: Tuple[int, ...] = ()
+        if mesh_indices:
+            emitted_vertices: List[int] = []
+            emitted_faces: List[int] = []
+            vertex_limit = int(batch.vertex_count)
+            source_vertex_count = len(tuple(getattr(mesh, "positions", ()) or ()))
+            for face_ordinal, index_offset in enumerate(range(0, len(mesh_indices) - 2, 3)):
+                triangle = (
+                    int(mesh_indices[index_offset]),
+                    int(mesh_indices[index_offset + 1]),
+                    int(mesh_indices[index_offset + 2]),
+                )
+                if any(index < 0 or index >= source_vertex_count for index in triangle):
+                    continue
+                source_face_index = int(mesh_source_faces[face_ordinal]) if face_ordinal < len(mesh_source_faces) else int(face_ordinal)
+                emitted_faces.append(source_face_index)
+                for index in triangle:
+                    emitted_vertices.append(
+                        int(mesh_source_vertices[index])
+                        if 0 <= int(index) < len(mesh_source_vertices)
+                        else int(index)
+                    )
+                if len(emitted_vertices) >= vertex_limit:
+                    break
+            emitted_source_vertices = tuple(emitted_vertices[:vertex_limit])
+            emitted_source_faces = tuple(emitted_faces[: max(0, vertex_limit // 3)])
         elif int(batch.vertex_count) > 0:
             emitted_source_vertices = tuple(range(int(batch.vertex_count)))
+            emitted_source_faces = tuple(range(max(0, int(batch.vertex_count) // 3)))
         cloth_batch = cloth_by_mesh_index.get(int(getattr(batch, "mesh_index", -1))) or cloth_by_source_submesh.get(mesh_source_submesh_index)
         editor_role = str(getattr(mesh, "preview_role", "") or "").strip()
         editor_role_key = editor_role.lower()
@@ -1234,6 +1255,7 @@ def prepare_model_preview(
                 position_y_max=float(getattr(batch, "position_y_max", 0.0) or 0.0),
                 source_submesh_index=mesh_source_submesh_index,
                 source_vertex_indices=emitted_source_vertices,
+                source_face_indices=emitted_source_faces,
                 editor_role=editor_role,
                 editor_part_name=str(getattr(mesh, "material_name", "") or getattr(mesh, "texture_name", "") or getattr(mesh, "source_submesh_index", "") or "").strip(),
                 editor_editable=editor_editable,

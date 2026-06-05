@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import re
 import shutil
@@ -9,7 +10,7 @@ import time
 import zipfile
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 from urllib.parse import unquote, urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
@@ -28,6 +29,8 @@ IMPORTABLE_MODEL_EXTENSIONS = {
 }
 
 ZIP_IMPORTABLE_MODEL_EXTENSIONS = set(IMPORTABLE_MODEL_EXTENSIONS)
+ZIP_NESTED_IMPORTABLE_ARCHIVE_EXTENSIONS = {".zip"}
+ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES = 128 * 1024 * 1024
 
 BROWSABLE_MODEL_EXTENSIONS = IMPORTABLE_MODEL_EXTENSIONS | {
     ".3ds",
@@ -80,7 +83,7 @@ _GENERIC_LOCAL_MODEL_DIRECTORY_NAMES = _GENERIC_LOCAL_MODEL_FILE_STEMS | {
 }
 
 _TRAILING_MODEL_CATALOGUE_UID_RE = re.compile(r"[-_\s]+[0-9a-fA-F]{24,64}$")
-_LOCAL_MODEL_SCAN_IGNORED_DIRECTORY_NAMES = {".cdmw_extracted"}
+_LOCAL_MODEL_SCAN_IGNORED_DIRECTORY_NAMES = {".cdmw_extracted", ".cdmw_nested_zip"}
 
 
 @dataclass(frozen=True)
@@ -360,8 +363,82 @@ def zip_importable_members(archive_path: Path | str) -> tuple[str, ...]:
     return tuple(sorted(members, key=lambda value: (priority.get(Path(value).suffix.lower(), 99), value.lower())))
 
 
+def zip_importable_member_refs(archive_path: Path | str) -> tuple[str, ...]:
+    """Return direct and one-level nested ZIP importable member references."""
+    archive = Path(archive_path)
+    direct_members = list(zip_importable_members(archive))
+    if archive.suffix.lower() != ".zip" or not archive.is_file():
+        return tuple(direct_members)
+    members = list(direct_members)
+    seen = {member.replace("\\", "/").lower() for member in members}
+    try:
+        with zipfile.ZipFile(archive, "r") as zip_file:
+            for member in zip_file.infolist():
+                member_name = _safe_zip_member_name(member.filename)
+                if not member_name:
+                    continue
+                if Path(member_name).suffix.lower() not in ZIP_NESTED_IMPORTABLE_ARCHIVE_EXTENSIONS:
+                    continue
+                if int(getattr(member, "file_size", 0) or 0) > ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES:
+                    continue
+                for nested_member in _nested_zip_importable_members(zip_file, member):
+                    ref = f"{member_name}::{nested_member}"
+                    key = ref.lower()
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    members.append(ref)
+    except (OSError, zipfile.BadZipFile):
+        return tuple(direct_members)
+    return tuple(sorted(members, key=_zip_importable_member_ref_sort_key))
+
+
+def _nested_zip_importable_members(parent_archive: zipfile.ZipFile, member: zipfile.ZipInfo) -> tuple[str, ...]:
+    try:
+        with parent_archive.open(member, "r") as stream:
+            payload = stream.read(ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES + 1)
+    except (OSError, zipfile.BadZipFile):
+        return ()
+    if len(payload) > ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES:
+        return ()
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload), "r") as nested_archive:
+            nested_members = []
+            for nested_member in nested_archive.infolist():
+                nested_name = _safe_zip_member_name(nested_member.filename)
+                if not nested_name:
+                    continue
+                if Path(nested_name).suffix.lower() in ZIP_IMPORTABLE_MODEL_EXTENSIONS:
+                    nested_members.append(nested_name)
+    except (OSError, zipfile.BadZipFile):
+        return ()
+    return tuple(sorted(nested_members, key=lambda value: (Path(value).suffix.lower(), value.lower())))
+
+
+def _zip_importable_member_ref_sort_key(value: str) -> tuple[int, int, str, str]:
+    priority = {".gltf": 0, ".glb": 1, ".obj": 2, ".dae": 3, ".pac": 4, ".pam": 5, ".pamlod": 6}
+    outer, nested = _split_nested_zip_member_ref(value)
+    suffix = Path(nested or outer).suffix.lower()
+    return (priority.get(suffix, 99), 1 if nested else 0, outer.lower(), nested.lower())
+
+
+def _safe_zip_member_name(value: str) -> str:
+    member_name = str(value or "").replace("\\", "/")
+    if not member_name or member_name.startswith("/") or "../" in f"/{member_name}":
+        return ""
+    return member_name
+
+
+def _split_nested_zip_member_ref(value: str) -> tuple[str, str]:
+    text = str(value or "").replace("\\", "/")
+    if "::" not in text:
+        return text, ""
+    outer, nested = text.split("::", 1)
+    return outer, nested
+
+
 def zip_contains_importable_model(archive_path: Path | str) -> bool:
-    return bool(zip_importable_members(archive_path))
+    return bool(zip_importable_member_refs(archive_path))
 
 
 def resolve_importable_model_path(path: Path | str, *, extract_root: Optional[Path | str] = None) -> Optional[Path]:
@@ -370,19 +447,33 @@ def resolve_importable_model_path(path: Path | str, *, extract_root: Optional[Pa
         return source_path
     if source_path.suffix.lower() != ".zip" or not source_path.is_file():
         return None
-    members = zip_importable_members(source_path)
+    members = zip_importable_member_refs(source_path)
     if not members:
         return None
     destination = Path(extract_root).expanduser() if extract_root is not None else source_path.parent / ".cdmw_extracted" / source_path.stem
     safe_extract_zip(source_path, destination)
     for member in members:
-        candidate = destination / member
+        outer_member, nested_member = _split_nested_zip_member_ref(member)
+        if nested_member:
+            nested_archive = destination.joinpath(*PurePosixPath(outer_member).parts)
+            if not nested_archive.is_file():
+                continue
+            nested_destination = destination / ".cdmw_nested_zip" / _nested_zip_extract_dir_name(outer_member)
+            safe_extract_zip(nested_archive, nested_destination)
+            candidate = nested_destination.joinpath(*PurePosixPath(nested_member).parts)
+        else:
+            candidate = destination.joinpath(*PurePosixPath(outer_member).parts)
         if candidate.is_file() and is_importable_model_path(candidate):
             return candidate
     for candidate in sorted(destination.rglob("*")):
         if candidate.is_file() and is_importable_model_path(candidate):
             return candidate
     return None
+
+
+def _nested_zip_extract_dir_name(member_name: str) -> str:
+    clean = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(member_name or "").replace("\\", "/")).strip("._")
+    return clean[:96] or "nested_zip"
 
 
 def normalize_mirror_model_record(payload: Mapping[str, Any], mirror_url: str) -> dict[str, Any]:

@@ -4,6 +4,7 @@ import struct
 import tempfile
 import unittest
 import zipfile
+import zlib
 from pathlib import Path
 
 from cdmw.core.archive_modding import attach_scene_preview_textures, parsed_mesh_to_preview_model
@@ -21,6 +22,14 @@ from cdmw.modding.static_mesh_replacer import suggest_static_submesh_mappings
 
 def _pad4(data: bytes) -> bytes:
     return data + (b"\x00" * ((4 - (len(data) % 4)) % 4))
+
+
+def _huge_header_png(width: int = 20_000, height: int = 10_000) -> bytes:
+    def chunk(tag: bytes, payload: bytes) -> bytes:
+        return struct.pack(">I", len(payload)) + tag + payload + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IEND", b"")
 
 
 def _triangle_payload(*, image_bytes: bytes = b"", image_mime: str = "image/png") -> tuple[bytes, dict]:
@@ -847,6 +856,79 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIn(("metalness", "metallic"), slot_subtypes)
             self.assertIn(("emissive", "emissive"), slot_subtypes)
             self.assertIn(("opacity", "opacity"), slot_subtypes)
+
+    def test_obj_mtl_slots_store_resolved_texture_paths_for_audit(self) -> None:
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            texture = root / "body_base.png"
+            Image.new("RGBA", (2, 2), (120, 80, 40, 255)).save(texture)
+            (root / "triangle.mtl").write_text("newmtl Body\nmap_Kd body_base.png\n", encoding="utf-8")
+            path = root / "triangle.obj"
+            path.write_text(
+                "\n".join(
+                    (
+                        "mtllib triangle.mtl",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "vt 0 0",
+                        "vt 1 0",
+                        "vt 0 1",
+                        "vn 0 0 1",
+                        "usemtl Body",
+                        "f 1/1/1 2/2/1 3/3/1",
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(path)
+
+        resolved_texture = texture.resolve()
+        mesh_slot_path = Path(result.mesh.submeshes[0].preview_texture_path)
+        audit = result.external_audit
+        self.assertIsNotNone(audit)
+        assert audit is not None
+        material_slot = audit.material_inventory[0].texture_slots[0]
+        self.assertEqual(resolved_texture, mesh_slot_path)
+        self.assertEqual(resolved_texture, Path(material_slot.texture_path))
+        self.assertEqual((2, 2), material_slot.resolution)
+        self.assertTrue(material_slot.channel_stats)
+
+    def test_obj_mtl_huge_texture_keeps_resolution_without_channel_stats(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "huge_base.png").write_bytes(_huge_header_png())
+            (root / "triangle.mtl").write_text("newmtl Body\nmap_Kd huge_base.png\n", encoding="utf-8")
+            path = root / "triangle.obj"
+            path.write_text(
+                "\n".join(
+                    (
+                        "mtllib triangle.mtl",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "vt 0 0",
+                        "vt 1 0",
+                        "vt 0 1",
+                        "vn 0 0 1",
+                        "usemtl Body",
+                        "f 1/1/1 2/2/1 3/3/1",
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            result = import_scene_mesh_with_report(path)
+
+        audit = result.external_audit
+        self.assertIsNotNone(audit)
+        assert audit is not None
+        slot = audit.material_inventory[0].texture_slots[0]
+        self.assertEqual((20_000, 10_000), slot.resolution)
+        self.assertEqual((), slot.channel_stats)
 
     def test_obj_mtl_scalar_properties_become_preview_material_parameters(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

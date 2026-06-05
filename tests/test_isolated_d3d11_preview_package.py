@@ -93,7 +93,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             )
             manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
-        self.assertEqual(9, manifest["schema_version"])
+        self.assertEqual(10, manifest["schema_version"])
         self.assertEqual("empty.pac", manifest["source_path"])
         self.assertEqual(2, manifest["material_contract_schema"])
         self.assertEqual(2, manifest["material_channel_contract_schema"])
@@ -528,6 +528,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
                         has_texture_coordinates=True,
                         source_submesh_index=7,
                         source_vertex_indices=(10, 11, 12),
+                        source_face_indices=(42,),
                         editor_role="replacement",
                         editor_part_name="blade",
                     ),
@@ -568,8 +569,9 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual(7, editor_identity["source_submesh_index"])
             self.assertEqual("replacement", editor_identity["role"])
             self.assertEqual("blade", editor_identity["part_name"])
+            self.assertEqual(12, editor_identity["identity_stride_bytes"])
             identity_blob = (package_dir / editor_identity["identity_file"]).read_bytes()
-            self.assertEqual((7, 10, 7, 11, 7, 12), struct.unpack("<iiiiii", identity_blob))
+            self.assertEqual((7, 10, 42, 7, 11, 42, 7, 12, 42), struct.unpack("<iiiiiiiii", identity_blob))
             self.assertTrue((package_dir / textures["base"]).is_file())
             self.assertTrue(dds_textures["base"]["direct_upload_candidate"])
             self.assertEqual("bc1", dds_textures["base"]["compressed_family"])
@@ -1220,6 +1222,49 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertAlmostEqual(1.25, manifest["pan_sensitivity"])
             self.assertTrue(manifest["invert_orbit_x"])
             self.assertTrue(manifest["invert_pan_y"])
+
+    def test_d3d11_manifest_skips_color_dds_bound_as_normal(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base_dds = temp_path / "cd_phm_00_cloak_0009.dds"
+            base_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="cd_m0001_00_de_pdm_cloak_21009.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHM_00_Cloak_0009",
+                        texture_name="cd_phm_00_cloak_0009",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_dds_path=str(base_dds),
+                        preview_normal_texture_dds_path=str(base_dds),
+                        preview_normal_texture_strength=1.0,
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="cd_m0001_00_de_pdm_cloak_21009.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=False,
+                prefer_direct_dds=True,
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+
+            self.assertIn("base", batch["dds_textures"])
+            self.assertNotIn("normal", batch["dds_textures"])
+            self.assertEqual("", batch["textures"]["normal"])
+            self.assertEqual(0.0, batch["normal_strength"])
+            self.assertIn("normal map skipped", " ".join(batch["notes"]))
 
     def test_prefer_direct_dds_keeps_png_fallback_when_dds_is_not_uploadable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

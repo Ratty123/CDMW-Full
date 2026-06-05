@@ -127,6 +127,9 @@ class ModelCatalogueTests(unittest.TestCase):
             extracted_dir = root / ".cdmw_extracted" / "escanor_axe_rhitta"
             extracted_dir.mkdir(parents=True)
             (extracted_dir / "scene.gltf").write_text("{}", encoding="utf-8")
+            nested_dir = root / ".cdmw_nested_zip" / "inner"
+            nested_dir.mkdir(parents=True)
+            (nested_dir / "inner_scene.gltf").write_text("{}", encoding="utf-8")
 
             rows = scan_local_model_files([root])
 

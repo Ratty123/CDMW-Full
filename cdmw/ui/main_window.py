@@ -35723,14 +35723,17 @@ def run_gui() -> int:
                 raw_normals = tuple(getattr(mesh, "normals", ()) or ())
                 raw_uvs = tuple(getattr(mesh, "texture_coordinates", ()) or ())
                 raw_source_vertices = tuple(getattr(mesh, "source_vertex_indices", ()) or ())
+                raw_source_faces = tuple(getattr(mesh, "source_face_indices", ()) or ())
                 remap: Dict[int, int] = {}
                 sampled_positions: List[Tuple[float, float, float]] = []
                 sampled_normals: List[Tuple[float, float, float]] = []
                 sampled_uvs: List[Tuple[float, float]] = []
                 sampled_source_vertices: List[int] = []
+                sampled_source_faces: List[int] = []
                 sampled_indices: List[int] = []
                 triangle_ordinal = 0
                 for index_offset in range(0, len(raw_indices) - 2, 3):
+                    source_face_ordinal = triangle_ordinal
                     if triangle_ordinal % sample_step:
                         triangle_ordinal += 1
                         continue
@@ -35744,6 +35747,13 @@ def run_gui() -> int:
                         continue
                     if triangle[0] == triangle[1] or triangle[1] == triangle[2] or triangle[0] == triangle[2]:
                         continue
+                    if source_face_ordinal < len(raw_source_faces):
+                        try:
+                            sampled_source_faces.append(int(raw_source_faces[source_face_ordinal]))
+                        except (TypeError, ValueError, OverflowError):
+                            sampled_source_faces.append(int(source_face_ordinal))
+                    else:
+                        sampled_source_faces.append(int(source_face_ordinal))
                     for source_index in triangle:
                         sampled_index = remap.get(source_index)
                         if sampled_index is None:
@@ -35773,6 +35783,7 @@ def run_gui() -> int:
                 cloned_mesh.normals = sampled_normals if len(sampled_normals) == len(sampled_positions) else []
                 cloned_mesh.texture_coordinates = sampled_uvs if len(sampled_uvs) == len(sampled_positions) else []
                 cloned_mesh.source_vertex_indices = sampled_source_vertices
+                cloned_mesh.source_face_indices = sampled_source_faces
                 cloned_mesh.material_name = f"{cloned_mesh.material_name} sampled"
                 return True
 
@@ -60047,6 +60058,7 @@ def run_gui() -> int:
                     if not editable:
                         try:
                             mesh.source_vertex_indices = []
+                            mesh.source_face_indices = []
                         except Exception:
                             pass
                 return tagged
@@ -69105,6 +69117,7 @@ def run_gui() -> int:
                         positions: List[float] = []
                         normal_values: List[float] = []
                         source_vertex_indices: List[int] = []
+                        source_face_indices: List[int] = []
                         indices: List[int] = []
                         for vertex_index, vertex in enumerate(vertices):
                             preview_position = _mesh_edit_source_to_preview_point(vertex)
@@ -69114,7 +69127,7 @@ def run_gui() -> int:
                                 normal = tuple(normals[vertex_index])
                                 if len(normal) >= 3:
                                     normal_values.extend(float(component) for component in normal[:3])
-                        for face in tuple(getattr(submesh, "faces", ()) or ()):
+                        for source_face_index, face in enumerate(tuple(getattr(submesh, "faces", ()) or ())):
                             face_indices: List[int] = []
                             for raw_vertex_index in tuple(face or ())[:3]:
                                 try:
@@ -69128,13 +69141,16 @@ def run_gui() -> int:
                                 face_indices.append(vertex_index)
                             if len(face_indices) == 3:
                                 indices.extend(face_indices)
+                                source_face_indices.append(int(source_face_index))
                         if not indices:
                             positions = []
                             normal_values = []
                             source_vertex_indices = []
+                            source_face_indices = []
                         group: Dict[str, object] = {
                             "source_submesh_index": source_index,
                             "source_vertex_indices": source_vertex_indices,
+                            "source_face_indices": source_face_indices,
                             "positions": positions,
                             "indices": indices,
                         }
@@ -70746,6 +70762,7 @@ def run_gui() -> int:
                         if source_indices is not None and submesh_position < len(source_indices):
                             source_submesh_index = int(source_indices[submesh_position])
                         source_vertex_indices = list(range(len(vertices)))
+                        source_face_indices = list(range(len(faces)))
                         indices: List[int] = []
                         for face in faces:
                             indices.extend(int(index) for index in face[:3])
@@ -70772,6 +70789,7 @@ def run_gui() -> int:
                                 indices=indices,
                                 source_submesh_index=source_submesh_index,
                                 source_vertex_indices=source_vertex_indices,
+                                source_face_indices=source_face_indices,
                                 preview_double_sided=bool(
                                     getattr(submesh, "preview_double_sided", False)
                                     or getattr(submesh, "double_sided", False)
@@ -72607,6 +72625,7 @@ def run_gui() -> int:
                             for mesh in getattr(original_overlay_model, "meshes", ()) or ():
                                 mesh.source_submesh_index = -1
                                 mesh.source_vertex_indices = []
+                                mesh.source_face_indices = []
                             if highlighted_original_indices:
                                 for mesh_index, mesh in enumerate(getattr(original_overlay_model, "meshes", ()) or ()):
                                     if mesh_index in highlighted_original_indices:
@@ -72740,6 +72759,7 @@ def run_gui() -> int:
                         for mesh in getattr(original_overlay_model, "meshes", ()) or ():
                             mesh.source_submesh_index = -1
                             mesh.source_vertex_indices = []
+                            mesh.source_face_indices = []
                         if highlighted_original_indices:
                             for mesh_index, mesh in enumerate(getattr(original_overlay_model, "meshes", ()) or ()):
                                 if mesh_index in highlighted_original_indices:

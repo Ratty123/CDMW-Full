@@ -7,6 +7,7 @@ import struct
 import tempfile
 import unittest
 import zipfile
+import zlib
 from pathlib import Path
 
 from PIL import Image
@@ -16,6 +17,7 @@ from cdmw.core.external_model_audit import (
     write_external_model_audit_catalogue,
 )
 from cdmw.core.external_model_audit_check import check_external_model_audit_report
+from cdmw.core.model_catalogue import scan_local_model_files, zip_importable_member_refs
 from tools.audit_external_model_catalogue import main as audit_catalogue_main
 from tools.check_external_model_audit import main as check_external_model_audit_main
 
@@ -26,6 +28,14 @@ def _pad4(data: bytes) -> bytes:
 
 def _write_png(path: Path, color: tuple[int, int, int, int]) -> None:
     Image.new("RGBA", (2, 2), color).save(path)
+
+
+def _write_huge_header_png(path: Path, *, width: int = 20_000, height: int = 10_000) -> None:
+    def chunk(tag: bytes, payload: bytes) -> bytes:
+        return struct.pack(">I", len(payload)) + tag + payload + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IEND", b""))
 
 
 def _write_dds(path: Path, *, width: int = 4, height: int = 4) -> None:
@@ -687,6 +697,24 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertEqual(0, report["summary"]["textures_missing_channel_stats"])
         self.assertNotIn("texture_missing_channel_stats", check["risk_flags"])
 
+    def test_catalogue_keeps_huge_texture_resolution_without_channel_stats_decode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "huge_banner.fbx").write_bytes(b"fbx")
+            _write_huge_header_png(root / "huge_banner_base.png")
+
+            report = build_external_model_audit_catalogue([root])
+            check = check_external_model_audit_report(report)
+
+        slot = report["models"][0]["material_inventory"][0]["texture_slots"][0]
+        self.assertEqual((20_000, 10_000), tuple(slot["resolution"]))
+        self.assertEqual((), tuple(slot["channel_stats"]))
+        self.assertEqual(1, report["summary"]["textures_with_resolution"])
+        self.assertEqual(0, report["summary"]["textures_missing_resolution"])
+        self.assertEqual(1, report["summary"]["textures_missing_channel_stats"])
+        self.assertNotIn("texture_missing_resolution", check["risk_flags"])
+        self.assertIn("texture_missing_channel_stats", check["risk_flags"])
+
     def test_catalogue_reports_ambiguous_texture_role_refs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -747,6 +775,41 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertTrue(any("metallic yellow color" in reason for reason in classes["gold"]["evidence"]))
         self.assertTrue(any("B channel mean" in reason for reason in classes["metal"]["evidence"]))
         self.assertTrue(any("source alpha channel" in reason for reason in classes["glass_crystal"]["evidence"]))
+
+    def test_unsupported_companion_classifier_uses_painted_and_rough_texture_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "painted steel panel.fbx").write_bytes(b"fbx")
+            _write_png(root / "painted steel panel_base.png", (190, 40, 30, 255))
+            _write_png(root / "painted steel panel_metallicRoughness.png", (20, 120, 230, 255))
+            (root / "rough_brown_panel.fbx").write_bytes(b"fbx")
+            _write_png(root / "rough_brown_panel_base.png", (90, 48, 20, 255))
+            _write_png(root / "rough_brown_panel_roughness.png", (220, 220, 220, 255))
+            (root / "neutral_block.fbx").write_bytes(b"fbx")
+            _write_png(root / "neutral_block_base.png", (120, 116, 110, 255))
+            _write_png(root / "neutral_block_roughness.png", (210, 210, 210, 255))
+
+            report = build_external_model_audit_catalogue([root])
+
+        by_name = {
+            Path(row["path"]).name: {
+                item["material_class"]: item
+                for material in row["material_inventory"]
+                for item in material["material_classes"]
+            }
+            for row in report["models"]
+        }
+        painted = by_name["painted steel panel.fbx"]
+        brown = by_name["rough_brown_panel.fbx"]
+        neutral = by_name["neutral_block.fbx"]
+        self.assertIn("painted_metal", painted)
+        self.assertIn("metal", painted)
+        self.assertIn("leather", brown)
+        self.assertIn("wood", brown)
+        self.assertIn("stone", neutral)
+        self.assertTrue(any("painted/coated token" in reason for reason in painted["painted_metal"]["evidence"]))
+        self.assertTrue(any("warm brown color" in reason for reason in brown["wood"]["evidence"]))
+        self.assertTrue(any("rough neutral color" in reason for reason in neutral["stone"]["evidence"]))
 
     def test_catalogue_infers_ascii_fbx_material_textures(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -933,6 +996,39 @@ Objects:  {
         self.assertEqual("normal", textures["scene/model_normal.ktx2"]["slot_guess"])
         self.assertTrue(textures["scene/model_normal.ktx2"]["diagnostic_only"])
 
+    def test_catalogue_indexes_nested_zip_members_without_extracting(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as stage_dir:
+            root = Path(temp_dir)
+            stage = Path(stage_dir)
+            scene = stage / "inner" / "scene"
+            scene.mkdir(parents=True)
+            _write_triangle_gltf(scene / "model.gltf")
+            nested_payload = io.BytesIO()
+            with zipfile.ZipFile(nested_payload, "w") as nested_zip:
+                for path in sorted(scene.rglob("*")):
+                    if path.is_file():
+                        nested_zip.write(path, path.relative_to(stage / "inner").as_posix())
+            archive = root / "packed_nested.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("source/model.zip.zip", nested_payload.getvalue())
+
+            report = build_external_model_audit_catalogue([root])
+            scanned = scan_local_model_files([root], extensions=(".zip",))
+            member_refs = zip_importable_member_refs(archive)
+
+            self.assertFalse((root / ".cdmw_extracted").exists())
+
+        row = report["models"][0]
+        textures = {item["archive_member"]: item for item in row["companion_textures"] if "archive_member" in item}
+        self.assertTrue(scanned[0].import_supported)
+        self.assertEqual(("source/model.zip.zip::scene/model.gltf",), member_refs)
+        self.assertEqual("archive_indexed", row["audit_status"])
+        self.assertTrue(row["import_supported"])
+        self.assertEqual(("source/model.zip.zip::scene/model.gltf",), tuple(row["zip_importable_members"]))
+        self.assertEqual(("source/model.zip.zip::scene/model.gltf",), tuple(row["zip_audit_members"]))
+        self.assertEqual("base", textures["source/model.zip.zip::scene/gold_base.png"]["slot_guess"])
+        self.assertEqual((2, 2), tuple(textures["source/model.zip.zip::scene/gold_base.png"]["resolution"]))
+
     def test_catalogue_audits_fbx_only_source_zip_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as stage_dir:
             root = Path(temp_dir)
@@ -1019,6 +1115,37 @@ Connections:  {
         self.assertEqual("metallic_roughness", inventory["pbr_workflow"])
         self.assertIn("packed_sword.zip::scene/gold_base.png", slots["base"]["texture_path"].replace("\\", "/"))
         self.assertIn("packed_sword.zip::scene/gold_normal.png", slots["normal"]["texture_path"].replace("\\", "/"))
+
+    def test_catalogue_can_audit_nested_zip_contents_from_temp_extraction(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as stage_dir:
+            root = Path(temp_dir)
+            stage = Path(stage_dir)
+            scene = stage / "inner" / "scene"
+            scene.mkdir(parents=True)
+            _write_triangle_gltf(scene / "model.gltf")
+            nested_payload = io.BytesIO()
+            with zipfile.ZipFile(nested_payload, "w") as nested_zip:
+                for path in sorted(scene.rglob("*")):
+                    if path.is_file():
+                        nested_zip.write(path, path.relative_to(stage / "inner").as_posix())
+            archive = root / "packed_nested.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("source/model.zip.zip", nested_payload.getvalue())
+
+            report = build_external_model_audit_catalogue([root], audit_zip_contents=True)
+
+            self.assertFalse((root / ".cdmw_extracted").exists())
+
+        row = report["models"][0]
+        inventory = row["material_inventory"][0]
+        slots = {slot["slot_kind"]: slot for slot in inventory["texture_slots"]}
+        self.assertTrue(report["audit_zip_contents"])
+        self.assertEqual("archive_audited", row["audit_status"])
+        self.assertEqual(1, report["summary"]["zip_audited_models"])
+        self.assertEqual("source/model.zip.zip::scene/model.gltf", row["zip_audited_member"])
+        self.assertEqual("metallic_roughness", inventory["pbr_workflow"])
+        self.assertIn("packed_nested.zip::source/model.zip.zip::scene/gold_base.png", slots["base"]["texture_path"].replace("\\", "/"))
+        self.assertIn("packed_nested.zip::source/model.zip.zip::scene/gold_normal.png", slots["normal"]["texture_path"].replace("\\", "/"))
 
     def test_catalogue_zip_audit_decodes_collada_percent_encoded_texture_refs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as stage_dir:

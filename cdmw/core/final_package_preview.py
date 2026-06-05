@@ -4189,6 +4189,7 @@ def build_final_package_specs_from_package_root(package_root: Path) -> Tuple[Mes
         "readme.txt",
         "cdmw_texture_resolution_manifest.json",
         "cdmw_material_authority_report.json",
+        "cdmw_material_authority_report_check.json",
     }
     for physical_root, virtual_prefix in candidate_roots:
         try:
