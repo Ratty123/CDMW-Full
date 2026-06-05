@@ -233,7 +233,7 @@ def material_preflight_hard_blockers(lines: Sequence[str]) -> Tuple[str, ...]:
     return tuple(_dedupe(hard))
 
 
-def apply_material_preflight_override(result: FinalPackagePreviewResult) -> Tuple[str, ...]:
+def apply_material_preflight_override(result: FinalPackagePreviewResult, *, include_hard: bool = False) -> Tuple[str, ...]:
     """Downgrade overridable material preflight errors to warnings.
 
     Returns hard blockers that were left in place.
@@ -241,7 +241,7 @@ def apply_material_preflight_override(result: FinalPackagePreviewResult) -> Tupl
 
     blockers = tuple(str(line) for line in tuple(getattr(result, "preflight_errors", ()) or ()) if str(line or "").strip())
     hard = material_preflight_hard_blockers(blockers)
-    if not blockers or hard:
+    if not blockers or (hard and not include_hard):
         return hard
     if MATERIAL_PREFLIGHT_OVERRIDE_WARNING not in result.warnings:
         result.warnings.append(MATERIAL_PREFLIGHT_OVERRIDE_WARNING)

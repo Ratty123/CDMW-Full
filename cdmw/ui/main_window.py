@@ -49570,6 +49570,7 @@ def run_gui() -> int:
             dialog_title: str = "Write Mod-Ready Loose File",
             allow_dmm_texture_structure: bool = True,
             show_texture_resolution_manifest_option: bool = False,
+            show_material_authority_report_option: bool = False,
             show_active_file_authority_audit_option: bool = False,
             parent: Optional[QWidget] = None,
         ) -> Optional[Tuple[Path, ModPackageInfo, bool, bool, ModPackageExportOptions]]:
@@ -49583,6 +49584,7 @@ def run_gui() -> int:
                 if (
                     show_include_related_files_option
                     or show_texture_resolution_manifest_option
+                    or show_material_authority_report_option
                     or show_active_file_authority_audit_option
                 )
                 else 420,
@@ -49643,6 +49645,13 @@ def run_gui() -> int:
                 "Optional Workbench diagnostic JSON for reviewing final texture binding decisions. "
                 "It is not required for DMM file-replace imports."
             )
+            material_authority_report_checkbox = QCheckBox("CDMW material authority report/check")
+            material_authority_report_checkbox.setChecked(False)
+            material_authority_report_checkbox.setVisible(bool(show_material_authority_report_option))
+            material_authority_report_checkbox.setToolTip(
+                "Optional Workbench diagnostic JSON pair for reviewing Material Authority evidence and check status. "
+                "Leave unchecked for normal mod-manager imports."
+            )
             active_file_authority_audit_checkbox = QCheckBox("Active file authority audit report")
             active_file_authority_audit_checkbox.setChecked(False)
             active_file_authority_audit_checkbox.setVisible(bool(show_active_file_authority_audit_option))
@@ -49683,7 +49692,8 @@ def run_gui() -> int:
             form_layout.addWidget(target_language_help, 8, 3)
             form_layout.addWidget(include_related_files_checkbox, 9, 0, 1, 3)
             form_layout.addWidget(texture_resolution_manifest_checkbox, 10, 0, 1, 3)
-            form_layout.addWidget(active_file_authority_audit_checkbox, 11, 0, 1, 3)
+            form_layout.addWidget(material_authority_report_checkbox, 11, 0, 1, 3)
+            form_layout.addWidget(active_file_authority_audit_checkbox, 12, 0, 1, 3)
             form_layout.setColumnStretch(1, 1)
             layout.addLayout(form_layout)
 
@@ -49762,6 +49772,9 @@ def run_gui() -> int:
                     create_texture_resolution_manifest=texture_resolution_manifest_checkbox.isChecked()
                     if show_texture_resolution_manifest_option
                     else False,
+                    create_material_authority_report=material_authority_report_checkbox.isChecked()
+                    if show_material_authority_report_option
+                    else False,
                     create_active_file_authority_audit=active_file_authority_audit_checkbox.isChecked()
                     if show_active_file_authority_audit_option
                     else False,
@@ -49812,6 +49825,7 @@ def run_gui() -> int:
             dialog_title: str = "Write Mod-Ready Loose File",
             allow_dmm_texture_structure: bool = True,
             show_texture_resolution_manifest_option: bool = False,
+            show_material_authority_report_option: bool = False,
             show_active_file_authority_audit_option: bool = False,
             initial_package_title: str = "",
             initial_package_description: str = "",
@@ -49855,6 +49869,7 @@ def run_gui() -> int:
                     dialog_title=dialog_title,
                     allow_dmm_texture_structure=allow_dmm_texture_structure,
                     show_texture_resolution_manifest_option=show_texture_resolution_manifest_option,
+                    show_material_authority_report_option=show_material_authority_report_option,
                     show_active_file_authority_audit_option=show_active_file_authority_audit_option,
                     parent=parent,
                 )
@@ -81071,6 +81086,7 @@ def run_gui() -> int:
                         dialog_title="Mesh Loose Export Metadata",
                         allow_dmm_texture_structure=False,
                         show_texture_resolution_manifest_option=True,
+                        show_material_authority_report_option=True,
                         show_active_file_authority_audit_option=True,
                         parent=build_dialog_parent,
                     )
@@ -81244,6 +81260,7 @@ def run_gui() -> int:
                                 "Final package texture preflight failed before export; no files were written:\n"
                             )
                             log("Running final package texture preflight before export...")
+                        pre_export_preview: Optional[FinalPackagePreviewResult] = None
                         try:
                             pre_export_preview = build_final_package_preview(
                                 preview_result,
@@ -81267,66 +81284,80 @@ def run_gui() -> int:
                                 preflight_failed_log
                                 + "\n".join(f"- {line}" for line in blocker_lines)
                             )
-                            return {
-                                "preview": preview_result,
-                                "loose": None,
-                                "patch": None,
-                                "final_preview": None,
-                                "preflight_blocked": blocker_lines,
-                                "preflight_hard_blocked": blocker_lines,
-                            }
-                        pre_export_authority_check = _check_final_preview_material_authority(pre_export_preview)
-                        pre_export_authority_blockers = _material_authority_check_blockers(pre_export_authority_check)
-                        if pre_export_authority_blockers:
-                            blockers = "\n".join(f"- {line}" for line in pre_export_authority_blockers[:12])
-                            if len(pre_export_authority_blockers) > 12:
-                                blockers += f"\n- ... {len(pre_export_authority_blockers) - 12:,} more blocker(s)"
-                            log(
-                                "Material authority report check blocked export because generated package evidence is incomplete:\n"
-                                + blockers
-                            )
-                            return {
-                                "preview": preview_result,
-                                "loose": None,
-                                "patch": None,
-                                "final_preview": pre_export_preview,
-                                "preflight_blocked": pre_export_authority_blockers,
-                                "preflight_hard_blocked": pre_export_authority_blockers,
-                            }
-                        for warning in _material_authority_check_review_lines(pre_export_authority_check, limit=6):
-                            log(f"Material authority review: {warning}")
-                        if pre_export_preview.preflight_errors:
-                            blocker_lines = tuple(str(line) for line in pre_export_preview.preflight_errors if str(line or "").strip())
-                            hard_blockers = material_preflight_hard_blockers(blocker_lines)
-                            blockers = "\n".join(f"- {line}" for line in blocker_lines[:12])
-                            if len(pre_export_preview.preflight_errors) > 12:
-                                blockers += f"\n- ... {len(pre_export_preview.preflight_errors) - 12:,} more blocker(s)"
-                            if destination == "loose" and unsafe_material_preflight_override and not hard_blockers:
+                            if destination == "loose" and unsafe_material_preflight_override:
                                 log(
                                     MATERIAL_PREFLIGHT_OVERRIDE_WARNING
-                                    + "\nContinuing loose export despite overridable material preflight blocker(s):\n"
-                                    + blockers
+                                    + "\nContinuing loose export even though final package preflight could not be built."
                                 )
-                                apply_material_preflight_override(pre_export_preview)
                             else:
-                                if destination == "patch":
-                                    log(
-                                        "Final package texture preflight blocked direct archive patch because the package contract would not be WYSIWYG:\n"
-                                        + blockers
-                                    )
-                                else:
-                                    log(
-                                        "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
-                                        + blockers
-                                    )
                                 return {
                                     "preview": preview_result,
                                     "loose": None,
                                     "patch": None,
-                                    "final_preview": pre_export_preview,
+                                    "final_preview": None,
                                     "preflight_blocked": blocker_lines,
-                                    "preflight_hard_blocked": hard_blockers,
+                                    "preflight_hard_blocked": blocker_lines,
                                 }
+                        if pre_export_preview is not None:
+                            pre_export_authority_check = _check_final_preview_material_authority(pre_export_preview)
+                            pre_export_authority_blockers = _material_authority_check_blockers(pre_export_authority_check)
+                            if pre_export_authority_blockers:
+                                blockers = "\n".join(f"- {line}" for line in pre_export_authority_blockers[:12])
+                                if len(pre_export_authority_blockers) > 12:
+                                    blockers += f"\n- ... {len(pre_export_authority_blockers) - 12:,} more blocker(s)"
+                                if destination == "loose" and unsafe_material_preflight_override:
+                                    log(
+                                        MATERIAL_PREFLIGHT_OVERRIDE_WARNING
+                                        + "\nContinuing loose export despite material authority report blocker(s):\n"
+                                        + blockers
+                                    )
+                                else:
+                                    log(
+                                        "Material authority report check blocked export because generated package evidence is incomplete:\n"
+                                        + blockers
+                                    )
+                                    return {
+                                        "preview": preview_result,
+                                        "loose": None,
+                                        "patch": None,
+                                        "final_preview": pre_export_preview,
+                                        "preflight_blocked": pre_export_authority_blockers,
+                                        "preflight_hard_blocked": pre_export_authority_blockers,
+                                    }
+                            for warning in _material_authority_check_review_lines(pre_export_authority_check, limit=6):
+                                log(f"Material authority review: {warning}")
+                            if pre_export_preview.preflight_errors:
+                                blocker_lines = tuple(str(line) for line in pre_export_preview.preflight_errors if str(line or "").strip())
+                                hard_blockers = material_preflight_hard_blockers(blocker_lines)
+                                blockers = "\n".join(f"- {line}" for line in blocker_lines[:12])
+                                if len(pre_export_preview.preflight_errors) > 12:
+                                    blockers += f"\n- ... {len(pre_export_preview.preflight_errors) - 12:,} more blocker(s)"
+                                if destination == "loose" and unsafe_material_preflight_override:
+                                    log(
+                                        MATERIAL_PREFLIGHT_OVERRIDE_WARNING
+                                        + "\nContinuing loose export despite material preflight blocker(s):\n"
+                                        + blockers
+                                    )
+                                    apply_material_preflight_override(pre_export_preview, include_hard=True)
+                                else:
+                                    if destination == "patch":
+                                        log(
+                                            "Final package texture preflight blocked direct archive patch because the package contract would not be WYSIWYG:\n"
+                                            + blockers
+                                        )
+                                    else:
+                                        log(
+                                            "Final package texture preflight blocked export because the package contract would not be WYSIWYG:\n"
+                                            + blockers
+                                        )
+                                    return {
+                                        "preview": preview_result,
+                                        "loose": None,
+                                        "patch": None,
+                                        "final_preview": pre_export_preview,
+                                        "preflight_blocked": blocker_lines,
+                                        "preflight_hard_blocked": hard_blockers,
+                                    }
                         if destination == "patch":
                             if not requests:
                                 raise ValueError("No archive patch requests could be built for the rebuilt mesh.")
@@ -81362,6 +81393,16 @@ def run_gui() -> int:
                                     log(f"Removed stale texture resolution manifest: {texture_resolution_manifest_path}")
                             except Exception as exc:
                                 log(f"Warning: could not remove stale texture resolution manifest: {exc}")
+                        material_authority_report_path = loose_result.package_root / "cdmw_material_authority_report.json"
+                        material_authority_check_path = loose_result.package_root / "cdmw_material_authority_report_check.json"
+                        if not bool(getattr(export_options, "create_material_authority_report", False)):
+                            for stale_report_path in (material_authority_report_path, material_authority_check_path):
+                                try:
+                                    if stale_report_path.exists():
+                                        stale_report_path.unlink()
+                                        log(f"Removed stale material authority report: {stale_report_path}")
+                                except Exception as exc:
+                                    log(f"Warning: could not remove stale material authority report: {exc}")
                         final_preview: Optional[FinalPackagePreviewResult] = None
                         try:
                             log("Building final output preview from packaged sidecar/DDS payloads...")
@@ -81381,8 +81422,8 @@ def run_gui() -> int:
                                 render_settings=material_report_render_settings,
                             )
                             if final_preview.preflight_errors:
-                                if unsafe_material_preflight_override and not material_preflight_hard_blockers(final_preview.preflight_errors):
-                                    apply_material_preflight_override(final_preview)
+                                if unsafe_material_preflight_override:
+                                    apply_material_preflight_override(final_preview, include_hard=True)
                                     log(MATERIAL_PREFLIGHT_OVERRIDE_WARNING)
                                     for blocker in final_preview.warnings[-12:]:
                                         if str(blocker).startswith("Unsafe material preflight override:"):
@@ -81400,22 +81441,21 @@ def run_gui() -> int:
                                 elif texture_resolution_manifest_path.exists():
                                     texture_resolution_manifest_path.unlink()
                                     log(f"Removed empty texture resolution manifest: {texture_resolution_manifest_path}")
-                            material_authority_report_path = loose_result.package_root / "cdmw_material_authority_report.json"
-                            material_authority_report_path.write_text(
-                                json.dumps(final_preview.material_authority_report.to_dict(), indent=2),
-                                encoding="utf-8",
-                            )
-                            log(f"Wrote material authority report: {material_authority_report_path}")
                             material_authority_check = _check_final_preview_material_authority(final_preview)
-                            material_authority_check_path = loose_result.package_root / "cdmw_material_authority_report_check.json"
-                            material_authority_check_path.write_text(
-                                json.dumps(dict(material_authority_check), indent=2, sort_keys=True),
-                                encoding="utf-8",
-                            )
-                            log(
-                                "Wrote material authority report check: "
-                                f"{material_authority_check_path} ({material_authority_check.get('status', 'unknown')})"
-                            )
+                            if bool(getattr(export_options, "create_material_authority_report", False)):
+                                material_authority_report_path.write_text(
+                                    json.dumps(final_preview.material_authority_report.to_dict(), indent=2),
+                                    encoding="utf-8",
+                                )
+                                log(f"Wrote material authority report: {material_authority_report_path}")
+                                material_authority_check_path.write_text(
+                                    json.dumps(dict(material_authority_check), indent=2, sort_keys=True),
+                                    encoding="utf-8",
+                                )
+                                log(
+                                    "Wrote material authority report check: "
+                                    f"{material_authority_check_path} ({material_authority_check.get('status', 'unknown')})"
+                                )
                             for blocker in _material_authority_check_blockers(material_authority_check)[:12]:
                                 log(f"Material authority report blocker: {blocker}")
                             for warning in _material_authority_check_review_lines(material_authority_check, limit=8):
@@ -81491,7 +81531,6 @@ def run_gui() -> int:
                             unsafe_export_button = None
                             unsafe_export_available = bool(
                                 destination == "loose"
-                                and not preflight_hard_blockers
                                 and not getattr(static_replacement_options, "allow_unsafe_material_preflight_export", False)
                             )
                             if unsafe_export_available:

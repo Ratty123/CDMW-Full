@@ -2587,6 +2587,16 @@ Connections:  {
         self.assertEqual(1, len(blockers))
         self.assertIn("not package-resolved", blockers[0])
 
+    def test_material_preflight_override_can_downgrade_hard_blockers_when_requested(self) -> None:
+        preview_result = build_final_package_preview(_preview("Blade"), supplemental_file_specs=())
+        preview_result.preflight_errors.append(
+            "Visible color texture is not package-resolved: Blade _baseColorTexture -> character/texture/missing.dds."
+        )
+
+        self.assertEqual((), apply_material_preflight_override(preview_result, include_hard=True))
+        self.assertFalse(preview_result.preflight_errors)
+        self.assertIn("Unsafe material preflight override:", "\n".join(preview_result.warnings))
+
     def test_clean_source_contract_warns_instead_of_blocks_missing_wrapper_rows(self) -> None:
         preview = _preview("Blade")
         preview.source_owned_output_draw_sections = (

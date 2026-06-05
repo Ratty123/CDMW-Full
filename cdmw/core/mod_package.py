@@ -69,6 +69,7 @@ class ModPackageExportOptions:
     create_no_encrypt_file: bool = True
     create_zip: bool = False
     create_texture_resolution_manifest: bool = False
+    create_material_authority_report: bool = False
     create_active_file_authority_audit: bool = False
     conflict_mode: str = ""
     target_language: str = ""
@@ -281,6 +282,7 @@ def mod_package_export_options_for_profiles(
     *,
     create_zip: bool = False,
     create_texture_resolution_manifest: bool = False,
+    create_material_authority_report: bool = False,
     create_active_file_authority_audit: bool = False,
     conflict_mode: str = "",
     target_language: str = "",
@@ -304,6 +306,7 @@ def mod_package_export_options_for_profiles(
         export_profiles=tuple(selected_profiles) if len(selected_profiles) > 1 else (),
         create_zip=bool(create_zip),
         create_texture_resolution_manifest=bool(create_texture_resolution_manifest),
+        create_material_authority_report=bool(create_material_authority_report),
         create_active_file_authority_audit=bool(create_active_file_authority_audit),
         conflict_mode=str(conflict_mode or "").strip() if uses_manager_metadata else "",
         target_language=str(target_language or "").strip() if uses_manager_metadata else "",
@@ -353,6 +356,7 @@ def mod_package_expanded_export_options(options: ModPackageExportOptions, *, kin
         defaults = mod_package_export_options_for_manager(profile)
         create_zip = bool(options.create_zip)
         create_texture_resolution_manifest = bool(options.create_texture_resolution_manifest)
+        create_material_authority_report = bool(options.create_material_authority_report)
         create_active_file_authority_audit = bool(options.create_active_file_authority_audit)
         conflict_mode = str(options.conflict_mode or "").strip() if mod_package_profile_uses_manager_metadata(profile) else ""
         target_language = str(options.target_language or "").strip() if mod_package_profile_uses_manager_metadata(profile) else ""
@@ -363,6 +367,7 @@ def mod_package_expanded_export_options(options: ModPackageExportOptions, *, kin
                     defaults,
                     create_zip=create_zip,
                     create_texture_resolution_manifest=create_texture_resolution_manifest,
+                    create_material_authority_report=create_material_authority_report,
                     create_active_file_authority_audit=create_active_file_authority_audit,
                     conflict_mode=conflict_mode,
                     target_language=target_language,

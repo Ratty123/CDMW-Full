@@ -14,6 +14,7 @@ from cdmw.core.mod_package import (
     MeshLooseModFile,
     ModPackageExportOptions,
     finalize_mod_package_export,
+    mod_package_expanded_export_options,
     mod_package_export_options_for_profiles,
     mod_package_export_options_for_manager,
     write_mesh_loose_mod_package_metadata,
@@ -367,6 +368,7 @@ class ModPackageExportTests(unittest.TestCase):
         self.assertFalse(universal.create_modinfo_json)
         self.assertFalse(universal.create_info_json)
         self.assertFalse(universal.create_texture_resolution_manifest)
+        self.assertFalse(universal.create_material_authority_report)
         self.assertFalse(universal.create_active_file_authority_audit)
 
         retired_manager = mod_package_export_options_for_manager("retired_manager")
@@ -388,6 +390,7 @@ class ModPackageExportTests(unittest.TestCase):
         self.assertTrue(dmm.create_modinfo_json)
         self.assertFalse(dmm.create_info_json)
         self.assertFalse(dmm.create_texture_resolution_manifest)
+        self.assertFalse(dmm.create_material_authority_report)
         self.assertFalse(dmm.create_active_file_authority_audit)
 
         field_json = mod_package_export_options_for_manager("field_json")
@@ -435,12 +438,14 @@ class ModPackageExportTests(unittest.TestCase):
         jmm = mod_package_export_options_for_profiles(
             ("jmm",),
             create_zip=True,
+            create_material_authority_report=True,
             create_active_file_authority_audit=True,
         )
         self.assertEqual(("jmm",), jmm.manager_targets)
         self.assertEqual("game_relative", jmm.structure)
         self.assertFalse(jmm.create_manifest_json)
         self.assertTrue(jmm.create_zip)
+        self.assertTrue(jmm.create_material_authority_report)
         self.assertTrue(jmm.create_active_file_authority_audit)
 
     def test_profile_helper_expands_multi_manager_output(self) -> None:
@@ -448,15 +453,17 @@ class ModPackageExportTests(unittest.TestCase):
             root = Path(temp_dir)
             entry = _entry("character/texture/sample.dds", root)
 
+            export_options = mod_package_export_options_for_profiles(
+                ("jmm", "cdumm"),
+                create_zip=True,
+                create_material_authority_report=True,
+                conflict_mode="override",
+            )
             result = export_archive_payloads_to_mod_ready_loose(
                 (ArchivePatchRequest(entry, b"DDS "),),
                 parent_root=root / "out",
                 package_info=ModPackageInfo(title="AutoProfiles"),
-                export_options=mod_package_export_options_for_profiles(
-                    ("jmm", "cdumm"),
-                    create_zip=True,
-                    conflict_mode="override",
-                ),
+                export_options=export_options,
             )
 
             jmm_root = root / "out" / "AutoProfiles_jmm"
@@ -470,6 +477,10 @@ class ModPackageExportTests(unittest.TestCase):
             self.assertTrue((cdumm_root / "files" / "character" / "texture" / "sample.dds").is_file())
             modinfo = json.loads((cdumm_root / "modinfo.json").read_text(encoding="utf-8"))
             self.assertEqual("override", modinfo["conflict_mode"])
+
+            expanded = mod_package_expanded_export_options(export_options)
+            self.assertTrue(expanded[0][1].create_material_authority_report)
+            self.assertTrue(expanded[1][1].create_material_authority_report)
 
     def test_jmm_profile_writes_jmm_mod_json(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
