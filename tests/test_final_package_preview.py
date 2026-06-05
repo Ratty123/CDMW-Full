@@ -2084,6 +2084,66 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertIn("B channel mean", classes["metal"]["evidence"])
             self.assertIn("yellow base texture mean", classes["gold"]["evidence"])
 
+    def test_material_authority_report_uses_external_fbx_metadata_materials(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            Image.new("RGBA", (2, 2), (230, 180, 40, 255)).save(root / "gold_blade_base.png")
+            Image.new("RGBA", (2, 2), (128, 128, 255, 255)).save(root / "gold_blade_normal.png")
+            fbx_path = root / "gold_blade.fbx"
+            fbx_path.write_text(
+                """
+; FBX 7.4.0 project file
+Objects:  {
+    Material: 100, "Material::GoldBlade", "" {
+        Properties70:  {
+            P: "DiffuseColor", "Color", "", "A",0.86,0.66,0.15
+            P: "Roughness", "Number", "", "A",0.28
+            P: "Metalness", "Number", "", "A",1.0
+        }
+    }
+    Texture: 200, "Texture::Gold_BaseColor", "" {
+        FileName: "gold_blade_base.png"
+        RelativeFilename: "gold_blade_base.png"
+    }
+    Texture: 201, "Texture::Gold_Normal", "" {
+        FileName: "gold_blade_normal.png"
+        RelativeFilename: "gold_blade_normal.png"
+    }
+}
+Connections:  {
+    C: "OP",200,100,"DiffuseColor"
+    C: "OP",201,100,"NormalMap"
+}
+""",
+                encoding="utf-8",
+            )
+
+            result = build_final_package_preview(_preview("RuntimeBlade"), source_path=fbx_path)
+
+            report = result.material_authority_report.to_dict()
+            source_row = report["source_materials"][0]
+            slots = {row["slot_kind"]: row for row in source_row["material_inputs"]}
+            classes = {row["class"] for row in source_row["material_classification"]}
+            facts = {row["slot_kind"]: row for row in source_row["texture_facts"]}
+            self.assertEqual("external_model_audit", source_row["source"])
+            self.assertEqual("GoldBlade", source_row["material_name"])
+            self.assertEqual((0.86, 0.66, 0.15), tuple(source_row["color_factor"]))
+            self.assertIn(("roughness", 0.28), tuple(source_row["scalar_hints"]))
+            self.assertIn(("metalness", 1.0), tuple(source_row["scalar_hints"]))
+            self.assertIn("base_color", source_row["detected_channels"])
+            self.assertIn("roughness_scalar", source_row["detected_channels"])
+            self.assertIn("metalness_scalar", source_row["detected_channels"])
+            self.assertEqual("fbx_ascii", slots["base"]["source"])
+            self.assertEqual("fbx_ascii_connection", slots["base"]["confidence"])
+            self.assertEqual((2, 2), tuple(facts["base"]["resolution"]))
+            self.assertEqual("available", facts["base"]["channel_stats_status"])
+            self.assertEqual(str((root / "gold_blade_base.png").resolve()).replace("\\", "/"), source_row["preview_texture_path"])
+            self.assertEqual(str((root / "gold_blade_normal.png").resolve()).replace("\\", "/"), source_row["preview_normal_texture_path"])
+            self.assertIn("gold", classes)
+            self.assertIn("metal", classes)
+
     def test_material_authority_report_reads_source_texture_facts_from_zip_member(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

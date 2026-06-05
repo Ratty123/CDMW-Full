@@ -2313,8 +2313,10 @@ def _material_authority_external_source_material_rows(source_path: object) -> Tu
     if not path_text:
         return ()
     path = Path(path_text).expanduser()
-    if not path.is_file() or path.suffix.lower() not in {".glb", ".gltf", ".obj", ".dae", ".zip"}:
+    if not path.is_file() or path.suffix.lower() not in {".glb", ".gltf", ".obj", ".dae", ".fbx", ".zip"}:
         return ()
+    if path.suffix.lower() == ".fbx":
+        return _material_authority_fbx_source_material_rows(path)
     try:
         from cdmw.core.external_model_audit import _material_row_with_channel_profile
         from cdmw.modding.scene_importer import import_scene_mesh_with_report
@@ -2331,37 +2333,83 @@ def _material_authority_external_source_material_rows(source_path: object) -> Tu
     return tuple(rows)
 
 
+def _material_authority_fbx_source_material_rows(path: Path) -> Tuple[Mapping[str, object], ...]:
+    try:
+        from cdmw.core.external_model_audit import _audit_external_model_file, _material_row_with_channel_profile
+        from cdmw.core.model_catalogue import LocalModelFile
+
+        resolved_path = path.expanduser().resolve()
+        stat = resolved_path.stat()
+        root = resolved_path.parent
+        catalogue_row = LocalModelFile(
+            path=resolved_path,
+            root=root,
+            name=resolved_path.stem,
+            extension=resolved_path.suffix.lower(),
+            size=int(stat.st_size),
+            modified_at=float(stat.st_mtime),
+            import_supported=False,
+        )
+        audited = _audit_external_model_file(catalogue_row)
+    except Exception:
+        return ()
+    rows: List[Mapping[str, object]] = []
+    for material in tuple(audited.get("material_inventory", ()) if isinstance(audited, Mapping) else ()):
+        if not isinstance(material, Mapping):
+            continue
+        row = _material_authority_external_inventory_source_row(material, _material_row_with_channel_profile)
+        if row:
+            rows.append(row)
+    return tuple(rows)
+
+
+def _material_authority_external_value(row: object, key: str, default: object = None) -> object:
+    if isinstance(row, Mapping):
+        return row.get(key, default)
+    return getattr(row, key, default)
+
+
+def _material_authority_mapping_items(value: object) -> Tuple[tuple[object, object], ...]:
+    if isinstance(value, Mapping):
+        return tuple(value.items())
+    try:
+        return tuple(value or ())  # type: ignore[arg-type]
+    except TypeError:
+        return ()
+
+
 def _material_authority_external_inventory_source_row(
     material: object,
     profile_builder: Callable[[Mapping[str, object]], Mapping[str, object]],
 ) -> Mapping[str, object]:
-    texture_slots = tuple(_material_authority_external_texture_slot_row(slot) for slot in tuple(getattr(material, "texture_slots", ()) or ()))
-    texture_facts = tuple(_material_authority_external_texture_fact_row(slot) for slot in tuple(getattr(material, "texture_slots", ()) or ()))
-    sections = tuple(_material_authority_external_section_row(section) for section in tuple(getattr(material, "sections", ()) or ()))
-    classes = tuple(_material_authority_external_class_row(row) for row in tuple(getattr(material, "material_classes", ()) or ()))
+    texture_slot_values = tuple(_material_authority_external_value(material, "texture_slots", ()) or ())
+    texture_slots = tuple(_material_authority_external_texture_slot_row(slot) for slot in texture_slot_values)
+    texture_facts = tuple(_material_authority_external_texture_fact_row(slot) for slot in texture_slot_values)
+    sections = tuple(_material_authority_external_section_row(section) for section in tuple(_material_authority_external_value(material, "sections", ()) or ()))
+    classes = tuple(_material_authority_external_class_row(row) for row in tuple(_material_authority_external_value(material, "material_classes", ()) or ()))
     scalar_hints = {
         str(key or ""): _material_authority_float(value, 0.0)
-        for key, value in tuple(getattr(material, "scalar_hints", ()) or ())
+        for key, value in _material_authority_mapping_items(_material_authority_external_value(material, "scalar_hints", ()))
         if str(key or "").strip()
     }
     payload: Dict[str, object] = {
-        "material_name": str(getattr(material, "material_name", "") or ""),
+        "material_name": str(_material_authority_external_value(material, "material_name", "") or ""),
         "texture_name": next((str(slot.get("texture_name", "") or "") for slot in texture_slots if str(slot.get("texture_name", "") or "")), ""),
         "texture_slots": texture_slots,
         "material_classes": classes,
-        "pbr_workflow": str(getattr(material, "pbr_workflow", "") or ""),
-        "alpha_mode": str(getattr(material, "alpha_mode", "") or ""),
-        "double_sided": bool(getattr(material, "double_sided", False)),
+        "pbr_workflow": str(_material_authority_external_value(material, "pbr_workflow", "") or ""),
+        "alpha_mode": str(_material_authority_external_value(material, "alpha_mode", "") or ""),
+        "double_sided": bool(_material_authority_external_value(material, "double_sided", False)),
         "scalar_hints": scalar_hints,
-        "color_factor": tuple(getattr(material, "color_factor", ()) or ()),
-        "vertex_color_factor": tuple(getattr(material, "vertex_color_factor", ()) or ()),
-        "vertex_alpha": tuple(getattr(material, "vertex_alpha", ()) or ()),
-        "emissive_color": tuple(getattr(material, "emissive_color", ()) or ()),
+        "color_factor": tuple(_material_authority_external_value(material, "color_factor", ()) or ()),
+        "vertex_color_factor": tuple(_material_authority_external_value(material, "vertex_color_factor", ()) or ()),
+        "vertex_alpha": tuple(_material_authority_external_value(material, "vertex_alpha", ()) or ()),
+        "emissive_color": tuple(_material_authority_external_value(material, "emissive_color", ()) or ()),
     }
     profiled = dict(profile_builder(payload))
     channel_profile = dict(profiled.get("channel_profile", {}) or {})
     return {
-        "mesh_index": _material_authority_safe_int(getattr(material, "material_index", -1), -1),
+        "mesh_index": _material_authority_safe_int(_material_authority_external_value(material, "material_index", -1), -1),
         "material_name": payload["material_name"],
         "runtime_material_name": "",
         "texture_name": payload["texture_name"],
@@ -2392,19 +2440,19 @@ def _material_authority_external_inventory_source_row(
 
 def _material_authority_external_texture_slot_row(slot: object) -> Mapping[str, object]:
     return {
-        "slot_kind": str(getattr(slot, "slot_kind", "") or ""),
-        "parameter_name": str(getattr(slot, "parameter_name", "") or ""),
-        "texture_path": str(getattr(slot, "texture_path", "") or "").replace("\\", "/"),
-        "texture_name": str(getattr(slot, "texture_name", "") or ""),
-        "image_format": str(getattr(slot, "image_format", "") or ""),
-        "resolution": tuple(getattr(slot, "resolution", ()) or ()),
-        "channel_stats": tuple(getattr(slot, "channel_stats", ()) or ()),
-        "semantic_type": str(getattr(slot, "semantic_type", "") or ""),
-        "semantic_subtype": str(getattr(slot, "semantic_subtype", "") or ""),
-        "packed_channels": tuple(getattr(slot, "packed_channels", ()) or ()),
-        "color_space": str(getattr(slot, "color_space", "") or ""),
-        "source": str(getattr(slot, "source", "") or ""),
-        "confidence": str(getattr(slot, "confidence", "") or ""),
+        "slot_kind": str(_material_authority_external_value(slot, "slot_kind", "") or ""),
+        "parameter_name": str(_material_authority_external_value(slot, "parameter_name", "") or ""),
+        "texture_path": str(_material_authority_external_value(slot, "texture_path", "") or "").replace("\\", "/"),
+        "texture_name": str(_material_authority_external_value(slot, "texture_name", "") or ""),
+        "image_format": str(_material_authority_external_value(slot, "image_format", "") or ""),
+        "resolution": tuple(_material_authority_external_value(slot, "resolution", ()) or ()),
+        "channel_stats": tuple(_material_authority_external_value(slot, "channel_stats", ()) or ()),
+        "semantic_type": str(_material_authority_external_value(slot, "semantic_type", "") or ""),
+        "semantic_subtype": str(_material_authority_external_value(slot, "semantic_subtype", "") or ""),
+        "packed_channels": tuple(_material_authority_external_value(slot, "packed_channels", ()) or ()),
+        "color_space": str(_material_authority_external_value(slot, "color_space", "") or ""),
+        "source": str(_material_authority_external_value(slot, "source", "") or ""),
+        "confidence": str(_material_authority_external_value(slot, "confidence", "") or ""),
     }
 
 
@@ -2417,30 +2465,30 @@ def _material_authority_external_texture_fact_row(slot: object) -> Mapping[str, 
 
 def _material_authority_external_section_row(section: object) -> Mapping[str, object]:
     return {
-        "section_index": _material_authority_safe_int(getattr(section, "section_index", -1), -1),
-        "source_submesh_index": _material_authority_safe_int(getattr(section, "section_index", -1), -1),
-        "section_name": str(getattr(section, "section_name", "") or ""),
-        "material_name": str(getattr(section, "material_name", "") or ""),
+        "section_index": _material_authority_safe_int(_material_authority_external_value(section, "section_index", -1), -1),
+        "source_submesh_index": _material_authority_safe_int(_material_authority_external_value(section, "section_index", -1), -1),
+        "section_name": str(_material_authority_external_value(section, "section_name", "") or ""),
+        "material_name": str(_material_authority_external_value(section, "material_name", "") or ""),
         "runtime_material_name": "",
-        "vertex_count": _material_authority_safe_int(getattr(section, "vertex_count", 0), 0),
-        "face_count": _material_authority_safe_int(getattr(section, "face_count", 0), 0),
-        "has_uvs": bool(getattr(section, "has_uvs", False)),
-        "has_normals": bool(getattr(section, "has_normals", False)),
-        "has_tangents": bool(getattr(section, "has_tangents", False)),
-        "has_skinning": bool(getattr(section, "has_skinning", False)),
-        "texture_texcoord_sets": tuple(getattr(section, "texture_texcoord_sets", ()) or ()),
-        "bounds_min": tuple(getattr(section, "bounds_min", ()) or ()),
-        "bounds_max": tuple(getattr(section, "bounds_max", ()) or ()),
+        "vertex_count": _material_authority_safe_int(_material_authority_external_value(section, "vertex_count", 0), 0),
+        "face_count": _material_authority_safe_int(_material_authority_external_value(section, "face_count", 0), 0),
+        "has_uvs": bool(_material_authority_external_value(section, "has_uvs", False)),
+        "has_normals": bool(_material_authority_external_value(section, "has_normals", False)),
+        "has_tangents": bool(_material_authority_external_value(section, "has_tangents", False)),
+        "has_skinning": bool(_material_authority_external_value(section, "has_skinning", False)),
+        "texture_texcoord_sets": tuple(_material_authority_external_value(section, "texture_texcoord_sets", ()) or ()),
+        "bounds_min": tuple(_material_authority_external_value(section, "bounds_min", ()) or ()),
+        "bounds_max": tuple(_material_authority_external_value(section, "bounds_max", ()) or ()),
     }
 
 
 def _material_authority_external_class_row(row: object) -> Mapping[str, object]:
-    material_class = str(getattr(row, "material_class", "") or "unknown")
+    material_class = str(_material_authority_external_value(row, "material_class", "") or "unknown")
     return {
         "class": material_class,
         "material_class": material_class,
-        "confidence": _material_authority_float(getattr(row, "confidence", 0.0), 0.0),
-        "evidence": tuple(getattr(row, "evidence", ()) or ()),
+        "confidence": _material_authority_float(_material_authority_external_value(row, "confidence", 0.0), 0.0),
+        "evidence": tuple(_material_authority_external_value(row, "evidence", ()) or ()),
     }
 
 
