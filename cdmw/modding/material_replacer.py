@@ -5505,7 +5505,7 @@ def _texture_set_accent_glow_color_hex(
         try:
             rgb = tuple(max(0, min(255, int(round(float(component) * 255.0)))) for component in color[:3])
             if any(component > 0 for component in rgb):
-                return f"#FF{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}"
+                return f"#{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}FF"
         except (TypeError, ValueError, OverflowError):
             pass
     if source_slot is not None:
@@ -5522,7 +5522,7 @@ def _texture_set_accent_glow_color_hex(
                     strongest = max(rgb)
                     if strongest > 0:
                         boosted = tuple(max(0, min(255, int(round(component * 255.0 / strongest)))) for component in rgb)
-                        return f"#FF{boosted[0]:02X}{boosted[1]:02X}{boosted[2]:02X}"
+                        return f"#{boosted[0]:02X}{boosted[1]:02X}{boosted[2]:02X}FF"
         except Exception:
             pass
     return "#FFFFFFFF"
@@ -10595,7 +10595,7 @@ def _apply_source_emissive_parameters(
         if not re.fullmatch(r"#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?", cleaned):
             cleaned = "#FFFFFFFF"
         if len(cleaned) == 7:
-            cleaned = "#FF" + cleaned[1:]
+            cleaned = cleaned + "FF"
         cleaned = cleaned.upper()
         parameter_pattern = re.compile(
             rf'(<MaterialParameterColor\b[^>]*(?:StringItemID|_name|Name|name)="{re.escape(parameter_name)}"[^>]*\b(?:_value|Value|value)=")([^"]*)(")',

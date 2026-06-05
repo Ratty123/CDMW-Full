@@ -2131,8 +2131,8 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertIn("_emissiveIntensityTexture", patched)
             self.assertIn("gem_inside_emissive", patched.lower())
             self.assertIn("_emissiveColor", patched)
-            self.assertIn("#FFFF0000", patched)
-            self.assertNotIn("#FF0000FF", patched)
+            self.assertIn("#FF0000FF", patched)
+            self.assertNotIn("#FFFF0000", patched)
             self.assertTrue(any(mapping.slot_kind == "emissive" for mapping in report.slot_mappings))
 
     def test_accent_glow_control_synthesizes_emissive_for_gem_part(self) -> None:
@@ -2201,8 +2201,8 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn('SkinnedMeshEmissive_Ver2', patched)
         self.assertIn("_emissiveIntensityTexture", patched)
         self.assertIn("_emissiveColor", patched)
-        self.assertIn("#FFFF0000", patched)
-        self.assertNotIn("#FF0000FF", patched)
+        self.assertIn("#FF0000FF", patched)
+        self.assertNotIn("#FFFF0000", patched)
         self.assertIn("_emissiveIntensity", patched)
         self.assertIn("5.500000", patched)
         self.assertTrue(any(mapping.slot_kind == "emissive" for mapping in report.slot_mappings))
@@ -2462,7 +2462,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
   </SkinnedMeshMaterialWrapper>
   <SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_02_Sword_Handle_0015">
     <Material><Vector Name="_parameters">
-      <MaterialParameterColor _name="_emissiveColor" _value="#FFFF0000"/>
+      <MaterialParameterColor _name="_emissiveColor" _value="#FF0000FF"/>
       <MaterialParameterTexture _name="_emissiveIntensityTexture">
         <ResourceReferencePath_ITexture _path="character/texture/cd_phm_02_sword_0015_gem_inside_emissive_emi.dds"/>
       </MaterialParameterTexture>

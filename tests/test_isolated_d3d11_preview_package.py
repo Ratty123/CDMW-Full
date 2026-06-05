@@ -1577,9 +1577,10 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual(2.0, hints["emissive_intensity"])
             self.assertEqual(2.0, profile_hints["emissive_intensity"])
 
-    def test_material_emissive_hex_color_uses_crimson_argb_order(self) -> None:
-        self.assertEqual((1.0, 0.0, 0.0), _material_hex_color_rgb("#FFFF0000"))
-        self.assertEqual((0.0, 0.0, 1.0), _material_hex_color_rgb("#FF0000FF"))
+    def test_material_emissive_hex_color_uses_crimson_rgba_order(self) -> None:
+        self.assertEqual((1.0, 0.0, 0.0), _material_hex_color_rgb("#FF0000FF"))
+        self.assertEqual((0.0, 0.0, 1.0), _material_hex_color_rgb("#0000FFFF"))
+        self.assertEqual((1.0, 1.0, 0.0), _material_hex_color_rgb("#FFFF0000"))
         self.assertEqual((18 / 255.0, 52 / 255.0, 86 / 255.0), _material_hex_color_rgb("#123456"))
 
     def test_specular_material_combiner_promotes_blade_metal_response(self) -> None:

@@ -1732,11 +1732,11 @@ def _material_hex_color_rgb(value: object) -> Tuple[float, float, float]:
         return ()
     try:
         if len(text) == 8:
-            # Crimson MaterialParameterColor sidecars use AARRGGBB for emissive color.
+            # Crimson PAC XML MaterialParameterColor sidecars use RRGGBBAA.
             return (
+                int(text[0:2], 16) / 255.0,
                 int(text[2:4], 16) / 255.0,
                 int(text[4:6], 16) / 255.0,
-                int(text[6:8], 16) / 255.0,
             )
         return (
             int(text[0:2], 16) / 255.0,
