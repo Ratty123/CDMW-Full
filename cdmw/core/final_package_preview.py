@@ -1197,6 +1197,7 @@ def _build_material_authority_report(
     require_source_owned_colors: bool,
     strict_source_owned_material_contract: bool,
     allow_inherited_layer_color_bindings: bool,
+    source_materials: Optional[Sequence[Mapping[str, object]]] = None,
     render_settings: object = None,
 ) -> FinalPackageMaterialAuthorityReport:
     contract = str(authority_contract or "").strip() or (
@@ -1228,7 +1229,7 @@ def _build_material_authority_report(
     normal_y_mode = _material_authority_render_normal_y_mode(render_settings)
     routing = tuple(_material_authority_routing_row(row) for row in binding_rows)
     target_sections = tuple(_material_authority_target_section_rows(preview_result, material_statuses, binding_rows))
-    source_materials = _material_authority_source_material_rows_for_report(preview_result, source_path)
+    source_materials = tuple(source_materials) if source_materials is not None else _material_authority_source_material_rows_for_report(preview_result, source_path)
     texture_outputs = tuple(
         _material_authority_texture_output_row(
             payload,
@@ -3632,6 +3633,7 @@ def _source_owned_material_binding_contract(
     allow_inherited_layer_color_bindings: bool = False,
     allow_relief_support: bool = False,
     allow_detail_mask_material: bool = False,
+    expected_support_roles: Optional[Sequence[str]] = None,
 ) -> CDMaterialBindingContract:
     fatal_errors: List[str] = []
     contract_warnings: List[str] = []
@@ -3655,9 +3657,19 @@ def _source_owned_material_binding_contract(
         and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
         and not (allow_relief_support and _binding_row_is_relief_support_only(row))
     ]
+    expected_support_role_set = (
+        {
+            str(role or "").strip()
+            for role in tuple(expected_support_roles or ())
+            if str(role or "").strip()
+        }
+        if expected_support_roles is not None
+        else None
+    )
     missing_support_roles = [
         role
         for role in ("Normal", "Height", "Material / Mask", "Detail Mask")
+        if expected_support_role_set is None or role in expected_support_role_set
         if not any(
             row.role == role and _binding_row_is_exact_generated_ready(row)
             for row in rows
@@ -3759,6 +3771,118 @@ def _rows_for_source_owned_contract(
             _material_key(getattr(row, "part_name", "")),
         }
     ]
+
+
+def _source_owned_section_source_material_names(section: object) -> Tuple[str, ...]:
+    names: List[str] = []
+    for value in (
+        getattr(section, "source_material_name", ""),
+        *tuple(getattr(section, "atlas_source_material_names", ()) or ()),
+    ):
+        text = str(value or "").strip()
+        if text:
+            names.append(text)
+    for atlas_rect in tuple(getattr(section, "atlas_rects", ()) or ()):
+        text = str(getattr(atlas_rect, "source_material_name", "") or "").strip()
+        if text:
+            names.append(text)
+    return tuple(_dedupe(names))
+
+
+def _source_material_rows_by_key(source_materials: Sequence[Mapping[str, object]]) -> Dict[str, List[Mapping[str, object]]]:
+    rows_by_key: Dict[str, List[Mapping[str, object]]] = {}
+    for row in tuple(source_materials or ()):
+        if not isinstance(row, Mapping):
+            continue
+        for value in (
+            row.get("material_name", ""),
+            row.get("runtime_material_name", ""),
+        ):
+            key = _material_key(str(value or ""))
+            if key:
+                rows_by_key.setdefault(key, []).append(row)
+    return rows_by_key
+
+
+def _source_expected_support_roles_for_contract(
+    material_key: str,
+    source_names_by_contract_key: Mapping[str, Sequence[str]],
+    source_materials_by_key: Mapping[str, Sequence[Mapping[str, object]]],
+) -> Optional[Tuple[str, ...]]:
+    source_names = tuple(source_names_by_contract_key.get(material_key, ()) or ())
+    if not source_names:
+        return None
+    roles: List[str] = []
+    found_source_row = False
+    for name in source_names:
+        for row in tuple(source_materials_by_key.get(_material_key(name), ()) or ()):
+            found_source_row = True
+            roles.extend(_source_material_expected_support_roles(row))
+    if not found_source_row:
+        return None
+    return tuple(_dedupe(roles))
+
+
+def _source_material_expected_support_roles(row: Mapping[str, object]) -> Tuple[str, ...]:
+    channels = {
+        str(channel or "").strip().lower()
+        for channel in tuple(row.get("detected_channels", ()) or ())
+        if str(channel or "").strip()
+    }
+    for slot in tuple(row.get("material_inputs", ()) or ()) + tuple(row.get("texture_slots", ()) or ()):
+        if not isinstance(slot, Mapping):
+            continue
+        for value in (
+            slot.get("slot_kind", ""),
+            slot.get("semantic_type", ""),
+            slot.get("semantic_subtype", ""),
+            *tuple(slot.get("packed_channels", ()) or ()),
+        ):
+            _add_expected_support_channel(channels, value)
+    roles: List[str] = []
+    if "normal" in channels:
+        roles.append("Normal")
+    if "height" in channels:
+        roles.append("Height")
+    material_channels = {
+        "roughness",
+        "roughness_scalar",
+        "metalness",
+        "metalness_scalar",
+        "ao",
+        "specular",
+        "specular_scalar",
+        "glossiness",
+        "glossiness_scalar",
+        "material",
+        "material_mask",
+    }
+    if material_channels & channels:
+        roles.append("Material / Mask")
+    if "detail" in channels or "detail_mask" in channels:
+        roles.append("Detail Mask")
+    return tuple(_dedupe(roles))
+
+
+def _add_expected_support_channel(channels: set[str], value: object) -> None:
+    text = str(value or "").strip().lower()
+    if not text:
+        return
+    if "normal" in text:
+        channels.add("normal")
+    if any(token in text for token in ("height", "displacement", "bump", "parallax")):
+        channels.add("height")
+    if any(token in text for token in ("roughness", "rough", "smoothness")):
+        channels.add("roughness")
+    if any(token in text for token in ("metallic", "metalness", "metal")):
+        channels.add("metalness")
+    if any(token in text for token in ("ao", "occlusion", "ambientocclusion")):
+        channels.add("ao")
+    if any(token in text for token in ("specular", "gloss", "specgloss")):
+        channels.add("specular")
+        channels.add("glossiness")
+    if "detail" in text:
+        channels.add("detail")
 
 
 def _assign_row_to_meshes(
@@ -4208,6 +4332,7 @@ def build_final_package_preview(
     source_path_text = str(source_path or "").replace("\\", "/").strip()
     if not source_path_text:
         source_path_text = str(getattr(getattr(preview_result, "preview_model", None), "path", "") or getattr(getattr(preview_result, "parsed_mesh", None), "path", "") or "").replace("\\", "/")
+    source_materials_for_report = _material_authority_source_material_rows_for_report(preview_result, source_path_text)
 
     effective_preview_result = preview_result
     package_mesh_data = _package_rebuilt_mesh_data(specs, preview_result, export_options)
@@ -4566,6 +4691,7 @@ def build_final_package_preview(
     planned_placeholder_material_keys: set[str] = set()
     planned_source_owned_material_keys: set[str] = set()
     planned_source_owned_material_display: Dict[str, str] = {}
+    source_names_by_contract_key: Dict[str, List[str]] = {}
     if require_source_owned_colors:
         available_source_owned_contract_keys = set(rows_by_material) | {
             _material_key(name)
@@ -4598,6 +4724,10 @@ def build_final_package_preview(
                 if key:
                     planned_source_owned_material_keys.add(key)
                     planned_source_owned_material_display.setdefault(key, str(name or "").strip() or key)
+                    source_names = _source_owned_section_source_material_names(section)
+                    if source_names:
+                        source_names_by_contract_key.setdefault(key, [])
+                        source_names_by_contract_key[key].extend(source_names)
                 continue
             for name in (
                 getattr(section, "target_submesh_name", ""),
@@ -4715,12 +4845,18 @@ def build_final_package_preview(
                 preflight_errors.append(message)
             else:
                 warnings.append(message)
+    source_materials_by_key = _source_material_rows_by_key(source_materials_for_report)
     if source_owned_binding_contract_enabled and planned_source_owned_material_keys:
         for material_key in sorted(planned_source_owned_material_keys):
             if material_key in planned_placeholder_material_keys:
                 continue
             rows = _rows_for_source_owned_contract(material_key, rows_by_material, binding_rows)
             display_name = planned_source_owned_material_display.get(material_key) or material_display_by_key.get(material_key) or material_key
+            expected_support_roles = _source_expected_support_roles_for_contract(
+                material_key,
+                source_names_by_contract_key,
+                source_materials_by_key,
+            )
             contract = _source_owned_material_binding_contract(
                 material_key,
                 display_name,
@@ -4729,6 +4865,7 @@ def build_final_package_preview(
                 allow_inherited_layer_color_bindings=bool(allow_inherited_layer_color_bindings),
                 allow_relief_support=bool(relief_support_allowed),
                 allow_detail_mask_material=bool(detail_mask_material_allowed),
+                expected_support_roles=expected_support_roles,
             )
             preflight_errors.extend(contract.fatal_errors)
             warnings.extend(contract.warnings)
@@ -4885,6 +5022,7 @@ def build_final_package_preview(
         require_source_owned_colors=require_source_owned_colors,
         strict_source_owned_material_contract=strict_source_owned_material_contract,
         allow_inherited_layer_color_bindings=allow_inherited_layer_color_bindings,
+        source_materials=source_materials_for_report,
         render_settings=render_settings,
     )
     if texture_resolution_manifest.rows:

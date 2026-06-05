@@ -1208,6 +1208,76 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertIn("Material / Mask", warning_text)
             self.assertIn("Detail Mask", warning_text)
 
+    def test_complete_source_owned_does_not_require_absent_source_normal_height(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_path = root / "factor_materials.gltf"
+            _write_factor_material_gltf(source_path)
+            preview = _preview("RuntimeGem")
+            preview.source_owned_output_draw_sections = (
+                StaticOutputDrawSection(
+                    0,
+                    0,
+                    "RuntimeGem",
+                    [1],
+                    0,
+                    0,
+                    "RuntimeGem",
+                    3,
+                    True,
+                    runtime_material_name="RuntimeGem",
+                    source_material_name="Gem_inside",
+                ),
+            )
+            specs = (
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside.dds",
+                    target_path="character/texture/gem_inside.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "gem_inside_detail.dds",
+                    target_path="character/texture/gem_inside_detail.dds",
+                    kind="texture_generated",
+                    payload_data=b"DDS gem inside detail",
+                ),
+                MeshImportSupplementalFileSpec(
+                    source_path=root / "test_weapon.pac_xml",
+                    target_path="character/modelproperty/test_weapon.pac_xml",
+                    kind="sidecar_generated",
+                    payload_data=(
+                        b'<ModelPropertyList><ModelProperty><SkinnedMeshProperty>'
+                        b'<Vector Name="_subMeshResources" IdBase="1191">'
+                        b'<SkinnedMeshMaterialWrapper ItemID="1190" _subMeshName="RuntimeGem">'
+                        b'<MaterialParameterTexture _name="_overlayColorTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'<MaterialParameterTexture _name="_detailMaskTexture">'
+                        b'<ResourceReferencePath_ITexture _path="character/texture/gem_inside_detail.dds"/>'
+                        b'</MaterialParameterTexture>'
+                        b'</SkinnedMeshMaterialWrapper>'
+                        b'</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+                    ),
+                ),
+            )
+
+            result = build_final_package_preview(
+                preview,
+                source_path=source_path,
+                supplemental_file_specs=specs,
+                require_source_owned_colors=True,
+                material_authority_contract="true_source_authority_detail_mask",
+            )
+
+            blocker_text = "\n".join(result.preflight_errors)
+            report = result.material_authority_report.to_dict()
+            self.assertNotIn("missing generated optional support binding(s)", blocker_text)
+            self.assertNotIn("Normal", blocker_text)
+            self.assertNotIn("Height", blocker_text)
+            self.assertFalse(result.preflight_errors)
+            self.assertIn("Gem_inside", {row["material_name"] for row in report["source_materials"]})
+
     def test_complete_source_owned_warns_original_support_binding_survival(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
