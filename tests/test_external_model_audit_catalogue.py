@@ -384,6 +384,26 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         )
         self.assertEqual(0, report["summary"]["materials_missing_alpha_diagnostics"])
 
+    def test_catalogue_records_glass_class_alpha_intent_without_opacity_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "translucent_glass_panel.gltf"
+            _write_triangle_gltf(path)
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["materials"][0]["name"] = "Translucent_Glass_Panel"
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            report = build_external_model_audit_catalogue([root])
+            check = check_external_model_audit_report(report)
+
+        inventory = report["models"][0]["material_inventory"][0]
+        diagnostic_codes = {row["code"] for row in inventory["channel_diagnostics"]}
+        classes = {row["material_class"] for row in inventory["material_classes"]}
+        self.assertIn("glass_crystal", classes)
+        self.assertIn("source_alpha_intent_without_opacity_evidence", diagnostic_codes)
+        self.assertEqual(0, report["summary"]["materials_missing_alpha_diagnostics"])
+        self.assertNotIn("missing_alpha_diagnostics", check["risk_flags"])
+
     def test_catalogue_reads_obj_mtl_scalar_material_properties(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -988,6 +1008,49 @@ Connections:  {
         self.assertIn("packed_gem.zip::source/Textures With Spaces/red gem.png", base_slot["texture_path"].replace("\\", "/"))
         self.assertNotIn("%20", base_slot["texture_path"])
         self.assertFalse(any("missing" in warning.lower() for warning in row["warnings"]))
+
+    def test_catalogue_zip_audit_reports_unresolved_texture_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as stage_dir:
+            root = Path(temp_dir)
+            stage = Path(stage_dir)
+            scene = stage / "source"
+            texture_dir = stage / "textures"
+            scene.mkdir(parents=True)
+            texture_dir.mkdir(parents=True)
+            Image.new("RGB", (2, 2), (100, 90, 80)).save(texture_dir / "Metal_Seamed.jpeg")
+            _write_triangle_dae_with_base_texture(scene / "model.dae", "Missing%20Textures/red_gem.jpg")
+            archive = root / "packed_missing_ref.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                for path in sorted(stage.rglob("*")):
+                    if path.is_file():
+                        zip_file.write(path, path.relative_to(stage).as_posix())
+
+            report = build_external_model_audit_catalogue([root], audit_zip_contents=True)
+            check = check_external_model_audit_report(report)
+
+            self.assertFalse((root / ".cdmw_extracted").exists())
+
+        row = report["models"][0]
+        candidates = tuple(row["unresolved_texture_candidates"])
+        self.assertEqual(1, report["summary"]["missing_texture_refs"])
+        self.assertEqual(1, report["summary"]["unresolved_texture_candidates"])
+        self.assertEqual(1, check["counts"]["unresolved_texture_candidates"])
+        self.assertIn("unresolved_texture_candidates", check["review_risk_flags"])
+        self.assertTrue(any("nearby texture candidate" in warning for warning in check["warnings"]))
+        self.assertEqual(1, len(candidates))
+        self.assertIn("Missing Textures/red_gem.jpg", candidates[0]["missing_texture_ref"].replace("\\", "/"))
+        self.assertIn("packed_missing_ref.zip::textures/Metal_Seamed.jpeg", candidates[0]["candidate_path"].replace("\\", "/"))
+        self.assertEqual("", candidates[0]["candidate_slot_guess"])
+        self.assertEqual("nearby_texture", candidates[0]["confidence"])
+        self.assertEqual((2, 2), tuple(candidates[0]["candidate_resolution"]))
+        self.assertEqual("available", candidates[0]["candidate_resolution_status"])
+        self.assertEqual("available", candidates[0]["candidate_channel_stats_status"])
+        self.assertEqual("srgb", candidates[0]["candidate_color_space"])
+        stats = dict(candidates[0]["candidate_channel_stats"])
+        self.assertAlmostEqual(100 / 255.0, stats["r_mean"], places=4)
+        self.assertAlmostEqual(90 / 255.0, stats["g_mean"], places=4)
+        self.assertAlmostEqual(80 / 255.0, stats["b_mean"], places=4)
+        self.assertTrue(any("unresolved texture candidate" in warning for warning in row["warnings"]))
 
     def test_catalogue_caps_zip_content_audits_with_skip_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as stage_dir:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import csv
+import io
 import json
 import re
 import tempfile
@@ -24,6 +25,7 @@ EXTERNAL_MODEL_AUDIT_EXTENSIONS = (".glb", ".gltf", ".fbx", ".obj", ".dae", ".zi
 _IMPORTABLE_EXTERNAL_MODEL_EXTENSIONS = (".glb", ".gltf", ".obj", ".dae")
 _ZIP_EXTERNAL_METADATA_EXTENSIONS = (".fbx",)
 _AUDIT_TEXTURE_EXTENSIONS = SCENE_TEXTURE_SOURCE_EXTENSIONS | SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS
+_AUDIT_TEXTURE_FACT_MAX_IMAGE_BYTES = 256 * 1024 * 1024
 _FBX_BINARY_HEADER = b"Kaydara FBX Binary"
 _FBX_BINARY_PRINTABLE = re.compile(rb"[A-Za-z0-9_ ./\\:\-+()\[\]{}@#$%&=~'\",]{4,}")
 
@@ -135,6 +137,7 @@ def _audit_external_model_file(
             "companion_textures": tuple(companion_textures) + tuple(zip_textures),
             "missing_texture_refs": (),
             "ambiguous_texture_refs": (),
+            "unresolved_texture_candidates": (),
             "warnings": warnings,
             "material_inventory": (),
             "material_classes": (),
@@ -195,6 +198,7 @@ def _audit_external_model_file(
             "companion_textures": companion_textures,
             "missing_texture_refs": (),
             "ambiguous_texture_refs": ambiguous_refs,
+            "unresolved_texture_candidates": (),
             "warnings": tuple(warnings),
             "material_inventory": material_inventory,
             "material_classes": material_classes,
@@ -209,6 +213,7 @@ def _audit_external_model_file(
             "companion_textures": companion_textures,
             "missing_texture_refs": (),
             "ambiguous_texture_refs": (),
+            "unresolved_texture_candidates": (),
             "warnings": (str(exc),),
             "material_inventory": (),
             "material_classes": (),
@@ -217,9 +222,12 @@ def _audit_external_model_file(
     missing_refs = _missing_texture_refs(audit)
     material_inventory = tuple(_material_inventory_rows(audit))
     ambiguous_refs = _ambiguous_texture_refs(material_inventory)
+    unresolved_candidates = _unresolved_texture_candidates(audit, companion_textures)
     warnings = list(tuple(getattr(audit, "warnings", ()) or ()))
     if missing_refs:
         warnings.append(f"{len(missing_refs):,} referenced texture file(s) are missing on disk.")
+    if unresolved_candidates:
+        warnings.append(f"{len(unresolved_candidates):,} unresolved texture candidate(s) available for manual review.")
     if ambiguous_refs:
         warnings.append(f"{len(ambiguous_refs):,} ambiguous texture role assignment(s) need manual review.")
     return {
@@ -231,10 +239,11 @@ def _audit_external_model_file(
         "companion_textures": companion_textures,
         "missing_texture_refs": missing_refs,
         "ambiguous_texture_refs": ambiguous_refs,
+        "unresolved_texture_candidates": unresolved_candidates,
         "audit": _external_audit_to_dict(audit),
         "material_inventory": material_inventory,
         "material_classes": tuple(_material_class_rows(audit)),
-        "warnings": tuple(warnings),
+        "warnings": _dedupe_preserve_order(warnings),
     }
 
 
@@ -275,6 +284,7 @@ def _audit_zip_external_model_file(
                 "companion_textures": tuple(companion_textures),
                 "missing_texture_refs": (),
                 "ambiguous_texture_refs": (),
+                "unresolved_texture_candidates": (),
                 "warnings": (f"ZIP content material audit failed: {exc}",),
                 "material_inventory": (),
                 "material_classes": (),
@@ -283,9 +293,16 @@ def _audit_zip_external_model_file(
         missing_refs = _rewrite_extracted_paths(_missing_texture_refs(audit), source_path, extract_root)
         material_inventory = tuple(_material_inventory_rows(audit))
         ambiguous_refs = _rewrite_extracted_paths(_ambiguous_texture_refs(material_inventory), source_path, extract_root)
+        unresolved_candidates = _rewrite_extracted_paths(
+            _unresolved_texture_candidates(audit, companion_textures),
+            source_path,
+            extract_root,
+        )
         warnings = list(tuple(getattr(audit, "warnings", ()) or ()))
         if missing_refs:
             warnings.append(f"{len(tuple(missing_refs or ())):,} referenced texture file(s) are missing on disk.")
+        if unresolved_candidates:
+            warnings.append(f"{len(tuple(unresolved_candidates or ())):,} unresolved texture candidate(s) available for manual review.")
         if ambiguous_refs:
             warnings.append(f"{len(tuple(ambiguous_refs or ())):,} ambiguous texture role assignment(s) need manual review.")
         warnings.append("ZIP material inventory audited from temporary extraction; downloads root was not modified.")
@@ -306,10 +323,11 @@ def _audit_zip_external_model_file(
             "companion_textures": tuple(companion_textures),
             "missing_texture_refs": missing_refs,
             "ambiguous_texture_refs": ambiguous_refs,
+            "unresolved_texture_candidates": unresolved_candidates,
             "audit": _rewrite_extracted_paths(_external_audit_to_dict(audit), source_path, extract_root),
             "material_inventory": _rewrite_extracted_paths(material_inventory, source_path, extract_root),
             "material_classes": _rewrite_extracted_paths(tuple(_material_class_rows(audit)), source_path, extract_root),
-            "warnings": tuple(warnings),
+            "warnings": _dedupe_preserve_order(warnings),
         }
 
 
@@ -393,9 +411,10 @@ def _audit_zip_fbx_metadata_file(
         "companion_textures": _rewrite_extracted_paths(tuple(audited.get("companion_textures", ()) or companion_textures), source_path, extract_root),
         "missing_texture_refs": (),
         "ambiguous_texture_refs": ambiguous_refs,
+        "unresolved_texture_candidates": (),
         "material_inventory": material_inventory,
         "material_classes": _rewrite_extracted_paths(tuple(audited.get("material_classes", ()) or ()), source_path, extract_root),
-        "warnings": tuple(warnings),
+        "warnings": _dedupe_preserve_order(warnings),
     }
 
 
@@ -484,12 +503,36 @@ def _material_inventory_rows(audit: ExternalModelAudit | None) -> tuple[dict[str
 
 def _material_row_with_channel_profile(row: Mapping[str, object]) -> dict[str, object]:
     payload = dict(row)
+    if not str(payload.get("pbr_workflow", "") or "").strip():
+        payload["pbr_workflow"] = _fallback_material_workflow(payload)
     profile = _material_channel_profile(payload)
     payload["channel_profile"] = profile
     payload["detected_channels"] = tuple(profile.get("detected_channels", ()) or ())
     payload["missing_channels"] = tuple(profile.get("missing_channels", ()) or ())
     payload["channel_diagnostics"] = tuple(profile.get("diagnostics", ()) or ())
     return payload
+
+
+def _fallback_material_workflow(row: Mapping[str, object]) -> str:
+    texture_slots = tuple(slot for slot in tuple(row.get("texture_slots", ()) or ()) if isinstance(slot, Mapping))
+    scalar_hints = row.get("scalar_hints") if isinstance(row.get("scalar_hints"), Mapping) else {}
+    workflow = _unsupported_companion_workflow(texture_slots, scalar_hints)
+    if workflow:
+        return workflow
+    scalar_keys = {str(key or "").strip().lower() for key in tuple((scalar_hints or {}).keys()) if str(key or "").strip()}
+    if {"specular", "glossiness"}.intersection(scalar_keys):
+        return "specular_glossiness"
+    if {"roughness", "metalness"}.intersection(scalar_keys):
+        return "metallic_roughness"
+    if (
+        texture_slots
+        or scalar_keys
+        or len(tuple(row.get("color_factor", ()) or ())) >= 3
+        or len(tuple(row.get("vertex_color_factor", ()) or ())) >= 3
+        or len(tuple(row.get("emissive_color", ()) or ())) >= 3
+    ):
+        return "legacy_fixed_function"
+    return ""
 
 
 def _material_channel_profile(row: Mapping[str, object]) -> dict[str, object]:
@@ -567,6 +610,14 @@ def _material_channel_profile(row: Mapping[str, object]) -> dict[str, object]:
         scalar_channels.add("emissive")
     alpha_mode = str(row.get("alpha_mode", "") or "").strip().lower()
     workflow = str(row.get("pbr_workflow", "") or "").strip().lower()
+    if workflow == "legacy_fixed_function":
+        diagnostics.append(
+            {
+                "severity": "info",
+                "code": "source_legacy_fixed_function_workflow",
+                "message": "Source material uses legacy fixed-function/scalar channels rather than glTF PBR workflow.",
+            }
+        )
     derived_channels: set[str] = set()
     effective_channels = texture_channels | scalar_channels
     if "specular_glossiness" in workflow or "speculargloss" in workflow:
@@ -592,6 +643,14 @@ def _material_channel_profile(row: Mapping[str, object]) -> dict[str, object]:
         diagnostics.append({"severity": "warning", "code": "source_missing_base_color"})
     if alpha_mode in {"blend", "mask", "alpha", "transparent", "coverage", "cutout"} and "opacity" not in texture_channels and "opacity" not in scalar_channels:
         diagnostics.append({"severity": "warning", "code": "source_alpha_without_opacity_texture", "alpha_mode": alpha_mode})
+    if _material_implies_visible_alpha(row) and "opacity" not in texture_channels and "opacity" not in scalar_channels:
+        diagnostics.append(
+            {
+                "severity": "info",
+                "code": "source_alpha_intent_without_opacity_evidence",
+                "message": "Material name/class implies glass or translucent response, but no alpha/opacity source channel was found.",
+            }
+        )
     if "emissive" in scalar_channels and "emissive" not in texture_channels:
         diagnostics.append({"severity": "info", "code": "source_emissive_scalar_no_texture"})
     for channel in missing:
@@ -608,6 +667,21 @@ def _material_channel_profile(row: Mapping[str, object]) -> dict[str, object]:
         "missing_channels": tuple(missing),
         "diagnostics": tuple(diagnostics),
     }
+
+
+def _material_implies_visible_alpha(row: Mapping[str, object]) -> bool:
+    for item in tuple(row.get("material_classes", ()) or ()):
+        if isinstance(item, Mapping) and str(item.get("material_class", "") or "").strip().lower() in {"glass", "crystal", "glass_crystal"}:
+            return True
+    text = " ".join(
+        str(value or "")
+        for value in (
+            row.get("material_name"),
+            row.get("runtime_material_name"),
+            row.get("section_name"),
+        )
+    ).lower()
+    return any(token in text for token in ("translucent", "transparent", "glass", "crystal", "gem"))
 
 
 def _add_material_channel(channels: set[str], value: object) -> None:
@@ -734,6 +808,99 @@ def _missing_texture_refs(audit: ExternalModelAudit | None) -> tuple[str, ...]:
     return tuple(_dedupe_sorted(missing))
 
 
+def _missing_texture_slot_rows(audit: ExternalModelAudit | None) -> tuple[tuple[str, str, str], ...]:
+    if audit is None:
+        return ()
+    rows: list[tuple[str, str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for material in tuple(getattr(audit, "material_inventory", ()) or ()):
+        material_name = str(getattr(material, "material_name", "") or "<unnamed>").strip() or "<unnamed>"
+        for slot in tuple(getattr(material, "texture_slots", ()) or ()):
+            slot_kind = str(getattr(slot, "slot_kind", "") or "").strip().lower()
+            texture_path = str(getattr(slot, "texture_path", "") or "").strip()
+            if not slot_kind or not texture_path or Path(texture_path).is_file():
+                continue
+            key = (material_name, slot_kind, texture_path)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(key)
+    return tuple(rows)
+
+
+def _unresolved_texture_candidates(
+    audit: ExternalModelAudit | None,
+    companion_textures: Sequence[Mapping[str, object]],
+) -> tuple[dict[str, object], ...]:
+    missing_rows = _missing_texture_slot_rows(audit)
+    if not missing_rows:
+        return ()
+    candidates = tuple(row for row in tuple(companion_textures or ()) if isinstance(row, Mapping))
+    if not candidates:
+        return ()
+    output: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for material_name, slot_kind, missing_ref in missing_rows:
+        ranked: list[tuple[int, Mapping[str, object]]] = []
+        for candidate in candidates:
+            candidate_path = str(candidate.get("path", "") or "").strip()
+            if not candidate_path or candidate_path == missing_ref:
+                continue
+            candidate_slot = str(candidate.get("slot_guess", "") or "").strip().lower()
+            compatible = _texture_slots_compatible(slot_kind, candidate_slot)
+            rank = 0 if compatible else 1 if candidate_slot else 2
+            ranked.append((rank, candidate))
+        for _rank, candidate in sorted(ranked, key=lambda item: (item[0], str(item[1].get("name", "") or "").casefold()))[:8]:
+            candidate_path = str(candidate.get("path", "") or "").strip()
+            candidate_slot = str(candidate.get("slot_guess", "") or "").strip().lower()
+            key = (material_name, slot_kind, missing_ref, candidate_path)
+            if key in seen:
+                continue
+            seen.add(key)
+            output.append(
+                {
+                    "material_name": material_name,
+                    "slot_kind": slot_kind,
+                    "missing_texture_ref": missing_ref,
+                    "candidate_path": candidate_path,
+                    "candidate_name": str(candidate.get("name", "") or PurePosixPath(candidate_path.replace("\\", "/")).name),
+                    "candidate_slot_guess": candidate_slot,
+                    "candidate_extension": str(candidate.get("extension", "") or PurePosixPath(candidate_path).suffix).lower(),
+                    "candidate_archive_member": str(candidate.get("archive_member", "") or ""),
+                    "candidate_diagnostic_only": bool(candidate.get("diagnostic_only")),
+                    "candidate_resolution": tuple(candidate.get("resolution", ()) or ()),
+                    "candidate_channel_stats": tuple(candidate.get("channel_stats", ()) or ()),
+                    "candidate_color_space": _unsupported_slot_color_space(candidate_slot or slot_kind),
+                    "candidate_resolution_status": str(candidate.get("resolution_status", "") or ""),
+                    "candidate_channel_stats_status": str(candidate.get("channel_stats_status", "") or ""),
+                    "confidence": "same_role" if _texture_slots_compatible(slot_kind, candidate_slot) else "nearby_unmatched_role" if candidate_slot else "nearby_texture",
+                    "evidence": str(candidate.get("evidence", "") or ""),
+                }
+            )
+    return tuple(output)
+
+
+def _texture_slots_compatible(wanted: str, candidate: str) -> bool:
+    wanted = str(wanted or "").strip().lower()
+    candidate = str(candidate or "").strip().lower()
+    if not wanted or not candidate:
+        return False
+    if wanted == candidate:
+        return True
+    aliases = {
+        "base": {"albedo", "diffuse", "base_color"},
+        "base_color": {"base", "albedo", "diffuse"},
+        "ao": {"occlusion"},
+        "occlusion": {"ao"},
+        "material": {"metalness", "roughness", "metallic_roughness"},
+        "metalness": {"material", "metallic"},
+        "roughness": {"material"},
+        "opacity": {"alpha", "transparent"},
+        "alpha": {"opacity", "transparent"},
+    }
+    return candidate in aliases.get(wanted, set())
+
+
 def _ambiguous_texture_refs(material_inventory: Sequence[Mapping[str, object]]) -> tuple[str, ...]:
     ambiguous: list[str] = []
     for material in tuple(material_inventory or ()):
@@ -781,6 +948,7 @@ def _companion_texture_inventory(model_path: Path) -> tuple[dict[str, object], .
     for path in candidates:
         slot = _guess_texture_slot(path)
         diagnostic_only = path.suffix.lower() in SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS
+        resolution, channel_stats = _texture_image_facts(path)
         rows.append(
             {
                 "path": str(path),
@@ -788,6 +956,10 @@ def _companion_texture_inventory(model_path: Path) -> tuple[dict[str, object], .
                 "extension": path.suffix.lower(),
                 "slot_guess": slot,
                 "diagnostic_only": diagnostic_only,
+                "resolution": resolution,
+                "channel_stats": channel_stats,
+                "resolution_status": "available" if len(resolution) >= 2 else "missing_or_unreadable",
+                "channel_stats_status": "available" if channel_stats else "missing_or_unreadable",
                 "evidence": f"filename token:{slot}" if slot else "nearby texture file",
             }
         )
@@ -834,6 +1006,7 @@ def _zip_texture_inventory(archive_path: Path) -> tuple[dict[str, object], ...]:
                     continue
                 slot = _guess_texture_slot(Path(member_name))
                 diagnostic_only = suffix in SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS
+                resolution, channel_stats = _zip_member_texture_facts(archive, member)
                 rows.append(
                     {
                         "path": f"{archive_path}::{member_name}",
@@ -841,6 +1014,10 @@ def _zip_texture_inventory(archive_path: Path) -> tuple[dict[str, object], ...]:
                         "extension": suffix,
                         "slot_guess": slot,
                         "diagnostic_only": diagnostic_only,
+                        "resolution": resolution,
+                        "channel_stats": channel_stats,
+                        "resolution_status": "available" if len(resolution) >= 2 else "missing_or_unreadable",
+                        "channel_stats_status": "available" if channel_stats else "missing_or_unreadable",
                         "archive_member": member_name,
                         "bytes": int(getattr(member, "file_size", 0) or 0),
                         "evidence": f"zip filename token:{slot}" if slot else "zip texture member",
@@ -1686,11 +1863,52 @@ def _texture_image_facts(path: Path) -> tuple[tuple[int, int], tuple[tuple[str, 
         return (), ()
 
 
+def _zip_member_texture_facts(
+    archive: zipfile.ZipFile,
+    member: zipfile.ZipInfo,
+) -> tuple[tuple[int, int], tuple[tuple[str, float], ...]]:
+    size = int(getattr(member, "file_size", 0) or 0)
+    if size <= 0 or size > _AUDIT_TEXTURE_FACT_MAX_IMAGE_BYTES:
+        return (), ()
+    try:
+        with archive.open(member, "r") as stream:
+            return _texture_image_facts_from_bytes(member.filename, stream.read())
+    except Exception:
+        return (), ()
+
+
+def _texture_image_facts_from_bytes(
+    name: str,
+    payload: bytes,
+) -> tuple[tuple[int, int], tuple[tuple[str, float], ...]]:
+    suffix = PurePosixPath(str(name or "")).suffix.lower()
+    try:
+        if suffix == ".dds":
+            return _dds_image_facts_from_bytes(payload), _decoded_image_channel_stats_from_bytes(payload)
+        from PIL import Image
+
+        with Image.open(io.BytesIO(payload)) as image:
+            resolution = (int(image.width), int(image.height))
+            return resolution, _image_channel_stats(image)
+    except Exception:
+        return (), ()
+
+
 def _decoded_image_channel_stats(path: Path) -> tuple[tuple[str, float], ...]:
     try:
         from PIL import Image
 
         with Image.open(path) as image:
+            return _image_channel_stats(image)
+    except Exception:
+        return ()
+
+
+def _decoded_image_channel_stats_from_bytes(payload: bytes) -> tuple[tuple[str, float], ...]:
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(payload)) as image:
             return _image_channel_stats(image)
     except Exception:
         return ()
@@ -1728,6 +1946,15 @@ def _dds_image_facts(path: Path) -> tuple[int, int]:
             header = handle.read(128)
     except OSError:
         return ()
+    if len(header) < 20 or header[:4] != b"DDS ":
+        return ()
+    height = int.from_bytes(header[12:16], "little", signed=False)
+    width = int.from_bytes(header[16:20], "little", signed=False)
+    return (width, height) if width > 0 and height > 0 else ()
+
+
+def _dds_image_facts_from_bytes(payload: bytes) -> tuple[int, int]:
+    header = bytes(payload or b"")[:128]
     if len(header) < 20 or header[:4] != b"DDS ":
         return ()
     height = int.from_bytes(header[12:16], "little", signed=False)
@@ -1779,12 +2006,14 @@ def _external_catalogue_summary(rows: Sequence[Mapping[str, object]]) -> dict[st
     fbx_metadata_inferred_models = 0
     missing_texture_refs = 0
     ambiguous_texture_refs = 0
+    unresolved_texture_candidates = 0
     warning_count = 0
     zip_content_audit_skipped_by_limit = 0
     for row in rows:
         warning_count += len(tuple(row.get("warnings", ()) or ()))
         missing_texture_refs += len(tuple(row.get("missing_texture_refs", ()) or ()))
         ambiguous_texture_refs += len(tuple(row.get("ambiguous_texture_refs", ()) or ()))
+        unresolved_texture_candidates += len(tuple(row.get("unresolved_texture_candidates", ()) or ()))
         if bool(row.get("zip_content_audit_skipped")):
             zip_content_audit_skipped_by_limit += 1
         row_has_fbx_metadata = False
@@ -1932,6 +2161,7 @@ def _external_catalogue_summary(rows: Sequence[Mapping[str, object]]) -> dict[st
         "failed_models": status_counts.get("failed", 0),
         "missing_texture_refs": missing_texture_refs,
         "ambiguous_texture_refs": ambiguous_texture_refs,
+        "unresolved_texture_candidates": unresolved_texture_candidates,
         "warning_count": warning_count,
         "status_counts": dict(status_counts),
         "texture_slot_counts": dict(sorted(slot_counts.items())),
@@ -1986,6 +2216,18 @@ def _material_channel_evidence_exists(
 
 def _dedupe_sorted(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted({str(value) for value in values if str(value).strip()}, key=str.casefold))
+
+
+def _dedupe_preserve_order(values: Iterable[object]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    output: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        output.append(text)
+    return tuple(output)
 
 
 __all__ = [

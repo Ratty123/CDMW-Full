@@ -33,6 +33,7 @@ REVIEW_RISK_FLAGS = (
     "section_missing_normals",
     "missing_texture_refs",
     "ambiguous_texture_refs",
+    "unresolved_texture_candidates",
     "missing_alpha_diagnostics",
     "missing_emissive_diagnostics",
     "missing_roughness_metalness_diagnostics",
@@ -97,6 +98,7 @@ def check_external_model_audit_report(
     zip_content_audit_skipped_by_limit = 0
     missing_texture_refs = 0
     ambiguous_texture_refs = 0
+    unresolved_texture_candidates = 0
     material_inventory_rows = 0
     material_class_rows = 0
     materials_missing_classes = 0
@@ -134,6 +136,7 @@ def check_external_model_audit_report(
         row_ambiguous_refs = len(tuple(model.get("ambiguous_texture_refs", ()) or ()))
         missing_texture_refs += row_missing_refs
         ambiguous_texture_refs += row_ambiguous_refs
+        unresolved_texture_candidates += len(tuple(model.get("unresolved_texture_candidates", ()) or ()))
 
         if status == "archive_indexed" and tuple(model.get("zip_audit_members", ()) or ()):
             archive_indexed_with_audit_members += 1
@@ -290,6 +293,13 @@ def check_external_model_audit_report(
     _append_count_flag(derived_risk_flags, warnings, metadata_only_inventory_rows, "metadata_only_inventory", "material inventory row(s) are metadata-only")
     _append_count_flag(derived_risk_flags, warnings, missing_texture_refs, "missing_texture_refs", "referenced texture path(s) are missing")
     _append_count_flag(derived_risk_flags, warnings, ambiguous_texture_refs, "ambiguous_texture_refs", "texture role reference(s) are ambiguous")
+    _append_count_flag(
+        derived_risk_flags,
+        warnings,
+        unresolved_texture_candidates,
+        "unresolved_texture_candidates",
+        "nearby texture candidate(s) are available for missing references",
+    )
     _append_count_flag(derived_risk_flags, warnings, materials_missing_classes, "missing_material_classes", "material row(s) lack classifier output")
     _append_count_flag(derived_risk_flags, warnings, materials_missing_workflow, "missing_pbr_workflow", "material row(s) lack PBR workflow evidence")
     _append_count_flag(
@@ -406,6 +416,7 @@ def check_external_model_audit_report(
             "zip_content_audit_skipped_by_limit": zip_content_audit_skipped_by_limit,
             "missing_texture_refs": missing_texture_refs,
             "ambiguous_texture_refs": ambiguous_texture_refs,
+            "unresolved_texture_candidates": unresolved_texture_candidates,
             "material_inventory_rows": material_inventory_rows,
             "metadata_only_inventory_rows": metadata_only_inventory_rows,
             "material_class_rows": material_class_rows,
