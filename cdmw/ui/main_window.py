@@ -62958,7 +62958,7 @@ def run_gui() -> int:
                     )
 
                 def _open_source_tree_role_dropdown(item: QTreeWidgetItem, column: int) -> None:
-                    source_index = _selected_source_index()
+                    source_index = _source_index_from_tree_item(item)
                     if source_index < 0:
                         return
                     menu = QMenu(source_tree)
@@ -65654,6 +65654,27 @@ def run_gui() -> int:
                             continue
                         adjustment.emissive_color_rgb = next_rgb
                         changed = True
+                    if changed:
+                        _refresh_ui_texture_sets_after_source_part_material_override()
+
+                def _flush_source_role_overrides_for_export() -> None:
+                    changed = False
+                    for raw_source_index, raw_role in tuple(source_role_overrides.items()):
+                        try:
+                            source_index = int(raw_source_index)
+                        except (TypeError, ValueError):
+                            continue
+                        if source_index < 0:
+                            continue
+                        normalized_role = str(raw_role or "").strip()
+                        adjustment = _ensure_source_part_adjustment(source_index)
+                        if str(getattr(adjustment, "material_role", "") or "").strip() != normalized_role:
+                            adjustment.material_role = normalized_role
+                            changed = True
+                        if normalized_role != "glow" and tuple(getattr(adjustment, "emissive_color_rgb", ()) or ()):
+                            adjustment.emissive_color_rgb = ()
+                            changed = True
+                    _apply_current_glow_color_to_role_overrides()
                     if changed:
                         _refresh_ui_texture_sets_after_source_part_material_override()
 
@@ -70807,6 +70828,8 @@ def run_gui() -> int:
                                 tuple(float(value) for value in adjustment.rotate_xyz_degrees),
                                 tuple(float(value) for value in adjustment.scale_xyz),
                                 float(adjustment.uniform_scale),
+                                str(getattr(adjustment, "material_role", "") or ""),
+                                tuple(int(value) for value in tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())),
                             )
                         )
                     payload = {
@@ -72429,6 +72452,179 @@ def run_gui() -> int:
                                     ),
                                 )
 
+                    def _accent_glow_preview_enabled() -> bool:
+                        try:
+                            profile = _current_material_authority_preview_profile()
+                            strength = float(getattr(profile, "accent_glow_strength", 0.0) or 0.0)
+                        except (TypeError, ValueError, OverflowError):
+                            return False
+                        return strength > 0.0
+
+                    def _preview_glow_color_from_source(
+                        source_index: int,
+                        texture_set: Optional[object],
+                        mesh: object,
+                    ) -> tuple[str, tuple[float, float, float]]:
+                        adjustment = source_part_adjustments.get(int(source_index))
+                        candidates = (
+                            tuple(getattr(adjustment, "emissive_color_rgb", ()) or ()) if adjustment is not None else (),
+                            tuple(getattr(texture_set, "accent_glow_color_rgb", ()) or ()) if texture_set is not None else (),
+                            tuple(getattr(texture_set, "base_color_factor", ()) or ()) if texture_set is not None else (),
+                            tuple(getattr(mesh, "preview_color", ()) or ()),
+                        )
+                        for candidate in candidates:
+                            if len(candidate) < 3:
+                                continue
+                            try:
+                                values = tuple(float(value) for value in candidate[:3])
+                            except (TypeError, ValueError, OverflowError):
+                                continue
+                            if any(value > 1.0 for value in values):
+                                values = tuple(value / 255.0 for value in values)
+                            rgb = tuple(max(0.0, min(1.0, value)) for value in values[:3])
+                            if any(value > 0.0 for value in rgb):
+                                bytes_rgb = tuple(max(0, min(255, int(round(value * 255.0)))) for value in rgb)
+                                return f"#{bytes_rgb[0]:02X}{bytes_rgb[1]:02X}{bytes_rgb[2]:02X}FF", rgb  # type: ignore[return-value]
+                        return "#FFFFFFFF", (1.0, 1.0, 1.0)
+
+                    def _clear_source_role_emissive_preview(mesh: object) -> None:
+                        existing = tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+                        filtered = tuple(
+                            item
+                            for item in existing
+                            if str(getattr(item, "confidence", "") or "") != "source-role-preview"
+                        )
+                        if len(filtered) != len(existing):
+                            mesh.preview_material_texture_inputs = filtered
+                        overrides = getattr(mesh, "preview_native_material_overrides", None)
+                        if isinstance(overrides, Mapping) and bool(overrides.get("_source_role_emissive_preview")):
+                            next_overrides = dict(overrides)
+                            for key in (
+                                "_source_role_emissive_preview",
+                                "emissive_intensity",
+                                "emissive_color",
+                            ):
+                                next_overrides.pop(key, None)
+                            mesh.preview_native_material_overrides = next_overrides
+
+                    def _apply_source_role_emissive_preview(
+                        mesh: object,
+                        source_index: int,
+                        target_name: str,
+                        texture_set: Optional[object] = None,
+                    ) -> None:
+                        _clear_source_role_emissive_preview(mesh)
+                        adjustment = source_part_adjustments.get(int(source_index))
+                        if adjustment is None or not bool(getattr(adjustment, "enabled", True)):
+                            return
+                        if str(getattr(adjustment, "material_role", "") or "").strip().lower() != "glow":
+                            return
+                        if not _accent_glow_preview_enabled():
+                            return
+                        emissive_intensity = _current_accent_glow_preview_intensity()
+                        color_hex, color_rgb = _preview_glow_color_from_source(source_index, texture_set, mesh)
+                        role_input = PreviewMaterialTextureInput(
+                            slot_kind="emissive",
+                            parameter_name="_emissiveIntensity",
+                            semantic_type="emissive",
+                            semantic_subtype="emissive",
+                            material_name=str(target_name or getattr(mesh, "material_name", "") or "").strip(),
+                            part_name=_source_display_name(int(source_index)),
+                            shader_family="SkinnedMeshEmissive_Ver2",
+                            confidence="source-role-preview",
+                            visualized=True,
+                            material_parameters=(
+                                PreviewMaterialParameterInput(
+                                    parameter_kind="color",
+                                    parameter_name="_emissiveColor",
+                                    value=color_hex,
+                                    color_value=color_rgb,
+                                ),
+                                PreviewMaterialParameterInput(
+                                    parameter_kind="float",
+                                    parameter_name="_emissiveIntensity",
+                                    value=f"{emissive_intensity:.6f}",
+                                    numeric_value=emissive_intensity,
+                                ),
+                            ),
+                        )
+                        existing = tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ())
+                        mesh.preview_material_texture_inputs = (role_input,) + existing
+                        mesh.preview_sidecar_shader_family = "SkinnedMeshEmissive_Ver2"
+                        overrides = dict(getattr(mesh, "preview_native_material_overrides", {}) or {})
+                        overrides["_source_role_emissive_preview"] = True
+                        overrides["emissive_intensity"] = emissive_intensity
+                        overrides["emissive_color"] = color_hex
+                        mesh.preview_native_material_overrides = overrides
+
+                    def _apply_source_role_emissive_preview_for_current_model() -> None:
+                        if use_direct_source_preview and direct_source_preview_index_map:
+                            for source_index, mesh_index in direct_source_preview_index_map.items():
+                                if mesh_index < 0 or mesh_index >= len(preview_model.meshes):
+                                    continue
+                                texture_set = _texture_set_for_source_index(int(source_index), texture_sets) if texture_sets else None
+                                _apply_source_role_emissive_preview(
+                                    preview_model.meshes[mesh_index],
+                                    int(source_index),
+                                    _source_display_name(int(source_index)),
+                                    texture_set,
+                                )
+                            return
+                        if not mapped_preview and not source_overlay_preview_index_map:
+                            for source_index, mesh in enumerate(getattr(preview_model, "meshes", ()) or ()):
+                                texture_set = _texture_set_for_source_index(int(source_index), texture_sets) if texture_sets else None
+                                _apply_source_role_emissive_preview(
+                                    mesh,
+                                    int(source_index),
+                                    _source_display_name(int(source_index)),
+                                    texture_set,
+                                )
+                            return
+                        for source_index, mesh_index in source_overlay_preview_index_map.items():
+                            if mesh_index < 0 or mesh_index >= len(preview_model.meshes):
+                                continue
+                            texture_set = _texture_set_for_source_index(int(source_index), texture_sets) if texture_sets else None
+                            _apply_source_role_emissive_preview(
+                                preview_model.meshes[mesh_index],
+                                int(source_index),
+                                _source_display_name(int(source_index)),
+                                texture_set,
+                            )
+                        for mapping in current_mappings:
+                            glow_source_indices = [
+                                int(source_index)
+                                for source_index in tuple(mapping.source_submesh_indices or ())
+                                if str(
+                                    getattr(
+                                        source_part_adjustments.get(int(source_index)),
+                                        "material_role",
+                                        "",
+                                    )
+                                    or ""
+                                ).strip().lower()
+                                == "glow"
+                            ]
+                            if not glow_source_indices:
+                                continue
+                            target_mesh_indices = _preview_target_mesh_indices(
+                                preview_model,
+                                mapping.target_submesh_name,
+                                mapping.source_submesh_indices,
+                                mapped_preview=mapped_preview,
+                                current_mappings=current_mappings,
+                            )
+                            source_index = glow_source_indices[0]
+                            texture_set = _texture_set_for_source_index(source_index, texture_sets) if texture_sets else None
+                            for mesh_index in target_mesh_indices:
+                                if mesh_index < 0 or mesh_index >= len(preview_model.meshes):
+                                    continue
+                                _apply_source_role_emissive_preview(
+                                    preview_model.meshes[mesh_index],
+                                    source_index,
+                                    mapping.target_submesh_name,
+                                    texture_set,
+                                )
+
                     use_original_material_preview = bool(
                         modify_original_clone_mode and original_texture_preview_state.get("enabled")
                     )
@@ -72491,6 +72687,8 @@ def run_gui() -> int:
                                         texture_set,
                                         mapping.target_submesh_name,
                                     )
+
+                    _apply_source_role_emissive_preview_for_current_model()
 
                     preview_model = _append_selected_source_highlight_overlay(preview_model, current_mappings)
 
@@ -80899,6 +81097,10 @@ def run_gui() -> int:
                     custom_item_icon_override = _alignment_custom_icon_override_spec(show_messages=show_messages)
                     if custom_item_icon_override is None:
                         return None
+                try:
+                    _flush_source_role_overrides_for_export()
+                except NameError:
+                    pass
                 placement_snapshot = _current_static_placement_snapshot(
                     parsed_mappings,
                     include_preview_only_independent_parts=False,

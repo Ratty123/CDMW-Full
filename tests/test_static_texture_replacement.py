@@ -64,6 +64,7 @@ from cdmw.modding.material_replacer import (
     _source_slot_needs_base_color_adjustment,
     _source_driven_parameter_name,
     _source_driven_slots,
+    _texture_set_for_source_submesh,
     _texture_set_accent_glow_color_hex,
     _texture_set_is_accent_glow_candidate,
     _visible_gem_sensitive_wrappers_touched,
@@ -1002,7 +1003,8 @@ class StaticTextureReplacementTests(unittest.TestCase):
 
         self.assertLess(glossy.roughness_default, profile.roughness_default)
         self.assertLess(glossy.roughness_min or 0, profile.roughness_min or 0)
-        self.assertLess(glossy.roughness_max or 255, profile.roughness_max or 255)
+        self.assertGreaterEqual(glossy.roughness_min or 0, 192)
+        self.assertGreaterEqual(glossy.roughness_max or 0, profile.roughness_max or 0)
         self.assertLess(glossy.scratch_roughness or 0, profile.scratch_roughness or 0)
         self.assertGreater(glossy.shine_scalar or 0, profile.shine_scalar or 0)
         self.assertFalse(glossy.force_nonmetal)
@@ -1075,7 +1077,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             with Image.open(glossy_mask) as image:
                 glossy_pixel = image.convert("RGBA").getpixel((0, 0))
             self.assertLess(glossy_pixel[1], base_pixel[1])
-            self.assertEqual(24, glossy_pixel[1])
+            self.assertGreaterEqual(glossy_pixel[1], 192)
             self.assertEqual(base_pixel[2], glossy_pixel[2])
 
     def test_pbr_source_test_profile_keeps_source_metalness_and_raises_cd_roughness(self) -> None:
@@ -2483,6 +2485,171 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 pixel = image.convert("RGB").getpixel((0, 0))
             self.assertEqual((255, 64, 0), pixel)
 
+    def test_source_part_glow_role_does_not_bleed_across_duplicate_material_names(self) -> None:
+        texture_set = ReplacementTextureSet(
+            material_name="material_0",
+            slots={
+                "base": ReplacementTextureSlot(
+                    "material_0",
+                    "base",
+                    Path(__file__),
+                )
+            },
+        )
+        texture_sets = {"material_0": texture_set}
+        mesh = ParsedMesh(
+            submeshes=[
+                SubMesh(name="Guard", material="material_0", faces=[(0, 1, 2)]),
+                SubMesh(name="Blade", material="material_0", faces=[(0, 1, 2)]),
+            ]
+        )
+
+        _apply_source_part_role_overrides(
+            texture_sets,
+            mesh,
+            [
+                StaticSourcePartAdjustment(
+                    source_submesh_index=1,
+                    material_role="glow",
+                    emissive_color_rgb=(85, 170, 255),
+                )
+            ],
+        )
+
+        guard_set = _texture_set_for_source_submesh(mesh.submeshes[0], "CD_PHM_02_Guard_0009", texture_sets)
+        blade_set = _texture_set_for_source_submesh(mesh.submeshes[1], "CD_PHM_02_Blade_0009", texture_sets)
+
+        self.assertIs(texture_set, guard_set)
+        self.assertIsNot(texture_set, blade_set)
+        self.assertNotIn("glow", tuple(texture_set.source_role_tags))
+        self.assertIn("glow", tuple(blade_set.source_role_tags))  # type: ignore[union-attr]
+        self.assertEqual((85.0 / 255.0, 170.0 / 255.0, 1.0), blade_set.accent_glow_color_rgb)  # type: ignore[union-attr]
+
+    def test_source_part_glow_role_exports_only_routed_wrapper_for_duplicate_material_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            texconv = root / "texconv.exe"
+            texconv.write_bytes(b"fake")
+            base_png = root / "material_0_baseColor.png"
+            normal_png = root / "material_0_normal.png"
+            pbr_png = root / "material_0_metallicRoughness.png"
+            Image.new("RGB", (8, 8), (255, 255, 0)).save(base_png)
+            Image.new("RGB", (8, 8), (128, 128, 255)).save(normal_png)
+            Image.new("RGB", (8, 8), (255, 240, 20)).save(pbr_png)
+            template_dds = root / "template.dds"
+            template_dds.write_bytes(_fake_dds_bytes(8, 8, fourcc=b"DXT1"))
+            sidecar_entry = _entry("character/modelproperty/cd_phm_02_sword_0015.pac_xml", root)
+            material_names = (
+                "cd_phm_02_sword_handle_0015_03",
+                "cd_phm_02_sword_handle_0015",
+                "cd_phm_02_blade_0015",
+            )
+            refs = []
+            wrappers = []
+            for material_name in material_names:
+                for suffix, parameter in (
+                    ("base", "_baseColorTexture"),
+                    ("n", "_normalTexture"),
+                    ("ma", "_colorBlendingMaskTexture"),
+                    ("mg", "_detailMaskTexture"),
+                ):
+                    entry = _entry(f"character/texture/{material_name}_{suffix}.dds", root)
+                    refs.append(
+                        ArchiveModelTextureReference(
+                            reference_name=entry.path,
+                            material_name=material_name,
+                            sidecar_parameter_name=parameter,
+                            resolved_archive_path=entry.path,
+                            resolved_entry=entry,
+                        )
+                    )
+                wrappers.append(
+                    f'<SkinnedMeshMaterialWrapper _subMeshName="{material_name}"><Material><Vector Name="_parameters">'
+                    f'<MaterialParameterTexture _name="_baseColorTexture"><ResourceReferencePath_ITexture _path="character/texture/{material_name}_base.dds"/></MaterialParameterTexture>'
+                    f'<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/{material_name}_n.dds"/></MaterialParameterTexture>'
+                    f'<MaterialParameterTexture _name="_colorBlendingMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/{material_name}_ma.dds"/></MaterialParameterTexture>'
+                    f'<MaterialParameterTexture _name="_detailMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/{material_name}_mg.dds"/></MaterialParameterTexture>'
+                    "</Vector></Material></SkinnedMeshMaterialWrapper>"
+                )
+            sidecar_text = "<Root>" + "".join(wrappers) + "</Root>"
+            mesh = ParsedMesh(
+                submeshes=[
+                    SubMesh(
+                        name=f"source_{index}",
+                        material="material_0",
+                        texture=str(base_png),
+                        vertices=[(0.0, 0.0, 0.0)],
+                        faces=[(0, 0, 0)],
+                    )
+                    for index in range(3)
+                ]
+            )
+            for submesh in mesh.submeshes:
+                submesh.texture_slots = (("base", base_png), ("normal", normal_png), ("metallicRoughness", pbr_png))
+            rebuilt_mesh = ParsedMesh(
+                submeshes=[
+                    SubMesh(name=material_name, material=material_name, vertices=[(0.0, 0.0, 0.0)], faces=[(0, 0, 0)])
+                    for material_name in material_names
+                ]
+            )
+
+            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
+                out_dir = Path(command[command.index("-o") + 1])
+                produced = out_dir / f"{Path(command[-1]).stem}.dds"
+                produced.write_bytes(_fake_dds_bytes(8, 8, fourcc=b"BC5U" if "_normal" in command[-1].lower() else b"DXT1"))
+                return 0, "", ""
+
+            with patch("cdmw.core.common.run_process_with_cancellation", side_effect=fake_texconv):
+                payloads, report = build_texture_replacement_payloads(
+                    obj_mesh=mesh,
+                    rebuilt_mesh=rebuilt_mesh,
+                    texture_files=(base_png, normal_png, pbr_png),
+                    original_texture_refs=tuple(refs),
+                    original_sidecars=((sidecar_entry, sidecar_text),),
+                    submesh_mappings=(),
+                    texconv_path=texconv,
+                    read_original_texture_bytes=lambda _entry: template_dds.read_bytes(),
+                    original_texture_source_path=lambda _entry: template_dds,
+                    pac_driven_sidecar=True,
+                    complete_external_material_reset=True,
+                    complete_swap_material_profile="material_authority_detail_mask",
+                    complete_swap_accent_glow_strength=100.0,
+                    source_part_adjustments=(
+                        StaticSourcePartAdjustment(
+                            source_submesh_index=0,
+                            material_role="glow",
+                            emissive_color_rgb=(255, 255, 0),
+                        ),
+                    ),
+                    output_draw_sections=(
+                        StaticOutputDrawSection(0, 0, material_names[0], [0], 0, 0, material_names[0], 1, False),
+                        StaticOutputDrawSection(1, 1, material_names[1], [1], 1, 1, material_names[1], 1, False),
+                        StaticOutputDrawSection(2, 2, material_names[2], [2], 2, 2, material_names[2], 1, False),
+                    ),
+                )
+
+            self.assertFalse(report.errors)
+            patched = next(payload.payload_data.decode("utf-8") for payload in payloads if payload.kind == "sidecar_generated")
+
+            def wrapper_block(material_name: str) -> str:
+                start = patched.index(f'_subMeshName="{material_name}"')
+                end = patched.index("</SkinnedMeshMaterialWrapper>", start)
+                return patched[start:end]
+
+            glow_block = wrapper_block(material_names[0])
+            sibling_handle_block = wrapper_block(material_names[1])
+            blade_block = wrapper_block(material_names[2])
+            self.assertIn("_emissiveIntensityTexture", glow_block)
+            self.assertIn("_emissiveColor", glow_block)
+            self.assertIn("#FFFF00FF", glow_block)
+            self.assertNotIn("_emissiveIntensityTexture", sibling_handle_block)
+            self.assertNotIn("_emissiveColor", sibling_handle_block)
+            self.assertNotIn("_emissiveIntensityTexture", blade_block)
+            self.assertNotIn("_emissiveColor", blade_block)
+            self.assertTrue(any("_emi.dds" in payload.target_path.lower() for payload in payloads if payload.kind == "texture_generated"))
+
     def test_emissive_factor_material_uses_base_factor_not_emissive_as_base(self) -> None:
         from PIL import Image
 
@@ -2674,6 +2841,9 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertEqual(1, changed_count)
         self.assertEqual({"character/texture/new_base.dds", "character/texture/new_ma.dds"}, used_paths)
         self.assertIn('StringItemID="_overlayColorTexture" ItemID="3936485985222654"', patched)
+        self.assertIn('StringItemID="_baseColorTexture"', patched)
+        self.assertIn('ItemID="0" _name="_baseColorTexture"', patched)
+        self.assertIn("character/texture/new_base.dds", patched)
         self.assertIn('StringItemID="_detailMaskTexture" ItemID="2838988925698046"', patched)
         self.assertIn("character/texture/new_ma.dds", patched)
         self.assertNotIn("_colorBlendingMaskTexture", patched)

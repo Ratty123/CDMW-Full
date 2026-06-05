@@ -1050,13 +1050,14 @@ def apply_global_gloss_reduction_to_profile(
                     material_profile.scratch_roughness if material_profile.scratch_roughness is not None else 1.0
                 )
                 shine_scalar = float(material_profile.shine_scalar if material_profile.shine_scalar is not None else 0.0)
+                detail_mask_contract = _profile_uses_detail_mask_material_contract(material_profile)
                 return replace(
                     material_profile,
                     global_gloss_reduction=bias,
-                    roughness_default=_blend_byte_value(material_profile.roughness_default, 48, strength, 255),
-                    roughness_min=_blend_byte_value(material_profile.roughness_min, 0, strength, 240),
+                    roughness_default=_blend_byte_value(material_profile.roughness_default, 192 if detail_mask_contract else 48, strength, 255),
+                    roughness_min=_blend_byte_value(material_profile.roughness_min, 192 if detail_mask_contract else 0, strength, 240),
                     roughness_scale=max(0.0, _blend_float_value(material_profile.roughness_scale, 0.65, strength, 1.0)),
-                    roughness_max=_blend_byte_value(material_profile.roughness_max, 128, strength, 255),
+                    roughness_max=_blend_byte_value(material_profile.roughness_max, 255 if detail_mask_contract else 128, strength, 255),
                     scratch_roughness=max(0.0, min(1.0, _blend_float_value(scratch_roughness, 0.18, strength, 1.0))),
                     scratch_metallic=material_profile.scratch_metallic,
                     shine_scalar=max(0.0, min(1.0, _blend_float_value(shine_scalar, 0.55, strength, 0.0))),
@@ -3351,7 +3352,11 @@ def _build_source_driven_pac_material_payloads(
             if target_name in target_emissive_settings
         }
         if glow_settings:
-            patched_text, glow_wrappers = _apply_source_emissive_parameters(patched_text, glow_settings)
+            patched_text, glow_wrappers = _apply_source_emissive_parameters(
+                patched_text,
+                glow_settings,
+                exact_only=bool(complete_external_material_reset),
+            )
             if glow_wrappers:
                 if _profile_accent_glow_intensity(material_profile) > 0.0:
                     _warn_once(
@@ -3379,6 +3384,7 @@ def _build_source_driven_pac_material_payloads(
                 keep_rules=keep_rules,
                 complete_external_reset=bool(complete_external_material_reset),
                 material_profile=material_profile,
+                exact_only=bool(complete_external_material_reset),
             )
             if neutralized_parameters:
                 if complete_external_material_reset:
@@ -3442,6 +3448,7 @@ def _build_source_driven_pac_material_payloads(
                     roughness_value=roughness_value,
                     metallic_value=metallic_value,
                     shine_value=shine_value,
+                    exact_only=bool(complete_external_material_reset),
                 )
                 if scalar_wrappers:
                     applied_scalar_wrappers += scalar_wrappers
@@ -4878,6 +4885,12 @@ def _complete_swap_runtime_material_mask_png_path(
             else:
                 roughness = _blend_grayscale_channel_toward(roughness, 32, strength)
                 metallic = _blend_grayscale_channel_toward(metallic, 0, strength)
+    if _profile_uses_detail_mask_material_contract(material_profile):
+        roughness = _apply_profile_channel_adjustments(
+            roughness,
+            minimum=_profile_optional_byte(material_profile, "roughness_min"),
+            maximum=_profile_optional_byte(material_profile, "roughness_max"),
+        )
     Image.merge(
         "RGBA",
         _material_mask_rgba_from_roles(
@@ -5949,7 +5962,7 @@ def _apply_detail_mask_material_contract_to_wrapper(
     wrapper_text: str,
     material_mask_paths: Sequence[str],
 ) -> tuple[str, bool]:
-    """Apply working-mod route: overlay keeps the source color, source PBR mask becomes detail mask."""
+    """Apply working-mod route: source color stays visible, source PBR mask becomes detail mask."""
 
     wanted_detail_paths = {
         _normalize_texture_path(path)
@@ -5962,6 +5975,7 @@ def _apply_detail_mask_material_contract_to_wrapper(
     )
     changed = False
     kept_detail = False
+    overlay_base_path = ""
 
     def set_item_id(block: str, item_id: str) -> str:
         if re.search(r'\bItemID="[^"]*"', block, flags=re.IGNORECASE):
@@ -5973,10 +5987,11 @@ def _apply_detail_mask_material_contract_to_wrapper(
         return str(path_match.group(1) if path_match else "").replace("\\", "/").strip()
 
     def patch_block(match: re.Match[str]) -> str:
-        nonlocal changed, kept_detail
+        nonlocal changed, kept_detail, overlay_base_path
         block = match.group(0)
         parameter_name = _sidecar_parameter_name(block).strip().lower()
         if parameter_name == "_overlaycolortexture":
+            overlay_base_path = block_path(block)
             patched_block = set_item_id(block, "3936485985222654")
             if patched_block != block:
                 changed = True
@@ -6002,6 +6017,22 @@ def _apply_detail_mask_material_contract_to_wrapper(
         return block
 
     patched = texture_pattern.sub(patch_block, wrapper_text)
+    if overlay_base_path:
+        patched, base_changed = _replace_source_driven_texture_parameter(
+            patched,
+            ("_basecolortexture",),
+            overlay_base_path,
+            preferred_existing_roles=("base",),
+            allow_unclassified_parameter=True,
+        )
+        if not base_changed:
+            patched, base_changed = _insert_source_driven_texture_parameter(
+                patched,
+                "_baseColorTexture",
+                overlay_base_path,
+            )
+        if base_changed:
+            changed = True
     if changed:
         patched = _renumber_sidecar_parameter_indexes(patched)
     return patched, changed
@@ -8949,6 +8980,11 @@ def _apply_source_part_role_overrides(
     if not texture_sets or not source_part_adjustments:
         return
     submeshes = tuple(getattr(obj_mesh, "submeshes", ()) or ())
+    material_key_counts: dict[str, int] = {}
+    for source_submesh in submeshes:
+        key = str(getattr(source_submesh, "material", "") or getattr(source_submesh, "name", "") or "").strip().lower()
+        if key:
+            material_key_counts[key] = int(material_key_counts.get(key, 0) or 0) + 1
     for adjustment in tuple(source_part_adjustments or ()):
         role = _normalized_source_part_material_role(getattr(adjustment, "material_role", ""))
         if not role:
@@ -8966,6 +9002,30 @@ def _apply_source_part_role_overrides(
             texture_set = _texture_set_for_source_texture_reference(submesh, texture_sets)
         if texture_set is None:
             continue
+        if isinstance(texture_sets, dict) and int(material_key_counts.get(material_key, 0) or 0) > 1:
+            alias_key = f"__source_part_{source_index}_{str(texture_set.material_name or material_key or 'material').strip().lower()}"
+            cloned_slots = {
+                slot_kind: replace(slot, material_name=alias_key)
+                for slot_kind, slot in tuple((texture_set.slots or {}).items())
+            }
+            texture_set = ReplacementTextureSet(
+                material_name=alias_key,
+                slots=cloned_slots,
+                source_face_count=len(tuple(getattr(submesh, "faces", ()) or ())) or int(getattr(texture_set, "source_face_count", 0) or 0),
+                roughness_factor=texture_set.roughness_factor,
+                metallic_factor=texture_set.metallic_factor,
+                specular_factor=texture_set.specular_factor,
+                glossiness_factor=texture_set.glossiness_factor,
+                occlusion_strength=texture_set.occlusion_strength,
+                base_color_factor=texture_set.base_color_factor,
+                source_role_tags=texture_set.source_role_tags,
+                accent_glow_color_rgb=texture_set.accent_glow_color_rgb,
+            )
+            texture_sets[alias_key] = texture_set
+            try:
+                setattr(submesh, "cdmw_source_texture_set_key", alias_key)
+            except Exception:
+                pass
         existing = tuple(str(tag or "").strip().lower() for tag in (texture_set.source_role_tags or ()) if str(tag or "").strip())
         if role not in existing:
             texture_set.source_role_tags = (*existing, role)
@@ -9303,6 +9363,11 @@ def _texture_set_for_source_submesh(
     target_material_name: str,
     texture_sets: Mapping[str, ReplacementTextureSet],
 ) -> Optional[ReplacementTextureSet]:
+    source_alias_key = str(getattr(source_submesh, "cdmw_source_texture_set_key", "") or "").strip().lower()
+    if source_alias_key:
+        texture_set = texture_sets.get(source_alias_key)
+        if texture_set is not None:
+            return texture_set
     material_key = str(getattr(source_submesh, "material", "") or getattr(source_submesh, "name", "") or "").strip().lower()
     texture_set = texture_sets.get(material_key)
     if texture_set is not None:
@@ -10524,6 +10589,7 @@ def _apply_source_pbr_scalar_parameters(
     roughness_value: Optional[int] = None,
     metallic_value: Optional[int] = None,
     shine_value: Optional[float] = None,
+    exact_only: bool = False,
 ) -> tuple[str, int]:
     target_keys = {
         _normalize_sidecar_material_name(str(name or ""))
@@ -10544,6 +10610,8 @@ def _apply_source_pbr_scalar_parameters(
         wrapper_key = _normalize_sidecar_material_name(wrapper_name)
         if wrapper_key in target_keys:
             return True
+        if exact_only:
+            return False
         return any(_sidecar_material_names_match(wrapper_name, target_name) for target_name in target_keys)
 
     def set_or_insert_byte4(body: str, parameter_name: str, item_id: str, value: int) -> tuple[str, bool]:
@@ -10662,6 +10730,8 @@ def _apply_source_pbr_scalar_parameters(
 def _apply_source_emissive_parameters(
     sidecar_text: str,
     target_settings: Mapping[str, tuple[str, float]],
+    *,
+    exact_only: bool = False,
 ) -> tuple[str, int]:
     settings_by_key = {
         _normalize_sidecar_material_name(str(name or "")): (str(color or "#FFFFFFFF"), float(intensity or 0.0))
@@ -10682,6 +10752,8 @@ def _apply_source_emissive_parameters(
         wrapper_key = _normalize_sidecar_material_name(wrapper_name)
         if wrapper_key in settings_by_key:
             return settings_by_key[wrapper_key]
+        if exact_only:
+            return None
         for target_key, settings in settings_by_key.items():
             if _sidecar_material_names_match(wrapper_name, target_key):
                 return settings
@@ -10758,6 +10830,7 @@ def _neutralize_inherited_material_layers(
     keep_rules: Sequence[tuple[str, str]] = (),
     complete_external_reset: bool = False,
     material_profile: Optional[CDMaterialRuntimeProfile] = None,
+    exact_only: bool = False,
 ) -> tuple[str, int, int]:
     target_keys = {
         _normalize_sidecar_material_name(str(name or ""))
@@ -10828,6 +10901,8 @@ def _neutralize_inherited_material_layers(
         wrapper_key = _normalize_sidecar_material_name(wrapper_name)
         if wrapper_key in target_keys:
             return True
+        if exact_only:
+            return False
         return any(_sidecar_material_names_match(wrapper_name, target_name) for target_name in target_keys)
 
     def neutralize_wrapper(match: re.Match[str]) -> str:
