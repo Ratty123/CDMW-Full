@@ -9,6 +9,19 @@ ARCHIVE_CORE = ROOT / "cdmw" / "core" / "archive.py"
 
 
 class HkxUiSourceGuardTests(unittest.TestCase):
+    def test_hkx_xml_highlighter_scans_comments_without_html_tag_regex(self) -> None:
+        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        highlighter_start = source.index("class _HkxXmlHighlighter")
+        highlighter_body = source[highlighter_start : source.index("dialog = QDialog(self)", highlighter_start)]
+
+        self.assertIn("def _highlight_xml_comments", highlighter_body)
+        self.assertIn('text.find("<!--")', highlighter_body)
+        self.assertIn('text.find("-->", start_index + 4)', highlighter_body)
+        self.assertIn("self.previousBlockState() == 1", highlighter_body)
+        self.assertIn("self.setCurrentBlockState(0)", highlighter_body)
+        self.assertIn("self.setCurrentBlockState(1)", highlighter_body)
+        self.assertNotIn("<!--" + ".*?" + "-->", highlighter_body)
+
     def test_archive_browser_exposes_hkx_json_export_import_actions(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
 

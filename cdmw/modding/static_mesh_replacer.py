@@ -1834,6 +1834,334 @@ def _transformed_replacement_sources(
     return sources
 
 
+def _mesh_delta_bounds(
+    submeshes: Sequence[SubMesh],
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    vertices = [vertex for submesh in submeshes for vertex in (submesh.vertices or [])]
+    return _bbox(vertices)
+
+
+def _mesh_edit_forward_transformed_delta(
+    delta: tuple[float, float, float],
+    *,
+    source_index: int,
+    original_mesh: ParsedMesh,
+    replacement_mesh: ParsedMesh,
+    transform: StaticReplacementTransform,
+    source_part_adjustments: list[StaticSourcePartAdjustment] | None = None,
+    global_transform_exempt_indices: set[int] | None = None,
+    global_transform_source_indices: set[int] | None = None,
+    alignment_basis_mesh: ParsedMesh | None = None,
+) -> tuple[float, float, float]:
+    value = (float(delta[0]), float(delta[1]), float(delta[2]))
+    basis_mesh = alignment_basis_mesh or replacement_mesh
+    source_count = len(getattr(replacement_mesh, "submeshes", ()) or ())
+    if source_index < 0 or source_index >= source_count:
+        return value
+    basis_sources = [
+        basis_mesh.submeshes[index]
+        if 0 <= index < len(getattr(basis_mesh, "submeshes", ()) or ())
+        else submesh
+        for index, submesh in enumerate(replacement_mesh.submeshes)
+    ]
+    adjustments_by_index = _source_part_adjustments_by_index(source_part_adjustments or [])
+    adjustment = adjustments_by_index.get(source_index)
+    if adjustment is not None and adjustment.enabled and not _is_marker_submesh(replacement_mesh.submeshes[source_index]):
+        sx, sy, sz = adjustment.scale_xyz or (1.0, 1.0, 1.0)
+        uniform = float(adjustment.uniform_scale or 1.0)
+        value = (
+            value[0] * float(sx) * uniform,
+            value[1] * float(sy) * uniform,
+            value[2] * float(sz) * uniform,
+        )
+        value = _rotate_xyz(value, tuple(float(degree) for degree in adjustment.rotate_xyz_degrees))
+
+    exempt_indices = {int(index) for index in (global_transform_exempt_indices or set())}
+    if source_index in exempt_indices:
+        return value
+
+    bound_indices = None if global_transform_source_indices is None else {int(index) for index in global_transform_source_indices}
+    alignment_bound_sources = [
+        submesh
+        for index, submesh in enumerate(basis_sources)
+        if index not in exempt_indices and (bound_indices is None or index in bound_indices)
+    ] or basis_sources
+    alignment_replacement_mesh = copy.copy(basis_mesh)
+    alignment_replacement_mesh.submeshes = list(alignment_bound_sources)
+    alignment = _compute_anchor_alignment(original_mesh, alignment_replacement_mesh, transform)
+
+    fit_scale_xyz = (1.0, 1.0, 1.0)
+    if transform.fit_to_original_bbox:
+        src_min, src_max = _mesh_delta_bounds(alignment_bound_sources)
+        dst_min, dst_max = _mesh_delta_bounds(original_mesh.submeshes)
+        src_dims = _dims(src_min, src_max)
+        dst_dims = _dims(dst_min, dst_max)
+        if transform.preserve_aspect_ratio:
+            ratios = [
+                dst_dims[index] / src_dims[index]
+                for index in range(3)
+                if src_dims[index] > 1e-8
+            ]
+            uniform = min(ratios) if ratios else 1.0
+            fit_scale_xyz = (uniform, uniform, uniform)
+        else:
+            fit_scale_xyz = tuple(
+                dst_dims[index] / src_dims[index] if src_dims[index] > 1e-8 else 1.0
+                for index in range(3)
+            )
+
+    source_axis = alignment["source_axis"]
+    target_axis = alignment["target_axis"]
+    value = _apply_alignment_roll(_rotate_between(value, source_axis, target_axis), alignment)
+    manual_scale = transform.scale_xyz or (transform.scale, transform.scale, transform.scale)
+    align_scale = float(alignment["scale"])
+    value = (
+        value[0] * float(manual_scale[0]) * align_scale * fit_scale_xyz[0],
+        value[1] * float(manual_scale[1]) * align_scale * fit_scale_xyz[1],
+        value[2] * float(manual_scale[2]) * align_scale * fit_scale_xyz[2],
+    )
+    return _rotate_xyz(value, transform.rotate_xyz_degrees)
+
+
+def _mesh_edit_forward_transformed_point(
+    point: tuple[float, float, float],
+    *,
+    source_index: int,
+    original_mesh: ParsedMesh,
+    replacement_mesh: ParsedMesh,
+    transform: StaticReplacementTransform,
+    source_part_adjustments: list[StaticSourcePartAdjustment] | None = None,
+    global_transform_exempt_indices: set[int] | None = None,
+    global_transform_source_indices: set[int] | None = None,
+    alignment_basis_mesh: ParsedMesh | None = None,
+) -> tuple[float, float, float]:
+    value = (float(point[0]), float(point[1]), float(point[2]))
+    basis_mesh = alignment_basis_mesh or replacement_mesh
+    source_count = len(getattr(replacement_mesh, "submeshes", ()) or ())
+    if source_index < 0 or source_index >= source_count:
+        return value
+    basis_sources = [
+        basis_mesh.submeshes[index]
+        if 0 <= index < len(getattr(basis_mesh, "submeshes", ()) or ())
+        else submesh
+        for index, submesh in enumerate(replacement_mesh.submeshes)
+    ]
+    adjustments_by_index = _source_part_adjustments_by_index(source_part_adjustments or [])
+    adjustment = adjustments_by_index.get(source_index)
+    if adjustment is not None and adjustment.enabled and not _is_marker_submesh(replacement_mesh.submeshes[source_index]):
+        basis_source = basis_sources[source_index] if source_index < len(basis_sources) else replacement_mesh.submeshes[source_index]
+        pivot = _center(*_bbox(getattr(basis_source, "vertices", ()) or ()))
+        sx, sy, sz = adjustment.scale_xyz or (1.0, 1.0, 1.0)
+        uniform = float(adjustment.uniform_scale or 1.0)
+        local = (
+            (value[0] - pivot[0]) * float(sx) * uniform,
+            (value[1] - pivot[1]) * float(sy) * uniform,
+            (value[2] - pivot[2]) * float(sz) * uniform,
+        )
+        rotated = _rotate_xyz(local, tuple(float(degree) for degree in adjustment.rotate_xyz_degrees))
+        offset = tuple(float(component) for component in adjustment.offset_xyz)
+        value = (
+            rotated[0] + pivot[0] + offset[0],
+            rotated[1] + pivot[1] + offset[1],
+            rotated[2] + pivot[2] + offset[2],
+        )
+
+    exempt_indices = {int(index) for index in (global_transform_exempt_indices or set())}
+    if source_index in exempt_indices:
+        return value
+
+    bound_indices = None if global_transform_source_indices is None else {int(index) for index in global_transform_source_indices}
+    alignment_bound_sources = [
+        submesh
+        for index, submesh in enumerate(basis_sources)
+        if index not in exempt_indices and (bound_indices is None or index in bound_indices)
+    ] or basis_sources
+    alignment_replacement_mesh = copy.copy(basis_mesh)
+    alignment_replacement_mesh.submeshes = list(alignment_bound_sources)
+    alignment = _compute_anchor_alignment(original_mesh, alignment_replacement_mesh, transform)
+
+    fit_scale_xyz = (1.0, 1.0, 1.0)
+    fit_offset = (0.0, 0.0, 0.0)
+    if transform.fit_to_original_bbox:
+        src_min, src_max = _mesh_delta_bounds(alignment_bound_sources)
+        dst_min, dst_max = _mesh_delta_bounds(original_mesh.submeshes)
+        src_dims = _dims(src_min, src_max)
+        dst_dims = _dims(dst_min, dst_max)
+        if transform.preserve_aspect_ratio:
+            ratios = [
+                dst_dims[index] / src_dims[index]
+                for index in range(3)
+                if src_dims[index] > 1e-8
+            ]
+            uniform = min(ratios) if ratios else 1.0
+            fit_scale_xyz = (uniform, uniform, uniform)
+        else:
+            fit_scale_xyz = tuple(
+                dst_dims[index] / src_dims[index] if src_dims[index] > 1e-8 else 1.0
+                for index in range(3)
+            )
+        src_center = _center(src_min, src_max)
+        dst_center = _center(dst_min, dst_max)
+        fit_offset = tuple(dst_center[index] - src_center[index] * fit_scale_xyz[index] for index in range(3))
+    return _apply_transform(value, transform, fit_scale_xyz, fit_offset, alignment)
+
+
+def _solve_linear_delta(
+    columns: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]],
+    target: tuple[float, float, float],
+) -> tuple[float, float, float] | None:
+    a, b, c = columns
+    det = (
+        a[0] * (b[1] * c[2] - b[2] * c[1])
+        - b[0] * (a[1] * c[2] - a[2] * c[1])
+        + c[0] * (a[1] * b[2] - a[2] * b[1])
+    )
+    if abs(det) <= 1.0e-10 or not math.isfinite(det):
+        return None
+    tx, ty, tz = target
+    x = (
+        tx * (b[1] * c[2] - b[2] * c[1])
+        - b[0] * (ty * c[2] - tz * c[1])
+        + c[0] * (ty * b[2] - tz * b[1])
+    ) / det
+    y = (
+        a[0] * (ty * c[2] - tz * c[1])
+        - tx * (a[1] * c[2] - a[2] * c[1])
+        + c[0] * (a[1] * tz - a[2] * ty)
+    ) / det
+    z = (
+        a[0] * (b[1] * tz - b[2] * ty)
+        - b[0] * (a[1] * tz - a[2] * ty)
+        + tx * (a[1] * b[2] - a[2] * b[1])
+    ) / det
+    result = (x, y, z)
+    if not all(math.isfinite(value) for value in result):
+        return None
+    return result
+
+
+def source_delta_for_transformed_delta(
+    original_mesh: ParsedMesh,
+    replacement_mesh: ParsedMesh,
+    transform: StaticReplacementTransform,
+    source_submesh_index: int,
+    transformed_delta: tuple[float, float, float],
+    *,
+    source_part_adjustments: list[StaticSourcePartAdjustment] | None = None,
+    global_transform_exempt_indices: set[int] | None = None,
+    global_transform_source_indices: set[int] | None = None,
+    alignment_basis_mesh: ParsedMesh | None = None,
+) -> tuple[float, float, float]:
+    """Map a displayed preview-space movement back into editable source mesh space."""
+    try:
+        source_index = int(source_submesh_index)
+        target = (float(transformed_delta[0]), float(transformed_delta[1]), float(transformed_delta[2]))
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return (0.0, 0.0, 0.0)
+    if source_index < 0 or source_index >= len(getattr(replacement_mesh, "submeshes", ()) or ()):
+        return target
+    common = {
+        "source_index": source_index,
+        "original_mesh": original_mesh,
+        "replacement_mesh": replacement_mesh,
+        "transform": transform,
+        "source_part_adjustments": source_part_adjustments,
+        "global_transform_exempt_indices": global_transform_exempt_indices,
+        "global_transform_source_indices": global_transform_source_indices,
+        "alignment_basis_mesh": alignment_basis_mesh,
+    }
+    columns = (
+        _mesh_edit_forward_transformed_delta((1.0, 0.0, 0.0), **common),
+        _mesh_edit_forward_transformed_delta((0.0, 1.0, 0.0), **common),
+        _mesh_edit_forward_transformed_delta((0.0, 0.0, 1.0), **common),
+    )
+    return _solve_linear_delta(columns, target) or target
+
+
+def source_point_for_transformed_point(
+    original_mesh: ParsedMesh,
+    replacement_mesh: ParsedMesh,
+    transform: StaticReplacementTransform,
+    source_submesh_index: int,
+    transformed_point: tuple[float, float, float],
+    *,
+    source_part_adjustments: list[StaticSourcePartAdjustment] | None = None,
+    global_transform_exempt_indices: set[int] | None = None,
+    global_transform_source_indices: set[int] | None = None,
+    alignment_basis_mesh: ParsedMesh | None = None,
+) -> tuple[float, float, float]:
+    """Map a displayed preview-space point back into editable source mesh space."""
+    try:
+        source_index = int(source_submesh_index)
+        target = (float(transformed_point[0]), float(transformed_point[1]), float(transformed_point[2]))
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return (0.0, 0.0, 0.0)
+    if source_index < 0 or source_index >= len(getattr(replacement_mesh, "submeshes", ()) or ()):
+        return target
+    common = {
+        "source_index": source_index,
+        "original_mesh": original_mesh,
+        "replacement_mesh": replacement_mesh,
+        "transform": transform,
+        "source_part_adjustments": source_part_adjustments,
+        "global_transform_exempt_indices": global_transform_exempt_indices,
+        "global_transform_source_indices": global_transform_source_indices,
+        "alignment_basis_mesh": alignment_basis_mesh,
+    }
+    origin = _mesh_edit_forward_transformed_point((0.0, 0.0, 0.0), **common)
+    columns = (
+        _mesh_edit_forward_transformed_delta((1.0, 0.0, 0.0), **common),
+        _mesh_edit_forward_transformed_delta((0.0, 1.0, 0.0), **common),
+        _mesh_edit_forward_transformed_delta((0.0, 0.0, 1.0), **common),
+    )
+    relative = tuple(target[index] - origin[index] for index in range(3))
+    return _solve_linear_delta(columns, relative) or target
+
+
+def source_distance_for_transformed_distance(
+    original_mesh: ParsedMesh,
+    replacement_mesh: ParsedMesh,
+    transform: StaticReplacementTransform,
+    source_submesh_index: int,
+    transformed_distance: float,
+    *,
+    source_part_adjustments: list[StaticSourcePartAdjustment] | None = None,
+    global_transform_exempt_indices: set[int] | None = None,
+    global_transform_source_indices: set[int] | None = None,
+    alignment_basis_mesh: ParsedMesh | None = None,
+) -> float:
+    """Approximate a displayed preview-space brush length in editable source mesh space."""
+    try:
+        source_index = int(source_submesh_index)
+        distance = abs(float(transformed_distance))
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    if source_index < 0 or source_index >= len(getattr(replacement_mesh, "submeshes", ()) or ()):
+        return distance
+    common = {
+        "source_index": source_index,
+        "original_mesh": original_mesh,
+        "replacement_mesh": replacement_mesh,
+        "transform": transform,
+        "source_part_adjustments": source_part_adjustments,
+        "global_transform_exempt_indices": global_transform_exempt_indices,
+        "global_transform_source_indices": global_transform_source_indices,
+        "alignment_basis_mesh": alignment_basis_mesh,
+    }
+    scales = []
+    for column in (
+        _mesh_edit_forward_transformed_delta((1.0, 0.0, 0.0), **common),
+        _mesh_edit_forward_transformed_delta((0.0, 1.0, 0.0), **common),
+        _mesh_edit_forward_transformed_delta((0.0, 0.0, 1.0), **common),
+    ):
+        length = math.sqrt(column[0] * column[0] + column[1] * column[1] + column[2] * column[2])
+        if length > 1.0e-8 and math.isfinite(length):
+            scales.append(length)
+    if not scales:
+        return distance
+    return distance / (sum(scales) / float(len(scales)))
+
+
 def _texture_uv_transforms_by_key(
     transforms: list[StaticTextureUvTransform],
 ) -> dict[str, StaticTextureUvTransform]:

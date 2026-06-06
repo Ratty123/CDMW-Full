@@ -1217,7 +1217,9 @@ def prepare_model_preview(
         cloth_batch = cloth_by_mesh_index.get(int(getattr(batch, "mesh_index", -1))) or cloth_by_source_submesh.get(mesh_source_submesh_index)
         editor_role = str(getattr(mesh, "preview_role", "") or "").strip()
         editor_role_key = editor_role.lower()
-        editor_editable = mesh_source_submesh_index >= 0 or ("replacement" in editor_role_key and "reference" not in editor_role_key and "original" not in editor_role_key)
+        reference_role = "reference" in editor_role_key or "original" in editor_role_key
+        replacement_role = "replacement" in editor_role_key and not reference_role
+        editor_editable = bool((mesh_source_submesh_index >= 0 or replacement_role) and not reference_role)
         if editor_role_key.startswith("hkx_"):
             editor_editable = False
         prepared_batches.append(

@@ -275,6 +275,9 @@ from cdmw.modding.static_mesh_replacer import (
     build_static_replacement_preview_mesh,
     describe_static_placement_context,
     infer_static_replacement_part_role,
+    source_delta_for_transformed_delta,
+    source_distance_for_transformed_distance,
+    source_point_for_transformed_point,
     suggest_static_submesh_mappings,
     _compute_anchor_alignment,
     _normalize,
@@ -30846,6 +30849,7 @@ def run_gui() -> int:
                 active_handlers = {}
                 self._modal_model_preview_settings_handlers = active_handlers
             if settings_changed_handler is not None:
+                dialog.settings_changed.connect(settings_changed_handler)
                 active_handlers[dialog] = settings_changed_handler
 
             def _remove_modal_settings_dialog(*_args, modal_dialog=dialog, dialogs=active_dialogs, handlers=active_handlers) -> None:
@@ -56122,6 +56126,23 @@ def run_gui() -> int:
                 "Show move/rotate axis handles in the D3D11 alignment preview. This only affects the preview controls."
             )
             preview_controls_row.addWidget(preview_gizmo_checkbox)
+            alignment_d3d11_view_mode_combo = QComboBox()
+            for mode in D3D11_PREVIEW_VIEW_MODES:
+                alignment_d3d11_view_mode_combo.addItem(
+                    D3D11_PREVIEW_VIEW_MODE_LABELS.get(mode, mode),
+                    mode,
+                )
+            d3d11_view_index = alignment_d3d11_view_mode_combo.findData(
+                self._current_model_preview_render_settings().d3d11_view_mode
+            )
+            alignment_d3d11_view_mode_combo.setCurrentIndex(max(0, d3d11_view_index))
+            alignment_d3d11_view_mode_combo.setToolTip("D3D11 view mode for the live alignment and mesh-edit preview.")
+            alignment_d3d11_view_mode_combo.setMinimumWidth(0)
+            alignment_d3d11_view_mode_combo.setMinimumContentsLength(14)
+            alignment_d3d11_view_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            alignment_d3d11_view_mode_combo.setMaximumWidth(190)
+            preview_controls_row.addWidget(QLabel("D3D11 view"))
+            preview_controls_row.addWidget(alignment_d3d11_view_mode_combo)
             alignment_preview_settings_button = QPushButton("Lighting / Texture Settings...")
             alignment_preview_settings_button.setToolTip(
                 "Choose the Mesh Replacement Alignment renderer and adjust lighting, texture, support-map, and diagnostic controls."
@@ -57330,14 +57351,79 @@ def run_gui() -> int:
             camera_yaw_right_button.clicked.connect(lambda _checked=False: _nudge_alignment_camera(15.0, 0.0))
             camera_reset_button.clicked.connect(lambda _checked=False: _set_alignment_camera(-35.0, 20.0))
 
-            def _current_alignment_preview_render_settings() -> ModelPreviewRenderSettings:
-                settings = clamp_model_preview_render_settings(preview_render_settings)
+            def _alignment_preview_render_settings_from_controls(
+                base_settings: Optional[ModelPreviewRenderSettings] = None,
+            ) -> ModelPreviewRenderSettings:
+                base = (
+                    base_settings
+                    if isinstance(base_settings, ModelPreviewRenderSettings)
+                    else preview_render_settings
+                )
+                settings = dataclasses.replace(clamp_model_preview_render_settings(base))
+                settings.visible_texture_mode = str(
+                    preview_visible_mode_combo.currentData() or settings.visible_texture_mode
+                )
+                settings.render_diagnostic_mode = str(
+                    preview_render_mode_combo.currentData() or settings.render_diagnostic_mode
+                )
+                settings.d3d11_view_mode = str(
+                    alignment_d3d11_view_mode_combo.currentData() or settings.d3d11_view_mode
+                )
+                settings.disable_tint = bool(preview_disable_tint_checkbox.isChecked())
+                settings.disable_brightness = bool(preview_disable_brightness_checkbox.isChecked())
+                settings.disable_uv_scale = bool(preview_disable_uv_scale_checkbox.isChecked())
+                settings.disable_all_support_maps = not bool(preview_support_maps_checkbox.isChecked())
+                settings.height_effect_max = float(preview_depth_spin.value())
+                settings.specular_max = float(preview_shine_spin.value())
+                settings.shininess_max = 32.0 + (float(preview_rough_spin.value()) * 224.0)
                 return clamp_model_preview_render_settings(settings)
 
-            def _apply_alignment_preview_render_settings(*_args) -> None:
+            def _current_alignment_preview_render_settings() -> ModelPreviewRenderSettings:
+                return _alignment_preview_render_settings_from_controls(preview_render_settings)
+
+            def _alignment_preview_package_settings_changed(
+                previous_settings: ModelPreviewRenderSettings,
+                current_settings: ModelPreviewRenderSettings,
+            ) -> bool:
+                package_fields = (
+                    "use_textures_by_default",
+                    "high_quality_by_default",
+                    "preview_texture_max_dimension",
+                    "low_quality_texture_max_dimension",
+                    "visible_texture_mode",
+                    "alpha_handling_mode",
+                    "disable_all_support_maps",
+                    "disable_normal_map",
+                    "disable_material_map",
+                    "disable_height_map",
+                    "flip_texture_v",
+                )
+                return any(
+                    getattr(previous_settings, field_name, None) != getattr(current_settings, field_name, None)
+                    for field_name in package_fields
+                )
+
+            def _apply_alignment_preview_render_settings(
+                *_args,
+                previous_settings: Optional[ModelPreviewRenderSettings] = None,
+            ) -> None:
                 nonlocal preview_render_settings
+                old_settings = clamp_model_preview_render_settings(
+                    previous_settings
+                    if isinstance(previous_settings, ModelPreviewRenderSettings)
+                    else preview_render_settings
+                )
                 preview_render_settings = _current_alignment_preview_render_settings()
                 if _alignment_d3d11_preview_active():
+                    if _alignment_preview_package_settings_changed(old_settings, preview_render_settings):
+                        _alignment_d3d11_invalidate_package_cache("material")
+                        _mark_alignment_d3d11_rebuild_reason("material")
+                        _queue_static_preview_refresh()
+                        _set_preview_performance_status(
+                            "D3D11 preview package rebuild queued for texture settings.",
+                            details="cache=material_dirty reason=render_settings",
+                        )
+                        return
                     alignment_d3d11_preview_host.set_render_tuning(preview_render_settings)
                     _set_preview_performance_status(
                         "D3D11 render tuning applied without rebuilding preview package.",
@@ -57351,14 +57437,15 @@ def run_gui() -> int:
                     replacement_only_preview,
                 ):
                     preview_widget.set_render_settings(preview_render_settings)
-                    preview_widget.set_use_textures(True)
-                    preview_widget.set_high_quality_textures(True)
+                    preview_widget.set_use_textures(bool(preview_render_settings.use_textures_by_default))
+                    preview_widget.set_high_quality_textures(bool(preview_render_settings.high_quality_by_default))
                 _queue_static_preview_refresh()
 
             def _sync_alignment_preview_controls_from_settings(settings: ModelPreviewRenderSettings) -> None:
                 for combo, value in (
                     (preview_visible_mode_combo, settings.visible_texture_mode),
                     (preview_render_mode_combo, settings.render_diagnostic_mode),
+                    (alignment_d3d11_view_mode_combo, settings.d3d11_view_mode),
                 ):
                     combo.blockSignals(True)
                     combo_index = combo.findData(value)
@@ -57386,11 +57473,12 @@ def run_gui() -> int:
 
             def _use_global_alignment_preview_settings() -> None:
                 nonlocal preview_render_settings
+                previous_settings = _current_alignment_preview_render_settings()
                 preview_render_settings = _alignment_lit_render_settings(
                     self._current_model_preview_render_settings(),
                 )
                 _sync_alignment_preview_controls_from_settings(preview_render_settings)
-                _apply_alignment_preview_render_settings()
+                _apply_alignment_preview_render_settings(previous_settings=previous_settings)
 
             def _open_alignment_preview_settings_dialog() -> None:
                 def _alignment_renderer_backend_for_dialog() -> str:
@@ -57407,13 +57495,14 @@ def run_gui() -> int:
 
                 def _sync_from_modal_settings(settings: Optional[object] = None) -> None:
                     nonlocal preview_render_settings
+                    previous_settings = _current_alignment_preview_render_settings()
                     preview_render_settings = (
                         _alignment_lit_render_settings(settings)
                         if isinstance(settings, ModelPreviewRenderSettings)
                         else _alignment_lit_render_settings(self._current_model_preview_render_settings())
                     )
                     _sync_alignment_preview_controls_from_settings(preview_render_settings)
-                    _apply_alignment_preview_render_settings()
+                    _apply_alignment_preview_render_settings(previous_settings=previous_settings)
 
                 self._open_modal_model_preview_settings_dialog(
                     dialog,
@@ -57421,7 +57510,7 @@ def run_gui() -> int:
                     archive_renderer_backend=_alignment_renderer_backend_for_dialog(),
                     archive_renderer_backend_changed_handler=_set_alignment_renderer_from_dialog,
                     settings_changed_handler=_sync_from_modal_settings,
-                    preview_settings=self._current_model_preview_render_settings(),
+                    preview_settings=_current_alignment_preview_render_settings(),
                 )
 
             preview_visible_mode_combo.currentIndexChanged.connect(_apply_alignment_preview_render_settings)
@@ -57433,6 +57522,7 @@ def run_gui() -> int:
             preview_depth_spin.valueChanged.connect(_apply_alignment_preview_render_settings)
             preview_shine_spin.valueChanged.connect(_apply_alignment_preview_render_settings)
             preview_rough_spin.valueChanged.connect(_apply_alignment_preview_render_settings)
+            alignment_d3d11_view_mode_combo.currentIndexChanged.connect(_apply_alignment_preview_render_settings)
             preview_gizmo_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())
             alignment_preview_settings_button.clicked.connect(lambda _checked=False: _open_alignment_preview_settings_dialog())
             alignment_use_global_preview_button.clicked.connect(_use_global_alignment_preview_settings)
@@ -58303,6 +58393,8 @@ def run_gui() -> int:
                 ]
                 total_faces = sum(submesh_face_counts)
                 render_submesh_count = max(1, len(submesh_face_counts))
+                if total_faces <= 80_000:
+                    return 0
                 appended_geometry = 0
                 if modify_original_clone_mode:
                     appended_geometry = int(source_geometry_revision.get("value", 0) or 0)
@@ -58313,8 +58405,6 @@ def run_gui() -> int:
                             minimum=2_000,
                             maximum=10_000,
                         )
-                if total_faces <= 80_000:
-                    return 0
                 try:
                     d3d11_normal_active = _alignment_d3d11_preview_active()
                 except NameError:
@@ -59567,6 +59657,8 @@ def run_gui() -> int:
                         return (path_text, 0, 0)
 
                 package_settings = (
+                    bool(getattr(settings, "use_textures_by_default", True)),
+                    bool(getattr(settings, "high_quality_by_default", True)),
                     int(getattr(settings, "preview_texture_max_dimension", 0) or 0),
                     int(getattr(settings, "low_quality_texture_max_dimension", 0) or 0),
                     bool(getattr(settings, "disable_all_support_maps", False)),
@@ -59989,20 +60081,23 @@ def run_gui() -> int:
                 reason: str = "",
             ) -> tuple[ModelPreviewRenderSettings, bool, bool, str]:
                 settings = _current_alignment_preview_render_settings()
+                use_textures = bool(getattr(settings, "use_textures_by_default", True))
+                high_quality_textures = bool(use_textures and getattr(settings, "high_quality_by_default", True))
+                enable_material_combiner = bool(use_textures)
                 normalized_reason = str(reason or alignment_d3d11_state.get("next_rebuild_reason", "") or "").strip().lower()
                 dirty_flags = _alignment_d3d11_dirty_flags_for_reason(normalized_reason)
                 if _mesh_edit_raw_preview_active():
                     # Live mesh editing still needs uncached geometry packages,
                     # but it must render the same material contract as Archive
                     # Preview so imported source textures remain visible.
-                    return clamp_model_preview_render_settings(settings), True, True, "mesh_edit_raw"
+                    return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "mesh_edit_raw"
                 if (
                     bool(alignment_d3d11_state.get("archive_parity_ready"))
                     and dirty_flags.affects_material()
                     and not dirty_flags.affects_geometry()
                 ):
-                    return clamp_model_preview_render_settings(settings), True, True, "material_refresh"
-                return clamp_model_preview_render_settings(settings), True, True, "archive_parity"
+                    return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"
+                return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "archive_parity"
 
             def _alignment_d3d11_dirty_flags_for_reason(reason: str) -> MeshPreviewDirtyFlags:
                 normalized = str(reason or "geometry").strip().lower()
@@ -60309,9 +60404,9 @@ def run_gui() -> int:
                 alignment_d3d11_state["last_cache_event"] = "bypass" if not cache_key else "miss"
                 mesh_edit_raw_package = _mesh_edit_raw_preview_active()
                 package_quality_key = str(package_quality).strip().lower()
-                worker_use_textures = True
-                worker_high_quality_textures = bool(high_quality_textures)
-                worker_enable_material_combiner = bool(enable_material_combiner)
+                worker_use_textures = bool(getattr(settings, "use_textures_by_default", True))
+                worker_high_quality_textures = bool(worker_use_textures and high_quality_textures)
+                worker_enable_material_combiner = bool(worker_use_textures and enable_material_combiner)
                 worker_original_reference_material_parity = bool(worker_use_textures)
                 geometry_signature = _alignment_d3d11_geometry_cache_key(
                     model,
@@ -61004,7 +61099,8 @@ def run_gui() -> int:
                 if _alignment_d3d11_preview_active():
                     geometry_active = _alignment_geometry_tab_active()
                     highlight_active = geometry_active or control_tabs.widget(control_tabs.currentIndex()) is textures_tab
-                    gizmo_enabled = bool(preview_gizmo_checkbox.isChecked())
+                    mesh_edit_raw_active = bool(_mesh_edit_raw_preview_active())
+                    gizmo_enabled = bool(preview_gizmo_checkbox.isChecked()) and not mesh_edit_raw_active
                     d3d11_highlight_ids: set[int] = set()
                     if highlight_active:
                         selected_source_overlay_ids = _alignment_d3d11_editor_ids_for_source_indices(
@@ -68604,6 +68700,15 @@ def run_gui() -> int:
                     target_mode = _mesh_edit_target_mode_for_tool()
                     delete_mode = str(mesh_edit_delete_mode_combo.currentData() or "release")
                     if _alignment_d3d11_preview_active():
+                        if active:
+                            alignment_d3d11_state["pending_fast_transform"] = None
+                            alignment_d3d11_preview_host.set_alignment_state(
+                                enabled=False,
+                                source_submesh_indices=(),
+                                translation_sensitivity=0.85,
+                                rotation_degrees_per_pixel=0.18,
+                            )
+                            alignment_d3d11_preview_host.set_alignment_preview_transform()
                         alignment_d3d11_preview_host.set_mesh_edit_state(
                             enabled=active,
                             scope_mode=_mesh_edit_scope_mode(),
@@ -69249,11 +69354,14 @@ def run_gui() -> int:
                         return
                     _mesh_edit_update_mesh_totals()
                     if _alignment_d3d11_preview_active():
-                        _queue_mesh_edit_live_vertex_updates(
-                            changed_vertices_by_submesh,
-                            include_normals=include_normals,
-                            immediate=immediate,
-                        )
+                        if changed_vertices_by_submesh:
+                            _queue_mesh_edit_live_vertex_updates(
+                                changed_vertices_by_submesh,
+                                include_normals=include_normals,
+                                immediate=immediate,
+                            )
+                            return
+                        _mesh_edit_replace_live_triangles(_mesh_edit_preview_source_indices())
                         return
                     replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
                     _safe_refresh_static_dialog_preview(live_mesh_edit=True)
@@ -69319,6 +69427,116 @@ def run_gui() -> int:
                         return any(abs(float(raw_delta[index])) > 1e-10 for index in range(3))
                     except Exception:
                         return False
+
+                def _mesh_edit_preview_delta_to_source_delta(
+                    source_index: int,
+                    transformed_delta: Sequence[object],
+                ) -> tuple[float, float, float]:
+                    try:
+                        delta = (
+                            float(transformed_delta[0]),
+                            float(transformed_delta[1]),
+                            float(transformed_delta[2]),
+                        )
+                    except (TypeError, ValueError, IndexError, OverflowError):
+                        return (0.0, 0.0, 0.0)
+                    if (
+                        original_mesh_for_mapping is None
+                        or replacement_mesh_for_mapping is None
+                        or source_index < 0
+                    ):
+                        return delta
+                    try:
+                        return source_delta_for_transformed_delta(
+                            original_mesh_for_mapping,
+                            replacement_mesh_for_mapping,
+                            _current_static_alignment_transform(),
+                            int(source_index),
+                            delta,
+                            source_part_adjustments=_current_source_part_adjustments(),
+                            global_transform_exempt_indices=set(appended_source_indices),
+                            global_transform_source_indices=_mapped_source_indices(_current_dialog_mappings_for_preview()),
+                            alignment_basis_mesh=replacement_mesh_base_for_mapping or replacement_mesh_for_mapping,
+                        )
+                    except Exception as exc:
+                        _record_runtime_event(
+                            "mesh_edit_delta_inverse_error",
+                            source_index=int(source_index),
+                            message=str(exc),
+                        )
+                        return delta
+
+                def _mesh_edit_preview_point_to_source_point(
+                    source_index: int,
+                    transformed_point: Sequence[object],
+                ) -> tuple[float, float, float]:
+                    try:
+                        point = (
+                            float(transformed_point[0]),
+                            float(transformed_point[1]),
+                            float(transformed_point[2]),
+                        )
+                    except (TypeError, ValueError, IndexError, OverflowError):
+                        return (0.0, 0.0, 0.0)
+                    if (
+                        original_mesh_for_mapping is None
+                        or replacement_mesh_for_mapping is None
+                        or source_index < 0
+                    ):
+                        return point
+                    try:
+                        return source_point_for_transformed_point(
+                            original_mesh_for_mapping,
+                            replacement_mesh_for_mapping,
+                            _current_static_alignment_transform(),
+                            int(source_index),
+                            point,
+                            source_part_adjustments=_current_source_part_adjustments(),
+                            global_transform_exempt_indices=set(appended_source_indices),
+                            global_transform_source_indices=_mapped_source_indices(_current_dialog_mappings_for_preview()),
+                            alignment_basis_mesh=replacement_mesh_base_for_mapping or replacement_mesh_for_mapping,
+                        )
+                    except Exception as exc:
+                        _record_runtime_event(
+                            "mesh_edit_point_inverse_error",
+                            source_index=int(source_index),
+                            message=str(exc),
+                        )
+                        return point
+
+                def _mesh_edit_preview_distance_to_source_distance(
+                    source_index: int,
+                    transformed_distance: float,
+                ) -> float:
+                    try:
+                        distance = float(transformed_distance)
+                    except (TypeError, ValueError, OverflowError):
+                        return 0.0
+                    if (
+                        original_mesh_for_mapping is None
+                        or replacement_mesh_for_mapping is None
+                        or source_index < 0
+                    ):
+                        return abs(distance)
+                    try:
+                        return source_distance_for_transformed_distance(
+                            original_mesh_for_mapping,
+                            replacement_mesh_for_mapping,
+                            _current_static_alignment_transform(),
+                            int(source_index),
+                            distance,
+                            source_part_adjustments=_current_source_part_adjustments(),
+                            global_transform_exempt_indices=set(appended_source_indices),
+                            global_transform_source_indices=_mapped_source_indices(_current_dialog_mappings_for_preview()),
+                            alignment_basis_mesh=replacement_mesh_base_for_mapping or replacement_mesh_for_mapping,
+                        )
+                    except Exception as exc:
+                        _record_runtime_event(
+                            "mesh_edit_distance_inverse_error",
+                            source_index=int(source_index),
+                            message=str(exc),
+                        )
+                        return abs(distance)
 
                 def _mesh_edit_vertices_from_payload(payload: Mapping[object, object]) -> Dict[int, set[int]]:
                     selected: Dict[int, set[int]] = {}
@@ -69549,6 +69767,11 @@ def run_gui() -> int:
                                 if weight_index in vertex_indices and weight_value > 0.0:
                                     vertex_weights[weight_index] = max(vertex_weights.get(weight_index, 0.0), weight_value)
                             submesh = replacement_mesh_for_mapping.submeshes[source_submesh_index]
+                            source_delta = _mesh_edit_preview_delta_to_source_delta(source_submesh_index, delta)
+                            source_step_delta = _mesh_edit_preview_delta_to_source_delta(source_submesh_index, step_delta)
+                            source_center = _mesh_edit_preview_point_to_source_point(source_submesh_index, center)
+                            source_radius = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, radius)
+                            source_amount = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, amount)
                             mirror_pairs = (
                                 mirror_pairs_by_submesh.get(source_submesh_index)
                                 if isinstance(mirror_pairs_by_submesh, Mapping)
@@ -69563,7 +69786,7 @@ def run_gui() -> int:
                                 changed = apply_vertex_delta(
                                     submesh,
                                     vertex_indices,
-                                    delta,
+                                    source_delta,
                                     mirror_x=bool(mesh_edit_mirror_checkbox.isChecked()),
                                     mirror_pairs=mirror_pairs if isinstance(mirror_pairs, Mapping) else None,
                                     recompute_normals=False,
@@ -69572,11 +69795,11 @@ def run_gui() -> int:
                                 changed = apply_brush_deformation(
                                     submesh,
                                     tool=tool,
-                                    center=center,
-                                    radius=radius,
+                                    center=source_center,
+                                    radius=source_radius,
                                     strength=strength,
-                                    drag_delta=delta if tool in {"grab"} else step_delta,
-                                    amount=amount,
+                                    drag_delta=source_delta if tool in {"grab"} else source_step_delta,
+                                    amount=source_amount,
                                     falloff=falloff,
                                     vertex_indices=vertex_indices,
                                     vertex_weights=vertex_weights or None,
@@ -71887,9 +72110,13 @@ def run_gui() -> int:
                     alignment_d3d11_state["replacement_only_direct_source_preview"] = replacement_only_direct_source_preview
                     alignment_d3d11_state["source_owned_direct_source_preview"] = source_owned_direct_source_preview
                     alignment_d3d11_state["force_direct_source_preview"] = force_direct_source_preview
-                    if not mesh_edit_direct_source_preview and not _ensure_original_reference_texture_preview_ready(
-                        active_preview_mode,
-                        reason="preview_refresh",
+                    needs_original_material_preview = bool(original_texture_preview_state.get("enabled"))
+                    if (
+                        (not mesh_edit_direct_source_preview or needs_original_material_preview)
+                        and not _ensure_original_reference_texture_preview_ready(
+                            active_preview_mode,
+                            reason="preview_refresh",
+                        )
                     ):
                         return
                     raw_direct_source_preview_indices = set(selected_source_highlight_indices)
@@ -72017,12 +72244,11 @@ def run_gui() -> int:
                     else:
                         source_model = replacement_preview_model
                     preview_model = _clone_preview_model(source_model)
-                    if not mesh_edit_direct_source_preview:
-                        _apply_original_material_preview(
-                            preview_model,
-                            mapped_preview=mapped_preview,
-                            current_mappings=current_mappings,
-                        )
+                    _apply_original_material_preview(
+                        preview_model,
+                        mapped_preview=mapped_preview,
+                        current_mappings=current_mappings,
+                    )
                     def _source_preview_path(source_path_text: str) -> str:
                         source = Path(source_path_text).expanduser()
                         if source.suffix.lower() != ".dds":
@@ -73210,7 +73436,13 @@ def run_gui() -> int:
                         identity = batch.get("editor_identity")
                         if not isinstance(identity, Mapping):
                             identity = {}
-                        raw_index = identity.get("source_local_submesh_index", identity.get("source_submesh_index", batch.get("index", -1)))
+                        try:
+                            source_component_index = int(identity.get("source_component_index", 0) or 0)
+                        except (TypeError, ValueError):
+                            source_component_index = 0
+                        if bool(identity.get("prefab_component", False)) or source_component_index != 0:
+                            continue
+                        raw_index = identity.get("source_submesh_index", batch.get("index", -1))
                         try:
                             mesh_index = int(raw_index)
                         except (TypeError, ValueError):
@@ -80302,6 +80534,17 @@ def run_gui() -> int:
                 return bool(state_ok and transform_ok)
 
             def _replay_alignment_d3d11_fast_transform() -> None:
+                if _mesh_edit_raw_preview_active():
+                    alignment_d3d11_state["pending_fast_transform"] = None
+                    if _alignment_d3d11_preview_active():
+                        alignment_d3d11_preview_host.set_alignment_state(
+                            enabled=False,
+                            source_submesh_indices=(),
+                            translation_sensitivity=0.85,
+                            rotation_degrees_per_pixel=0.18,
+                        )
+                        alignment_d3d11_preview_host.set_alignment_preview_transform()
+                    return
                 payload = alignment_d3d11_state.get("pending_fast_transform")
                 if not isinstance(payload, Mapping):
                     return
@@ -83810,14 +84053,26 @@ def run_gui() -> int:
                     self.comment_format.setForeground(QColor("#7f8c98"))
 
                 def highlightBlock(self, text: str) -> None:
-                    for match in re.finditer(r"<!--.*?-->", text):
-                        self.setFormat(match.start(), match.end() - match.start(), self.comment_format)
+                    self.setCurrentBlockState(0)
                     for match in re.finditer(r"</?[\w:.-]+|/?>", text):
                         self.setFormat(match.start(), match.end() - match.start(), self.tag_format)
                     for match in re.finditer(r"\b[\w:.-]+(?=\=)", text):
                         self.setFormat(match.start(), match.end() - match.start(), self.attribute_format)
                     for match in re.finditer(r'"[^"]*"', text):
                         self.setFormat(match.start(), match.end() - match.start(), self.string_format)
+                    self._highlight_xml_comments(text)
+
+                def _highlight_xml_comments(self, text: str) -> None:
+                    start_index = 0 if self.previousBlockState() == 1 else text.find("<!--")
+                    while start_index >= 0:
+                        end_index = text.find("-->", start_index + 4)
+                        if end_index == -1:
+                            self.setCurrentBlockState(1)
+                            self.setFormat(start_index, len(text) - start_index, self.comment_format)
+                            return
+                        length = end_index - start_index + 3
+                        self.setFormat(start_index, length, self.comment_format)
+                        start_index = text.find("<!--", end_index + 3)
 
             dialog = QDialog(self)
             dialog.setWindowTitle(f"Edit HKX - {entry.basename}")

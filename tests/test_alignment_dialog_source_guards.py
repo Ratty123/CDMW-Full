@@ -395,8 +395,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("prepare_model_preview(", source)
         self.assertIn("enable_material_combiner=True", source)
         self.assertIn("material_combiner_policy", package_source)
-        self.assertIn("original_reference_archive_direct", package_source)
-        self.assertIn("modify_original_archive_direct", package_source)
+        self.assertIn("original_reference_archive_parity", package_source)
+        self.assertIn("modify_original_archive_parity", package_source)
+        self.assertNotIn("original_reference_archive_direct", package_source)
+        self.assertNotIn("modify_original_archive_direct", package_source)
         self.assertIn('workspace == "modify_original_alignment"', package_source)
         self.assertIn("display_mode=self.display_mode", source)
         self.assertIn("editor_workspace=self.editor_workspace", source)
@@ -414,16 +416,16 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("fast_settings.disable_material_map = True", source)
         self.assertNotIn("fast_settings.disable_height_map = True", source)
         self.assertNotIn('return _alignment_d3d11_fast_render_settings(settings), False, False, "fast_geometry"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), True, True, "material_refresh"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), True, True, "archive_parity"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), True, True, "mesh_edit_raw"', source)
+        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"', source)
+        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "archive_parity"', source)
+        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "mesh_edit_raw"', source)
         self.assertNotIn("raw_settings.disable_all_support_maps = True", source)
         self.assertNotIn("raw_settings.disable_normal_map = True", source)
         self.assertNotIn("raw_settings.disable_material_map = True", source)
         self.assertNotIn("raw_settings.disable_height_map = True", source)
         self.assertIn("enable_material_combiner=bool(self.enable_material_combiner and self.use_textures)", source)
         self.assertIn('package_quality_key = str(package_quality).strip().lower()', source)
-        self.assertIn("worker_use_textures = True", source)
+        self.assertIn('worker_use_textures = bool(getattr(settings, "use_textures_by_default", True))', source)
         self.assertIn("high_quality_textures=worker_high_quality_textures", source)
         self.assertIn("enable_material_combiner=worker_enable_material_combiner", source)
         self.assertIn("mesh_edit_raw_package = _mesh_edit_raw_preview_active()", source)
@@ -481,8 +483,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("archive_renderer_backend=_alignment_renderer_backend_for_dialog()", source)
         self.assertIn("archive_renderer_backend_changed_handler=_set_alignment_renderer_from_dialog", source)
         self.assertIn("settings_changed_handler=_sync_from_modal_settings", source)
-        self.assertIn("preview_settings=self._current_model_preview_render_settings()", source)
+        self.assertIn("preview_settings=_current_alignment_preview_render_settings()", source)
         self.assertIn("dialog.settings_changed.connect(self._handle_model_preview_settings_changed)", source)
+        self.assertIn("dialog.settings_changed.connect(settings_changed_handler)", source)
         self.assertIn('active_dialogs = getattr(self, "_modal_model_preview_settings_dialogs", None)', source)
         self.assertIn('modal_handlers = getattr(self, "_modal_model_preview_settings_handlers", None)', source)
         self.assertIn("active_handlers[dialog] = settings_changed_handler", source)
@@ -491,8 +494,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("base_texture_defaults", source)
         self.assertIn("preview_render_settings = _alignment_lit_render_settings(", source)
         self.assertNotIn('aligned_settings.render_diagnostic_mode = "lit"', source)
-        self.assertNotIn("settings.visible_texture_mode = str(preview_visible_mode_combo.currentData()", source)
-        self.assertNotIn("settings.disable_all_support_maps = not bool(preview_support_maps_checkbox.isChecked())", source)
+        self.assertIn("settings.visible_texture_mode = str(", source)
+        self.assertIn("settings.disable_all_support_maps = not bool(preview_support_maps_checkbox.isChecked())", source)
         self.assertNotIn('if detail_mode != "full":', source)
         self.assertIn("channel_debug = self._archive_material_channel_debug_from_package(package_dir)", source)
         self.assertIn("def _set_preview_performance_status(summary: str, *, details: str = \"\") -> None:", source)
@@ -1737,8 +1740,13 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         render_settings_end = source.index("def _sync_alignment_preview_controls_from_settings", render_settings_start)
         render_settings_block = source[render_settings_start:render_settings_end]
         self.assertIn("alignment_d3d11_preview_host.set_render_tuning(preview_render_settings)", render_settings_block)
+        self.assertIn("if _alignment_preview_package_settings_changed(old_settings, preview_render_settings):", render_settings_block)
+        self.assertIn("_queue_static_preview_refresh()", render_settings_block)
+        self.assertLess(
+            render_settings_block.index("_queue_static_preview_refresh()"),
+            render_settings_block.index("alignment_d3d11_preview_host.set_render_tuning(preview_render_settings)"),
+        )
         self.assertIn("return", render_settings_block)
-        self.assertNotIn("_queue_static_preview_refresh()", render_settings_block.split("if _alignment_d3d11_preview_active():", 1)[1].split("return", 1)[0])
 
         start_worker_start = source.index("def _start_alignment_d3d11_package_worker(")
         start_worker_end = source.index("worker = AlignmentD3D11PackageWorker(", start_worker_start)
@@ -2159,6 +2167,14 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("Native Preview Core", source)
         self.assertIn("def _apply_native_preview_core_material_manifest", source)
         self.assertIn("preview_native_material_overrides", source)
+        native_apply_start = source.index("def _apply_native_preview_core_material_manifest")
+        native_apply_end = source.index("def _load_native_preview_core_material_manifest_for_alignment", native_apply_start)
+        native_apply_block = source[native_apply_start:native_apply_end]
+        self.assertIn('identity.get("source_component_index", 0)', native_apply_block)
+        self.assertIn('identity.get("prefab_component", False)', native_apply_block)
+        self.assertIn("source_component_index != 0", native_apply_block)
+        self.assertIn('raw_index = identity.get("source_submesh_index", batch.get("index", -1))', native_apply_block)
+        self.assertNotIn('identity.get("source_local_submesh_index"', native_apply_block)
         sidecar_lookup_start = source.index('sidecar_bindings = ()')
         sidecar_lookup_end = source.index('_alignment_startup_step("Analyzing asset compatibility...")', sidecar_lookup_start)
         sidecar_lookup_block = source[sidecar_lookup_start:sidecar_lookup_end]
@@ -2209,9 +2225,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn('str(label or "").strip().casefold() == "final test build preview"', source)
         self.assertNotIn("return not _alignment_auto_detail_uses_fast_package(label, model)", source)
         self.assertNotIn('return settings, True, True, "accurate"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), True, True, "archive_parity"', source)
+        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "archive_parity"', source)
         self.assertNotIn('return _alignment_d3d11_fast_render_settings(settings), False, False, "fast_geometry"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), True, True, "material_refresh"', source)
+        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"', source)
         self.assertIn("target_total_faces=35_000", source)
         self.assertNotIn('if _alignment_preview_detail_mode() == "full":\n                            return 0', source)
 
@@ -2694,6 +2710,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         source_limit = source[source_limit_start:source_limit_end]
         self.assertIn("if mesh_edit_enabled_checkbox.isChecked():", source_limit)
         self.assertNotIn("_alignment_mesh_edit_tab_active()", source_limit)
+        self.assertLess(
+            source_limit.index("if total_faces <= 80_000:"),
+            source_limit.index("if modify_original_clone_mode:"),
+        )
 
     def test_mesh_editor_parts_delete_requires_apply_and_unassigns_routes(self) -> None:
         source = _main_window_source()

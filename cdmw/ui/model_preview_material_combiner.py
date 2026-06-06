@@ -866,6 +866,20 @@ def _looks_like_technical_base(input_item: PreviewMaterialTextureInput) -> bool:
     )
 
 
+def _is_layer_only_base_color(input_item: PreviewMaterialTextureInput) -> bool:
+    decode = _registry_decode_for_input(input_item)
+    disposition = str(decode.get("disposition", "") or "").strip().lower()
+    source_kind = str(decode.get("source_kind", "") or "").strip().lower()
+    parameter_key = _parameter_key(input_item)
+    if disposition in {"layer_only", "layer_material_response", "layer_flow", "layer_direction"}:
+        return True
+    return bool(
+        source_kind.startswith("crimson_layer")
+        or source_kind in {"crimson_detail_mask", "crimson_skin_detail_mask", "crimson_dye_control"}
+        or any(token in parameter_key for token in ("detaildiffuse", "grimediffuse", "damageblendingdiffuse"))
+    )
+
+
 def _looks_like_visible_base(input_item: PreviewMaterialTextureInput) -> bool:
     semantic = _semantic_text(input_item)
     if any(token in semantic for token in ("basecolor", "overlaycolor", "diffuse", "albedo", "colortexture", "basetexture")):
@@ -2638,6 +2652,9 @@ def combine_preview_material(
     selected_base_low_authority = False
     base_candidates = [item for item in inputs if str(item.slot_kind or "").strip().lower() in {"base", "color", "emissive"}]
     for item in base_candidates:
+        if _is_layer_only_base_color(item):
+            notes.append(f"layer-only base rejected:{_texture_label(item.source_texture_path, item.texture_name)}")
+            continue
         if _looks_like_technical_base(item):
             notes.append(f"technical base rejected:{_texture_label(item.source_texture_path, item.texture_name)}")
             continue

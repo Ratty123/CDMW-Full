@@ -148,6 +148,33 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual("hkx_collision_shape", prepared.batches[0].editor_role)
         self.assertFalse(prepared.batches[0].editor_editable)
 
+    def test_original_reference_batches_are_not_mesh_edit_editable(self) -> None:
+        mesh = ModelPreviewMesh(
+            material_name="Body reference",
+            preview_role="original_reference",
+            source_submesh_index=2,
+            positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            source_vertex_indices=[10, 11, 12],
+            source_face_indices=[42],
+            indices=[0, 1, 2],
+        )
+        _model, prepared = prepare_model_preview(
+            ModelPreviewData(
+                path="body.pac",
+                format="pac",
+                mesh_count=1,
+                vertex_count=3,
+                face_count=1,
+                meshes=[mesh],
+            )
+        )
+
+        self.assertEqual(1, len(prepared.batches))
+        self.assertEqual("original_reference", prepared.batches[0].editor_role)
+        self.assertEqual(2, prepared.batches[0].source_submesh_index)
+        self.assertEqual((10, 11, 12), prepared.batches[0].source_vertex_indices)
+        self.assertFalse(prepared.batches[0].editor_editable)
+
     def test_render_settings_roundtrip_new_diagnostic_controls(self) -> None:
         for mode in MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES:
             settings = clamp_model_preview_render_settings(ModelPreviewRenderSettings(render_diagnostic_mode=mode))

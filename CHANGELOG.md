@@ -9,6 +9,20 @@ The format is intentionally simple:
 - `Fixed` for bug fixes
 - `Docs` for README, guide, or release-note changes
 
+## [0.10.0-alpha.2] - 2026-06-06
+
+### Changed
+- Changed Mesh Editor D3D11 preview packaging so Modify Original previews reuse Archive Preview material parity more closely, including texture settings, support-map toggles, and D3D11 view-mode controls.
+- Changed mesh-edit live updates to patch vertex buffers in place where possible instead of rebuilding full triangle payloads during brush/move strokes.
+
+### Fixed
+- Fixed Mesh Editor move/edit strokes freezing and corrupting the preview mesh because native vertex updates did not accept exponent-format float values reliably.
+- Fixed `Lighting / Texture Settings` changes in Mesh Editor not rebuilding D3D11 packages when texture/support-map settings changed.
+- Fixed skin/head texture selection in Mesh Editor by preventing prefab component material batches from overwriting same-local-index body/head batches and by keeping layer-only texture inputs from being promoted as whole-surface head albedo.
+
+### Docs
+- Updated release version references from `0.10.0-alpha.1` to `0.10.0-alpha.2` in the README and app version metadata.
+
 ## [0.10.0-alpha.1] - 2026-06-05
 
 ### Added

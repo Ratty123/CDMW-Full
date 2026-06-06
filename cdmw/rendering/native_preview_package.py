@@ -210,6 +210,9 @@ def _editor_identity_blob(
     vertex_count: int,
 ) -> Tuple[Dict[str, object], bytes]:
     source_submesh_index = _safe_int(getattr(batch, "source_submesh_index", -1), -1)
+    role = str(getattr(batch, "editor_role", "") or "")
+    role_key = role.strip().lower()
+    reference_role = "reference" in role_key or "original" in role_key
     raw_source_vertices = tuple(int(index) for index in tuple(getattr(batch, "source_vertex_indices", ()) or ()))
     raw_source_faces = tuple(int(index) for index in tuple(getattr(batch, "source_face_indices", ()) or ()))
     identity_blob = bytearray()
@@ -234,9 +237,9 @@ def _editor_identity_blob(
         "identity_file": "",
         "identity_offset": 0,
         "identity_size": len(identity_blob),
-        "role": str(getattr(batch, "editor_role", "") or ""),
+        "role": role,
         "part_name": str(getattr(batch, "editor_part_name", "") or ""),
-        "editable": bool(getattr(batch, "editor_editable", source_submesh_index >= 0)),
+        "editable": bool(getattr(batch, "editor_editable", source_submesh_index >= 0)) and not reference_role,
     }, bytes(identity_blob)
 
 
@@ -3065,9 +3068,58 @@ def _filter_dds_textures_for_preview_settings(
         and not bool(getattr(batch, "preview_debug_disable_support_maps", False))
         and not bool(getattr(render_settings, "disable_all_support_maps", False))
     )
+
+    def entry_source_key(entry: Mapping[str, object]) -> str:
+        source_path = str(entry.get("source_path", "") or "").strip()
+        if not source_path:
+            return ""
+        try:
+            return str(Path(source_path).expanduser().resolve()).casefold()
+        except OSError:
+            return source_path.casefold()
+
+    def entry_is_layer_only(entry: Mapping[str, object]) -> bool:
+        disposition = str(entry.get("disposition", "") or "").strip().lower()
+        source_kind = str(entry.get("registry_source_kind", "") or "").strip().lower()
+        parameter_key = _normalized_material_key(entry.get("parameter_name", ""))
+        return bool(
+            disposition in {"layer_only", "layer_material_response", "layer_flow", "layer_direction"}
+            or source_kind.startswith("crimson_layer")
+            or any(token in parameter_key for token in ("detaildiffuse", "grimediffuse", "damageblendingdiffuse"))
+        )
+
+    def entry_is_true_base(entry: Mapping[str, object]) -> bool:
+        disposition = str(entry.get("disposition", "") or "").strip().lower()
+        source_kind = str(entry.get("registry_source_kind", "") or "").strip().lower()
+        return bool(disposition == "promoted" and source_kind not in {"crimson_layer_color"})
+
+    input_entries = dds_textures.get("material_inputs")
+    raw_input_entries = (
+        [
+            dict(raw_entry)
+            for raw_entry in input_entries
+            if isinstance(raw_entry, Mapping) and _dds_manifest_entry_is_native_usable(raw_entry)
+        ]
+        if isinstance(input_entries, Sequence) and not isinstance(input_entries, (str, bytes, bytearray))
+        else []
+    )
+
+    def base_entry_is_layer_only_input(base_entry_value: object) -> bool:
+        if not isinstance(base_entry_value, Mapping):
+            return False
+        base_key = entry_source_key(base_entry_value)
+        if not base_key:
+            return False
+        matching_inputs = [entry for entry in raw_input_entries if entry_source_key(entry) == base_key]
+        return bool(
+            matching_inputs
+            and any(entry_is_layer_only(entry) for entry in matching_inputs)
+            and not any(entry_is_true_base(entry) for entry in matching_inputs)
+        )
+
     output: Dict[str, object] = {}
     base_entry = dds_textures.get("base")
-    if _dds_manifest_entry_is_native_usable(base_entry):
+    if _dds_manifest_entry_is_native_usable(base_entry) and not base_entry_is_layer_only_input(base_entry):
         output["base"] = dict(base_entry)
     if support_enabled:
         for slot_name, disabled_attr in (
@@ -3084,6 +3136,8 @@ def _filter_dds_textures_for_preview_settings(
                 output[slot_name] = dict(entry)
 
     def input_role(entry: Mapping[str, object]) -> str:
+        if entry_is_layer_only(entry):
+            return "material"
         descriptor = " ".join(
             str(entry.get(field, "") or "")
             for field in ("slot", "parameter_name", "semantic_type", "semantic_subtype", "source_path")
@@ -3110,14 +3164,9 @@ def _filter_dds_textures_for_preview_settings(
             return "opacity"
         return "material"
 
-    input_entries = dds_textures.get("material_inputs")
-    if isinstance(input_entries, Sequence) and not isinstance(input_entries, (str, bytes, bytearray)):
+    if raw_input_entries:
         filtered_inputs: list[Dict[str, object]] = []
-        for raw_entry in input_entries:
-            if not isinstance(raw_entry, Mapping):
-                continue
-            if not _dds_manifest_entry_is_native_usable(raw_entry):
-                continue
+        for raw_entry in raw_input_entries:
             role = input_role(raw_entry)
             if role in {"base", "emissive"}:
                 filtered_inputs.append(dict(raw_entry))
@@ -3257,6 +3306,8 @@ def _texture_sources_for_batch(
             return str(entry.get("source_path", "") or "").casefold()
 
     def _source_identity(source_path: str) -> str:
+        if not str(source_path or "").strip():
+            return ""
         try:
             return str(Path(str(source_path or "")).expanduser().resolve()).casefold()
         except OSError:
@@ -3340,6 +3391,78 @@ def _texture_sources_for_batch(
         dds_path = _source_dds_for_preview_path(preview_path)
         return bool(dds_path and _direct_dds_available_for_source(dds_path))
 
+    def _texture_input_source_keys(texture_input: PreviewMaterialTextureInput) -> set[str]:
+        keys: set[str] = set()
+        for raw_source in (
+            getattr(texture_input, "source_dds_path", ""),
+            getattr(texture_input, "source_texture_path", ""),
+            getattr(texture_input, "preview_texture_path", ""),
+            getattr(texture_input, "texture_name", ""),
+        ):
+            source_text = str(raw_source or "").strip()
+            if not source_text:
+                continue
+            keys.add(_source_identity(source_text))
+            try:
+                keys.add(Path(source_text).expanduser().name.casefold())
+            except OSError:
+                pass
+        return {key for key in keys if key}
+
+    def _base_preview_is_layer_only_input() -> bool:
+        base_sources = {
+            _source_identity(str(getattr(batch, "preview_texture_dds_path", "") or "")),
+            _source_identity(str(getattr(batch, "preview_texture_path", "") or "")),
+        }
+        try:
+            base_sources.add(Path(str(getattr(batch, "preview_texture_path", "") or "")).expanduser().name.casefold())
+        except OSError:
+            pass
+        try:
+            base_sources.add(Path(str(getattr(batch, "preview_texture_dds_path", "") or "")).expanduser().name.casefold())
+        except OSError:
+            pass
+        base_sources = {source for source in base_sources if source}
+        if not base_sources:
+            return False
+        matched_layer_input = False
+        matched_true_base = False
+        for texture_input in material_inputs:
+            if not isinstance(texture_input, PreviewMaterialTextureInput):
+                continue
+            input_keys = _texture_input_source_keys(texture_input)
+            if not input_keys or not (base_sources & input_keys):
+                continue
+            registry_decode = decode_crimson_texture_binding(
+                shader_family=str(getattr(texture_input, "shader_family", "") or ""),
+                parameter_name=str(getattr(texture_input, "parameter_name", "") or ""),
+                source_path=str(
+                    getattr(texture_input, "source_dds_path", "")
+                    or getattr(texture_input, "source_texture_path", "")
+                    or getattr(texture_input, "preview_texture_path", "")
+                    or ""
+                ),
+                slot_name=str(getattr(texture_input, "slot_kind", "") or "base"),
+                semantic_subtype=str(getattr(texture_input, "semantic_subtype", "") or ""),
+                packed_channels=tuple(getattr(texture_input, "packed_channels", ()) or ()),
+                layer_channel=str(getattr(texture_input, "layer_channel", "") or ""),
+                blend_flags=tuple(getattr(texture_input, "blend_flags", ()) or ()),
+                sidecar_kind=str(getattr(texture_input, "sidecar_kind", "") or ""),
+                parameter_declared_by=str(getattr(texture_input, "parameter_declared_by", "") or ""),
+            )
+            disposition = str(registry_decode.get("disposition", "") or "").strip().lower()
+            source_kind = str(registry_decode.get("source_kind", "") or "").strip().lower()
+            parameter_key = _normalized_material_key(getattr(texture_input, "parameter_name", ""))
+            if disposition == "promoted" and source_kind != "crimson_layer_color":
+                matched_true_base = True
+            if (
+                disposition in {"layer_only", "layer_material_response", "layer_flow", "layer_direction"}
+                or source_kind.startswith("crimson_layer")
+                or any(token in parameter_key for token in ("detaildiffuse", "grimediffuse", "damageblendingdiffuse"))
+            ):
+                matched_layer_input = True
+        return bool(matched_layer_input and not matched_true_base)
+
     def package_relative(source_ref: str, slot_name: str) -> str:
         raw = str(source_ref or "").strip()
         if not raw:
@@ -3375,7 +3498,9 @@ def _texture_sources_for_batch(
 
     base_path = str(getattr(batch, "preview_texture_path", "") or "")
     if base_path:
-        if has_direct_dds("base"):
+        if _base_preview_is_layer_only_input():
+            notes.append("base texturelayer kept masked; whole-surface base skipped")
+        elif has_direct_dds("base"):
             notes.append("base PNG fallback skipped; direct DDS available")
         else:
             textures["base"] = _copy_texture(
@@ -3845,10 +3970,10 @@ def _d3d11_material_policy_for_batch(
     role = str(getattr(batch, "editor_role", "") or "").strip().lower()
     workspace = str(editor_workspace or "").strip().lower()
     if role == "original_reference" and original_reference_material_parity:
-        return False, True, "original_reference_archive_direct"
+        return bool(enable_material_combiner), True, "original_reference_archive_parity"
     if role == "replacement_preview":
         if workspace == "modify_original_alignment" and original_reference_material_parity:
-            return False, True, "modify_original_archive_direct"
+            return bool(enable_material_combiner), True, "modify_original_archive_parity"
         return False, bool(prefer_direct_dds), "replacement_source_direct"
     return bool(enable_material_combiner), bool(prefer_direct_dds), "global"
 
@@ -4056,10 +4181,7 @@ def write_isolated_d3d11_preview_package(
             original_reference_material_parity=bool(original_reference_material_parity),
             editor_workspace=editor_workspace,
         )
-        archive_direct_material_policy = material_policy in {
-            "original_reference_archive_direct",
-            "modify_original_archive_direct",
-        }
+        archive_direct_material_policy = False
         dds_started = time.perf_counter()
         material_input_kinds = None if support_dds_enabled else {"base", "emissive"}
         dds_manifest_cache_key = _batch_dds_manifest_cache_key(
@@ -4110,13 +4232,13 @@ def write_isolated_d3d11_preview_package(
         if trace_enabled:
             load_trace["texture_copy_ms"] = float(load_trace.get("texture_copy_ms", 0.0)) + max(0.0, (time.perf_counter() - texture_started) * 1000.0)
         _record_unique_texture_manifest(textures, dds_textures)
-        if material_policy == "original_reference_archive_direct":
+        if material_policy == "original_reference_archive_parity":
             notes = tuple(notes) + (
-                "original reference material policy: direct archive DDS upload; synthesized material combiner disabled",
+                "original reference material policy: archive preview material combiner enabled",
             )
-        elif material_policy == "modify_original_archive_direct":
+        elif material_policy == "modify_original_archive_parity":
             notes = tuple(notes) + (
-                "modify-original material policy: direct archive DDS upload; synthesized material combiner disabled",
+                "modify-original material policy: archive preview material combiner enabled",
             )
         elif material_policy == "replacement_source_direct":
             notes = tuple(notes) + (

@@ -2,7 +2,7 @@ import copy
 import struct
 import unittest
 
-from cdmw.modding.mesh_deformer import delete_faces_touching_vertices
+from cdmw.modding.mesh_deformer import apply_brush_deformation, delete_faces_touching_vertices
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, _parse_par_sections, parse_pac
 from cdmw.modding.static_mesh_replacer import (
     StaticIndependentPart,
@@ -18,6 +18,9 @@ from cdmw.modding.static_mesh_replacer import (
     build_static_mesh_replacement,
     build_static_replacement_preview_mesh,
     plan_static_output_draw_sections,
+    source_delta_for_transformed_delta,
+    source_distance_for_transformed_distance,
+    source_point_for_transformed_point,
     suggest_static_submesh_mappings,
 )
 
@@ -83,6 +86,327 @@ def test_transformed_sources_can_freeze_alignment_basis_for_live_mesh_edits() ->
     assert base_vertices[0] == edited_vertices[0]
     assert base_vertices[1] == edited_vertices[1]
     assert base_vertices[2] != edited_vertices[2]
+
+
+def test_source_delta_for_transformed_delta_inverts_live_mesh_edit_transform() -> None:
+    original = _mesh(
+        "original.pac",
+        [
+            SubMesh(
+                name="target",
+                material="target",
+                vertices=[
+                    (0.0, 0.0, 0.0),
+                    (4.0, 0.0, 0.0),
+                    (0.0, 9.0, 0.0),
+                    (0.0, 0.0, 2.0),
+                ],
+                faces=[(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)],
+            )
+        ],
+    )
+    replacement = _mesh(
+        "replacement.pac",
+        [
+            SubMesh(
+                name="source",
+                material="source",
+                vertices=[
+                    (-1.0, -1.5, -2.5),
+                    (1.0, -1.5, -2.5),
+                    (-1.0, 1.5, -2.5),
+                    (-1.0, -1.5, 2.5),
+                ],
+                faces=[(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)],
+            )
+        ],
+    )
+    transform = StaticReplacementTransform(
+        alignment_mode="manual",
+        source_anchor=(0.0, 0.0, 0.0),
+        target_anchor=(0.0, 0.0, 0.0),
+        source_axis=(0.0, 0.0, 1.0),
+        target_axis=(0.0, 0.0, 1.0),
+        rotate_xyz_degrees=(0.0, 0.0, 90.0),
+        scale_xyz=(1.5, 0.75, 2.0),
+        offset_xyz=(5.0, -2.0, 1.0),
+        fit_to_original_bbox=True,
+        preserve_aspect_ratio=False,
+        scale_to_original_length=False,
+    )
+    adjustments = [
+        StaticSourcePartAdjustment(
+            source_submesh_index=0,
+            rotate_xyz_degrees=(0.0, 35.0, 0.0),
+            scale_xyz=(2.0, 0.5, 1.25),
+            uniform_scale=0.8,
+        )
+    ]
+    displayed_delta = (0.35, -0.20, 0.45)
+
+    source_delta = source_delta_for_transformed_delta(
+        original,
+        replacement,
+        transform,
+        0,
+        displayed_delta,
+        source_part_adjustments=adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )
+    before = _transformed_replacement_sources(
+        original,
+        replacement,
+        transform,
+        adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )[0].vertices[0]
+    edited = copy.deepcopy(replacement)
+    edited.submeshes[0].vertices[0] = tuple(
+        float(edited.submeshes[0].vertices[0][axis]) + source_delta[axis]
+        for axis in range(3)
+    )
+    after = _transformed_replacement_sources(
+        original,
+        edited,
+        transform,
+        adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )[0].vertices[0]
+
+    actual_delta = tuple(after[axis] - before[axis] for axis in range(3))
+    for axis in range(3):
+        assert abs(actual_delta[axis] - displayed_delta[axis]) <= 1e-6
+
+
+def test_source_point_for_transformed_point_inverts_live_mesh_edit_transform() -> None:
+    original = _mesh(
+        "original.pac",
+        [
+            SubMesh(
+                name="target",
+                material="target",
+                vertices=[
+                    (0.0, 0.0, 0.0),
+                    (4.0, 0.0, 0.0),
+                    (0.0, 9.0, 0.0),
+                    (0.0, 0.0, 2.0),
+                ],
+                faces=[(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)],
+            )
+        ],
+    )
+    replacement = _mesh(
+        "replacement.pac",
+        [
+            SubMesh(
+                name="source",
+                material="source",
+                vertices=[
+                    (-1.0, -1.5, -2.5),
+                    (1.0, -1.5, -2.5),
+                    (-1.0, 1.5, -2.5),
+                    (-1.0, -1.5, 2.5),
+                ],
+                faces=[(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)],
+            )
+        ],
+    )
+    transform = StaticReplacementTransform(
+        alignment_mode="manual",
+        source_anchor=(0.0, 0.0, 0.0),
+        target_anchor=(0.0, 0.0, 0.0),
+        source_axis=(0.0, 0.0, 1.0),
+        target_axis=(0.0, 0.0, 1.0),
+        rotate_xyz_degrees=(0.0, 0.0, 90.0),
+        scale_xyz=(1.5, 0.75, 2.0),
+        offset_xyz=(5.0, -2.0, 1.0),
+        fit_to_original_bbox=True,
+        preserve_aspect_ratio=False,
+        scale_to_original_length=False,
+    )
+    adjustments = [
+        StaticSourcePartAdjustment(
+            source_submesh_index=0,
+            offset_xyz=(0.25, -0.5, 0.75),
+            rotate_xyz_degrees=(0.0, 35.0, 0.0),
+            scale_xyz=(2.0, 0.5, 1.25),
+            uniform_scale=0.8,
+        )
+    ]
+    displayed_point = _transformed_replacement_sources(
+        original,
+        replacement,
+        transform,
+        adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )[0].vertices[2]
+
+    source_point = source_point_for_transformed_point(
+        original,
+        replacement,
+        transform,
+        0,
+        displayed_point,
+        source_part_adjustments=adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )
+
+    for axis in range(3):
+        assert abs(source_point[axis] - replacement.submeshes[0].vertices[2][axis]) <= 1e-6
+
+
+def test_source_distance_for_transformed_distance_uses_uniform_live_edit_scale() -> None:
+    original = _mesh(
+        "original.pac",
+        [
+            SubMesh(
+                name="target",
+                material="target",
+                vertices=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )
+        ],
+    )
+    replacement = _mesh(
+        "replacement.pac",
+        [
+            SubMesh(
+                name="source",
+                material="source",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )
+        ],
+    )
+    transform = StaticReplacementTransform(
+        alignment_mode="manual",
+        source_anchor=(0.0, 0.0, 0.0),
+        target_anchor=(0.0, 0.0, 0.0),
+        scale_xyz=(4.0, 4.0, 4.0),
+        scale_to_original_length=False,
+    )
+
+    source_distance = source_distance_for_transformed_distance(
+        original,
+        replacement,
+        transform,
+        0,
+        8.0,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )
+
+    assert abs(source_distance - 2.0) <= 1e-6
+
+
+def test_display_space_push_pull_delta_round_trips_to_source_mesh() -> None:
+    original = _mesh(
+        "original.pac",
+        [
+            SubMesh(
+                name="target",
+                material="target",
+                vertices=[
+                    (0.0, 0.0, 0.0),
+                    (6.0, 0.0, 0.0),
+                    (0.0, 4.0, 0.0),
+                    (0.0, 0.0, 5.0),
+                ],
+                faces=[(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)],
+            )
+        ],
+    )
+    replacement = _mesh(
+        "replacement.pac",
+        [
+            SubMesh(
+                name="source",
+                material="source",
+                vertices=[
+                    (-0.5, -0.5, 0.0),
+                    (0.5, -0.5, 0.0),
+                    (-0.5, 0.5, 0.0),
+                    (-0.5, -0.5, 0.5),
+                ],
+                normals=[(0.0, 0.0, 1.0)] * 4,
+                faces=[(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)],
+            )
+        ],
+    )
+    transform = StaticReplacementTransform(
+        alignment_mode="manual",
+        source_anchor=(0.0, 0.0, 0.0),
+        target_anchor=(0.0, 0.0, 0.0),
+        rotate_xyz_degrees=(12.0, -30.0, 45.0),
+        scale_xyz=(8.0, 0.5, 3.0),
+        fit_to_original_bbox=True,
+        preserve_aspect_ratio=False,
+        scale_to_original_length=False,
+    )
+    adjustments = [
+        StaticSourcePartAdjustment(
+            source_submesh_index=0,
+            rotate_xyz_degrees=(0.0, 25.0, 10.0),
+            scale_xyz=(0.4, 2.5, 1.2),
+            uniform_scale=1.5,
+        )
+    ]
+    displayed_before = _transformed_replacement_sources(
+        original,
+        replacement,
+        transform,
+        adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )[0]
+    displayed_edit = copy.deepcopy(displayed_before)
+    changed = apply_brush_deformation(
+        displayed_edit,
+        tool="inflate",
+        center=displayed_before.vertices[0],
+        radius=1.0,
+        strength=1.0,
+        amount=0.25,
+        vertex_indices=[0],
+        vertex_weights={0: 1.0},
+        recompute_normals=False,
+    )
+    assert changed == [0]
+    displayed_delta = tuple(
+        displayed_edit.vertices[0][axis] - displayed_before.vertices[0][axis]
+        for axis in range(3)
+    )
+    source_delta = source_delta_for_transformed_delta(
+        original,
+        replacement,
+        transform,
+        0,
+        displayed_delta,
+        source_part_adjustments=adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )
+    edited = copy.deepcopy(replacement)
+    edited.submeshes[0].vertices[0] = tuple(
+        edited.submeshes[0].vertices[0][axis] + source_delta[axis]
+        for axis in range(3)
+    )
+    displayed_after = _transformed_replacement_sources(
+        original,
+        edited,
+        transform,
+        adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )[0]
+
+    for axis in range(3):
+        assert abs(displayed_after.vertices[0][axis] - displayed_edit.vertices[0][axis]) <= 1e-6
 
 
 def _minimal_pac_original() -> tuple[bytes, ParsedMesh]:

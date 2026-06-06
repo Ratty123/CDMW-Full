@@ -763,7 +763,7 @@ static bool json_bool_field(const std::string& object, const std::string& name, 
 }
 
 static float json_float_field(const std::string& object, const std::string& name, float fallback = 0.0f) {
-    std::regex pattern("\"" + name + "\"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)");
+    std::regex pattern("\"" + name + "\"\\s*:\\s*(-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)");
     std::smatch match;
     if (!std::regex_search(object, match, pattern)) return fallback;
     try {
@@ -881,7 +881,7 @@ static std::vector<float> json_float_array_field(const std::string& object, cons
     std::smatch match;
     if (!std::regex_search(object, match, pattern)) return values;
     std::string array_text = match[1].str();
-    std::regex item_pattern("-?\\d+(?:\\.\\d+)?");
+    std::regex item_pattern("-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?");
     auto begin = std::sregex_iterator(array_text.begin(), array_text.end(), item_pattern);
     auto end = std::sregex_iterator();
     for (auto it = begin; it != end; ++it) {
@@ -1245,7 +1245,7 @@ static void parse_float3_array_field(const std::string& object, const std::strin
     std::smatch match;
     if (!std::regex_search(object, match, pattern)) return;
     std::string values = match[1].str();
-    std::regex number_pattern("-?\\d+(?:\\.\\d+)?");
+    std::regex number_pattern("-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?");
     auto begin = std::sregex_iterator(values.begin(), values.end(), number_pattern);
     auto end = std::sregex_iterator();
     int index = 0;
@@ -1378,6 +1378,10 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.prefab_component = json_bool_field(editor_identity, "prefab_component", false);
         batch.editor_role = lower_copy(json_string_field(editor_identity, "role"));
         batch.editor_editable = json_bool_field(editor_identity, "editable", batch.source_submesh_index >= 0);
+        if (batch.editor_role.find("original") != std::string::npos
+            || batch.editor_role.find("reference") != std::string::npos) {
+            batch.editor_editable = false;
+        }
         batch.cloth.available = json_bool_field(object, "cloth_enabled", false);
         if (batch.cloth.available) {
             batch.cloth.kind = lower_copy(json_string_field(object, "cloth_kind", "cloth"));
@@ -4684,7 +4688,7 @@ private:
     }
 
     bool alignment_batch_active(const PreviewBatch& batch) const {
-        if (batch_is_reference(batch) || !batch.editor_editable) return false;
+        if (!alignment_.enabled || batch_is_reference(batch) || !batch.editor_editable) return false;
         return alignment_.selected_source_submeshes.empty()
             || alignment_.selected_source_submeshes.find(batch.source_submesh_index) != alignment_.selected_source_submeshes.end();
     }

@@ -751,6 +751,154 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertTrue(batch["dds_textures"]["base"]["promoted_from_material_input"])
             self.assertIn("base PNG fallback skipped", " ".join(batch["notes"]))
 
+    def test_skin_detail_diffuse_texturelayer_is_not_used_as_whole_head_base(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            detail_png = temp_path / "cd_texturelayer_003_0005.png"
+            detail_dds = temp_path / "cd_texturelayer_003_0005.dds"
+            detail_image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+            detail_image.fill(QColor(190, 162, 132, 255))
+            self.assertTrue(detail_image.save(str(detail_png), "PNG"))
+            detail_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001_damian.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHW_00_Head_00_0001_01",
+                        texture_name="CD_PHW_00_Head_00_0001_01",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(detail_png),
+                        preview_texture_dds_path=str(detail_dds),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="base",
+                                parameter_name="_detailDiffuseMaskB",
+                                source_texture_path="character/texture/cd_texturelayer_003_0005.dds",
+                                source_dds_path=str(detail_dds),
+                                texture_name="cd_texturelayer_003_0005.dds",
+                                preview_texture_path=str(detail_png),
+                                semantic_type="color",
+                                semantic_subtype="base_color",
+                                material_name="CD_PHW_00_Head_00_0001_01",
+                                shader_family="SkinnedMeshSkin",
+                                visualized=True,
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                        editor_role="replacement_preview",
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="head.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=False,
+                prefer_direct_dds=True,
+                editor_workspace="modify_original_alignment",
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+
+            self.assertEqual("", batch["textures"]["base"])
+            self.assertNotIn("base", batch["dds_textures"])
+            self.assertIn("material_inputs", batch["dds_textures"])
+            self.assertEqual("layer_only", batch["dds_textures"]["material_inputs"][0]["disposition"])
+            self.assertIn("base texturelayer kept masked", " ".join(batch["notes"]))
+
+    def test_modify_original_skin_head_uses_archive_combiner_for_layer_only_base(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            detail_png = temp_path / "cd_texturelayer_003_0005.png"
+            detail_dds = temp_path / "cd_texturelayer_003_0005.dds"
+            detail_image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+            detail_image.fill(QColor(190, 162, 132, 255))
+            self.assertTrue(detail_image.save(str(detail_png), "PNG"))
+            detail_dds.write_bytes(_minimal_bc_dds(b"DXT1"))
+            mask_png = temp_path / "cd_phw_00_uw_00_0001_mg.png"
+            mask_image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+            mask_image.fill(QColor(64, 128, 192, 255))
+            self.assertTrue(mask_image.save(str(mask_png), "PNG"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            prepared = PreparedModelPreviewData(
+                source_path="character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001_damian.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="CD_PHW_00_Head_00_0001_01",
+                        texture_name="CD_PHW_00_Head_00_0001_01",
+                        vertex_blob=blob,
+                        index_count=3,
+                        preview_texture_path=str(detail_png),
+                        preview_texture_dds_path=str(detail_dds),
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="base",
+                                parameter_name="_detailDiffuseMaskB",
+                                source_texture_path="character/texture/cd_texturelayer_003_0005.dds",
+                                source_dds_path=str(detail_dds),
+                                texture_name="cd_texturelayer_003_0005.dds",
+                                preview_texture_path=str(detail_png),
+                                semantic_type="color",
+                                semantic_subtype="base_color",
+                                material_name="CD_PHW_00_Head_00_0001_01",
+                                shader_family="SkinnedMeshSkin",
+                                visualized=True,
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="detail",
+                                parameter_name="_colorBlendingMaskTexture",
+                                source_texture_path="character/texture/cd_phw_00_uw_00_0001_mg.dds",
+                                texture_name="cd_phw_00_uw_00_0001_mg.dds",
+                                preview_texture_path=str(mask_png),
+                                semantic_type="mask",
+                                semantic_subtype="detail_mask",
+                                material_name="CD_PHW_00_Head_00_0001_01",
+                                shader_family="SkinnedMeshSkin",
+                                visualized=True,
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                        editor_role="replacement_preview",
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="head.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                enable_material_combiner=True,
+                prefer_direct_dds=True,
+                editor_workspace="modify_original_alignment",
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+
+            self.assertEqual("modify_original_archive_parity", batch["material_combiner_policy"])
+            self.assertTrue(batch["material_combiner_enabled"])
+            self.assertTrue(batch["material_combiner_active"])
+            self.assertIn("combined", batch["textures"]["base"])
+            self.assertTrue(batch["prefer_generated_base_texture"])
+            self.assertNotIn("base", batch["dds_textures"])
+            joined_notes = " ".join(batch["notes"])
+            self.assertIn("archive preview material combiner enabled", joined_notes)
+            self.assertIn("layer-only base rejected", joined_notes)
+            self.assertIn("albedo synthesized", joined_notes)
+            self.assertTrue(batch["material_base_policy"]["no_reliable_full_base_albedo"])
+
     def test_alignment_package_uses_archive_parity_material_policy_for_original_reference_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -874,14 +1022,16 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
             reference_batch, replacement_batch = manifest["batches"]
-            self.assertEqual("original_reference_archive_direct", reference_batch["material_combiner_policy"])
-            self.assertFalse(reference_batch["material_combiner_enabled"])
+            self.assertEqual("original_reference_archive_parity", reference_batch["material_combiner_policy"])
+            self.assertFalse(reference_batch["editor_identity"]["editable"])
+            self.assertTrue(reference_batch["material_combiner_enabled"])
             self.assertTrue(reference_batch["prefer_direct_dds"])
-            self.assertFalse(reference_batch["material_combiner_active"])
-            self.assertNotIn("combined", reference_batch["textures"]["base"])
+            self.assertTrue(reference_batch["material_combiner_active"])
+            self.assertIn("combined", reference_batch["textures"]["base"])
             self.assertTrue(any("original reference material policy" in note for note in reference_batch["notes"]))
 
             self.assertEqual("replacement_source_direct", replacement_batch["material_combiner_policy"])
+            self.assertTrue(replacement_batch["editor_identity"]["editable"])
             self.assertFalse(replacement_batch["material_combiner_enabled"])
             self.assertTrue(replacement_batch["prefer_direct_dds"])
             self.assertFalse(replacement_batch["material_combiner_active"])
@@ -900,11 +1050,9 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             _modify_reference_batch, modify_replacement_batch = read_isolated_d3d11_preview_manifest(
                 modify_original_package_dir
             )["batches"]
-            self.assertEqual("modify_original_archive_direct", modify_replacement_batch["material_combiner_policy"])
-            self.assertFalse(modify_replacement_batch["material_combiner_enabled"])
+            self.assertEqual("modify_original_archive_parity", modify_replacement_batch["material_combiner_policy"])
+            self.assertTrue(modify_replacement_batch["material_combiner_enabled"])
             self.assertTrue(modify_replacement_batch["prefer_direct_dds"])
-            self.assertFalse(modify_replacement_batch["material_combiner_active"])
-            self.assertNotIn("combined", modify_replacement_batch["textures"]["base"])
             self.assertTrue(
                 any("modify-original material policy" in note for note in modify_replacement_batch["notes"])
             )
@@ -930,7 +1078,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual("replacement_source_direct", fast_replacement_batch["material_combiner_policy"])
             self.assertFalse(fast_replacement_batch["material_combiner_enabled"])
 
-    def test_modify_original_archive_direct_keeps_only_selected_dds_slots(self) -> None:
+    def test_modify_original_archive_parity_keeps_material_inputs_visible_to_combiner(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             base_dds = temp_path / "body.dds"
@@ -984,10 +1132,10 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             )
 
             batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
-            self.assertEqual("modify_original_archive_direct", batch["material_combiner_policy"])
-            self.assertFalse(batch["material_combiner_active"])
+            self.assertEqual("modify_original_archive_parity", batch["material_combiner_policy"])
+            self.assertTrue(batch["material_combiner_enabled"])
             self.assertIn("base", batch["dds_textures"])
-            self.assertNotIn("height", batch["dds_textures"])
+            self.assertIn("height", batch["dds_textures"])
             self.assertEqual(1, len(batch["dds_textures"]["material_inputs"]))
             self.assertEqual("height", batch["dds_textures"]["material_inputs"][0]["slot"])
 
