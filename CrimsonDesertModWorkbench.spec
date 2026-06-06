@@ -1,13 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 from pathlib import Path
+import sys
 
 from PyInstaller.utils.hooks import collect_all
 
 
 ROOT = Path(SPECPATH).resolve()
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from cdmw.build_metadata import write_windows_version_resource
+
 MODE = os.environ.get("CDMW_PYINSTALLER_MODE", "onefile").strip().lower()
 PROFILE = os.environ.get("CDMW_PYINSTALLER_PROFILE", "release").strip().lower()
+version_info_path = write_windows_version_resource(ROOT / "build" / "pyinstaller-version-info.txt")
 
 if MODE not in {"onefile", "onedir"}:
     raise SystemExit(f"Unsupported CDMW_PYINSTALLER_MODE: {MODE!r}")
@@ -76,6 +83,29 @@ unused_qt_modules = [
     "PySide6.QtWebEngineQuick",
     "PySide6.QtWebEngineWidgets",
 ]
+
+unused_qt_runtime_payloads = {
+    "PySide6\\Qt6Pdf.dll",
+    "PySide6\\Qt6Qml.dll",
+    "PySide6\\Qt6QmlMeta.dll",
+    "PySide6\\Qt6QmlModels.dll",
+    "PySide6\\Qt6QmlWorkerScript.dll",
+    "PySide6\\Qt6Quick.dll",
+    "PySide6\\Qt6VirtualKeyboard.dll",
+    "PySide6\\plugins\\imageformats\\qpdf.dll",
+    "PySide6\\plugins\\platforminputcontexts\\qtvirtualkeyboardplugin.dll",
+}
+
+
+def _toc_entry_name(entry):
+    if not isinstance(entry, tuple) or not entry:
+        return ""
+    return str(entry[0]).replace("/", "\\")
+
+
+def _exclude_collected_payloads(entries, names):
+    blocked = {name.casefold() for name in names}
+    return [entry for entry in entries if _toc_entry_name(entry).casefold() not in blocked]
 
 _add_data_if_exists(datas, "assets/cdmw.ico", "assets")
 _add_data_if_exists(datas, "assets/cdmw.png", "assets")
@@ -165,6 +195,8 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+a.binaries = _exclude_collected_payloads(a.binaries, unused_qt_runtime_payloads)
+a.datas = _exclude_collected_payloads(a.datas, unused_qt_runtime_payloads)
 pyz = PYZ(a.pure)
 
 if MODE == "onefile":
@@ -187,6 +219,9 @@ if MODE == "onefile":
         target_arch=None,
         codesign_identity=None,
         entitlements_file=None,
+        version=str(version_info_path),
+        uac_admin=False,
+        uac_uiaccess=False,
         icon=[str(icon_path)] if icon_path.exists() else None,
     )
 else:
@@ -206,6 +241,9 @@ else:
         target_arch=None,
         codesign_identity=None,
         entitlements_file=None,
+        version=str(version_info_path),
+        uac_admin=False,
+        uac_uiaccess=False,
         icon=[str(icon_path)] if icon_path.exists() else None,
     )
     coll = COLLECT(

@@ -86,6 +86,24 @@ class RuntimeDependencySourceGuardTests(unittest.TestCase):
         ):
             self.assertIn(f'"{module_name}"', source)
         self.assertIn("*unused_qt_modules", source)
+        self.assertIn("unused_qt_runtime_payloads", source)
+        for payload_name in (
+            "PySide6\\Qt6Qml.dll",
+            "PySide6\\Qt6Quick.dll",
+            "PySide6\\Qt6VirtualKeyboard.dll",
+            "PySide6\\plugins\\platforminputcontexts\\qtvirtualkeyboardplugin.dll",
+            "PySide6\\plugins\\imageformats\\qpdf.dll",
+        ):
+            self.assertIn(payload_name.replace("\\", "\\\\"), source)
+
+    def test_pyinstaller_spec_embeds_windows_version_metadata_without_elevation(self) -> None:
+        source = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
+
+        self.assertIn("write_windows_version_resource", source)
+        self.assertIn("pyinstaller-version-info.txt", source)
+        self.assertEqual(source.count("version=str(version_info_path)"), 2)
+        self.assertEqual(source.count("uac_admin=False"), 2)
+        self.assertEqual(source.count("uac_uiaccess=False"), 2)
 
     def test_windows_builder_uses_maintained_spec(self) -> None:
         source = Path("build_pyside6_app.ps1").read_text(encoding="utf-8")
