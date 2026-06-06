@@ -64218,8 +64218,36 @@ def run_gui() -> int:
                     source_index: int,
                     texture_sets_by_key: Mapping[str, object],
                 ) -> str:
+                    source = None
+                    if replacement_mesh_for_mapping is not None and 0 <= source_index < len(replacement_mesh_for_mapping.submeshes):
+                        source = replacement_mesh_for_mapping.submeshes[source_index]
+                        explicit_key = str(getattr(source, "cdmw_source_texture_set_key", "") or "").strip()
+                        if explicit_key:
+                            return explicit_key
                     texture_set = _texture_set_for_source_index(source_index, texture_sets_by_key)
                     material_name = str(getattr(texture_set, "material_name", "") or "").strip() if texture_set is not None else ""
+                    material_key = material_name.lower()
+                    if not material_key and source is not None:
+                        material_key = str(getattr(source, "material", "") or getattr(source, "name", "") or "").strip().lower()
+                    if material_key and replacement_mesh_for_mapping is not None:
+                        duplicate_count = 0
+                        for candidate in replacement_mesh_for_mapping.submeshes:
+                            candidate_texture_set = _texture_set_for_source_texture_reference(candidate, texture_sets_by_key)
+                            candidate_key = (
+                                str(getattr(candidate_texture_set, "material_name", "") or "").strip().lower()
+                                if candidate_texture_set is not None
+                                else ""
+                            )
+                            if not candidate_key:
+                                candidate_key = str(getattr(candidate, "material", "") or getattr(candidate, "name", "") or "").strip().lower()
+                            if candidate_key == material_key:
+                                duplicate_count += 1
+                        adjustment = source_part_adjustments.get(source_index)
+                        if duplicate_count > 1 and adjustment is not None:
+                            role = str(getattr(adjustment, "material_role", "") or "").strip()
+                            glow_rgb = tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())
+                            if role or glow_rgb:
+                                return f"__source_part_{source_index}_{material_key}"
                     if material_name:
                         return material_name
                     if replacement_mesh_for_mapping is None or source_index < 0 or source_index >= len(replacement_mesh_for_mapping.submeshes):
@@ -64931,6 +64959,48 @@ def run_gui() -> int:
                 def _complete_external_swap_mappings() -> List[StaticSubmeshMapping]:
                     if original_mesh_for_mapping is None or replacement_mesh_for_mapping is None:
                         return list(suggested_mappings or [])
+                    mapping_table_ready = True
+                    try:
+                        mapping_table_ready = bool(mapping_table_build_state.get("complete", True))
+                    except NameError:
+                        mapping_table_ready = True
+                    if mapping_edits and mapping_table_ready:
+                        render_source_indices = {
+                            source_index
+                            for source_index, source in enumerate(replacement_mesh_for_mapping.submeshes)
+                            if (
+                                not _is_marker_source(source)
+                                and source_index not in preview_only_source_indices
+                                and source_part_adjustments.get(source_index, StaticSourcePartAdjustment(source_index)).enabled
+                            )
+                        }
+                        parsed_mappings: List[StaticSubmeshMapping] = []
+                        for target_index, edit in mapping_edits:
+                            source_indices: List[int] = []
+                            raw_text = str(edit.property("committed_mapping_text") or edit.text() or "").strip()
+                            for raw_part in re.split(r"[,;\s]+", raw_text):
+                                part = raw_part.strip()
+                                if not part:
+                                    continue
+                                try:
+                                    source_index = int(part)
+                                except (TypeError, ValueError):
+                                    continue
+                                if source_index not in render_source_indices or source_index in source_indices:
+                                    continue
+                                source_indices.append(source_index)
+                            target = original_mesh_for_mapping.submeshes[target_index]
+                            parsed_mappings.append(
+                                StaticSubmeshMapping(
+                                    target_submesh_index=target_index,
+                                    target_submesh_name=getattr(target, "material", "") or getattr(target, "name", "") or f"target {target_index}",
+                                    source_submesh_indices=source_indices,
+                                    target_material_slot_index=target_index,
+                                    merge_sources=True,
+                                )
+                            )
+                        if parsed_mappings:
+                            return parsed_mappings
                     source_groups: "OrderedDict[str, List[int]]" = OrderedDict()
                     source_face_counts: Dict[str, int] = {}
                     source_initial_targets: Dict[str, Counter[int]] = defaultdict(Counter)
@@ -65987,12 +66057,6 @@ def run_gui() -> int:
 
                 def _set_selected_source_glow_color() -> None:
                     _push_geometry_undo_snapshot("Change accent glow color")
-                    self.settings.setValue(
-                        "settings/complete_swap_accent_glow_color_enabled",
-                        "1" if part_glow_color_checkbox.isChecked() else "0",
-                    )
-                    rgb = _selected_part_glow_rgb_from_controls()
-                    self.settings.setValue("settings/complete_swap_accent_glow_color_rgb", ",".join(str(value) for value in rgb))
                     _apply_current_glow_color_to_role_overrides()
                     texture_overrides_dirty["dirty"] = True
                     _refresh_part_glow_color_controls_enabled()
@@ -78225,11 +78289,13 @@ def run_gui() -> int:
             )
             accent_glow_slider.setToolTip(accent_glow_tooltip)
             accent_glow_spin.setToolTip(accent_glow_tooltip)
-            try:
-                saved_accent_glow = int(round(float(self.settings.value("settings/complete_swap_accent_glow_strength", 0) or 0)))
-            except (TypeError, ValueError, OverflowError):
-                saved_accent_glow = 0
-            saved_accent_glow = max(0, min(100, saved_accent_glow))
+            for stale_glow_settings_key in (
+                "settings/complete_swap_accent_glow_strength",
+                "settings/complete_swap_accent_glow_color_enabled",
+                "settings/complete_swap_accent_glow_color_rgb",
+            ):
+                self.settings.remove(stale_glow_settings_key)
+            saved_accent_glow = 0
             accent_glow_slider.setValue(saved_accent_glow)
             accent_glow_spin.setValue(saved_accent_glow)
             accent_glow_row = QHBoxLayout()
@@ -78243,22 +78309,8 @@ def run_gui() -> int:
                 "Optional color override for source parts explicitly marked Role: Glow / emissive. "
                 "Accent glow at 0% disables emissive output."
             )
-            saved_glow_color_enabled = str(
-                self.settings.value("settings/complete_swap_accent_glow_color_enabled", "0") or "0"
-            ).strip().lower() in {"1", "true", "yes", "on"}
-            saved_glow_color_text = str(
-                self.settings.value("settings/complete_swap_accent_glow_color_rgb", "255,255,255") or "255,255,255"
-            )
-            saved_glow_rgb: list[int] = []
-            for part in re.split(r"[^0-9]+", saved_glow_color_text):
-                if not part:
-                    continue
-                try:
-                    saved_glow_rgb.append(max(0, min(255, int(part))))
-                except (TypeError, ValueError, OverflowError):
-                    continue
-            while len(saved_glow_rgb) < 3:
-                saved_glow_rgb.append(255)
+            saved_glow_color_enabled = False
+            saved_glow_rgb: list[int] = [255, 255, 255]
             part_glow_color_checkbox.setChecked(saved_glow_color_enabled)
             part_glow_color_spins: list[QSpinBox] = []
             for channel_label, object_name, channel_value in (
@@ -79278,9 +79330,25 @@ def run_gui() -> int:
                                 str(getattr(source_slot, "slot_kind", "") or ""),
                                 str(getattr(source_slot, "material_name", "") or ""),
                                 str(getattr(source_slot, "source_authority", "") or ""),
+                                tuple(getattr(source_slot, "base_color_factor", ()) or ()),
+                                float(getattr(source_slot, "base_color_scale", 1.0) or 1.0),
+                                int(getattr(source_slot, "base_color_lift", 0) or 0),
+                                float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0),
+                                float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0),
+                                int(getattr(source_slot, "base_color_value_max", 255) or 255),
                                 _path_signature(source_path),
                             )
                         )
+                source_role_rows = tuple(
+                    (
+                        int(source_index),
+                        str(getattr(adjustment, "material_role", "") or ""),
+                        tuple(int(value) for value in tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())),
+                    )
+                    for source_index, adjustment in sorted(source_part_adjustments.items())
+                    if str(getattr(adjustment, "material_role", "") or "").strip()
+                    or tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())
+                )
                 controls = (
                     int(global_gloss_reduction_spin.value()),
                     int(auto_brightness_spin.value()),
@@ -79289,6 +79357,9 @@ def run_gui() -> int:
                     int(edge_relief_spin.value()),
                     str(edge_relief_source_combo.currentData() or "hybrid"),
                     int(accent_glow_spin.value()),
+                    bool(part_glow_color_checkbox.isChecked()),
+                    _selected_part_glow_rgb_from_controls(),
+                    source_role_rows,
                 )
                 try:
                     profile_payload = complete_swap_material_profile_to_dict(profile)
@@ -79326,9 +79397,9 @@ def run_gui() -> int:
                 inactive_reason = _material_authority_preview_inactive_reason()
                 if inactive_reason:
                     if _basic_controls_profile_enabled():
-                        true_source_basic_hint.setText(f"Settings saved. Preview unchanged: {inactive_reason}")
+                        true_source_basic_hint.setText(f"Adjustments updated. Preview unchanged: {inactive_reason}")
                     return
-                true_source_basic_hint.setText("Adjustments saved. Preview refresh queued.")
+                true_source_basic_hint.setText("Adjustments updated. Preview refresh queued.")
                 _queue_material_edit_refresh(
                     refresh_plan=False,
                     refresh_preview=True,
@@ -79354,7 +79425,8 @@ def run_gui() -> int:
                     spin.blockSignals(True)
                     spin.setValue(value)
                     spin.blockSignals(False)
-                self.settings.setValue(settings_key, value)
+                if settings_key:
+                    self.settings.setValue(settings_key, value)
                 if refresh:
                     _refresh_output_impact_review()
                     _queue_material_authority_adjustment_preview_refresh()
@@ -79413,7 +79485,7 @@ def run_gui() -> int:
                     accent_glow_slider,
                     accent_glow_spin,
                     value,
-                    "settings/complete_swap_accent_glow_strength",
+                    "",
                     refresh=refresh,
                 )
                 _refresh_part_glow_color_controls_enabled()
