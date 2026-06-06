@@ -1,417 +1,134 @@
 # Crimson Desert Mod Workbench
 
-Windows desktop tool for **Crimson Desert texture workflows**, **archive browsing and patching**, **3D mesh preview/modding**, **media preview**, **texture research**, and **text search**.
-
-Project changelog: [CHANGELOG.md](CHANGELOG.md)
+Windows desktop workbench for Crimson Desert archive browsing, texture workflows,
+mesh preview/modding, material replacement, media preview, and research tooling.
 
 Latest release: `0.10.0-alpha.1`
 
-- adds grouped Dashboard / Assets / Textures / Research / Settings navigation with detachable work tabs and workspace health shortcuts
-- expands archive and mesh work with native D3D11 preview, Mesh Editor, Model Library, Icon Creator, shard-backed archive caches, and explicit patch/restore flows
-- moves material replacement toward Material Authority, richer mod-package retrofit/export metadata, native DDS helpers, and broader research/audit tooling
-
-Project guidelines:
-
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [SECURITY.md](SECURITY.md)
-
-Crimson Desert Mod Workbench is built for modders who want one place to:
-
-- browse, preview, extract, and selectively patch files from `.pamt` / `.paz` archives
-- scan loose DDS files and rebuild controlled DDS output with bundled DirectXTex/native helpers, with `texconv` kept as an optional legacy fallback
-- optionally convert DDS to PNG before processing
-- optionally upscale through `chaiNNer` or direct `Real-ESRGAN NCNN`
-- edit visible textures inside the app with `Texture Editor`, including paint, erase, fill, gradient, smudge, dodge/burn, patch, sharpen, soften, clone/heal, floating paste/move, masks, channel locks, adjustment layers, brush presets, brush tips/patterns, custom presets, and layered project saves
-- optionally export rebuilt workflow output as a ready mod package with `manifest.json`, optional manager metadata, optional `.no_encrypt`, and preserved loose DDS paths
-- import manually edited `PNG` or `DDS` textures and export a mod-ready loose replacement package with `Texture Replacer`
-- review results in a side-by-side compare view with zoom, pan, and preview-size controls
-- inspect texture sets, references, classification, DDS QA results, and notes in `Research`
-- search archive or loose text-like files such as `.xml`, `.json`, `.cfg`, and `.lua`
-- preview `.pam`, `.pamlod`, and `.pac` meshes in 3D with orbit/zoom, optional textures, referenced-texture actions, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview / patch workflows
-- preview `.wem` audio, `.mp4` video, `.bnk` soundbank structure summaries, `.pab` skeleton summaries, and richer text/binary archive formats without leaving the browser
-
-The app still keeps archive mutation explicit and separate from normal browsing. Loose-file DDS workflows remain available, while supported archive mesh/audio replacement paths now run through confirm-before-write patch flows with backup/restore support instead of silent in-place edits.
-
-## At A Glance
-
-### Main navigation
-
-- `Dashboard`: launch common tasks, inspect workspace paths/tool health, see recent work, and review the latest run result
-- `Textures > Workflow`: loose DDS scanning, optional DDS-to-PNG staging, optional upscaling, DDS rebuild, and compare review
-- `Textures > Workflow` can also emit an additional ready mod package after rebuild without changing the normal `dds_final` output
-- `Textures > Replacer`: import edited `PNG` / `DDS`, match them to the original game texture, optionally upscale with direct `NCNN`, rebuild corrected DDS output, and write a mod-ready loose package
-- `Textures > Editor`: open visible textures from loose files, Archive Browser, Compare, or Texture Replacer, edit them in layers with selections, masks, adjustments, channel-aware brush/retouch tools, and custom brush presets, then save/export the flattened PNG back into the rebuild pipeline
-- `Assets > Archive Browser`: scan archives, switch between flat or tree view, preview supported assets, extract files, inspect referenced mesh textures, export/import supported meshes, and run supported archive patch/restore flows
-- `Assets > Model Library`: scan local/importable models, use mirror catalogue metadata, preview supported models, and route model imports into Archive Browser workflows
-- `Assets > Icon Creator`: manage icon source images and generate compatible item-icon packages from archive targets
-- `Research > Texture Research`: group related textures, resolve references, inspect DDS QA results, preview archive files, export analysis reports, and store notes
-- `Research > Text Search`: search archive or loose text-like files, preview results with syntax colors, and export matched files
-- `Settings`: persistent theme, language, font, density, startup, performance, layout, 3D preview, log/code, and safety preferences
-
-### Main workflow features
-
-- archive browser for Crimson Desert `.pamt` / `.paz` with flat/tree browsing, cache reuse, extraction, and supported patch workflows
-- archive cache for faster repeated scans
-- real 3D archive preview for supported `.pam`, `.pamlod`, and `.pac` meshes, including optional textured shading and referenced-texture inspection/actions
-- mesh export/import workflows for supported archive meshes, including OBJ/FBX export, OBJ/DAE/glTF/GLB import preview, backup/restore, and paired PAM/PAMLOD handling where possible
-- archive media preview for `.wem` and `.mp4`, plus Wwise soundbank summaries for `.bnk`
-- DDS-to-PNG conversion with bundled DirectXTex/native helpers and optional `texconv` fallback
-- DDS rebuild with configurable format, size, and mip behavior
-- direct backend support for `Real-ESRGAN NCNN`
-- external `chaiNNer` support for users who already have a working chain
-- `Run Summary` dialog for a read-only overview of sources, backend, and texture policy before you start
-- `Texture Policy` presets, family-aware suffix classification, planner-aware automatic safety rules, a persistent local classification registry, and safer preserve/high-precision handling for technical maps
-- optional expert override to force technical maps through the generic PNG/upscale path when you explicitly want unsafe technical processing
-- automatic `Source Match` post-correction modes for direct `NCNN` runs
-- optional `NCNN extra args` for advanced direct `Real-ESRGAN NCNN` flags such as `-dn 0.2`
-- `Preview Policy` to inspect the planned per-texture action before `Start`
-- compare view with shared preview-size presets, per-side zoom, mouse-wheel zoom, drag pan, `Sync Pan`, and focused compare layout
-- `Research` tools for shared classifier output, grouped texture sets, sidecar/reference discovery, `Classification Review` preview/review/approval, texture analysis, heatmap views, archive file preview, and local notes
-- text search with archive/loose search, regex, local find, wrap toggle, line numbers, and export
-- `Texture Replacer` for edited-texture replacement workflows that use the original DDS as authority for rebuild metadata and mod package paths
-- `Texture Editor` for in-app visible-texture editing, layered projects, masks, adjustment layers, floating selections/transforms, clone/heal/smudge/patch work, brush presets/tips/patterns, channel locks, configurable grids, and exporting flattened PNGs back into `Texture Replacer` or `Texture Workflow`
-
-## Recommended First Run
-
-If you want the safest starting point, use this path first:
-
-1. Run `CrimsonDesertModWorkbench-<version>-windows-portable.exe`.
-2. In `Texture Workflow > Setup`, click `Init Workspace`.
-3. Use the bundled DirectXTex/native DDS helpers. Configure `texconv.exe` only if you want the optional legacy fallback.
-4. Set `Original DDS root`, `PNG root`, and `Output root`.
-5. In `Texture Workflow > Upscaling`, either:
-   - keep the backend disabled if you only want DDS rebuild/testing
-   - pick direct `Real-ESRGAN NCNN`
-   - use `chaiNNer` only if you already have a tested `.chn` chain
-6. Keep `Texture Policy` on a safer preset first and leave automatic texture rules enabled.
-7. Click `Preview Policy` to inspect what the app plans to do per texture.
-8. Click `Scan`.
-9. Run a small subset first.
-10. Review the results in `Compare` before doing a larger batch.
-
-If you already edited a texture in Photoshop or another tool, you can use `Texture Replacer` instead of the batch workflow:
-
-1. Import the edited `PNG` or `DDS`.
-2. Let the app match it to the original game DDS, or choose the original manually if needed.
-3. Optionally mirror the current `Texture Workflow` NCNN settings.
-4. Build a mod-ready loose package with `.no_encrypt`, `manifest.json`, and the correct package-prefixed DDS tree.
-
-If you want to do a simple edit directly in the app first:
-
-1. Open the source image or DDS in `Texture Editor`.
-2. Paint, erase, fill, gradient, smudge, dodge/burn, patch, soften, sharpen, clone/heal, use brush presets or pattern brushes, create selections, work with floating pasted regions, control RGBA channel locks, or use masks and adjustment layers.
-3. Save a layered project if you want to keep the editable document.
-4. Send the flattened PNG to `Texture Replacer` or `Texture Workflow`.
-
-## Choosing An Upscaling Mode
-
-### Disabled
-
-Use this when you want to:
-
-- rebuild DDS from existing PNG files
-- test format/size/mip behavior without any upscaling backend
-- stage DDS to PNG only
-
-### Real-ESRGAN NCNN
-
-Use this when you want:
-
-- the simplest in-app direct upscale path
-- a portable external executable + local model folder
-- direct scale/tile controls in the app
-- optional advanced flags through `NCNN extra args`
-
-Setup support in the app includes:
-
-- open the official Real-ESRGAN NCNN download page
-- import NCNN `.param` / `.bin` model pairs
-- browse a grouped NCNN model catalog for visible color/albedo/UI texture use cases and open non-downloading model pages in your browser
-
-### chaiNNer
-
-Use this when you already have:
-
-- a tested `.chn` chain
-- the node/back-end dependencies installed separately
-- a known-good input/output path setup
-
-Important:
-
-- `chaiNNer` remains the source of truth for its own chain behavior
-- direct NCNN controls in Crimson Desert Mod Workbench do **not** override the chain
-
-## Texture Policy And Safety
-
-`Texture Policy` is the safety gate that decides which files are allowed into the PNG/upscale path.
-
-What it does:
-
-- classifies textures into kinds such as `color`, `normal`, `mask`, `height`, `ui`, `emissive`, and `unknown`
-- applies presets that decide which kinds are safe to process
-- uses automatic rules to preserve higher-risk technical DDS files instead of blindly rebuilding them from generic PNG output
-- can route eligible non-packed scalar technical DDS files through a safer high-precision path instead of the normal visible-color PNG path
-- can optionally force technical maps through the generic visible-color PNG/upscale path with an explicit expert override, but this is intentionally marked unsafe
-- can use more than file names alone, including texture-family context and preview-derived hints
-- can store approved per-file classifications in a local registry so future scans, Research views, and policy planning reuse your confirmed label
-- recognizes common explicit names and suffix families such as `_color`, `_normal`, `_subsurface`, `_dmap`, `_n`, `_wn`, `_sp`, `_m`, `_ma`, `_mg`, `_o`, `_disp`, `_dr`, `_op`, `_emc`, and `_emi`
-- treats ambiguous names like `_d` more cautiously instead of assuming they are always safe color/diffuse textures
-
-What to keep in mind:
-
-- presets control **what gets sent to the upscaler**
-- the expert unsafe technical override can still force preserved technical maps onto the generic visible-color path if you explicitly enable it
-- presets do **not** guarantee visual correctness
-- model choice can still shift brightness, contrast, detail, or color range
-
-For a first run:
-
-- start with a safer preset
-- keep automatic rules enabled
-- use `Preview Policy`
-- review a small batch in `Compare`
-
-## Post Correction
-
-Direct `Real-ESRGAN NCNN` supports optional post-upscale correction modes:
-
-- `match_mean_luma`
-- `match_levels`
-- `match_histogram`
-- `Source Match Balanced`
-- `Source Match Extended`
-- `Source Match Experimental`
-
-`Source Match` modes are the recommended option for most direct-backend runs. They automatically decide per texture whether to:
-
-- apply visible RGB correction
-- apply grayscale/scalar-only correction
-- limit correction to RGB while leaving alpha untouched
-- skip correction entirely when the texture looks technical or unsafe
-
-The older `match_*` modes are still available as simpler visible-texture correction tools.
-
-These correction paths are intended mainly for visible textures such as:
-
-- `color`
-- `ui`
-- `emissive`
-- `impostor`
-
-They are not meant as a blanket fix for all texture types, and they do not apply to `chaiNNer`.
-
-## Compare And Review
-
-`Compare` is now one of the main review tools in the app.
-
-You can:
-
-- compare original and rebuilt DDS previews side by side
-- switch preview size for both panes together
-- zoom each side separately
-- zoom with the mouse wheel while hovering a preview
-- drag to pan large previews
-- use `Sync Pan` to keep both panes aligned
-- move through files with `Previous` / `Next`
-- jump straight to matching mip analysis with `Mip Details`
-- open the output folder directly
-
-When `Compare` is active, the workflow layout gives more space to the preview area so review is easier.
-
-Use `Compare` after every small test run before committing to a larger batch, especially when:
-
-- trying a new model
-- changing scale or tile behavior
-- changing texture presets
-- testing post-correction modes
-
-## Research
-
-`Research` is the in-app support area for understanding texture sets and validating output.
-
-It uses the same family-aware texture semantics as the workflow planner and the newer archive role filters, so grouped sets, analysis, and safety decisions line up more consistently.
-
-### Archive Insights
-
-Includes tools for:
-
-- texture set grouping
-- texture-type classifier output
-- material-to-texture reference resolution
-- archive-side sidecar discovery
-- texture usage heatmap views
-- extracting related sets
-
-### Texture Analysis
-
-Includes tools for:
-
-- matching Original DDS vs Output DDS review
-- mip and size drift checks
-- preview-based brightness, alpha, and range checks when DDS previews are available
-- bulk normal validation
-- CSV / JSON report export
-
-### Notes
-
-Lets you attach local notes and tags to:
-
-- archive files
-- text-search results
-- compare targets
-
-Notes are stored locally beside the EXE.
-
-## Archive Browser
-
-Use the archive browser to:
-
-- scan or refresh `.pamt` / `.paz`
-- reuse the archive cache when available
-- switch between flat and tree view for large package sets
-- filter by path, package, extension, role, structure, and size
-- use exclude filters and common technical-suffix hiding to isolate likely base/color DDS files more quickly
-- preview supported assets
-- extract selected files or filtered sets to normal folders
-- inspect referenced textures for supported mesh previews and open/export/replace resolved DDS entries
-- edit recognized material-sidecar values from `.pac_xml`, `.pam_xml`, `.pamlod_xml`, and `.pami` files, preview approximate changes on associated `.pac` / `.pam` / `.pamlod` models, then export the edited sidecar plus reviewed related files as a mod-ready package
-- export supported meshes as `OBJ` / `FBX`
-- import `OBJ`, `DAE`, `glTF`, or `GLB` for preview or supported archive-mesh replacement, with backup/restore support for archive writes
-- tune Material Authority behavior for mesh replacement packages, including Runtime XML preserve, True Source Authority, and manual overrides
-- export `WAV` from supported audio entries and patch supported `.wem` entries from `WAV`
-- send DDS files directly into the `Texture Workflow` with `DDS To Texture Workflow`
-
-## Text Search
-
-`Text Search` is a supporting utility for archive and loose text-like files.
-
-It supports:
-
-- archive or loose-folder search
-- plain text or regex search
-- path filtering
-- syntax-colored preview
-- line numbers
-- local find-in-preview controls
-- wrap toggle
-- font-size controls
-- export of matched files while preserving folder structure
-
-For supported encrypted archive XML cases, the app can also decrypt them deterministically so they can be searched and previewed as readable text.
-
-## DDS Output
-
-Final DDS output is rebuilt with the bundled DirectXTex/native helpers first. `texconv.exe` remains an optional legacy fallback.
-
-You can control:
-
-- format: match original or choose a custom format
-- size: use final PNG size, original DDS size, or a custom size
-- mipmaps: match original, generate full chain, single mip, or custom count
-
-The DDS output section now also explains the difference between:
-
-- source PNG staging
-- final PNG output
-- rebuilt DDS output
-
-When automatic safety rules are enabled, the planner can also keep some technical DDS files unchanged or route eligible scalar technical files through a safer high-precision rebuild path instead of treating everything like a normal visible-color PNG workflow.
-
-## Troubleshooting
-
-### Missing texconv
-
-If `texconv.exe` is missing or wrong:
-
-- normal DDS preview/rebuild should still use the bundled DirectXTex/native helpers
-- if both native helpers and the optional fallback fail, check the packaged native tools and the Live Log
-
-### Missing NCNN setup
-
-For direct backends, make sure you have:
-
-- a working NCNN executable plus matching `.param` / `.bin` models
-
-### chaiNNer produced no usable output
-
-If `chaiNNer` finishes but the app cannot rebuild DDS:
-
-- check that the chain writes outputs where you expect
-- make sure the chain writes to the correct PNG folder
-- confirm the chain is reading the correct input type and path
-
-### Brightness or tonal drift
-
-If rebuilt color textures look darker, flatter, or otherwise shifted:
-
-- verify the texture was safe to upscale
-- compare it in `Compare`
-- try a safer preset
-- try a different model
-- try `Source Match Balanced` first on direct `NCNN`
-- test `match_levels` or `match_histogram` if you want a simpler visible-texture-only correction path
-- remember that automatic texture safety rules are mainly about safer format/preserve policy, not about fixing tonal drift by themselves
-
-### Too many files are `unknown`
-
-Classification is improved, but not perfect. If needed:
-
-- use safer presets
-- keep automatic rules enabled
-- inspect grouped families in `Research`
-- look at nearby material/sidecar files in `Research` or `Text Search`
-- use `Archive Browser` role and exclude filters to narrow to likely base/color textures while reviewing suffix families
-
-## Local State
-
-The app stores its portable local state beside the EXE.
-
-Main local files and folders include:
-
-- `CrimsonDesertModWorkbench.cfg`
-- `archive_cache`
-- research notes / related local support files
-
-The app also supports:
-
-- profile export / import for workflow config plus appearance, language, startup, performance, preview, Texture Replacer, Texture Editor, safety, and window/layout settings
-- diagnostic bundle export with the profile payload, logs, cache summary, chain analysis, crash context when available, README, license, and third-party notices
-- detachable work tabs through the `Window` menu, with saved main and detached-window geometry
-
-## Privacy And Network Behavior
-
-Crimson Desert Mod Workbench does **not** include built-in telemetry, analytics, auto-update checks, background network calls for normal offline use, or in-app file downloads for external tools/models.
-
-It only opens external pages in your browser when you explicitly trigger actions such as:
-
-- `Open chaiNNer Download Page`
-- `Open DirectXTex / texconv Page`
-- `Open Real-ESRGAN NCNN Download Page`
-- `Open Model Pages` in the NCNN model catalog
-
-## Dependencies
-
-### Python packages used by the app
-
-- `PySide6`
-- `Pillow`
-- `numpy`
-- `opencv-python-headless`
-- `PyInstaller`
-- `lz4`
-- `cryptography`
-
-Install the source/runtime dependencies with:
+- Download: [GitHub Releases](https://github.com/Ratty123/crimson-desert-mod-workbench/releases)
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security: [SECURITY.md](SECURITY.md)
+
+## Features
+
+- Browse `.pamt` / `.paz` archives with flat/tree views, filters, extraction,
+  cache reuse, text preview, media preview, and explicit patch/restore flows.
+- Preview supported `.pam`, `.pamlod`, and `.pac` meshes with the native D3D11
+  preview path, referenced texture inspection, OBJ/FBX export, and supported
+  OBJ/DAE/glTF/GLB import preview workflows.
+- Run DDS texture workflows with native DirectX helpers, optional `texconv`
+  fallback, optional Real-ESRGAN NCNN/chaiNNer upscaling, texture policy
+  planning, compare review, and mod-package export.
+- Replace edited PNG/DDS textures using the original game DDS as rebuild
+  authority, including package-prefixed loose output and manager metadata.
+- Edit visible textures in-app with layered projects, selections, masks,
+  adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen,
+  soften, and flattened PNG export.
+- Build and audit material/mesh replacement packages with Material Authority,
+  source-owned material routing, runtime XML preservation, diagnostics, and
+  final package preview.
+- Use supporting workspaces for Model Library, Mesh Editor, Icon Creator,
+  Recolor Variants, Texture Research, Text Search, settings/profile export,
+  diagnostic bundles, and detachable tabs.
+
+## Safety Model
+
+Archive mutation is explicit. Browsing, previewing, extracting, scanning, and
+package building do not silently rewrite game archives. Supported archive patch
+flows use confirmation, preflight checks, backups, and restore support.
+
+Keep local game archives, extracted assets, DDS payloads, build output, crash
+reports, restore points, and corpus data out of source control.
+
+## Install
+
+1. Download the latest Windows portable EXE from
+   [Releases](https://github.com/Ratty123/crimson-desert-mod-workbench/releases).
+2. Run `CrimsonDesertModWorkbench-<version>-windows-portable.exe`.
+3. In `Texture Workflow > Setup`, initialize a workspace and configure roots.
+4. Use bundled native DDS helpers by default. Configure external tools only if
+   needed:
+   - `texconv.exe` as a legacy DDS fallback
+   - Real-ESRGAN NCNN for direct upscaling
+   - chaiNNer for existing `.chn` chains
+
+Portable state is stored beside the EXE, including config, logs, archive caches,
+research notes, and diagnostic data.
+
+## Source Setup
+
+Requirements:
+
+- Windows
+- Python 3.11+
+- PowerShell
+- CMake/MSVC toolchain for native helper builds
+
+Install Python dependencies:
 
 ```powershell
-python -m pip install -r requirements.txt
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
 ```
 
-Build-only requirements are listed in `requirements-build.txt`.
+Run tests:
 
-### External tools used by the app
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+```
 
-- bundled DirectXTex/native DDS helpers
-- optional `texconv.exe` from Microsoft DirectXTex as a legacy fallback
-- optional `chaiNNer`
-- optional `Real-ESRGAN NCNN`
+Run the app from source:
+
+```powershell
+.\.venv\Scripts\python.exe cdmw_app.py
+```
+
+## Build
+
+Build a publishable onefile EXE:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mode onefile -BuildProfile release
+```
+
+Expected output:
+
+```text
+dist\CrimsonDesertModWorkbench-<version>-windows-portable.exe
+```
+
+Build a folder/onedir package:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mode onedir -BuildProfile release
+```
+
+Useful wrappers:
+
+- `build.bat onefile release`
+- `build.bat onedir release`
+- `build.bat` for the graphical build picker
+
+## Project Layout
+
+- `cdmw/` - application code
+- `cdmw/core/` - archive, DDS, workflow, package, and research logic
+- `cdmw/modding/` - mesh/material replacement and import/export logic
+- `cdmw/rendering/` - native preview packaging, D3D11 host integration, capture tools
+- `cdmw/ui/` - PySide6 UI surfaces
+- `native/` - C++/Rust native helpers
+- `tests/` - behavior and source-guard tests
+- `tools/` - audit, capture, build, and research utilities
+- `docs/` - focused guides and reverse-engineering notes
+
+## Privacy
+
+The app does not include telemetry, analytics, auto-update checks, or background
+network calls for normal offline use. It opens external pages only from explicit
+user actions such as download/help links.
+
+## License
+
+See [LICENSE](LICENSE).
