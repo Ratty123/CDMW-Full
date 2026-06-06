@@ -87,10 +87,12 @@ from cdmw.modding.material_replacer import (
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.static_mesh_replacer import (
     StaticMaterialAtlasRect,
+    StaticMeshReplacementOptions,
     StaticOutputDrawSection,
     StaticSourcePartAdjustment,
     StaticSubmeshMapping,
     StaticTextureSlotOverride,
+    plan_static_output_draw_sections,
 )
 
 
@@ -2649,6 +2651,135 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertNotIn("_emissiveIntensityTexture", blade_block)
             self.assertNotIn("_emissiveColor", blade_block)
             self.assertTrue(any("_emi.dds" in payload.target_path.lower() for payload in payloads if payload.kind == "texture_generated"))
+
+    def test_source_part_glow_role_exports_emissive_when_duplicate_materials_are_atlased(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from PIL import Image
+
+            root = Path(temp_dir)
+            texconv = root / "texconv.exe"
+            texconv.write_bytes(b"fake")
+            base_png = root / "material_0_baseColor.png"
+            normal_png = root / "material_0_normal.png"
+            pbr_png = root / "material_0_metallicRoughness.png"
+            Image.new("RGB", (8, 8), (200, 200, 200)).save(base_png)
+            Image.new("RGB", (8, 8), (128, 128, 255)).save(normal_png)
+            Image.new("RGB", (8, 8), (255, 240, 20)).save(pbr_png)
+            template_dds = root / "template.dds"
+            normal_template_dds = root / "normal.dds"
+            template_dds.write_bytes(_fake_dds_bytes(8, 8, fourcc=b"DXT1"))
+            normal_template_dds.write_bytes(_fake_dds_bytes(8, 8, fourcc=b"BC5U"))
+
+            target_name = "CD_PHM_02_Handle_0015"
+            refs = tuple(
+                ArchiveModelTextureReference(
+                    reference_name=entry.path,
+                    material_name=target_name,
+                    sidecar_parameter_name=parameter,
+                    resolved_archive_path=entry.path,
+                    resolved_entry=entry,
+                )
+                for entry, parameter in (
+                    (_entry("character/texture/cd_phm_02_sword_0015_base.dds", root), "_overlayColorTexture"),
+                    (_entry("character/texture/cd_phm_02_sword_0015_n.dds", root), "_normalTexture"),
+                    (_entry("character/texture/cd_phm_02_sword_0015_mg.dds", root), "_detailMaskTexture"),
+                )
+            )
+            wrapper_body = (
+                '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/cd_phm_02_sword_0015_base.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/cd_phm_02_sword_0015_n.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_detailMaskTexture"><ResourceReferencePath_ITexture _path="character/texture/cd_phm_02_sword_0015_mg.dds"/></MaterialParameterTexture>'
+                "</Vector></Material>"
+            )
+            sidecar_text = (
+                '<ModelPropertyList><ModelProperty><SkinnedMeshProperty><Vector Name="_subMeshResources" IdBase="200">'
+                f'<SkinnedMeshMaterialWrapper ItemID="199" _subMeshName="{target_name}">{wrapper_body}</SkinnedMeshMaterialWrapper>'
+                "</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>"
+            )
+            mesh = ParsedMesh(
+                submeshes=[
+                    SubMesh(
+                        name=f"source_{index}",
+                        material="material_0",
+                        texture=str(base_png),
+                        vertices=[(0.0, 0.0, 0.0)],
+                        faces=[(0, 0, 0)],
+                    )
+                    for index in range(3)
+                ]
+            )
+            for submesh in mesh.submeshes:
+                submesh.texture_slots = (("base", base_png), ("normal", normal_png), ("metallicRoughness", pbr_png))
+            original_mesh = ParsedMesh(
+                submeshes=[
+                    SubMesh(name=target_name, material=target_name, vertices=[(0.0, 0.0, 0.0)], faces=[(0, 0, 0)]),
+                ]
+            )
+            mapping = StaticSubmeshMapping(0, target_name, [0, 1, 2], 0)
+            source_adjustments = (
+                StaticSourcePartAdjustment(
+                    source_submesh_index=0,
+                    material_role="glow",
+                    emissive_color_rgb=(255, 85, 0),
+                ),
+            )
+            sections, _warnings, errors = plan_static_output_draw_sections(
+                original_mesh,
+                mesh,
+                [mapping],
+                StaticMeshReplacementOptions(
+                    complete_external_swap=True,
+                    source_part_adjustments=list(source_adjustments),
+                ),
+            )
+
+            self.assertFalse(errors)
+            self.assertEqual(("__source_part_0_material_0", "material_0"), sections[0].atlas_source_material_names)
+
+            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
+                out_dir = Path(command[command.index("-o") + 1])
+                produced = out_dir / f"{Path(command[-1]).stem}.dds"
+                produced.write_bytes(
+                    _fake_dds_bytes(
+                        8,
+                        8,
+                        fourcc=b"BC5U" if "_normal" in command[-1].lower() else b"DXT1",
+                    )
+                )
+                return 0, "", ""
+
+            with patch("cdmw.core.common.run_process_with_cancellation", side_effect=fake_texconv):
+                payloads, report = build_texture_replacement_payloads(
+                    obj_mesh=mesh,
+                    rebuilt_mesh=original_mesh,
+                    texture_files=(base_png, normal_png, pbr_png),
+                    original_texture_refs=refs,
+                    original_sidecars=((_entry("character/modelproperty/cd_phm_02_sword_0015.pac_xml", root), sidecar_text),),
+                    submesh_mappings=(mapping,),
+                    texconv_path=texconv,
+                    read_original_texture_bytes=lambda entry: normal_template_dds.read_bytes()
+                    if "_n.dds" in str(getattr(entry, "path", "")).lower()
+                    else template_dds.read_bytes(),
+                    original_texture_source_path=lambda entry: normal_template_dds
+                    if "_n.dds" in str(getattr(entry, "path", "")).lower()
+                    else template_dds,
+                    pac_driven_sidecar=True,
+                    neutralize_inherited_material_layers=True,
+                    complete_external_material_reset=True,
+                    complete_swap_material_profile="material_authority_detail_mask",
+                    complete_swap_accent_glow_strength=100.0,
+                    source_part_adjustments=source_adjustments,
+                    output_draw_sections=tuple(sections),
+                )
+
+            self.assertFalse(report.errors)
+            target_paths = "\n".join(payload.target_path.lower() for payload in payloads if payload.kind == "texture_generated")
+            self.assertIn("_emi.dds", target_paths)
+            patched = next(payload.payload_data.decode("utf-8") for payload in payloads if payload.kind == "sidecar_generated")
+            self.assertIn("_emissiveIntensityTexture", patched)
+            self.assertIn("_emissiveColor", patched)
+            self.assertIn("#FF5500FF", patched)
 
     def test_emissive_factor_material_uses_base_factor_not_emissive_as_base(self) -> None:
         from PIL import Image

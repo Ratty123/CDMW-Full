@@ -3155,6 +3155,26 @@ def _build_source_driven_pac_material_payloads(
             generated_payloads.extend(atlas_payloads)
             if atlas_bindings:
                 target_bindings[target_name] = atlas_bindings
+                if any(str(slot_kind or "").strip().lower() == "emissive" for _parameter, _path, slot_kind in atlas_bindings):
+                    emissive_intensity = _profile_source_emissive_parameter_intensity(material_profile)
+                    if emissive_intensity > 0.0:
+                        for rect in tuple(getattr(atlas_section, "atlas_rects", ()) or ()):
+                            material_name = str(getattr(rect, "source_material_name", "") or "").strip()
+                            texture_set = texture_sets.get(material_name.lower())
+                            if texture_set is None:
+                                continue
+                            emissive_slot = _slot_for_complete_swap_atlas_role(
+                                texture_set,
+                                "emissive",
+                                material_profile=material_profile,
+                            )
+                            if emissive_slot is None:
+                                continue
+                            target_emissive_settings[target_name] = (
+                                _texture_set_accent_glow_color_hex(texture_set, emissive_slot),
+                                emissive_intensity,
+                            )
+                            break
             continue
         source_material = _best_source_material_for_target(target_name, target_to_source_material)
         texture_set = texture_sets.get(str(source_material or "").strip().lower()) if source_material else None
@@ -3681,7 +3701,12 @@ def _build_complete_swap_atlas_material_payloads(
                 f"CD Runtime Approx divergence for atlas {target_name}/{texture_set.material_name}: {reason}.",
             )
     has_emissive = material_profile.emissive_mode == "intensity" and any(
-        "emissive" in texture_sets.get(material_name.lower(), ReplacementTextureSet(material_name)).slots
+        _slot_for_complete_swap_atlas_role(
+            texture_sets.get(material_name.lower(), ReplacementTextureSet(material_name)),
+            "emissive",
+            material_profile=material_profile,
+        )
+        is not None
         for material_name in material_names
     )
     roles = ["base", "normal", "height", "material_mask", "detail_mask"]
@@ -3789,6 +3814,15 @@ def _bake_complete_swap_material_atlas_png(
             continue
         source_slot = _slot_for_complete_swap_atlas_role(texture_set, slot_kind, material_profile=material_profile)
         if source_slot is None:
+            if str(slot_kind or "").strip().lower() == "emissive":
+                material_images.append(
+                    (
+                        rect,
+                        material_name,
+                        Image.new("RGBA", (16, 16), _neutral_atlas_role_color("emissive", material_profile=material_profile)),
+                    )
+                )
+                continue
             report.errors.append(f"Cannot atlas/bake {target_name}: missing source slot {slot_kind} for {material_name}.")
             continue
         try:
@@ -3870,6 +3904,8 @@ def _slot_for_complete_swap_atlas_role(
     source_slot = texture_set.slots.get(normalized)
     if source_slot is not None:
         return source_slot
+    if normalized == "emissive":
+        return _complete_swap_accent_emissive_slot(texture_set, texture_set.material_name, profile)
     if normalized == "material_mask":
         return _complete_swap_runtime_material_mask_slot(texture_set, profile)
     if normalized in {"normal", "height", "material_mask", "detail_mask"}:

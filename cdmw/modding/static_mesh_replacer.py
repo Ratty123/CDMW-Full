@@ -11,6 +11,7 @@ from __future__ import annotations
 import copy
 import math
 import re
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
@@ -543,10 +544,36 @@ def plan_static_output_draw_sections(
     warnings: list[str] = []
     errors: list[str] = []
 
+    source_material_key_counts = Counter(
+        str(getattr(source, "material", "") or getattr(source, "name", "") or "").strip().lower()
+        for source in tuple(getattr(replacement_mesh, "submeshes", ()) or ())
+        if str(getattr(source, "material", "") or getattr(source, "name", "") or "").strip()
+    )
+    source_adjustments_by_index = _source_part_adjustments_by_index(normalized_options.source_part_adjustments)
+
+    def _source_adjustment_material_key(source_index: int, material_key: str) -> str:
+        if not material_key or int(source_material_key_counts.get(material_key, 0) or 0) <= 1:
+            return ""
+        adjustment = source_adjustments_by_index.get(source_index)
+        if adjustment is None:
+            return ""
+        role = str(getattr(adjustment, "material_role", "") or "").strip().lower()
+        glow_rgb = tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())
+        if not role and not glow_rgb:
+            return ""
+        return f"__source_part_{source_index}_{material_key}"
+
     def _source_group_label(source_indices: list[int], fallback: str) -> str:
         for source_index in source_indices:
             if 0 <= source_index < len(replacement_mesh.submeshes):
                 source = replacement_mesh.submeshes[source_index]
+                explicit_key = str(getattr(source, "cdmw_source_texture_set_key", "") or "").strip()
+                if explicit_key:
+                    return explicit_key
+                material_key = str(getattr(source, "material", "") or getattr(source, "name", "") or "").strip().lower()
+                adjustment_key = _source_adjustment_material_key(source_index, material_key)
+                if adjustment_key:
+                    return adjustment_key
                 label = str(getattr(source, "material", "") or getattr(source, "name", "") or "").strip()
                 if label:
                     return label
@@ -586,7 +613,7 @@ def plan_static_output_draw_sections(
                 if source_index < 0 or source_index >= len(replacement_mesh.submeshes):
                     continue
                 source = replacement_mesh.submeshes[source_index]
-                label = str(getattr(source, "material", "") or getattr(source, "name", "") or f"source {source_index}").strip()
+                label = _source_group_label([source_index], f"source {source_index}")
                 grouped_sources.setdefault(label.lower(), []).append(source_index)
             runtime_target_name = _runtime_name_for_target_index(target_index, target_name)
             source_group_batches: list[list[int]] = []
