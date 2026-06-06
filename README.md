@@ -10,6 +10,16 @@ Latest release: `0.10.0-alpha.1`
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Security: [SECURITY.md](SECURITY.md)
 
+## Known Limitations
+
+`Weapon Placement Studio` is currently disabled in the UI. This is intentional,
+not just unfinished polish: in-game testing showed that the true 1H/offhand and
+full behavior-swap paths need more than partial ItemInfo/PAAC edits and can hang
+or crash the game. The embedded D3D11 placement preview is also disabled because
+the host can freeze the app. The repo still keeps the learned socket templates,
+CTF smoke checks, and [placement tuning guide](docs/placement_piece_tuning_guide.md)
+for manual package work, but the studio is not shipped as a supported workflow.
+
 ## Features
 
 - Browse `.pamt` / `.paz` archives with flat/tree views, filters, extraction,
