@@ -12,6 +12,7 @@ from cdmw.core.archive_modding import (
     ArchivePatchRequest,
     MeshImportPreviewResult,
     MeshImportSupplementalFileSpec,
+    _source_owned_target_names_from_sidecars,
     _build_mesh_import_supplemental_file_specs,
     _build_selected_sidecar_texture_bindings,
     _mesh_import_auto_companion_entries,
@@ -62,6 +63,7 @@ from cdmw.modding.material_replacer import (
     _source_pbr_scalar_values,
     _source_slot_png_with_base_color_factor_path,
     _source_slot_needs_base_color_adjustment,
+    _source_owned_active_material_names_for_output_draw_sections,
     _source_driven_parameter_name,
     _source_driven_slots,
     _texture_set_for_source_submesh,
@@ -6182,6 +6184,166 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertEqual(("Ignored", "Ignored", "Ready"), tuple(route.status for route in routes))
         self.assertTrue(all("helper material wrapper" in route.reason.lower() for route in routes[:2]))
         self.assertEqual("Helmet", routes[2].source_material_name)
+
+    def test_source_owned_sidecar_names_align_extra_helmet_wrappers_to_mesh_draws(self) -> None:
+        sidecar_text = (
+            '<Root><SkinnedMeshProperty><Vector Name="_subMeshResources">'
+            '<SkinnedMeshMaterialWrapper _subMeshName="cd_phm_00_hel_0013_05_black"/>'
+            '<SkinnedMeshMaterialWrapper _subMeshName="cd_phm_00_mask_00_0000"/>'
+            '<SkinnedMeshMaterialWrapper _subMeshName="cd_phm_00_hel_0013_05_inside"/>'
+            '<SkinnedMeshMaterialWrapper _subMeshName="cd_phm_00_mask_00_0000_01"/>'
+            '<SkinnedMeshMaterialWrapper _subMeshName="cd_phm_00_hel_0013_05"/>'
+            "</Vector></SkinnedMeshProperty></Root>"
+        )
+        original_mesh = ParsedMesh(
+            submeshes=[
+                SubMesh(name="cd_phm_00_hel_0013_05_black", material="CD_PHM_00_Hel_0013_05"),
+                SubMesh(name="cd_phm_00_hel_0013_05_inside", material="CD_PHM_00_Hel_0013_05"),
+                SubMesh(name="CD_PHM_00_Hel_0013_05", material="CD_PHM_00_Hel_0013_05"),
+            ]
+        )
+
+        names = _source_owned_target_names_from_sidecars(((object(), sidecar_text),), original_mesh=original_mesh)
+
+        self.assertEqual(
+            (
+                "cd_phm_00_hel_0013_05_black",
+                "cd_phm_00_hel_0013_05_inside",
+                "cd_phm_00_hel_0013_05",
+            ),
+            names,
+        )
+
+    def test_source_owned_active_names_promote_helper_to_runtime_slot(self) -> None:
+        names = _source_owned_active_material_names_for_output_draw_sections(
+            (
+                StaticOutputDrawSection(
+                    0,
+                    2,
+                    "cd_phm_00_hel_0013_05_inside",
+                    [0],
+                    runtime_slot_name="CD_PHM_00_Hel_0013_05",
+                    runtime_material_name="CD_PHM_00_Hel_0013_05",
+                    source_material_name="Helmet",
+                ),
+            )
+        )
+
+        self.assertEqual(("CD_PHM_00_Hel_0013_05",), names)
+
+    def test_source_owned_generation_uses_runtime_slot_when_section_target_is_helper(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            texconv = root / "texconv.exe"
+            texconv.write_bytes(b"fake")
+            base_png = root / "Helmet_BaseColor.png"
+            normal_png = root / "Helmet_Normal.png"
+            _write_fake_png_header(base_png, 8, 8)
+            _write_fake_png_header(normal_png, 8, 8)
+            base_template = root / "base.dds"
+            normal_template = root / "normal.dds"
+            base_template.write_bytes(_fake_dds_bytes(8, 8, fourcc=b"DXT1"))
+            normal_template.write_bytes(_fake_dds_bytes(8, 8, fourcc=b"BC5U"))
+            entries = {
+                "base": _entry("character/texture/original_base.dds", root),
+                "normal": _entry("character/texture/original_n.dds", root),
+            }
+            refs = (
+                ArchiveModelTextureReference(
+                    reference_name=entries["base"].path,
+                    material_name="CD_PHM_00_Hel_0013_05",
+                    sidecar_parameter_name="_overlayColorTexture",
+                    resolved_archive_path=entries["base"].path,
+                    resolved_entry=entries["base"],
+                ),
+                ArchiveModelTextureReference(
+                    reference_name=entries["normal"].path,
+                    material_name="CD_PHM_00_Hel_0013_05",
+                    sidecar_parameter_name="_normalTexture",
+                    resolved_archive_path=entries["normal"].path,
+                    resolved_entry=entries["normal"],
+                ),
+            )
+            wrapper_body = (
+                '<Material><Vector Name="_parameters">'
+                '<MaterialParameterTexture _name="_overlayColorTexture"><ResourceReferencePath_ITexture _path="character/texture/original_base.dds"/></MaterialParameterTexture>'
+                '<MaterialParameterTexture _name="_normalTexture"><ResourceReferencePath_ITexture _path="character/texture/original_n.dds"/></MaterialParameterTexture>'
+                "</Vector></Material>"
+            )
+            sidecar_entry = _entry("character/modelproperty/cd_phm_00_hel_0013_05.pac_xml", root)
+            sidecar_text = (
+                '<Root><SkinnedMeshProperty><Vector Name="_subMeshResources">'
+                '<SkinnedMeshMaterialWrapper _subMeshName="cd_phm_00_hel_0013_05_inside">'
+                "<Material><Vector Name=\"_parameters\"/></Material>"
+                "</SkinnedMeshMaterialWrapper>"
+                f'<SkinnedMeshMaterialWrapper _subMeshName="CD_PHM_00_Hel_0013_05">{wrapper_body}</SkinnedMeshMaterialWrapper>'
+                "</Vector></SkinnedMeshProperty></Root>"
+            )
+            source_mesh = ParsedMesh(
+                submeshes=[
+                    SubMesh(
+                        name="Helmet",
+                        material="Helmet",
+                        texture=str(base_png),
+                        vertices=[(0.0, 0.0, 0.0)],
+                        faces=[(0, 0, 0)],
+                    )
+                ]
+            )
+            source_mesh.submeshes[0].texture_slots = (("base", base_png), ("normal", normal_png))
+
+            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
+                out_dir = Path(command[command.index("-o") + 1])
+                produced = out_dir / f"{Path(command[-1]).stem}.dds"
+                produced.write_bytes(_fake_dds_bytes(8, 8, fourcc=b"BC5U" if "normal" in command[-1].lower() else b"DXT1"))
+                return 0, "", ""
+
+            with patch("cdmw.core.common.run_process_with_cancellation", side_effect=fake_texconv):
+                payloads, report = build_texture_replacement_payloads(
+                    obj_mesh=source_mesh,
+                    rebuilt_mesh=ParsedMesh(
+                        submeshes=[
+                            SubMesh(
+                                name="CD_PHM_00_Hel_0013_05",
+                                material="CD_PHM_00_Hel_0013_05",
+                                vertices=[(0.0, 0.0, 0.0)],
+                                faces=[(0, 0, 0)],
+                            )
+                        ]
+                    ),
+                    texture_files=(base_png, normal_png),
+                    original_texture_refs=refs,
+                    original_sidecars=((sidecar_entry, sidecar_text),),
+                    submesh_mappings=(),
+                    texconv_path=texconv,
+                    read_original_texture_bytes=lambda entry: normal_template.read_bytes()
+                    if entry is entries["normal"]
+                    else base_template.read_bytes(),
+                    original_texture_source_path=lambda entry: normal_template if entry is entries["normal"] else base_template,
+                    pac_driven_sidecar=True,
+                    neutralize_inherited_material_layers=True,
+                    complete_external_material_reset=True,
+                    complete_swap_material_profile="source_graph_strict",
+                    output_draw_sections=(
+                        StaticOutputDrawSection(
+                            0,
+                            2,
+                            "cd_phm_00_hel_0013_05_inside",
+                            [0],
+                            runtime_slot_name="CD_PHM_00_Hel_0013_05",
+                            runtime_material_name="CD_PHM_00_Hel_0013_05",
+                            source_material_name="Helmet",
+                        ),
+                    ),
+                )
+
+            self.assertFalse(report.errors)
+            texture_payloads = [payload for payload in payloads if payload.kind == "texture_generated"]
+            self.assertGreaterEqual(len(texture_payloads), 2)
+            patched = next(payload.payload_data.decode("utf-8") for payload in payloads if payload.kind == "sidecar_generated")
+            self.assertIn("_subMeshName=\"CD_PHM_00_Hel_0013_05\"", patched)
+            self.assertIn("character/texture/cd_phm_00_hel_0013_05_helmet_basecolor.dds", patched.lower())
+            self.assertIn("character/texture/cd_phm_00_hel_0013_05_helmet_n.dds", patched.lower())
 
     def test_mixed_original_and_added_material_blocks_auto_texture_routing(self) -> None:
         texture_sets = group_replacement_texture_sets((Path("AddedPart_BaseColor.png"),))

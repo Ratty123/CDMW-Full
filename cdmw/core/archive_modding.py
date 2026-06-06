@@ -4640,10 +4640,81 @@ def _collect_original_mesh_sidecar_texts(
     return tuple(sidecars)
 
 
+def _source_owned_sidecar_name_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+
+
+def _source_owned_sidecar_name_is_helper_row(value: str) -> bool:
+    key = _source_owned_sidecar_name_key(value)
+    if not key:
+        return False
+    parts = tuple(part for part in key.split("_") if part)
+    if not parts:
+        return False
+    if parts[-1] in {"black", "inside"}:
+        return True
+    return "mask" in parts and key.startswith(("cd_", "pew_", "pe_", "npc_", "monster_", "vehicle_"))
+
+
+def _align_source_owned_target_names_to_mesh(
+    wrapper_names: Sequence[str],
+    original_mesh: ParsedMesh,
+) -> Tuple[str, ...]:
+    submeshes = tuple(getattr(original_mesh, "submeshes", ()) or ())
+    if not wrapper_names or not submeshes:
+        return tuple(str(name or "").strip() for name in tuple(wrapper_names or ()) if str(name or "").strip())
+    wrappers = tuple(str(name or "").strip() for name in tuple(wrapper_names or ()) if str(name or "").strip())
+    if not wrappers:
+        return ()
+    indices_by_key: Dict[str, List[int]] = defaultdict(list)
+    for index, name in enumerate(wrappers):
+        key = _source_owned_sidecar_name_key(name)
+        if key:
+            indices_by_key[key].append(index)
+
+    aligned: List[str] = []
+    used_indices: set[int] = set()
+    for target_index, submesh in enumerate(submeshes):
+        fallback_names = [
+            str(getattr(submesh, "name", "") or "").strip(),
+            str(getattr(submesh, "material", "") or "").strip(),
+        ]
+        fallbacks = [name for index, name in enumerate(fallback_names) if name and name not in fallback_names[:index]]
+        chosen = ""
+        for fallback in fallbacks:
+            key = _source_owned_sidecar_name_key(fallback)
+            for wrapper_index in indices_by_key.get(key, ()):
+                if wrapper_index in used_indices:
+                    continue
+                chosen = wrappers[wrapper_index]
+                used_indices.add(wrapper_index)
+                break
+            if chosen:
+                break
+        if not chosen and target_index < len(wrappers):
+            candidate = wrappers[target_index]
+            fallback = fallbacks[0] if fallbacks else candidate
+            candidate_key = _source_owned_sidecar_name_key(candidate)
+            fallback_key = _source_owned_sidecar_name_key(fallback)
+            if not (
+                candidate_key != fallback_key
+                and fallback
+                and _source_owned_sidecar_name_is_helper_row(candidate)
+            ):
+                chosen = candidate
+                used_indices.add(target_index)
+        if not chosen:
+            chosen = fallbacks[0] if fallbacks else (wrappers[target_index] if target_index < len(wrappers) else "")
+        if chosen:
+            aligned.append(chosen)
+    return tuple(aligned)
+
+
 def _source_owned_target_names_from_sidecars(
     original_sidecars: Sequence[Tuple[ArchiveEntry, str]],
+    original_mesh: Optional[ParsedMesh] = None,
 ) -> Tuple[str, ...]:
-    """Return game-runtime submesh wrapper names in original _subMeshResources order."""
+    """Return game-runtime submesh wrapper names aligned to original PAC draw sections."""
     for _sidecar_entry, sidecar_text in tuple(original_sidecars or ()):
         text = str(sidecar_text or "")
         if "_subMeshResources" not in text or "SkinnedMeshMaterialWrapper" not in text:
@@ -4670,6 +4741,8 @@ def _source_owned_target_names_from_sidecars(
             if name:
                 names.append(name)
         if names:
+            if original_mesh is not None:
+                return _align_source_owned_target_names_to_mesh(names, original_mesh)
             return tuple(names)
     return ()
 
@@ -5250,7 +5323,10 @@ def build_mesh_import_preview(
         if not base_static_options.submesh_mappings:
             base_static_options = dataclasses.replace(base_static_options, submesh_mappings=static_mappings)
         if bool(getattr(base_static_options, "complete_external_swap", False)):
-            source_owned_target_names = _source_owned_target_names_from_sidecars(original_sidecars_for_static)
+            source_owned_target_names = _source_owned_target_names_from_sidecars(
+                original_sidecars_for_static,
+                original_mesh=original_mesh,
+            )
             if source_owned_target_names:
                 base_static_options = dataclasses.replace(
                     base_static_options,

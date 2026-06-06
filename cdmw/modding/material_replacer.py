@@ -7289,7 +7289,7 @@ def _material_wrapper_clones_for_output_draw_sections(
     for section in tuple(output_draw_sections or ()):
         if not bool(getattr(section, "is_cloned_section", False)):
             continue
-        target_name = str(getattr(section, "target_submesh_name", "") or "").strip()
+        target_name = _source_owned_material_name_for_output_section(section)
         donor_name = str(getattr(section, "donor_material_name", "") or "").strip()
         if not target_name or not donor_name:
             continue
@@ -7307,13 +7307,24 @@ def _source_owned_keep_material_names_for_output_draw_sections(
     names: list[str] = []
     seen: set[str] = set()
     for section in tuple(output_draw_sections or ()):
-        target_name = str(getattr(section, "target_submesh_name", "") or "").strip()
+        target_name = _source_owned_material_name_for_output_section(section)
         key = _normalize_sidecar_material_name(target_name)
         if not target_name or not key or key in seen:
             continue
         names.append(target_name)
         seen.add(key)
     return tuple(names)
+
+
+def _source_owned_material_name_for_output_section(section: StaticOutputDrawSection) -> str:
+    target_name = str(getattr(section, "target_submesh_name", "") or "").strip()
+    if not target_name or not is_static_replacement_helper_material_name(target_name):
+        return target_name
+    for attr_name in ("runtime_slot_name", "runtime_material_name", "donor_material_name"):
+        candidate = str(getattr(section, attr_name, "") or "").strip()
+        if candidate and not is_static_replacement_helper_material_name(candidate):
+            return candidate
+    return target_name
 
 
 def _profile_suppresses_runtime_placeholder_material_bindings(
@@ -7333,7 +7344,7 @@ def _source_owned_active_material_names_for_output_draw_sections(
     for section in tuple(output_draw_sections or ()):
         if skip_placeholders and not tuple(getattr(section, "source_submesh_indices", ()) or ()):
             continue
-        target_name = str(getattr(section, "target_submesh_name", "") or "").strip()
+        target_name = _source_owned_material_name_for_output_section(section)
         key = _normalize_sidecar_material_name(target_name)
         if not target_name or not key or key in seen:
             continue
@@ -9113,7 +9124,7 @@ def _choose_source_materials_for_output_draw_sections(
         source_indices = tuple(int(index) for index in tuple(getattr(section, "source_submesh_indices", ()) or ()))
         if not source_indices:
             continue
-        target_name = str(getattr(section, "target_submesh_name", "") or "").strip()
+        target_name = _source_owned_material_name_for_output_section(section)
         if not target_name:
             continue
         atlas_material_names = tuple(
