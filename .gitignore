@@ -3,6 +3,7 @@
 !.codex/task_briefs/
 !.codex/task_briefs/*.md
 .pytest_cache/
+.pytest-tmp/
 .mypy_cache/
 .ruff_cache/
 __pycache__/
@@ -26,6 +27,7 @@ archive_cache/
 crash_reports/
 item_icon_library/
 app_restore_points/
+workspace/
 
 .tmp_*/
 tmp_*/

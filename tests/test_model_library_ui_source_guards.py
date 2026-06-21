@@ -72,9 +72,14 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         )
 
     def test_model_library_details_show_texture_slot_facts(self) -> None:
-        source = Path("cdmw/ui/model_library_tab.py").read_text(encoding="utf-8")
+        source = (
+            Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/selection.py").read_text(encoding="utf-8")
+        )
+        state_source = Path("cdmw/ui/model_library/state.py").read_text(encoding="utf-8")
 
-        self.assertIn('"texture_slot_rows": texture_slot_rows', source)
+        self.assertIn('"texture_slot_rows": texture_slot_rows', state_source)
         self.assertIn('texture_slot_rows = tuple(item for item in tuple(row.get("texture_slot_rows", ()) or ())', source)
         self.assertIn("_external_audit_texture_slot_text(item)", source)
         self.assertIn("Texture files: {texture_file_text}", source)
@@ -144,9 +149,17 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertEqual(normalized[0]["import_path"], str(scene_path))
 
     def test_main_window_registers_model_library_import_signal(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/shell/tool_tabs.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/shell/model_library_bridge.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_d3d11_process.py").read_text(encoding="utf-8")
+        )
 
-        self.assertIn("from cdmw.ui.model_library_tab import ModelLibraryTab", source)
+        self.assertIn("from cdmw.ui.model_library import ModelLibraryTab", source)
         self.assertIn("self.model_library_tab = ModelLibraryTab", source)
         self.assertIn("import_mesh_requested.connect", source)
         self.assertIn("preview_mesh_requested.connect", source)
@@ -168,7 +181,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("Connect Sketchfab", source)
 
     def test_mesh_import_setup_warns_when_textures_are_absent_or_unchecked(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = Path("cdmw/ui/archive_browser/mesh_import_export.py").read_text(encoding="utf-8")
 
         self.assertIn('QLabel#WarningLabel', source)
         self.assertIn('supplemental_warning_label.setObjectName("WarningLabel")', source)
@@ -179,7 +192,11 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("_refresh_supplemental_warning()", source)
 
     def test_inline_d3d11_status_timer_ignores_deleted_qt_object(self) -> None:
-        source = Path("cdmw/ui/model_library_tab.py").read_text(encoding="utf-8")
+        source = (
+            Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
+        )
 
         self.assertIn("def _start_inline_d3d11_status_timer(self) -> None:", source)
         self.assertIn("def _stop_inline_d3d11_status_timer(self) -> None:", source)
@@ -189,7 +206,33 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("self._inline_d3d11_status_timer.stop()\n        if process is None:", source)
 
     def test_model_library_tab_scans_searches_and_shows_manual_file_urls(self) -> None:
-        source = Path("cdmw/ui/model_library_tab.py").read_text(encoding="utf-8")
+        source = (
+            Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/actions.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/catalogue.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/commands.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/controller.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/local_rows.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/panels.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/selection.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/settings.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/tasks.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/texture_status.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/view_state.py").read_text(encoding="utf-8")
+        )
 
         self.assertIn("scan_local_model_files", source)
         self.assertIn("build_mirror_catalogue_index", source)
@@ -205,7 +248,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("creator_exclude_edit", source)
         self.assertIn("creator_excludes=creator_excludes", source)
         self.assertIn("Textures", source)
-        self.assertIn("self.result_limit_spin.setRange(1, 5000)", source)
+        self.assertIn("result_limit_spin.setRange(1, 5000)", source)
         self.assertIn("QProgressBar", source)
         self.assertIn("task_status_label", source)
         self.assertIn("active_task_label", source)
@@ -216,13 +259,14 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("def _update_active_task_progress", source)
         self.assertIn("empty_results_label", source)
         self.assertIn("setColumnCount(10)", source)
-        self.assertIn("self.results_tree.setSortingEnabled(False)", source)
+        self.assertIn("results_tree.setSortingEnabled(False)", source)
         self.assertIn("setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)", source)
         self.assertIn("setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)", source)
         self.assertIn("QHeaderView.ResizeMode.Interactive", source)
         self.assertIn("resizeSection(1, 260)", source)
         self.assertNotIn("setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)", source)
-        self.assertIn("sectionClicked.connect(self._handle_results_header_clicked)", source)
+        self.assertIn("sectionClicked.connect(", source)
+        self.assertIn("_handle_results_header_clicked", source)
         self.assertIn("def _sort_result_rows", source)
         self.assertIn("def _result_size_bytes", source)
         self.assertIn("def _use_result_source_order", source)
@@ -248,12 +292,12 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("Local Library", source)
         self.assertIn('QGroupBox("Mirror Index Source")', source)
         self.assertIn("self.mirror_group.setVisible(self._active_results_view == \"mirror\")", source)
-        self.assertIn("self.results_search_label = QLabel(\"Mirror search\")", source)
-        self.assertIn("self.results_filter_field_combo = QComboBox()", source)
-        self.assertIn("self.results_filter_field_combo.addItem(\"Creator\", \"creator\")", source)
-        self.assertIn("self.results_filter_field_combo.addItem(\"Path / URL\", \"path\")", source)
-        self.assertIn("self.apply_results_query_button = QPushButton(\"Search\")", source)
-        self.assertIn("self.clear_results_query_button = QPushButton(\"Clear\")", source)
+        self.assertIn("results_search_label = QLabel(\"Mirror search\")", source)
+        self.assertIn("results_filter_field_combo = QComboBox()", source)
+        self.assertIn("results_filter_field_combo.addItem(\"Creator\", \"creator\")", source)
+        self.assertIn("results_filter_field_combo.addItem(\"Path / URL\", \"path\")", source)
+        self.assertIn("apply_results_query_button = QPushButton(\"Search\")", source)
+        self.assertIn("clear_results_query_button = QPushButton(\"Clear\")", source)
         self.assertIn("def _apply_active_results_query", source)
         self.assertIn("def _clear_active_results_query", source)
         self.assertIn("def _local_payload_matches_filter", source)
@@ -328,12 +372,13 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn('inline_render_settings.visible_texture_mode = "sidecar_visible_first"', source)
         self.assertIn('inline_render_settings.render_diagnostic_mode = "base_direct"', source)
         self.assertIn("inline_render_settings.disable_all_support_maps = True", source)
-        self.assertIn("self.inline_preview_widget.set_render_settings(inline_render_settings)", source)
-        self.assertIn("self.inline_preview_widget.set_use_textures(True)", source)
-        self.assertIn("self.inline_preview_widget.set_high_quality_textures(True)", source)
+        self.assertIn("inline_preview_widget.set_render_settings(inline_render_settings)", source)
+        self.assertIn("inline_preview_widget.set_use_textures(True)", source)
+        self.assertIn("inline_preview_widget.set_high_quality_textures(True)", source)
         self.assertIn('QCheckBox("Flip V")', source)
         self.assertIn('QPushButton("Reset")', source)
-        self.assertIn("self.inline_preview_flip_v_checkbox.toggled.connect(self._handle_inline_preview_flip_v_toggled)", source)
+        self.assertIn("inline_preview_flip_v_checkbox.toggled.connect(", source)
+        self.assertIn("_handle_inline_preview_flip_v_toggled", source)
         self.assertIn("def _handle_inline_preview_flip_v_toggled", source)
         self.assertIn("settings.flip_texture_v = bool(checked)", source)
         self.assertIn("def _reload_inline_preview_for_orientation", source)
@@ -381,7 +426,11 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("preferred_format_combo", source)
 
     def test_model_library_auto_preview_resolves_zip_off_ui_thread(self) -> None:
-        source = Path("cdmw/ui/model_library_tab.py").read_text(encoding="utf-8")
+        source = (
+            Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
+        )
 
         preview_start = source.index("    def preview_selected_model_here")
         preview_body = source[preview_start: source.index("    def _inline_preview_renderer_backend", preview_start)]

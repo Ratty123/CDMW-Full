@@ -1,8 +1,22 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 import re
 
 from cdmw.ui.localization import UiLocalizer
+
+
+def _source(*paths: str) -> str:
+    return "\n".join(Path(path).read_text(encoding="utf-8") for path in paths)
+
+
+def _about_documentation_source() -> str:
+    return _source(
+        "cdmw/ui/shell/about_controller.py",
+        "cdmw/ui/shell/about_documentation.py",
+        "cdmw/ui/shell/about_documentation_en.py",
+        "cdmw/ui/shell/about_documentation_es.py",
+        "cdmw/ui/shell/about_documentation_de.py",
+    )
 
 
 def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> None:
@@ -86,22 +100,22 @@ def test_builtin_fallback_leaves_code_like_text_alone() -> None:
 
 
 def test_quick_start_and_documentation_cover_mesh_import_and_swap() -> None:
-    widgets_source = Path("cdmw/ui/widgets.py").read_text(encoding="utf-8")
-    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+    help_dialogs_source = Path("cdmw/ui/shell/help_dialogs.py").read_text(encoding="utf-8")
+    main_window_source = _source("cdmw/ui/shell/app_window.py") + "\n" + _about_documentation_source()
 
-    assert "Mesh Quick Guide" in widgets_source
-    assert "Guia rapida de mallas" in widgets_source
-    assert "Schnellguide fuer Meshes" in widgets_source
-    assert "Import DDS Preview" in widgets_source
-    assert "Vista previa de importar DDS" in widgets_source
-    assert "DDS-Importvorschau" in widgets_source
+    assert "Mesh Quick Guide" in help_dialogs_source
+    assert "Guia rapida de mallas" in help_dialogs_source
+    assert "Schnellguide fuer Meshes" in help_dialogs_source
+    assert "Import DDS Preview" in help_dialogs_source
+    assert "Vista previa de importar DDS" in help_dialogs_source
+    assert "DDS-Importvorschau" in help_dialogs_source
     assert "Swap With In-Game Mesh" in main_window_source
     assert "Intercambiar con malla del juego" in main_window_source
     assert "Mit Ingame-Mesh tauschen" in main_window_source
 
 
 def test_archive_browser_documentation_covers_current_functionality_in_supported_languages() -> None:
-    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+    main_window_source = _about_documentation_source()
 
     assert "active mod/original/shadowed duplicate status" in main_window_source
     assert "static geometry thumbnail so browsing candidates" in main_window_source
@@ -117,7 +131,14 @@ def test_archive_browser_documentation_covers_current_functionality_in_supported
 
 
 def test_profile_window_and_documentation_cover_current_settings_scope() -> None:
-    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+    main_window_source = "\n".join(
+        (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/shell/profile_controller.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/shell/startup_restore.py").read_text(encoding="utf-8"),
+            _about_documentation_source(),
+        )
+    )
 
     assert "_collect_profile_settings_snapshot" in main_window_source
     assert '"profile_format": 3' in main_window_source
@@ -134,7 +155,7 @@ def test_profile_window_and_documentation_cover_current_settings_scope() -> None
 
 
 def test_documentation_and_readme_cover_current_mesh_and_dds_workflows() -> None:
-    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+    main_window_source = _about_documentation_source()
     readme_source = Path("README.md").read_text(encoding="utf-8")
 
     assert "Dashboard</b>: compact workspace health" in main_window_source
@@ -156,19 +177,9 @@ def test_documentation_and_readme_cover_current_mesh_and_dds_workflows() -> None
 
 
 def test_supported_documentation_languages_cover_all_topic_ids() -> None:
-    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
-    english_block = main_window_source[
-        main_window_source.index("        def _build_about_sections") :
-        main_window_source.index("        def _build_about_document_for_language")
-    ]
-    spanish_block = main_window_source[
-        main_window_source.index('            if normalized == "es"') :
-        main_window_source.index('            if normalized == "de"')
-    ]
-    german_block = main_window_source[
-        main_window_source.index('            if normalized == "de"') :
-        main_window_source.index('            return f"{APP_TITLE} Documentation"')
-    ]
+    english_block = Path("cdmw/ui/shell/about_documentation_en.py").read_text(encoding="utf-8")
+    spanish_block = Path("cdmw/ui/shell/about_documentation_es.py").read_text(encoding="utf-8")
+    german_block = Path("cdmw/ui/shell/about_documentation_de.py").read_text(encoding="utf-8")
 
     english_ids = set(re.findall(r'"id"\s*:\s*"([^"]+)"', english_block))
     assert set(re.findall(r'"id"\s*:\s*"([^"]+)"', spanish_block)) == english_ids
@@ -179,13 +190,13 @@ def test_supported_documentation_languages_cover_all_topic_ids() -> None:
 
 
 def test_help_about_surfaces_have_localized_html_and_documentation_route() -> None:
-    main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
-    widgets_source = Path("cdmw/ui/widgets.py").read_text(encoding="utf-8")
+    main_window_source = _about_documentation_source()
+    help_dialogs_source = Path("cdmw/ui/shell/help_dialogs.py").read_text(encoding="utf-8")
 
     assert "def _build_about_overview_html_es" in main_window_source
     assert "def _build_about_overview_html_de" in main_window_source
     assert 'overview_browser.setProperty("_i18n_html_es"' in main_window_source
     assert 'overview_browser.setProperty("_i18n_html_de"' in main_window_source
-    assert 'hasattr(parent_window, "show_documentation_dialog")' in widgets_source
-    assert 'parent_window.show_documentation_dialog(topic_id="overview")' in widgets_source
-    assert 'parent_window.show_about_dialog(topic_id="overview")' not in widgets_source
+    assert 'hasattr(parent_window, "show_documentation_dialog")' in help_dialogs_source
+    assert 'parent_window.show_documentation_dialog(topic_id="overview")' in help_dialogs_source
+    assert 'parent_window.show_about_dialog(topic_id="overview")' not in help_dialogs_source

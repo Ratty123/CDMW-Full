@@ -1053,7 +1053,7 @@ def apply_material_combiner(
         return
     try:
         from types import SimpleNamespace
-        from cdmw.ui.model_preview_material_combiner import (
+        from cdmw.rendering.material_combiner import (
             MaterialPreviewCombinerSettings,
             combine_preview_material,
             synthesize_material_texture_inputs,

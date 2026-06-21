@@ -9,6 +9,7 @@ Latest release: `0.10.0-alpha.2`
 - Changelog: [CHANGELOG.md](CHANGELOG.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Security: [SECURITY.md](SECURITY.md)
+- Architecture: [docs/architecture.md](docs/architecture.md)
 
 ## Known Limitations
 
@@ -16,9 +17,9 @@ Latest release: `0.10.0-alpha.2`
 not just unfinished polish: in-game testing showed that the true 1H/offhand and
 full behavior-swap paths need more than partial ItemInfo/PAAC edits and can hang
 or crash the game. The embedded D3D11 placement preview is also disabled because
-the host can freeze the app. The repo still keeps the learned socket templates,
-CTF smoke checks, and [placement tuning guide](docs/placement_piece_tuning_guide.md)
-for manual package work, but the studio is not shipped as a supported workflow.
+the host can freeze the app. The repo still keeps the learned socket templates
+and CTF smoke checks for manual package work, but the studio is not shipped as a
+supported workflow.
 
 ## Features
 
@@ -29,8 +30,9 @@ for manual package work, but the studio is not shipped as a supported workflow.
   OBJ/DAE/glTF/GLB import preview workflows.
 - Run DDS texture workflows with native DirectX helpers, optional `texconv`
   fallback, optional Real-ESRGAN NCNN/chaiNNer upscaling, texture policy
-  planning, compare review, and mod-package export.
-- Replace edited PNG/DDS textures using the original game DDS as rebuild
+  planning, compare review, and mod-package export. DirectXTex/native helpers first.
+  `texconv.exe` remains an optional legacy fallback.
+- Use `Texture Replacer` to replace edited PNG/DDS textures using the original game DDS as rebuild
   authority, including package-prefixed loose output and manager metadata.
 - Edit visible textures in-app with layered projects, selections, masks,
   adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen,
@@ -62,9 +64,11 @@ reports, restore points, and corpus data out of source control.
    - `texconv.exe` as a legacy DDS fallback
    - Real-ESRGAN NCNN for direct upscaling
    - chaiNNer for existing `.chn` chains
+   - `Open DirectXTex / texconv Page` opens the external helper download page
 
-Portable state is stored beside the EXE, including config, logs, archive caches,
-research notes, and diagnostic data.
+Portable config is stored beside the EXE. App-managed folders live under
+`workspace/`, including sources, staging, outputs, extracts, libraries, tools,
+cache, logs, sessions, projects, and research data.
 
 ## Source Setup
 
@@ -133,11 +137,19 @@ Useful wrappers:
 - `tools/` - audit, capture, build, and research utilities
 - `docs/` - focused guides and reverse-engineering notes
 
+Architecture details:
+
+- [Architecture](docs/architecture.md)
+- [Startup flow](docs/startup_flow.md)
+- [Worker lifecycle](docs/worker_lifecycle.md)
+- [Archive safety model](docs/archive_safety_model.md)
+
 ## Privacy
 
 The app does not include telemetry, analytics, auto-update checks, or background
-network calls for normal offline use. It opens external pages only from explicit
-user actions such as download/help links.
+network calls for normal offline use. Crash reports and diagnostic bundles stay
+local until you export and share them. It opens external pages only from
+explicit user actions such as download/help links.
 
 ## License
 

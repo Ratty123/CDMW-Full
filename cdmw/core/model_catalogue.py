@@ -969,11 +969,16 @@ def catalogue_stats(db_path: Path | str) -> dict[str, int]:
     path = Path(db_path)
     if not path.is_file():
         return {"models": 0, "shards": 0}
-    conn = sqlite3.connect(path)
+    try:
+        conn = sqlite3.connect(path)
+    except (OSError, sqlite3.Error):
+        return {"models": 0, "shards": 0}
     try:
         models = int(conn.execute("SELECT COUNT(*) FROM models").fetchone()[0])
         shards = int(conn.execute("SELECT COUNT(*) FROM shards").fetchone()[0])
         return {"models": models, "shards": shards}
+    except (OSError, sqlite3.Error):
+        return {"models": 0, "shards": 0}
     finally:
         conn.close()
 

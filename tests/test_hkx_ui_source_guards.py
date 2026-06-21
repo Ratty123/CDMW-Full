@@ -1,18 +1,56 @@
-﻿from pathlib import Path
+from pathlib import Path
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MAIN_WINDOW = ROOT / "cdmw" / "ui" / "main_window.py"
+MAIN_WINDOW = ROOT / "cdmw" / "ui" / "shell" / "app_window.py"
+SIGNAL_WIRING = ROOT / "cdmw" / "ui" / "shell" / "signal_wiring.py"
+ARCHIVE_BROWSER_ACTIONS = ROOT / "cdmw" / "ui" / "archive_browser" / "actions.py"
+ARCHIVE_ATTACHMENT_BATCH = ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_batch.py"
+ARCHIVE_ATTACHMENT_DONOR_PICKER_DIALOG = ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_donor_picker_dialog.py"
+ARCHIVE_ATTACHMENT_PLACEMENT_DIFF_DIALOG = ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_placement_diff_dialog.py"
+ARCHIVE_ATTACHMENT_PACKAGE = ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_package.py"
+ARCHIVE_ATTACHMENT_PLAN = ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_plan.py"
+ARCHIVE_ATTACHMENT_VISUAL_DIALOG = ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_visual_dialog.py"
+ARCHIVE_ATTACHMENT_VISUAL_GEOMETRY = ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_visual_geometry.py"
+ARCHIVE_ATTACHMENT_VISUAL_PREVIEW = ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_visual_preview.py"
+ARCHIVE_ASSET_FAMILY_DIALOG = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_family_dialog.py"
+ARCHIVE_ASSET_FAMILY_LAYOUT = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_family_layout.py"
+ARCHIVE_BINARY_SIDECAR_ACTIONS = ROOT / "cdmw" / "ui" / "archive_browser" / "binary_sidecar_actions.py"
+ARCHIVE_HKX_DOCUMENT_ACTIONS = ROOT / "cdmw" / "ui" / "archive_browser" / "hkx_document_actions.py"
+ARCHIVE_HKX_EDITOR_DIALOG = ROOT / "cdmw" / "ui" / "archive_browser" / "hkx_editor_dialog.py"
+ARCHIVE_HKX_EDITOR_DIALOG_HELPERS = ROOT / "cdmw" / "ui" / "archive_browser" / "hkx_editor_dialog_helpers.py"
+ARCHIVE_HKX_XML_HIGHLIGHTER = ROOT / "cdmw" / "ui" / "archive_browser" / "hkx_xml_highlighter.py"
+ARCHIVE_REFERENCE_PREVIEW = ROOT / "cdmw" / "ui" / "archive_browser" / "reference_preview.py"
+ARCHIVE_STATIC_PREVIEW_THUMBNAIL = ROOT / "cdmw" / "ui" / "archive_browser" / "static_preview_thumbnail.py"
+ARCHIVE_PREVIEW_LAYOUT = ROOT / "cdmw" / "ui" / "archive_browser" / "preview_layout.py"
 WIDGETS = ROOT / "cdmw" / "ui" / "widgets.py"
 ARCHIVE_CORE = ROOT / "cdmw" / "core" / "archive.py"
+ARCHIVE_HKX_CORE = ROOT / "cdmw" / "core" / "archive_hkx.py"
+ARCHIVE_PREVIEW_RESULT_BUILDER = ROOT / "cdmw" / "core" / "archive_preview_result_builder.py"
+
+
+def _hkx_action_sources() -> str:
+    return "\n".join(
+        (
+            ARCHIVE_BINARY_SIDECAR_ACTIONS.read_text(encoding="utf-8"),
+            ARCHIVE_HKX_DOCUMENT_ACTIONS.read_text(encoding="utf-8"),
+        )
+    )
+
+
+def _hkx_editor_sources() -> str:
+    return "\n".join(
+        (
+            ARCHIVE_HKX_EDITOR_DIALOG.read_text(encoding="utf-8"),
+            ARCHIVE_HKX_EDITOR_DIALOG_HELPERS.read_text(encoding="utf-8"),
+        )
+    )
 
 
 class HkxUiSourceGuardTests(unittest.TestCase):
     def test_hkx_xml_highlighter_scans_comments_without_html_tag_regex(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
-        highlighter_start = source.index("class _HkxXmlHighlighter")
-        highlighter_body = source[highlighter_start : source.index("dialog = QDialog(self)", highlighter_start)]
+        highlighter_body = ARCHIVE_HKX_XML_HIGHLIGHTER.read_text(encoding="utf-8")
 
         self.assertIn("def _highlight_xml_comments", highlighter_body)
         self.assertIn('text.find("<!--")', highlighter_body)
@@ -23,7 +61,28 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("<!--" + ".*?" + "-->", highlighter_body)
 
     def test_archive_browser_exposes_hkx_json_export_import_actions(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = "\n".join(
+            (
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                SIGNAL_WIRING.read_text(encoding="utf-8"),
+                ARCHIVE_PREVIEW_LAYOUT.read_text(encoding="utf-8"),
+                _hkx_action_sources(),
+                _hkx_editor_sources(),
+                ARCHIVE_BROWSER_ACTIONS.read_text(encoding="utf-8"),
+                ARCHIVE_ATTACHMENT_BATCH.read_text(encoding="utf-8"),
+                ARCHIVE_ATTACHMENT_DONOR_PICKER_DIALOG.read_text(encoding="utf-8"),
+                ARCHIVE_ATTACHMENT_PLACEMENT_DIFF_DIALOG.read_text(encoding="utf-8"),
+                ARCHIVE_ASSET_FAMILY_DIALOG.read_text(encoding="utf-8"),
+                ARCHIVE_ASSET_FAMILY_LAYOUT.read_text(encoding="utf-8"),
+                ARCHIVE_REFERENCE_PREVIEW.read_text(encoding="utf-8"),
+                ARCHIVE_STATIC_PREVIEW_THUMBNAIL.read_text(encoding="utf-8"),
+                ARCHIVE_ATTACHMENT_VISUAL_DIALOG.read_text(encoding="utf-8"),
+                ARCHIVE_ATTACHMENT_VISUAL_GEOMETRY.read_text(encoding="utf-8"),
+                ARCHIVE_ATTACHMENT_VISUAL_PREVIEW.read_text(encoding="utf-8"),
+                ARCHIVE_CORE.read_text(encoding="utf-8"),
+                ARCHIVE_HKX_CORE.read_text(encoding="utf-8"),
+            )
+        )
 
         self.assertIn('QPushButton("Export HKX JSON...")', source)
         self.assertIn('QPushButton("Import HKX JSON...")', source)
@@ -284,7 +343,7 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("placement_source_preview_widget = QLabel", source)
         self.assertIn("Source Model Preview", source)
         self.assertIn("Static geometry thumbnail only in this picker", source)
-        self.assertIn("def _render_placement_source_preview_pixmap", source)
+        self.assertIn("def render_static_model_preview_pixmap", source)
         self.assertIn('"static_preview": True', source)
         self.assertIn("live texture uploads are skipped here", source)
         self.assertIn("attach_preview_images=False", source)
@@ -311,10 +370,10 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("self._warm_item_finder_icon_rows_before_exec(", source)
         self.assertIn(
             "self._cached_archive_asset_catalog_inventory_icon_pixmap(\n"
-            "                            row,\n"
-            "                            78,\n"
-            "                            allow_sync_prepare=False,\n"
-            "                        )",
+            "                        row,\n"
+            "                        78,\n"
+            "                        allow_sync_prepare=False,\n"
+            "                    )",
             source,
         )
         self.assertIn('item.setData(Qt.UserRole + 1, "thumb_loaded")', source)
@@ -351,7 +410,8 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("Socket-only placement preview", source)
         self.assertIn("Held/sheathed placement comes from prefab/socket evidence.", source)
         self.assertIn("showing them would imply held/sheathed placement that HKX alone does not provide", source)
-        self.assertIn("def _hkx_preview_skeleton_link_count(preview_model: object) -> int:", source)
+        self.assertIn("def hkx_preview_skeleton_link_count(preview_model: object) -> int:", source)
+        self.assertIn("hkx_preview_counts as _hkx_preview_counts", source)
         self.assertIn("Placement workspace has", source)
         self.assertIn("No skeleton context recovered.", source)
         self.assertIn("picker_filter_timer = QTimer(picker)", source)
@@ -455,7 +515,7 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("_set_connected_target_filter", source)
         self.assertIn("connected_target_filter_edit.textChanged.connect(_apply_connected_physics_filter)", source)
         self.assertIn("connected_tree.itemDoubleClicked.connect", source)
-        self.assertIn("select_physics_overlay_target", WIDGETS.read_text(encoding="utf-8"))
+        self.assertIn("select_physics_overlay_target", (ROOT / "cdmw" / "ui" / "native_preview_panel.py").read_text(encoding="utf-8"))
         self.assertIn("_populate_hkx_browser_tree", source)
         self.assertIn("editorModel", source)
         self.assertIn("relationshipGraph", source)
@@ -484,7 +544,7 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("_record_dirty_value", source)
         self.assertIn("_sync_hkx_edited_overlay_targets", source)
         self.assertIn("_dirty_overlay_viewer_ids_from_root", source)
-        self.assertIn("set_physics_overlay_edited_targets", WIDGETS.read_text(encoding="utf-8"))
+        self.assertIn("set_physics_overlay_edited_targets", (ROOT / "cdmw" / "ui" / "native_preview_panel.py").read_text(encoding="utf-8"))
         self.assertIn("Patch target", source)
         self.assertIn('"Record", "Type", "Kind", "Offset", "Size", "Name", "Value", "Confidence", "Description"', source)
         self.assertIn('"Shape", "Field", "Row", "Component", "Value", "Confidence", "Description"', source)
@@ -565,7 +625,7 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn('"Confidence"', source)
         self.assertIn('search_edit.setPlaceholderText("Search XML")', source)
         self.assertIn('wrap_checkbox = QCheckBox("Wrap")', source)
-        self.assertIn("_HkxXmlHighlighter", source)
+        self.assertIn("HkxXmlHighlighter", source + "\n" + ARCHIVE_HKX_XML_HIGHLIGHTER.read_text(encoding="utf-8"))
         self.assertIn("line_numbers = QPlainTextEdit()", source)
         self.assertIn("build_hkx_editable_geometry_json", source)
         self.assertIn("build_hkx_converter_corpus_json", source)
@@ -587,7 +647,16 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("The installed game archives were not modified.", source)
 
     def test_hkx_placement_swap_non_sword_safety_and_experimental_full_swap_are_present(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = "\n".join(
+            (
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                _hkx_action_sources(),
+                ARCHIVE_ATTACHMENT_BATCH.read_text(encoding="utf-8"),
+                ARCHIVE_ATTACHMENT_PLACEMENT_DIFF_DIALOG.read_text(encoding="utf-8"),
+                ARCHIVE_ATTACHMENT_PACKAGE.read_text(encoding="utf-8"),
+                ARCHIVE_ATTACHMENT_PLAN.read_text(encoding="utf-8"),
+            )
+        )
 
         self.assertIn("def _attachment_package_weapon_subclass_tokens", source)
         self.assertIn("def _attachment_package_placement_compatibility", source)
@@ -618,8 +687,21 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("experimental_copy_source_hkx=experimental_hkx_checkbox.isChecked()", source)
 
     def test_hkx_archive_preview_body_context_strings_are_present(self) -> None:
-        archive_source = ARCHIVE_CORE.read_text(encoding="utf-8")
-        ui_source = MAIN_WINDOW.read_text(encoding="utf-8")
+        archive_source = "\n".join(
+            (
+                ARCHIVE_CORE.read_text(encoding="utf-8"),
+                ARCHIVE_HKX_CORE.read_text(encoding="utf-8"),
+                (ROOT / "cdmw" / "core" / "archive_model_preview.py").read_text(encoding="utf-8"),
+                ARCHIVE_PREVIEW_RESULT_BUILDER.read_text(encoding="utf-8"),
+            )
+        )
+        ui_source = "\n".join(
+            (
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                _hkx_editor_sources(),
+                (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_result.py").read_text(encoding="utf-8"),
+            )
+        )
 
         self.assertIn("def resolve_hkx_preview_context_model_entry", archive_source)
         self.assertIn("HKX Body + Physics preview", archive_source)

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import os
@@ -18,7 +18,7 @@ from cdmw.models import (
     PreviewMaterialParameterInput,
     PreviewMaterialTextureInput,
 )
-from cdmw.ui.model_preview_material_combiner import (
+from cdmw.rendering.material_combiner import (
     MaterialPreviewCombinerSettings,
     _decode_mode_for_input,
     combine_preview_material,
@@ -376,6 +376,9 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertEqual("packed_material", _input_texture_kind(texture_input))
 
     def test_normalizes_renderer_backend(self) -> None:
+        self.assertEqual(ARCHIVE_MODEL_RENDERER_D3D11, normalize_archive_model_renderer_backend("d3d11"))
+        self.assertEqual(ARCHIVE_MODEL_RENDERER_D3D11, normalize_archive_model_renderer_backend("direct3d11"))
+        self.assertEqual(ARCHIVE_MODEL_RENDERER_D3D11, normalize_archive_model_renderer_backend("native_d3d11"))
         self.assertEqual(ARCHIVE_MODEL_RENDERER_D3D11, normalize_archive_model_renderer_backend("old_removed_renderer"))
         self.assertEqual(ARCHIVE_MODEL_RENDERER_DEFAULT, normalize_archive_model_renderer_backend("unknown"))
 

@@ -337,8 +337,7 @@ def build_source_match_plan_for_path(
     has_alpha = image_has_alpha_channel(source_png_path)
     if original_dds_path is not None and original_dds_path.exists():
         try:
-            # Local import avoids a hard module cycle with the pipeline module.
-            from cdmw.core.pipeline import parse_dds
+            from cdmw.core.texture_pipeline.inspection import parse_dds
 
             dds_info = parse_dds(original_dds_path)
             original_texconv_format = dds_info.texconv_format

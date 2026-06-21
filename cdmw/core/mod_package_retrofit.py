@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import zipfile
+import re
 from pathlib import Path, PurePosixPath
 from typing import Mapping, Sequence
 
@@ -21,6 +22,7 @@ from cdmw.core.mod_package import (
     write_mesh_loose_mod_package_metadata,
     write_mod_package_manifest,
 )
+from cdmw.core.archive import read_archive_entry_data
 from cdmw.models import ModPackageInfo
 
 
@@ -94,6 +96,8 @@ class RetrofitPayloadMapping:
     is_new: bool = False
     status: str = "unchanged"
     message: str = ""
+    binary_status: str = ""
+    binary_note: str = ""
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -102,7 +106,16 @@ class RetrofitPathRepairSummary:
     repaired_path_count: int = 0
     unresolved_path_count: int = 0
     ambiguous_path_count: int = 0
+    binary_size_mismatch_count: int = 0
+    binary_size_match_count: int = 0
+    binary_size_unknown_count: int = 0
+    binary_exact_match_count: int = 0
+    binary_exact_mismatch_count: int = 0
+    binary_exact_unknown_count: int = 0
     warnings: tuple[str, ...] = ()
+    package_game_build: str = ""
+    current_game_build: str = ""
+    build_match_status: str = "unknown"
 
 
 def scan_retrofittable_mod_packages(source: Path | str) -> list[RetrofittableModPackage]:
@@ -135,7 +148,7 @@ def analyze_retrofittable_mod_package(root: Path | str) -> RetrofittableModPacka
     if not package_root.is_dir():
         return None
 
-    manifest = _read_json_file(package_root / "manifest.json")
+    manifest = _read_json_file(package_root / "manifest.json") or _read_json_file(package_root / "mod.json")
     modinfo = _read_json_file(package_root / "modinfo.json")
     payload_paths = _discover_retrofit_payload_paths(package_root)
     if not payload_paths and not manifest and not modinfo:
@@ -664,14 +677,48 @@ def build_retrofit_path_repair_summary(
     package: RetrofittableModPackage,
     *,
     archive_entries_by_basename: Mapping[str, Sequence[object]] | None = None,
+    current_game_build: str | None = None,
+    compare_payload_bytes: bool = True,
 ) -> RetrofitPathRepairSummary:
+    package_game_build = _metadata_text(package.manifest, "game_build") or _metadata_text(
+        package.modinfo,
+        "game_build",
+    )
+    if not package_game_build:
+        game_metadata = package.manifest.get("game_metadata")
+        if isinstance(game_metadata, Mapping):
+            package_game_build = _metadata_text(game_metadata, "game_build")
+    normalized_package_build = _normalize_game_build_signature(package_game_build)
+    normalized_current_build = _normalize_game_build_signature(current_game_build or "")
+    if normalized_package_build and normalized_current_build:
+        build_match_status = (
+            "aligned" if normalized_package_build == normalized_current_build else "mismatch"
+        )
+    elif package_game_build:
+        build_match_status = "unknown_current"
+    else:
+        build_match_status = "unknown_package"
     warnings: list[str] = []
     manifest_rows = _manifest_file_rows_by_path(package.manifest)
     manifest_new_paths = _manifest_new_paths(package.manifest)
+    package_payload_path_keys = {
+        normalized.casefold()
+        for normalized in (
+            normalize_mod_package_payload_path(path).as_posix().strip("/")
+            for path in package.payload_paths
+        )
+        if normalized
+    }
     mappings: list[RetrofitPayloadMapping] = []
     repaired = 0
     unresolved = 0
     ambiguous = 0
+    binary_mismatch = 0
+    binary_match = 0
+    binary_unknown = 0
+    binary_exact_match = 0
+    binary_exact_mismatch = 0
+    binary_exact_unknown = 0
     for payload_path in package.payload_paths:
         source_path = normalize_mod_package_payload_path(payload_path).as_posix().strip("/")
         if not source_path:
@@ -681,11 +728,26 @@ def build_retrofit_path_repair_summary(
         is_new = bool(row.get("is_new", False)) if isinstance(row, Mapping) else False
         if source_path.casefold() in manifest_new_paths:
             is_new = True
-        target_path, status, message = _repair_retrofit_payload_path(
+        stale_new_path_repaired = False
+        if is_new and archive_entries_by_basename and _declared_new_path_exists_in_current_game(
             source_path,
-            package_group=package_group,
             archive_entries_by_basename=archive_entries_by_basename,
-        )
+            package_group=package_group,
+        ):
+            is_new = False
+            stale_new_path_repaired = True
+        if not stale_new_path_repaired and _descriptor_alias_pair_complete(source_path, package_payload_path_keys):
+            target_path, status, message = source_path, "unchanged", ""
+        else:
+            target_path, status, message = _repair_retrofit_payload_path(
+                source_path,
+                package_group=package_group,
+                is_new=is_new,
+                archive_entries_by_basename=archive_entries_by_basename,
+            )
+        if stale_new_path_repaired and status == "unchanged":
+            status = "repaired"
+            message = f"Removed stale new-path marker for existing current-game path: {source_path}"
         if status == "repaired":
             repaired += 1
         elif status == "unresolved":
@@ -704,13 +766,166 @@ def build_retrofit_path_repair_summary(
                 message=message,
             )
         )
+
+    archive_payloads_by_path = archive_entries_by_basename or {}
+    for index, mapping in enumerate(mappings):
+        target_path = normalize_mod_package_payload_path(mapping.target_path).as_posix().strip("/")
+        if not target_path:
+            binary_unknown += 1
+            binary_exact_unknown += 1
+            mappings[index] = dataclasses.replace(
+                mapping,
+                binary_status="unknown",
+                binary_note="Missing target path for binary compatibility check.",
+            )
+            warnings.append("Missing target path for binary compatibility check.")
+            continue
+        if mapping.status == "unresolved":
+            binary_unknown += 1
+            binary_exact_unknown += 1
+            mappings[index] = dataclasses.replace(
+                mapping,
+                binary_status="unknown",
+                binary_note="Could not auto-repair payload path.",
+            )
+            continue
+        if mapping.status not in {"unchanged", "repaired"}:
+            binary_unknown += 1
+            binary_exact_unknown += 1
+            mappings[index] = dataclasses.replace(
+                mapping,
+                binary_status="unknown",
+                binary_note="Manual review required before binary comparison.",
+            )
+            continue
+        source_data = _payload_file_bytes(package.root, mapping.source_path)
+        if source_data is None:
+            binary_unknown += 1
+            binary_exact_unknown += 1
+            mappings[index] = dataclasses.replace(
+                mapping,
+                binary_status="unknown",
+                binary_note="Could not read source payload bytes.",
+            )
+            continue
+        source_size = len(source_data)
+        if source_size == 0:
+            binary_unknown += 1
+            binary_exact_unknown += 1
+            mappings[index] = dataclasses.replace(
+                mapping,
+                binary_status="unknown",
+                binary_note="Source payload is empty.",
+            )
+            continue
+        matching_entries = _archive_payload_path_candidate_rows(
+            target_path,
+            archive_entries_by_basename=archive_payloads_by_path,
+            package_group=mapping.package_group,
+        )
+        if not matching_entries:
+            binary_unknown += 1
+            binary_exact_unknown += 1
+            mappings[index] = dataclasses.replace(
+                mapping,
+                binary_status="unknown",
+                binary_note="Could not find matching archive target for binary check.",
+            )
+            if mapping.status in {"unchanged", "repaired"}:
+                warnings.append(f"Could not find matching archive target for binary check: {target_path}")
+            continue
+        archive_entry = None
+        normalized_target = target_path.casefold()
+        for candidate_path, candidate_entry in matching_entries:
+            if normalize_mod_package_payload_path(candidate_path).as_posix().strip("/").casefold() == normalized_target:
+                archive_entry = candidate_entry
+                break
+        if archive_entry is None:
+            archive_entry = matching_entries[0][1]
+        archive_size = int(getattr(archive_entry, "orig_size", 0) or 0)
+        if archive_size <= 0:
+            archive_size = int(getattr(archive_entry, "comp_size", 0) or 0)
+        if archive_size <= 0:
+            binary_unknown += 1
+            binary_exact_unknown += 1
+            mappings[index] = dataclasses.replace(
+                mapping,
+                binary_status="unknown",
+                binary_note="Archive payload has unknown size.",
+            )
+            continue
+        if source_size == archive_size:
+            binary_match += 1
+            if not compare_payload_bytes:
+                binary_exact_unknown += 1
+                mappings[index] = dataclasses.replace(
+                    mapping,
+                    binary_status="size_match",
+                    binary_note="Exact byte compare not run in quick scan.",
+                )
+                continue
+            try:
+                archive_data, _decompressed, _note = read_archive_entry_data(archive_entry)
+            except Exception as exc:
+                binary_exact_unknown += 1
+                mappings[index] = dataclasses.replace(
+                    mapping,
+                    binary_status="unknown",
+                    binary_note=f"Failed to read archive payload bytes: {exc}",
+                )
+                warnings.append(f"Failed to read archive payload bytes for {target_path}: {exc}")
+                continue
+            if archive_data == source_data:
+                binary_exact_match += 1
+                mappings[index] = dataclasses.replace(mapping, binary_status="match")
+            else:
+                binary_exact_mismatch += 1
+                mappings[index] = dataclasses.replace(
+                    mapping,
+                    binary_status="mismatch",
+                    binary_note="Payload bytes differ from current game file.",
+                )
+                warnings.append(f"Binary bytes differ for {target_path}: source and archive payload differ byte-for-byte.")
+        else:
+            binary_mismatch += 1
+            binary_exact_mismatch += 1
+            mappings[index] = dataclasses.replace(
+                mapping,
+                binary_status="size_mismatch",
+                binary_note=f"Source size {source_size:,} != archive size {archive_size:,}.",
+            )
+            warnings.append(
+                f"Possible binary mismatch for {target_path}: source size {source_size:,} vs archive size {archive_size:,}"
+            )
+
     return RetrofitPathRepairSummary(
         mappings=tuple(mappings),
         repaired_path_count=repaired,
         unresolved_path_count=unresolved,
         ambiguous_path_count=ambiguous,
+        binary_size_mismatch_count=binary_mismatch,
+        binary_size_match_count=binary_match,
+        binary_size_unknown_count=binary_unknown,
+        binary_exact_match_count=binary_exact_match,
+        binary_exact_mismatch_count=binary_exact_mismatch,
+        binary_exact_unknown_count=binary_exact_unknown,
         warnings=tuple(dict.fromkeys(warnings)),
+        package_game_build=package_game_build,
+        current_game_build=(current_game_build or ""),
+        build_match_status=build_match_status,
     )
+
+
+def _normalize_game_build_signature(value: str) -> str:
+    text = (value or "").strip()
+    if not text:
+        return ""
+    numeric_components = [part for part in re.findall(r"\d+", text)]
+    if not numeric_components:
+        return text.lower()
+    if len(numeric_components) == 1:
+        return f"{int(numeric_components[0])}"
+    return f"{int(numeric_components[0])}.{int(numeric_components[1])}"
 
 
 def _manifest_file_rows_by_path(manifest: Mapping[str, object]) -> dict[str, Mapping[str, object]]:
@@ -747,59 +962,170 @@ def _compact_mesh_path_needs_repair(path: str) -> bool:
     return pure.suffix.casefold() in _MESH_SUFFIXES
 
 
-def _repair_retrofit_payload_path(
-    path: str,
+def _archive_payload_path_candidates(
+    source_path: str,
     *,
-    package_group: str,
-    archive_entries_by_basename: Mapping[str, Sequence[object]] | None,
-) -> tuple[str, str, str]:
-    normalized = normalize_mod_package_payload_path(path).as_posix().strip("/")
-    if not normalized or not _compact_mesh_path_needs_repair(normalized):
-        return normalized, "unchanged", ""
-    if not archive_entries_by_basename:
-        return (
-            normalized,
-            "unresolved",
-            f"Could not repair compact path without loaded archive index: {normalized}",
+    archive_entries_by_basename: Mapping[str, Sequence[object]],
+    package_group: str = "",
+) -> tuple[str, ...]:
+    return tuple(
+        candidate_path
+        for candidate_path, _ in _archive_payload_path_candidate_rows(
+            source_path,
+            archive_entries_by_basename=archive_entries_by_basename,
+            package_group=package_group,
         )
+    )
+
+
+def _declared_new_path_exists_in_current_game(
+    source_path: str,
+    *,
+    archive_entries_by_basename: Mapping[str, Sequence[object]],
+    package_group: str = "",
+) -> bool:
+    normalized = normalize_mod_package_payload_path(source_path).as_posix().strip("/")
+    if not normalized:
+        return False
+    candidates = _archive_payload_path_candidates(
+        normalized,
+        archive_entries_by_basename=archive_entries_by_basename,
+        package_group=package_group,
+    )
+    if any(
+        normalize_mod_package_payload_path(candidate).as_posix().strip("/").casefold()
+        == normalized.casefold()
+        for candidate in candidates
+    ):
+        return True
+    alias_paths = {
+        path.casefold()
+        for pair in _JMM_DESCRIPTOR_ALIAS_PAIRS
+        for path in pair
+    }
+    return normalized.casefold() in alias_paths and bool(candidates)
+
+
+def _descriptor_alias_pair_complete(source_path: str, package_payload_path_keys: set[str]) -> bool:
+    normalized = normalize_mod_package_payload_path(source_path).as_posix().strip("/").casefold()
+    if not normalized:
+        return False
+    for left, right in _JMM_DESCRIPTOR_ALIAS_PAIRS:
+        left_key = left.casefold()
+        right_key = right.casefold()
+        if normalized in {left_key, right_key} and left_key in package_payload_path_keys and right_key in package_payload_path_keys:
+            return True
+    return False
+
+
+def _archive_payload_path_candidate_rows(
+    source_path: str,
+    *,
+    archive_entries_by_basename: Mapping[str, Sequence[object]],
+    package_group: str = "",
+) -> tuple[tuple[str, object], ...]:
+    normalized = normalize_mod_package_payload_path(source_path).as_posix().strip("/")
+    if not normalized:
+        return ()
+
     basename = PurePosixPath(normalized).name.casefold()
     candidates = list(archive_entries_by_basename.get(basename, ()) or ())
     if not candidates:
         for key, values in archive_entries_by_basename.items():
             if str(key or "").casefold() == basename:
                 candidates.extend(values or ())
-        deduped_candidates: list[object] = []
-        seen_candidate_keys: set[str] = set()
-        for candidate in candidates:
-            candidate_key = str(getattr(candidate, "path", "") or "").replace("\\", "/").casefold()
-            if candidate_key in seen_candidate_keys:
-                continue
-            seen_candidate_keys.add(candidate_key)
-            deduped_candidates.append(candidate)
-        candidates = deduped_candidates
+                break
+
     suffix = PurePosixPath(normalized).suffix.casefold()
     candidates = [
         candidate
         for candidate in candidates
         if str(getattr(candidate, "path", "") or "").replace("\\", "/").casefold().endswith(suffix)
     ]
+
     normalized_group = str(package_group or "").strip().casefold()
     if normalized_group:
-        group_matches = [
+        grouped_candidates = [
             candidate
             for candidate in candidates
             if str(getattr(getattr(candidate, "pamt_path", Path()), "parent", Path()).name or "").strip().casefold()
             == normalized_group
         ]
-        if group_matches:
-            candidates = group_matches
-    unique_paths = sorted(
-        {
-            str(getattr(candidate, "path", "") or "").replace("\\", "/").strip()
-            for candidate in candidates
-            if str(getattr(candidate, "path", "") or "").strip()
-        },
-        key=str.casefold,
+        if grouped_candidates:
+            candidates = grouped_candidates
+
+    unique_candidates: dict[str, object] = {}
+    for candidate in candidates:
+        candidate_path = normalize_mod_package_payload_path(getattr(candidate, "path", "") or "").as_posix().strip("/")
+        if not candidate_path:
+            continue
+        key = candidate_path.casefold()
+        if key not in unique_candidates:
+            unique_candidates[key] = candidate
+    return tuple((path, unique_candidates[path]) for path in sorted(unique_candidates.keys()))
+
+
+def _repair_retrofit_payload_path(
+    path: str,
+    *,
+    package_group: str,
+    is_new: bool,
+    archive_entries_by_basename: Mapping[str, Sequence[object]] | None,
+) -> tuple[str, str, str]:
+    normalized = normalize_mod_package_payload_path(path).as_posix().strip("/")
+    if not normalized:
+        return normalized, "unchanged", ""
+
+    if archive_entries_by_basename and not is_new:
+        candidate_rows = _archive_payload_path_candidate_rows(
+            normalized,
+            archive_entries_by_basename=archive_entries_by_basename,
+            package_group=package_group,
+        )
+        resolved_paths = tuple(candidate_path for candidate_path, _entry in candidate_rows)
+        exact_paths = tuple(
+            candidate_path
+            for candidate_path in resolved_paths
+            if normalize_mod_package_payload_path(candidate_path).as_posix().strip("/").casefold()
+            == normalized.casefold()
+        )
+        if exact_paths:
+            return normalized, "unchanged", ""
+        if not _compact_mesh_path_needs_repair(normalized) and not resolved_paths:
+            return (
+                normalized,
+                "unresolved",
+                f"Payload path was not found in the current game index: {normalized}",
+            )
+        if len(resolved_paths) == 1:
+            repaired = resolved_paths[0]
+            return (
+                repaired,
+                "repaired",
+                f"Repaired payload path {normalized} -> {repaired}",
+            )
+        if len(resolved_paths) > 1:
+            return (
+                normalized,
+                "ambiguous",
+                f"Payload path {normalized} matched multiple game paths: {', '.join(resolved_paths[:4])}"
+                + (" ..." if len(resolved_paths) > 4 else ""),
+            )
+        return normalized, "unchanged", ""
+
+    if not _compact_mesh_path_needs_repair(normalized):
+        return normalized, "unchanged", ""
+
+    if not archive_entries_by_basename:
+        return (
+            normalized,
+            "unresolved",
+            f"Could not repair compact path without loaded archive index: {normalized}",
+        )
+    unique_paths = _archive_payload_path_candidates(
+        normalized,
+        archive_entries_by_basename=archive_entries_by_basename,
+        package_group=package_group,
     )
     if len(unique_paths) == 1:
         repaired = normalize_mod_package_payload_path(unique_paths[0]).as_posix().strip("/")
@@ -870,9 +1196,9 @@ def _add_jmm_descriptor_alias_payloads(
                 new_path_keys.add(left_key)
             continue
         if left_is_payload and not right_is_payload:
-            source_rel, target_rel, target_key = left, right, right_key
+            source_rel, source_key, target_rel, target_key = left, left_key, right, right_key
         elif right_is_payload and not left_is_payload:
-            source_rel, target_rel, target_key = right, left, left_key
+            source_rel, source_key, target_rel, target_key = right, right_key, left, left_key
         else:
             continue
         source_path = package_root.joinpath(*PurePosixPath(source_rel).parts)
@@ -883,7 +1209,7 @@ def _add_jmm_descriptor_alias_payloads(
         shutil.copy2(source_path, target_path)
         payload_paths.append(target_rel)
         payload_keys.add(target_key)
-        if target_key not in new_path_keys:
+        if source_key in new_path_keys and target_key not in new_path_keys:
             new_file_paths.append(target_rel)
             new_path_keys.add(target_key)
 
@@ -927,6 +1253,41 @@ def _copy_payloads_from_zip(
         if normalized and normalized.casefold() not in seen:
             warnings.append(f"Missing payload skipped: {mapping.source_path}")
     return copied
+
+
+def _payload_file_size(source_root: Path, payload_path: str) -> int | None:
+    payload_data = _payload_file_bytes(source_root, payload_path)
+    if payload_data is None:
+        return None
+    try:
+        return len(payload_data)
+    except Exception:
+        return None
+
+
+def _payload_file_bytes(source_root: Path, payload_path: str) -> bytes | None:
+    normalized = normalize_mod_package_payload_path(payload_path).as_posix().strip("/")
+    if not normalized:
+        return None
+    if source_root.is_file() and source_root.suffix.lower() == ".zip":
+        try:
+            with zipfile.ZipFile(source_root) as archive:
+                for info in archive.infolist():
+                    if info.is_dir():
+                        continue
+                    if normalize_mod_package_payload_path(info.filename).as_posix().strip("/") == normalized:
+                        with archive.open(info, "r") as source_handle:
+                            return source_handle.read()
+        except (OSError, zipfile.BadZipFile, KeyError, ValueError):
+            return None
+        return None
+    source_path = _source_path_for_payload(source_root, payload_path, normalized)
+    if source_path is None:
+        return None
+    try:
+        return source_path.read_bytes()
+    except OSError:
+        return None
 
 
 def _source_path_for_payload(source_root: Path, payload_path: str, normalized: str) -> Path | None:
@@ -988,6 +1349,12 @@ def _write_jmm_mod_json(
     source_target = normalize_mod_package_payload_path(_metadata_text(source_metadata, "target")).as_posix().strip("/")
     repaired_targets = {path.casefold() for path in payload_paths}
     target = source_target if source_target.casefold() in repaired_targets else _first_payload_with_suffix(payload_paths, (".pac", ".pam", ".pamlod"))
+    source_new_paths = source_metadata.get("new_paths")
+    has_explicit_new_paths = isinstance(source_new_paths, Sequence) and not isinstance(
+        source_new_paths,
+        (str, bytes, bytearray),
+    )
+    inferred_new_paths = () if has_explicit_new_paths else tuple(_jmm_new_paths(source_metadata, payload_paths))
     path = write_jmm_mod_json(
         package_root,
         ModPackageInfo(
@@ -998,7 +1365,7 @@ def _write_jmm_mod_json(
             nexus_url=package.package_info.nexus_url,
         ),
         payload_paths=payload_paths,
-        new_file_paths=tuple(dict.fromkeys([*(_jmm_new_paths(source_metadata, payload_paths)), *new_file_paths])),
+        new_file_paths=tuple(dict.fromkeys([*inferred_new_paths, *new_file_paths])),
         kind=_metadata_text(source_metadata, "kind") or package.kind or "file_replacement",
     )
     if target:

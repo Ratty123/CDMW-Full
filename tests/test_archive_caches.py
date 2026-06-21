@@ -500,7 +500,7 @@ class ArchiveCacheTests(unittest.TestCase):
     def test_native_derived_index_job_is_wired_as_preferred_basic_index_path(self) -> None:
         accelerator = (REPO_ROOT / "cdmw" / "core" / "archive_accelerator.py").read_text(encoding="utf-8")
         native = (REPO_ROOT / "native" / "cdmw_archive_accelerator" / "src" / "main.cpp").read_text(encoding="utf-8")
-        main_window = (REPO_ROOT / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
+        scan_worker = (REPO_ROOT / "cdmw" / "workers" / "archive_scan_workers.py").read_text(encoding="utf-8")
 
         self.assertIn("def build_archive_basic_indexes_accelerated", accelerator)
         self.assertIn('"derived-index-job"', accelerator)
@@ -512,7 +512,7 @@ class ArchiveCacheTests(unittest.TestCase):
         self.assertIn('path_rows', native)
         self.assertIn('basename_rows', native)
         self.assertIn('extension_rows', native)
-        self.assertIn("build_archive_basic_indexes_accelerated(", main_window)
+        self.assertIn("build_archive_basic_indexes_accelerated(", scan_worker)
 
     def test_basename_index_orders_nested_real_paths_before_shortcut_aliases(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

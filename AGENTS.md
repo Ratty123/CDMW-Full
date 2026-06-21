@@ -24,8 +24,11 @@
 
 Before broad exploration, read:
 
-- `docs/ai/PROJECT_MAP.md`
-- `docs/ai/TEST_MATRIX.md`
+- `docs/release-confidence-plan.md`
+- `docs/architecture.md`
+- `docs/test-matrix.md` only after the touched area is known
+- `docs/project-map.md` for navigation
+- `docs/project-map-detailed.md` only when package boundaries are unclear
 - nearest feature README or nested `AGENTS.md`, when present
 
 ## Token rules
@@ -34,9 +37,15 @@ Before broad exploration, read:
 - Do not read build output, generated files, caches, crash reports, vendored dependencies, or local workspace data unless required.
 - Use Graphify summaries for navigation only, not as proof.
 
+## Cleanup safety
+
+- Do not run blanket `git clean -fd`, `git clean -fdX`, or `git clean -xdf`.
+- Current untracked files include restructure source, docs, and tests.
+- Remove only targeted cache/build output unless the user explicitly approves broader cleanup.
+
 ## Validation
 
-Use `docs/ai/TEST_MATRIX.md`.
+Use `docs/test-matrix.md`.
 
 ## Final response format
 

@@ -103,7 +103,13 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertIs(parsed_mesh, full_parsed)
 
     def test_archive_preview_cache_key_has_quality_tier_source_guard(self) -> None:
-        source = __import__("pathlib").Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_cache.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/workers.py").read_text(encoding="utf-8")
+        )
 
         self.assertIn('quality_tier: str = "full"', source)
         self.assertIn('f"quality:{', source)
@@ -111,7 +117,7 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertIn('quality_tier="full"', source)
 
     def test_fast_result_does_not_finalize_request_source_guard(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = Path("cdmw/ui/archive_browser/workers.py").read_text(encoding="utf-8")
         handler = source[source.index("def _handle_archive_preview_ready"):source.index("def _handle_archive_preview_error")]
 
         self.assertIn("is_fast_result = quality_tier == \"fast\"", handler)
@@ -120,10 +126,10 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertIn("Fast preview loaded; refining full-quality preview", handler)
 
     def test_archive_preview_worker_owns_cache_and_quick_payloads_source_guard(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
-        worker = source[source.index("class ArchivePreviewWorker"):source.index("class ArchiveD3D11PackageWorker")]
+        source = Path("cdmw/ui/archive_browser/workers.py").read_text(encoding="utf-8")
+        worker = Path("cdmw/workers/archive_preview_workers.py").read_text(encoding="utf-8")
 
-        self.assertIn("class _ArchivePreviewWorkerPayload", source)
+        self.assertIn("class _ArchivePreviewWorkerPayload", worker)
         self.assertIn("preview_cache_snapshot", worker)
         self.assertIn("def _cached_preview_payload", worker)
         self.assertIn("def _durable_native_preview_cache_payload", worker)
@@ -135,7 +141,7 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertIn("emit_private_payloads=True", source)
 
     def test_preview_loading_watchdog_preserves_fast_result_source_guard(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = Path("cdmw/ui/archive_browser/preview_loading.py").read_text(encoding="utf-8")
         watchdog = source[
             source.index("def _handle_archive_preview_loading_stall")
             : source.index("def _stop_archive_preview_loading_indicator")

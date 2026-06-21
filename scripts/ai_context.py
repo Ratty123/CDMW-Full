@@ -28,12 +28,11 @@ IGNORE_PARTS = {
 }
 KEY_DOCS = (
     "AGENTS.md",
-    "docs/ai/PROJECT_MAP.md",
-    "docs/ai/TEST_MATRIX.md",
-    "docs/ai/KNOWN_PITFALLS.md",
-    "docs/ai/PROMPT_TEMPLATES.md",
-    "docs/ai/GRAPHIFY_MIDPOINT_SUMMARY.md",
-    "docs/ai/RESTRUCTURE_MIDPOINT_AUDIT.md",
+    "docs/release-confidence-plan.md",
+    "docs/architecture.md",
+    "docs/project-map.md",
+    "docs/test-matrix.md",
+    "docs/known-pitfalls.md",
 )
 
 
@@ -100,18 +99,18 @@ def main() -> int:
     for lines, relative in _largest_python_files():
         print(f"  {lines:5d} {relative}")
 
-    print("Key AI docs:")
+    print("Key docs:")
     for relative in KEY_DOCS:
         status = "present" if (ROOT / relative).is_file() else "missing"
         print(f"  {status:7s} {relative}")
 
     print("Suggested next docs to read:")
     for relative in (
-        "docs/ai/PROJECT_MAP.md",
-        "docs/ai/RESTRUCTURE_MIDPOINT_AUDIT.md",
-        "docs/ai/GRAPHIFY_MIDPOINT_SUMMARY.md",
-        "docs/ai/TEST_MATRIX.md",
-        "docs/ai/KNOWN_PITFALLS.md",
+        "docs/release-confidence-plan.md",
+        "docs/architecture.md",
+        "docs/project-map.md",
+        "docs/test-matrix.md",
+        "docs/known-pitfalls.md",
     ):
         print(f"  {relative}")
 

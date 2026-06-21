@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import os
@@ -125,15 +125,13 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertTrue(job["capabilities"]["native_material_runtime"])
 
     def test_archive_d3d11_preview_is_native_cpp_only_when_core_is_enabled(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
-        worker_start = source.index("class ArchivePreviewWorker")
-        worker_end = source.index("class ArchiveNativePreviewPrefetchWorker", worker_start)
-        worker_source = source[worker_start:worker_end]
-        emit_start = worker_source.index("def _emit_native_preview_core_attempt")
-        emit_end = worker_source.index("def _emit_preview_payload", emit_start)
-        emit_source = worker_source[emit_start:emit_end]
+        worker_source = Path("cdmw/workers/archive_preview_workers.py").read_text(encoding="utf-8")
+        native_worker_source = Path("cdmw/workers/archive_preview_native.py").read_text(encoding="utf-8")
+        emit_start = native_worker_source.index("def _emit_native_preview_core_attempt")
+        emit_end = native_worker_source.index("def _try_native_preview_core", emit_start)
+        emit_source = native_worker_source[emit_start:emit_end]
         fast_start = worker_source.index("def _should_emit_progressive_fast_preview")
-        fast_end = worker_source.index("def _native_preview_core_supported_for_entry", fast_start)
+        fast_end = worker_source.index("def _emit_preview_payload", fast_start)
         fast_source = worker_source[fast_start:fast_end]
 
         self.assertIn("native_attempt = self._try_native_preview_core()", worker_source)
@@ -276,7 +274,17 @@ class NativePreviewCoreTests(unittest.TestCase):
     def test_native_preview_core_is_bundled_and_archive_worker_attempts_it(self) -> None:
         spec_text = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
         build_text = Path("build_native_windows.ps1").read_text(encoding="utf-8")
-        main_window_text = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        main_window_text = (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_cache.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_d3d11_runtime.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/workers.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/reference_preview.py").read_text(encoding="utf-8")
+        )
         source_text = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
         d3d11_text = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
 
@@ -503,37 +511,45 @@ class NativePreviewCoreTests(unittest.TestCase):
             self.assertTrue(any('"shutdown"' in write for write in fake_process.stdin.writes))
 
     def test_archive_preview_worker_owns_native_preview_core_helpers(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
-        archive_worker_start = source.index("class ArchivePreviewWorker(QObject):")
-        d3d11_worker_start = source.index("class ArchiveD3D11PackageWorker(QObject):")
-        archive_worker_source = source[archive_worker_start:d3d11_worker_start]
-        d3d11_worker_source = source[d3d11_worker_start:source.index("class AlignmentD3D11PackageWorker(QObject):")]
+        d3d11_worker_source = Path("cdmw/workers/d3d11_package_workers.py").read_text(encoding="utf-8")
+        archive_worker_source = Path("cdmw/workers/archive_preview_workers.py").read_text(encoding="utf-8")
+        archive_native_source = Path("cdmw/workers/archive_preview_native.py").read_text(encoding="utf-8")
 
-        self.assertIn("def _try_native_preview_core", archive_worker_source)
-        self.assertIn("def _native_preview_core_result", archive_worker_source)
-        self.assertIn("def _attach_native_preview_core_note", archive_worker_source)
+        self.assertIn("ArchivePreviewNativeMixin", archive_worker_source)
+        self.assertIn("def _try_native_preview_core", archive_native_source)
+        self.assertIn("def _native_preview_core_result", archive_native_source)
+        self.assertIn("def _attach_native_preview_core_note", archive_native_source)
         self.assertNotIn("def _try_native_preview_core", d3d11_worker_source)
         self.assertNotIn("self._try_native_preview_core()", d3d11_worker_source)
 
     def test_archive_browser_has_native_preview_prefetch_worker(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_cache.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_native_prefetch.py").read_text(encoding="utf-8")
+        )
+        worker_source = Path("cdmw/workers/d3d11_package_workers.py").read_text(encoding="utf-8")
+        archive_native_source = Path("cdmw/workers/archive_preview_native.py").read_text(encoding="utf-8")
 
-        self.assertIn("class ArchiveNativePreviewPrefetchWorker(QObject):", source)
-        self.assertIn('NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS = {".pac", ".pam", ".pamlod"}', source)
+        self.assertIn("class ArchiveNativePreviewPrefetchWorker(QObject):", worker_source)
+        self.assertIn('NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS = {".pac", ".pam", ".pamlod"}', archive_native_source)
+        self.assertIn("NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS", source)
         self.assertNotIn('not in ARCHIVE_MODEL_EXTENSIONS:\n                return None', source)
         self.assertIn("archive_native_prefetch_timer", source)
         self.assertIn("def _archive_native_prefetch_candidate_entries", source)
         self.assertIn("def _start_archive_native_preview_prefetch", source)
         self.assertIn("def _stop_archive_native_preview_prefetch", source)
         self.assertIn("archive_native_prefetch_thread", source)
-        self.assertIn("timeout_seconds=5.0", source)
-        self.assertIn("run_native_preview_core_preview_job", source)
+        self.assertIn("timeout_seconds=5.0", worker_source)
+        self.assertIn("run_native_preview_core_preview_job", worker_source)
         self.assertIn("self._native_preview_package_cache_mode() != \"aggressive\"", source)
         self.assertIn("native_preview_package_prefetch_limit", source)
-        self.assertIn("store_native_preview_package_cache", source)
-        self.assertIn("create_native_preview_package_staging_dir", source)
-        self.assertNotIn('f"_staging_{self.native_preview_package_cache_key}', source)
-        self.assertNotIn('f"_staging_prefetch_{key}', source)
+        self.assertIn("store_native_preview_package_cache", worker_source)
+        self.assertIn("create_native_preview_package_staging_dir", worker_source)
+        self.assertNotIn('f"_staging_{self.native_preview_package_cache_key}', worker_source)
+        self.assertNotIn('f"_staging_prefetch_{key}', worker_source)
 
     def test_native_preview_package_staging_dir_uses_short_prunable_name(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -864,7 +880,7 @@ class NativePreviewCoreTests(unittest.TestCase):
 
     def test_native_preview_core_reports_material_quality_gate(self) -> None:
         source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
-        python_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        python_source = Path("cdmw/workers/archive_preview_native.py").read_text(encoding="utf-8")
 
         self.assertIn("material_quality_safe", source)
         self.assertIn("base_low_res_count", source)
@@ -1273,7 +1289,13 @@ class NativePreviewCoreTests(unittest.TestCase):
 
     def test_d3d11_preview_has_first_class_emissive_slot(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
-        package_source = Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8")
+        package_source = "\n".join(
+            (
+                Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8"),
+                Path("cdmw/rendering/native_preview_package_writer.py").read_text(encoding="utf-8"),
+                Path("cdmw/rendering/native_preview_material_contract.py").read_text(encoding="utf-8"),
+            )
+        )
         native_package_source = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 
         self.assertIn('"emissive"', package_source)
@@ -1294,7 +1316,14 @@ class NativePreviewCoreTests(unittest.TestCase):
 
     def test_d3d11_preview_uses_procedural_reflection_for_metal_materials(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
-        package_source = Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8")
+        package_source = "\n".join(
+            (
+                Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8"),
+                Path("cdmw/rendering/native_preview_package_writer.py").read_text(encoding="utf-8"),
+                Path("cdmw/rendering/native_preview_payloads.py").read_text(encoding="utf-8"),
+                Path("cdmw/rendering/native_preview_material_contract.py").read_text(encoding="utf-8"),
+            )
+        )
 
         self.assertIn("float3 reflected_view = normalize(reflect(-v, n));", source)
         self.assertIn("preview_environment_color", source)

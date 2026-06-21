@@ -1,0 +1,600 @@
+"""Inline preview and icon generation for Model Library."""
+
+from __future__ import annotations
+
+import json
+import re
+import time
+from collections import defaultdict
+from pathlib import Path
+from typing import Callable, Optional
+
+from PySide6.QtCore import QProcess, Qt, QTimer
+from PySide6.QtGui import QImage
+
+from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_COLOR
+from cdmw.core.archive_modding import attach_scene_preview_textures, import_scene_mesh_with_report, parsed_mesh_to_preview_model
+from cdmw.core.model_catalogue import IMPORTABLE_MODEL_EXTENSIONS, is_importable_model_path, resolve_importable_model_path
+from cdmw.modding.scene_importer import SceneImportResult
+from cdmw.rendering.material_channels import resolve_preview_batch_material_channels
+from cdmw.rendering.model_preview_prepare import prepare_model_preview
+from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_package
+from cdmw.ui.model_library.state import (
+    external_audit_material_class_rows as _external_audit_material_class_rows,
+    external_audit_material_inventory_rows as _external_audit_material_inventory_rows,
+)
+from cdmw.ui.native_d3d11_preview_host import native_d3d11_renderer_command
+
+
+class ModelLibraryInlinePreviewMixin:
+    """Manage inline D3D11 previews and generated icon captures."""
+
+    def preview_selected_model_here(self) -> None:
+        payload = self._selected_payload()
+        if not payload:
+            self._set_inline_preview_status("Select a model first.", error=True)
+            return
+        source_path = self._inline_preview_source_path_for_payload(payload)
+        if source_path is None:
+            if payload.get("kind") == "mirror":
+                self._set_inline_preview_status("Download this mirror model first, then Preview Here.", error=True)
+            else:
+                self._set_inline_preview_status("This local item is not an importable model or ZIP.", error=True)
+            return
+        self._load_inline_model_preview(source_path, payload)
+
+    def _inline_preview_renderer_backend(self) -> str:
+        return "native_d3d11"
+
+    def _inline_d3d11_theme_payload(self) -> dict[str, str]:
+        return {
+            "background": MODEL_PREVIEW_BACKGROUND_COLOR,
+            "text": MODEL_PREVIEW_TEXT_COLOR,
+        }
+
+    def _inline_d3d11_process_running(self) -> bool:
+        process = self._inline_d3d11_process
+        try:
+            return process is not None and process.state() != QProcess.NotRunning
+        except RuntimeError:
+            return False
+
+    def _start_inline_d3d11_status_timer(self) -> None:
+        try:
+            self._inline_d3d11_status_timer.start()
+        except RuntimeError:
+            pass
+
+    def _stop_inline_d3d11_status_timer(self) -> None:
+        try:
+            self._inline_d3d11_status_timer.stop()
+        except RuntimeError:
+            pass
+
+    def _start_inline_d3d11_process(self, package_dir: Path, *, render_settings: object) -> bool:
+        package_dir = Path(package_dir)
+        status_file = package_dir / "host_status.json"
+        try:
+            status_file.unlink(missing_ok=True)
+        except OSError:
+            pass
+        self._inline_d3d11_active_package = package_dir
+        self._inline_d3d11_status_file = status_file
+        self._inline_d3d11_status_mtime = 0.0
+        if self._inline_d3d11_process_running():
+            self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
+            self.inline_d3d11_preview_host.clear_preview(status_file)
+            if self.inline_d3d11_preview_host.load_package(package_dir, status_file, reset_view=True):
+                self.inline_d3d11_preview_host.set_render_tuning(render_settings)
+                self._start_inline_d3d11_status_timer()
+                return True
+            self._stop_inline_d3d11_process()
+        try:
+            program, arguments = native_d3d11_renderer_command(
+                package_dir,
+                status_file,
+                host_widget=self.inline_d3d11_preview_host,
+                theme_payload=self._inline_d3d11_theme_payload(),
+            )
+        except Exception as exc:
+            self._set_inline_preview_status(f"Native D3D11 preview unavailable: {exc}", error=True)
+            return False
+        process = QProcess(self)
+        process.setProgram(program)
+        process.setArguments(arguments)
+        try:
+            process.setWorkingDirectory(str(Path(__file__).resolve().parents[3]))
+        except Exception:
+            pass
+        process.setProcessChannelMode(QProcess.SeparateChannels)
+        process.readyReadStandardError.connect(lambda process=process: self._handle_inline_d3d11_stderr(process))
+        process.finished.connect(lambda _exit_code, _exit_status, process=process: self._handle_inline_d3d11_finished(process))
+        process.errorOccurred.connect(lambda error, process=process: self._handle_inline_d3d11_error(process, error))
+        self._inline_d3d11_process = process
+        self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
+        self._start_inline_d3d11_status_timer()
+        process.start()
+        return True
+
+    def _handle_inline_d3d11_stderr(self, process: QProcess) -> None:
+        if process is not self._inline_d3d11_process:
+            return
+        try:
+            message = bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()
+        except RuntimeError:
+            return
+        if message:
+            self._set_inline_preview_status(f"Native D3D11 preview stderr: {message[-600:]}", error=True)
+
+    def _handle_inline_d3d11_error(self, process: QProcess, error: object) -> None:
+        if process is self._inline_d3d11_process:
+            self._set_inline_preview_status(f"Native D3D11 preview process error: {error}", error=True)
+
+    def _handle_inline_d3d11_finished(self, process: QProcess) -> None:
+        if process is self._inline_d3d11_process:
+            self._inline_d3d11_process = None
+            self._stop_inline_d3d11_status_timer()
+
+    def _poll_inline_d3d11_status(self) -> None:
+        status_file = self._inline_d3d11_status_file
+        if status_file is None:
+            return
+        try:
+            stat = status_file.stat()
+        except OSError:
+            return
+        mtime = float(getattr(stat, "st_mtime", 0.0) or 0.0)
+        if mtime <= float(self._inline_d3d11_status_mtime):
+            return
+        self._inline_d3d11_status_mtime = mtime
+        try:
+            payload = json.loads(status_file.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        if not isinstance(payload, dict):
+            return
+        event = str(payload.get("event", "") or "").strip().lower()
+        if event == "loaded":
+            batch_count = int(payload.get("batch_count", 0) or 0)
+            vertex_count = int(payload.get("vertex_count", 0) or 0)
+            self._set_inline_preview_status(f"Native D3D11 Model Library preview ready: {batch_count:,} batch(es), {vertex_count:,} vertices.")
+        elif event == "error":
+            self._set_inline_preview_status(str(payload.get("message", "Native D3D11 preview failed.") or ""), error=True)
+
+    def _stop_inline_d3d11_process(self) -> None:
+        process = self._inline_d3d11_process
+        self._inline_d3d11_process = None
+        self._stop_inline_d3d11_status_timer()
+        if process is None:
+            return
+        try:
+            if process.state() != QProcess.NotRunning:
+                process.terminate()
+                QTimer.singleShot(1200, lambda process=process: process.kill() if process.state() != QProcess.NotRunning else None)
+        except RuntimeError:
+            return
+
+    def _prepare_inline_preview_orientation_for_load(self, *, reset_orientation: bool) -> None:
+        if reset_orientation:
+            self._set_inline_preview_flip_v_checked(False)
+            self._apply_inline_preview_flip_v_render_setting(False)
+        self._inline_preview_loaded_texture_count = 0
+        self._inline_preview_loaded_renderer_backend = ""
+        self._sync_inline_preview_orientation_controls()
+
+    def _set_inline_preview_flip_v_checked(self, checked: bool) -> None:
+        if not hasattr(self, "inline_preview_flip_v_checkbox"):
+            return
+        self.inline_preview_flip_v_checkbox.blockSignals(True)
+        self.inline_preview_flip_v_checkbox.setChecked(bool(checked))
+        self.inline_preview_flip_v_checkbox.blockSignals(False)
+
+    def _apply_inline_preview_flip_v_render_setting(self, checked: bool) -> None:
+        settings = self.inline_preview_widget.render_settings()
+        settings.flip_texture_v = bool(checked)
+        self.inline_preview_widget.set_render_settings(settings)
+
+    def _sync_inline_preview_orientation_controls(self) -> None:
+        if not hasattr(self, "inline_preview_flip_v_checkbox"):
+            return
+        enabled = bool(
+            self._inline_preview_loaded_import_path is not None
+            and int(self._inline_preview_loaded_texture_count) > 0
+        )
+        self.inline_preview_flip_v_checkbox.setEnabled(enabled)
+        self.inline_preview_reset_orientation_button.setEnabled(enabled)
+
+    def _reload_inline_preview_for_orientation(self) -> None:
+        loaded_path = self._inline_preview_loaded_import_path
+        payload = dict(self._inline_preview_loaded_payload or {})
+        if loaded_path is None or not payload:
+            return
+        self._load_inline_model_preview(loaded_path, payload, reset_orientation=False)
+
+    def _handle_inline_preview_flip_v_toggled(self, checked: bool) -> None:
+        self._apply_inline_preview_flip_v_render_setting(bool(checked))
+        self._sync_inline_preview_orientation_controls()
+        if int(self._inline_preview_loaded_texture_count) <= 0:
+            return
+        if str(self._inline_preview_loaded_renderer_backend or "").strip().lower() == "native_d3d11":
+            self._reload_inline_preview_for_orientation()
+            return
+        self._set_inline_preview_status("Flip V preview override applied." if checked else "Texture orientation preview reset.")
+
+    def _handle_inline_preview_orientation_reset_clicked(self) -> None:
+        if hasattr(self, "inline_preview_flip_v_checkbox") and self.inline_preview_flip_v_checkbox.isChecked():
+            self.inline_preview_flip_v_checkbox.setChecked(False)
+            return
+        self._handle_inline_preview_flip_v_toggled(False)
+
+    def _load_inline_model_preview(
+        self,
+        source_path: Path,
+        payload: dict[str, object],
+        *,
+        reset_orientation: bool = True,
+    ) -> None:
+        if self._task_thread is not None and self._task_thread.isRunning():
+            self._set_inline_preview_status("A model library task is already running.", error=True)
+            return
+        self._inline_preview_request_id += 1
+        request_id = self._inline_preview_request_id
+        source_path = Path(source_path)
+        model_name = str(payload.get("name", "") or source_path.stem or "model")
+        renderer_backend = self._inline_preview_renderer_backend()
+        self._prepare_inline_preview_orientation_for_load(reset_orientation=reset_orientation)
+        self._set_inline_preview_status(f"Preparing preview for {model_name}...")
+        self.inline_preview_widget.clear_model(f"Preparing preview for {model_name}...")
+        self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
+        self._inline_preview_loaded_import_path = None
+        self._inline_preview_loaded_payload = None
+        preview_render_settings = self.inline_preview_widget.render_settings()
+
+        def task(progress: Callable[[str], None]) -> object:
+            progress(f"Resolving model preview source: {source_path}")
+            extract_root = self._inline_preview_extract_root_for_source(source_path, payload)
+            resolved_import_path = resolve_importable_model_path(source_path, extract_root=extract_root)
+            if resolved_import_path is None:
+                raise ValueError(
+                    f"{source_path.suffix or 'This file'} does not contain an importable model: "
+                    f"{', '.join(sorted(IMPORTABLE_MODEL_EXTENSIONS))}."
+                )
+            progress(f"Reading model file: {resolved_import_path}")
+            scene_result = import_scene_mesh_with_report(resolved_import_path)
+            preview_model = parsed_mesh_to_preview_model(scene_result.mesh)
+            texture_count = self._attach_inline_preview_textures(preview_model, scene_result, resolved_import_path)
+            prepared_model, prepared_preview = prepare_model_preview(
+                preview_model,
+                render_settings=preview_render_settings,
+                enable_material_combiner=False,
+            )
+            package_dir = ""
+            package_ms = 0.0
+            if renderer_backend == "native_d3d11":
+                package_started = time.perf_counter()
+                package_dir = str(
+                    write_isolated_d3d11_preview_package(
+                        prepared_model,
+                        prepared_preview,
+                        render_settings=preview_render_settings,
+                        use_textures=True,
+                        high_quality_textures=True,
+                        backend="d3d11",
+                        enable_material_combiner=False,
+                        prefer_direct_dds=True,
+                        editor_workspace="model_library",
+                    )
+                )
+                package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
+            material_channel_summary = self._inline_preview_material_channel_summary(prepared_preview)
+            mesh_count = len(getattr(preview_model, "meshes", ()) or ())
+            audit = getattr(scene_result, "external_audit", None)
+            return {
+                "request_id": request_id,
+                "model_name": model_name,
+                "source_path": str(source_path),
+                "import_path": str(resolved_import_path),
+                "renderer_backend": renderer_backend,
+                "preview_model": prepared_model,
+                "prepared_preview": prepared_preview,
+                "d3d11_package_dir": package_dir,
+                "d3d11_package_ms": package_ms,
+                "vertices": int(scene_result.mesh.total_vertices),
+                "faces": int(scene_result.mesh.total_faces),
+                "meshes": int(mesh_count),
+                "textures": int(texture_count),
+                "material_channel_summary": material_channel_summary,
+                "diagnostics": tuple(scene_result.diagnostics or ()),
+                "audit_category": str(getattr(audit, "verified_category", "") or ""),
+                "audit_confidence": float(getattr(audit, "confidence", 0.0) or 0.0),
+                "audit_texture_slots": tuple(getattr(audit, "texture_slots", ()) or ()),
+                "audit_workflows": tuple(getattr(audit, "pbr_workflows", ()) or ()),
+                "audit_warnings": tuple(getattr(audit, "warnings", ()) or ()),
+                "audit_false_positive": bool(getattr(audit, "false_positive", False)),
+                "audit_mixed_model": bool(getattr(audit, "mixed_model", False)),
+                "audit_material_classes": _external_audit_material_class_rows(audit),
+                "audit_material_inventory": _external_audit_material_inventory_rows(audit),
+            }
+
+        def complete(result: object) -> None:
+            if not isinstance(result, dict):
+                self._set_inline_preview_status("Preview finished with an unexpected response.", error=True)
+                return
+            if int(result.get("request_id", -1)) != int(self._inline_preview_request_id):
+                return
+            preview_model = result.get("preview_model")
+            prepared_preview = result.get("prepared_preview")
+            active_renderer = str(result.get("renderer_backend", "") or "").strip().lower()
+            renderer_note = " | renderer: native D3D11"
+            loaded_renderer_backend = "native_d3d11"
+            if active_renderer == "native_d3d11" and str(result.get("d3d11_package_dir", "") or "").strip():
+                package_dir = Path(str(result.get("d3d11_package_dir", "") or ""))
+                if self._start_inline_d3d11_process(package_dir, render_settings=preview_render_settings):
+                    loaded_renderer_backend = "native_d3d11"
+                    renderer_note = f" | renderer: native D3D11 package ({float(result.get('d3d11_package_ms', 0.0) or 0.0):.1f} ms)"
+                else:
+                    self._set_inline_preview_status("Native D3D11 preview failed to start.", error=True)
+                    return
+            else:
+                self._set_inline_preview_status("Native D3D11 preview package was not built.", error=True)
+                return
+            resolved_import_path = Path(str(result.get("import_path", "") or source_path))
+            self._inline_preview_loaded_import_path = resolved_import_path
+            self._inline_preview_loaded_payload = dict(payload)
+            self._inline_preview_loaded_renderer_backend = loaded_renderer_backend
+            texture_count = int(result.get("textures", 0) or 0)
+            self._inline_preview_loaded_texture_count = texture_count
+            payload["import_path"] = str(resolved_import_path)
+            payload["import_supported"] = True
+            if source_path.suffix.lower() == ".zip":
+                payload["archive_path"] = str(source_path)
+            if payload.get("kind") == "mirror":
+                payload["local_status"] = self._mirror_local_status(payload)
+            payload["texture_status"] = f"Resolved ({texture_count})" if texture_count > 0 else "None resolved"
+            audit_category = str(result.get("audit_category", "") or "")
+            if audit_category:
+                payload["audit_category"] = audit_category
+                payload["audit_confidence"] = float(result.get("audit_confidence", 0.0) or 0.0)
+                payload["audit_texture_slots"] = tuple(result.get("audit_texture_slots", ()) or ())
+                payload["audit_workflows"] = tuple(result.get("audit_workflows", ()) or ())
+                payload["audit_warnings"] = tuple(result.get("audit_warnings", ()) or ())
+                payload["audit_false_positive"] = bool(result.get("audit_false_positive", False))
+                payload["audit_mixed_model"] = bool(result.get("audit_mixed_model", False))
+                payload["audit_material_classes"] = tuple(result.get("audit_material_classes", ()) or ())
+                payload["audit_material_inventory"] = tuple(result.get("audit_material_inventory", ()) or ())
+            self._refresh_result_row_status(payload)
+            audit_text = ""
+            if audit_category:
+                audit_text = f" | audit: {audit_category} {float(result.get('audit_confidence', 0.0) or 0.0):.0%}"
+            material_channel_summary = str(result.get("material_channel_summary", "") or "").strip()
+            material_channel_text = f" | channels: {material_channel_summary}" if material_channel_summary else ""
+            self._set_inline_preview_status(
+                f"{result.get('model_name', 'Model')} | {int(result.get('meshes', 0)):,} mesh(es), "
+                f"{int(result.get('vertices', 0)):,} vertices, {int(result.get('faces', 0)):,} faces, "
+                f"{texture_count:,} resolved texture slot(s){audit_text}{material_channel_text}{renderer_note}."
+            )
+            self._sync_inline_preview_orientation_controls()
+            self._update_selection_state()
+            if int(self._pending_icon_generation_request_id) == int(request_id):
+                self._pending_icon_generation_request_id = 0
+                QTimer.singleShot(180, self._capture_inline_preview_icon)
+
+        def handle_error(message: str) -> None:
+            self._pending_icon_generation_request_id = 0
+            self._sync_inline_preview_orientation_controls()
+            self._set_inline_preview_status(f"Preview failed: {message}", error=True)
+
+        self._run_task(
+            f"Preparing model library preview for {model_name}...",
+            task,
+            complete,
+            error_handler=handle_error,
+        )
+
+    def generate_icon_from_preview(self) -> None:
+        payload = self._selected_payload()
+        if not payload:
+            self._set_inline_preview_status("Select a model first.", error=True)
+            return
+        import_path = self._resolve_payload_import_path(payload)
+        if import_path is None:
+            self._set_inline_preview_status("Preview a downloaded or local importable model before generating an icon.", error=True)
+            return
+        if not self._inline_preview_matches(import_path):
+            if self._task_thread is not None and self._task_thread.isRunning():
+                self._set_inline_preview_status("A model library task is already running.", error=True)
+                return
+            self._pending_icon_generation_request_id = self._inline_preview_request_id + 1
+            self._load_inline_model_preview(import_path, payload)
+            return
+        self._capture_inline_preview_icon()
+
+    def _inline_preview_matches(self, import_path: Path) -> bool:
+        loaded = self._inline_preview_loaded_import_path
+        if loaded is None:
+            return False
+        try:
+            return loaded.resolve() == import_path.resolve()
+        except OSError:
+            return str(loaded.absolute()).casefold() == str(import_path.absolute()).casefold()
+
+    def _capture_inline_preview_icon(self) -> None:
+        payload = self._selected_payload()
+        loaded_path = self._inline_preview_loaded_import_path
+        if payload is None or loaded_path is None:
+            self._set_inline_preview_status("Preview a model first, then generate an icon.", error=True)
+            return
+        current_import_path = self._resolve_payload_import_path(payload)
+        if current_import_path is None or not self._inline_preview_matches(current_import_path):
+            self._set_inline_preview_status("The selected model preview is no longer active.", error=True)
+            return
+        if self.inline_preview_stack.currentWidget() is self.inline_d3d11_preview_host:
+            output_dir = self.catalogue_dir() / "generated_icons"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_stem = self._generated_icon_stem(payload, loaded_path)
+            output_path = output_dir / f"{output_stem}.png"
+            counter = 1
+            while output_path.exists():
+                counter += 1
+                output_path = output_dir / f"{output_stem}_{counter}.png"
+            if not self.inline_d3d11_preview_host.capture_replacement_icon(output_path):
+                self._set_inline_preview_status("Icon capture failed: native D3D11 preview framebuffer is empty.", error=True)
+                return
+            self._set_inline_preview_status(f"Generated native D3D11 model preview icon: {output_path.name}")
+            self.item_icon_source_generated.emit(str(output_path), dict(self._inline_preview_loaded_payload or payload))
+            return
+        if int(getattr(self.inline_preview_widget, "_vertex_count", 0) or 0) <= 0:
+            self._set_inline_preview_status("The preview is not render-ready yet.", error=True)
+            return
+        try:
+            self.inline_preview_widget.repaint()
+            pixmap = self.inline_preview_widget.grab()
+            image = pixmap.toImage() if not pixmap.isNull() else QImage()
+        except Exception as exc:
+            self._set_inline_preview_status(f"Icon capture failed: {exc}", error=True)
+            return
+        if image.isNull() or image.width() <= 0 or image.height() <= 0:
+            self._set_inline_preview_status("Icon capture failed: preview framebuffer is empty.", error=True)
+            return
+        icon_image = self._model_preview_icon_image(image)
+        output_dir = self.catalogue_dir() / "generated_icons"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_stem = self._generated_icon_stem(payload, loaded_path)
+        output_path = output_dir / f"{output_stem}.png"
+        counter = 1
+        while output_path.exists():
+            counter += 1
+            output_path = output_dir / f"{output_stem}_{counter}.png"
+        if not icon_image.save(str(output_path), "PNG"):
+            self._set_inline_preview_status(f"Icon capture failed: could not write {output_path}.", error=True)
+            return
+        self._set_inline_preview_status(f"Generated model preview icon: {output_path.name}")
+        self.item_icon_source_generated.emit(str(output_path), dict(self._inline_preview_loaded_payload or payload))
+
+    def closeEvent(self, event: object) -> None:  # type: ignore[override]
+        self._stop_inline_d3d11_process()
+        try:
+            super().closeEvent(event)  # type: ignore[arg-type]
+        except TypeError:
+            return
+
+    def _model_preview_icon_image(self, image: QImage, *, size: int = 512) -> QImage:
+        source = image.convertToFormat(QImage.Format.Format_RGBA8888)
+        scaled = source.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        x = max(0, (scaled.width() - size) // 2)
+        y = max(0, (scaled.height() - size) // 2)
+        return scaled.copy(x, y, min(size, scaled.width()), min(size, scaled.height()))
+
+    def _generated_icon_stem(self, payload: dict[str, object], import_path: Path) -> str:
+        name = str(payload.get("name", "") or import_path.stem or "model_icon").strip()
+        slug = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-._")
+        if not slug:
+            slug = "model_icon"
+        slug = slug[:72].strip("-._") or "model_icon"
+        uid = str(payload.get("uid", "") or "").strip()
+        if uid:
+            slug = f"{slug}-{re.sub(r'[^A-Za-z0-9]+', '', uid)[:12]}"
+        return f"{slug}-{time.strftime('%Y%m%d-%H%M%S')}"
+
+    def _payload_can_preview_here(self, payload: Optional[dict[str, object]]) -> bool:
+        return self._inline_preview_source_path_for_payload(payload) is not None
+
+    def _inline_preview_source_path_for_payload(self, payload: Optional[dict[str, object]]) -> Optional[Path]:
+        if not payload:
+            return None
+        for key in ("import_path", "archive_path", "path"):
+            path_text = str(payload.get(key, "") or "").strip()
+            if not path_text:
+                continue
+            path = Path(path_text)
+            if path.is_file() and (is_importable_model_path(path) or path.suffix.lower() == ".zip"):
+                return path
+        if payload.get("kind") != "mirror":
+            return None
+        asset_dir = self._existing_mirror_asset_dir(payload)
+        if asset_dir is not None:
+            payload["asset_dir"] = str(asset_dir)
+        archive_path = self._existing_mirror_archive_path(payload, asset_dir)
+        if archive_path is not None and archive_path.is_file() and (
+            is_importable_model_path(archive_path) or archive_path.suffix.lower() == ".zip"
+        ):
+            payload["archive_path"] = str(archive_path)
+            return archive_path
+        return None
+
+    def _inline_preview_extract_root_for_source(self, source_path: Path, payload: dict[str, object]) -> Optional[Path]:
+        if source_path.suffix.lower() != ".zip":
+            return None
+        asset_dir_text = str(payload.get("asset_dir", "") or "").strip()
+        asset_dir = Path(asset_dir_text) if asset_dir_text else source_path.parent
+        if not asset_dir_text and not (asset_dir / "model_metadata.json").is_file():
+            return None
+        if not asset_dir.is_dir() or not self._path_is_under(source_path, asset_dir):
+            return None
+        extract_name = "source" if source_path.name.lower().endswith(".source.zip") else "gltf"
+        return asset_dir / extract_name
+
+    def _set_inline_preview_status(self, message: str, *, error: bool = False) -> None:
+        if hasattr(self, "inline_preview_status_label"):
+            self.inline_preview_status_label.setText(message)
+        self.status_message_requested.emit(message, error)
+
+    def _attach_inline_preview_textures(
+        self,
+        preview_model: object,
+        scene_result: object,
+        scene_path: Path,
+    ) -> int:
+        if not isinstance(scene_result, SceneImportResult):
+            return 0
+        return attach_scene_preview_textures(preview_model, scene_result, scene_path)
+
+    def _inline_preview_material_channel_summary(self, prepared_preview: object) -> str:
+        batches = tuple(getattr(prepared_preview, "batches", ()) or ())
+        if not batches:
+            return ""
+        channel_counts: dict[str, int] = defaultdict(int)
+        unresolved_counts: dict[str, int] = defaultdict(int)
+        for batch in batches:
+            textures = {
+                "base": str(getattr(batch, "preview_texture_path", "") or ""),
+                "normal": str(getattr(batch, "preview_normal_texture_path", "") or ""),
+                "material": str(getattr(batch, "preview_material_texture_path", "") or ""),
+                "height": str(getattr(batch, "preview_height_texture_path", "") or ""),
+            }
+            dds_textures = {
+                "base": {"source_path": str(getattr(batch, "preview_texture_dds_path", "") or ""), "confidence": "exact"},
+                "normal": {"source_path": str(getattr(batch, "preview_normal_texture_dds_path", "") or ""), "confidence": "exact"},
+                "material": {"source_path": str(getattr(batch, "preview_material_texture_dds_path", "") or ""), "confidence": "unresolved"},
+                "height": {"source_path": str(getattr(batch, "preview_height_texture_dds_path", "") or ""), "confidence": "unresolved"},
+            }
+            payload = {
+                "material_name": str(getattr(batch, "material_name", "") or ""),
+                "texture_name": str(getattr(batch, "texture_name", "") or ""),
+                "textures": {slot: value for slot, value in textures.items() if value},
+                "dds_textures": {slot: value for slot, value in dds_textures.items() if str(value.get("source_path", "") or "")},
+                "material_contract": {
+                    "texture_slots": {
+                        slot: {
+                            "confidence": dds_textures.get(slot, {}).get("confidence", "inferred"),
+                            "diagnostic": "Model Library resolved preview texture",
+                        }
+                        for slot, value in textures.items()
+                        if value or str(dds_textures.get(slot, {}).get("source_path", "") or "")
+                    },
+                    "packed_channels": tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ()),
+                },
+            }
+            contract = resolve_preview_batch_material_channels(payload)
+            for channel in contract.channels.values():
+                channel_counts[channel.sketchfab_channel or channel.channel] += 1
+            for unresolved in contract.unresolved:
+                slot = str(unresolved.get("slot", "") or "").strip()
+                if slot:
+                    unresolved_counts[slot] += 1
+        channel_text = ", ".join(f"{name}:{count}" for name, count in sorted(channel_counts.items())[:8]) or "none"
+        unresolved_text = ", ".join(f"{name}:{count}" for name, count in sorted(unresolved_counts.items())[:6])
+        return f"{channel_text}; unresolved {unresolved_text}" if unresolved_text else channel_text
+
+
+__all__ = ["ModelLibraryInlinePreviewMixin"]

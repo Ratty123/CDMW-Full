@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -31,6 +31,25 @@ from cdmw.rendering.native_preview_package import (
     read_isolated_d3d11_preview_manifest,
     write_isolated_d3d11_preview_package,
 )
+
+
+def _archive_d3d11_ui_source() -> str:
+    return "\n".join(
+        (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/shell/settings_persistence.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/shell/window_runtime_state.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_layout.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_result.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_cache.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_d3d11_parts.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_d3d11_process.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_d3d11_runtime.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_d3d11_worker.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_settings.py").read_text(encoding="utf-8"),
+            Path("cdmw/workers/d3d11_package_workers.py").read_text(encoding="utf-8"),
+        )
+    )
 
 
 def _vertex(
@@ -2564,6 +2583,35 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
 
         self.assertTrue(manifest["batches"][0]["texture_flip_vertical"])
 
+    def test_scene_import_explicit_unflipped_texture_v_stays_unflipped(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "base.png"
+            base.write_bytes(b"png")
+            prepared = PreparedModelPreviewData(
+                source_path="triangle.gltf",
+                format="gltf",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="body",
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_texture_path=str(base),
+                        preview_texture_flip_vertical=False,
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="triangle.gltf", format="gltf"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+
+        self.assertFalse(manifest["batches"][0]["texture_flip_vertical"])
+
     def test_scene_import_package_flip_texture_v_toggles_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -2672,7 +2720,14 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("RenderTuning", source)
         self.assertIn("parse_render_tuning", source)
         self.assertIn('normalized_view_mode == "game_outdoor"', source)
-        self.assertIn("game_outdoor_approx", Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8"))
+        package_source = "\n".join(
+            (
+                Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8"),
+                Path("cdmw/rendering/native_preview_package_writer.py").read_text(encoding="utf-8"),
+                Path("cdmw/rendering/native_preview_payloads.py").read_text(encoding="utf-8"),
+            )
+        )
+        self.assertIn("game_outdoor_approx", package_source)
         self.assertIn("tuning.emissive_gain = std::max(tuning.emissive_gain, 1.80f)", source)
         self.assertIn("d3d11_tone_exposure", source)
         self.assertIn("d3d11_tone_contrast", source)
@@ -2712,6 +2767,17 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("kCdmwCommandCopyData", source)
         self.assertIn("process_pending_commands", source)
         self.assertIn("load_package", source)
+        self.assertIn('if (command == "set_alignment_transforms")', source)
+        load_start = source.index("bool load_package(")
+        load_body = source[load_start: source.index("bool clear_preview", load_start)]
+        self.assertNotIn("alignment_.selected_source_submeshes.clear();", load_body)
+        self.assertNotIn("alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);", load_body)
+        self.assertNotIn("alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);", load_body)
+        self.assertIn("alignment_.part_translation_drag_bases.clear();", load_body)
+        clear_start = source.index("bool clear_preview")
+        clear_body = source[clear_start: source.index("bool process_pending_commands", clear_start)]
+        self.assertIn("alignment_.part_transforms.clear();", clear_body)
+        self.assertIn("alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);", clear_body)
         self.assertIn("source_submesh_indices", source)
         self.assertIn("highlight_strength", source)
         self.assertIn("png_fallbacks", source)
@@ -2756,30 +2822,34 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("source_format=", source)
 
     def test_native_d3d11_is_archive_renderer_backend_and_qt_scene_is_not_used(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = _archive_d3d11_ui_source()
+        renderer_source = Path("cdmw/ui/model_preview_native.py").read_text(encoding="utf-8")
+        preview_worker_source = Path("cdmw/workers/archive_preview_native.py").read_text(encoding="utf-8")
+        host_source = Path("cdmw/ui/native_d3d11_preview_host.py").read_text(encoding="utf-8")
 
         self.assertIn("archive_isolated_renderer_button", source)
         self.assertIn("archive_d3d11_preview_host", source)
         self.assertIn("ARCHIVE_MODEL_RENDERER_D3D11", source)
-        self.assertIn("ARCHIVE_MODEL_RENDERER_DEFAULT = ARCHIVE_MODEL_RENDERER_D3D11", source)
-        self.assertIn("normalize_archive_model_renderer_backend", source)
+        self.assertIn("ARCHIVE_MODEL_RENDERER_DEFAULT = ARCHIVE_MODEL_RENDERER_D3D11", renderer_source)
+        self.assertIn("normalize_archive_model_renderer_backend", renderer_source)
+        self.assertIn("from cdmw.ui.model_preview_native import", source)
         self.assertIn("low_res_base", source)
         self.assertIn("NativeD3D11PreviewHostFrame", source)
-        self.assertIn("_WM_SET_ZOOM", source)
-        self.assertIn("_WM_COPYDATA_COMMAND", source)
-        self.assertIn('preferred_state["role"] = "replacement"', source)
-        self.assertIn("load_package(self, package_dir", source)
-        self.assertIn("clear_preview(self, status_file", source)
-        self.assertIn("set_render_tuning(self, settings", source)
-        self.assertIn("set_highlighted_source_submeshes", source)
-        self.assertIn("set_hidden_source_submeshes", source)
+        self.assertIn("_WM_SET_ZOOM", host_source)
+        self.assertIn("_WM_COPYDATA_COMMAND", host_source)
+        self.assertIn('preferred_state["role"] = "replacement"', host_source)
+        self.assertIn("load_package(self, package_dir", host_source)
+        self.assertIn("clear_preview(self, status_file", host_source)
+        self.assertIn("set_render_tuning(self, settings", host_source)
+        self.assertIn("set_highlighted_source_submeshes", host_source)
+        self.assertIn("set_hidden_source_submeshes", host_source)
         self.assertIn("archive_d3d11_part_visibility_button", source)
         self.assertIn("_populate_archive_d3d11_part_visibility_menu", source)
         self.assertIn("archive_d3d11_part_visibility_groups", source)
         self.assertIn("Hide added prefab pieces", source)
         self.assertIn("archive_isolated_renderer_package_source", source)
-        self.assertIn("_native_preview_core_failure_result", source)
-        self.assertIn("D3D11 runtime is native-only", source)
+        self.assertIn("_native_preview_core_failure_result", preview_worker_source)
+        self.assertIn("D3D11 runtime is native-only", preview_worker_source)
         self.assertNotIn("_native_preview_core_quality_fallback_reason", source)
         self.assertNotIn("material quality fallback", source)
         self.assertIn("native_preview_package_path", source)
@@ -2798,7 +2868,7 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn('"--isolated-renderer-host"', source)
 
     def test_archive_launcher_is_one_shot_and_status_file_based(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = _archive_d3d11_ui_source()
 
         self.assertIn("QProcess", source)
         self.assertIn("ArchiveD3D11PackageWorker", source)
@@ -2961,7 +3031,17 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
 
     def test_native_d3d11_host_runs_tool_side_pbd_cloth_preview(self) -> None:
         source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
-        main_window_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        main_window_source = (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_d3d11_process.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_settings.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_settings_state.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_preview_settings_dialog.py").read_text(encoding="utf-8")
+        )
 
         self.assertIn("struct ClothRuntime", source)
         self.assertIn("struct ClothCollider", source)

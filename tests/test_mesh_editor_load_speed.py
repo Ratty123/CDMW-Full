@@ -24,6 +24,29 @@ def _read(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
 
 
+def _static_alignment_source() -> str:
+    return "\n".join(
+        (
+            _read("cdmw/ui/shell/app_window.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_base.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_a.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_b.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_callbacks.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_d3d11_cache.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_d3d11_state.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_diagnostics.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_preview_mapping.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_preview_models.py"),
+        )
+    )
+
+
 class MeshEditorLoadSpeedTests(unittest.TestCase):
     def test_numpy_vertex_blob_matches_python_reference(self) -> None:
         model = ModelPreviewData(
@@ -106,10 +129,10 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
             self.assertEqual((8, 20, 200, 8, 21, 200, 8, 22, 200), struct.unpack_from("<iiiiiiiii", identity_blob, 3 * 12))
 
     def test_main_window_cache_split_source_guards(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
+        source = _static_alignment_source()
 
         self.assertIn("class MeshPreviewDirtyFlags", _read("cdmw/rendering/model_preview_prepare.py"))
-        self.assertIn("def _alignment_d3d11_material_cache_key(", source)
+        self.assertIn("alignment_d3d11_material_cache_key as _alignment_d3d11_material_cache_key_helper", source)
         self.assertIn("def _alignment_d3d11_preview_cache_signature(", source)
         self.assertIn("reuse_prepared_geometry=bool(geometry_signature)", source)
         self.assertIn('if normalized_reason == "material":', source)
@@ -119,13 +142,19 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
         self.assertIn("native_texture_ms", source)
         self.assertIn("native_geometry_ms", source)
 
-        geometry_key_start = source.index("def _source_preview_geometry_key")
-        geometry_key_body = source[geometry_key_start: source.index("def _mapped_source_indices", geometry_key_start)]
+        geometry_key_start = source.index("_source_preview_geometry_key = lambda current_mappings")
+        geometry_key_body = source[geometry_key_start: source.index("_mapped_source_indices = lambda", geometry_key_start)]
         self.assertNotIn('"source_material_textures"', geometry_key_body)
         self.assertNotIn('"donor_material_plans"', geometry_key_body)
 
     def test_package_texture_caches_are_source_stat_and_slot_policy_based(self) -> None:
-        source = _read("cdmw/rendering/native_preview_package.py")
+        source = "\n".join(
+            (
+                _read("cdmw/rendering/native_preview_package.py"),
+                _read("cdmw/rendering/native_preview_package_writer.py"),
+                _read("cdmw/rendering/native_preview_texture_sources.py"),
+            )
+        )
 
         self.assertIn("def _source_file_stat_key(", source)
         self.assertIn("def _texture_copy_slot_policy(", source)

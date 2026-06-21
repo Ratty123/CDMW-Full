@@ -11,6 +11,7 @@ from cdmw.core.model_catalogue import (
     build_mirror_catalogue_index,
     download_mirror_model,
     download_mirror_model_candidate,
+    catalogue_stats,
     initialize_catalogue_db,
     mirror_download_candidates,
     normalize_mirror_base_url,
@@ -45,6 +46,14 @@ class ModelCatalogueTests(unittest.TestCase):
     def test_normalize_mirror_base_url_requires_user_url(self) -> None:
         with self.assertRaisesRegex(ValueError, "mirror URL"):
             normalize_mirror_base_url("")
+
+    def test_catalogue_stats_returns_zero_when_existing_db_cannot_open(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "mirror_catalogue.sqlite"
+            db_path.write_bytes(b"not sqlite")
+
+            with mock.patch("cdmw.core.model_catalogue.sqlite3.connect", side_effect=OSError("locked")):
+                self.assertEqual(catalogue_stats(db_path), {"models": 0, "shards": 0})
 
     def test_normalize_record_builds_mirror_download_urls(self) -> None:
         record = normalize_mirror_model_record(

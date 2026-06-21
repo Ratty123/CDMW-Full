@@ -874,7 +874,7 @@ class PacXmlProfileTests(unittest.TestCase):
             "cdmw/modding/pac_xml_profiles.py",
             "cdmw/modding/material_replacer.py",
             "cdmw/core/archive_modding.py",
-            "cdmw/ui/main_window.py",
+            "cdmw/ui/shell/app_window.py",
         ):
             source = (source_root / relative).read_text(encoding="utf-8", errors="ignore")
             self.assertNotIn("C:" + "\\Users\\Ratrider", source)

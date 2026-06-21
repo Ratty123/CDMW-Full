@@ -31,8 +31,9 @@ class RuntimeDependencySmokeTests(unittest.TestCase):
         )
 
     def test_gui_and_texture_editor_import_smoke(self) -> None:
-        from cdmw.ui.main_window import run_gui
+        from cdmw.ui.main_window import MainWindow, run_gui
 
+        self.assertTrue(callable(MainWindow))
         self.assertTrue(callable(run_gui))
         importlib.import_module("cdmw.core.texture_editor")
         importlib.import_module("cdmw.ui.texture_editor_tab")
@@ -130,13 +131,20 @@ class RuntimeDependencySourceGuardTests(unittest.TestCase):
         self.assertIn("BuildSelection", gui_source)
 
     def test_texture_editor_missing_dependency_fallback_is_wired(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
-        self.assertIn("TEXTURE_EDITOR_IMPORT_ERROR", source)
+        source = (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/shell/app_startup.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/shell/tool_tabs.py").read_text(encoding="utf-8")
+        )
+        fallback_source = Path("cdmw/ui/texture_workflow/unavailable_editor.py").read_text(encoding="utf-8")
+        self.assertIn("_texture_editor_import_error", source)
         self.assertIn("UnavailableTextureEditorTab", source)
         self.assertIn('{"cv2", "numpy", "PIL"}', source)
-        self.assertIn("python -m pip install -r requirements.txt", source)
+        self.assertIn("python -m pip install -r requirements.txt", fallback_source)
         self.assertIn("CDMW_GUI_STARTUP_SMOKE", source)
-        self.assertIn("if TextureEditorTab is None:", source)
+        self.assertIn("if texture_editor_tab_class is None:", source)
 
 
 if __name__ == "__main__":

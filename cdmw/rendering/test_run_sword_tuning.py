@@ -14,7 +14,7 @@ TEST_RUN_SWORD_SYNC_SCHEMA_VERSION = 1
 TEST_RUN_SWORD_STATUS_SCHEMA_VERSION = 1
 TEST_RUN_SWORD_MINIMUM_VARIANTS = 20
 _DEFAULT_CTF_ROOT = Path.home() / "Desktop" / "CTF"
-TEST_RUN_SWORD_SOURCE_MOD = str(_DEFAULT_CTF_ROOT / "dds_final_mod_ready_loose_export" / "TestRunSword")
+TEST_RUN_SWORD_SOURCE_MOD = str(_DEFAULT_CTF_ROOT / "workspace" / "outputs" / "mod_packages" / "TestRunSword")
 TEST_RUN_SWORD_DMM_MOD = r"C:\DMM\DMM 1.3.9B\mods\TestRunSword"
 TEST_RUN_SWORD_OUTPUT_ROOT = str(_DEFAULT_CTF_ROOT / "benchmark_reports" / "TestRunSword_20run_material_tuning")
 

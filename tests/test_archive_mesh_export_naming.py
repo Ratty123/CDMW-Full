@@ -7,11 +7,19 @@ from cdmw.core.archive_modding import (
     _mesh_export_basename,
     _rewrite_export_mtl_map_kd,
 )
+from cdmw.core.archive_mesh_types import MeshExportResult
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
 
 class ArchiveMeshExportNamingTests(unittest.TestCase):
+    def test_mesh_export_result_accepts_keyword_fields(self) -> None:
+        result = MeshExportResult(output_paths=[Path("mesh.obj")], summary_lines=["ok"])
+
+        self.assertEqual([Path("mesh.obj")], result.output_paths)
+        self.assertEqual(["ok"], result.summary_lines)
+        self.assertFalse(result.requires_confirmation)
+
     def test_archive_mesh_export_basename_uses_original_filename_stem(self) -> None:
         entry = ArchiveEntry(
             path="character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pac",

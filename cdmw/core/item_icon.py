@@ -13,13 +13,11 @@ from typing import Callable, Mapping, Optional, Sequence
 from PIL import Image, ImageFilter
 
 from cdmw.core.common import run_process_with_cancellation
-from cdmw.core.pipeline import (
-    build_texconv_command,
-    ensure_dds_display_preview_png,
-    max_mips_for_size,
-    parse_dds,
-)
+from cdmw.core.texture_pipeline.inspection import parse_dds
+from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
+from cdmw.core.texture_pipeline.texconv import build_texconv_command
 from cdmw.core.texture_native import encode_dds_with_directxtex
+from cdmw.domain.textures.output import max_mips_for_size
 from cdmw.core.mod_package import is_mod_package_payload_path, normalize_mod_package_payload_path
 
 

@@ -238,7 +238,12 @@ class ArchiveNameSearchIndexTests(unittest.TestCase):
                 )
 
     def test_native_name_search_path_is_guarded_for_large_indexes(self) -> None:
-        source_text = Path("cdmw/core/archive.py").read_text(encoding="utf-8")
+        source_text = "\n".join(
+            (
+                Path("cdmw/core/archive.py").read_text(encoding="utf-8"),
+                Path("cdmw/core/archive_name_search.py").read_text(encoding="utf-8"),
+            )
+        )
         native_text = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
 
         self.assertIn("_try_build_archive_name_search_index_native", source_text)

@@ -322,6 +322,14 @@ struct MeshEditState {
 struct AlignmentState {
     bool enabled = false;
     std::set<int> selected_source_submeshes;
+    struct PartTransform {
+        DirectX::XMFLOAT3 translation{0.0f, 0.0f, 0.0f};
+        DirectX::XMFLOAT3 rotation{0.0f, 0.0f, 0.0f};
+        DirectX::XMFLOAT3 scale{1.0f, 1.0f, 1.0f};
+    };
+    std::map<int, PartTransform> part_transforms;
+    std::map<int, DirectX::XMFLOAT3> part_translation_drag_bases;
+    std::map<int, DirectX::XMFLOAT3> part_rotation_drag_bases;
     std::string hover_axis;
     std::string drag_axis;
     bool drag_active = false;
@@ -2425,31 +2433,42 @@ public:
         width_ = std::max<LONG>(1, rect.right - rect.left);
         height_ = std::max<LONG>(1, rect.bottom - rect.top);
 
-        DXGI_SWAP_CHAIN_DESC swap_desc{};
-        swap_desc.BufferCount = 2;
-        swap_desc.BufferDesc.Width = static_cast<UINT>(width_);
-        swap_desc.BufferDesc.Height = static_cast<UINT>(height_);
-        swap_desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        swap_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        swap_desc.OutputWindow = hwnd_;
-        swap_desc.SampleDesc.Count = 1;
-        swap_desc.Windowed = TRUE;
-        swap_desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-
         D3D_FEATURE_LEVEL requested[] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0};
-        HRESULT hr = D3D11CreateDeviceAndSwapChain(
-            nullptr,
-            D3D_DRIVER_TYPE_HARDWARE,
-            nullptr,
-            0,
-            requested,
-            2,
-            D3D11_SDK_VERSION,
-            &swap_desc,
-            swap_chain_.GetAddressOf(),
-            device_.GetAddressOf(),
-            &feature_level_,
-            context_.GetAddressOf());
+        HRESULT hr = E_FAIL;
+        const UINT sample_candidates[] = {4, 2, 1};
+        for (UINT sample_count : sample_candidates) {
+            DXGI_SWAP_CHAIN_DESC swap_desc{};
+            swap_desc.BufferCount = 2;
+            swap_desc.BufferDesc.Width = static_cast<UINT>(width_);
+            swap_desc.BufferDesc.Height = static_cast<UINT>(height_);
+            swap_desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            swap_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+            swap_desc.OutputWindow = hwnd_;
+            swap_desc.SampleDesc.Count = sample_count;
+            swap_desc.SampleDesc.Quality = 0;
+            swap_desc.Windowed = TRUE;
+            swap_desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+            swap_chain_.Reset();
+            device_.Reset();
+            context_.Reset();
+            hr = D3D11CreateDeviceAndSwapChain(
+                nullptr,
+                D3D_DRIVER_TYPE_HARDWARE,
+                nullptr,
+                0,
+                requested,
+                2,
+                D3D11_SDK_VERSION,
+                &swap_desc,
+                swap_chain_.GetAddressOf(),
+                device_.GetAddressOf(),
+                &feature_level_,
+                context_.GetAddressOf());
+            if (SUCCEEDED(hr)) {
+                msaa_sample_count_ = sample_count;
+                break;
+            }
+        }
         if (FAILED(hr)) {
             stats_.skipped.push_back("D3D11CreateDeviceAndSwapChain failed");
             return false;
@@ -2693,14 +2712,12 @@ public:
         alignment_.rotation_drag_active = false;
         alignment_.hover_axis.clear();
         alignment_.drag_axis.clear();
-        alignment_.selected_source_submeshes.clear();
-        alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
-        alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
-        alignment_.scale_total = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f);
         alignment_.translation_drag_base = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         alignment_.translation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         alignment_.rotation_drag_base = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         alignment_.rotation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.part_translation_drag_bases.clear();
+        alignment_.part_rotation_drag_bases.clear();
         alignment_.origin_cache_valid = false;
         source_part_.hovered_source_submesh = -1;
         source_part_.click_pending = false;
@@ -2748,6 +2765,9 @@ public:
         alignment_.hover_axis.clear();
         alignment_.drag_axis.clear();
         alignment_.selected_source_submeshes.clear();
+        alignment_.part_transforms.clear();
+        alignment_.part_translation_drag_bases.clear();
+        alignment_.part_rotation_drag_bases.clear();
         alignment_.translation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         alignment_.rotation_total = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         alignment_.scale_total = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f);
@@ -3143,17 +3163,39 @@ private:
         return view * projection;
     }
 
-    bool alignment_preview_transform_active() const {
+    static bool alignment_transform_value_active(
+        const DirectX::XMFLOAT3& translation,
+        const DirectX::XMFLOAT3& rotation,
+        const DirectX::XMFLOAT3& scale) {
         constexpr float kEpsilon = 1.0e-6f;
-        return std::abs(alignment_.translation_total.x) > kEpsilon
-            || std::abs(alignment_.translation_total.y) > kEpsilon
-            || std::abs(alignment_.translation_total.z) > kEpsilon
-            || std::abs(alignment_.rotation_total.x) > kEpsilon
-            || std::abs(alignment_.rotation_total.y) > kEpsilon
-            || std::abs(alignment_.rotation_total.z) > kEpsilon
-            || std::abs(alignment_.scale_total.x - 1.0f) > kEpsilon
-            || std::abs(alignment_.scale_total.y - 1.0f) > kEpsilon
-            || std::abs(alignment_.scale_total.z - 1.0f) > kEpsilon;
+        return std::abs(translation.x) > kEpsilon
+            || std::abs(translation.y) > kEpsilon
+            || std::abs(translation.z) > kEpsilon
+            || std::abs(rotation.x) > kEpsilon
+            || std::abs(rotation.y) > kEpsilon
+            || std::abs(rotation.z) > kEpsilon
+            || std::abs(scale.x - 1.0f) > kEpsilon
+            || std::abs(scale.y - 1.0f) > kEpsilon
+            || std::abs(scale.z - 1.0f) > kEpsilon;
+    }
+
+    bool alignment_global_transform_active() const {
+        return alignment_transform_value_active(
+            alignment_.translation_total,
+            alignment_.rotation_total,
+            alignment_.scale_total);
+    }
+
+    bool alignment_part_transform_active(const AlignmentState::PartTransform& transform) const {
+        return alignment_transform_value_active(transform.translation, transform.rotation, transform.scale);
+    }
+
+    bool alignment_preview_transform_active() const {
+        if (alignment_global_transform_active()) return true;
+        for (const auto& item : alignment_.part_transforms) {
+            if (alignment_part_transform_active(item.second)) return true;
+        }
+        return false;
     }
 
     bool alignment_non_translation_transform_active() const {
@@ -3166,8 +3208,18 @@ private:
             || std::abs(alignment_.scale_total.z - 1.0f) > kEpsilon;
     }
 
-    bool alignment_handle_origin_base(DirectX::XMFLOAT3& origin) const {
-        if (alignment_.origin_cache_valid) {
+    bool alignment_batch_editable(const PreviewBatch& batch) const {
+        return !batch_is_reference(batch) && batch.editor_editable;
+    }
+
+    bool alignment_batch_active(const PreviewBatch& batch) const {
+        if (!alignment_batch_editable(batch)) return false;
+        return alignment_.selected_source_submeshes.empty()
+            || alignment_.selected_source_submeshes.find(batch.source_submesh_index) != alignment_.selected_source_submeshes.end();
+    }
+
+    bool alignment_origin_for_batches(DirectX::XMFLOAT3& origin, const std::set<int>* source_filter) const {
+        if (source_filter == nullptr && alignment_.origin_cache_valid) {
             origin = alignment_.origin_cache;
             return true;
         }
@@ -3179,7 +3231,8 @@ private:
         float max_y = 0.0f;
         float max_z = 0.0f;
         for (const PreviewBatch& batch : batches_) {
-            if (!alignment_batch_active(batch)) continue;
+            if (!alignment_batch_editable(batch)) continue;
+            if (source_filter != nullptr && source_filter->find(batch.source_submesh_index) == source_filter->end()) continue;
             for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
                 if (!found) {
                     min_x = max_x = position.x;
@@ -3201,33 +3254,81 @@ private:
             (min_x + max_x) * 0.5f,
             (min_y + max_y) * 0.5f,
             (min_z + max_z) * 0.5f);
-        alignment_.origin_cache = origin;
-        alignment_.origin_cache_valid = true;
+        if (source_filter == nullptr) {
+            alignment_.origin_cache = origin;
+            alignment_.origin_cache_valid = true;
+        }
         return true;
     }
 
-    DirectX::XMMATRIX alignment_preview_transform_for_batch(const PreviewBatch& batch) const {
-        if (!alignment_preview_transform_active() || !alignment_batch_active(batch)) {
-            return DirectX::XMMatrixIdentity();
+    bool alignment_handle_origin_base(DirectX::XMFLOAT3& origin) const {
+        if (!alignment_.selected_source_submeshes.empty()) {
+            return alignment_origin_for_batches(origin, &alignment_.selected_source_submeshes);
         }
-        DirectX::XMFLOAT3 origin{};
-        if (!alignment_handle_origin_base(origin)) {
-            origin = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
-        }
+        return alignment_origin_for_batches(origin, nullptr);
+    }
+
+    bool alignment_global_origin_base(DirectX::XMFLOAT3& origin) const {
+        return alignment_origin_for_batches(origin, nullptr);
+    }
+
+    bool alignment_part_origin_base(int source_submesh_index, DirectX::XMFLOAT3& origin) const {
+        std::set<int> source_filter;
+        source_filter.insert(source_submesh_index);
+        return alignment_origin_for_batches(origin, &source_filter);
+    }
+
+    static DirectX::XMMATRIX alignment_transform_matrix(
+        const DirectX::XMFLOAT3& origin,
+        const DirectX::XMFLOAT3& translation,
+        const DirectX::XMFLOAT3& rotation,
+        const DirectX::XMFLOAT3& scale) {
         return DirectX::XMMatrixTranslation(-origin.x, -origin.y, -origin.z)
             * DirectX::XMMatrixScaling(
-                std::max(0.001f, alignment_.scale_total.x),
-                std::max(0.001f, alignment_.scale_total.y),
-                std::max(0.001f, alignment_.scale_total.z))
+                std::max(0.001f, scale.x),
+                std::max(0.001f, scale.y),
+                std::max(0.001f, scale.z))
             * DirectX::XMMatrixRotationRollPitchYaw(
-                DirectX::XMConvertToRadians(alignment_.rotation_total.x),
-                DirectX::XMConvertToRadians(alignment_.rotation_total.y),
-                DirectX::XMConvertToRadians(alignment_.rotation_total.z))
+                DirectX::XMConvertToRadians(rotation.x),
+                DirectX::XMConvertToRadians(rotation.y),
+                DirectX::XMConvertToRadians(rotation.z))
             * DirectX::XMMatrixTranslation(origin.x, origin.y, origin.z)
             * DirectX::XMMatrixTranslation(
-                alignment_.translation_total.x,
-                alignment_.translation_total.y,
-                alignment_.translation_total.z);
+                translation.x,
+                translation.y,
+                translation.z);
+    }
+
+    DirectX::XMMATRIX alignment_preview_transform_for_batch(const PreviewBatch& batch) const {
+        if (!alignment_batch_editable(batch)) {
+            return DirectX::XMMatrixIdentity();
+        }
+        DirectX::XMMATRIX transform = DirectX::XMMatrixIdentity();
+        if (alignment_global_transform_active()) {
+            DirectX::XMFLOAT3 origin{};
+            if (!alignment_global_origin_base(origin)) {
+                origin = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            }
+            transform = alignment_transform_matrix(
+                origin,
+                alignment_.translation_total,
+                alignment_.rotation_total,
+                alignment_.scale_total);
+        }
+        auto part = alignment_.part_transforms.find(batch.source_submesh_index);
+        if (part != alignment_.part_transforms.end() && alignment_part_transform_active(part->second)) {
+            DirectX::XMFLOAT3 origin{};
+            if (!alignment_part_origin_base(batch.source_submesh_index, origin)) {
+                origin = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            }
+            transform = alignment_transform_matrix(
+                origin,
+                part->second.translation,
+                part->second.rotation,
+                part->second.scale)
+                * transform;
+        }
+        return transform;
     }
 
     DirectX::XMFLOAT3 transformed_batch_position(const PreviewBatch& batch, const DirectX::XMFLOAT3& position) const {
@@ -4687,17 +4788,39 @@ private:
         return std::isfinite(screen_x) && std::isfinite(screen_y);
     }
 
-    bool alignment_batch_active(const PreviewBatch& batch) const {
-        if (!alignment_.enabled || batch_is_reference(batch) || !batch.editor_editable) return false;
-        return alignment_.selected_source_submeshes.empty()
-            || alignment_.selected_source_submeshes.find(batch.source_submesh_index) != alignment_.selected_source_submeshes.end();
-    }
-
     bool alignment_handle_origin(DirectX::XMFLOAT3& origin) const {
         if (!alignment_handle_origin_base(origin)) return false;
-        origin.x += alignment_.translation_total.x;
-        origin.y += alignment_.translation_total.y;
-        origin.z += alignment_.translation_total.z;
+        DirectX::XMMATRIX transform = DirectX::XMMatrixIdentity();
+        if (alignment_global_transform_active()) {
+            DirectX::XMFLOAT3 global_origin{};
+            if (!alignment_global_origin_base(global_origin)) {
+                global_origin = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            }
+            transform = alignment_transform_matrix(
+                global_origin,
+                alignment_.translation_total,
+                alignment_.rotation_total,
+                alignment_.scale_total);
+        }
+        if (alignment_.selected_source_submeshes.size() == 1u) {
+            const int source_index = *alignment_.selected_source_submeshes.begin();
+            auto part = alignment_.part_transforms.find(source_index);
+            if (part != alignment_.part_transforms.end() && alignment_part_transform_active(part->second)) {
+                DirectX::XMFLOAT3 part_origin{};
+                if (!alignment_part_origin_base(source_index, part_origin)) {
+                    part_origin = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+                }
+                transform = alignment_transform_matrix(
+                    part_origin,
+                    part->second.translation,
+                    part->second.rotation,
+                    part->second.scale)
+                    * transform;
+            }
+        }
+        DirectX::XMStoreFloat3(
+            &origin,
+            DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&origin), transform));
         return true;
     }
 
@@ -4846,7 +4969,15 @@ private:
             drop_pending_package_reload("alignment_rotation_start");
             alignment_.rotation_drag_active = true;
             alignment_.rotation_drag_roll = shift_down;
-            alignment_.rotation_drag_base = alignment_.rotation_total;
+            alignment_.part_rotation_drag_bases.clear();
+            if (!alignment_.selected_source_submeshes.empty()) {
+                for (int source_index : alignment_.selected_source_submeshes) {
+                    alignment_.part_rotation_drag_bases[source_index] = alignment_.part_transforms[source_index].rotation;
+                }
+                alignment_.rotation_drag_base = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            } else {
+                alignment_.rotation_drag_base = alignment_.rotation_total;
+            }
             alignment_.rotation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
             alignment_.last_rotation_change_sent = std::chrono::steady_clock::time_point{};
             alignment_.last_x = x;
@@ -4860,7 +4991,15 @@ private:
             drop_pending_package_reload("alignment_rotation_start");
             alignment_.rotation_drag_active = true;
             alignment_.rotation_drag_roll = rotation_handle == "roll" || shift_down;
-            alignment_.rotation_drag_base = alignment_.rotation_total;
+            alignment_.part_rotation_drag_bases.clear();
+            if (!alignment_.selected_source_submeshes.empty()) {
+                for (int source_index : alignment_.selected_source_submeshes) {
+                    alignment_.part_rotation_drag_bases[source_index] = alignment_.part_transforms[source_index].rotation;
+                }
+                alignment_.rotation_drag_base = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+            } else {
+                alignment_.rotation_drag_base = alignment_.rotation_total;
+            }
             alignment_.rotation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
             alignment_.last_rotation_change_sent = std::chrono::steady_clock::time_point{};
             alignment_.last_x = x;
@@ -4875,7 +5014,15 @@ private:
         alignment_.drag_axis = axis;
         alignment_.hover_axis = axis;
         alignment_.drag_active = true;
-        alignment_.translation_drag_base = alignment_.translation_total;
+        alignment_.part_translation_drag_bases.clear();
+        if (!alignment_.selected_source_submeshes.empty()) {
+            for (int source_index : alignment_.selected_source_submeshes) {
+                alignment_.part_translation_drag_bases[source_index] = alignment_.part_transforms[source_index].translation;
+            }
+            alignment_.translation_drag_base = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        } else {
+            alignment_.translation_drag_base = alignment_.translation_total;
+        }
         alignment_.translation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         alignment_.last_translation_change_sent = std::chrono::steady_clock::time_point{};
         alignment_.last_x = x;
@@ -4915,10 +5062,21 @@ private:
         alignment_.translation_drag_delta.x += delta.x;
         alignment_.translation_drag_delta.y += delta.y;
         alignment_.translation_drag_delta.z += delta.z;
-        alignment_.translation_total = DirectX::XMFLOAT3(
-            alignment_.translation_drag_base.x + alignment_.translation_drag_delta.x,
-            alignment_.translation_drag_base.y + alignment_.translation_drag_delta.y,
-            alignment_.translation_drag_base.z + alignment_.translation_drag_delta.z);
+        if (!alignment_.selected_source_submeshes.empty()) {
+            for (int source_index : alignment_.selected_source_submeshes) {
+                DirectX::XMFLOAT3 base = alignment_.part_translation_drag_bases[source_index];
+                alignment_.part_transforms[source_index].translation = DirectX::XMFLOAT3(
+                    base.x + alignment_.translation_drag_delta.x,
+                    base.y + alignment_.translation_drag_delta.y,
+                    base.z + alignment_.translation_drag_delta.z);
+            }
+        } else {
+            alignment_.translation_total = DirectX::XMFLOAT3(
+                alignment_.translation_drag_base.x + alignment_.translation_drag_delta.x,
+                alignment_.translation_drag_base.y + alignment_.translation_drag_delta.y,
+                alignment_.translation_drag_base.z + alignment_.translation_drag_delta.z);
+        }
+        alignment_.origin_cache_valid = false;
         if (alignment_drag_change_due(alignment_.last_translation_change_sent)) {
             send_alignment_vector_event("alignment_drag_changed", alignment_.translation_drag_delta);
         }
@@ -4947,10 +5105,21 @@ private:
         alignment_.rotation_drag_delta.x += delta.x;
         alignment_.rotation_drag_delta.y += delta.y;
         alignment_.rotation_drag_delta.z += delta.z;
-        alignment_.rotation_total = DirectX::XMFLOAT3(
-            alignment_.rotation_drag_base.x + alignment_.rotation_drag_delta.x,
-            alignment_.rotation_drag_base.y + alignment_.rotation_drag_delta.y,
-            alignment_.rotation_drag_base.z + alignment_.rotation_drag_delta.z);
+        if (!alignment_.selected_source_submeshes.empty()) {
+            for (int source_index : alignment_.selected_source_submeshes) {
+                DirectX::XMFLOAT3 base = alignment_.part_rotation_drag_bases[source_index];
+                alignment_.part_transforms[source_index].rotation = DirectX::XMFLOAT3(
+                    base.x + alignment_.rotation_drag_delta.x,
+                    base.y + alignment_.rotation_drag_delta.y,
+                    base.z + alignment_.rotation_drag_delta.z);
+            }
+        } else {
+            alignment_.rotation_total = DirectX::XMFLOAT3(
+                alignment_.rotation_drag_base.x + alignment_.rotation_drag_delta.x,
+                alignment_.rotation_drag_base.y + alignment_.rotation_drag_delta.y,
+                alignment_.rotation_drag_base.z + alignment_.rotation_drag_delta.z);
+        }
+        alignment_.origin_cache_valid = false;
         if (alignment_drag_change_due(alignment_.last_rotation_change_sent)) {
             send_alignment_vector_event("alignment_rotation_changed", alignment_.rotation_drag_delta);
         }
@@ -4983,6 +5152,7 @@ private:
             send_alignment_vector_event("alignment_rotation_finished", alignment_.rotation_drag_delta);
             alignment_.rotation_drag_active = false;
             alignment_.rotation_drag_roll = false;
+            alignment_.part_rotation_drag_bases.clear();
             if (GetCapture() == hwnd_) ReleaseCapture();
             return true;
         }
@@ -4991,6 +5161,7 @@ private:
             send_alignment_vector_event("alignment_drag_finished", alignment_.translation_drag_delta);
             alignment_.drag_active = false;
             alignment_.drag_axis.clear();
+            alignment_.part_translation_drag_bases.clear();
             if (GetCapture() == hwnd_) ReleaseCapture();
             return true;
         }
@@ -5000,10 +5171,22 @@ private:
     bool cancel_alignment_drag() {
         bool was_active = alignment_.drag_active || alignment_.rotation_drag_active;
         if (alignment_.drag_active) {
-            alignment_.translation_total = alignment_.translation_drag_base;
+            if (!alignment_.part_translation_drag_bases.empty()) {
+                for (const auto& item : alignment_.part_translation_drag_bases) {
+                    alignment_.part_transforms[item.first].translation = item.second;
+                }
+            } else {
+                alignment_.translation_total = alignment_.translation_drag_base;
+            }
         }
         if (alignment_.rotation_drag_active) {
-            alignment_.rotation_total = alignment_.rotation_drag_base;
+            if (!alignment_.part_rotation_drag_bases.empty()) {
+                for (const auto& item : alignment_.part_rotation_drag_bases) {
+                    alignment_.part_transforms[item.first].rotation = item.second;
+                }
+            } else {
+                alignment_.rotation_total = alignment_.rotation_drag_base;
+            }
         }
         alignment_.drag_active = false;
         alignment_.rotation_drag_active = false;
@@ -5011,6 +5194,9 @@ private:
         alignment_.drag_axis.clear();
         alignment_.translation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
         alignment_.rotation_drag_delta = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+        alignment_.part_translation_drag_bases.clear();
+        alignment_.part_rotation_drag_bases.clear();
+        alignment_.origin_cache_valid = false;
         return was_active;
     }
 
@@ -6025,6 +6211,9 @@ private:
             return true;
         }
         if (command == "set_alignment_transform") {
+            alignment_.part_transforms.clear();
+            alignment_.part_translation_drag_bases.clear();
+            alignment_.part_rotation_drag_bases.clear();
             alignment_.translation_total = DirectX::XMFLOAT3(
                 json_float_field(payload, "translation_x", alignment_.translation_total.x),
                 json_float_field(payload, "translation_y", alignment_.translation_total.y),
@@ -6039,6 +6228,43 @@ private:
                 std::clamp(json_float_field(payload, "scale_z", alignment_.scale_total.z), 0.001f, 1000.0f));
             request_render();
             send_json_event("{\"event\":\"alignment_transform\",\"ok\":true}");
+            return true;
+        }
+        if (command == "set_alignment_transforms") {
+            auto triple = [](const std::string& object, const std::string& name, const DirectX::XMFLOAT3& fallback) {
+                std::vector<float> values = json_float_array_field(object, name);
+                if (values.size() < 3u) return fallback;
+                return DirectX::XMFLOAT3(values[0], values[1], values[2]);
+            };
+            const std::string global = json_object_field(payload, "global");
+            if (!global.empty()) {
+                alignment_.translation_total = triple(global, "translation", DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f));
+                alignment_.rotation_total = triple(global, "rotation_degrees", DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f));
+                alignment_.scale_total = triple(global, "scale_xyz", DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f));
+                alignment_.scale_total.x = std::clamp(alignment_.scale_total.x, 0.001f, 1000.0f);
+                alignment_.scale_total.y = std::clamp(alignment_.scale_total.y, 0.001f, 1000.0f);
+                alignment_.scale_total.z = std::clamp(alignment_.scale_total.z, 0.001f, 1000.0f);
+            }
+            alignment_.part_transforms.clear();
+            for (const std::string& item : json_object_array_field(payload, "parts")) {
+                AlignmentState::PartTransform transform;
+                transform.translation = triple(item, "translation", DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f));
+                transform.rotation = triple(item, "rotation_degrees", DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f));
+                transform.scale = triple(item, "scale_xyz", DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f));
+                transform.scale.x = std::clamp(transform.scale.x, 0.001f, 1000.0f);
+                transform.scale.y = std::clamp(transform.scale.y, 0.001f, 1000.0f);
+                transform.scale.z = std::clamp(transform.scale.z, 0.001f, 1000.0f);
+                for (int source_index : json_int_array_field(item, "source_submesh_indices")) {
+                    if (source_index >= 0) {
+                        alignment_.part_transforms[source_index] = transform;
+                    }
+                }
+            }
+            alignment_.part_translation_drag_bases.clear();
+            alignment_.part_rotation_drag_bases.clear();
+            alignment_.origin_cache_valid = false;
+            request_render();
+            send_json_event("{\"event\":\"alignment_transforms\",\"ok\":true}");
             return true;
         }
         if (command == "clear_mesh_edit_selection") {
@@ -6281,7 +6507,8 @@ private:
         depth_desc.MipLevels = 1;
         depth_desc.ArraySize = 1;
         depth_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-        depth_desc.SampleDesc.Count = 1;
+        depth_desc.SampleDesc.Count = msaa_sample_count_;
+        depth_desc.SampleDesc.Quality = 0;
         depth_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
         ComPtr<ID3D11Texture2D> depth_texture;
         hr = device_->CreateTexture2D(&depth_desc, nullptr, depth_texture.GetAddressOf());
@@ -6380,6 +6607,8 @@ private:
         raster_desc.FillMode = D3D11_FILL_SOLID;
         raster_desc.CullMode = D3D11_CULL_NONE;
         raster_desc.DepthClipEnable = TRUE;
+        raster_desc.MultisampleEnable = msaa_sample_count_ > 1;
+        raster_desc.AntialiasedLineEnable = TRUE;
         hr = device_->CreateRasterizerState(&raster_desc, rasterizer_.GetAddressOf());
         if (FAILED(hr)) return false;
         raster_desc.CullMode = D3D11_CULL_BACK;
@@ -6606,10 +6835,16 @@ private:
 
     DirectX::XMFLOAT3 cloth_root_translation_for_batch(const PreviewBatch& batch) const {
         DirectX::XMFLOAT3 root(pan_x_, pan_y_, pan_z_);
-        if (alignment_batch_active(batch)) {
+        if (alignment_batch_editable(batch)) {
             root.x += alignment_.translation_total.x;
             root.y += alignment_.translation_total.y;
             root.z += alignment_.translation_total.z;
+            auto part = alignment_.part_transforms.find(batch.source_submesh_index);
+            if (part != alignment_.part_transforms.end()) {
+                root.x += part->second.translation.x;
+                root.y += part->second.translation.y;
+                root.z += part->second.translation.z;
+            }
         }
         return root;
     }
@@ -6617,7 +6852,21 @@ private:
     void apply_cloth_root_motion(PreviewBatch& batch) {
         ClothRuntime& cloth = batch.cloth;
         if (!cloth.initialized || cloth.positions.empty()) return;
-        const bool non_translation_active = alignment_batch_active(batch) && alignment_non_translation_transform_active();
+        bool part_non_translation_active = false;
+        auto part = alignment_.part_transforms.find(batch.source_submesh_index);
+        if (part != alignment_.part_transforms.end()) {
+            constexpr float kEpsilon = 1.0e-6f;
+            part_non_translation_active =
+                std::abs(part->second.rotation.x) > kEpsilon
+                || std::abs(part->second.rotation.y) > kEpsilon
+                || std::abs(part->second.rotation.z) > kEpsilon
+                || std::abs(part->second.scale.x - 1.0f) > kEpsilon
+                || std::abs(part->second.scale.y - 1.0f) > kEpsilon
+                || std::abs(part->second.scale.z - 1.0f) > kEpsilon;
+        }
+        const bool non_translation_active =
+            alignment_batch_editable(batch)
+            && (alignment_non_translation_transform_active() || part_non_translation_active);
         const DirectX::XMFLOAT3 root = cloth_root_translation_for_batch(batch);
         if (non_translation_active && !cloth.non_translation_reanchored) {
             cloth.positions = cloth.rest_positions;
@@ -7105,6 +7354,7 @@ private:
     ComPtr<IDXGISwapChain> swap_chain_;
     ComPtr<ID3D11RenderTargetView> render_target_;
     ComPtr<ID3D11DepthStencilView> depth_view_;
+    UINT msaa_sample_count_ = 1;
     ComPtr<ID3D11VertexShader> vertex_shader_;
     ComPtr<ID3D11PixelShader> pixel_shader_;
     ComPtr<ID3D11PixelShader> overlay_pixel_shader_;

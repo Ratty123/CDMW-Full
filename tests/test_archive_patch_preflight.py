@@ -117,7 +117,7 @@ class ArchivePatchPreflightTests(unittest.TestCase):
             )
             original_paz = entry.paz_file.read_bytes()
 
-            with patch("cdmw.core.archive_modding._create_backup") as create_backup:
+            with patch("cdmw.core.archive_patching._create_backup") as create_backup:
                 with self.assertRaisesRegex(ValueError, "Could not locate"):
                     patch_archive_entries((ArchivePatchRequest(stale_entry, b"new-payload"),))
 
@@ -130,7 +130,7 @@ class ArchivePatchPreflightTests(unittest.TestCase):
             entry = _write_test_archive(root, valid_pamt_crc=False)
             original_paz = entry.paz_file.read_bytes()
 
-            with patch("cdmw.core.archive_modding._create_backup") as create_backup:
+            with patch("cdmw.core.archive_patching._create_backup") as create_backup:
                 with self.assertRaisesRegex(ValueError, "PAMT checksum verification failed"):
                     patch_archive_entries((ArchivePatchRequest(entry, b"new-payload"),))
 
@@ -143,7 +143,7 @@ class ArchivePatchPreflightTests(unittest.TestCase):
             entry = _write_test_archive(root, flags=9)
             original_paz = entry.paz_file.read_bytes()
 
-            with patch("cdmw.core.archive_modding._create_backup") as create_backup:
+            with patch("cdmw.core.archive_patching._create_backup") as create_backup:
                 with self.assertRaisesRegex(ValueError, "does not support compression type 9"):
                     patch_archive_entries((ArchivePatchRequest(entry, b"new-payload"),))
 
@@ -166,7 +166,7 @@ class ArchivePatchPreflightTests(unittest.TestCase):
             )
             original_paz = entry.paz_file.read_bytes()
 
-            with patch("cdmw.core.archive_modding._create_backup") as create_backup:
+            with patch("cdmw.core.archive_patching._create_backup") as create_backup:
                 with self.assertRaisesRegex(ValueError, "no longer points at PAZ index 1"):
                     patch_archive_entries((ArchivePatchRequest(mismatched_entry, b"new-payload"),))
 
@@ -179,7 +179,7 @@ class ArchivePatchPreflightTests(unittest.TestCase):
             entry = _write_test_archive(root)
             original_paz = entry.paz_file.read_bytes()
 
-            with patch("cdmw.core.archive_modding._write_bytes_preserve_timestamps", side_effect=RuntimeError("boom")):
+            with patch("cdmw.core.archive_patching._write_bytes_preserve_timestamps", side_effect=RuntimeError("boom")):
                 with self.assertRaisesRegex(RuntimeError, "boom"):
                     patch_archive_entries((ArchivePatchRequest(entry, b"new-payload"),))
 

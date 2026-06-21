@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from cdmw.core import archive_modding
+from cdmw.core import archive_mesh_import_preview, archive_modding
 from cdmw.core.mesh_baseline import MeshBaselineData
 from cdmw.models import (
     ArchiveEntry,
@@ -127,22 +127,22 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
 
             with (
                 patch.object(
-                    archive_modding,
+                    archive_mesh_import_preview,
                     "read_archive_entry_baseline_data",
                     return_value=MeshBaselineData(data=b"original", from_cache=False),
                 ),
-                patch.object(archive_modding, "parse_mesh", side_effect=fake_parse_mesh),
+                patch.object(archive_mesh_import_preview, "parse_mesh", side_effect=fake_parse_mesh),
                 patch.object(
-                    archive_modding,
+                    archive_mesh_import_preview,
                     "build_static_mesh_replacement",
                     side_effect=fake_build_static_mesh_replacement,
                 ),
                 patch.object(
-                    archive_modding,
+                    archive_mesh_import_preview,
                     "_build_mesh_import_validation",
                     return_value=((), (), ImportAutoFixResult(), []),
                 ),
-                patch.object(archive_modding, "_load_obj_roundtrip_sidecar", return_value=None),
+                patch.object(archive_mesh_import_preview, "_load_obj_roundtrip_sidecar", return_value=None),
                 patch("cdmw.core.archive.build_archive_model_texture_references", return_value=()),
             ):
                 result = archive_modding.build_mesh_import_preview(
@@ -195,22 +195,22 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
 
             with (
                 patch.object(
-                    archive_modding,
+                    archive_mesh_import_preview,
                     "read_archive_entry_baseline_data",
                     return_value=MeshBaselineData(data=b"original", from_cache=False),
                 ),
-                patch.object(archive_modding, "parse_mesh", side_effect=fake_parse_mesh),
+                patch.object(archive_mesh_import_preview, "parse_mesh", side_effect=fake_parse_mesh),
                 patch.object(
-                    archive_modding,
+                    archive_mesh_import_preview,
                     "build_static_mesh_replacement",
                     return_value=(b"rebuilt", StaticMeshReplacementReport()),
                 ),
                 patch.object(
-                    archive_modding,
+                    archive_mesh_import_preview,
                     "_build_mesh_import_validation",
                     return_value=((), (), ImportAutoFixResult(), []),
                 ),
-                patch.object(archive_modding, "_load_obj_roundtrip_sidecar", return_value=None),
+                patch.object(archive_mesh_import_preview, "_load_obj_roundtrip_sidecar", return_value=None),
                 patch("cdmw.core.archive.build_archive_model_texture_references", return_value=()),
             ):
                 result = archive_modding.build_mesh_import_preview(
@@ -245,7 +245,7 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.pipeline.ensure_dds_display_preview_png",
+            "cdmw.core.texture_pipeline.preview.ensure_dds_display_preview_png",
             side_effect=lambda _texconv, dds_path, **_kwargs: f"preview://{Path(dds_path).name}",
         ):
             lines = archive_modding._apply_mesh_import_local_sidecar_texture_overrides(

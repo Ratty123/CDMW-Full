@@ -339,9 +339,19 @@ class RecolorVariantTests(unittest.TestCase):
             self.assertFalse(imported[0].rules[0].preserve_luminance)
 
     def test_recolor_variants_ui_is_registered(self) -> None:
-        main_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        main_source = (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/shell/tool_tabs.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/texture_workflow/editor_bridge.py").read_text(encoding="utf-8")
+        )
         tab_source = Path("cdmw/ui/recolor_variants_tab.py").read_text(encoding="utf-8")
-        editor_source = Path("cdmw/ui/texture_editor_tab.py").read_text(encoding="utf-8")
+        editor_source = (
+            Path("cdmw/ui/texture_editor_tab.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/texture_workflow/editor_tool_coordination.py").read_text(encoding="utf-8")
+        )
 
         self.assertIn("from cdmw.ui.recolor_variants_tab import RecolorVariantsTab", main_source)
         self.assertIn('self.texture_tabs.addTab(self.recolor_variants_tab, "Recolor Variants")', main_source)

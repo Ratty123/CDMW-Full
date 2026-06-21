@@ -350,6 +350,106 @@ class ModPackageRetrofitTests(unittest.TestCase):
                 mod_json["new_paths"],
             )
 
+    def test_jmm_retrofit_removes_stale_descriptor_new_paths_when_game_index_has_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "Placement"
+            root_descriptor = source / "character" / "phm_description_player_kliff.xml"
+            descriptor_alias = (
+                source
+                / "character"
+                / "descriptors"
+                / "characterdescription"
+                / "phm_description_player_kliff.xml"
+            )
+            root_descriptor.parent.mkdir(parents=True)
+            descriptor_alias.parent.mkdir(parents=True)
+            root_descriptor.write_text("<Root/>", encoding="utf-8")
+            descriptor_alias.write_text("<Root/>", encoding="utf-8")
+            manifest = {
+                "kind": "file_replacement",
+                "title": "Placement",
+                "name": "Placement",
+                "files": [
+                    "character/descriptors/characterdescription/phm_description_player_kliff.xml",
+                    "character/phm_description_player_kliff.xml",
+                ],
+                "new_paths": [
+                    "character/descriptors/characterdescription/phm_description_player_kliff.xml",
+                    "character/phm_description_player_kliff.xml",
+                ],
+            }
+            (source / "mod.json").write_text(json.dumps(manifest), encoding="utf-8")
+            package = scan_retrofittable_mod_packages(source)[0]
+            archive_index = {
+                "phm_description_player_kliff.xml": [
+                    _entry(
+                        "character/descriptors/characterdescription/phm_description_player_kliff.xml",
+                        root,
+                        "0009",
+                    )
+                ]
+            }
+
+            summary = build_retrofit_path_repair_summary(package, archive_entries_by_basename=archive_index)
+            result = retrofit_mod_package(
+                package,
+                root / "converted",
+                manager_profile="jmm",
+                archive_entries_by_basename=archive_index,
+            )
+
+            self.assertEqual(2, summary.repaired_path_count)
+            mod_json = json.loads((result.package_root / "mod.json").read_text(encoding="utf-8"))
+            self.assertNotIn("new_paths", mod_json)
+            self.assertIn("character/descriptors/characterdescription/phm_description_player_kliff.xml", mod_json["files"])
+            self.assertIn("character/phm_description_player_kliff.xml", mod_json["files"])
+
+    def test_jmm_retrofit_does_not_repair_complete_descriptor_alias_pair_without_stale_new_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "Placement"
+            root_descriptor = source / "character" / "phm_description_player_kliff.xml"
+            descriptor_alias = (
+                source
+                / "character"
+                / "descriptors"
+                / "characterdescription"
+                / "phm_description_player_kliff.xml"
+            )
+            root_descriptor.parent.mkdir(parents=True)
+            descriptor_alias.parent.mkdir(parents=True)
+            root_descriptor.write_text("<Root/>", encoding="utf-8")
+            descriptor_alias.write_text("<Root/>", encoding="utf-8")
+            manifest = {
+                "kind": "file_replacement",
+                "title": "Placement",
+                "name": "Placement",
+                "files": [
+                    "character/descriptors/characterdescription/phm_description_player_kliff.xml",
+                    "character/phm_description_player_kliff.xml",
+                ],
+            }
+            (source / "mod.json").write_text(json.dumps(manifest), encoding="utf-8")
+            package = scan_retrofittable_mod_packages(source)[0]
+
+            summary = build_retrofit_path_repair_summary(
+                package,
+                archive_entries_by_basename={
+                    "phm_description_player_kliff.xml": [
+                        _entry(
+                            "character/descriptors/characterdescription/phm_description_player_kliff.xml",
+                            root,
+                            "0009",
+                        )
+                    ]
+                },
+            )
+
+            self.assertEqual(0, summary.repaired_path_count)
+            self.assertEqual(0, summary.unresolved_path_count)
+            self.assertEqual(0, summary.ambiguous_path_count)
+
     def test_custom_compact_paths_retrofit_to_jmm_repairs_model_and_sidecar_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -448,6 +548,40 @@ class ModPackageRetrofitTests(unittest.TestCase):
             self.assertEqual(1, summary.repaired_path_count)
             self.assertEqual("character/model/1_pc/weapon/example.pac", summary.mappings[0].target_path)
 
+    def test_exact_game_relative_path_wins_over_duplicate_basenames(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "ExactPath"
+            payload_path = "character/model/1_pc/weapon/example.pac"
+            source.joinpath(*Path(payload_path).parts).parent.mkdir(parents=True, exist_ok=True)
+            source.joinpath(*Path(payload_path).parts).write_bytes(b"PAC")
+            (source / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "kind": "mesh_loose_mod",
+                        "files": [{"path": payload_path, "package_group": "0009", "format": "pac"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            package = scan_retrofittable_mod_packages(source)[0]
+
+            summary = build_retrofit_path_repair_summary(
+                package,
+                archive_entries_by_basename={
+                    "example.pac": [
+                        _entry("character/model/1_pc/npc/example.pac", root, "0009"),
+                        _entry(payload_path, root, "0009"),
+                    ]
+                },
+            )
+
+            self.assertEqual(0, summary.repaired_path_count)
+            self.assertEqual(0, summary.ambiguous_path_count)
+            self.assertEqual(0, summary.unresolved_path_count)
+            self.assertEqual("unchanged", summary.mappings[0].status)
+            self.assertEqual(payload_path, summary.mappings[0].target_path)
+
     def test_custom_compact_path_without_archive_index_warns_and_falls_back(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -474,6 +608,79 @@ class ModPackageRetrofitTests(unittest.TestCase):
             self.assertEqual(1, result.unresolved_path_count)
             self.assertTrue(any("without loaded archive index" in warning for warning in result.warnings))
             self.assertTrue((result.package_root / "character" / "example.pac").is_file())
+
+    def test_retrofit_summary_flags_missing_build_metadata_as_manual_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "NoBuildMetadata"
+            (source / "character" / "texture").mkdir(parents=True)
+            (source / "character" / "texture" / "sample.dds").write_bytes(b"DDS " + b"\0" * 4)
+            source.joinpath("mod.json").write_text(
+                json.dumps(
+                    {
+                        "name": "NoBuildMetadata",
+                        "title": "No Build",
+                        "kind": "dds_loose_mod",
+                        "files": ["character/texture/sample.dds"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            package = scan_retrofittable_mod_packages(source)[0]
+            summary = build_retrofit_path_repair_summary(package, archive_entries_by_basename={}, current_game_build="1.10")
+            self.assertEqual("unknown_package", summary.build_match_status)
+            self.assertEqual(1, summary.binary_exact_unknown_count)
+            self.assertGreater(len(summary.warnings), 0)
+
+    def test_retrofit_summary_classifies_build_match_mismatch_and_unknown_current(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "BuildTagged"
+            (source / "character" / "texture").mkdir(parents=True)
+            (source / "character" / "texture" / "sample.dds").write_bytes(b"DDS ")
+            (source / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "title": "Build Tagged",
+                        "kind": "dds_loose_mod",
+                        "game_build": "1.09",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            package = scan_retrofittable_mod_packages(source)[0]
+
+            aligned = build_retrofit_path_repair_summary(package, current_game_build="1.09")
+            mismatch = build_retrofit_path_repair_summary(package, current_game_build="1.10")
+            unknown_current = build_retrofit_path_repair_summary(package)
+
+            self.assertEqual("aligned", aligned.build_match_status)
+            self.assertEqual("mismatch", mismatch.build_match_status)
+            self.assertEqual("unknown_current", unknown_current.build_match_status)
+
+    def test_retrofit_summary_quick_scan_defers_exact_byte_compare(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "QuickScan"
+            payload_path = "character/texture/sample.dds"
+            source.joinpath(*Path(payload_path).parts).parent.mkdir(parents=True, exist_ok=True)
+            source.joinpath(*Path(payload_path).parts).write_bytes(b"D")
+            (source / "manifest.json").write_text(
+                json.dumps({"title": "Quick Scan", "kind": "dds_loose_mod"}),
+                encoding="utf-8",
+            )
+            package = scan_retrofittable_mod_packages(source)[0]
+
+            summary = build_retrofit_path_repair_summary(
+                package,
+                archive_entries_by_basename={"sample.dds": [_entry(payload_path, root, "0009")]},
+                compare_payload_bytes=False,
+            )
+
+            self.assertEqual(1, summary.binary_size_match_count)
+            self.assertEqual(1, summary.binary_exact_unknown_count)
+            self.assertEqual("size_match", summary.mappings[0].binary_status)
+            self.assertIn("Exact byte compare not run", summary.mappings[0].binary_note)
 
     def test_cdumm_retrofit_accepts_structure_conflict_and_language_options(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -644,17 +851,40 @@ class ModPackageRetrofitTests(unittest.TestCase):
             )
 
     def test_ui_source_exposes_dialog_and_uses_retrofit_helper(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = "\n".join(
+            (
+                Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"),
+                Path("cdmw/ui/archive_browser/mod_package_retrofit_dialog.py").read_text(encoding="utf-8"),
+                Path("cdmw/ui/archive_browser/mod_package_retrofit_view.py").read_text(encoding="utf-8"),
+                Path("cdmw/ui/tools/mod_package_retrofit.py").read_text(encoding="utf-8"),
+                Path("cdmw/ui/tools/mod_package_retrofit_view.py").read_text(encoding="utf-8"),
+            )
+        )
 
-        self.assertIn("Retrofit Packaged Mods...", source)
-        self.assertIn("QTableWidget(0, 11)", source)
+        self.assertIn("Retrofit/Repackage Mods", source)
+        self.assertIn("Update for current game version + repackage", source)
+        self.assertIn("Repackage only (manager conversion)", source)
+        self.assertIn("QTableWidget(0, 12)", source)
+        self.assertIn("QSplitter(Qt.Horizontal)", source)
+        self.assertIn("content_splitter.setHandleWidth(8)", source)
+        self.assertIn("left_panel.setMinimumWidth(540)", source)
+        self.assertIn("right_panel.setMinimumWidth(420)", source)
+        self.assertIn("QTimer.singleShot(120, _apply_content_splitter_sizes)", source)
+        self.assertIn("diff_preview.setMinimumWidth(360)", source)
         self.assertIn("RETROFIT_MANAGER_PROFILES", source)
         self.assertIn("MOD_PACKAGE_MANAGER_PROFILE_LABELS", source)
         self.assertIn("manager_combo.addItem", source)
         self.assertIn("archive_entries_by_basename=self.archive_entries_by_basename", source)
+        self.assertIn("archive_index_for_process = self.archive_entries_by_basename if _is_update_mode() else None", source)
+        self.assertIn("Update mode requires a loaded game archive index", source)
+        self.assertIn("Game-file compare disabled because Repackage only mode is selected.", source)
+        self.assertIn("compare_payload_bytes=False", source)
+        self.assertIn("compare_payload_bytes=True", source)
         self.assertIn("build_retrofit_path_repair_summary", source)
-        self.assertIn("Merge Selected for CDUMM", source)
-        self.assertIn("merge_retrofittable_mod_packages", source)
+        self.assertNotIn("Merge Selected for CDUMM", source)
+        self.assertNotIn("merge_retrofittable_mod_packages(", source)
+        self.assertNotIn("table.setUniformRowHeights", source)
+        self.assertIn("No (payload differs)", source)
         self.assertIn("scan_retrofittable_mod_packages(source)", source)
 
 

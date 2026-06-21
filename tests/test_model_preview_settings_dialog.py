@@ -237,7 +237,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog.deleteLater()
 
     def test_legacy_saved_d3d11_lighting_defaults_are_migrated(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = Path("cdmw/ui/archive_browser/preview_settings.py").read_text(encoding="utf-8")
 
         self.assertIn("preview/d3d11_lighting_defaults_version", source)
         self.assertIn("old_saved_defaults_v2", source)

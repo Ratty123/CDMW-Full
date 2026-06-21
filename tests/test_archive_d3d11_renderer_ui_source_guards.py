@@ -1,15 +1,56 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 import unittest
 
 
+def _archive_preview_shell_source() -> str:
+    return "\n".join(
+        (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_layout.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_renderer_controls.py").read_text(encoding="utf-8"),
+        )
+    )
+
+
+def _archive_d3d11_runtime_source() -> str:
+    return "\n".join(
+        (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_cache.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_d3d11_process.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_d3d11_runtime.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/preview_renderer_controls.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/appearance_composite.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_state_callbacks.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_transform.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_base.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_a.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_b.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_callbacks.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_d3d11_state.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py").read_text(encoding="utf-8"),
+            Path("cdmw/ui/archive_browser/attachment_safe_placement_dialog.py").read_text(encoding="utf-8"),
+        )
+    )
+
+
 class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
     def test_embedded_d3d11_renderer_option_is_removed(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = _archive_preview_shell_source()
+        renderer_source = Path("cdmw/ui/model_preview_native.py").read_text(encoding="utf-8")
 
         self.assertIn("ARCHIVE_MODEL_RENDERER_D3D11", source)
-        self.assertIn("ARCHIVE_MODEL_RENDERER_DEFAULT = ARCHIVE_MODEL_RENDERER_D3D11", source)
+        self.assertIn("ARCHIVE_MODEL_RENDERER_DEFAULT = ARCHIVE_MODEL_RENDERER_D3D11", renderer_source)
+        self.assertIn("from cdmw.ui.model_preview_native import", source)
         self.assertNotIn("ARCHIVE_MODEL_RENDERER_" + "LEGACY", source)
         self.assertNotIn("archive_model_preview_renderer_combo", source)
         self.assertNotIn("ARCHIVE_MODEL_RENDERER_" + "QT" + "QUICK3D", source)
@@ -18,7 +59,7 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn("self.archive_model_preview_" + "qt" + "quick" + "3d", source)
 
     def test_d3d11_only_remains_available_under_settings(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = _archive_preview_shell_source()
         dialog_source = Path("cdmw/ui/model_preview_settings_dialog.py").read_text(encoding="utf-8")
 
         self.assertIn("def _selected_archive_model_preview_widget", source)
@@ -30,8 +71,13 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn("Renderer " + "fallback:", source)
 
     def test_archive_preview_still_uses_existing_prepared_model_pipeline(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
-        package_source = Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8")
+        source = _archive_d3d11_runtime_source()
+        package_source = "\n".join(
+            (
+                Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8"),
+                Path("cdmw/rendering/native_preview_package_writer.py").read_text(encoding="utf-8"),
+            )
+        )
 
         import_start = source.index("from cdmw.rendering.model_preview_prepare import")
         import_end = source.index(")", import_start)
@@ -46,7 +92,7 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
     def test_old_renderer_terms_are_purged_from_tracked_sources(self) -> None:
         for root in ("cdmw", "native", "tests", "docs"):
             for path in Path(root).rglob("*"):
-                if not path.is_file() or any(part in {"target", "__pycache__"} for part in path.parts):
+                if not path.is_file() or any(part in {"build", "target", "__pycache__"} for part in path.parts):
                     continue
                 if path.suffix.lower() not in {".py", ".md", ".txt", ".csv", ".rs", ".cpp", ".h", ".hpp", ".json", ".toml"}:
                     continue
@@ -55,7 +101,18 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
                 self.assertNotIn(old_renderer_token, text.lower(), str(path))
 
     def test_native_d3d11_reload_keeps_previous_preview_until_loaded(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = (
+            Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_loading.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_result.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_renderer_controls.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/preview_d3d11_runtime.py").read_text(encoding="utf-8")
+        )
+        host_source = Path("cdmw/ui/native_d3d11_preview_host.py").read_text(encoding="utf-8")
         reload_start = source.index('def _start_archive_isolated_renderer_process(self, package_dir: Path)')
         reload_end = source.index('def _check_archive_isolated_renderer_start_timeout', reload_start)
         reload_source = source[reload_start:reload_end]
@@ -73,13 +130,53 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("keep_d3d11_visible", source)
         self.assertIn("_deactivate_archive_model_renderers_for_non_model_preview()", source)
         self.assertIn('quality_tier", "") or "").strip().lower() == "fast"', source)
-        self.assertIn("SendMessageTimeoutW", source)
+        self.assertIn("SendMessageTimeoutW", host_source)
         self.assertIn("_kill_archive_isolated_renderer_process_if_running(process)", source)
 
     def test_model_preview_palette_is_theme_independent(self) -> None:
         constants_source = Path("cdmw/constants.py").read_text(encoding="utf-8")
-        main_source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
-        model_library_source = Path("cdmw/ui/model_library_tab.py").read_text(encoding="utf-8")
+        main_source = (
+            Path("cdmw/ui/archive_browser/preview_d3d11_process.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_state_callbacks.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_transform.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_base.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_a.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_b.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_callbacks.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_d3d11_state.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/archive_browser/attachment_safe_placement_dialog.py").read_text(encoding="utf-8")
+        )
+        model_library_source = (
+            Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
+        )
         native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
 
         self.assertIn('MODEL_PREVIEW_BACKGROUND_COLOR = "#15191d"', constants_source)
@@ -89,8 +186,6 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         for function_name in (
             "_archive_isolated_renderer_theme_payload",
             "_placement_d3d11_theme_payload",
-            "_studio_d3d11_theme_payload",
-            "_alignment_d3d11_theme_payload",
         ):
             start = main_source.index(f"def {function_name}")
             body = main_source[start: main_source.index("\n\n", start)]
@@ -98,6 +193,19 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
             self.assertIn('"text": MODEL_PREVIEW_TEXT_COLOR', body)
             self.assertNotIn('theme["preview_bg"]', body)
             self.assertNotIn("get_theme(", body)
+
+        self.assertIn(
+            "theme_payload=_alignment_d3d11_theme_payload_helper(",
+            main_source,
+        )
+        self.assertIn("MODEL_PREVIEW_BACKGROUND_COLOR,", main_source)
+        self.assertIn("MODEL_PREVIEW_TEXT_COLOR,", main_source)
+        helper_start = main_source.index("def alignment_d3d11_theme_payload")
+        helper_body = main_source[helper_start: main_source.index("\n\n", helper_start)]
+        self.assertIn('"background": str(background_color)', helper_body)
+        self.assertIn('"text": str(text_color)', helper_body)
+        self.assertNotIn('theme["preview_bg"]', helper_body)
+        self.assertNotIn("get_theme(", helper_body)
 
         inline_start = model_library_source.index("def _inline_d3d11_theme_payload")
         inline_body = model_library_source[inline_start: model_library_source.index("\n\n", inline_start)]
@@ -126,7 +234,7 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("draw_colored_triangles(vertices, identity, true);", native_source)
 
     def test_native_d3d11_texture_integrity_and_diagnostics_are_reported(self) -> None:
-        source = Path("cdmw/ui/main_window.py").read_text(encoding="utf-8")
+        source = _archive_d3d11_runtime_source()
         native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
 
         self.assertIn("texture manifest empty despite", source)

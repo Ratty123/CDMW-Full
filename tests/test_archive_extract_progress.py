@@ -9,7 +9,10 @@ from cdmw.models import ArchiveEntry
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MAIN_WINDOW = ROOT / "cdmw" / "ui" / "main_window.py"
+MAIN_WINDOW = ROOT / "cdmw" / "ui" / "shell" / "app_window.py"
+ARCHIVE_EXTRACTION = ROOT / "cdmw" / "ui" / "archive_browser" / "extraction.py"
+UTILITY_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "utility_controller.py"
+UTILITY_WORKERS = ROOT / "cdmw" / "workers" / "utility_workers.py"
 
 
 def _entry(path: str, pamt_path: Path, paz_path: Path, offset: int, data: bytes) -> ArchiveEntry:
@@ -54,8 +57,15 @@ class ArchiveExtractProgressTests(unittest.TestCase):
             self.assertIn("complete", progress[-1][2].lower())
 
     def test_archive_extract_utility_task_is_wired_to_archive_progress(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn("progress_changed = Signal(int, int, str)", source)
+        source = "\n".join(
+            (
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                ARCHIVE_EXTRACTION.read_text(encoding="utf-8"),
+                UTILITY_CONTROLLER.read_text(encoding="utf-8"),
+            )
+        )
+        worker_source = UTILITY_WORKERS.read_text(encoding="utf-8")
+        self.assertIn("progress_changed = Signal(int, int, str)", worker_source)
         self.assertIn("worker.progress_changed.connect(self._handle_utility_progress_changed)", source)
         self.assertIn("def _handle_utility_progress_changed", source)
         self.assertIn('"] EXTRACT " in message or "] FAIL " in message', source)

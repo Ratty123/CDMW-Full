@@ -1,0 +1,357 @@
+"""Startup shell helpers for static replacement prompt."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
+    install_static_replacement_prompt_dependencies,
+)
+
+install_static_replacement_prompt_dependencies(globals())
+
+
+def create_static_replacement_prompt_shell(context: dict[str, object]) -> SimpleNamespace:
+    self = context["self"]
+    entry = context["entry"]
+    obj_path = context["obj_path"]
+    dialog_title = context["dialog_title"]
+    alignment_dialog_key = context["alignment_dialog_key"]
+    embedded_host = context.get("embedded_host")
+    runtime_export_target_entry = context.get("runtime_export_target_entry")
+    defer_original_texture_preview = context["defer_original_texture_preview"]
+    _record_runtime_event = context.get("_record_runtime_event")
+    if not callable(_record_runtime_event):
+        _record_runtime_event = getattr(self, "_record_runtime_event", lambda *_args, **_kwargs: {})
+
+    alignment_dialog_key_hash = hashlib.sha1(
+        str(alignment_dialog_key).encode("utf-8", errors="replace")
+    ).hexdigest()[:16]
+    alignment_d3d11_view_state_reset_generation = int(
+        getattr(self, "mesh_editor_d3d11_view_state_reset_generation", 0) or 0
+    )
+    # Direct QDialog embedding can crash PySide on Windows; keep this builder modeless.
+    embedded_alignment_builder = False
+    preview_build_entry = (
+        runtime_export_target_entry
+        if isinstance(runtime_export_target_entry, ArchiveEntry)
+        else entry
+    )
+    modify_original_clone_mode = (
+        obj_path.suffix.lower() == ".obj"
+        and self._has_valid_obj_roundtrip_sidecar(obj_path)
+        and self._obj_roundtrip_source_matches_entry(obj_path, entry)
+    )
+    original_texture_preview_default = bool(modify_original_clone_mode)
+    original_texture_preview_state = _original_texture_preview_initial_state_helper(
+        original_texture_preview_default
+    )
+    original_reference_texture_preview_state = (
+        _original_reference_texture_preview_initial_state_helper()
+    )
+
+    alignment_startup_text = _alignment_startup_step_text_helper()
+    startup_progress = QProgressDialog(alignment_startup_text["initial_label"], "", 0, 0, self)
+    startup_progress.setWindowTitle(alignment_startup_text["window_title"])
+    startup_progress.setCancelButton(None)
+    startup_progress.setMinimumDuration(0)
+    startup_progress.setAutoClose(False)
+    startup_progress.setWindowModality(Qt.NonModal)
+    startup_progress.show()
+    QApplication.processEvents()
+    startup_progress_closed = _alignment_startup_progress_initial_state_helper()
+    alignment_startup_step_state = _alignment_startup_step_initial_state_helper()
+
+    def _alignment_startup_step(message: str) -> None:
+        if _alignment_startup_progress_closed_helper(startup_progress_closed):
+            return
+        elapsed_ms = _alignment_startup_step_elapsed_ms_helper(
+            alignment_startup_step_state,
+            time.perf_counter(),
+        )
+        _record_runtime_event(
+            "mesh_alignment_startup_step",
+            path=getattr(entry, "path", ""),
+            dialog_title=dialog_title,
+            message=str(message or ""),
+            builder_startup_step_elapsed_ms=elapsed_ms,
+            modify_original_clone=modify_original_clone_mode,
+            defer_original_texture_preview=defer_original_texture_preview,
+        )
+        startup_progress.setLabelText(message)
+        startup_progress.setValue(0)
+        QApplication.processEvents()
+
+    def _finish_alignment_startup_progress() -> None:
+        if not _alignment_startup_progress_mark_closed_helper(startup_progress_closed):
+            return
+        startup_progress.close()
+        QApplication.processEvents()
+
+    _alignment_startup_step(alignment_startup_text["creating_window"])
+    dialog = QDialog(embedded_host if embedded_alignment_builder else self)
+    dialog.setObjectName("MeshReplacementAlignmentDialog")
+    dialog.setWindowTitle(dialog_title)
+    if embedded_alignment_builder:
+        dialog.setWindowFlags(Qt.Widget)
+    else:
+        dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
+        dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
+    dialog.setModal(False)
+    dialog.setWindowModality(Qt.NonModal)
+    if embedded_alignment_builder:
+        dialog.setMinimumSize(0, 0)
+    else:
+        dialog.setMinimumSize(980, 700)
+    dialog.setSizeGripEnabled(not embedded_alignment_builder)
+    self._register_modeless_alignment_dialog(alignment_dialog_key, dialog)
+    alignment_dialog_closing = _alignment_dialog_closing_initial_state_helper()
+
+    def _alignment_dialog_widgets_live() -> bool:
+        return (
+            not bool(alignment_dialog_closing.get("closing"))
+            and _qt_object_is_valid(dialog)
+        )
+
+    def _complete_external_swap_enabled() -> bool:
+        return False
+
+    def _complete_external_swap_mappings() -> List[StaticSubmeshMapping]:
+        return list(context.get("suggested_mappings") or [])
+
+    def _sync_complete_external_swap_mode(_checked: bool) -> None:
+        return None
+
+    def _refresh_output_impact_review() -> None:
+        return None
+
+    def _clear_all_part_selections() -> None:
+        return None
+
+    def _d3d11_source_part_selected(_source_index: int) -> None:
+        return None
+
+    def _mesh_edit_begin_stroke(_payload: object) -> None:
+        return None
+
+    def _mesh_edit_apply_preview_payload(_payload: object) -> None:
+        return None
+
+    def _mesh_edit_finish_stroke(_payload: object) -> None:
+        return None
+
+    def _mesh_edit_cancel_stroke(_payload: object) -> None:
+        return None
+
+    def _mesh_edit_selection_changed(_payload: object) -> None:
+        return None
+
+    alignment_texture_lookup_cache: Dict[str, object] = {
+        "path": None,
+        "basename": None,
+        "source": "",
+    }
+
+    def _alignment_texture_lookup_indexes() -> Tuple[
+        Dict[str, Sequence[ArchiveEntry]],
+        Dict[str, Sequence[ArchiveEntry]],
+    ]:
+        if self.archive_entries_by_normalized_path and self.archive_entries_by_basename:
+            return self.archive_entries_by_normalized_path, self.archive_entries_by_basename
+        cached_path = alignment_texture_lookup_cache.get("path")
+        cached_basename = alignment_texture_lookup_cache.get("basename")
+        if isinstance(cached_path, dict) and isinstance(cached_basename, dict):
+            return cached_path, cached_basename
+
+        _alignment_startup_step(alignment_startup_text["local_texture_lookup"])
+        started_at = time.perf_counter()
+        try:
+            graph, references = self._archive_asset_family_graph_for_entry(entry)
+        except Exception:
+            graph = None
+            references = ()
+        graph_entries: Sequence[object] = ()
+        if isinstance(graph, AssetFamilyGraph):
+            graph_entries = tuple(
+                self._archive_entries_from_asset_family_graph(graph, include_hints=True)
+            )
+
+        related_target_basenames: set[str] = set()
+        try:
+            related_target_basenames.update(_collect_same_stem_related_target_basenames(entry))
+        except Exception:
+            related_target_basenames = set()
+        extension_index = getattr(self, "archive_entries_by_extension", {}) or {}
+        lookup_indexes = _archive_texture_lookup_indexes_for_alignment_helper(
+            target_entry=entry,
+            graph_entries=graph_entries,
+            graph_references=references or (),
+            related_target_basenames=tuple(related_target_basenames),
+            extension_index=extension_index if isinstance(extension_index, Mapping) else None,
+        )
+        path_index = lookup_indexes.path_index
+        basename_index = lookup_indexes.basename_index
+        graph_reference_count = lookup_indexes.graph_reference_count
+        dds_count = lookup_indexes.dds_count
+        sidecar_count = lookup_indexes.sidecar_count
+        alignment_texture_lookup_cache["path"] = path_index
+        alignment_texture_lookup_cache["basename"] = basename_index
+        alignment_texture_lookup_cache["source"] = "local_dds_extension"
+        _record_runtime_event(
+            "mesh_alignment_texture_lookup_ready",
+            path=getattr(entry, "path", ""),
+            dialog_title=dialog_title,
+            source="local_dds_extension",
+            dds_entries=dds_count,
+            related_entries=sidecar_count,
+            graph_entries=graph_reference_count,
+            path_keys=len(path_index),
+            basename_keys=len(basename_index),
+            elapsed_ms=int((time.perf_counter() - started_at) * 1000),
+            modify_original_clone=modify_original_clone_mode,
+            global_path_index_ready=bool(self.archive_entries_by_normalized_path),
+            global_basename_index_ready=bool(self.archive_entries_by_basename),
+        )
+        return path_index, basename_index
+
+    dialog.setStyleSheet(
+        dialog.styleSheet()
+        + """
+        QDialog#MeshReplacementAlignmentDialog {
+            font-size: 8px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QLabel {
+            font-size: 8px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QLabel#HintLabel {
+            color: #9aa4b2;
+            font-size: 8px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QGroupBox {
+            font-size: 8px;
+            font-weight: 600;
+            margin-top: 5px;
+            padding-top: 5px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 5px;
+            padding: 0 2px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QTabBar::tab {
+            font-size: 8px;
+            padding: 2px 7px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QCheckBox {
+            font-size: 8px;
+            spacing: 3px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QPushButton {
+            font-size: 8px;
+            padding: 1px 5px;
+            min-height: 14px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QComboBox,
+        QDialog#MeshReplacementAlignmentDialog QLineEdit,
+        QDialog#MeshReplacementAlignmentDialog QSpinBox,
+        QDialog#MeshReplacementAlignmentDialog QDoubleSpinBox {
+            font-size: 8px;
+            min-height: 15px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QTreeWidget {
+            font-size: 8px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QTreeWidget::item {
+            padding: 0 2px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QHeaderView::section {
+            font-size: 8px;
+            padding: 0 3px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QTextBrowser,
+        QDialog#MeshReplacementAlignmentDialog QTextEdit,
+        QDialog#MeshReplacementAlignmentDialog QPlainTextEdit {
+            font-size: 8px;
+            line-height: 1.08;
+        }
+        QDialog#MeshReplacementAlignmentDialog QProgressBar {
+            font-size: 8px;
+            min-height: 14px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QFrame#SelectionContextFrame {
+            background: #111820;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QLabel#SelectionContextLabel {
+            color: #c9d1d9;
+            font-size: 8px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QPushButton#InlineHelpButton {
+            color: #79c0ff;
+            font-weight: 700;
+            min-width: 16px;
+            max-width: 16px;
+            min-height: 16px;
+            max-height: 16px;
+            padding: 0;
+            border-radius: 8px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 2px;
+        }
+        QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette QToolButton {
+            font-size: 8px;
+            text-align: left;
+            padding: 2px 6px;
+            border: 1px solid #30363d;
+            border-radius: 3px;
+            background: #161b22;
+        }
+        QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette QToolButton:checked {
+            color: #0d1117;
+            background: #f78166;
+            border-color: #ffab70;
+            font-weight: 700;
+        }
+        """
+    )
+
+    return SimpleNamespace(
+        alignment_dialog_key_hash=alignment_dialog_key_hash,
+        alignment_d3d11_view_state_reset_generation=alignment_d3d11_view_state_reset_generation,
+        embedded_alignment_builder=embedded_alignment_builder,
+        preview_build_entry=preview_build_entry,
+        modify_original_clone_mode=modify_original_clone_mode,
+        original_texture_preview_default=original_texture_preview_default,
+        original_texture_preview_state=original_texture_preview_state,
+        original_reference_texture_preview_state=original_reference_texture_preview_state,
+        alignment_startup_text=alignment_startup_text,
+        startup_progress=startup_progress,
+        startup_progress_closed=startup_progress_closed,
+        alignment_startup_step_state=alignment_startup_step_state,
+        _alignment_startup_step=_alignment_startup_step,
+        _finish_alignment_startup_progress=_finish_alignment_startup_progress,
+        dialog=dialog,
+        alignment_dialog_closing=alignment_dialog_closing,
+        _alignment_dialog_widgets_live=_alignment_dialog_widgets_live,
+        _complete_external_swap_enabled=_complete_external_swap_enabled,
+        _complete_external_swap_mappings=_complete_external_swap_mappings,
+        _sync_complete_external_swap_mode=_sync_complete_external_swap_mode,
+        _refresh_output_impact_review=_refresh_output_impact_review,
+        _clear_all_part_selections=_clear_all_part_selections,
+        _d3d11_source_part_selected=_d3d11_source_part_selected,
+        _mesh_edit_begin_stroke=_mesh_edit_begin_stroke,
+        _mesh_edit_apply_preview_payload=_mesh_edit_apply_preview_payload,
+        _mesh_edit_finish_stroke=_mesh_edit_finish_stroke,
+        _mesh_edit_cancel_stroke=_mesh_edit_cancel_stroke,
+        _mesh_edit_selection_changed=_mesh_edit_selection_changed,
+        alignment_texture_lookup_cache=alignment_texture_lookup_cache,
+        _alignment_texture_lookup_indexes=_alignment_texture_lookup_indexes,
+    )
+
+
+__all__ = ["create_static_replacement_prompt_shell"]

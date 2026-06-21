@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from array import array
 import math
@@ -233,7 +233,13 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         prep_source = Path("cdmw/rendering/model_preview_prepare.py").read_text(encoding="utf-8")
         self.assertIn('"cd_runtime_approx"', prep_source)
         self.assertIn("render_mode_uses_derived_relief", prep_source)
-        package_source = Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8")
+        package_source = "\n".join(
+            (
+                Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8"),
+                Path("cdmw/rendering/native_preview_package_writer.py").read_text(encoding="utf-8"),
+                Path("cdmw/rendering/native_preview_material_contract.py").read_text(encoding="utf-8"),
+            )
+        )
         self.assertIn('"source_pbr_preview"', package_source)
         self.assertIn('"cd_runtime_approx"', package_source)
         self.assertIn("preview_divergence_reasons", package_source)
@@ -821,7 +827,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertGreater(sample.average_luma, 0.5)
 
     def test_enabling_textures_rebuilds_derived_relief_textures(self) -> None:
-        source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
+        source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "native_preview_panel.py").read_text(encoding="utf-8")
         self.assertIn("def set_use_textures", source)
         self.assertIn("self._use_textures = bool(use_textures)", source)
         self.assertNotIn("_rebuild_gl_textures", source)
@@ -836,26 +842,64 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn("def build_vertex_blob", prep_source)
 
     def test_model_preview_has_committed_transform_fast_path_and_timing_diagnostics(self) -> None:
+        root = Path(__file__).resolve().parents[1]
         source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
-        main_source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
-        self.assertIn("def set_alignment_committed_preview_transform", source)
-        self.assertIn("class NativePreviewPanel(QWidget)", source)
-        self.assertIn("prepare_model_preview = staticmethod(_prep.prepare_model_preview)", source)
-        self.assertIn("alignment_d3d11_state[\"pending_fast_transform\"] = payload", main_source)
+        native_panel_source = (root / "cdmw" / "ui" / "native_preview_panel.py").read_text(encoding="utf-8")
+        main_source = "\n".join(
+            (
+                (root / "cdmw" / "ui" / "shell" / "app_window.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_shell.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_open.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_setup.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_state_callbacks.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_transform.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_base.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_state_a.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_state_b.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_callbacks.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_preview_shell.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_ui_sections.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_callback_factories.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_d3d11_runtime_state.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_d3d11_drag_ui_state.py").read_text(encoding="utf-8"),
+            )
+        )
+        self.assertIn("from cdmw.ui.native_preview_panel import NativePreviewPanel", source)
+        self.assertIn("def set_alignment_committed_preview_transform", native_panel_source)
+        self.assertIn("class NativePreviewPanel(QWidget)", native_panel_source)
+        self.assertIn("prepare_model_preview = staticmethod(_prep.prepare_model_preview)", native_panel_source)
+        self.assertIn("def alignment_d3d11_record_fast_transform_payload(", main_source)
+        self.assertIn('state["pending_fast_transform"] = payload', main_source)
+        self.assertIn("pending_part_fast_transforms", main_source)
+        self.assertIn("def alignment_d3d11_fast_transform_payload(", main_source)
+        self.assertIn("set_alignment_preview_transforms", main_source)
         self.assertIn("def _replay_alignment_d3d11_fast_transform() -> None:", main_source)
         self.assertIn("capture_generation >= committed_generation", main_source)
         self.assertIn("request_transform_generation", main_source)
         self.assertIn("_replay_alignment_d3d11_fast_transform()", main_source)
         self.assertIn("_queue_static_preview_rebuild()", main_source)
-        self.assertNotIn("functions.glGetString", source)
-        self.assertNotIn("_read_green_up_renderer_info", source)
+        self.assertNotIn("functions.glGetString", native_panel_source)
+        self.assertNotIn("_read_green_up_renderer_info", native_panel_source)
 
     def test_hkx_physics_overlay_supports_hover_and_ctrl_click_selection(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        source = (root / "cdmw" / "ui" / "widgets.py").read_text(encoding="utf-8")
-        main_source = (root / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
+        source = (root / "cdmw" / "ui" / "native_preview_panel.py").read_text(encoding="utf-8")
+        main_source = "\n".join(
+            (
+                (root / "cdmw" / "ui" / "shell" / "app_window.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "hkx_editor_dialog.py").read_text(encoding="utf-8"),
+            )
+        )
         native_source = (root / "native" / "cdmw_d3d11_preview" / "src" / "main.cpp").read_text(encoding="utf-8")
-        package_source = (root / "cdmw" / "rendering" / "native_preview_package.py").read_text(encoding="utf-8")
+        package_source = "\n".join(
+            (
+                (root / "cdmw" / "rendering" / "native_preview_package.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "rendering" / "native_preview_package_writer.py").read_text(encoding="utf-8"),
+            )
+        )
         self.assertIn("set_physics_overlay_edited_targets", source)
         self.assertIn("physics_overlay_target_selected = Signal", source)
         self.assertIn("physics_overlay_bones_visible", source)
@@ -878,16 +922,24 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertTrue(hasattr(NativePreviewPanel, "physics_overlay_bones_visible"))
 
     def test_referenced_hkx_previews_disable_legacy_guide_motion(self) -> None:
-        source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "main_window.py").read_text(encoding="utf-8")
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "cdmw" / "ui" / "archive_browser" / "reference_preview.py").read_text(encoding="utf-8")
+        main_source = "\n".join(
+            (
+                (root / "cdmw" / "ui" / "shell" / "app_window.py").read_text(encoding="utf-8"),
+                (root / "cdmw" / "ui" / "archive_browser" / "hkx_editor_dialog.py").read_text(encoding="utf-8"),
+            )
+        )
+        preview_result_source = (root / "cdmw" / "ui" / "archive_browser" / "preview_result.py").read_text(encoding="utf-8")
         reference_start = source.index("def _show_archive_reference_preview_dialog")
         reference_end = source.index("def _update_archive_texture_reference_action_controls", reference_start)
         reference_source = source[reference_start:reference_end]
-        embedded_start = source.index("def _enable_hkx_preview_overlay")
-        embedded_end = source.index("def _current_hkx_link_preview_model", embedded_start)
-        embedded_source = source[embedded_start:embedded_end]
-        main_apply_start = source.index("model_preview_widget.set_prepared_model(")
-        main_apply_end = source.index("self._sync_archive_isolated_renderer_if_running(result)", main_apply_start)
-        main_apply_source = source[main_apply_start:main_apply_end]
+        embedded_start = main_source.index("def _enable_hkx_preview_overlay")
+        embedded_end = main_source.index("def _current_hkx_link_preview_model", embedded_start)
+        embedded_source = main_source[embedded_start:embedded_end]
+        main_apply_start = preview_result_source.index("model_preview_widget.set_prepared_model(")
+        main_apply_end = preview_result_source.index("self._sync_archive_isolated_renderer_if_running(result)", main_apply_start)
+        main_apply_source = preview_result_source[main_apply_start:main_apply_end]
 
         self.assertIn('str(entry.extension or "").lower() in {".hkx", ".hkt"}', reference_source)
         self.assertIn("show_physics_overlay=True", reference_source)

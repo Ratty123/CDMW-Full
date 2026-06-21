@@ -6,123 +6,325 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "cdmw_app.py"
-MAIN_WINDOW = ROOT / "cdmw" / "ui" / "main_window.py"
+APP_BOOTSTRAP = ROOT / "cdmw" / "app" / "bootstrap.py"
+APP_GUI = ROOT / "cdmw" / "app" / "gui.py"
+APP_BOOTSTRAP_REPORTS = ROOT / "cdmw" / "app" / "bootstrap_reports.py"
+APP_ACTIVATION = ROOT / "cdmw" / "app" / "activation.py"
+APP_SINGLE_INSTANCE = ROOT / "cdmw" / "app" / "single_instance.py"
+APP_STARTUP_MAINTENANCE = ROOT / "cdmw" / "app" / "startup_maintenance.py"
+APP_STARTUP_SPLASH = ROOT / "cdmw" / "app" / "startup_splash.py"
+MAIN_WINDOW = ROOT / "cdmw" / "ui" / "shell" / "app_window.py"
+ARCHIVE_STATIC_REPLACEMENT_DIALOG = ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog.py"
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SHELL = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_shell.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_OPEN = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_open.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_setup.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_STATE_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_state_callbacks.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_TRANSFORM = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_transform.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_BASE = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_base.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_STATE_A = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_state_a.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_STATE_B = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_state_b.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_callbacks.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_callback_factories.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_remaining_callbacks.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_MESH_EDIT_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_mesh_edit_callbacks.py"
+)
+SHELL_WINDOW_RUNTIME_STATE = ROOT / "cdmw" / "ui" / "shell" / "window_runtime_state.py"
+SIGNAL_WIRING = ROOT / "cdmw" / "ui" / "shell" / "signal_wiring.py"
+ABOUT_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "about_controller.py"
+PROFILE_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "profile_controller.py"
+SETTINGS_PERSISTENCE = ROOT / "cdmw" / "ui" / "shell" / "settings_persistence.py"
+NAVIGATION_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "navigation_controller.py"
+SHELL_MENUS = ROOT / "cdmw" / "ui" / "shell" / "menus.py"
+SHELL_TOOL_TABS = ROOT / "cdmw" / "ui" / "shell" / "tool_tabs.py"
+SHELL_APP_STARTUP = ROOT / "cdmw" / "ui" / "shell" / "app_startup.py"
+SHELL_WORKSPACE_LAYOUT = ROOT / "cdmw" / "ui" / "shell" / "workspace_layout.py"
+STARTUP_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "startup_controller.py"
+SHELL_STARTUP_SPLASH = ROOT / "cdmw" / "ui" / "shell" / "startup_splash.py"
+PATH_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "path_controller.py"
+UTILITY_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "utility_controller.py"
+THEME_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "theme_controller.py"
+ACTIVATION_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "activation_controller.py"
+DIAGNOSTICS_SERVICE = ROOT / "cdmw" / "services" / "diagnostics_service.py"
+CLOSE_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "close_controller.py"
+STARTUP_DIALOGS = ROOT / "cdmw" / "ui" / "shell" / "startup_dialogs.py"
+ARCHIVE_WORKERS = ROOT / "cdmw" / "workers" / "archive_workers.py"
+ARCHIVE_CONTROLS_PANEL = ROOT / "cdmw" / "ui" / "archive_browser" / "controls_panel.py"
+ARCHIVE_PROGRESS = ROOT / "cdmw" / "ui" / "archive_browser" / "progress.py"
+ARCHIVE_FILTERS = ROOT / "cdmw" / "ui" / "archive_browser" / "filters.py"
+ARCHIVE_FILTER_CONTROLS = ROOT / "cdmw" / "ui" / "archive_browser" / "filter_controls.py"
+ARCHIVE_SCAN_LIFECYCLE = ROOT / "cdmw" / "ui" / "archive_browser" / "scan_lifecycle.py"
+ARCHIVE_INDEX_WORKERS_UI = ROOT / "cdmw" / "ui" / "archive_browser" / "index_workers.py"
+ARCHIVE_RENDER_LIFECYCLE = ROOT / "cdmw" / "ui" / "archive_browser" / "render_lifecycle.py"
+ARCHIVE_ASSET_CATALOG = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_catalog.py"
+ARCHIVE_ASSET_CATALOG_DIALOG = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_catalog_dialog.py"
+ARCHIVE_ASSET_CATALOG_SCOPE = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_catalog_scope.py"
+ARCHIVE_ASSET_FAMILY_LAYOUT = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_family_layout.py"
+ARCHIVE_ASSET_FAMILY_PANEL = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_family_panel.py"
+ARCHIVE_ASSET_FAMILY_REFERENCES = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_family_references.py"
+ARCHIVE_ICON_PIPELINE = ROOT / "cdmw" / "ui" / "archive_browser" / "icon_pipeline.py"
+ARCHIVE_MATERIAL_FINDER = ROOT / "cdmw" / "ui" / "archive_browser" / "material_finder.py"
+ARCHIVE_PREVIEW_RESULT = ROOT / "cdmw" / "ui" / "archive_browser" / "preview_result.py"
+ARCHIVE_PREVIEW_LAYOUT = ROOT / "cdmw" / "ui" / "archive_browser" / "preview_layout.py"
+ARCHIVE_UI_FORMATTING = ROOT / "cdmw" / "ui" / "archive_browser" / "ui_formatting.py"
+ARCHIVE_PREVIEW_SETTINGS = ROOT / "cdmw" / "ui" / "archive_browser" / "preview_settings.py"
+TEXTURE_WORKERS = ROOT / "cdmw" / "workers" / "texture_workers.py"
+WORKER_PROTOCOL = ROOT / "cdmw" / "workers" / "worker_protocol.py"
 STARTUP_SPLASH_HOST = ROOT / "cdmw" / "ui" / "startup_splash_host.py"
 APP_ICON = ROOT / "cdmw" / "ui" / "app_icon.py"
 ARCHIVE = ROOT / "cdmw" / "core" / "archive.py"
+ARCHIVE_FORMAT = ROOT / "cdmw" / "core" / "archive_format.py"
 CONSTANTS = ROOT / "cdmw" / "constants.py"
 THEMES = ROOT / "cdmw" / "ui" / "themes.py"
 WIDGETS = ROOT / "cdmw" / "ui" / "widgets.py"
-RESEARCH_TAB = ROOT / "cdmw" / "ui" / "research_tab.py"
-TEXT_SEARCH_TAB = ROOT / "cdmw" / "ui" / "text_search_tab.py"
+RESEARCH_TAB = ROOT / "cdmw" / "ui" / "research" / "tab.py"
+RESEARCH_LAYOUT = ROOT / "cdmw" / "ui" / "research" / "layout_state.py"
+RESEARCH_TREE_HELPERS = ROOT / "cdmw" / "ui" / "research" / "tree_helpers.py"
+TEXT_SEARCH_TAB = ROOT / "cdmw" / "ui" / "text_search" / "tab.py"
+TEXT_SEARCH_CONTROLLER = ROOT / "cdmw" / "ui" / "text_search" / "controller.py"
 REPLACE_ASSISTANT_TAB = ROOT / "cdmw" / "ui" / "replace_assistant_tab.py"
 TEXTURE_EDITOR_TAB = ROOT / "cdmw" / "ui" / "texture_editor_tab.py"
-ITEM_ICONS_TAB = ROOT / "cdmw" / "ui" / "item_icons_tab.py"
+TEXTURE_EDITOR_WORKER_LIFECYCLE = ROOT / "cdmw" / "ui" / "texture_workflow" / "editor_worker_lifecycle.py"
+ITEM_ICONS_TAB = ROOT / "cdmw" / "ui" / "item_icons" / "tab.py"
+
+
+def _legacy_nested_source(path: Path) -> str:
+    return "\n".join(f"    {line}" if line else line for line in path.read_text(encoding="utf-8").splitlines())
+
+
+def _main_window_source() -> str:
+    return (
+        MAIN_WINDOW.read_text(encoding="utf-8")
+        + "\n"
+        + SHELL_STARTUP_SPLASH.read_text(encoding="utf-8")
+        + "\n"
+        + SHELL_WORKSPACE_LAYOUT.read_text(encoding="utf-8")
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SHELL)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_OPEN)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_STATE_CALLBACKS)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_TRANSFORM)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_BASE)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_STATE_A)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_STATE_B)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_CALLBACKS)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS)
+        + "\n"
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_MESH_EDIT_CALLBACKS)
+    )
 
 
 class CrashReportingGuardTests(unittest.TestCase):
     def test_qt_event_filters_ignore_deleted_wrappers(self) -> None:
-        main_source = MAIN_WINDOW.read_text(encoding="utf-8")
+        main_source = _main_window_source()
+        diagnostics_source = (ROOT / "cdmw" / "ui" / "shell" / "diagnostics_controller.py").read_text(encoding="utf-8")
+        responsiveness_source = (ROOT / "cdmw" / "ui" / "shell" / "responsiveness_controller.py").read_text(encoding="utf-8")
         widgets_source = WIDGETS.read_text(encoding="utf-8")
 
-        self.assertIn("def _qt_wrapper_is_valid(obj: object) -> bool:", main_source)
-        self.assertIn("shiboken6.isValid(obj)", main_source)
-        self.assertIn("not _qt_wrapper_is_valid(tree) or not isinstance(tree, QTreeWidget)", main_source)
-        self.assertIn("and _qt_wrapper_is_valid(watched)", main_source)
+        self.assertIn("def qt_wrapper_is_valid(obj: object) -> bool:", diagnostics_source)
+        self.assertIn("shiboken6.isValid(obj)", diagnostics_source)
+        self.assertIn("not qt_wrapper_is_valid(tree) or not isinstance(tree, QTreeWidget)", responsiveness_source)
+        self.assertIn("and qt_wrapper_is_valid(watched)", responsiveness_source)
         self.assertIn("self._viewport = tree.viewport()", main_source)
         self.assertIn("watched is not self._viewport or not _qt_object_is_valid(self._tree)", main_source)
         self.assertIn("selected_items = tuple(source_tree.selectedItems())", main_source)
-        self.assertIn("except RuntimeError:\n                            selected_items = ()", main_source)
+        self.assertIn("except RuntimeError:", main_source)
+        self.assertIn("selected_items = ()", main_source)
         self.assertIn("import shiboken6", widgets_source)
         self.assertIn("def _watched_is_valid(watched: object) -> bool:", widgets_source)
         self.assertIn("shiboken6.isValid(watched)", widgets_source)
         self.assertIn("if event_type != QEvent.Type.Wheel:", widgets_source)
 
     def test_morph_slider_topology_crash_uses_existing_refresh_helper(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = _main_window_source()
 
         self.assertNotIn("_refresh_morph_slider_controls", source)
         self.assertIn("def _morph_slider_refresh_controls() -> None:", source)
         self.assertIn("_morph_slider_refresh_controls()", source)
 
     def test_bootstrap_import_failures_are_reported(self) -> None:
-        source = APP.read_text(encoding="utf-8")
-        self.assertIn("def _write_bootstrap_report", source)
+        source = APP_BOOTSTRAP.read_text(encoding="utf-8")
+        report_source = APP_BOOTSTRAP_REPORTS.read_text(encoding="utf-8")
+        gui_source = APP_GUI.read_text(encoding="utf-8")
+        single_instance_source = APP_SINGLE_INSTANCE.read_text(encoding="utf-8")
+        maintenance_source = APP_STARTUP_MAINTENANCE.read_text(encoding="utf-8")
+        splash_source = APP_STARTUP_SPLASH.read_text(encoding="utf-8")
+        activation_source = APP_ACTIVATION.read_text(encoding="utf-8")
+        self.assertIn("def write_bootstrap_report", report_source)
+        self.assertIn("crash_report_details", report_source)
+        self.assertIn("crash_timestamp", report_source)
+        self.assertIn("Report ID:", report_source)
+        self.assertIn("Likely Location:", report_source)
+        self.assertIn("Exception:", report_source)
+        self.assertIn("Fingerprint:", report_source)
         self.assertIn('"bootstrap_failure"', source)
-        self.assertIn("from cdmw.ui.main_window import run_gui", source)
-        self.assertIn("def _acquire_single_instance_guard", source)
-        self.assertIn("_single_instance_lock_handle", source)
-        self.assertIn("single_instance.lock", source)
-        self.assertIn("msvcrt.locking", source)
-        self.assertIn("def _schedule_startup_maintenance", source)
-        self.assertIn("def _start_external_startup_splash", source)
-        self.assertIn("STARTUP_SPLASH_COMMAND_FILE_ENV", source)
-        self.assertIn("APP_ACTIVATION_REQUEST_FILE_NAME", source)
-        self.assertIn("def _request_existing_instance_activation", source)
-        self.assertIn("--startup-splash-host", source)
-        self.assertIn("if _startup_splash_process.poll() is None:", source)
-        self.assertIn("os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)", source)
-        self.assertIn("_request_existing_instance_activation()", source)
-        self.assertIn('if not os.environ.get("_PYI_SPLASH_IPC"):', source)
-        self.assertIn('_update_pyinstaller_boot_splash("Already running.")', source)
-        self.assertIn('_update_pyinstaller_boot_splash("Loading...")', source)
+        self.assertIn("from cdmw.ui.main_window import run_gui", gui_source)
+        self.assertIn("def acquire_single_instance_guard", single_instance_source)
+        self.assertIn("_single_instance_lock_handle", single_instance_source)
+        self.assertIn("single_instance.lock", single_instance_source)
+        self.assertIn("msvcrt.locking", single_instance_source)
+        self.assertIn("def schedule_startup_maintenance", maintenance_source)
+        self.assertIn("def start_external_startup_splash", splash_source)
+        self.assertIn("STARTUP_SPLASH_COMMAND_FILE_ENV", splash_source)
+        self.assertIn("APP_ACTIVATION_REQUEST_FILE_NAME", activation_source)
+        self.assertIn("def request_existing_instance_activation", activation_source)
+        self.assertIn("--startup-splash-host", splash_source)
+        self.assertIn("if _startup_splash_process.poll() is None:", splash_source)
+        self.assertIn("os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)", splash_source)
+        self.assertIn("request_existing_instance_activation()", source)
+        self.assertIn('if not os.environ.get("_PYI_SPLASH_IPC"):', splash_source)
+        self.assertIn('update_pyinstaller_boot_splash("Already running.")', source)
+        self.assertIn('update_pyinstaller_boot_splash("Loading...")', source)
         self.assertLess(
             source.index("args = parser.parse_args(argv)"),
-            source.index("_schedule_startup_maintenance()"),
+            source.index("schedule_startup_maintenance()"),
         )
         self.assertLess(
-            source.index("_schedule_startup_maintenance()"),
-            source.index("from cdmw.ui.main_window import run_gui"),
+            source.index("schedule_startup_maintenance()"),
+            source.index("runner = run_gui_workflow"),
         )
 
     def test_gui_has_heartbeat_and_hang_watchdog(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = MAIN_WINDOW.read_text(encoding="utf-8") + "\n" + SHELL_WINDOW_RUNTIME_STATE.read_text(encoding="utf-8")
+        preview_core_source = (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_native_core.py").read_text(encoding="utf-8")
+        preview_memory_source = (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_memory.py").read_text(encoding="utf-8")
+        combined_source = source + "\n" + preview_core_source + "\n" + preview_memory_source
+        diagnostics_source = (ROOT / "cdmw" / "ui" / "shell" / "diagnostics_controller.py").read_text(encoding="utf-8")
+        diagnostics_service_source = DIAGNOSTICS_SERVICE.read_text(encoding="utf-8")
         self.assertIn("heartbeat_path = crash_reports_dir / \"app_heartbeat.json\"", source)
         self.assertIn("runtime_events_current.jsonl", source)
         self.assertIn("native_events_current.jsonl", source)
-        self.assertIn("_runtime_event_ring = deque(maxlen=500)", source)
+        self.assertIn("class RuntimeEventRecorder", diagnostics_service_source)
+        self.assertIn("self._runtime_event_ring = deque(maxlen=max(1, int(ring_size)))", diagnostics_service_source)
+        self.assertIn("_runtime_event_recorder = RuntimeEventRecorder(", source)
         self.assertIn("def _record_runtime_event", source)
-        self.assertIn("def _windows_process_memory_snapshot", source)
-        self.assertIn("process_memory", source)
-        self.assertIn("child_process_memory", source)
-        self.assertIn("preview_core_process_private_bytes", source)
+        self.assertIn("def windows_process_memory_snapshot", diagnostics_source)
+        self.assertIn("from cdmw.services.diagnostics_service import", source)
+        self.assertIn("def rotate_runtime_event_logs", diagnostics_service_source)
+        self.assertIn("def process_is_alive", diagnostics_service_source)
+        self.assertIn("def should_write_crash_report", diagnostics_service_source)
+        self.assertIn("_should_write_crash_report(", source)
+        self.assertIn("process_memory", diagnostics_service_source)
+        self.assertIn("child_process_memory", diagnostics_service_source)
+        self.assertIn("preview_core_process_private_bytes", combined_source)
         self.assertIn("archive_memory_audit_timer", source)
-        self.assertIn("def _record_archive_memory_audit", source)
-        self.assertIn('"archive_memory_audit"', source)
-        self.assertIn("shutdown_native_preview_core_service", source)
+        self.assertIn("def _record_archive_memory_audit", combined_source)
+        self.assertIn('"archive_memory_audit"', combined_source)
+        self.assertIn("shutdown_native_preview_core_service", combined_source)
         self.assertIn("archive_preview_core_idle_shutdown_timer", source)
-        self.assertIn("def _shutdown_idle_native_preview_core_service(self) -> None:", source)
-        self.assertIn('"native_preview_core_idle_shutdown"', source)
-        self.assertIn('"archive_item_icon_cache_limit"', source)
-        self.assertIn('"archive_item_icon_preload_queue_entries"', source)
-        self.assertIn('"preview_core_idle_shutdown_timer_active"', source)
-        self.assertIn('"d3d11_frame_count"', source)
-        self.assertIn('"d3d11_render_request_count"', source)
-        self.assertIn('"d3d11_render_suppressed_count"', source)
-        self.assertIn('"d3d11_parent_unresponsive_count"', source)
-        self.assertIn("main_process_private_bytes", source)
-        self.assertIn("d3d11_estimated_texture_bytes", source)
-        self.assertIn("def _rotate_runtime_event_logs", source)
+        self.assertIn("def _shutdown_idle_native_preview_core_service(self) -> None:", combined_source)
+        self.assertIn('"native_preview_core_idle_shutdown"', combined_source)
+        self.assertIn('"archive_item_icon_cache_limit"', combined_source)
+        self.assertIn('"archive_item_icon_preload_queue_entries"', combined_source)
+        self.assertIn('"preview_core_idle_shutdown_timer_active"', combined_source)
+        self.assertIn('"d3d11_frame_count"', combined_source)
+        self.assertIn('"d3d11_render_request_count"', combined_source)
+        self.assertIn('"d3d11_render_suppressed_count"', combined_source)
+        self.assertIn('"d3d11_parent_unresponsive_count"', combined_source)
+        self.assertIn("main_process_private_bytes", combined_source)
+        self.assertIn("d3d11_estimated_texture_bytes", combined_source)
         self.assertIn("def _set_last_active_operation", source)
         self.assertIn("def _check_previous_unclean_exit", source)
-        self.assertIn("def _process_is_alive", source)
-        self.assertIn("previous_pid_alive", source)
+        self.assertIn("_process_is_alive", source)
+        self.assertIn("previous_pid_alive", diagnostics_service_source)
         self.assertIn("def _start_hang_watchdog", source)
-        self.assertIn('"app_hang_detected"', source)
-        self.assertIn('"previous_session_unclean_exit"', source)
+        self.assertIn("def start_hang_watchdog", diagnostics_service_source)
+        self.assertIn("_start_hang_watchdog_service(", source)
+        self.assertIn('"app_hang_detected"', diagnostics_service_source)
+        self.assertIn('"previous_session_unclean_exit"', diagnostics_service_source)
         self.assertIn("_previous_session_unclean = _check_previous_unclean_exit()", source)
-        self.assertIn("timer.timeout.connect(_write_heartbeat)", source)
-        self.assertIn("faulthandler.enable", source)
+        self.assertIn("def start_heartbeat_timer", diagnostics_source)
+        self.assertIn("timer.timeout.connect(write_heartbeat)", diagnostics_source)
+        self.assertIn("_start_heartbeat_timer_controller(app, _write_heartbeat)", source)
+        self.assertIn("fault_handler.enable", diagnostics_service_source)
+
+    def test_problem_report_sharing_actions_are_wired_and_exported(self) -> None:
+        menus_source = SHELL_MENUS.read_text(encoding="utf-8")
+        wiring_source = SIGNAL_WIRING.read_text(encoding="utf-8")
+        profile_source = PROFILE_CONTROLLER.read_text(encoding="utf-8")
+        startup_source = STARTUP_CONTROLLER.read_text(encoding="utf-8")
+        diagnostics_service_source = DIAGNOSTICS_SERVICE.read_text(encoding="utf-8")
+
+        self.assertIn('self.copy_problem_summary_action = self.help_menu.addAction("Copy Latest Problem Summary")', menus_source)
+        self.assertIn('self.open_crash_reports_action = self.help_menu.addAction("Open Crash Reports Folder")', menus_source)
+        self.assertIn("self.copy_problem_summary_action.triggered.connect(self.copy_latest_problem_summary)", wiring_source)
+        self.assertIn("self.open_crash_reports_action.triggered.connect(self.open_crash_reports_folder)", wiring_source)
+        self.assertIn("def open_crash_reports_folder(self) -> None:", profile_source)
+        self.assertIn("def copy_latest_problem_summary(self) -> None:", profile_source)
+        self.assertIn("format_issue_summary(", profile_source)
+        self.assertIn("latest_diagnostic_report_files(", profile_source)
+        self.assertIn('archive.writestr("issue_summary.txt", issue_summary)', profile_source)
+        self.assertIn('archive.writestr("diagnostics_index.json", json.dumps(diagnostics_index, indent=2))', profile_source)
+        self.assertIn("def traceback_diagnostic_details", diagnostics_service_source)
+        self.assertIn("def diagnostic_report_index", diagnostics_service_source)
+        self.assertIn("def format_issue_summary", diagnostics_service_source)
+        self.assertIn("Help > Export Diagnostics", startup_source)
 
     def test_app_icon_is_loaded_from_packaged_and_internal_paths(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn("def iter_app_icon_candidate_paths(theme_key: Optional[str] = None) -> Tuple[Path, ...]:", source)
-        self.assertIn('Path("_internal") / "assets" / "cdmw.ico"', source)
-        self.assertIn('Path("assets") / "theme_icons" / f"cdmw_{theme_stem}.ico"', source)
-        self.assertIn("def load_app_icon(theme_key: Optional[str] = None) -> Tuple[QIcon, Optional[Path]]:", source)
-        self.assertIn("if not icon.isNull():", source)
-        self.assertIn("class AppWindowIconEventFilter(QObject):", source)
-        self.assertIn("def set_app_icon(self, app_icon: QIcon) -> None:", source)
+        source = "\n".join(
+            (
+                THEME_CONTROLLER.read_text(encoding="utf-8"),
+                ACTIVATION_CONTROLLER.read_text(encoding="utf-8"),
+                SHELL_APP_STARTUP.read_text(encoding="utf-8"),
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                SHELL_STARTUP_SPLASH.read_text(encoding="utf-8"),
+            )
+        )
+        app_icon_source = APP_ICON.read_text(encoding="utf-8")
+        icon_controller_source = (ROOT / "cdmw" / "ui" / "shell" / "icon_controller.py").read_text(encoding="utf-8")
+        self.assertIn("def iter_app_icon_candidate_paths(theme_key: Optional[str] = None) -> Tuple[Path, ...]:", app_icon_source)
+        self.assertIn('Path("_internal") / "assets" / "cdmw.ico"', app_icon_source)
+        self.assertIn('Path("assets") / "theme_icons" / f"cdmw_{theme_stem}.ico"', app_icon_source)
+        self.assertIn("def load_app_icon(theme_key: Optional[str] = None) -> Tuple[QIcon, Optional[Path]]:", app_icon_source)
+        self.assertIn("if not icon.isNull():", app_icon_source)
+        self.assertIn("class AppWindowIconEventFilter(QObject):", icon_controller_source)
+        self.assertIn("def set_app_icon(self, app_icon: QIcon) -> None:", icon_controller_source)
         self.assertIn("app_icon, _icon_path = load_app_icon(startup_theme)", source)
         self.assertIn("app_icon, _icon_path = load_app_icon(self.current_theme_key)", source)
         self.assertIn("def _apply_theme_window_icon(self, theme_key: str) -> None:", source)
@@ -167,11 +369,11 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def resolve_app_icon_path(theme_key: Optional[str] = None) -> Optional[Path]:", app_icon_source)
 
     def test_external_startup_splash_reads_saved_theme(self) -> None:
-        app_source = ROOT.joinpath("cdmw_app.py").read_text(encoding="utf-8")
+        app_source = APP_STARTUP_SPLASH.read_text(encoding="utf-8")
         host_source = STARTUP_SPLASH_HOST.read_text(encoding="utf-8")
-        self.assertIn("def _read_startup_theme_key() -> str:", app_source)
-        self.assertIn('"theme_key": str(theme_key or _read_startup_theme_key())', app_source)
-        self.assertIn("startup_theme_key = _read_startup_theme_key()", app_source)
+        self.assertIn("def read_startup_theme_key() -> str:", app_source)
+        self.assertIn('"theme_key": str(theme_key or read_startup_theme_key())', app_source)
+        self.assertIn("startup_theme_key = read_startup_theme_key()", app_source)
         self.assertIn("from cdmw.ui.themes import UI_THEME_SCHEMES", host_source)
         self.assertIn("def _set_theme(self, theme_key: object) -> None:", host_source)
         self.assertIn('self._set_theme(payload.get("theme_key", self._theme_key))', host_source)
@@ -196,7 +398,12 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("archive_isolated_package_worker_active", source)
 
     def test_runtime_events_include_performance_stability_fields(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = _main_window_source() + "\n"
+        source += CLOSE_CONTROLLER.read_text(encoding="utf-8") + "\n"
+        source += (ROOT / "cdmw" / "ui" / "shell" / "responsiveness_controller.py").read_text(encoding="utf-8")
+        source += "\n"
+        source += (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_loading.py").read_text(encoding="utf-8")
+        source += "\n" + (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_memory.py").read_text(encoding="utf-8")
         for token in (
             "close_phase",
             "responsive_resize_elapsed_ms",
@@ -208,24 +415,32 @@ class CrashReportingGuardTests(unittest.TestCase):
             self.assertIn(token, source)
 
     def test_close_waits_for_workers_asynchronously(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn("def _begin_deferred_close_for_workers", source)
-        self.assertIn("event.ignore()", source)
-        self.assertIn("thread.finished.connect(self._finish_deferred_close_if_workers_stopped", source)
-        self.assertIn("self._close_force_accept = True", source)
-        self.assertIn("CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS", source)
-        self.assertIn("def _force_stop_close_worker_threads", source)
-        self.assertIn("self._force_stop_close_worker_threads(running_entries)", source)
-        self.assertIn("def _request_tab_shutdowns(self) -> None:", source)
-        self.assertIn('getattr(tab, "request_shutdown", None)', source)
-        self.assertIn('getattr(tab, "iter_shutdown_workers", None)', source)
-        self.assertIn('close_phase="force_stop"', source)
-        self.assertIn('close_phase="waiting"', source)
-        self.assertIn('close_phase="ready_to_accept"', source)
-        self.assertIn('close_phase="begin_deferred"', source)
-        self.assertIn('close_phase="finalize"', source)
-        close_start = source.index("        def _begin_deferred_close_for_workers")
-        close_body = source[close_start: source.index("        def _finalize_close", close_start)]
+        main_source = MAIN_WINDOW.read_text(encoding="utf-8")
+        close_source = CLOSE_CONTROLLER.read_text(encoding="utf-8")
+        protocol_source = WORKER_PROTOCOL.read_text(encoding="utf-8")
+        source = main_source + "\n" + close_source
+        self.assertIn("def _begin_deferred_close_for_workers", close_source)
+        self.assertIn("event.ignore()", close_source)
+        self.assertIn("thread.finished.connect(self._finish_deferred_close_if_workers_stopped", close_source)
+        self.assertIn("self._close_force_accept = True", close_source)
+        self.assertIn("CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS", close_source)
+        self.assertIn("def _force_stop_close_worker_threads", close_source)
+        self.assertIn("self._force_stop_close_worker_threads(running_entries)", close_source)
+        self.assertIn("def _request_tab_shutdowns(self) -> None:", close_source)
+        self.assertIn('getattr(tab, "request_shutdown", None)', close_source)
+        self.assertIn('getattr(tab, "iter_shutdown_workers", None)', close_source)
+        self.assertIn("class ShutdownAwareTab(Protocol):", protocol_source)
+        self.assertIn("class CancellableWorker(Protocol):", protocol_source)
+        self.assertIn('close_phase="force_stop"', close_source)
+        self.assertIn('close_phase="waiting"', close_source)
+        self.assertIn('close_phase="ready_to_accept"', close_source)
+        self.assertIn('close_phase="begin_deferred"', close_source)
+        self.assertIn('close_phase="finalize"', close_source)
+        self.assertIn("def _finalize_close(self) -> None:", close_source)
+        self.assertIn("def closeEvent(self, event) -> None:", close_source)
+        self.assertIn("def _clear_active_main_window(window: object) -> None:", main_source)
+        close_start = close_source.index("    def _begin_deferred_close_for_workers")
+        close_body = close_source[close_start:]
         self.assertNotIn("self.hide()", close_body)
         self.assertNotIn("self.setEnabled(False)", close_body)
         self.assertNotIn(".wait(", close_body)
@@ -242,6 +457,10 @@ class CrashReportingGuardTests(unittest.TestCase):
         ):
             with self.subTest(tab=tab_path.name):
                 source = tab_path.read_text(encoding="utf-8")
+                if tab_path == TEXT_SEARCH_TAB:
+                    source += "\n" + TEXT_SEARCH_CONTROLLER.read_text(encoding="utf-8")
+                if tab_path == TEXTURE_EDITOR_TAB:
+                    source += "\n" + TEXTURE_EDITOR_WORKER_LIFECYCLE.read_text(encoding="utf-8")
                 self.assertIn("def iter_shutdown_workers", source)
                 self.assertIn("def request_shutdown", source)
                 self.assertIn("self.request_shutdown()", source)
@@ -249,48 +468,70 @@ class CrashReportingGuardTests(unittest.TestCase):
 
     def test_clean_native_fault_log_is_suppressed_on_normal_exit(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn('crash_reports_dir / "native_fault_current.log"', source)
+        diagnostics_service_source = DIAGNOSTICS_SERVICE.read_text(encoding="utf-8")
+        self.assertIn('"native_fault_current.log"', diagnostics_service_source)
         self.assertIn("def _cleanup_native_fault_log_on_exit(*, clean_exit: bool) -> None:", source)
-        self.assertIn("faulthandler.disable()", source)
-        self.assertIn("fault_log_path.stat().st_size == 0", source)
-        self.assertIn("fault_log_path.unlink()", source)
+        self.assertIn("fault_handler.disable", diagnostics_service_source)
+        self.assertIn("fault_log_path.stat().st_size == 0", diagnostics_service_source)
+        self.assertIn("fault_log_path.unlink()", diagnostics_service_source)
         self.assertIn("_cleanup_native_fault_log_on_exit(clean_exit=bool(normal_exit))", source)
         self.assertNotIn("native fault log session", source)
 
     def test_previous_session_unclean_reports_are_deduped_by_session(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn("def _crash_report_kind_already_covers_session(kind: str, session_id: str) -> bool:", source)
-        self.assertIn('crash_reports_dir.glob(f"{normalized_kind}_*.log")', source)
-        self.assertIn('_crash_report_kind_already_covers_session("previous_session_unclean_exit", previous_session_id)', source)
-        self.assertIn('"previous_session_unclean_exit_suppressed_duplicate"', source)
-        self.assertIn("if bool(payload.get(\"clean_shutdown\")):\n                return False", source)
+        diagnostics_service_source = DIAGNOSTICS_SERVICE.read_text(encoding="utf-8")
+        self.assertIn("def crash_report_kind_already_covers_session", diagnostics_service_source)
+        self.assertIn('reports_dir.glob(f"{normalized_kind}_*.log")', diagnostics_service_source)
+        self.assertIn("def check_previous_unclean_exit", diagnostics_service_source)
+        self.assertIn("_check_previous_unclean_exit_service(", source)
+        self.assertIn(
+            'duplicate_report_checker(Path(reports_dir), "previous_session_unclean_exit", previous_session_id)',
+            diagnostics_service_source,
+        )
+        self.assertIn('"previous_session_unclean_exit_suppressed_duplicate"', diagnostics_service_source)
+        self.assertIn("record_runtime_event_fn(", diagnostics_service_source)
+        self.assertIn("if bool(payload.get(\"clean_shutdown\")):\n            return False", diagnostics_service_source)
 
     def test_archive_scan_breadcrumbs_are_recorded_for_native_faults(self) -> None:
-        main_source = MAIN_WINDOW.read_text(encoding="utf-8")
-        archive_source = ARCHIVE.read_text(encoding="utf-8")
-        self.assertIn("archive_scan_breadcrumb.json", main_source)
-        self.assertIn("def _write_scan_breadcrumb", main_source)
-        self.assertIn("on_breadcrumb=self._write_scan_breadcrumb", main_source)
+        scan_worker_source = (ROOT / "cdmw" / "workers" / "archive_scan_workers.py").read_text(encoding="utf-8")
+        archive_source = "\n".join(
+            (
+                ARCHIVE.read_text(encoding="utf-8"),
+                ARCHIVE_FORMAT.read_text(encoding="utf-8"),
+            )
+        )
+        self.assertIn("archive_scan_breadcrumb.json", scan_worker_source)
+        self.assertIn("def _write_scan_breadcrumb", scan_worker_source)
+        self.assertIn("on_breadcrumb=self._write_scan_breadcrumb", scan_worker_source)
         self.assertIn("on_breadcrumb: Optional[Callable[[Mapping[str, object]], None]]", archive_source)
         self.assertIn('"phase": "parse_archive_pamt"', archive_source)
         self.assertIn('"pamt_path": str(pamt_path)', archive_source)
 
     def test_ui_breadcrumbs_are_recorded_for_unclean_exit_context(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn("ui_breadcrumb.json", source)
-        self.assertIn("texture_workflow_breadcrumb.json", source)
+        diagnostics_service_source = DIAGNOSTICS_SERVICE.read_text(encoding="utf-8")
+        worker_source = TEXTURE_WORKERS.read_text(encoding="utf-8")
+        self.assertIn("ui_breadcrumb.json", diagnostics_service_source)
+        self.assertIn("texture_workflow_breadcrumb.json", diagnostics_service_source)
         self.assertIn("def _write_ui_breadcrumb", source)
-        self.assertIn("def _write_texture_workflow_breadcrumb", source)
+        self.assertIn("def _write_texture_workflow_breadcrumb", worker_source)
         self.assertIn("def _add_persisted_crash_breadcrumbs", source)
-        self.assertIn('context["ui_breadcrumb"]', source)
-        self.assertIn('context["texture_workflow_breadcrumb"]', source)
-        self.assertIn("previous_context: Dict[str, object]", source)
-        self.assertIn("_add_persisted_crash_breadcrumbs(previous_context)", source)
-        self.assertIn("persisted_runtime_event_tail", source)
-        self.assertIn("persisted_native_event_tail", source)
+        self.assertIn('context["ui_breadcrumb"]', diagnostics_service_source)
+        self.assertIn('context["texture_workflow_breadcrumb"]', diagnostics_service_source)
+        self.assertIn("previous_context: dict[str, object]", diagnostics_service_source)
+        self.assertIn("add_breadcrumbs_fn(previous_context)", diagnostics_service_source)
+        self.assertIn("add_breadcrumbs_fn=_add_persisted_crash_breadcrumbs", source)
+        self.assertIn("persisted_runtime_event_tail", diagnostics_service_source)
+        self.assertIn("persisted_native_event_tail", diagnostics_service_source)
 
     def test_d3d11_qprocess_cleanup_is_runtime_guarded(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = (
+            MAIN_WINDOW.read_text(encoding="utf-8")
+            + "\n"
+            + (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_d3d11_process.py").read_text(encoding="utf-8")
+            + "\n"
+            + (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_d3d11_runtime.py").read_text(encoding="utf-8")
+        )
         self.assertIn("def _archive_qprocess_state", source)
         self.assertIn("def _delete_archive_qprocess_later", source)
         self.assertIn("def _cleanup_finished_archive_isolated_renderer_process", source)
@@ -302,21 +543,27 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertNotIn("process.finished.connect(process.deleteLater)", source)
 
     def test_texture_workflow_workers_write_breadcrumbs_from_callbacks(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn("_texture_workflow_breadcrumb_base(self.config, \"BuildWorker\")", source)
-        self.assertIn("_texture_workflow_breadcrumb_base(self.config, \"DdsToPngWorker\")", source)
+        source = TEXTURE_WORKERS.read_text(encoding="utf-8")
+        self.assertIn("_texture_workflow_breadcrumb_base(self.config, self.worker_name)", source)
+        self.assertIn('worker_name = "BuildWorker"', source)
+        self.assertIn('worker_name = "DdsToPngWorker"', source)
         self.assertIn("last_external_tool_step", source)
         self.assertIn("on_log=emit_log", source)
         self.assertIn("on_current_file=emit_current_file", source)
 
     def test_archive_scan_progress_is_not_emitted_from_nested_python_thread(self) -> None:
-        archive_source = ARCHIVE.read_text(encoding="utf-8")
+        archive_source = "\n".join(
+            (
+                ARCHIVE.read_text(encoding="utf-8"),
+                ARCHIVE_FORMAT.read_text(encoding="utf-8"),
+            )
+        )
         self.assertNotIn("emit_parse_heartbeat", archive_source)
         self.assertNotIn("heartbeat_thread = threading.Thread", archive_source)
         self.assertNotIn("heartbeat_stop = threading.Event()", archive_source)
 
     def test_archive_pamt_parser_avoids_giant_record_lists(self) -> None:
-        archive_source = ARCHIVE.read_text(encoding="utf-8")
+        archive_source = ARCHIVE_FORMAT.read_text(encoding="utf-8")
         self.assertIn("max_cache_entries: int = 200_000", archive_source)
         self.assertIn("seen_offsets: set[int] = set()", archive_source)
         self.assertIn("file_table = memoryview(data)[off : off + file_table_size]", archive_source)
@@ -324,7 +571,14 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertNotIn('files = list(struct.iter_unpack("<IIIIHH"', archive_source)
 
     def test_archive_preview_inner_splitter_keeps_references_visible_before_overlap(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = "\n".join(
+            (
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                ARCHIVE_PREVIEW_LAYOUT.read_text(encoding="utf-8"),
+                ARCHIVE_ASSET_FAMILY_LAYOUT.read_text(encoding="utf-8"),
+                ARCHIVE_ASSET_FAMILY_PANEL.read_text(encoding="utf-8"),
+            )
+        )
         self.assertIn("archive_preview_main_widget.setMinimumWidth(0)", source)
         self.assertIn("self.archive_preview_title_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)", source)
         self.assertIn("self.archive_texture_refs_group.setMinimumWidth(320)", source)
@@ -340,7 +594,13 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.archive_preview_content_splitter.setSizes(target_sizes)", source)
 
     def test_loose_preview_toggle_is_two_state_action(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = (
+            MAIN_WINDOW.read_text(encoding="utf-8")
+            + "\n"
+            + ARCHIVE_PREVIEW_RESULT.read_text(encoding="utf-8")
+            + "\n"
+            + (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_state.py").read_text(encoding="utf-8")
+        )
         self.assertIn("def _toggle_archive_loose_preview", source)
         self.assertIn("self.archive_preview_requested_loose = not bool(self.archive_preview_showing_loose)", source)
         self.assertIn("self._show_archive_preview_result(result, use_loose=self.archive_preview_requested_loose)", source)
@@ -348,49 +608,68 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertNotIn("def _toggle_archive_loose_preview(self) -> None:\n            self.archive_preview_requested_loose = False", source)
 
     def test_archive_preview_refresh_respects_loose_asset_arguments(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = (
+            MAIN_WINDOW.read_text(encoding="utf-8")
+            + "\n"
+            + (ROOT / "cdmw" / "ui" / "archive_browser" / "workers.py").read_text(encoding="utf-8")
+            + "\n"
+            + ARCHIVE_PREVIEW_SETTINGS.read_text(encoding="utf-8")
+        )
         self.assertIn("include_loose_preview_assets=include_loose_preview_assets", source)
         self.assertIn("prefer_loose_preview=self.archive_preview_requested_loose", source)
         self.assertIn("self.archive_preview_requested_loose = bool(entry is not None and prefer_loose_preview)", source)
         self.assertNotIn("include_loose_preview_assets = False\n            prefer_loose_preview = False", source)
 
     def test_floating_preview_settings_syncs_back_to_settings_tab(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = (
+            MAIN_WINDOW.read_text(encoding="utf-8")
+            + "\n"
+            + ARCHIVE_PREVIEW_SETTINGS.read_text(encoding="utf-8")
+        )
         self.assertIn("def _sync_model_preview_settings_controls", source)
         self.assertIn("settings_tab._apply_model_preview_controls(settings)", source)
         self.assertIn("dialog.set_settings(settings)", source)
         self.assertIn("self._sync_model_preview_settings_controls()", source)
 
     def test_startup_splash_has_abstract_animation(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn("class StartupSignalMark", source)
-        self.assertIn("def _draw_cdmw_block_wave", source)
-        self.assertIn("def _draw_iso_block", source)
-        self.assertIn("QLinearGradient", source)
-        self.assertIn("QPolygonF", source)
-        self.assertIn("painter.drawPolygon(top)", source)
-        self.assertIn("wave = (math.sin(phase_radians + col * 0.72 + row * 0.58) + 1.0) * 0.5", source)
-        self.assertIn("self._timer = QTimer(self)", source)
-        self.assertIn("def paintEvent(self, event) -> None", source)
-        self.assertIn("self.signal_mark = StartupSignalMark", source)
-        self.assertIn("self.signal_mark.stop()", source)
-        self.assertIn("remaining_minimum_visible_ms", source)
-        self.assertIn("self._minimum_visible_seconds = 3.0", source)
+        main_source = MAIN_WINDOW.read_text(encoding="utf-8")
+        startup_source = "\n".join(
+            (
+                STARTUP_CONTROLLER.read_text(encoding="utf-8"),
+                SHELL_STARTUP_SPLASH.read_text(encoding="utf-8"),
+            )
+        )
+        workspace_layout_source = SHELL_WORKSPACE_LAYOUT.read_text(encoding="utf-8")
+        source = "\n".join((startup_source, main_source, workspace_layout_source))
+        splash_source = STARTUP_DIALOGS.read_text(encoding="utf-8")
+        self.assertIn("class StartupSignalMark", splash_source)
+        self.assertIn("def _draw_cdmw_block_wave", splash_source)
+        self.assertIn("def _draw_iso_block", splash_source)
+        self.assertIn("QLinearGradient", splash_source)
+        self.assertIn("QPolygonF", splash_source)
+        self.assertIn("painter.drawPolygon(top)", splash_source)
+        self.assertIn("wave = (math.sin(phase_radians + col * 0.72 + row * 0.58) + 1.0) * 0.5", splash_source)
+        self.assertIn("self._timer = QTimer(self)", splash_source)
+        self.assertIn("def paintEvent(self, event) -> None", splash_source)
+        self.assertIn("self.signal_mark = StartupSignalMark", splash_source)
+        self.assertIn("self.signal_mark.stop()", splash_source)
+        self.assertIn("remaining_minimum_visible_ms", splash_source)
+        self.assertIn("self._minimum_visible_seconds = 3.0", splash_source)
         self.assertIn("QTimer.singleShot(remaining_ms, self._release_startup_splash)", source)
-        self.assertIn("def close_pyinstaller_boot_splash() -> None:", source)
+        self.assertIn("def close_pyinstaller_boot_splash() -> None:", startup_source)
         self.assertIn("close_pyinstaller_boot_splash()", source)
-        self.assertIn("class ExternalStartupSplashAdapter", source)
+        self.assertIn("class ExternalStartupSplashAdapter", startup_source)
         self.assertIn('os.environ.get("CDMW_STARTUP_SPLASH_COMMAND_FILE"', source)
-        self.assertIn("self.setFixedSize(420, 210)", source)
-        self.assertIn("self.detail_label.setMinimumHeight(42)", source)
-        self.assertIn("font-size: 10px", source)
-        self.assertIn("def _format_startup_splash_detail(", source)
+        self.assertIn("self.setFixedSize(420, 210)", splash_source)
+        self.assertIn("self.detail_label.setMinimumHeight(42)", splash_source)
+        self.assertIn("font-size: 10px", splash_source)
+        self.assertIn("def format_startup_splash_detail(", startup_source)
         self.assertIn("def _show_main_window_after_startup_splash(self) -> None:", source)
         self.assertIn("def _finish_startup_splash_and_show_main_window(self) -> None:", source)
         finish_start = source.index("def _finish_startup_splash_and_show_main_window(self) -> None:")
         finish_body = source[finish_start : source.index("def _release_startup_splash(self) -> None:", finish_start)]
         self.assertIn("def _finish_startup_splash_after_main_window_paint(self) -> None:", source)
-        self.assertIn("Qt.WindowStaysOnTopHint", source)
+        self.assertIn("Qt.WindowStaysOnTopHint", splash_source)
         self.assertLess(finish_body.index("self._show_main_window_after_startup_splash()"), finish_body.index("self._schedule_startup_splash_finish_after_main_window_paint(180)"))
         self.assertNotIn("self._finish_startup_splash_now()\n            self._show_main_window_after_startup_splash()", finish_body)
         self.assertIn("startup_splash_first_paint_timeout", source)
@@ -399,28 +678,28 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("QTimer.singleShot(0, self._finish_startup_splash_and_show_main_window)", source)
         self.assertNotIn("_show_main_window_behind_startup_splash", source)
         self.assertIn("def _finish_startup_splash_now(self) -> None:", source)
-        self.assertIn("def pump_animation_frame", source)
+        self.assertIn("def pump_animation_frame", startup_source)
         self.assertIn("MainWindow(startup_splash=startup_splash)", source)
         self.assertIn('pump_startup_splash("Preparing archive browser...")', source)
-        self.assertIn("def _splash_theme_color", source)
-        self.assertIn("def _splash_accent_block_colors", source)
-        self.assertIn("self._theme_key = _splash_resolved_theme_key(theme_key)", source)
-        self.assertIn("StartupProgressCard(self, theme_key=self._theme_key)", source)
-        self.assertIn("StartupSignalMark(self.progress_card, theme_key=self._theme_key)", source)
+        self.assertIn("def _splash_theme_color", splash_source)
+        self.assertIn("def _splash_accent_block_colors", splash_source)
+        self.assertIn("self._theme_key = _splash_resolved_theme_key(theme_key)", splash_source)
+        self.assertIn("StartupProgressCard(self, theme_key=self._theme_key)", splash_source)
+        self.assertIn("StartupSignalMark(self.progress_card, theme_key=self._theme_key)", splash_source)
         self.assertIn("StartupSplashDialog(theme_key=startup_theme)", source)
         self.assertIn("ExternalStartupSplashAdapter(external_splash_file, theme_key=startup_theme)", source)
-        self.assertNotIn("build_speed = 1.62", source)
-        self.assertNotIn("compass_radius", source)
-        self.assertNotIn("platform_y", source)
-        splash_animation_source = source[
-            source.index("class StartupSignalMark") : source.index("class ThemeChangeBusyOverlay")
+        self.assertNotIn("build_speed = 1.62", splash_source)
+        self.assertNotIn("compass_radius", splash_source)
+        self.assertNotIn("platform_y", splash_source)
+        splash_animation_source = splash_source[
+            splash_source.index("class StartupSignalMark") : splash_source.index("class StartupArchivePathDialog")
         ]
         self.assertNotIn("painter.drawArc", splash_animation_source)
-        self.assertNotIn("dot_angle = (self._phase * math.tau)", source)
-        self.assertNotIn("route = QPainterPath()", source)
-        self.assertNotIn("Qt.DashLine", source)
-        self.assertIn("QFrame#StartupSignalMark", source)
-        self.assertNotIn('QLabel("CDMW")', source)
+        self.assertNotIn("dot_angle = (self._phase * math.tau)", splash_source)
+        self.assertNotIn("route = QPainterPath()", splash_source)
+        self.assertNotIn("Qt.DashLine", splash_source)
+        self.assertIn("QFrame#StartupSignalMark", splash_source)
+        self.assertNotIn('QLabel("CDMW")', splash_source)
 
     def test_crimson_desert_theme_is_available(self) -> None:
         source = THEMES.read_text(encoding="utf-8")
@@ -437,7 +716,19 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('color: {theme["button_disabled_text"]};', source)
 
     def test_main_window_has_about_license_tab(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = (
+            MAIN_WINDOW.read_text(encoding="utf-8")
+            + "\n"
+            + SHELL_MENUS.read_text(encoding="utf-8")
+            + "\n"
+            + SIGNAL_WIRING.read_text(encoding="utf-8")
+            + "\n"
+            + SHELL_TOOL_TABS.read_text(encoding="utf-8")
+            + "\n"
+            + ABOUT_CONTROLLER.read_text(encoding="utf-8")
+            + "\n"
+            + NAVIGATION_CONTROLLER.read_text(encoding="utf-8")
+        )
         menu_order = [
             'self.profile_menu = menu_bar.addMenu("Profile")',
             'self.open_settings_action = menu_bar.addAction("Settings")',
@@ -462,12 +753,23 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertNotIn('about_tabs.addTab(docs_page, "Documentation")', source)
         self.assertIn('about_tabs.addTab(license_page, "License")', source)
         self.assertIn("def _read_license_text(self) -> str:", source)
-        self.assertIn('self._read_project_text_file(\n                "LICENSE"', source)
+        self.assertIn("self._read_project_text_file(", source)
+        self.assertIn('"LICENSE"', source)
         self.assertIn("license_edit.setPlainText(self._read_license_text())", source)
 
     def test_settings_page_uses_left_navigation(self) -> None:
         settings_source = (ROOT / "cdmw" / "ui" / "settings_tab.py").read_text(encoding="utf-8")
         main_source = MAIN_WINDOW.read_text(encoding="utf-8")
+        navigation_source = NAVIGATION_CONTROLLER.read_text(encoding="utf-8")
+        startup_source = STARTUP_CONTROLLER.read_text(encoding="utf-8")
+        shell_startup_source = main_source + "\n" + startup_source
+        main_behavior_source = (
+            main_source
+            + "\n"
+            + startup_source
+            + "\n"
+            + (ROOT / "cdmw" / "ui" / "archive_browser" / "filter_workers.py").read_text(encoding="utf-8")
+        )
 
         self.assertIn("self.section_nav_list = QListWidget()", settings_source)
         self.assertIn('self.section_nav_list.setObjectName("SettingsSectionNav")', settings_source)
@@ -496,31 +798,50 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.safety_page_layout = _add_settings_page(", settings_source)
         self.assertIn("self.setup_page_layout.insertWidget(2, setup_section)", settings_source)
         self.assertIn("toggle_button.setVisible(False)", settings_source)
-        self.assertIn("self.setup_section.set_expanded(True)", main_source)
+        self.assertIn("self.setup_section.set_expanded(True)", navigation_source)
         self.assertIn("self.paths_page_layout.insertWidget(2, paths_section)", settings_source)
         self.assertIn("self.paths_page_layout.insertWidget(3, archive_locations_section)", settings_source)
         self.assertNotIn("restore_archive_filters_checkbox", settings_source)
         self.assertNotIn("\"preferences/restore_archive_filters_on_startup\"", settings_source)
         self.assertNotIn("restore_archive_filters = self._preference_bool(\"restore_archive_filters_on_startup\", False)", main_source)
         self.assertIn("Archive Browser starts with neutral filters.", settings_source)
-        self.assertIn("def _neutral_archive_filter_state(self) -> Dict[str, object]:", main_source)
-        self.assertIn("self._apply_archive_filter_state(self._neutral_archive_filter_state())", main_source)
-        self.assertNotIn("QTimer.singleShot(6500, window._release_startup_splash)", main_source)
-        self.assertIn('_write_heartbeat("archive_autoload_queued")', main_source)
-        self.assertIn('startup_splash.set_detail("Loading Archive Browser...")', main_source)
-        autoload_start = main_source.index("        if window._startup_archive_autoload_expected():")
-        autoload_body = main_source[autoload_start: main_source.index("        else:", autoload_start)]
+        archive_filters_source = ARCHIVE_FILTERS.read_text(encoding="utf-8")
+        self.assertIn("def _neutral_archive_filter_state(self) -> Dict[str, object]:", archive_filters_source)
+        self.assertIn("self._apply_archive_filter_state(self._neutral_archive_filter_state())", startup_source)
+        self.assertNotIn("QTimer.singleShot(6500, window._release_startup_splash)", shell_startup_source)
+        self.assertIn('_write_heartbeat("archive_autoload_queued")', startup_source)
+        self.assertIn('startup_splash.set_detail("Loading Archive Browser...")', startup_source)
+        autoload_start = startup_source.index("    if window._startup_archive_autoload_expected():")
+        autoload_body = startup_source[autoload_start: startup_source.index("    else:", autoload_start)]
         self.assertNotIn("window._release_startup_splash()", autoload_body)
-        self.assertNotIn("QTimer.singleShot(500, self._maybe_autoload_archive_on_startup)", main_source)
-        self.assertIn("Startup archive auto-load skipped because the previous session did not shut down cleanly", main_source)
-        self.assertIn("self.archive_startup_autoload_defer_preview = True", main_source)
-        self.assertIn("defer_default_selection=defer_default_selection", main_source)
+        self.assertNotIn("QTimer.singleShot(500, self._maybe_autoload_archive_on_startup)", shell_startup_source)
+        self.assertIn("Startup archive auto-load skipped because the previous session did not shut down cleanly", startup_source)
+        self.assertIn("self.archive_startup_autoload_defer_preview = True", startup_source)
+        self.assertIn("defer_default_selection=defer_default_selection", main_behavior_source)
         self.assertIn("def show_settings_section(self, key: str) -> None:", settings_source)
-        self.assertIn('self.settings_tab.show_settings_section("setup")', main_source)
-        self.assertIn('self.settings_tab.show_settings_section("paths")', main_source)
+        self.assertIn('self.settings_tab.show_settings_section("setup")', navigation_source)
+        self.assertIn('self.settings_tab.show_settings_section("paths")', navigation_source)
 
     def test_archive_browser_has_asset_catalog_scope_dialog(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = "\n".join(
+            (
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                SHELL_WINDOW_RUNTIME_STATE.read_text(encoding="utf-8"),
+                ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8"),
+                ARCHIVE_ASSET_FAMILY_LAYOUT.read_text(encoding="utf-8"),
+                ARCHIVE_FILTER_CONTROLS.read_text(encoding="utf-8"),
+                ARCHIVE_SCAN_LIFECYCLE.read_text(encoding="utf-8"),
+                ARCHIVE_INDEX_WORKERS_UI.read_text(encoding="utf-8"),
+                ARCHIVE_RENDER_LIFECYCLE.read_text(encoding="utf-8"),
+                ARCHIVE_ASSET_CATALOG.read_text(encoding="utf-8"),
+                ARCHIVE_ASSET_CATALOG_DIALOG.read_text(encoding="utf-8"),
+                ARCHIVE_ASSET_CATALOG_SCOPE.read_text(encoding="utf-8"),
+                ARCHIVE_ASSET_FAMILY_REFERENCES.read_text(encoding="utf-8"),
+                ARCHIVE_ICON_PIPELINE.read_text(encoding="utf-8"),
+                ARCHIVE_MATERIAL_FINDER.read_text(encoding="utf-8"),
+                ARCHIVE_UI_FORMATTING.read_text(encoding="utf-8"),
+            )
+        )
         self.assertIn('self.archive_asset_catalog_button = QPushButton("Item Finder")', source)
         self.assertIn('self.archive_material_finder_button = QPushButton("Material Finder")', source)
         self.assertIn('self.archive_clear_asset_scope_button = QPushButton("Clear Scope")', source)
@@ -557,7 +878,8 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.archive_item_icon_pixmap_cache_limit = 1200", source)
         self.assertIn("self.archive_item_icon_preload_limit = 1600", source)
         self.assertIn("self.archive_item_icon_prepared_path_cache", source)
-        self.assertIn("class ArchiveItemIconWarmupWorker(QObject):", source)
+        worker_source = ARCHIVE_WORKERS.read_text(encoding="utf-8")
+        self.assertIn("class ArchiveItemIconWarmupWorker(QObject):", worker_source)
         self.assertIn("while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit", source)
         self.assertIn("self._cached_archive_asset_catalog_inventory_icon_pixmap(", source)
         self.assertIn("allow_sync_prepare=False", source)
@@ -576,10 +898,19 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("Referenced file set scoped Archive Browser to:", source)
 
     def test_missing_archive_package_root_prompts_on_startup_and_scan(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
-        self.assertIn("class StartupArchivePathDialog(QDialog):", source)
-        startup_dialog_start = source.index("class StartupArchivePathDialog(QDialog):")
-        startup_dialog_body = source[startup_dialog_start : source.index("class ThemeChangeBusyOverlay", startup_dialog_start)]
+        source = "\n".join(
+            (
+                STARTUP_CONTROLLER.read_text(encoding="utf-8"),
+                PATH_CONTROLLER.read_text(encoding="utf-8"),
+                UTILITY_CONTROLLER.read_text(encoding="utf-8"),
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                ARCHIVE_SCAN_LIFECYCLE.read_text(encoding="utf-8"),
+            )
+        )
+        startup_dialog_source = STARTUP_DIALOGS.read_text(encoding="utf-8")
+        self.assertIn("class StartupArchivePathDialog(QDialog):", startup_dialog_source)
+        startup_dialog_start = startup_dialog_source.index("class StartupArchivePathDialog(QDialog):")
+        startup_dialog_body = startup_dialog_source[startup_dialog_start:]
         self.assertIn("self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint", startup_dialog_body)
         self.assertIn("self.setMinimumWidth(520)", startup_dialog_body)
         self.assertIn("root_layout.setContentsMargins(14, 14, 14, 14)", startup_dialog_body)
@@ -590,8 +921,8 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("After you continue, CDMW will build the archive cache", startup_dialog_body)
 
         self.assertIn("def _show_startup_archive_path_prompt_if_needed(", source)
-        prompt_start = source.index("        def _show_startup_archive_path_prompt_if_needed(")
-        prompt_body = source[prompt_start : source.index("        def _add_path_row(", prompt_start)]
+        prompt_start = source.index("def _show_startup_archive_path_prompt_if_needed(")
+        prompt_body = source[prompt_start : source.index("    def _prompt_for_archive_package_root_if_missing(", prompt_start)]
         self.assertIn("StartupArchivePathDialog(", prompt_body)
         self.assertIn("self._startup_archive_path_prompt_open = True", prompt_body)
         self.assertIn("self._startup_archive_path_prompt_open = False", prompt_body)
@@ -600,20 +931,20 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('os.environ["CDMW_DEFER_TEXTURE_PREVIEW"] = "1"', prompt_body)
         self.assertIn("startup_path_prompt_accepted", prompt_body)
         self.assertIn("Building archive cache. First load can take a while; let it finish.", prompt_body)
-        autoload_start = source.index("        def _maybe_autoload_archive_on_startup(self) -> None:")
-        autoload_body = source[autoload_start : source.index("        def _load_game_executable_fingerprints", autoload_start)]
+        autoload_start = source.index("    def _maybe_autoload_archive_on_startup(self) -> None:")
+        autoload_body = source[autoload_start : source.index("    def _load_game_executable_fingerprints", autoload_start)]
         self.assertIn('if bool(getattr(self, "_startup_archive_path_prompt_open", False)):', autoload_body)
         self.assertIn("QTimer.singleShot(250, self._maybe_autoload_archive_on_startup)", autoload_body)
         self.assertIn("health_report = self._check_archive_cache_health(package_root_text)", autoload_body)
         self.assertIn("self._warn_if_archive_cache_stale(health_report, package_root_text)", autoload_body)
         self.assertIn("Keep CDMW open until the Dashboard progress reaches ready.", autoload_body)
-        self.assertIn("self.scan_archives(\n                force_refresh=", autoload_body)
-        self.assertIn("if bool(getattr(self, \"_startup_archive_path_prompt_accepted\", False)):\n                self._release_startup_splash()", autoload_body)
+        self.assertIn("self.scan_archives(\n            force_refresh=", autoload_body)
+        self.assertIn("if bool(getattr(self, \"_startup_archive_path_prompt_accepted\", False)):\n            self._release_startup_splash()", autoload_body)
         self.assertIn("window._show_startup_archive_path_prompt_if_needed(startup_splash)", source)
         self.assertIn("QTimer.singleShot(0, window._maybe_autoload_archive_on_startup)", source)
         self.assertLess(
             source.index("window._show_startup_archive_path_prompt_if_needed(startup_splash)"),
-            source.index("        if window._startup_archive_autoload_expected():"),
+            source.index("    if window._startup_archive_autoload_expected():"),
         )
 
         self.assertIn("def _prompt_for_archive_package_root_if_missing(", source)
@@ -630,8 +961,8 @@ class CrashReportingGuardTests(unittest.TestCase):
             source,
         )
 
-        startup_start = source.index("        def _show_first_run_guide_if_needed(self) -> None:")
-        startup_body = source[startup_start : source.index("        def _add_path_row(", startup_start)]
+        startup_start = source.index("def _show_first_run_guide_if_needed(self) -> None:")
+        startup_body = source[startup_start : source.index("    def _startup_archive_path_prompt_needed", startup_start)]
         self.assertIn('reason="startup"', startup_body)
         self.assertIn("after_autodetect=self._show_first_run_guide_if_needed", startup_body)
         self.assertLess(
@@ -639,14 +970,21 @@ class CrashReportingGuardTests(unittest.TestCase):
             startup_body.index("self.show_quick_start_dialog()"),
         )
 
-        scan_start = source.index("        def scan_archives(")
-        scan_body = source[scan_start : source.index("        def _handle_archive_scan_progress", scan_start)]
+        scan_start = source.index("    def scan_archives(")
+        scan_body = source[scan_start : source.index("    def _ensure_archive_extension_index_ready", scan_start)]
         self.assertIn("self._prompt_for_archive_package_root_if_missing(", scan_body)
         self.assertIn('reason="refresh" if force_refresh else "scan"', scan_body)
         self.assertIn("after_autodetect=lambda: self.scan_archives(", scan_body)
 
     def test_archive_extension_filter_is_searchable_for_rare_extensions(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = "\n".join(
+            (
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                SIGNAL_WIRING.read_text(encoding="utf-8"),
+                ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8"),
+                ARCHIVE_FILTERS.read_text(encoding="utf-8"),
+            )
+        )
         self.assertIn("self.archive_extension_filter_combo.setEditable(True)", source)
         self.assertIn('self.archive_extension_filter_combo.setObjectName("ArchiveExtensionFilter")', source)
         self.assertIn("self.archive_extension_filter_combo.setInsertPolicy(QComboBox.NoInsert)", source)
@@ -689,14 +1027,27 @@ class CrashReportingGuardTests(unittest.TestCase):
 
     def test_archive_browser_defaults_to_flat_view(self) -> None:
         constants_source = CONSTANTS.read_text(encoding="utf-8")
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = "\n".join(
+            (
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8"),
+                SETTINGS_PERSISTENCE.read_text(encoding="utf-8"),
+            )
+        )
         self.assertIn('ARCHIVE_BROWSER_VIEW_MODE = "flat"', constants_source)
         self.assertIn('self._add_combo_choice(self.archive_browser_view_mode_combo, "Flat", "flat")', source)
         self.assertIn('self._set_combo_by_value(self.archive_browser_view_mode_combo, ARCHIVE_BROWSER_VIEW_MODE)', source)
         self.assertNotIn('view_mode_value = "folders" if self._read_bool("archive/tree_view", True) else "flat"', source)
 
     def test_archive_controls_sidebar_keeps_readable_width(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = "\n".join(
+            (
+                (ROOT / "cdmw" / "ui" / "shell" / "responsiveness_controller.py").read_text(encoding="utf-8"),
+                (ROOT / "cdmw" / "ui" / "shell" / "log_controller.py").read_text(encoding="utf-8"),
+                ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8"),
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+            )
+        )
         self.assertIn("def _archive_controls_sidebar_bounds(self) -> Tuple[int, int, int]:", source)
         self.assertIn("screen_width, _screen_height = available_layout_size_for(self)", source)
         self.assertIn("elif screen_width <= 1920:", source)
@@ -707,19 +1058,28 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.archive_extension_picker_button.setEnabled(not busy)", source)
 
     def test_archive_browser_rebalances_for_compact_screens(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = "\n".join(
+            (
+                (ROOT / "cdmw" / "ui" / "shell" / "responsiveness_controller.py").read_text(encoding="utf-8"),
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+            )
+        )
         research_source = RESEARCH_TAB.read_text(encoding="utf-8")
+        research_layout_source = RESEARCH_LAYOUT.read_text(encoding="utf-8")
+        research_tree_helpers_source = RESEARCH_TREE_HELPERS.read_text(encoding="utf-8")
         text_search_source = TEXT_SEARCH_TAB.read_text(encoding="utf-8")
         widgets_source = WIDGETS.read_text(encoding="utf-8")
-        self.assertIn("def available_screen_size_for(widget: Optional[QWidget] = None) -> Tuple[int, int]:", widgets_source)
-        self.assertIn("def available_layout_size_for(widget: Optional[QWidget] = None) -> Tuple[int, int]:", widgets_source)
-        self.assertIn("def available_screen_width_for(widget: Optional[QWidget] = None) -> int:", widgets_source)
-        self.assertIn("def responsive_screen_compact_scale(widget: Optional[QWidget] = None) -> float:", widgets_source)
-        self.assertIn("width, height = available_layout_size_for(widget)", widgets_source)
-        self.assertIn("elif height <= 1080:", widgets_source)
-        self.assertIn("elif height <= 1200:", widgets_source)
-        self.assertIn("scale = ui_scale_for(widget) * responsive_screen_compact_scale(widget)", widgets_source)
-        self.assertIn("def build_bounded_splitter_sizes(", widgets_source)
+        layout_source = (ROOT / "cdmw" / "ui" / "layout_utils.py").read_text(encoding="utf-8")
+        helper_source = widgets_source + "\n" + layout_source
+        self.assertIn("def available_screen_size_for(widget: Optional[QWidget] = None) -> Tuple[int, int]:", helper_source)
+        self.assertIn("def available_layout_size_for(widget: Optional[QWidget] = None) -> Tuple[int, int]:", helper_source)
+        self.assertIn("def available_screen_width_for(widget: Optional[QWidget] = None) -> int:", helper_source)
+        self.assertIn("def responsive_screen_compact_scale(widget: Optional[QWidget] = None) -> float:", helper_source)
+        self.assertIn("width, height = available_layout_size_for(widget)", helper_source)
+        self.assertIn("elif height <= 1080:", helper_source)
+        self.assertIn("elif height <= 1200:", helper_source)
+        self.assertIn("scale = ui_scale_for(widget) * responsive_screen_compact_scale(widget)", helper_source)
+        self.assertIn("def build_bounded_splitter_sizes(", helper_source)
         self.assertIn("def _apply_responsive_width_policies(self) -> None:", source)
         self.assertIn("self.archive_files_group.setMaximumWidth(16777215)", source)
         self.assertNotIn("normalized[1] > _files_max", source)
@@ -738,16 +1098,22 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("responsive_resize_elapsed_ms=elapsed_ms", source)
         self.assertIn("def resizeEvent(self, event: object) -> None:", source)
         self.assertIn("self.right_panel_stack.setMaximumWidth(16777215)", research_source)
-        self.assertIn("build_bounded_splitter_sizes(total_width, [72, 28], [420, details_min], [None, None])", research_source)
+        self.assertIn("build_bounded_splitter_sizes(total_width, [72, 28], [420, details_min], [None, None])", research_layout_source)
         self.assertIn("QTimer.singleShot(0, self.auto_fit_columns)", research_source)
-        self.assertIn("saved_total = sum(", research_source)
+        self.assertIn("saved_total = sum(", research_tree_helpers_source)
         self.assertIn("def resizeEvent(self, event: object) -> None:", research_source)
         self.assertIn("def resizeEvent(self, event: object) -> None:", text_search_source)
         self.assertIn('has_persistent_tree_column_widths(self.settings, "text_search/results"', text_search_source)
         self.assertIn("if saved_total >= viewport_width - 24:", text_search_source)
 
     def test_research_archive_files_supports_flat_and_folder_views(self) -> None:
-        source = RESEARCH_TAB.read_text(encoding="utf-8")
+        source = "\n".join(
+            (
+                RESEARCH_TAB.read_text(encoding="utf-8"),
+                (ROOT / "cdmw" / "ui" / "research" / "tab_side_panel_builders.py").read_text(encoding="utf-8"),
+                (ROOT / "cdmw" / "ui" / "research" / "archive_picker_controller.py").read_text(encoding="utf-8"),
+            )
+        )
         self.assertIn("self.archive_picker_view_combo = QComboBox()", source)
         self.assertIn('self.archive_picker_view_combo.addItem("Flat files", "flat")', source)
         self.assertIn('self.archive_picker_view_combo.addItem("Folders", "folders")', source)
@@ -757,17 +1123,19 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self.archive_picker_flat_render_limit = 5000", source)
 
     def test_compact_screens_scale_controls_not_only_splitters(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        responsiveness_source = (ROOT / "cdmw" / "ui" / "shell" / "responsiveness_controller.py").read_text(encoding="utf-8")
+        source = responsiveness_source + "\n" + MAIN_WINDOW.read_text(encoding="utf-8")
+        shell_theme_source = (ROOT / "cdmw" / "ui" / "shell" / "theme_controller.py").read_text(encoding="utf-8")
         theme_source = THEMES.read_text(encoding="utf-8")
-        self.assertIn("def _responsive_control_scale_for_resolution(screen_width: int, screen_height: int) -> float:", source)
-        self.assertIn("def _responsive_control_scale_for_width(screen_width: int) -> float:", source)
-        self.assertIn("elif screen_height <= 1080:", source)
-        self.assertIn("return min(width_scale, height_scale)", source)
+        self.assertIn("def responsive_control_scale_for_resolution(screen_width: int, screen_height: int) -> float:", responsiveness_source)
+        self.assertIn("def responsive_control_scale_for_width(screen_width: int) -> float:", responsiveness_source)
+        self.assertIn("elif screen_height <= 1080:", responsiveness_source)
+        self.assertIn("return min(width_scale, height_scale)", responsiveness_source)
         self.assertIn("screen_width, screen_height = available_layout_size_for(self)", source)
         self.assertIn("screen_height=screen_height", source)
-        self.assertIn("base_font_size = max(UI_FONT_SIZE_MIN", source)
-        self.assertIn("effective_density_key = \"compact\" if screen_scale < 0.94 else density_key", source)
-        self.assertIn("layout_scale=screen_scale", source)
+        self.assertIn("base_font_size = max(UI_FONT_SIZE_MIN", shell_theme_source)
+        self.assertIn("effective_density_key = \"compact\" if screen_scale < 0.94 else density_key", shell_theme_source)
+        self.assertIn("layout_scale=screen_scale", shell_theme_source)
         self.assertIn("def _apply_responsive_control_minimums(self) -> None:", source)
         self.assertIn('widget.setProperty("_cdmw_responsive_base_min_width", base_min_width)', source)
         self.assertIn("new_min_width = max(0, int(round(int(base_min_width) * scale)))", source)
@@ -779,7 +1147,13 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("metrics = _scale_density_metrics(_density_metrics(density_key), layout_scale)", theme_source)
 
     def test_archive_status_panel_does_not_duplicate_preview_settings_line(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8")
+        source = (
+            MAIN_WINDOW.read_text(encoding="utf-8")
+            + "\n"
+            + ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8")
+            + "\n"
+            + ARCHIVE_PREVIEW_SETTINGS.read_text(encoding="utf-8")
+        )
         self.assertIn("self.archive_preview_settings_status_label.setVisible(False)", source)
         self.assertIn("# The same 3D preview state is already shown in Archive Preview diagnostics.", source)
         self.assertIn("label.clear()", source)

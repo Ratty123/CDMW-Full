@@ -26,6 +26,7 @@ from cdmw.core.final_package_preview import (
     material_preflight_hard_blockers,
     simplified_part_label,
     texture_plan_control_description,
+    _source_material_expected_support_roles,
 )
 from cdmw.core.mod_package import ModPackageExportOptions
 from cdmw.models import ArchiveModelTextureReference, ModelPreviewData, ModelPreviewMesh, ModelPreviewRenderSettings, PreviewMaterialTextureInput
@@ -1337,6 +1338,33 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertNotIn("Height", blocker_text)
             self.assertFalse(result.preflight_errors)
             self.assertIn("Gem_inside", {row["material_name"] for row in report["source_materials"]})
+
+    def test_source_expected_support_ignores_preview_height_fallback(self) -> None:
+        roles = _source_material_expected_support_roles(
+            {
+                "detected_channels": (
+                    "base_color",
+                    "normal",
+                    "height",
+                    "roughness",
+                    "metalness",
+                ),
+                "material_inputs": (
+                    {"slot_kind": "base", "semantic_type": "albedo"},
+                    {"slot_kind": "normal", "semantic_type": "normal"},
+                    {
+                        "slot_kind": "material",
+                        "semantic_subtype": "metallic_roughness",
+                        "packed_channels": ("roughness", "metallic"),
+                    },
+                ),
+                "texture_slots": (),
+            }
+        )
+
+        self.assertIn("Normal", roles)
+        self.assertIn("Material / Mask", roles)
+        self.assertNotIn("Height", roles)
 
     def test_complete_source_owned_warns_original_support_binding_survival(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -122,7 +122,7 @@ class TextureWorkflowGuardrailTests(unittest.TestCase):
                 produced.write_bytes(_fake_dds_bytes(128, 128, mips=8))
                 return 0, "", ""
 
-            with patch("cdmw.core.pipeline.run_process_with_cancellation", side_effect=fake_texconv):
+            with patch("cdmw.core.texture_pipeline.texconv.run_process_with_cancellation", side_effect=fake_texconv):
                 summary = rebuild_dds_files(_config(original_root, png_root, output_root, texconv), on_log=logs.append)
 
             self.assertEqual(1, summary.converted)
@@ -157,7 +157,7 @@ class TextureWorkflowGuardrailTests(unittest.TestCase):
             with (
                 patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=native_binary),
                 patch("cdmw.core.texture_native.encode_dds_batch_with_directxtex", side_effect=fake_encode),
-                patch("cdmw.core.pipeline._run_texture_workflow_texconv") as texconv_run,
+                patch("cdmw.core.texture_pipeline.texconv._run_texture_workflow_texconv") as texconv_run,
             ):
                 summary = rebuild_dds_files(_config(original_root, png_root, output_root, texconv), on_log=logs.append)
 
@@ -176,7 +176,7 @@ class TextureWorkflowGuardrailTests(unittest.TestCase):
             def fake_texconv(_command: list[str], **_kwargs: object) -> tuple[int, str, str]:
                 return 0, "", ""
 
-            with patch("cdmw.core.pipeline.run_process_with_cancellation", side_effect=fake_texconv):
+            with patch("cdmw.core.texture_pipeline.texconv.run_process_with_cancellation", side_effect=fake_texconv):
                 summary = rebuild_dds_files(_config(original_root, png_root, output_root, texconv), on_log=logs.append)
 
             self.assertEqual(0, summary.converted)
@@ -193,7 +193,7 @@ class TextureWorkflowGuardrailTests(unittest.TestCase):
             def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
                 raise ProcessTimeoutExpired(command, 600)
 
-            with patch("cdmw.core.pipeline.run_process_with_cancellation", side_effect=fake_texconv):
+            with patch("cdmw.core.texture_pipeline.texconv.run_process_with_cancellation", side_effect=fake_texconv):
                 summary = rebuild_dds_files(_config(original_root, png_root, output_root, texconv), on_log=logs.append)
 
             self.assertEqual(0, summary.converted)

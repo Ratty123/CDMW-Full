@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from PySide6.QtGui import QIcon
+
 
 def _theme_icon_stem(theme_key: Optional[str]) -> str:
     text = str(theme_key or "").strip().lower()
@@ -70,3 +72,13 @@ def resolve_app_icon_path(theme_key: Optional[str] = None) -> Optional[Path]:
         if candidate.is_file():
             return candidate
     return None
+
+
+def load_app_icon(theme_key: Optional[str] = None) -> Tuple[QIcon, Optional[Path]]:
+    for candidate in iter_app_icon_candidate_paths(theme_key):
+        if not candidate.is_file():
+            continue
+        icon = QIcon(str(candidate))
+        if not icon.isNull():
+            return icon, candidate
+    return QIcon(), None

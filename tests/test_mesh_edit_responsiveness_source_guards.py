@@ -11,15 +11,53 @@ def _read(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
 
 
+def _mesh_edit_source() -> str:
+    return "\n".join(
+        (
+            _read("cdmw/ui/shell/app_window.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_state_callbacks.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_transform.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_base.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_a.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_b.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_callbacks.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_workflow_shell.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_ui_sections.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_combo_options.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_d3d11_state.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_d3d11_status_state.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_d3d11_runtime_state.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_d3d11_watchdog_state.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_diagnostics.py"),
+        )
+    )
+
+
 class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
     def test_mesh_edit_control_changes_sync_state_without_preview_reload(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
+        source = _mesh_edit_source()
 
-        self.assertIn('mesh_edit_selection_depth_combo.addItem(label, value)', source)
+        self.assertIn(
+            "_populate_combo_options_helper(mesh_edit_selection_depth_combo, MESH_EDIT_SELECTION_DEPTH_OPTIONS)",
+            source,
+        )
+        self.assertIn("MESH_EDIT_SELECTION_DEPTH_OPTIONS", source)
         self.assertIn('("Visible Only", "visible")', source)
         self.assertIn('("X-Ray", "xray")', source)
-        self.assertIn("def _mesh_edit_preview_source_indices(", source)
-        self.assertIn("raw_direct_source_preview_indices.update(_mesh_edit_preview_source_indices())", source)
+        self.assertIn("_mesh_edit_preview_source_indices = lambda", source)
+        self.assertIn("mesh_edit_source_indices=_mesh_edit_preview_source_indices()", source)
+        self.assertIn("_mesh_edit_preview_source_indices()", source)
         self.assertIn("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:", source)
         self.assertIn("_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")", source)
         self.assertIn("mesh_edit_enabled_checkbox.toggled.connect(_mesh_edit_enabled_toggled)", source)
@@ -55,10 +93,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
 
     def test_live_vertex_update_bridge_is_wired(self) -> None:
-        main_source = _read("cdmw/ui/main_window.py")
+        main_source = _mesh_edit_source()
         bridge_source = _read("cdmw/ui/native_d3d11_preview_host.py")
+        payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
 
-        for source in (main_source, bridge_source):
+        for source in (bridge_source,):
             self.assertIn('"command": "update_mesh_edit_vertices"', source)
             self.assertIn('"command": "replace_mesh_edit_triangles"', source)
             self.assertIn('selection_depth_mode: str = "visible"', source)
@@ -66,7 +105,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             self.assertIn('"smooth_iterations": int(smooth_iterations or 3)', source)
         self.assertIn("def _mesh_edit_live_vertex_update_groups(", main_source)
         self.assertIn("mesh_edit_live_update_timer.setInterval(16)", main_source)
-        self.assertIn("if include_normals and len(normals) == len(vertices):", main_source)
+        self.assertIn("if include_normals and len(normals) == len(vertices):", payload_source)
         self.assertIn("alignment_d3d11_preview_host.update_mesh_edit_vertices(groups)", main_source)
         self.assertIn("alignment_d3d11_preview_host.replace_mesh_edit_triangles(groups)", main_source)
         self.assertIn("_mesh_edit_update_live_preview(changed_vertices_by_submesh)", main_source)
@@ -130,24 +169,26 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('if (shift_down) return "add";', source)
 
     def test_mesh_edit_selection_ids_and_topology_replacement_are_safe_for_d3d11(self) -> None:
-        main_source = _read("cdmw/ui/main_window.py")
+        main_source = _mesh_edit_source()
+        payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
         native_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
         bridge_source = _read("cdmw/ui/native_d3d11_preview_host.py")
 
-        self.assertIn("_alignment_d3d11_source_indices_for_editor_id(editor_submesh_index)", main_source)
+        self.assertIn("source_indices_for_editor_id=_alignment_d3d11_source_indices_for_editor_id", main_source)
+        self.assertIn("source_indices_for_editor_id(editor_submesh_index)", payload_source)
         self.assertIn("def _mesh_edit_clear_topology_selection() -> None:", main_source)
         self.assertIn("alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", main_source)
         selection_start = main_source.index("def _mesh_edit_selection_changed(payload: object) -> None:")
         selection_body = main_source[selection_start: main_source.index("def _mesh_edit_control_tab_changed", selection_start)]
-        self.assertIn("allowed_indices = set(_mesh_edit_allowed_source_indices())", selection_body)
-        self.assertIn("vertex_count = len(", selection_body)
-        self.assertIn("if 0 <= vertex_index < vertex_count:", selection_body)
-        self.assertIn("face_count = len(", selection_body)
-        self.assertIn("if 0 <= face_index < face_count:", selection_body)
-        self.assertIn('group.get("source_face_indices")', selection_body)
+        self.assertIn("_mesh_edit_vertices_from_payload(payload)", selection_body)
+        self.assertIn("_mesh_edit_faces_from_payload(payload)", selection_body)
+        self.assertIn("allowed_indices = set(int(index) for index in allowed_source_indices)", payload_source)
+        self.assertIn("collection_count = len(", payload_source)
+        self.assertIn("if 0 <= index < collection_count:", payload_source)
+        self.assertIn('payload_index_key="source_face_indices"', main_source)
         self.assertIn("mesh_edit_selected_faces_by_submesh", selection_body)
-        self.assertIn('"indices": indices', main_source)
-        self.assertIn("source_vertex_indices.append(int(vertex_index))", main_source)
+        self.assertIn('"indices": indices', payload_source)
+        self.assertIn("source_vertex_indices.append(int(vertex_index))", payload_source)
         self.assertIn("delete_faces_by_indices(", main_source)
         self.assertIn("std::vector<EditorCandidate> mesh_edit_face_candidates_at", native_source)
         self.assertIn("std::vector<EditorCandidate> mesh_edit_brush_candidates_at", native_source)
@@ -160,17 +201,21 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('"command": "replace_mesh_edit_triangles_file"', bridge_source)
 
     def test_mesh_edit_tool_controls_are_capability_scoped(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
+        source = _mesh_edit_source()
+        state_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_state.py")
 
         self.assertNotIn('("Selection only", "selection")', source)
         self.assertIn("mesh_edit_field_rows: Dict[str, Tuple[QLabel, QWidget]] = {}", source)
-        self.assertIn('mesh_edit_select_part_button = QPushButton("Select Whole Part")', source)
-        self.assertIn('mesh_edit_invert_selection_button = QPushButton("Invert Selection")', source)
-        self.assertIn('selection_actions_visible = select_tool or selected_count > 0', source)
+        self.assertIn('"select_part": "Select Whole Part"', state_source)
+        self.assertIn('"invert_selection": "Invert Selection"', state_source)
+        self.assertIn('mesh_edit_select_part_button = QPushButton(mesh_edit_action_control_text["select_part"])', source)
+        self.assertIn('mesh_edit_invert_selection_button = QPushButton(mesh_edit_action_control_text["invert_selection"])', source)
+        self.assertIn('"selection_actions_visible": bool(select_tool or int(selected_count) > 0)', state_source)
         self.assertIn('_set_mesh_edit_row_visible("radius", sculpt_tool or remove_tool or brush_selection_tool)', source)
         self.assertIn('_set_mesh_edit_row_visible("strength", sculpt_tool)', source)
         self.assertIn('_set_mesh_edit_row_visible("falloff", sculpt_tool)', source)
-        self.assertIn('_set_mesh_edit_row_visible("iterations", current_tool == "smooth")', source)
+        self.assertIn('_set_mesh_edit_row_visible("iterations", smooth_tool)', source)
+        self.assertIn('"smooth_tool": tool == "smooth"', state_source)
         self.assertIn('_set_mesh_edit_row_visible("selection", select_tool)', source)
         self.assertIn('_set_mesh_edit_row_visible("depth", select_tool)', source)
         self.assertIn("mesh_edit_mirror_checkbox.setVisible(sculpt_tool)", source)
@@ -178,37 +223,53 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("mesh_edit_invert_selection_button.setVisible(select_tool)", source)
         self.assertIn("mesh_edit_subdivide_selection_button.setVisible(select_tool)", source)
         self.assertIn("mesh_edit_delete_faces_button.setVisible(select_tool)", source)
-        self.assertIn("def _mesh_edit_all_vertices_in_scope() -> Dict[int, set[int]]:", source)
+        self.assertIn("_mesh_edit_all_vertices_in_scope = lambda", source)
         self.assertIn("def _mesh_edit_select_whole_part() -> None:", source)
         self.assertIn("def _mesh_edit_invert_selection() -> None:", source)
         self.assertIn("mesh_edit_select_part_button.clicked.connect", source)
         self.assertIn("mesh_edit_invert_selection_button.clicked.connect", source)
 
     def test_mesh_edit_sculpt_payloads_map_d3d11_editor_ids_to_source_ids(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
+        source = _mesh_edit_source()
+        payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
         apply_start = source.index("def _mesh_edit_apply_preview_payload(payload: object) -> None:")
         apply_body = source[apply_start: source.index("def _mesh_edit_finish_stroke", apply_start)]
 
-        self.assertIn("allowed_indices = set(_mesh_edit_allowed_source_indices())", apply_body)
-        self.assertIn("editor_submesh_index = int(group.get(\"source_submesh_index\", -1))", apply_body)
-        self.assertIn("_alignment_d3d11_source_indices_for_editor_id(editor_submesh_index)", apply_body)
-        self.assertIn("for source_submesh_index in source_indices:", apply_body)
-        self.assertIn("if source_submesh_index not in allowed_indices:", apply_body)
+        self.assertIn("_mesh_edit_payload_vertex_groups_helper(", apply_body)
+        self.assertIn("source_indices_for_editor_id=_alignment_d3d11_source_indices_for_editor_id", apply_body)
+        self.assertIn("allowed_source_indices=_mesh_edit_allowed_source_indices()", apply_body)
+        self.assertIn("allowed_indices = set(int(index) for index in allowed_source_indices)", payload_source)
+        self.assertIn("editor_submesh_index = int(group.get(\"source_submesh_index\", -1))", payload_source)
+        self.assertIn("source_indices_for_editor_id(editor_submesh_index)", payload_source)
+        self.assertIn("for source_submesh_index in source_indices:", payload_source)
+        self.assertIn("if source_submesh_index not in allowed_indices:", payload_source)
 
     def test_mesh_edit_loading_watchdog_clears_stale_d3d11_state(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
-        package_source = _read("cdmw/rendering/native_preview_package.py")
+        source = _mesh_edit_source()
+        presentation_source = _read("cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py")
+        worker_source = _read("cdmw/workers/d3d11_package_workers.py")
+        package_source = "\n".join(
+            (
+                _read("cdmw/rendering/native_preview_package.py"),
+                _read("cdmw/rendering/native_preview_package_writer.py"),
+            )
+        )
         native_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
 
         self.assertIn("def _reset_alignment_d3d11_request_state(", source)
         self.assertIn("def _alignment_d3d11_request_active() -> bool:", source)
         self.assertIn('_clear_stuck_alignment_d3d11_loading("loading watchdog")', source)
-        self.assertIn('message="Preview idle."', source)
-        self.assertIn('"D3D11 preview loading state cleared."', source)
+        self.assertIn("Preview idle.", source)
+        self.assertIn("_alignment_d3d11_loading_cleared_performance_helper(", source)
+        self.assertIn('"D3D11 preview loading state cleared."', presentation_source)
         self.assertIn("def _set_alignment_d3d11_progress(", source)
-        self.assertIn("Preview stale/no fresh frame.", source)
-        self.assertIn("D3D11 preview stale/no fresh frame", source)
-        self.assertIn("progress_changed = Signal(int, int, int, str)", source)
+        self.assertIn("Preview reload restarted.", source)
+        self.assertIn("_alignment_d3d11_restart_performance_helper(", source)
+        self.assertIn("D3D11 preview reload restarted", presentation_source)
+        self.assertIn('"stale_reload_restart_count": 0', source)
+        self.assertIn("def _alignment_d3d11_live_frame_available() -> bool:", source)
+        self.assertIn("active=not live_frame_available", source)
+        self.assertIn("progress_changed = Signal(int, int, int, str)", worker_source)
         self.assertIn("class _AlignmentD3D11PackageWorkerReceiver(QObject):", source)
         self.assertIn("@Slot(int, int, int, str)", source)
         self.assertIn("@Slot(int, object, float, float)", source)
@@ -219,7 +280,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("Qt.QueuedConnection", source)
         self.assertIn('percent = int(round(float(payload.get("percent", 0) or 0)))', source)
         self.assertIn("on_progress: Optional[Callable[[int, int, str], None]] = None", package_source)
-        self.assertIn("on_progress=_emit_package_progress", source)
+        self.assertIn("on_progress=_emit_package_progress", worker_source)
         self.assertIn('\\"percent\\":85', native_source)
         self.assertIn('\\"percent\\":90', native_source)
         self.assertIn("resources_loaded_payload", native_source)
@@ -228,57 +289,86 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('\\"parent_renderable\\"', native_source)
 
     def test_mesh_edit_raw_package_and_live_restore_paths_exist(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
-        worker_source = source[source.index("class AlignmentD3D11PackageWorker"): source.index("class DetachedToolWindow")]
+        source = _mesh_edit_source()
+        worker_source = _read("cdmw/workers/d3d11_package_workers.py")
+        d3d11_cache_source = _read("cdmw/ui/archive_browser/static_replacement_d3d11_cache.py")
+        d3d11_presentation_source = _read("cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py")
+        raw_preview_state_source = _read("cdmw/ui/archive_browser/static_replacement_raw_preview_state.py")
+        mesh_edit_state_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_state.py")
 
-        self.assertIn("def _mesh_edit_raw_preview_active() -> bool:", source)
-        self.assertIn("mesh_edit_raw_preview_state = {\"active\": False}", source)
+        self.assertIn("_mesh_edit_raw_preview_active = lambda", source)
+        self.assertIn("def mesh_edit_raw_preview_initial_state() -> dict[str, bool]:", raw_preview_state_source)
+        self.assertIn(
+            "mesh_edit_raw_preview_state = _mesh_edit_raw_preview_initial_state_helper()",
+            source,
+        )
+        self.assertIn(
+            "_mesh_edit_raw_preview_record_state_helper(",
+            source,
+        )
         self.assertIn("def _mesh_edit_apply_preview_mode_transition(reason: str) -> None:", source)
         self.assertIn('"mesh_edit_preview_mode_transition"', source)
         self.assertIn('_alignment_d3d11_invalidate_package_cache("mesh_edit_mode")', source)
-        self.assertIn("def _alignment_d3d11_raw_package_active_or_pending() -> bool:", source)
-        self.assertIn('_alignment_d3d11_raw_package_active_or_pending()', source)
-        self.assertIn('("request_package_qualities", {})', source)
-        self.assertIn('("package_quality", "normal")', source)
+        self.assertIn("def alignment_d3d11_raw_package_active_or_pending(state: Mapping[str, object]) -> bool:", source)
+        self.assertIn('_alignment_d3d11_raw_package_active_or_pending_helper(alignment_d3d11_state)', source)
+        self.assertIn('"request_package_qualities": {},', source)
+        self.assertIn('"package_quality": "normal",', source)
+        self.assertIn('state["package_quality"] = str(package_quality or "normal")', d3d11_cache_source)
+        self.assertIn('state["package_quality"] = "normal"', d3d11_cache_source)
         self.assertIn("_queue_texture_preview_refresh()", source)
         self.assertIn('_mesh_edit_apply_preview_mode_transition("left_mesh_edit_tab")', source)
         self.assertNotIn('return _alignment_d3d11_fast_render_settings(settings), False, False, "fast_geometry"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "mesh_edit_raw"', source)
-        self.assertNotIn("fast_settings.disable_all_support_maps = True", source)
-        self.assertNotIn("fast_settings.disable_normal_map = True", source)
-        self.assertNotIn("fast_settings.disable_material_map = True", source)
-        self.assertNotIn("fast_settings.disable_height_map = True", source)
+        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"', d3d11_presentation_source)
+        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "mesh_edit_raw"', d3d11_presentation_source)
+        self.assertNotIn("fast_settings.disable_all_support_maps = True", d3d11_presentation_source)
+        self.assertNotIn("fast_settings.disable_normal_map = True", d3d11_presentation_source)
+        self.assertNotIn("fast_settings.disable_material_map = True", d3d11_presentation_source)
+        self.assertNotIn("fast_settings.disable_height_map = True", d3d11_presentation_source)
         self.assertIn("mesh_edit_raw_package = _mesh_edit_raw_preview_active()", source)
         self.assertIn('worker_use_textures = bool(getattr(settings, "use_textures_by_default", True))', source)
         self.assertIn("original_reference_material_parity=worker_original_reference_material_parity", source)
         self.assertIn("reuse_prepared_geometry=bool(geometry_signature)", source)
-        self.assertIn("def _mesh_by_source_identity", source)
+        self.assertIn("def _mesh_by_source_identity", worker_source)
         poll_start = source.index("def _poll_alignment_d3d11_status() -> None:")
         loaded_start = source.index('if event == "loaded":', poll_start)
         loaded_block = source[loaded_start: source.index('elif event == "loading":', loaded_start)]
         self.assertIn("_sync_mesh_edit_preview_settings()", loaded_block)
         self.assertIn("enable_material_combiner=bool(self.enable_material_combiner and self.use_textures)", worker_source)
         self.assertIn("def _mesh_edit_full_reset_mesh() -> None:", source)
-        self.assertIn('mesh_edit_full_reset_button = QPushButton("Full Reset Mesh")', source)
-        self.assertIn("def _mesh_edit_part_enabled_snapshot() -> Dict[int, bool]:", source)
+        self.assertIn('"full_reset_mesh": "Full Reset Mesh"', mesh_edit_state_source)
+        self.assertIn('mesh_edit_full_reset_button = QPushButton(mesh_edit_action_control_text["full_reset_mesh"])', source)
+        self.assertIn("_mesh_edit_part_enabled_snapshot = lambda", source)
         self.assertIn("def _mesh_edit_restore_enabled_snapshot(snapshot: Mapping[int, bool]) -> None:", source)
         self.assertNotIn("def _mesh_edit_restore_adjustment_snapshot", source)
-        self.assertIn("restore_deleted_output = (", source)
+        self.assertIn("mesh_edit_should_restore_deleted_output(", mesh_edit_state_source)
+        self.assertIn("restore_deleted_output = _mesh_edit_should_restore_deleted_output_helper(", source)
         self.assertIn("def _mesh_edit_transformed_sources_for_live_preview(source_indices: Iterable[int])", source)
         self.assertIn("def _mesh_edit_submesh_for_live_preview(source_index: int):", source)
-        self.assertIn("alignment_basis_mesh=replacement_mesh_base_for_mapping or replacement_mesh_for_mapping", source)
+        self.assertIn(
+            "alignment_basis_mesh=_mesh_edit_state.replacement_mesh_base_for_mapping or _mesh_edit_state.replacement_mesh_for_mapping",
+            source,
+        )
         self.assertIn("transformed_sources_by_index = _mesh_edit_transformed_sources_for_live_preview", source)
         self.assertIn("alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", source)
         self.assertIn("_mesh_edit_replace_live_triangles(source_indices)", source)
 
     def test_alignment_mesh_editor_texture_settings_and_view_mode_are_wired(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
+        source = (
+            _mesh_edit_source()
+            + "\n"
+            + _read("cdmw/ui/archive_browser/preview_settings.py")
+            + "\n"
+            + _read("cdmw/ui/archive_browser/static_replacement_d3d11_cache.py")
+        )
 
         self.assertIn("dialog.settings_changed.connect(settings_changed_handler)", source)
         self.assertIn("alignment_d3d11_view_mode_combo = QComboBox()", source)
-        self.assertIn("for mode in D3D11_PREVIEW_VIEW_MODES:", source)
-        self.assertIn("D3D11_PREVIEW_VIEW_MODE_LABELS.get(mode, mode)", source)
+        self.assertIn(
+            "_d3d11_view_mode_options_helper(D3D11_PREVIEW_VIEW_MODES, D3D11_PREVIEW_VIEW_MODE_LABELS)",
+            source,
+        )
+        self.assertIn("_populate_combo_options_helper(", source)
+        self.assertIn("alignment_d3d11_view_mode_combo,", source)
         self.assertIn("(alignment_d3d11_view_mode_combo, settings.d3d11_view_mode)", source)
         self.assertIn("alignment_d3d11_view_mode_combo.currentIndexChanged.connect(_apply_alignment_preview_render_settings)", source)
         self.assertIn("def _alignment_preview_render_settings_from_controls(", source)
@@ -292,8 +382,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('bool(getattr(settings, "high_quality_by_default", True))', source)
 
     def test_mesh_edit_live_preview_uses_frozen_alignment_basis(self) -> None:
-        main_source = _read("cdmw/ui/main_window.py")
-        replacer_source = _read("cdmw/modding/static_mesh_replacer.py")
+        main_source = _mesh_edit_source()
+        replacer_source = "\n".join(
+            (
+                _read("cdmw/modding/static_mesh_replacer.py"),
+                _read("cdmw/modding/static_mesh_runtime_builder.py"),
+            )
+        )
 
         self.assertIn("alignment_basis_mesh: ParsedMesh | None = None", replacer_source)
         self.assertIn("basis_mesh = alignment_basis_mesh or replacement_mesh", replacer_source)
@@ -302,10 +397,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("replacement_mesh_base_for_mapping", main_source)
 
     def test_mesh_edit_drag_inverts_preview_delta_without_display_space_rewrite(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
+        source = _mesh_edit_source()
         native_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
         prep_source = _read("cdmw/rendering/model_preview_prepare.py")
-        package_source = _read("cdmw/rendering/native_preview_package.py")
+        package_source = "\n".join(
+            (
+                _read("cdmw/rendering/native_preview_package.py"),
+                _read("cdmw/rendering/native_preview_package_writer.py"),
+            )
+        )
 
         live_start = source.index("def _mesh_edit_update_live_preview(")
         live_body = source[live_start: source.index("def _mesh_edit_begin_stroke", live_start)]
@@ -327,15 +427,19 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("source_center = _mesh_edit_preview_point_to_source_point(source_submesh_index, center)", apply_body)
         self.assertIn("source_radius = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, radius)", apply_body)
         self.assertIn("source_amount = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, amount)", apply_body)
-        self.assertIn("apply_vertex_delta(\n                                    submesh,", apply_body)
-        self.assertIn("apply_brush_deformation(\n                                    submesh,", apply_body)
+        self.assertIn("changed = apply_vertex_delta(", apply_body)
+        self.assertIn("submesh,\n                    vertex_indices,", apply_body)
+        self.assertIn("changed = apply_brush_deformation(", apply_body)
+        self.assertIn("submesh,\n                    tool=tool,", apply_body)
         self.assertIn("center=source_center", apply_body)
         self.assertIn("radius=source_radius", apply_body)
         self.assertIn("amount=source_amount", apply_body)
         self.assertIn('drag_delta=source_delta if tool in {"grab"} else source_step_delta', apply_body)
         self.assertNotIn("def _mesh_edit_apply_display_space_vertex_result(", source)
         self.assertNotIn("display_submesh = _mesh_edit_submesh_for_live_preview(source_submesh_index)", apply_body)
-        self.assertIn("if (!alignment_.enabled || batch_is_reference(batch) || !batch.editor_editable) return false;", native_source)
+        self.assertIn("bool alignment_batch_editable(const PreviewBatch& batch) const {", native_source)
+        self.assertIn("return !batch_is_reference(batch) && batch.editor_editable;", native_source)
+        self.assertIn("if (!alignment_.enabled || view.role == PreviewViewRole::Reference) return;", native_source)
         self.assertIn('reference_role = "reference" in editor_role_key or "original" in editor_role_key', prep_source)
         self.assertIn("editor_editable = bool((mesh_source_submesh_index >= 0 or replacement_role) and not reference_role)", prep_source)
         self.assertIn('"editable": bool(getattr(batch, "editor_editable", source_submesh_index >= 0)) and not reference_role', package_source)
@@ -347,41 +451,50 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertGreaterEqual(source.count(r"(?:[eE][+-]?\\d+)?"), 3)
 
     def test_modify_original_material_preview_is_not_skipped_during_mesh_edit(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
+        source = _mesh_edit_source()
 
         refresh_start = source.index("def _refresh_static_dialog_preview(*, live_mesh_edit: bool = False) -> None:")
         refresh_body = source[refresh_start: source.index("def _safe_refresh_static_dialog_preview", refresh_start)]
-        self.assertIn('needs_original_material_preview = bool(original_texture_preview_state.get("enabled"))', refresh_body)
-        self.assertIn("(not mesh_edit_direct_source_preview or needs_original_material_preview)", refresh_body)
+        static_preview_state = _read(
+            "cdmw/ui/archive_browser/static_replacement_static_preview_state.py"
+        )
+        self.assertIn("needs_original_material_preview = _original_texture_preview_material_preview_enabled_helper(", refresh_body)
+        self.assertIn("refresh_route.require_original_reference", refresh_body)
+        self.assertIn("not mesh_edit_direct_source_preview or needs_original_material_preview", static_preview_state)
         self.assertIn("_apply_original_material_preview(", refresh_body)
         self.assertNotIn("if not mesh_edit_direct_source_preview:\n                        _apply_original_material_preview(", refresh_body)
 
     def test_mesh_edit_disables_native_alignment_transform(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
+        source = _mesh_edit_source()
 
         sync_start = source.index("def _sync_mesh_edit_preview_settings() -> None:")
         sync_body = source[sync_start: source.index("def _refresh_mesh_edit_controls", sync_start)]
-        self.assertIn('alignment_d3d11_state["pending_fast_transform"] = None', sync_body)
+        self.assertIn("_clear_alignment_d3d11_fast_transform_state()", sync_body)
         self.assertIn("alignment_d3d11_preview_host.set_alignment_state(", sync_body)
         self.assertIn("enabled=False", sync_body)
         self.assertIn("alignment_d3d11_preview_host.set_alignment_preview_transform()", sync_body)
 
         highlight_start = source.index("def _sync_highlight_sets() -> None:")
         highlight_body = source[highlight_start: source.index("def _preview_mode_qt_widgets", highlight_start)]
-        self.assertIn("mesh_edit_raw_active = bool(_mesh_edit_raw_preview_active())", highlight_body)
-        self.assertIn("gizmo_enabled = bool(preview_gizmo_checkbox.isChecked()) and not mesh_edit_raw_active", highlight_body)
+        self.assertIn("_selection_highlight_sets_state_helper(", highlight_body)
+        self.assertIn("mesh_edit_raw_active=bool(_mesh_edit_raw_preview_active()) if d3d11_active else False", highlight_body)
+        self.assertIn("preview_gizmo_checked=bool(preview_gizmo_checkbox.isChecked()) if d3d11_active else False", highlight_body)
+        self.assertIn("enabled=bool(selection_state[\"d3d11_gizmo_enabled\"])", highlight_body)
 
         replay_start = source.index("def _replay_alignment_d3d11_fast_transform() -> None:")
         replay_body = source[replay_start: source.index("def _apply_global_transform_fast_preview", replay_start)]
-        self.assertIn("if _mesh_edit_raw_preview_active():", replay_body)
-        self.assertIn('alignment_d3d11_state["pending_fast_transform"] = None', replay_body)
+        self.assertIn("_alignment_d3d11_fast_transform_replay_state_helper(", replay_body)
+        self.assertIn("mesh_edit_raw_active=_mesh_edit_raw_preview_active()", replay_body)
+        self.assertIn("_clear_alignment_d3d11_fast_transform_state()", replay_body)
         self.assertIn("alignment_d3d11_preview_host.set_alignment_preview_transform()", replay_body)
 
     def test_subdivide_selection_is_explicit_topology_path_not_sculpt_toggle(self) -> None:
-        source = _read("cdmw/ui/main_window.py")
+        source = _mesh_edit_source()
         deformer_source = _read("cdmw/modding/mesh_deformer.py")
+        mesh_edit_state_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_state.py")
 
-        self.assertIn('mesh_edit_subdivide_selection_button = QPushButton("Subdivide Selection")', source)
+        self.assertIn('"subdivide_selection": "Subdivide Selection"', mesh_edit_state_source)
+        self.assertIn('mesh_edit_subdivide_selection_button = QPushButton(mesh_edit_action_control_text["subdivide_selection"])', source)
         self.assertIn("def _mesh_edit_subdivide_selection() -> None:", source)
         self.assertIn("mesh_edit_subdivide_selection_button.clicked.connect", source)
         self.assertIn("subdivide_faces_touching_vertices(", source)
