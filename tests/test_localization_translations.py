@@ -51,8 +51,6 @@ def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> Non
     assert german.translate("Rebuilt DDS folder") == "Neu erstellter DDS-Ordner"
     assert spanish.translate("Shortcuts") == "Atajos"
     assert german.translate("Shortcuts") == "Tastenkurzel"
-    assert spanish.translate("Dashboard") == "Panel"
-    assert german.translate("Dashboard") == "Dashboard"
     assert spanish.translate("Composite Preview...") == "Vista previa compuesta..."
     assert german.translate("Composite Preview...") == "Kompositvorschau..."
     assert spanish.translate("Appearance Armor Swap...") == "Intercambio de armadura de apariencia..."
@@ -158,7 +156,6 @@ def test_documentation_and_readme_cover_current_mesh_and_dds_workflows() -> None
     main_window_source = _about_documentation_source()
     readme_source = Path("README.md").read_text(encoding="utf-8")
 
-    assert "Dashboard</b>: compact workspace health" in main_window_source
     assert "OBJ/DAE/glTF/GLB preview" in main_window_source
     assert "Appearance Armor Swap</b> loose packages" not in main_window_source
     assert "Runtime XML preserve</b> keeps target/corpus PAC XML structure" in main_window_source

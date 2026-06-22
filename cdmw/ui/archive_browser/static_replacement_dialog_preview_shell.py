@@ -370,7 +370,8 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_preview_layout.setSpacing(3)
     alignment_d3d11_preview_host = NativeD3D11PreviewHostFrame(alignment_d3d11_preview_page)
     alignment_d3d11_preview_host.setObjectName("AlignmentNativeD3D11PreviewHost")
-    alignment_d3d11_preview_host.setAttribute(Qt.WA_NativeWindow, True)
+    # Let winId() create the native handle after the builder is visible; eager
+    # native child creation can hard-crash when the alignment dialog is shown.
     alignment_d3d11_preview_host.setMinimumSize(300, 280)
     alignment_d3d11_preview_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     alignment_d3d11_preview_legend_label = QLabel(alignment_preview_control_text["d3d11_legend"])
@@ -538,6 +539,8 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_performance_label.setToolTip(preview_performance_initial_status.tooltip)
     preview_panel_layout.addWidget(preview_performance_label)
 
+    alignment_dialog_layout_state = _alignment_dialog_layout_initial_state_helper()
+    previous_dialog_resize_event = dialog.resizeEvent
     alignment_dialog_layout_callbacks = create_alignment_dialog_layout_callbacks({**context, **globals(), **locals()})
     _set_preview_performance_status = alignment_dialog_layout_callbacks._set_preview_performance_status
     _apply_alignment_dialog_responsive_layout = alignment_dialog_layout_callbacks._apply_alignment_dialog_responsive_layout
@@ -550,12 +553,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     main_splitter.setStretchFactor(0, 1)
     main_splitter.setStretchFactor(1, 1)
     root_layout.addWidget(main_splitter, 1)
-
-    alignment_dialog_layout_state = _alignment_dialog_layout_initial_state_helper()
-
-
-    previous_dialog_resize_event = dialog.resizeEvent
-
 
     dialog.resizeEvent = _responsive_dialog_resize_event  # type: ignore[method-assign]
 

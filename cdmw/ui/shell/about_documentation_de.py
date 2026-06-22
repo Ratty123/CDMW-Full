@@ -50,7 +50,6 @@ class AboutDocumentationGermanMixin:
                 "html": """
                 <p>Die App ist in Arbeitsbereiche aufgeteilt, damit nicht jede Aufgabe durch dieselbe Pipeline laufen muss.</p>
                 <ul>
-                  <li><b>Dashboard</b>: Workspace-Zustand, Werkzeugpfade, letzte Arbeit und letzter Lauf mit Schnellzugriff auf Ausgabe, Vergleich und Logs.</li>
                   <li><b>Textur-Workflow</b>: Stapelverarbeitung loser DDS, optionales Upscaling, DDS-Neuaufbau, Vergleich und mod-fertiger Export.</li>
                   <li><b>Archiv-Browser</b>: Scannen, Filtern, Vorschau, Extraktion, Loose-Export und kompatible Patches.</li>
                   <li><b>Modellbibliothek</b>: lokale/importierbare Modelle scannen, anzeigen und an Archiv-Browser-Workflows uebergeben.</li>

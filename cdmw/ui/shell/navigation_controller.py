@@ -68,11 +68,11 @@ class NavigationControllerMixin:
 
     def _restore_saved_navigation(self) -> None:
         if not self._preference_bool("restore_last_active_tab", True):
-            self.main_tabs.setCurrentWidget(self.dashboard_tab)
+            self._activate_tool_key("archive_browser")
             return
         saved_key = str(self.settings.value("ui/active_tool_key", "") or "").strip()
         if saved_key == "dashboard":
-            self.main_tabs.setCurrentWidget(self.dashboard_tab)
+            self._activate_tool_key("archive_browser")
             return
         if saved_key in self._tool_widgets_by_key:
             self._activate_tool_key(saved_key)
@@ -93,7 +93,7 @@ class NavigationControllerMixin:
             if 0 <= legacy_index < len(legacy_keys):
                 self._activate_tool_key(legacy_keys[legacy_index])
                 return
-        self.main_tabs.setCurrentWidget(self.dashboard_tab)
+        self._activate_tool_key("archive_browser")
 
     def _register_detachable_tool(self, key: str, widget: QWidget, title: str) -> None:
         if key in self._tool_widgets_by_key:

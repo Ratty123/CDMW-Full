@@ -123,7 +123,8 @@ def create_alignment_dialog_layout_callbacks(context: dict[str, object]) -> Simp
     def _responsive_dialog_resize_event(event: object) -> None:
         if not _alignment_dialog_widgets_live():
             return
-        previous_dialog_resize_event(event)
+        if callable(previous_dialog_resize_event):
+            previous_dialog_resize_event(event)
         QTimer.singleShot(0, _apply_alignment_dialog_responsive_layout)
 
     def _run_static_preview_batch(callback: Callable[[], None]) -> None:
@@ -202,15 +203,17 @@ def create_alignment_original_texture_intent_callbacks(context: dict[str, object
 
         def _matches_target(binding: object, target_name: str) -> bool:
             try:
-                return _binding_matches_target(binding, target_name)
+                if callable(_binding_matches_target):
+                    return _binding_matches_target(binding, target_name)
             except NameError:
-                binding_names = (
-                    str(getattr(binding, "part_name", "") or ""),
-                    str(getattr(binding, "submesh_name", "") or ""),
-                    str(getattr(binding, "material_name", "") or ""),
-                )
-                target_key = target_name.lower()
-                return any(name.strip().lower() == target_key for name in binding_names)
+                pass
+            binding_names = (
+                str(getattr(binding, "part_name", "") or ""),
+                str(getattr(binding, "submesh_name", "") or ""),
+                str(getattr(binding, "material_name", "") or ""),
+            )
+            target_key = target_name.lower()
+            return any(name.strip().lower() == target_key for name in binding_names)
 
         return _original_part_texture_intent_rows_helper(
             original_index,
@@ -607,46 +610,70 @@ def create_alignment_source_part_glow_callbacks(context: dict[str, object]) -> S
     part_glow_color_spins = context.get('part_glow_color_spins')
     spin = context.get('spin')
 
+    prompt_shell_context = context.get('prompt_shell_context')
+
+    def _prompt_context_value(name: str) -> object:
+        if isinstance(prompt_shell_context, dict) and name in prompt_shell_context:
+            return prompt_shell_context.get(name)
+        return context.get(name)
+
+    def _part_glow_color_checkbox() -> object:
+        return _prompt_context_value('part_glow_color_checkbox')
+
+    def _part_glow_color_pick_button() -> object:
+        return _prompt_context_value('part_glow_color_pick_button')
+
+    def _part_glow_color_spins() -> tuple[object, ...]:
+        spins = _prompt_context_value('part_glow_color_spins')
+        if not isinstance(spins, (list, tuple)):
+            return ()
+        return tuple(
+            spin
+            for spin in spins
+            if callable(getattr(spin, "value", None))
+        )
+
     def _selected_part_glow_rgb_from_controls() -> tuple[int, int, int]:
-        return _source_part_glow_rgb_helper(tuple(spin.value() for spin in part_glow_color_spins))
+        values = tuple(spin.value() for spin in _part_glow_color_spins())
+        if callable(_source_part_glow_rgb_helper):
+            return _source_part_glow_rgb_helper(values)
+        return (0, 0, 0)
 
     def _sync_part_glow_color_button() -> None:
-        try:
-            controls_ready = bool(part_glow_color_spins)
-        except NameError:
-            return
-        if not controls_ready:
+        spins = _part_glow_color_spins()
+        checkbox = _part_glow_color_checkbox()
+        pick_button = _part_glow_color_pick_button()
+        if not spins or checkbox is None or pick_button is None:
             return
         controls_state = _source_part_glow_color_controls_state_helper(
             rgb=_selected_part_glow_rgb_from_controls(),
             complete_external_swap_enabled=True,
-            checked=part_glow_color_checkbox.isChecked(),
-            checkbox_enabled=part_glow_color_checkbox.isEnabled(),
+            checked=checkbox.isChecked(),
+            checkbox_enabled=checkbox.isEnabled(),
         )
-        part_glow_color_pick_button.setText(controls_state.color_text)
-        part_glow_color_pick_button.setStyleSheet(controls_state.style_sheet)
+        pick_button.setText(controls_state.color_text)
+        pick_button.setStyleSheet(controls_state.style_sheet)
 
     def _refresh_part_glow_color_controls_enabled() -> None:
-        try:
-            controls_ready = bool(part_glow_color_spins)
-        except NameError:
-            return
-        if not controls_ready:
+        spins = _part_glow_color_spins()
+        checkbox = _part_glow_color_checkbox()
+        pick_button = _part_glow_color_pick_button()
+        if not spins or checkbox is None or pick_button is None:
             return
         try:
             can_override = bool(_complete_external_swap_enabled())
         except Exception:
             can_override = True
-        part_glow_color_checkbox.setEnabled(can_override)
+        checkbox.setEnabled(can_override)
         controls_state = _source_part_glow_color_controls_state_helper(
             rgb=_selected_part_glow_rgb_from_controls(),
             complete_external_swap_enabled=can_override,
-            checked=part_glow_color_checkbox.isChecked(),
-            checkbox_enabled=part_glow_color_checkbox.isEnabled(),
+            checked=checkbox.isChecked(),
+            checkbox_enabled=checkbox.isEnabled(),
         )
-        for spin in part_glow_color_spins:
+        for spin in spins:
             spin.setEnabled(controls_state.enabled)
-        part_glow_color_pick_button.setEnabled(controls_state.enabled)
+        pick_button.setEnabled(controls_state.enabled)
         _sync_part_glow_color_button()
 
     def _load_part_glow_color_controls(adjustment: Optional[StaticSourcePartAdjustment]) -> None:

@@ -11,8 +11,12 @@ os.environ.setdefault("CDMW_GUI_STARTUP_SMOKE", "1")
 
 from PySide6.QtWidgets import QApplication, QPushButton
 
+from cdmw.app.events import AppEventBus
 from cdmw.models import ArchiveEntry
+from cdmw.services.service_container import ServiceContainer
+from cdmw.services.settings_service import create_settings
 from cdmw.ui.main_window import MainWindow
+from cdmw.ui.shell.app_context import AppContext
 
 
 def _app() -> QApplication:
@@ -51,7 +55,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             for index in range(self.window.main_tabs.count())
             if self.window.main_tabs.isTabVisible(index)
         ]
-        self.assertEqual(["Dashboard", "Assets", "Textures", "Research", "Tools"], visible_main_tabs)
+        self.assertEqual(["Assets", "Textures", "Research", "Tools"], visible_main_tabs)
         self.assertFalse(self.window.main_tabs.isTabVisible(self.window.main_tabs.indexOf(self.window.settings_tab)))
 
         expected_tools = {
@@ -74,6 +78,24 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             widget = self.window._tool_widgets_by_key[key]
             self.window._activate_tool_widget(widget)
             self.assertIs(self.window._current_navigation_widget(), widget, key)
+
+    def test_new_user_opens_archive_browser_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = create_settings(settings_file_path=Path(temp_dir) / "cdmw-test.cfg")
+            context = AppContext(
+                settings=settings,
+                services=ServiceContainer.create_default(settings=settings),
+                event_bus=AppEventBus(),
+            )
+            window = MainWindow(app_context=context)
+            try:
+                self.assertIs(window.main_tabs.currentWidget(), window.assets_tabs)
+                self.assertIs(window.assets_tabs.currentWidget(), window.archive_browser_tab)
+                self.assertEqual("archive_browser", settings.value("ui/active_tool_key"))
+            finally:
+                window._finalize_close()
+                window.deleteLater()
+                _app().processEvents()
 
     def test_retrofit_repackage_action_opens_tab_not_modal_dialog(self) -> None:
         with patch.object(self.window, "_show_mod_package_retrofit_dialog") as open_dialog:

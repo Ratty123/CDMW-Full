@@ -47,9 +47,14 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
     replacement_preview_model = context.get('replacement_preview_model')
     selected_source_part = context.get('selected_source_part')
     self = context.get('self')
-    texture_files_for_mapping = context.get('texture_files_for_mapping')
-    texture_sets = context.get('texture_sets')
+    texture_files_for_mapping = context.get('texture_files_for_mapping') or ()
+    texture_sets = context.get('texture_sets') or {}
     time = context.get('time')
+
+    def _mesh_edit_tab_active() -> bool:
+        if not callable(_alignment_mesh_edit_tab_active):
+            return False
+        return bool(_alignment_mesh_edit_tab_active())
 
     def _refresh_mesh_editor_diagnostics(*, auto: bool = False) -> None:
         text_widget = _mesh_editor_diagnostics_text_widget_helper(mesh_editor_diagnostics_state)
@@ -71,7 +76,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "d3d11_active", lambda: bool(_alignment_d3d11_preview_active()))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "d3d11_status_label", lambda: alignment_d3d11_preview_status_label.text())
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "preview_timing_label", lambda: preview_performance_label.text())
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_tab_active", lambda: bool(_alignment_mesh_edit_tab_active()))
+        _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_tab_active", _mesh_edit_tab_active)
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_enabled", lambda: bool(mesh_edit_enabled_checkbox.isChecked()))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_raw_preview_active", lambda: bool(_mesh_edit_raw_preview_active()))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_show_vertices", lambda: bool(mesh_edit_show_vertices_checkbox.isChecked()))
@@ -1231,7 +1236,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
         finally:
             part_inspector_loading["active"] = False
             try:
-                _refresh_mesh_edit_controls()
+                if callable(_refresh_mesh_edit_controls):
+                    _refresh_mesh_edit_controls()
             except NameError:
                 pass
 
@@ -3730,7 +3736,7 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
     _sync_alignment_transform_slider_from_spin = context.get('_sync_alignment_transform_slider_from_spin')
     _sync_part_slider_from_spin = context.get('_sync_part_slider_from_spin')
     alignment_d3d11_drag_generation = context.get('alignment_d3d11_drag_generation')
-    alignment_d3d11_drag_transaction = context.get('alignment_d3d11_drag_transaction')
+    alignment_d3d11_drag_transaction = context.get('alignment_d3d11_drag_transaction') or {}
     alignment_d3d11_drag_ui_state = context.get('alignment_d3d11_drag_ui_state')
     alignment_d3d11_drag_ui_timer = context.get('alignment_d3d11_drag_ui_timer')
     alignment_d3d11_preview_host = context.get('alignment_d3d11_preview_host')
@@ -5331,8 +5337,8 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
         edit.setMinimumHeight(max(22, edit.sizeHint().height()))
         edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         mapping_tree.setItemWidget(mapping_item, 2, edit)
-        mapping_edits.append((row - 1, edit))
-        mapping_edits_by_target[row - 1] = edit
+        mapping_edits.append((row_state.target_index, edit))
+        mapping_edits_by_target[row_state.target_index] = edit
 
     def _build_mapping_table_chunk() -> None:
         if (
@@ -5823,6 +5829,7 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
     _clear_alignment_d3d11_fast_transform_state = context.get('_clear_alignment_d3d11_fast_transform_state')
     _current_alignment_preview_render_settings = context.get('_current_alignment_preview_render_settings')
     _fixed_alignment_camera_state_helper = context.get('_fixed_alignment_camera_state_helper')
+    _get_preview_render_settings = context.get('_get_preview_render_settings')
     _nudged_alignment_camera_state_helper = context.get('_nudged_alignment_camera_state_helper')
     _qt_alignment_camera_state_mapping_helper = context.get('_qt_alignment_camera_state_mapping_helper')
     _qt_alignment_camera_tuple_helper = context.get('_qt_alignment_camera_tuple_helper')
@@ -5836,7 +5843,7 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
     _set_preview_performance_status = context.get('_set_preview_performance_status')
     _sync_highlight_sets = context.get('_sync_highlight_sets')
     alignment_d3d11_available = context.get('alignment_d3d11_available')
-    alignment_d3d11_drag_transaction = context.get('alignment_d3d11_drag_transaction')
+    alignment_d3d11_drag_transaction = context.get('alignment_d3d11_drag_transaction') or {}
     alignment_d3d11_loading_spinner_label = context.get('alignment_d3d11_loading_spinner_label')
     alignment_d3d11_loading_state = context.get('alignment_d3d11_loading_state')
     alignment_d3d11_loading_timer = context.get('alignment_d3d11_loading_timer')
@@ -5847,17 +5854,31 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
     alignment_d3d11_view_state = context.get('alignment_d3d11_view_state')
     alignment_preview_mode_view_states = context.get('alignment_preview_mode_view_states')
     alignment_preview_view_sync = context.get('alignment_preview_view_sync')
-    alignment_transform_generation = context.get('alignment_transform_generation')
+    alignment_transform_generation = context.get('alignment_transform_generation') or {}
     dialog_title = context.get('dialog_title')
     entry = context.get('entry')
     original_dialog_preview = context.get('original_dialog_preview')
     overlay_dialog_preview = context.get('overlay_dialog_preview')
     preview_mode_combo = context.get('preview_mode_combo')
+    preview_render_settings = context.get('preview_render_settings')
     preview_renderer_combo = context.get('preview_renderer_combo')
     replacement_only_preview = context.get('replacement_only_preview')
     self = context.get('self')
     static_dialog_preview = context.get('static_dialog_preview')
     time = context.get('time')
+
+    def _set_preview_performance_status_if_ready(summary: str, *, details: str = "") -> None:
+        if callable(_set_preview_performance_status):
+            _set_preview_performance_status(summary, details=details)
+
+    def _current_alignment_preview_render_settings_value():
+        if callable(_current_alignment_preview_render_settings):
+            return _current_alignment_preview_render_settings()
+        if callable(_get_preview_render_settings):
+            return _get_preview_render_settings()
+        if preview_render_settings is not None:
+            return preview_render_settings
+        return self._current_model_preview_render_settings()
 
     def _tick_alignment_d3d11_loading_spinner() -> None:
         if not _alignment_dialog_widgets_live() or not _qt_object_is_valid(alignment_d3d11_loading_spinner_label):
@@ -6127,14 +6148,14 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
                 message=recovery_action.loading_message,
             )
             loading_cleared_presentation = _alignment_d3d11_loading_cleared_performance_helper(reason)
-            _set_preview_performance_status(
+            _set_preview_performance_status_if_ready(
                 loading_cleared_presentation.summary,
                 details=loading_cleared_presentation.details,
             )
             return
         if recovery_action.should_restore_loaded_preview:
             alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
-            alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
+            alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings_value())
             saved_view_state = _alignment_d3d11_saved_view_state()
             if saved_view_state:
                 alignment_d3d11_preview_host.restore_view_state(saved_view_state)
@@ -6143,16 +6164,19 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
                 alignment_transform_generation,
                 request_id=watchdog_snapshot.active_request_id,
             ):
-                _clear_alignment_d3d11_fast_transform_state(reset_host=True)
-            _sync_highlight_sets()
-            _replay_alignment_d3d11_fast_transform()
+                if callable(_clear_alignment_d3d11_fast_transform_state):
+                    _clear_alignment_d3d11_fast_transform_state(reset_host=True)
+            if callable(_sync_highlight_sets):
+                _sync_highlight_sets()
+            if callable(_replay_alignment_d3d11_fast_transform):
+                _replay_alignment_d3d11_fast_transform()
             _set_alignment_d3d11_progress(100, recovery_action.progress_message, active=False)
             watchdog_ready_presentation = _alignment_d3d11_watchdog_ready_performance_helper(
                 quality_label=_alignment_preview_quality_label_helper(alignment_d3d11_state),
                 reason=reason,
                 active_package=active_package,
             )
-            _set_preview_performance_status(
+            _set_preview_performance_status_if_ready(
                 watchdog_ready_presentation.summary,
                 details=watchdog_ready_presentation.details,
             )
@@ -6180,7 +6204,7 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
                 recovery_action.loading_message,
                 detail=waiting_detail,
             )
-            _set_preview_performance_status(
+            _set_preview_performance_status_if_ready(
                 waiting_performance.summary,
                 details=waiting_performance.details,
             )
@@ -6207,7 +6231,7 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
                 stale_details=stale_details,
                 restart_count=watchdog_snapshot.restart_count,
             )
-            _set_preview_performance_status(
+            _set_preview_performance_status_if_ready(
                 restart_presentation.summary,
                 details=restart_presentation.details,
             )
@@ -6227,7 +6251,7 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
             quality_label=_alignment_preview_quality_label_helper(alignment_d3d11_state),
             stale_details=stale_details,
         )
-        _set_preview_performance_status(
+        _set_preview_performance_status_if_ready(
             failed_presentation.summary,
             details=failed_presentation.details,
         )
@@ -6420,6 +6444,7 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
     _configure_texture_mapping_tree_helper = context.get('_configure_texture_mapping_tree_helper')
     _current_alignment_preview_render_settings = context.get('_current_alignment_preview_render_settings')
     _current_alignment_transform_generation_helper = context.get('_current_alignment_transform_generation_helper')
+    _get_preview_render_settings = context.get('_get_preview_render_settings')
     _fit_tree_height_to_rows_helper = context.get('_fit_tree_height_to_rows_helper')
     _install_tree_column_autofit_helper = context.get('_install_tree_column_autofit_helper')
     _material_edit_refresh_queued_performance_helper = context.get('_material_edit_refresh_queued_performance_helper')
@@ -6444,7 +6469,7 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
     _sync_highlight_sets = context.get('_sync_highlight_sets')
     _take_material_edit_refresh_state_helper = context.get('_take_material_edit_refresh_state_helper')
     _take_source_material_plan_refresh_state_helper = context.get('_take_source_material_plan_refresh_state_helper')
-    alignment_d3d11_drag_transaction = context.get('alignment_d3d11_drag_transaction')
+    alignment_d3d11_drag_transaction = context.get('alignment_d3d11_drag_transaction') or {}
     alignment_d3d11_preview_host = context.get('alignment_d3d11_preview_host')
     alignment_d3d11_reload_timer = context.get('alignment_d3d11_reload_timer')
     alignment_d3d11_state = context.get('alignment_d3d11_state')
@@ -6465,6 +6490,7 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
     offset_x_spin = context.get('offset_x_spin')
     offset_y_spin = context.get('offset_y_spin')
     offset_z_spin = context.get('offset_z_spin')
+    preview_render_settings = context.get('preview_render_settings')
     replacement_mesh_base_for_mapping = context.get('replacement_mesh_base_for_mapping')
     replacement_mesh_for_mapping = context.get('replacement_mesh_for_mapping')
     rotate_x_spin = context.get('rotate_x_spin')
@@ -6491,6 +6517,11 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
     texture_overrides_dirty = context.get('texture_overrides_dirty')
     textures_tab = context.get('textures_tab')
     time = context.get('time')
+
+    def _d3d11_preview_active() -> bool:
+        if not callable(_alignment_d3d11_preview_active):
+            return False
+        return bool(_alignment_d3d11_preview_active())
 
     def _queue_alignment_post_open_task(callback: Callable[[], None]) -> None:
         _queue_alignment_post_open_task_helper(
@@ -6526,6 +6557,15 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
     _current_alignment_transform_generation = lambda: _current_alignment_transform_generation_helper(
         alignment_transform_generation
     )
+
+    def _current_alignment_preview_render_settings_value():
+        if callable(_current_alignment_preview_render_settings):
+            return _current_alignment_preview_render_settings()
+        if callable(_get_preview_render_settings):
+            return _get_preview_render_settings()
+        if preview_render_settings is not None:
+            return preview_render_settings
+        return self._current_model_preview_render_settings()
 
     def _mark_alignment_transform_changed() -> int:
         generation = _alignment_d3d11_mark_transform_changed_helper(
@@ -6565,9 +6605,16 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
             except RuntimeError:
                 process_active = True
         active_package = alignment_d3d11_state.get("active_package")
+        if not callable(_alignment_d3d11_package_refresh_in_flight_helper):
+            return False
+        preview_active = (
+            bool(_d3d11_preview_active())
+            if callable(_alignment_d3d11_preview_active)
+            else False
+        )
         return _alignment_d3d11_package_refresh_in_flight_helper(
             alignment_d3d11_state,
-            preview_active=_alignment_d3d11_preview_active(),
+            preview_active=preview_active,
             queued_model_active=queued_model_active,
             pending_model_active=pending_model_active,
             thread_active=thread_active,
@@ -6614,7 +6661,7 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
     mesh_edit_raw_preview_state = _mesh_edit_raw_preview_initial_state_helper()
 
     def _alignment_preview_widget_render_settings() -> ModelPreviewRenderSettings:
-        settings = _current_alignment_preview_render_settings()
+        settings = _current_alignment_preview_render_settings_value()
         return _alignment_preview_widget_render_settings_helper(
             settings,
             interactive=_alignment_preview_is_interactive(),
@@ -6638,7 +6685,7 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
         if modify_original_clone_mode:
             appended_geometry = int(source_geometry_revision.get("value", 0) or 0)
         try:
-            d3d11_normal_active = _alignment_d3d11_preview_active()
+            d3d11_normal_active = _d3d11_preview_active()
         except NameError:
             d3d11_normal_active = False
         return _alignment_preview_source_face_limit_for_counts(
@@ -6772,7 +6819,21 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
     def _queue_static_preview_refresh(*_args: object) -> None:
         _mark_alignment_d3d11_rebuild_reason("geometry")
         if _static_preview_batch_queue_request_helper(static_preview_batch_state, "refresh"):
+            _record_runtime_event(
+                "mesh_alignment_static_preview_refresh_batched",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                modify_original_clone=modify_original_clone_mode,
+            )
             return
+        _record_runtime_event(
+            "mesh_alignment_static_preview_refresh_queued",
+            path=getattr(entry, "path", ""),
+            dialog_title=dialog_title,
+            d3d11_preview_active=bool(_d3d11_preview_active()),
+            next_rebuild_reason=str(alignment_d3d11_state.get("next_rebuild_reason", "") or ""),
+            modify_original_clone=modify_original_clone_mode,
+        )
         static_preview_refresh_timer.start()
 
     def _queue_selection_preview_refresh(*_args: object) -> None:
@@ -6785,7 +6846,7 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
                 details=presentation.performance_details,
             )
             return
-        if _alignment_d3d11_preview_active():
+        if _d3d11_preview_active():
             _sync_highlight_sets()
             performance = _alignment_d3d11_selection_highlight_performance_helper()
             _set_preview_performance_status(
@@ -7111,6 +7172,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
     _d3d11_cache_event_user_label = context.get('_d3d11_cache_event_user_label')
     _d3d11_status_file_signature = context.get('_d3d11_status_file_signature')
     _donor_material_plan_payload_helper = context.get('_donor_material_plan_payload_helper')
+    _get_preview_render_settings = context.get('_get_preview_render_settings')
     _global_flip_v_fast_preview_value_helper = context.get('_global_flip_v_fast_preview_value_helper')
     _load_original_reference_texture_preview = context.get('_load_original_reference_texture_preview')
     _mark_alignment_d3d11_rebuild_reason = context.get('_mark_alignment_d3d11_rebuild_reason')
@@ -7136,7 +7198,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
     _translated_preview_model = context.get('_translated_preview_model')
     alignment_d3d11_available = context.get('alignment_d3d11_available')
     alignment_d3d11_drag_generation = context.get('alignment_d3d11_drag_generation')
-    alignment_d3d11_drag_transaction = context.get('alignment_d3d11_drag_transaction')
+    alignment_d3d11_drag_transaction = context.get('alignment_d3d11_drag_transaction') or {}
     alignment_d3d11_drag_ui_timer = context.get('alignment_d3d11_drag_ui_timer')
     alignment_d3d11_fast_reload_interval_ms = context.get('alignment_d3d11_fast_reload_interval_ms')
     alignment_d3d11_loading_timer = context.get('alignment_d3d11_loading_timer')
@@ -7150,11 +7212,13 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
     alignment_d3d11_texture_uv_fast_state = context.get('alignment_d3d11_texture_uv_fast_state')
     alignment_dialog_key_hash = context.get('alignment_dialog_key_hash')
     alignment_preview_control_text = context.get('alignment_preview_control_text')
-    alignment_transform_generation = context.get('alignment_transform_generation')
+    alignment_transform_generation = context.get('alignment_transform_generation') or {}
     control_tabs = context.get('control_tabs')
     dialog = context.get('dialog')
+    dialog_title = context.get('dialog_title')
     hashlib = context.get('hashlib')
     json = context.get('json')
+    entry = context.get('entry')
     material_authority_preview_signature_state = context.get('material_authority_preview_signature_state')
     mesh_edit_tab = context.get('mesh_edit_tab')
     modify_original_clone_mode = context.get('modify_original_clone_mode')
@@ -7162,9 +7226,11 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
     original_reference_texture_preview_state = context.get('original_reference_texture_preview_state')
     parts_tab = context.get('parts_tab')
     preview_mode_combo = context.get('preview_mode_combo')
+    preview_render_settings = context.get('preview_render_settings')
     preview_renderer_combo = context.get('preview_renderer_combo')
     preview_stack = context.get('preview_stack')
     replacement_mesh_for_mapping = context.get('replacement_mesh_for_mapping')
+    self = context.get('self')
     shutil = context.get('shutil')
     source_part_adjustments = context.get('source_part_adjustments')
     static_preview_geometry_cache = context.get('static_preview_geometry_cache')
@@ -7192,6 +7258,51 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             str(preview_renderer_combo.currentData() or "").strip().lower() == "d3d11"
             and bool(alignment_d3d11_available)
         )
+
+    def _current_alignment_transform_generation_value() -> int:
+        if callable(_current_alignment_transform_generation):
+            return int(_current_alignment_transform_generation() or 0)
+        if isinstance(alignment_transform_generation, dict):
+            return int(alignment_transform_generation.get("value", 0) or 0)
+        return 0
+
+    def _current_alignment_preview_render_settings_value():
+        if callable(_current_alignment_preview_render_settings):
+            return _current_alignment_preview_render_settings()
+        if callable(_get_preview_render_settings):
+            return _get_preview_render_settings()
+        if preview_render_settings is not None:
+            return preview_render_settings
+        return self._current_model_preview_render_settings()
+
+    def _mesh_edit_raw_preview_active_value() -> bool:
+        if callable(_mesh_edit_raw_preview_active):
+            return bool(_mesh_edit_raw_preview_active())
+        return False
+
+    def _set_preview_performance_status_if_ready(summary: str, *, details: str = "") -> None:
+        if callable(_set_preview_performance_status):
+            _set_preview_performance_status(summary, details=details)
+
+    def _sync_mesh_edit_preview_settings_if_ready() -> None:
+        if callable(_sync_mesh_edit_preview_settings):
+            _sync_mesh_edit_preview_settings()
+
+    def _clear_alignment_d3d11_fast_transform_state_if_ready(*, reset_host: bool = False) -> None:
+        if callable(_clear_alignment_d3d11_fast_transform_state):
+            _clear_alignment_d3d11_fast_transform_state(reset_host=reset_host)
+
+    def _clear_source_parts_preview_rebuild_pending_if_ready() -> None:
+        if callable(_clear_source_parts_preview_rebuild_pending):
+            _clear_source_parts_preview_rebuild_pending()
+
+    def _sync_highlight_sets_if_ready() -> None:
+        if callable(_sync_highlight_sets):
+            _sync_highlight_sets()
+
+    def _replay_alignment_d3d11_fast_transform_if_ready() -> None:
+        if callable(_replay_alignment_d3d11_fast_transform):
+            _replay_alignment_d3d11_fast_transform()
 
     _current_global_flip_v_fast_preview_value = lambda: _global_flip_v_fast_preview_value_helper(
             d3d11_preview_active=_alignment_d3d11_preview_active(),
@@ -7223,7 +7334,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             texture_overrides_dirty["dirty"] = True
             _set_alignment_d3d11_progress(100, "Preview ready.", active=False)
             flip_v_presentation = _alignment_d3d11_texture_flip_v_live_performance_helper()
-            _set_preview_performance_status(
+            _set_preview_performance_status_if_ready(
                 flip_v_presentation.summary,
                 details=flip_v_presentation.details,
             )
@@ -7501,11 +7612,28 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         reason: str = "",
     ) -> None:
         if not _alignment_d3d11_preview_active():
+            _record_runtime_event(
+                "mesh_alignment_d3d11_preview_queue_skipped",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                reason="inactive_renderer",
+                requested_reason=str(reason or ""),
+                modify_original_clone=modify_original_clone_mode,
+            )
             return
         if not isinstance(model, ModelPreviewData):
             _set_alignment_d3d11_loading(False, "Preview has no renderable model yet.")
+            _record_runtime_event(
+                "mesh_alignment_d3d11_preview_queue_skipped",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                reason="invalid_model",
+                requested_reason=str(reason or ""),
+                model_type=type(model).__name__,
+                modify_original_clone=modify_original_clone_mode,
+            )
             return
-        transform_generation = _current_alignment_transform_generation()
+        transform_generation = _current_alignment_transform_generation_value()
         display_mode = str(preview_mode_combo.currentData() or "side_by_side")
         rebuild_reason = str(reason or alignment_d3d11_state.get("next_rebuild_reason", "") or "geometry").strip().lower()
         if rebuild_reason not in {"geometry", "texture_uv", "material", "mode_missing_original"}:
@@ -7524,6 +7652,16 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             reason=rebuild_reason,
             transform_generation=transform_generation,
             package_quality=queued_package_quality,
+        )
+        _record_runtime_event(
+            "mesh_alignment_d3d11_preview_queued",
+            path=getattr(entry, "path", ""),
+            dialog_title=dialog_title,
+            display_mode=display_mode,
+            rebuild_reason=rebuild_reason,
+            package_quality=queued_package_quality,
+            transform_generation=int(transform_generation or 0),
+            modify_original_clone=modify_original_clone_mode,
         )
         live_frame_available = _alignment_d3d11_live_frame_available()
         if not live_frame_available:
@@ -7548,13 +7686,13 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         *,
         reason: str = "",
     ) -> tuple[ModelPreviewRenderSettings, bool, bool, str]:
-        settings = _current_alignment_preview_render_settings()
+        settings = _current_alignment_preview_render_settings_value()
         normalized_reason = str(reason or alignment_d3d11_state.get("next_rebuild_reason", "") or "").strip().lower()
         return _alignment_d3d11_package_quality_helper(
             settings,
             alignment_d3d11_state,
             reason=normalized_reason,
-            mesh_edit_raw_preview_active=_mesh_edit_raw_preview_active(),
+            mesh_edit_raw_preview_active=_mesh_edit_raw_preview_active_value(),
         )
 
     def _queue_alignment_archive_parity_upgrade(reason: str = "fast preview ready") -> None:
@@ -7629,11 +7767,8 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         if active_preview_alive:
             _alignment_d3d11_mark_preview_loaded_helper(alignment_d3d11_state)
             _alignment_d3d11_mark_resources_loaded_helper(alignment_d3d11_state)
-            try:
-                _sync_highlight_sets()
-                _replay_alignment_d3d11_fast_transform()
-            except NameError:
-                pass
+            _sync_highlight_sets_if_ready()
+            _replay_alignment_d3d11_fast_transform_if_ready()
         _set_alignment_d3d11_progress(
             100 if active_preview_alive else 0,
             "Preview changed; rebuilding current view.",
@@ -7651,7 +7786,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             request_id=int(request_id or 0),
             active_preview_alive=active_preview_alive,
         )
-        _set_preview_performance_status(
+        _set_preview_performance_status_if_ready(
             stale_dropped_presentation.summary,
             details=stale_dropped_presentation.details,
         )
@@ -7712,6 +7847,16 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         display_mode: str = "",
         reason: str = "geometry",
     ) -> None:
+        _record_runtime_event(
+            "mesh_alignment_d3d11_package_start_entered",
+            path=getattr(entry, "path", ""),
+            dialog_title=dialog_title,
+            model_type=type(model).__name__,
+            display_mode=str(display_mode or ""),
+            reason=str(reason or ""),
+            transform_generation=int(transform_generation or 0),
+            modify_original_clone=modify_original_clone_mode,
+        )
         route_state = _alignment_d3d11_package_start_route_helper(
             dialog_live=_alignment_dialog_widgets_live(),
             preview_active=_alignment_d3d11_preview_active(),
@@ -7720,7 +7865,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             fallback_display_mode=preview_mode_combo.currentData() or "side_by_side",
             reason=reason,
             transform_generation=transform_generation,
-            current_transform_generation=_current_alignment_transform_generation(),
+            current_transform_generation=_current_alignment_transform_generation_value(),
             active_request_id=alignment_d3d11_state.get("request_id", 0),
         )
         if route_state.should_drop:
@@ -7734,6 +7879,15 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             )
             return
         if not route_state.should_start:
+            _record_runtime_event(
+                "mesh_alignment_d3d11_package_start_skipped",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                drop_reason=str(route_state.drop_reason or ""),
+                display_mode=str(route_state.display_mode or ""),
+                rebuild_reason=str(route_state.rebuild_reason or ""),
+                modify_original_clone=modify_original_clone_mode,
+            )
             return
         requested_display_mode = route_state.display_mode
         rebuild_reason = route_state.rebuild_reason
@@ -7767,6 +7921,14 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 stage="queued",
                 detail=_alignment_d3d11_queued_latest_preview_reload_detail_helper(rebuild_reason),
                 active=not live_frame_available,
+            )
+            _record_runtime_event(
+                "mesh_alignment_d3d11_package_start_deferred",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                rebuild_reason=rebuild_reason,
+                package_quality=package_quality,
+                modify_original_clone=modify_original_clone_mode,
             )
             return
         request_id = _alignment_d3d11_begin_package_request_helper(
@@ -7861,7 +8023,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                         alignment_transform_generation,
                         request_id=request_id,
                     ):
-                        _clear_alignment_d3d11_fast_transform_state(reset_host=True)
+                        _clear_alignment_d3d11_fast_transform_state_if_ready(reset_host=True)
                     cached_quality = _alignment_d3d11_mark_active_cached_package_reused_helper(
                         alignment_d3d11_state,
                         request_id=request_id,
@@ -7870,10 +8032,10 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                         cache_key=cache_key,
                     )
                     alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or requested_display_mode))
-                    alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
+                    alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings_value())
                     preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
-                    _sync_highlight_sets()
-                    _replay_alignment_d3d11_fast_transform()
+                    _sync_highlight_sets_if_ready()
+                    _replay_alignment_d3d11_fast_transform_if_ready()
                     if cached_quality == "fast_geometry":
                         _set_alignment_d3d11_pipeline_stage("fast_geometry", "active cached fast package reused")
                     elif cached_quality == "archive_parity":
@@ -7891,11 +8053,11 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                         quality_label=_alignment_preview_quality_label_helper(alignment_d3d11_state),
                         rebuild_reason=rebuild_reason,
                     )
-                    _set_preview_performance_status(
+                    _set_preview_performance_status_if_ready(
                         cached_reuse_presentation.summary,
                         details=cached_reuse_presentation.details,
                     )
-                    _clear_source_parts_preview_rebuild_pending()
+                    _clear_source_parts_preview_rebuild_pending_if_ready()
                     if cached_quality == "fast_geometry":
                         _queue_alignment_archive_parity_upgrade("active cached fast package reused")
                     return
@@ -7911,14 +8073,24 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 cached_loading_presentation = _alignment_d3d11_cached_loading_performance_helper(
                     rebuild_reason
                 )
-                _set_preview_performance_status(
+                _set_preview_performance_status_if_ready(
                     cached_loading_presentation.summary,
                     details=cached_loading_presentation.details,
                 )
                 _start_alignment_d3d11_process(cached_package_dir, request_id=request_id)
+                _record_runtime_event(
+                    "mesh_alignment_d3d11_package_cache_used",
+                    path=getattr(entry, "path", ""),
+                    dialog_title=dialog_title,
+                    request_id=int(request_id or 0),
+                    package_dir=str(cached_package_dir),
+                    rebuild_reason=rebuild_reason,
+                    package_quality=package_quality,
+                    modify_original_clone=modify_original_clone_mode,
+                )
                 return
         _alignment_d3d11_record_cache_lookup_result_helper(alignment_d3d11_state, cache_key)
-        mesh_edit_raw_package = _mesh_edit_raw_preview_active()
+        mesh_edit_raw_package = _mesh_edit_raw_preview_active_value()
         package_quality_key = str(package_quality).strip().lower()
         worker_use_textures = bool(getattr(settings, "use_textures_by_default", True))
         worker_high_quality_textures = bool(worker_use_textures and high_quality_textures)
@@ -7991,9 +8163,19 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             cache_label=_d3d11_cache_event_user_label(alignment_d3d11_state.get("last_cache_event")),
             rebuild_reason=rebuild_reason,
         )
-        _set_preview_performance_status(
+        _set_preview_performance_status_if_ready(
             preparing_presentation.summary,
             details=preparing_presentation.details,
+        )
+        _record_runtime_event(
+            "mesh_alignment_d3d11_package_worker_started",
+            path=getattr(entry, "path", ""),
+            dialog_title=dialog_title,
+            request_id=int(request_id or 0),
+            rebuild_reason=rebuild_reason,
+            package_quality=package_quality,
+            display_mode=requested_display_mode,
+            modify_original_clone=modify_original_clone_mode,
         )
         thread.start()
 
@@ -8006,6 +8188,16 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         reason = str(alignment_d3d11_state.get("queued_reason", "") or "geometry")
         transform_generation = int(alignment_d3d11_state.get("queued_transform_generation", 0) or 0)
         _alignment_d3d11_clear_queued_preview_request_helper(alignment_d3d11_state)
+        _record_runtime_event(
+            "mesh_alignment_d3d11_preview_flush",
+            path=getattr(entry, "path", ""),
+            dialog_title=dialog_title,
+            model_type=type(model).__name__,
+            display_mode=display_mode,
+            reason=reason,
+            transform_generation=transform_generation,
+            modify_original_clone=modify_original_clone_mode,
+        )
         _start_alignment_d3d11_package_worker(
             model,
             label,
@@ -8092,11 +8284,11 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             return
         _set_alignment_d3d11_loading(False, f"Preview load failed: {message}")
         package_failed_presentation = _alignment_d3d11_package_failed_performance_helper(message)
-        _set_preview_performance_status(
+        _set_preview_performance_status_if_ready(
             package_failed_presentation.summary,
             details=package_failed_presentation.details,
         )
-        _clear_source_parts_preview_rebuild_pending()
+        _clear_source_parts_preview_rebuild_pending_if_ready()
 
     def _cleanup_alignment_d3d11_package_worker_refs() -> None:
         _alignment_d3d11_clear_package_worker_refs_helper(alignment_d3d11_state)
@@ -8204,7 +8396,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             )
             if alignment_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
                 alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
-                alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
+                alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings_value())
                 _cleanup_alignment_d3d11_package(previous_package, delay_ms=5000)
                 preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
                 _alignment_d3d11_mark_loading_started_helper(alignment_d3d11_state, time.perf_counter())
@@ -8226,7 +8418,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                     rebuild_reason=rebuild_reason,
                     channel_debug=channel_debug,
                 )
-                _set_preview_performance_status(
+                _set_preview_performance_status_if_ready(
                     reload_presentation.summary,
                     details=reload_presentation.details,
                 )
@@ -8238,7 +8430,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 rebuild_reason=rebuild_reason,
                 host_detail=reuse_state.host_detail,
             )
-            _set_preview_performance_status(
+            _set_preview_performance_status_if_ready(
                 restart_presentation.summary,
                 details=restart_presentation.details,
             )
@@ -8275,7 +8467,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 rebuild_reason=rebuild_reason,
                 host_detail=new_host_detail,
             )
-            _set_preview_performance_status(
+            _set_preview_performance_status_if_ready(
                 pending_host_presentation.summary,
                 details=pending_host_presentation.details,
             )
@@ -8305,7 +8497,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         except Exception as exc:
             _set_alignment_d3d11_loading(False, f"Preview unavailable: {exc}")
             unavailable_presentation = _alignment_d3d11_unavailable_performance_helper()
-            _set_preview_performance_status(
+            _set_preview_performance_status_if_ready(
                 unavailable_presentation.summary,
                 details=unavailable_presentation.details,
             )
@@ -8338,7 +8530,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             package_quality=package_quality,
             rebuild_reason=rebuild_reason,
         )
-        _set_preview_performance_status(
+        _set_preview_performance_status_if_ready(
             starting_presentation.summary,
             details=starting_presentation.details,
         )
@@ -8363,7 +8555,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             detail="Native D3D11 startup timeout waiting for status.",
         )
         startup_timeout_presentation = _alignment_d3d11_startup_timeout_performance_helper()
-        _set_preview_performance_status(
+        _set_preview_performance_status_if_ready(
             startup_timeout_presentation.summary,
             details=startup_timeout_presentation.details,
         )
@@ -8386,7 +8578,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         if process is not alignment_d3d11_state.get("process"):
             return
         _set_alignment_d3d11_loading(False, f"Preview process error: {error}")
-        _clear_source_parts_preview_rebuild_pending()
+        _clear_source_parts_preview_rebuild_pending_if_ready()
 
     def _handle_alignment_d3d11_finished(process: QProcess, exit_code: int, exit_status: object) -> None:
         widgets_live = _alignment_dialog_widgets_live()
@@ -8405,7 +8597,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         _cleanup_alignment_d3d11_package(package_dir)
         if finish_route.should_report_error:
             _set_alignment_d3d11_loading(False, f"Preview closed with code {int(exit_code)} ({exit_status}).")
-            _clear_source_parts_preview_rebuild_pending()
+            _clear_source_parts_preview_rebuild_pending_if_ready()
 
     def _poll_alignment_d3d11_status() -> None:
         if not _alignment_dialog_widgets_live():
@@ -8481,7 +8673,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 _set_alignment_d3d11_pipeline_stage(loaded_route.pipeline_stage, loaded_route.pipeline_detail)
             if loaded_route.should_sync_mesh_edit_preview:
                 try:
-                    _sync_mesh_edit_preview_settings()
+                    _sync_mesh_edit_preview_settings_if_ready()
                 except NameError:
                     pass
             if loaded_route.should_defer_for_drag:
@@ -8489,7 +8681,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 return
             if loaded_route.should_keep_live_transform:
                 live_transform_message = loaded_route.progress_message or "Preview loaded; keeping live transform."
-                _replay_alignment_d3d11_fast_transform()
+                _replay_alignment_d3d11_fast_transform_if_ready()
                 _set_alignment_d3d11_progress(
                     100,
                     live_transform_message,
@@ -8497,7 +8689,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 )
                 return
             alignment_d3d11_preview_host.set_display_mode(str(preview_mode_combo.currentData() or "side_by_side"))
-            alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings())
+            alignment_d3d11_preview_host.set_render_tuning(_current_alignment_preview_render_settings_value())
             saved_view_state = _alignment_d3d11_saved_view_state()
             if saved_view_state:
                 alignment_d3d11_preview_host.restore_view_state(saved_view_state)
@@ -8506,9 +8698,9 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 alignment_transform_generation,
                 request_id=active_request_id,
             ):
-                _clear_alignment_d3d11_fast_transform_state(reset_host=True)
-            _sync_highlight_sets()
-            _replay_alignment_d3d11_fast_transform()
+                _clear_alignment_d3d11_fast_transform_state_if_ready(reset_host=True)
+            _sync_highlight_sets_if_ready()
+            _replay_alignment_d3d11_fast_transform_if_ready()
             channel_debug = self._archive_material_channel_debug_from_package(
                 alignment_d3d11_state.get("active_package")
             )
@@ -8527,8 +8719,8 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 cache_label=cache_label,
                 channel_debug=channel_debug,
             )
-            _set_preview_performance_status(timing_presentation.summary, details=timing_presentation.details)
-            _clear_source_parts_preview_rebuild_pending()
+            _set_preview_performance_status_if_ready(timing_presentation.summary, details=timing_presentation.details)
+            _clear_source_parts_preview_rebuild_pending_if_ready()
             if loaded_route.should_queue_archive_parity:
                 _queue_alignment_archive_parity_upgrade("fast geometry loaded")
         elif event == "resources_loaded":
@@ -8571,12 +8763,12 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             renderer_error_presentation = _alignment_d3d11_renderer_error_performance_helper(
                 error_route.performance_message
             )
-            _set_preview_performance_status(
+            _set_preview_performance_status_if_ready(
                 renderer_error_presentation.summary,
                 details=renderer_error_presentation.details,
             )
             if error_route.should_clear_pending_rebuild:
-                _clear_source_parts_preview_rebuild_pending()
+                _clear_source_parts_preview_rebuild_pending_if_ready()
         elif event == "closed":
             closed_route = _alignment_d3d11_closed_status_route_helper(
                 alignment_preview_control_text["d3d11_closed_status"]
@@ -8585,7 +8777,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 _alignment_d3d11_mark_preview_unloaded_helper(alignment_d3d11_state)
             _set_alignment_d3d11_loading(False, closed_route.message)
             if closed_route.should_clear_pending_rebuild:
-                _clear_source_parts_preview_rebuild_pending()
+                _clear_source_parts_preview_rebuild_pending_if_ready()
 
     return SimpleNamespace(
         _apply_source_material_texture_overrides_to_ui_texture_sets=_apply_source_material_texture_overrides_to_ui_texture_sets,
@@ -8665,6 +8857,27 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
     alignment_preview_mode_state = context.get('alignment_preview_mode_state')
     alignment_preview_settings_button = context.get('alignment_preview_settings_button')
     control_tabs = context.get('control_tabs')
+
+    def _geometry_tab_active() -> bool:
+        if not callable(_alignment_geometry_tab_active):
+            return False
+        return bool(_alignment_geometry_tab_active())
+
+    def _d3d11_editor_ids_for_source_indices(indices: object, **kwargs: object) -> tuple[object, ...]:
+        if not callable(_alignment_d3d11_editor_ids_for_source_indices):
+            return ()
+        return tuple(_alignment_d3d11_editor_ids_for_source_indices(indices, **kwargs) or ())
+
+    def _disabled_source_indices() -> tuple[object, ...]:
+        if not callable(_disabled_source_part_indices):
+            return ()
+        return tuple(_disabled_source_part_indices() or ())
+
+    def _default_d3d11_editor_ids() -> tuple[object, ...]:
+        if not callable(_alignment_default_d3d11_editor_ids):
+            return ()
+        return tuple(_alignment_default_d3d11_editor_ids() or ())
+
     highlighted_original_indices = context.get('highlighted_original_indices')
     highlighted_source_indices = context.get('highlighted_source_indices')
     original_dialog_preview = context.get('original_dialog_preview')
@@ -8724,7 +8937,7 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
 
     def _sync_highlight_sets() -> None:
         d3d11_active = _alignment_d3d11_preview_active()
-        geometry_active = _alignment_geometry_tab_active() if d3d11_active else False
+        geometry_active = _geometry_tab_active() if d3d11_active else False
         selection_state = _selection_highlight_sets_state_helper(
             selected_source_highlights=tuple(selected_source_highlight_indices),
             selected_target_source_highlights=tuple(selected_target_source_highlight_indices),
@@ -8736,7 +8949,7 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
             mesh_edit_raw_active=bool(_mesh_edit_raw_preview_active()) if d3d11_active else False,
             preview_gizmo_checked=bool(preview_gizmo_checkbox.isChecked()) if d3d11_active else False,
             selected_source_overlay_ids=(
-                _alignment_d3d11_editor_ids_for_source_indices(
+                _d3d11_editor_ids_for_source_indices(
                     tuple(selected_source_highlight_indices),
                     selection_overlay=True,
                 )
@@ -8744,21 +8957,21 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
                 else ()
             ),
             selected_source_editor_ids=(
-                _alignment_d3d11_editor_ids_for_source_indices(tuple(selected_source_highlight_indices))
+                _d3d11_editor_ids_for_source_indices(tuple(selected_source_highlight_indices))
                 if d3d11_active
                 else ()
             ),
             selected_target_source_editor_ids=(
-                _alignment_d3d11_editor_ids_for_source_indices(tuple(selected_target_source_highlight_indices))
+                _d3d11_editor_ids_for_source_indices(tuple(selected_target_source_highlight_indices))
                 if d3d11_active
                 else ()
             ),
             disabled_source_editor_ids=(
-                _alignment_d3d11_editor_ids_for_source_indices(_disabled_source_part_indices())
+                _d3d11_editor_ids_for_source_indices(_disabled_source_indices())
                 if d3d11_active
                 else ()
             ),
-            default_d3d11_editor_ids=_alignment_default_d3d11_editor_ids() if d3d11_active else (),
+            default_d3d11_editor_ids=_default_d3d11_editor_ids() if d3d11_active else (),
         )
         highlighted_source_indices.clear()
         highlighted_source_indices.update(tuple(selection_state["highlighted_source_indices"]))  # type: ignore[arg-type]
@@ -8779,7 +8992,8 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
                 rotation_degrees_per_pixel=0.18,
             )
             try:
-                _replay_alignment_d3d11_fast_transform()
+                if callable(_replay_alignment_d3d11_fast_transform):
+                    _replay_alignment_d3d11_fast_transform()
             except NameError:
                 pass
 
@@ -8998,7 +9212,9 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
     parts_tab = context.get('parts_tab')
     preview_only_source_indices = context.get('preview_only_source_indices')
     preview_submesh_index_map = context.get('preview_submesh_index_map')
+    prompt_shell_context = context.get('prompt_shell_context')
     prune_unmapped_original_dds_checkbox = context.get('prune_unmapped_original_dds_checkbox')
+    _queue_alignment_post_open_task = context.get('_queue_alignment_post_open_task')
     rebuild_sidecar_checkbox = context.get('rebuild_sidecar_checkbox')
     replacement_mesh_base_for_mapping = context.get('replacement_mesh_base_for_mapping')
     replacement_mesh_for_mapping = context.get('replacement_mesh_for_mapping')
@@ -9022,6 +9238,46 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
     suggested_mappings = context.get('suggested_mappings')
     supplemental_files = context.get('supplemental_files')
     texture_override_rows = context.get('texture_override_rows')
+
+    def _prompt_context_value(name: str, default: object = None) -> object:
+        if isinstance(prompt_shell_context, dict) and name in prompt_shell_context:
+            return prompt_shell_context.get(name, default)
+        return context.get(name, default)
+
+    _queue_alignment_post_open_task = _prompt_context_value(
+        "_queue_alignment_post_open_task",
+        _queue_alignment_post_open_task,
+    )
+
+    def _spin_value(name: str, default: float = 0.0) -> float:
+        spin = _prompt_context_value(name)
+        value = getattr(spin, "value", None)
+        if not callable(value):
+            return default
+        try:
+            return float(value())
+        except (RuntimeError, TypeError, ValueError):
+            return default
+
+    def _checkbox_checked(name: str, default: bool = False) -> bool:
+        checkbox = _prompt_context_value(name)
+        is_checked = getattr(checkbox, "isChecked", None)
+        if not callable(is_checked):
+            return default
+        try:
+            return bool(is_checked())
+        except RuntimeError:
+            return default
+
+    def _combo_data(name: str, default: str = "grid_flat") -> object:
+        combo = _prompt_context_value(name)
+        current_data = getattr(combo, "currentData", None)
+        if not callable(current_data):
+            return default
+        try:
+            return current_data()
+        except RuntimeError:
+            return default
 
     def _refresh_output_impact_review() -> None:
         if not _alignment_dialog_widgets_live():
@@ -9050,12 +9306,8 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
                 or bool(str(row.get("assigned_source", "") or row.get("suggested_source", "") or "").strip())
             ]
         )
-        try:
-            sidecar_enabled = bool(rebuild_sidecar_checkbox.isChecked())
-            prune_unmapped_enabled = bool(prune_unmapped_original_dds_checkbox.isChecked())
-        except NameError:
-            sidecar_enabled = False
-            prune_unmapped_enabled = False
+        sidecar_enabled = _checkbox_checked("rebuild_sidecar_checkbox")
+        prune_unmapped_enabled = _checkbox_checked("prune_unmapped_original_dds_checkbox")
         output_impact = _output_impact_review_presentation_helper(
             removed_targets,
             len(used_sources),
@@ -9101,9 +9353,13 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
     geometry_hint.setToolTip(mapping_table_action_control_text["geometry_hint_tooltip"])
     geometry_overview_layout.addWidget(geometry_hint)
     geometry_overview_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-    _refresh_geometry_summary()
-    _refresh_output_impact_review()
-    _refresh_mesh_replacement_properties_inspector()
+
+    def _refresh_startup_model_controls() -> None:
+        _refresh_geometry_summary()
+        _refresh_output_impact_review()
+        _refresh_mesh_replacement_properties_inspector()
+        _morph_slider_reload_profiles()
+
     parts_outliner_panel = QWidget(parts_tab)
     parts_outliner_panel.setObjectName("PartsRoutingOutlinerPropertiesStack")
     parts_outliner_layout = QVBoxLayout(parts_outliner_panel)
@@ -9119,7 +9375,10 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
     parts_outliner_layout.addStretch(1)
     parts_layout.addWidget(parts_outliner_panel, 1)
     parts_layout.addStretch(1)
-    _morph_slider_reload_profiles()
+    if callable(_queue_alignment_post_open_task):
+        _queue_alignment_post_open_task(_refresh_startup_model_controls)
+    elif _prompt_context_value("rotate_x_spin") is not None:
+        _refresh_startup_model_controls()
     mesh_edit_layout_page.addWidget(mesh_edit_group, 0)
     mesh_edit_layout_page.addWidget(morph_slider_group, 0)
     mesh_edit_layout_page.addStretch(1)
@@ -9247,12 +9506,24 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
         current_mappings,
         _current_source_part_adjustments(),
         original_part_copies,
-        alignment_mode=str(alignment_mode_combo.currentData() or "grid_flat"),
-        scale_to_length=bool(scale_to_length_checkbox.isChecked()),
-        flip=bool(flip_direction_checkbox.isChecked()),
-        rotate_xyz=(float(rotate_x_spin.value()), float(rotate_y_spin.value()), float(rotate_z_spin.value())),
-        scale_xyz=(float(scale_x_spin.value()), float(scale_y_spin.value()), float(scale_z_spin.value())),
-        offset_xyz=(float(offset_x_spin.value()), float(offset_y_spin.value()), float(offset_z_spin.value())),
+        alignment_mode=str(_combo_data("alignment_mode_combo") or "grid_flat"),
+        scale_to_length=_checkbox_checked("scale_to_length_checkbox"),
+        flip=_checkbox_checked("flip_direction_checkbox"),
+        rotate_xyz=(
+            _spin_value("rotate_x_spin"),
+            _spin_value("rotate_y_spin"),
+            _spin_value("rotate_z_spin"),
+        ),
+        scale_xyz=(
+            _spin_value("scale_x_spin", 1.0),
+            _spin_value("scale_y_spin", 1.0),
+            _spin_value("scale_z_spin", 1.0),
+        ),
+        offset_xyz=(
+            _spin_value("offset_x_spin"),
+            _spin_value("offset_y_spin"),
+            _spin_value("offset_z_spin"),
+        ),
         texture_uv_payload=_texture_uv_transform_payload_helper(_current_texture_uv_transforms()),
         mesh_edit_revision=int(mesh_edit_revision.get("value", 0) or 0),
         source_geometry_revision=int(source_geometry_revision.get("value", 0) or 0),
@@ -9285,24 +9556,24 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
     def _current_static_alignment_transform() -> StaticReplacementTransform:
         return StaticReplacementTransform(
             rotate_xyz_degrees=(
-                float(rotate_x_spin.value()),
-                float(rotate_y_spin.value()),
-                float(rotate_z_spin.value()),
+                _spin_value("rotate_x_spin"),
+                _spin_value("rotate_y_spin"),
+                _spin_value("rotate_z_spin"),
             ),
-            scale=float(scale_x_spin.value()),
+            scale=_spin_value("scale_x_spin", 1.0),
             scale_xyz=(
-                float(scale_x_spin.value()),
-                float(scale_y_spin.value()),
-                float(scale_z_spin.value()),
+                _spin_value("scale_x_spin", 1.0),
+                _spin_value("scale_y_spin", 1.0),
+                _spin_value("scale_z_spin", 1.0),
             ),
             offset_xyz=(
-                float(offset_x_spin.value()),
-                float(offset_y_spin.value()),
-                float(offset_z_spin.value()),
+                _spin_value("offset_x_spin"),
+                _spin_value("offset_y_spin"),
+                _spin_value("offset_z_spin"),
             ),
-            scale_to_original_length=bool(scale_to_length_checkbox.isChecked()),
-            alignment_mode=str(alignment_mode_combo.currentData() or "grid_flat"),
-            flip_target_axis=bool(flip_direction_checkbox.isChecked()),
+            scale_to_original_length=_checkbox_checked("scale_to_length_checkbox"),
+            alignment_mode=str(_combo_data("alignment_mode_combo") or "grid_flat"),
+            flip_target_axis=_checkbox_checked("flip_direction_checkbox"),
         )
 
     def _current_static_placement_snapshot(

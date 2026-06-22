@@ -951,64 +951,38 @@ def build_app_stylesheet(
         background: {theme["button_disabled"]};
         border-color: {theme["border"]};
     }}
-    QGroupBox#DashboardStatusPanel {{
-        background: {theme["surface"]};
-        border: 1px solid {theme["border"]};
-        border-radius: 6px;
-        margin-top: {max(16, metrics["group_margin_top"] + 4)}px;
-        padding-top: {max(10, metrics["group_pad_top"])}px;
-    }}
-    QGroupBox#DashboardStatusPanel::title {{
-        color: {theme["text_strong"]};
-        font-weight: 700;
-        padding: 0px {metrics["group_title_pad_x"] + 2}px 1px {metrics["group_title_pad_x"] + 2}px;
-    }}
-    QLabel#DashboardStatusName {{
-        color: {theme["text_muted"]};
-        font-size: {hint_size}px;
-        background: transparent;
-    }}
-    QLabel#DashboardStatusValue {{
+    QLabel#ArchiveCacheStatusChip {{
         color: {theme["text"]};
         background: {theme["field_alt"]};
         border: 1px solid {theme["border"]};
         border-radius: 4px;
         padding: 3px 6px;
     }}
-    QLabel#DashboardStatusValue[healthState="healthy"],
-    QLabel#DashboardStatusName[healthState="healthy"],
+    QLabel#ArchiveCacheStatusChip[healthState="healthy"],
     QLabel#HintLabel[healthState="healthy"] {{
         color: #2fbf64;
         border-color: #2fbf64;
         font-weight: 700;
     }}
-    QLabel#DashboardStatusValue[healthState="building"],
-    QLabel#DashboardStatusName[healthState="building"],
+    QLabel#ArchiveCacheStatusChip[healthState="building"],
     QLabel#HintLabel[healthState="building"] {{
         color: {theme["accent"]};
         border-color: {theme["accent"]};
         font-weight: 600;
     }}
-    QLabel#DashboardStatusValue[healthState="missing"],
-    QLabel#DashboardStatusValue[healthState="stale"],
-    QLabel#DashboardStatusName[healthState="missing"],
-    QLabel#DashboardStatusName[healthState="stale"],
+    QLabel#ArchiveCacheStatusChip[healthState="missing"],
+    QLabel#ArchiveCacheStatusChip[healthState="stale"],
     QLabel#HintLabel[healthState="missing"],
     QLabel#HintLabel[healthState="stale"] {{
         color: {theme["warning_text"]};
         border-color: {theme["warning_border"]};
         font-weight: 600;
     }}
-    QLabel#DashboardStatusValue[healthState="unhealthy"],
-    QLabel#DashboardStatusName[healthState="unhealthy"],
+    QLabel#ArchiveCacheStatusChip[healthState="unhealthy"],
     QLabel#HintLabel[healthState="unhealthy"] {{
         color: {theme["error"]};
         border-color: {theme["error"]};
         font-weight: 700;
-    }}
-    QPushButton#DashboardInlineButton {{
-        min-height: {max(24, metrics["button_min_h"])}px;
-        padding: {metrics["button_pad_y"]}px {metrics["button_pad_x"] + 2}px;
     }}
     QCheckBox {{
         spacing: 8px;

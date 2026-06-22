@@ -145,6 +145,7 @@ def model_preview_settings_change_flags(
         or previous_settings.d3d11_tone_gamma != preview_settings.d3d11_tone_gamma
         or previous_settings.d3d11_texture_address_mode != preview_settings.d3d11_texture_address_mode
         or previous_settings.ambient_strength != preview_settings.ambient_strength
+        or previous_settings.diffuse_wrap_bias != preview_settings.diffuse_wrap_bias
         or previous_settings.diffuse_light_scale != preview_settings.diffuse_light_scale
         or previous_settings.specular_base != preview_settings.specular_base
         or previous_settings.specular_max != preview_settings.specular_max

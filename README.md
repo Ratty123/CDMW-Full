@@ -67,8 +67,8 @@ reports, restore points, and corpus data out of source control.
    - `Open DirectXTex / texconv Page` opens the external helper download page
 
 Portable config is stored beside the EXE. App-managed folders live under
-`workspace/`, including sources, staging, outputs, extracts, libraries, tools,
-cache, logs, sessions, projects, and research data.
+`workspace/`, including original DDS files, staging, outputs, extracts,
+libraries, tools, cache, logs, sessions, projects, and research data.
 
 ## Source Setup
 

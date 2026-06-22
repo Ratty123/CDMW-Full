@@ -87,16 +87,16 @@ class ServiceLayerTests(unittest.TestCase):
             self.assertEqual(_QSettingsStub.Format.IniFormat, settings.file_format)
             self.assertFalse(settings.fallbacks_enabled)
 
-    def test_workspace_paths_use_grouped_app_workspace(self) -> None:
+    def test_workspace_paths_use_simple_app_workspace(self) -> None:
         root = Path("C:/Workbench")
         paths = workspace_paths(root)
 
-        self.assertEqual(root / "workspace" / "sources" / "original_dds", paths["original_dds_root"])
+        self.assertEqual(root / "workspace" / "original_dds", paths["original_dds_root"])
         self.assertEqual(root / "workspace" / "staging" / "upscaled_png", paths["png_root"])
         self.assertEqual(root / "workspace" / "outputs" / "rebuilt_textures", paths["output_root"])
         self.assertEqual(root / "workspace" / "outputs" / "mod_packages", paths["mod_ready_export_root"])
-        self.assertEqual(root / "workspace" / "cache" / "archive", paths["archive_cache_root"])
-        self.assertEqual(root / "workspace" / "logs" / "crash_reports", paths["crash_reports_dir"])
+        self.assertEqual(root / "workspace" / "cache", paths["archive_cache_root"])
+        self.assertEqual(root / "workspace" / "logs", paths["crash_reports_dir"])
 
     def test_legacy_workspace_migration_moves_default_dirs_and_updates_settings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

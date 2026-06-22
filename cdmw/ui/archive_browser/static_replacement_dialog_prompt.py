@@ -198,6 +198,27 @@ def prompt_archive_static_replacement_options(
     prompt_shell_context.update(locals())
     alignment_prompt_setup = create_static_replacement_prompt_setup(prompt_shell_context)
     prompt_shell_context.update(vars(alignment_prompt_setup))
+    if getattr(alignment_prompt_setup, "alignment_setup_failed", False):
+        _finish_alignment_startup_progress()
+        try:
+            self._unregister_modeless_alignment_dialog(alignment_dialog_key, dialog)
+        except Exception:
+            pass
+        try:
+            dialog.close()
+            dialog.deleteLater()
+        except Exception:
+            pass
+        error_text = str(getattr(alignment_prompt_setup, "alignment_setup_error", "") or "unknown error")
+        self.set_status_message(f"Mesh Replacement Builder setup failed: {error_text}", error=True)
+        if embedded_alignment_builder and hasattr(self, "mesh_editor_tab"):
+            QTimer.singleShot(
+                0,
+                lambda: self.mesh_editor_tab.show_empty_state(
+                    "Mesh Replacement Builder setup failed. See workspace logs."
+                ),
+            )
+        return
     finish_static_replacement_prompt_transform(prompt_shell_context)
     return
 

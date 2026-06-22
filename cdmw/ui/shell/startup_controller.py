@@ -298,7 +298,7 @@ class StartupPromptMixin:
         self._warn_if_archive_cache_stale(health_report, package_root_text)
         if bool(getattr(self, "_startup_archive_path_prompt_accepted", False)):
             self.append_archive_log(
-                "Building the first archive cache now. Keep CDMW open until the Dashboard progress reaches ready."
+                "Building the first archive cache now. Keep CDMW open until the cache status reaches ready."
             )
             self._update_startup_splash(
                 "Building archive cache. First load can take a while; let it finish.",

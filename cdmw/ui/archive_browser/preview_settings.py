@@ -601,12 +601,12 @@ class ArchivePreviewSettingsMixin:
             self._refresh_current_model_preview_assets()
         elif change_flags.needs_asset_refresh:
             self._schedule_current_model_preview_asset_refresh()
-        elif (
-            d3d11_backend_active
-            and change_flags.d3d11_render_tuning_changed
-            and self.archive_d3d11_preview_host.set_render_tuning(preview_settings)
-        ):
-            self.set_status_message("Updated native D3D11 render tuning.")
+        elif d3d11_backend_active and change_flags.d3d11_render_tuning_changed:
+            if self.archive_d3d11_preview_host.set_render_tuning(preview_settings):
+                self.set_status_message("Updated native D3D11 render tuning.")
+            else:
+                self.set_status_message("Reloading native D3D11 preview to apply render settings.")
+                self._refresh_current_model_preview_assets()
         elif change_flags.support_slot_settings_changed:
             self._schedule_current_model_preview_asset_refresh()
         preview_model = None

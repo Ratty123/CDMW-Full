@@ -214,6 +214,15 @@ def test_spinbox_transform_values_can_fallback_on_deleted_widget() -> None:
     ) == DEFAULT_GLOBAL_TRANSFORM_VALUES
 
 
+def test_spinbox_transform_values_can_fallback_before_widgets_exist() -> None:
+    assert spinbox_transform_values(
+        (None, None, None),
+        (None, None, None),
+        (None, None, None),
+        catch_runtime=True,
+    ) == DEFAULT_GLOBAL_TRANSFORM_VALUES
+
+
 def test_spinbox_transform_values_can_raise_deleted_widget() -> None:
     with pytest.raises(RuntimeError):
         spinbox_transform_values(

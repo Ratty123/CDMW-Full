@@ -3296,7 +3296,7 @@ def test_texture_editor_export_state_helpers_build_paths_and_document_state(tmp_
     assert texture_editor_project_default_path(document, str(save_dir)) == save_dir / "Paint Job.ctfedit.json"
     assert texture_editor_project_default_path(project_document, str(save_dir)) == save_dir / "custom.ctfedit.json"
     assert texture_editor_flattened_png_default_path(document, str(save_dir)) == save_dir / "Paint Job.png"
-    assert default_workspace == tmp_path / "workspace" / "projects" / "texture_editor"
+    assert default_workspace == tmp_path / "workspace" / "texture_editor_projects"
     assert default_workspace.exists()
     assert texture_editor_workspace_exports_root(document, Path("fallback")) == workspace_root / "exports"
     assert texture_editor_workspace_png_stem(document, "replace_assistant") == "body_d"

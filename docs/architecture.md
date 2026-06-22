@@ -59,8 +59,8 @@ through it safely.
 
 `cdmw/services/workspace_layout.py` owns app-managed local workspace paths.
 Portable installs keep the config beside the executable, while generated local
-folders live under `workspace/`: sources, staging, outputs, extracts, projects,
-libraries, research, sessions, cache, logs, and tools. Legacy root-level default
+folders live under `workspace/`: original DDS files, staging, outputs, extracts,
+Texture Editor projects, libraries, research, sessions, cache, logs, and tools. Legacy root-level default
 folders are migrated conservatively when settings are created.
 
 ## Workers

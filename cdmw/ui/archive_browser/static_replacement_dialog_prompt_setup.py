@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import traceback
 from types import SimpleNamespace
 
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
@@ -15,6 +16,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
     _alignment_startup_step = context['_alignment_startup_step']
     _alignment_texture_lookup_indexes = context['_alignment_texture_lookup_indexes']
     _capture_static_preview_baked_transform_state = context['_capture_static_preview_baked_transform_state']
+    _mapping_table_action_control_text_helper = context['_mapping_table_action_control_text_helper']
     _record_runtime_event = context['_record_runtime_event']
     alignment_preview_render_control_text = context['alignment_preview_render_control_text']
     alignment_startup_text = context['alignment_startup_text']
@@ -33,7 +35,14 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
     self = context['self']
     setup_layout = context['setup_layout']
     static_dialog_preview = context['static_dialog_preview']
+    supplemental_files = context.get('supplemental_files', ())
+    _set_replacement_mesh_base_for_mapping = context['_set_replacement_mesh_base_for_mapping']
+    _set_replacement_mesh_for_mapping = context['_set_replacement_mesh_for_mapping']
+    _set_replacement_preview_model = context['_set_replacement_preview_model']
 
+    alignment_setup_failed = False
+    alignment_setup_error = ""
+    alignment_setup_traceback = ""
     try:
         if original_mesh is None:
             _alignment_startup_step(alignment_startup_text["original_mesh"])
@@ -103,6 +112,9 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         _alignment_startup_step(alignment_startup_text["preview_meshes"])
         original_reference_preview_model = parsed_mesh_to_preview_model(original_mesh_for_mapping)
         replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
+        _set_replacement_mesh_base_for_mapping(replacement_mesh_base_for_mapping)
+        _set_replacement_mesh_for_mapping(replacement_mesh_for_mapping)
+        _set_replacement_preview_model(replacement_preview_model)
 
         def _get_original_reference_preview_model():
             return original_reference_preview_model
@@ -181,6 +193,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
                 prompt_shell_context["suggested_mappings"] = suggested_mappings
 
         mapping_group = QWidget()
+        mapping_table_action_control_text = _mapping_table_action_control_text_helper()
         mapping_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         mapping_layout = QVBoxLayout(mapping_group)
         mapping_layout.setContentsMargins(1, 1, 1, 1)
@@ -376,6 +389,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
 
 
         alignment_mesh_geometry_preview_section = create_alignment_mesh_geometry_preview_section({
+            **context,
             **globals(),
             **locals(),
             '_basic_controls_profile_enabled': (lambda *args, **kwargs: context['_basic_controls_profile_enabled'](*args, **kwargs)),
@@ -468,12 +482,35 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         source = alignment_mesh_geometry_preview_section.source
         source_count = alignment_mesh_geometry_preview_section.source_count
         tooltip = alignment_mesh_geometry_preview_section.tooltip
+        _alignment_startup_step(alignment_startup_text["replacement_texture_sources"])
+        texture_files_for_mapping: List[Path] = []
+        seen_texture_file_keys: set[str] = set()
+        auto_scene_texture_sources: List[Path] = []
+        if isinstance(scene_import_result, SceneImportResult):
+            auto_scene_texture_sources.extend(
+                path
+                for path in tuple(scene_import_result.discovered_texture_files or ())
+                + tuple(scene_import_result.extracted_embedded_files or ())
+                + tuple(getattr(scene_import_result, "discovered_supplemental_files", ()) or ())
+                if isinstance(path, Path)
+            )
+        try:
+            auto_scene_texture_sources.extend(discover_scene_texture_files(obj_path, replacement_mesh_for_mapping))
+        except Exception:
+            pass
+        _register_texture_source_files_helper(
+            tuple(supplemental_files or ()) + tuple(auto_scene_texture_sources),
+            texture_files_for_mapping=texture_files_for_mapping,
+            seen_texture_file_keys=seen_texture_file_keys,
+            allowed_extensions=SCENE_TEXTURE_SOURCE_EXTENSIONS,
+        )
         alignment_texture_material_section = create_alignment_texture_material_section({
+            **context,
             **globals(),
             **locals(),
-            'inject_base_color_checkbox': (lambda: context['inject_base_color_checkbox']),
-            'prune_unmapped_original_dds_checkbox': (lambda: context['prune_unmapped_original_dds_checkbox']),
-            'rebuild_sidecar_checkbox': (lambda: context['rebuild_sidecar_checkbox']),
+            'inject_base_color_checkbox': (lambda: context.get('inject_base_color_checkbox')),
+            'prune_unmapped_original_dds_checkbox': (lambda: context.get('prune_unmapped_original_dds_checkbox')),
+            'rebuild_sidecar_checkbox': (lambda: context.get('rebuild_sidecar_checkbox')),
         })
         _copied_source_texture_slot_overrides = alignment_texture_material_section._copied_source_texture_slot_overrides
         _load_original_reference_texture_preview = alignment_texture_material_section._load_original_reference_texture_preview
@@ -487,11 +524,18 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         texture_transform_scale_u_spin = alignment_texture_material_section.texture_transform_scale_u_spin
         texture_transform_scale_v_spin = alignment_texture_material_section.texture_transform_scale_v_spin
     except Exception as exc:
+        alignment_setup_failed = True
+        alignment_setup_error = str(exc)
+        alignment_setup_traceback = "".join(
+            traceback.format_exception(type(exc), exc, exc.__traceback__)
+        )
         _record_runtime_event(
             "mesh_alignment_setup_warning",
             path=getattr(entry, "path", ""),
             dialog_title=dialog_title,
             message=str(exc),
+            error_type=type(exc).__name__,
+            traceback=alignment_setup_traceback,
             step="alignment_mapping_setup",
             modify_original_clone=modify_original_clone_mode,
             defer_original_texture_preview=defer_original_texture_preview,

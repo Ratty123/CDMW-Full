@@ -30,8 +30,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
     alignment_d3d11_view_state_reset_generation = int(
         getattr(self, "mesh_editor_d3d11_view_state_reset_generation", 0) or 0
     )
-    # Direct QDialog embedding can crash PySide on Windows; keep this builder modeless.
-    embedded_alignment_builder = False
+    embedded_alignment_builder = embedded_host is not None
     preview_build_entry = (
         runtime_export_target_entry
         if isinstance(runtime_export_target_entry, ArchiveEntry)

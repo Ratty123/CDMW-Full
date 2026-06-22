@@ -236,7 +236,7 @@ class ShellToolTabsMixin:
         self.tools_tabs.addTab(self.mod_package_retrofit_tab, "Retrofit/Repackage")
 
     def _register_shell_tool_tabs(self) -> None:
-        self._build_dashboard_tab()
+        self._initialize_archive_cache_status_chip()
         self._register_detachable_tool("texture_workflow", self.workflow_tab, "Texture Workflow")
         self._register_detachable_tool("replace_assistant", self.replace_assistant_tab, "Texture Replacer")
         self._register_detachable_tool("recolor_variants", self.recolor_variants_tab, "Recolor Variants")

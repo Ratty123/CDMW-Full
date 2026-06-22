@@ -217,8 +217,6 @@ class SettingsAutosaveMixin:
         current_widget = self._current_navigation_widget()
         if current_widget is not None:
             self._handle_tool_activated(current_widget)
-        if current_widget is self.dashboard_tab:
-            self._refresh_dashboard()
         self._update_window_menu_state()
         self._save_settings()
 

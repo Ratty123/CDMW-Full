@@ -30,7 +30,6 @@ class AboutDocumentationEnglishMixin:
                 "html": """
                 <p>The app is split into major work areas rather than one single pipeline.</p>
                 <ul>
-                  <li><b>Dashboard</b>: compact workspace health, configured tool paths, recent work, and the latest run result with quick links to output, Compare, and logs.</li>
                   <li><b>Texture Workflow</b>: batch loose DDS processing, optional upscaling, DDS rebuild, compare, and mod-ready loose export.</li>
                   <li><b>Archive Browser</b>: archive scanning, filtering, preview, extraction, supported patch/loose-export workflows, and Research/Editor handoff.</li>
                   <li><b>Model Library</b>: scan local/importable models, preview them, and route compatible imports into Archive Browser workflows.</li>

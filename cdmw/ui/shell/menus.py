@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 
 class MenuController:
@@ -37,11 +37,24 @@ class ShellMenusMixin:
         self.copy_problem_summary_action = self.help_menu.addAction("Copy Latest Problem Summary")
         self.open_crash_reports_action = self.help_menu.addAction("Open Crash Reports Folder")
         self.open_about_action = menu_bar.addAction("About")
+        self.menu_corner_widget = QWidget()
+        menu_corner_layout = QHBoxLayout(self.menu_corner_widget)
+        menu_corner_layout.setContentsMargins(0, 0, 0, 0)
+        menu_corner_layout.setSpacing(6)
+        self.archive_cache_status_chip = QLabel("Cache: Unknown")
+        self.archive_cache_status_chip.setObjectName("ArchiveCacheStatusChip")
+        self.archive_cache_status_chip.setMinimumHeight(26)
+        self.archive_cache_status_chip.setMaximumWidth(240)
+        self.archive_cache_status_chip.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self.archive_cache_status_chip.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.archive_cache_status_chip.setToolTip("Cache Status: Unknown. Archive cache has not been checked.")
         self.support_corner_button = QPushButton("Support Me")
         self.support_corner_button.setIcon(self._build_support_heart_icon())
         self.support_corner_button.setToolTip("Open the optional Ko-fi support dialog.")
         self.support_corner_button.setMinimumHeight(26)
-        menu_bar.setCornerWidget(self.support_corner_button, Qt.TopRightCorner)
+        menu_corner_layout.addWidget(self.archive_cache_status_chip)
+        menu_corner_layout.addWidget(self.support_corner_button)
+        menu_bar.setCornerWidget(self.menu_corner_widget, Qt.TopRightCorner)
 
 
 __all__ = ["MenuController", "ShellMenusMixin"]

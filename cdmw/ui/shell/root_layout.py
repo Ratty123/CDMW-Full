@@ -18,8 +18,6 @@ class ShellRootLayoutMixin:
         self.main_tabs = QTabWidget()
         root_layout.addWidget(self.main_tabs, stretch=1)
 
-        self.dashboard_tab = QWidget()
-        self.main_tabs.addTab(self.dashboard_tab, "Dashboard")
         self.assets_tabs = QTabWidget()
         self.main_tabs.addTab(self.assets_tabs, "Assets")
         self.texture_tabs = QTabWidget()

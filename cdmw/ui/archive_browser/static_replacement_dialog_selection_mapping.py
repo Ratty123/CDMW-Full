@@ -10,7 +10,7 @@ def _safe_call(func, *args, default=None, **kwargs):
         return default
     try:
         return func(*args, **kwargs)
-    except NameError:
+    except (KeyError, NameError):
         return default
 
 
@@ -135,9 +135,13 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
         return _safe_call(_get_texture_sets, default={})
 
     def _source_index_is_enabled_renderable(source_index: int) -> bool:
-        return _source_index_is_enabled_renderable_helper(
-            source_part_adjustments,
-            source_index,
+        return bool(
+            _source_index_is_enabled_renderable_helper(
+                source_index,
+                _replacement_mesh(),
+                source_part_adjustments or {},
+                is_marker_source=_is_marker_source,
+            )
         )
 
     _enabled_renderable_source_indices = lambda source_indices: _enabled_renderable_source_indices_helper(

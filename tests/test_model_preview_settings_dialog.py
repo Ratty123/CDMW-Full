@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Mapping
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -8,6 +9,7 @@ from PySide6.QtWidgets import QApplication, QLabel
 
 from cdmw.models import ArchivePerformanceSettings, ModelPreviewRenderSettings
 from cdmw.ui.model_preview_settings_dialog import ModelPreviewSettingsDialog
+from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
 
 
 def _app() -> QApplication:
@@ -15,6 +17,16 @@ def _app() -> QApplication:
     if app is None:
         app = QApplication([])
     return app
+
+
+class _CapturingD3D11HostFrame(NativeD3D11PreviewHostFrame):
+    def __init__(self) -> None:
+        super().__init__()
+        self.commands: list[dict[str, object]] = []
+
+    def _send_host_json_command(self, payload: Mapping[str, object]) -> bool:
+        self.commands.append(dict(payload))
+        return True
 
 
 class ModelPreviewSettingsDialogTests(unittest.TestCase):
@@ -215,6 +227,81 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
 
         dialog.close()
         dialog.deleteLater()
+
+    def test_native_d3d11_render_tuning_payload_contains_visible_3d_settings(self) -> None:
+        _app()
+        host = _CapturingD3D11HostFrame()
+        settings = ModelPreviewRenderSettings(
+            max_anisotropy=8,
+            d3d11_view_mode="normal",
+            d3d11_light_azimuth_degrees=-12.5,
+            d3d11_light_elevation_degrees=43.0,
+            d3d11_ao_strength=0.35,
+            d3d11_roughness_bias=0.22,
+            d3d11_metalness_scale=0.45,
+            d3d11_environment_strength=0.66,
+            d3d11_emissive_gain=0.77,
+            d3d11_tone_exposure=1.25,
+            d3d11_tone_contrast=0.90,
+            d3d11_tone_gamma=1.15,
+            ambient_strength=0.68,
+            diffuse_wrap_bias=0.84,
+            diffuse_light_scale=0.88,
+            orbit_sensitivity=0.31,
+            pan_sensitivity=0.72,
+            invert_orbit_x=True,
+            invert_orbit_y=True,
+            invert_pan_x=True,
+            invert_pan_y=True,
+        )
+
+        try:
+            self.assertTrue(host.set_render_tuning(settings))
+            self.assertEqual(1, len(host.commands))
+            payload = host.commands[0]
+            self.assertEqual("set_render_tuning", payload["command"])
+            self.assertTrue(
+                {
+                    "d3d11_view_mode",
+                    "max_anisotropy",
+                    "diffuse_wrap_bias",
+                    "orbit_sensitivity",
+                    "pan_sensitivity",
+                    "invert_orbit_x",
+                    "invert_orbit_y",
+                    "invert_pan_x",
+                    "invert_pan_y",
+                    "d3d11_light_azimuth_degrees",
+                    "d3d11_light_elevation_degrees",
+                    "d3d11_ao_strength",
+                    "d3d11_roughness_bias",
+                    "d3d11_metalness_scale",
+                    "d3d11_environment_strength",
+                    "d3d11_emissive_gain",
+                    "d3d11_tone_exposure",
+                    "d3d11_tone_contrast",
+                    "d3d11_tone_gamma",
+                    "ambient_strength",
+                    "diffuse_light_scale",
+                }.issubset(payload)
+            )
+            self.assertEqual("normal", payload["d3d11_view_mode"])
+            self.assertEqual(8, payload["max_anisotropy"])
+            self.assertEqual(0.84, payload["diffuse_wrap_bias"])
+            self.assertEqual(0.31, payload["orbit_sensitivity"])
+            self.assertEqual(0.72, payload["pan_sensitivity"])
+            self.assertTrue(payload["invert_orbit_x"])
+            self.assertTrue(payload["invert_orbit_y"])
+            self.assertTrue(payload["invert_pan_x"])
+            self.assertTrue(payload["invert_pan_y"])
+            self.assertEqual(-12.5, payload["d3d11_light_azimuth_degrees"])
+            self.assertEqual(43.0, payload["d3d11_light_elevation_degrees"])
+            self.assertEqual(1.25, payload["d3d11_tone_exposure"])
+            self.assertEqual(0.90, payload["d3d11_tone_contrast"])
+            self.assertEqual(1.15, payload["d3d11_tone_gamma"])
+        finally:
+            host.close()
+            host.deleteLater()
 
     def test_removed_webgl_backend_normalizes_to_d3d11(self) -> None:
         _app()

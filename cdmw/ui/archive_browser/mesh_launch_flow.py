@@ -362,6 +362,7 @@ class ArchiveMeshLaunchFlowMixin:
                 preferred_complete_source_swap=bool(setup.preferred_complete_source_swap),
                 source_texture_evidence=setup.source_texture_evidence,
                 extra_supplemental_specs=setup.extra_supplemental_specs,
+                embedded_host=self.mesh_editor_tab.builder_host() if hasattr(self, "mesh_editor_tab") else None,
                 on_accept=_start_import_preview_with_options,
                 on_cancel=lambda: self.set_status_message(mesh_import_preview_cancelled_status()),
             )

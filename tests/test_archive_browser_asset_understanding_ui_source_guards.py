@@ -616,7 +616,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_scan_progress_label.setText(phase_text)", source)
         self.assertIn("self._dashboard_set_archive_progress(phase_text, detail_text, percent_value)", source)
         self.assertIn('self.archive_scan_progress_label = QLabel("Ready")', source)
-        self.assertIn("self.dashboard_archive_progress_detail_label = QLabel(\"No archive cache build is running.\")", source)
+        self.assertIn("def _set_archive_cache_status_chip(", source)
+        self.assertIn('"building": "Cache: Building"', source)
         self.assertLess(
             source.index("archive_status_group_layout.addWidget(self.archive_scan_progress_bar)"),
             source.index("archive_status_group_layout.addWidget(self.archive_scan_progress_label)"),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins as _builtins
 from types import SimpleNamespace
 
 
@@ -20,6 +21,11 @@ class _LateLocalProxy:
         if target is None:
             raise NameError(f"late-bound UI object {self._name!r} is not available")
         return getattr(target, name)
+
+
+def _context_builtin(context: dict[str, object], name: str) -> object:
+    value = context.get(name)
+    return value if callable(value) else getattr(_builtins, name)
 
 
 def create_alignment_setup_options_transform_section(context: dict[str, object]) -> SimpleNamespace:
@@ -809,6 +815,14 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     edge_relief_source_combo.currentIndexChanged.connect(lambda _index: _set_edge_relief_source())
     accent_glow_slider.valueChanged.connect(lambda value: _set_accent_glow(int(value)))
     accent_glow_spin.valueChanged.connect(lambda value: _set_accent_glow(int(value)))
+    context.update(
+        {
+            "complete_external_swap_checkbox": complete_external_swap_checkbox,
+            "part_glow_color_checkbox": part_glow_color_checkbox,
+            "part_glow_color_pick_button": part_glow_color_pick_button,
+            "part_glow_color_spins": part_glow_color_spins,
+        }
+    )
     source_part_glow_controls_ready = (
         callable(_set_selected_source_glow_color)
         and callable(_refresh_part_glow_color_controls_enabled)
@@ -1265,9 +1279,9 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     _update_mapping_status = context.get('_update_mapping_status')
     _update_selection_context = context.get('_update_selection_context')
     alignment_startup_text = context.get('alignment_startup_text')
-    any = context.get('any')
+    any = _context_builtin(context, 'any')
     args = context.get('args')
-    bool = context.get('bool')
+    bool = _context_builtin(context, 'bool')
     control_tabs = context.get('control_tabs')
     create_alignment_mesh_edit_callbacks = context.get('create_alignment_mesh_edit_callbacks')
     create_alignment_original_texture_worker_callbacks = context.get('create_alignment_original_texture_worker_callbacks')
@@ -1277,16 +1291,16 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     dialog = context.get('dialog')
     dialog_title = context.get('dialog_title')
     entry = context.get('entry')
-    getattr = context.get('getattr')
-    globals = context.get('globals')
+    getattr = _context_builtin(context, 'getattr')
+    globals = _context_builtin(context, 'globals')
     index = context.get('index')
     kwargs = context.get('kwargs')
     label_text = context.get('label_text')
-    len = context.get('len')
-    locals = context.get('locals')
+    len = _context_builtin(context, 'len')
+    locals = _context_builtin(context, 'locals')
     mapping_edits = context.get('mapping_edits')
     mapping_tree = context.get('mapping_tree')
-    max = context.get('max')
+    max = _context_builtin(context, 'max')
     mesh_edit_layout_page = context.get('mesh_edit_layout_page')
     mesh_edit_page = context.get('mesh_edit_page')
     object_name = context.get('object_name')
@@ -1305,8 +1319,8 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     source_tree = context.get('source_tree')
     static_preview_refresh_timer = context.get('static_preview_refresh_timer')
     static_preview_settle_timer = context.get('static_preview_settle_timer')
-    str = context.get('str')
-    sum = context.get('sum')
+    str = _context_builtin(context, 'str')
+    sum = _context_builtin(context, 'sum')
     target_preview_model = context.get('target_preview_model')
     widget = context.get('widget')
 
@@ -1643,6 +1657,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     )
     _refresh_source_assignment_columns()
     _load_selected_part_controls()
+    _refresh_mesh_edit_controls()
     _update_mapping_status()
     _update_selection_context()
     _alignment_startup_step(alignment_startup_text["geometry_controls"])
@@ -1868,7 +1883,7 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     Dict = context.get('Dict')
     List = context.get('List')
     Mapping = context.get('Mapping')
-    NameError = context.get('NameError')
+    NameError = _context_builtin(context, 'NameError')
     Optional = context.get('Optional')
     QApplication = context.get('QApplication')
     QBrush = context.get('QBrush')
@@ -1924,7 +1939,8 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     _alignment_virtual_sidecar_contract_state_helper = context.get('_alignment_virtual_sidecar_contract_state_helper')
     _apply_source_material_texture_overrides_to_ui_texture_sets = context.get('_apply_source_material_texture_overrides_to_ui_texture_sets')
     _best_source_for_slot = context.get('_best_source_for_slot')
-    _binding_matches_target = context.get('_binding_matches_target')
+    _binding_matches_target_callback = context.get('_binding_matches_target')
+    _binding_matches_target_helper = context.get('_binding_matches_target_helper')
     _commit_spinbox_text = context.get('_commit_spinbox_text')
     _configure_alignment_tree = context.get('_configure_alignment_tree')
     _configure_texture_mapping_tree = context.get('_configure_texture_mapping_tree')
@@ -1987,7 +2003,7 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     alignment_startup_text = context.get('alignment_startup_text')
     alignment_virtual_texture_contract = context.get('alignment_virtual_texture_contract')
     args = context.get('args')
-    bool = context.get('bool')
+    bool = _context_builtin(context, 'bool')
     checked = context.get('checked')
     classify_texture_binding = context.get('classify_texture_binding')
     control_tabs = context.get('control_tabs')
@@ -2006,28 +2022,28 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     current = context.get('current')
     defer_original_texture_preview = context.get('defer_original_texture_preview')
     dialog = context.get('dialog')
-    enumerate = context.get('enumerate')
+    enumerate = _context_builtin(context, 'enumerate')
     expanded = context.get('expanded')
-    getattr = context.get('getattr')
-    globals = context.get('globals')
+    getattr = _context_builtin(context, 'getattr')
+    globals = _context_builtin(context, 'globals')
     group_replacement_texture_sets = context.get('group_replacement_texture_sets')
     index = context.get('index')
     inject_base_color_checkbox = _LateLocalProxy(context.get('inject_base_color_checkbox'), 'inject_base_color_checkbox')
-    int = context.get('int')
+    int = _context_builtin(context, 'int')
     is_shared_material_layer_texture = context.get('is_shared_material_layer_texture')
     kwargs = context.get('kwargs')
-    len = context.get('len')
+    len = _context_builtin(context, 'len')
     limit = context.get('limit')
-    list = context.get('list')
-    locals = context.get('locals')
+    list = _context_builtin(context, 'list')
+    locals = _context_builtin(context, 'locals')
     mapping_index = context.get('mapping_index')
     material_name = context.get('material_name')
-    max = context.get('max')
+    max = _context_builtin(context, 'max')
     modify_original_clone_mode = context.get('modify_original_clone_mode')
     name = context.get('name')
     normalize_texture_reference_for_sidecar_lookup = context.get('normalize_texture_reference_for_sidecar_lookup')
     obj_path = context.get('obj_path')
-    object = context.get('object')
+    object = _context_builtin(context, 'object')
     occupied_keys = context.get('occupied_keys')
     original_texture_preview_state = context.get('original_texture_preview_state')
     parsed_mappings = context.get('parsed_mappings')
@@ -2040,7 +2056,7 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     scan_count = context.get('scan_count')
     seen_texture_file_keys = context.get('seen_texture_file_keys')
     selected_source_part = context.get('selected_source_part')
-    set = context.get('set')
+    set = _context_builtin(context, 'set')
     sidecar_bindings = context.get('sidecar_bindings')
     sidecar_key = context.get('sidecar_key')
     sidecar_text_values = context.get('sidecar_text_values')
@@ -2048,7 +2064,7 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     sidecar_texts_by_normalized_path = context.get('sidecar_texts_by_normalized_path')
     spin = context.get('spin')
     state = context.get('state')
-    str = context.get('str')
+    str = _context_builtin(context, 'str')
     suggested_mappings = context.get('suggested_mappings')
     texture_files_for_mapping = context.get('texture_files_for_mapping')
     texture_filter_refresh = context.get('texture_filter_refresh')
@@ -2059,7 +2075,20 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     textures_tab = context.get('textures_tab')
     title = context.get('title')
     tree = context.get('tree')
-    tuple = context.get('tuple')
+    tuple = _context_builtin(context, 'tuple')
+
+    def _binding_matches_target(binding: object, target_name: str) -> bool:
+        if callable(_binding_matches_target_callback):
+            return bool(_binding_matches_target_callback(binding, target_name))
+        if callable(_binding_matches_target_helper):
+            return bool(_binding_matches_target_helper(binding, target_name))
+        binding_names = (
+            str(getattr(binding, "part_name", "") or ""),
+            str(getattr(binding, "submesh_name", "") or ""),
+            str(getattr(binding, "material_name", "") or ""),
+        )
+        target_key = str(target_name or "").strip().lower()
+        return bool(target_key) and any(name.strip().lower() == target_key for name in binding_names)
 
     texture_sets = group_replacement_texture_sets(texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
     _apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
@@ -2110,9 +2139,19 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     donor_material_layout.addWidget(donor_material_plan_tree, 0)
     textures_layout.addWidget(donor_material_group, 0)
 
-
-
-
+    alignment_original_texture_material_callbacks = create_alignment_original_texture_material_callbacks({**context, **globals(), **locals()})
+    _stop_original_reference_texture_worker = alignment_original_texture_material_callbacks._stop_original_reference_texture_worker
+    _cleanup_original_reference_texture_worker_refs = alignment_original_texture_material_callbacks._cleanup_original_reference_texture_worker_refs
+    _handle_original_reference_texture_preview_error = alignment_original_texture_material_callbacks._handle_original_reference_texture_preview_error
+    _load_original_reference_texture_preview = alignment_original_texture_material_callbacks._load_original_reference_texture_preview
+    _highlight_texture_plan_item = alignment_original_texture_material_callbacks._highlight_texture_plan_item
+    _source_material_names_for_mapping = alignment_original_texture_material_callbacks._source_material_names_for_mapping
+    _material_routing_conflict_messages = alignment_original_texture_material_callbacks._material_routing_conflict_messages
+    _refresh_donor_material_plan_tree = alignment_original_texture_material_callbacks._refresh_donor_material_plan_tree
+    _clear_selected_donor_material_source = alignment_original_texture_material_callbacks._clear_selected_donor_material_source
+    _load_donor_sidecar_texts = alignment_original_texture_material_callbacks._load_donor_sidecar_texts
+    _open_original_material_source_picker = alignment_original_texture_material_callbacks._open_original_material_source_picker
+    _set_original_texture_preview_enabled = alignment_original_texture_material_callbacks._set_original_texture_preview_enabled
 
     use_another_original_mesh_button.clicked.connect(_open_original_material_source_picker)
     clear_donor_material_button.clicked.connect(_clear_selected_donor_material_source)
@@ -2158,20 +2197,6 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     original_texture_preview_note.setVisible(bool(modify_original_clone_mode and defer_original_texture_preview))
     original_texture_preview_group.setVisible(bool(modify_original_clone_mode))
     textures_layout.addWidget(original_texture_preview_group, 0)
-
-    alignment_original_texture_material_callbacks = create_alignment_original_texture_material_callbacks({**context, **globals(), **locals()})
-    _stop_original_reference_texture_worker = alignment_original_texture_material_callbacks._stop_original_reference_texture_worker
-    _cleanup_original_reference_texture_worker_refs = alignment_original_texture_material_callbacks._cleanup_original_reference_texture_worker_refs
-    _handle_original_reference_texture_preview_error = alignment_original_texture_material_callbacks._handle_original_reference_texture_preview_error
-    _load_original_reference_texture_preview = alignment_original_texture_material_callbacks._load_original_reference_texture_preview
-    _highlight_texture_plan_item = alignment_original_texture_material_callbacks._highlight_texture_plan_item
-    _source_material_names_for_mapping = alignment_original_texture_material_callbacks._source_material_names_for_mapping
-    _material_routing_conflict_messages = alignment_original_texture_material_callbacks._material_routing_conflict_messages
-    _refresh_donor_material_plan_tree = alignment_original_texture_material_callbacks._refresh_donor_material_plan_tree
-    _clear_selected_donor_material_source = alignment_original_texture_material_callbacks._clear_selected_donor_material_source
-    _load_donor_sidecar_texts = alignment_original_texture_material_callbacks._load_donor_sidecar_texts
-    _open_original_material_source_picker = alignment_original_texture_material_callbacks._open_original_material_source_picker
-    _set_original_texture_preview_enabled = alignment_original_texture_material_callbacks._set_original_texture_preview_enabled
 
     original_texture_preview_checkbox.toggled.connect(_set_original_texture_preview_enabled)
 
@@ -3588,6 +3613,13 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     texture_override_tree = context.get('texture_override_tree')
     texture_sets = context.get('texture_sets')
 
+    prompt_shell_context = context.get('prompt_shell_context')
+
+    def _late_context_value(name: str) -> object:
+        if isinstance(prompt_shell_context, dict) and name in prompt_shell_context:
+            return prompt_shell_context.get(name)
+        return context.get(name)
+
     source_tree_control_text = _source_tree_control_text_helper()
     source_tree_layout_state = _source_tree_layout_state_helper()
     source_tree = QTreeWidget()
@@ -3640,8 +3672,6 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
 
 
 
-    source_tree.itemChanged.connect(_source_item_check_state_changed)
-
     _copied_original_source_indices = lambda: _copied_original_source_indices_helper(
         replacement_mesh_for_mapping,
         copied_original_source_indices,
@@ -3693,18 +3723,16 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
         original_button.setMinimumWidth(0)
 
     _original_index_from_tree_item = lambda item: _tree_item_primary_index_helper(item)
+    _original_target_label = lambda original_index: _original_target_label_helper(
+        original_index,
+        original_mesh_for_mapping,
+    )
 
     alignment_original_texture_intent_callbacks = create_alignment_original_texture_intent_callbacks({**context, **globals(), **locals()})
     _selected_original_index_from_tree = alignment_original_texture_intent_callbacks._selected_original_index_from_tree
     _original_part_texture_intent_rows = alignment_original_texture_intent_callbacks._original_part_texture_intent_rows
     _copied_original_texture_tooltip = alignment_original_texture_intent_callbacks._copied_original_texture_tooltip
     _copied_original_dds_badge = alignment_original_texture_intent_callbacks._copied_original_dds_badge
-
-    _original_target_label = lambda original_index: _original_target_label_helper(
-        original_index,
-        original_mesh_for_mapping,
-    )
-
 
     _part_physics_review_reason = lambda label_text, part: _part_physics_review_reason_helper(
         label_text,
@@ -3806,11 +3834,6 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     source_tree_progress_label = QLabel(_source_tree_population_queued_text_helper(replacement_source_count))
     source_tree_progress_label.setObjectName("HintLabel")
     source_tree_progress_label.setWordWrap(True)
-
-
-
-    source_tree_population_timer.timeout.connect(_populate_source_tree_chunk)
-    _queue_alignment_post_open_task(source_tree_population_timer.start)
     replacement_sources_label = QLabel(str(source_tree_control_text["replacement_label_html"]))
     replacement_sources_label.setTextFormat(Qt.RichText)
     replacement_sources_label.setVisible(False)
@@ -3956,51 +3979,6 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     parts_outliner_source_items: Dict[int, QTreeWidgetItem] = {}
     parts_outliner_target_items: Dict[int, QTreeWidgetItem] = {}
 
-    parts_outliner_mapping_callbacks = create_alignment_parts_outliner_mapping_callbacks({**context, **globals(), **locals()})
-    _parts_outliner_source_label = parts_outliner_mapping_callbacks._parts_outliner_source_label
-    _parts_outliner_source_geometry = parts_outliner_mapping_callbacks._parts_outliner_source_geometry
-    _selected_source_indices_from_tree = parts_outliner_mapping_callbacks._selected_source_indices_from_tree
-    _set_transform_source_indices = parts_outliner_mapping_callbacks._set_transform_source_indices
-    _clear_transform_source_indices = parts_outliner_mapping_callbacks._clear_transform_source_indices
-    _set_source_parts_apply_pending = parts_outliner_mapping_callbacks._set_source_parts_apply_pending
-    _clear_source_parts_apply_pending = parts_outliner_mapping_callbacks._clear_source_parts_apply_pending
-    _set_source_parts_preview_rebuild_pending = parts_outliner_mapping_callbacks._set_source_parts_preview_rebuild_pending
-    _clear_source_parts_preview_rebuild_pending = parts_outliner_mapping_callbacks._clear_source_parts_preview_rebuild_pending
-    _add_source_tree_item = parts_outliner_mapping_callbacks._add_source_tree_item
-    _source_item_check_state_changed = parts_outliner_mapping_callbacks._source_item_check_state_changed
-    _outliner_source_index_from_item = parts_outliner_mapping_callbacks._outliner_source_index_from_item
-    _parts_outliner_set_source_selection = parts_outliner_mapping_callbacks._parts_outliner_set_source_selection
-    _refresh_parts_outliner = parts_outliner_mapping_callbacks._refresh_parts_outliner
-    _show_parts_outliner_context_menu = parts_outliner_mapping_callbacks._show_parts_outliner_context_menu
-    _apply_parts_outliner_source_target = parts_outliner_mapping_callbacks._apply_parts_outliner_source_target
-    _parts_outliner_drop_target_index = parts_outliner_mapping_callbacks._parts_outliner_drop_target_index
-    _handle_parts_outliner_source_drop = parts_outliner_mapping_callbacks._handle_parts_outliner_source_drop
-    _apply_parts_outliner_source_role = parts_outliner_mapping_callbacks._apply_parts_outliner_source_role
-    _open_parts_outliner_target_dropdown = parts_outliner_mapping_callbacks._open_parts_outliner_target_dropdown
-    _open_parts_outliner_role_dropdown = parts_outliner_mapping_callbacks._open_parts_outliner_role_dropdown
-    _handle_parts_outliner_item_clicked = parts_outliner_mapping_callbacks._handle_parts_outliner_item_clicked
-    _append_mapping_target_row = parts_outliner_mapping_callbacks._append_mapping_target_row
-    _build_mapping_table_chunk = parts_outliner_mapping_callbacks._build_mapping_table_chunk
-    _apply_target_slot_filters = parts_outliner_mapping_callbacks._apply_target_slot_filters
-    _ensure_mapping_table_building = parts_outliner_mapping_callbacks._ensure_mapping_table_building
-    _clear_all_mapping_guesses = parts_outliner_mapping_callbacks._clear_all_mapping_guesses
-    _apply_best_mapping_guesses = parts_outliner_mapping_callbacks._apply_best_mapping_guesses
-    _preview_selected_target_slot = parts_outliner_mapping_callbacks._preview_selected_target_slot
-    _selected_source_index = parts_outliner_mapping_callbacks._selected_source_index
-    _selected_target_index = parts_outliner_mapping_callbacks._selected_target_index
-    _parse_mapping_edit = parts_outliner_mapping_callbacks._parse_mapping_edit
-    _texture_set_for_source_index = parts_outliner_mapping_callbacks._texture_set_for_source_index
-    _source_material_group_label = parts_outliner_mapping_callbacks._source_material_group_label
-    _mapped_target_vertex_count = parts_outliner_mapping_callbacks._mapped_target_vertex_count
-    _mapped_source_vertex_counts = parts_outliner_mapping_callbacks._mapped_source_vertex_counts
-    _mapping_preserve_split_group_count = parts_outliner_mapping_callbacks._mapping_preserve_split_group_count
-    _mapping_vertex_limit_issues = parts_outliner_mapping_callbacks._mapping_vertex_limit_issues
-    _routing_source_material_labels = parts_outliner_mapping_callbacks._routing_source_material_labels
-    _routing_effect_lines = parts_outliner_mapping_callbacks._routing_effect_lines
-    _set_advanced_mapping_visible = parts_outliner_mapping_callbacks._set_advanced_mapping_visible
-    _update_mapping_status = parts_outliner_mapping_callbacks._update_mapping_status
-    _sync_target_mapping_tree_item = parts_outliner_mapping_callbacks._sync_target_mapping_tree_item
-    _set_mapping_indices = parts_outliner_mapping_callbacks._set_mapping_indices
 
 
 
@@ -4019,15 +3997,6 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
 
 
 
-
-
-
-
-
-    parts_outliner_tree.setContextMenuPolicy(Qt.CustomContextMenu)
-    parts_outliner_tree.customContextMenuRequested.connect(_show_parts_outliner_context_menu)
-    parts_outliner_tree.itemClicked.connect(_handle_parts_outliner_item_clicked)
-    parts_outliner_tree.set_source_drop_handler(_handle_parts_outliner_source_drop)
 
 
 
@@ -4037,7 +4006,6 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
 
 
 
-    mapping_table_build_timer.timeout.connect(_build_mapping_table_chunk)
     mapping_table_build_requested = _mapping_table_build_requested_initial_state_helper()
 
 
@@ -4100,10 +4068,6 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     mapping_action_row.addWidget(preview_target_button)
     mapping_action_row.addStretch(1)
     mapping_layout.addLayout(mapping_action_row)
-    low_confidence_filter_checkbox.toggled.connect(_apply_target_slot_filters)
-    empty_targets_filter_checkbox.toggled.connect(_apply_target_slot_filters)
-    clear_all_guesses_button.clicked.connect(_clear_all_mapping_guesses)
-    apply_best_guesses_button.clicked.connect(_apply_best_mapping_guesses)
     show_advanced_mapping_checkbox = QCheckBox(mapping_table_action_control_text["advanced_mapping"])
     show_advanced_mapping_checkbox.setToolTip(mapping_table_action_control_text["advanced_mapping_tooltip"])
     show_advanced_mapping_checkbox.setProperty("cdmw_default_on_for_all_users", True)
@@ -4112,14 +4076,7 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     mapping_tree.setColumnHidden(2, True)
     mapping_tree.setVisible(False)
 
-    show_advanced_mapping_checkbox.toggled.connect(_set_advanced_mapping_visible)
     mapping_layout.addWidget(mapping_tree, 0)
-    _set_advanced_mapping_visible(show_advanced_mapping_checkbox.isChecked())
-    control_tabs.currentChanged.connect(
-        lambda index: _ensure_mapping_table_building()
-        if control_tabs.widget(index) is parts_tab
-        else None
-    )
 
     mapping_status_label = QLabel(mapping_table_action_control_text["mapping_status_initial"])
     mapping_status_label.setWordWrap(True)
@@ -4155,6 +4112,78 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     clear_all_selection_button = selection_route_buttons["clear_all"]
     mapping_selection_buttons.addStretch(1)
     mapping_layout.addLayout(mapping_selection_buttons)
+
+    parts_outliner_mapping_callbacks = create_alignment_parts_outliner_mapping_callbacks({**context, **globals(), **locals()})
+    _parts_outliner_source_label = parts_outliner_mapping_callbacks._parts_outliner_source_label
+    _parts_outliner_source_geometry = parts_outliner_mapping_callbacks._parts_outliner_source_geometry
+    _selected_source_indices_from_tree = parts_outliner_mapping_callbacks._selected_source_indices_from_tree
+    _set_transform_source_indices = parts_outliner_mapping_callbacks._set_transform_source_indices
+    _clear_transform_source_indices = parts_outliner_mapping_callbacks._clear_transform_source_indices
+    _set_source_parts_apply_pending = parts_outliner_mapping_callbacks._set_source_parts_apply_pending
+    _clear_source_parts_apply_pending = parts_outliner_mapping_callbacks._clear_source_parts_apply_pending
+    _set_source_parts_preview_rebuild_pending = parts_outliner_mapping_callbacks._set_source_parts_preview_rebuild_pending
+    _clear_source_parts_preview_rebuild_pending = parts_outliner_mapping_callbacks._clear_source_parts_preview_rebuild_pending
+    _add_source_tree_item = parts_outliner_mapping_callbacks._add_source_tree_item
+    _source_item_check_state_changed = parts_outliner_mapping_callbacks._source_item_check_state_changed
+    _outliner_source_index_from_item = parts_outliner_mapping_callbacks._outliner_source_index_from_item
+    _parts_outliner_set_source_selection = parts_outliner_mapping_callbacks._parts_outliner_set_source_selection
+    _refresh_parts_outliner = parts_outliner_mapping_callbacks._refresh_parts_outliner
+    _show_parts_outliner_context_menu = parts_outliner_mapping_callbacks._show_parts_outliner_context_menu
+    _apply_parts_outliner_source_target = parts_outliner_mapping_callbacks._apply_parts_outliner_source_target
+    _parts_outliner_drop_target_index = parts_outliner_mapping_callbacks._parts_outliner_drop_target_index
+    _handle_parts_outliner_source_drop = parts_outliner_mapping_callbacks._handle_parts_outliner_source_drop
+    _apply_parts_outliner_source_role = parts_outliner_mapping_callbacks._apply_parts_outliner_source_role
+    _open_parts_outliner_target_dropdown = parts_outliner_mapping_callbacks._open_parts_outliner_target_dropdown
+    _open_parts_outliner_role_dropdown = parts_outliner_mapping_callbacks._open_parts_outliner_role_dropdown
+    _handle_parts_outliner_item_clicked = parts_outliner_mapping_callbacks._handle_parts_outliner_item_clicked
+    _append_mapping_target_row = parts_outliner_mapping_callbacks._append_mapping_target_row
+    _build_mapping_table_chunk = parts_outliner_mapping_callbacks._build_mapping_table_chunk
+    _apply_target_slot_filters = parts_outliner_mapping_callbacks._apply_target_slot_filters
+    _ensure_mapping_table_building = parts_outliner_mapping_callbacks._ensure_mapping_table_building
+    _clear_all_mapping_guesses = parts_outliner_mapping_callbacks._clear_all_mapping_guesses
+    _apply_best_mapping_guesses = parts_outliner_mapping_callbacks._apply_best_mapping_guesses
+    _preview_selected_target_slot = parts_outliner_mapping_callbacks._preview_selected_target_slot
+    _selected_source_index = parts_outliner_mapping_callbacks._selected_source_index
+    _selected_target_index = parts_outliner_mapping_callbacks._selected_target_index
+    _parse_mapping_edit = parts_outliner_mapping_callbacks._parse_mapping_edit
+    _texture_set_for_source_index = parts_outliner_mapping_callbacks._texture_set_for_source_index
+    _source_material_group_label = parts_outliner_mapping_callbacks._source_material_group_label
+    _mapped_target_vertex_count = parts_outliner_mapping_callbacks._mapped_target_vertex_count
+    _mapped_source_vertex_counts = parts_outliner_mapping_callbacks._mapped_source_vertex_counts
+    _mapping_preserve_split_group_count = parts_outliner_mapping_callbacks._mapping_preserve_split_group_count
+    _mapping_vertex_limit_issues = parts_outliner_mapping_callbacks._mapping_vertex_limit_issues
+    _routing_source_material_labels = parts_outliner_mapping_callbacks._routing_source_material_labels
+    _routing_effect_lines = parts_outliner_mapping_callbacks._routing_effect_lines
+    _set_advanced_mapping_visible = parts_outliner_mapping_callbacks._set_advanced_mapping_visible
+    _update_mapping_status = parts_outliner_mapping_callbacks._update_mapping_status
+    _sync_target_mapping_tree_item = parts_outliner_mapping_callbacks._sync_target_mapping_tree_item
+    _set_mapping_indices = parts_outliner_mapping_callbacks._set_mapping_indices
+
+    alignment_source_tree_population_role_callbacks = create_alignment_source_tree_role_callbacks({**context, **globals(), **locals()})
+    _finish_source_tree_population = alignment_source_tree_population_role_callbacks._finish_source_tree_population
+
+    alignment_source_role_tree_population_callbacks = create_alignment_source_role_tree_callbacks({**context, **globals(), **locals()})
+    _populate_source_tree_chunk = alignment_source_role_tree_population_callbacks._populate_source_tree_chunk
+    source_tree_population_timer.timeout.connect(_populate_source_tree_chunk)
+    _queue_alignment_post_open_task(source_tree_population_timer.start)
+
+    source_tree.itemChanged.connect(_source_item_check_state_changed)
+    parts_outliner_tree.setContextMenuPolicy(Qt.CustomContextMenu)
+    parts_outliner_tree.customContextMenuRequested.connect(_show_parts_outliner_context_menu)
+    parts_outliner_tree.itemClicked.connect(_handle_parts_outliner_item_clicked)
+    parts_outliner_tree.set_source_drop_handler(_handle_parts_outliner_source_drop)
+    mapping_table_build_timer.timeout.connect(_build_mapping_table_chunk)
+    low_confidence_filter_checkbox.toggled.connect(_apply_target_slot_filters)
+    empty_targets_filter_checkbox.toggled.connect(_apply_target_slot_filters)
+    clear_all_guesses_button.clicked.connect(_clear_all_mapping_guesses)
+    apply_best_guesses_button.clicked.connect(_apply_best_mapping_guesses)
+    show_advanced_mapping_checkbox.toggled.connect(_set_advanced_mapping_visible)
+    _set_advanced_mapping_visible(show_advanced_mapping_checkbox.isChecked())
+    control_tabs.currentChanged.connect(
+        lambda index: _ensure_mapping_table_building()
+        if control_tabs.widget(index) is parts_tab
+        else None
+    )
 
 
 
@@ -4198,10 +4227,12 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
 
 
     def _complete_external_swap_enabled() -> bool:
-        try:
-            return bool(complete_external_swap_checkbox.isChecked())  # type: ignore[name-defined]
-        except NameError:
-            return False
+        checkbox = _late_context_value("complete_external_swap_checkbox")
+        return bool(
+            checkbox is not None
+            and callable(getattr(checkbox, "isChecked", None))
+            and checkbox.isChecked()
+        )
 
 
 
@@ -4299,12 +4330,12 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     clear_all_selection_button.clicked.connect(_clear_all_part_selections)
     clear_alignment_selection_button.clicked.connect(_clear_all_part_selections)
 
+    source_part_inspector_control_text = _source_part_inspector_control_text_helper()
     part_inspector = QGroupBox(source_part_inspector_control_text["group_title"])
     part_layout = QGridLayout(part_inspector)
     part_layout.setContentsMargins(5, 3, 5, 3)
     part_layout.setHorizontalSpacing(4)
     part_layout.setVerticalSpacing(2)
-    source_part_inspector_control_text = _source_part_inspector_control_text_helper()
     part_workflow_hint = QLabel(source_part_inspector_control_text["workflow_hint"])
     part_workflow_hint.setObjectName("HintLabel")
     part_workflow_hint.setWordWrap(True)

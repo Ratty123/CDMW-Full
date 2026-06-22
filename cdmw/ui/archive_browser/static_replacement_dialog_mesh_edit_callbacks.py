@@ -64,6 +64,12 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
     _alignment_d3d11_preview_active = context.get('_alignment_d3d11_preview_active')
     _alignment_d3d11_source_indices_for_editor_id = context.get('_alignment_d3d11_source_indices_for_editor_id')
     _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
+
+    def _mesh_edit_tab_active() -> bool:
+        if not callable(_alignment_mesh_edit_tab_active):
+            return False
+        return bool(_alignment_mesh_edit_tab_active())
+
     _apply_alignment_dialog_responsive_layout = context.get('_apply_alignment_dialog_responsive_layout')
     _clear_alignment_d3d11_fast_transform_state = context.get('_clear_alignment_d3d11_fast_transform_state')
     _commit_spinbox_text = context.get('_commit_spinbox_text')
@@ -864,7 +870,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         allowed_indices = _mesh_edit_allowed_source_indices()
         active = (
             bool(mesh_edit_enabled_checkbox.isChecked())
-            and _alignment_mesh_edit_tab_active()
+            and _mesh_edit_tab_active()
             and _mesh_edit_can_edit_scope()[0]
         )
         tool = _mesh_edit_current_tool()
@@ -929,7 +935,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         editing_requested = _mesh_edit_editing_requested_helper(
             checkbox_checked=bool(mesh_edit_enabled_checkbox.isChecked()),
             mesh_edit_supported=mesh_edit_supported,
-            mesh_edit_tab_active=_alignment_mesh_edit_tab_active(),
+            mesh_edit_tab_active=_mesh_edit_tab_active(),
         )
         editing_active = _mesh_edit_editing_active_helper(
             editing_requested=editing_requested,
@@ -1398,7 +1404,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         if _mesh_edit_state.replacement_mesh_for_mapping is None or not isinstance(payload, Mapping):
             return
         can_edit, _reason = _mesh_edit_can_edit_scope()
-        if not can_edit or not mesh_edit_enabled_checkbox.isChecked() or not _alignment_mesh_edit_tab_active():
+        if not can_edit or not mesh_edit_enabled_checkbox.isChecked() or not _mesh_edit_tab_active():
             return
         stroke_id = _mesh_edit_stroke_id(payload)
         if stroke_id <= 0:
@@ -1617,7 +1623,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         if stroke_id <= 0 or int(mesh_edit_active_stroke.get("id", 0) or 0) != stroke_id:
             return
         can_edit, _reason = _mesh_edit_can_edit_scope()
-        if not can_edit or not mesh_edit_enabled_checkbox.isChecked() or not _alignment_mesh_edit_tab_active():
+        if not can_edit or not mesh_edit_enabled_checkbox.isChecked() or not _mesh_edit_tab_active():
             return
         tool = _mesh_edit_payload_choice_helper(
             payload,
@@ -2130,7 +2136,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         selected_count = _mesh_edit_index_group_count_helper(mesh_edit_selected_vertices_by_submesh)
         selected_face_count = _mesh_edit_index_group_count_helper(mesh_edit_selected_faces_by_submesh)
         can_edit, reason = _mesh_edit_can_edit_scope()
-        if can_edit and mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active():
+        if can_edit and mesh_edit_enabled_checkbox.isChecked() and _mesh_edit_tab_active():
             revision_text = int(mesh_edit_revision.get("value", 0) or 0)
             mesh_edit_status_label.setText(
                 _mesh_edit_selection_status_text_helper(

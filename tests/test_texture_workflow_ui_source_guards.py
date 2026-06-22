@@ -6,6 +6,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAIN_WINDOW = REPO_ROOT / "cdmw" / "ui" / "shell" / "app_window.py"
+SHELL_MENUS = REPO_ROOT / "cdmw" / "ui" / "shell" / "menus.py"
 SHELL_TOOL_TABS = REPO_ROOT / "cdmw" / "ui" / "shell" / "tool_tabs.py"
 TEXTURE_WORKFLOW_DDS_OUTPUT_PANEL = REPO_ROOT / "cdmw" / "ui" / "texture_workflow" / "dds_output_panel.py"
 TEXTURE_WORKFLOW_SHELL_CONTROLS = REPO_ROOT / "cdmw" / "ui" / "texture_workflow" / "shell_controls.py"
@@ -43,6 +44,8 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         main_source = (
             MAIN_WINDOW.read_text(encoding="utf-8")
             + "\n"
+            + SHELL_MENUS.read_text(encoding="utf-8")
+            + "\n"
             + SHELL_TOOL_TABS.read_text(encoding="utf-8")
             + "\n"
             + DASHBOARD_CONTROLLER.read_text(encoding="utf-8")
@@ -65,14 +68,13 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         readme = README.read_text(encoding="utf-8")
         theme_source = THEMES.read_text(encoding="utf-8")
 
-        dashboard_nav = 'self.main_tabs.addTab(self.dashboard_tab, "Dashboard")'
         assets_nav = 'self.main_tabs.addTab(self.assets_tabs, "Assets")'
         textures_nav = 'self.main_tabs.addTab(self.texture_tabs, "Textures")'
         research_nav = 'self.main_tabs.addTab(self.research_tabs, "Research")'
         tools_nav = 'self.main_tabs.addTab(self.tools_tabs, "Tools")'
-        for nav_label in (dashboard_nav, assets_nav, textures_nav, research_nav, tools_nav):
+        for nav_label in (assets_nav, textures_nav, research_nav, tools_nav):
             self.assertIn(nav_label, main_source)
-        self.assertLess(main_source.index(dashboard_nav), main_source.index(assets_nav))
+        self.assertNotIn('self.main_tabs.addTab(self.dashboard_tab, "Dashboard")', main_source)
         self.assertLess(main_source.index(assets_nav), main_source.index(textures_nav))
         self.assertLess(main_source.index(textures_nav), main_source.index(research_nav))
         self.assertLess(main_source.index(research_nav), main_source.index(tools_nav))
@@ -90,25 +92,21 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         self.assertIn('self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")', main_source)
         self.assertIn('self._register_detachable_tool("mod_package_retrofit", self.mod_package_retrofit_tab, "Retrofit/Repackage")', main_source)
         self.assertIn("self.item_icons_tab.open_target_in_archive_requested.connect(", main_source)
-        self.assertIn('self._build_dashboard_tab()', main_source)
-        self.assertIn('QGroupBox("Workspace")', main_source)
-        self.assertIn('QGroupBox("Health")', main_source)
-        self.assertIn('QGroupBox("Archive Cache")', main_source)
-        self.assertIn("self.dashboard_archive_progress_bar = QProgressBar()", main_source)
+        self.assertIn("self.archive_cache_status_chip = QLabel(\"Cache: Unknown\")", main_source)
+        self.assertIn('self.archive_cache_status_chip.setObjectName("ArchiveCacheStatusChip")', main_source)
+        self.assertIn("self._initialize_archive_cache_status_chip()", main_source)
+        self.assertIn("def _set_archive_cache_status_chip(", main_source)
         self.assertIn("def _dashboard_set_archive_progress(", main_source)
         self.assertIn("def _check_archive_cache_health(", main_source)
         self.assertIn("def _set_widget_health_state(", main_source)
         self.assertIn('widget.setProperty("healthState", normalized)', main_source)
-        self.assertIn('self._dashboard_set_status_health_state("archive_cache", normalized)', main_source)
-        self.assertIn('self._set_widget_health_state(self.dashboard_archive_progress_detail_label, progress_health_state)', main_source)
         self.assertIn("archive_scan_shard_cache_health(package_root, self.archive_cache_root)", main_source)
-        self.assertIn("Cache Status: Healthy", main_source)
-        self.assertIn('QLabel#DashboardStatusValue[healthState="healthy"]', theme_source)
-        self.assertIn('QLabel#DashboardStatusName[healthState="healthy"]', theme_source)
+        self.assertIn("Cache: Healthy", main_source)
+        self.assertIn('QLabel#ArchiveCacheStatusChip[healthState="healthy"]', theme_source)
         self.assertIn('QLabel#HintLabel[healthState="healthy"]', theme_source)
         self.assertIn("#2fbf64", theme_source)
-        self.assertIn('QGroupBox("Recent Work")', main_source)
-        self.assertIn('QGroupBox("Last Results")', main_source)
+        self.assertNotIn('QGroupBox("Recent Work")', main_source)
+        self.assertNotIn('QGroupBox("Last Results")', main_source)
         self.assertNotIn("def _dashboard_task_specs(self)", main_source)
         self.assertNotIn('QLabel("Start a Task")', main_source)
         self.assertNotIn('button.setObjectName("DashboardTaskButton")', main_source)

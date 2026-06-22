@@ -184,7 +184,7 @@ class ResponsivenessControllerMixin:
 
     def _apply_responsive_control_minimums(self) -> None:
         screen_width, screen_height = available_layout_size_for(self)
-        scale = _responsive_control_scale_for_resolution(screen_width, screen_height)
+        scale = responsive_control_scale_for_resolution(screen_width, screen_height)
         if not getattr(self, "_responsive_control_widgets", ()):
             self._cache_responsive_control_widgets()
         for widget in tuple(getattr(self, "_responsive_control_widgets", ())):
@@ -218,7 +218,7 @@ class ResponsivenessControllerMixin:
         if app is None:
             return
         screen_width, screen_height = available_layout_size_for(self)
-        screen_scale = _responsive_control_scale_for_resolution(screen_width, screen_height)
+        screen_scale = responsive_control_scale_for_resolution(screen_width, screen_height)
         if abs(screen_scale - float(getattr(self, "_current_responsive_control_scale", 0.0))) < 0.001:
             return
         self._current_responsive_control_scale = screen_scale

@@ -21,6 +21,7 @@ class ShellStartupRestoreMixin:
 
         self._connect_shell_signals()
         self._load_settings()
+        self._refresh_dashboard()
         self._apply_startup_benchmark_overrides()
         self._startup_texture_preview_defer_env = bool(
             self._startup_benchmark_enabled()

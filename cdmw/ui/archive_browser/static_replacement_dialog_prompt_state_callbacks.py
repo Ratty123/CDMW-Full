@@ -365,6 +365,7 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
     alignment_d3d11_reload_timer.timeout.connect(_flush_alignment_d3d11_preview_request)
 
     alignment_selection_mapping_helpers = create_alignment_selection_mapping_helpers({
+        **context,
         **globals(),
         **locals(),
         "_copied_original_dds_badge": (lambda *args, **kwargs: context["_copied_original_dds_badge"](*args, **kwargs)),
@@ -403,7 +404,11 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
         "_selected_part_glow_rgb_from_controls": (
             lambda *args, **kwargs: context["_selected_part_glow_rgb_from_controls"](*args, **kwargs)
         ),
-        "_source_texture_slot_count": (lambda *args, **kwargs: context["_source_texture_slot_count"](*args, **kwargs)),
+        "_source_texture_slot_count": (
+            lambda *args, **kwargs: (
+                context.get("_source_texture_slot_count") or (lambda *_args, **_kwargs: 0)
+            )(*args, **kwargs)
+        ),
         "_target_physics_status_text": (lambda *args, **kwargs: context["_target_physics_status_text"](*args, **kwargs)),
         "_target_texture_status_text": (lambda *args, **kwargs: context["_target_texture_status_text"](*args, **kwargs)),
     })

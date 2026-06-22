@@ -55,7 +55,7 @@ def spinbox_transform_values(
             tuple(float(widget.value()) for widget in tuple(rotation_widgets)[:3]),
             tuple(float(widget.value()) for widget in tuple(scale_widgets)[:3]),
         )
-    except (NameError, RuntimeError):
+    except (AttributeError, NameError, RuntimeError):
         if catch_runtime:
             return DEFAULT_GLOBAL_TRANSFORM_VALUES
         raise

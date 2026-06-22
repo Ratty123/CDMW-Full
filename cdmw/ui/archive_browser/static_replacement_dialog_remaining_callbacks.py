@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import traceback
 from types import SimpleNamespace
 
 
@@ -329,7 +330,7 @@ def create_alignment_geometry_history_callbacks(context: dict[str, object]) -> S
     static_preview_geometry_cache = context.get('static_preview_geometry_cache')
     static_preview_prepared_cache = context.get('static_preview_prepared_cache')
     target_index = context.get('target_index')
-    texture_files_for_mapping = context.get('texture_files_for_mapping')
+    texture_files_for_mapping = context.get('texture_files_for_mapping') or []
     texture_override_assignments = context.get('texture_override_assignments')
     texture_overrides_dirty = context.get('texture_overrides_dirty')
     texture_uv_global_transform_state = context.get('texture_uv_global_transform_state')
@@ -342,8 +343,10 @@ def create_alignment_geometry_history_callbacks(context: dict[str, object]) -> S
 
     def _refresh_geometry_history_buttons() -> None:
         try:
-            undo_geometry_button.setEnabled(bool(geometry_undo_stack))
-            reset_geometry_button.setEnabled(bool(geometry_initial_snapshot))
+            if callable(getattr(undo_geometry_button, "setEnabled", None)):
+                undo_geometry_button.setEnabled(bool(geometry_undo_stack))
+            if callable(getattr(reset_geometry_button, "setEnabled", None)):
+                reset_geometry_button.setEnabled(bool(geometry_initial_snapshot))
         except NameError:
             pass
 
@@ -693,7 +696,7 @@ def create_alignment_original_copy_payload_callbacks(context: dict[str, object])
     static_preview_geometry_cache = context.get('static_preview_geometry_cache')
     static_preview_prepared_cache = context.get('static_preview_prepared_cache')
     target_index = context.get('target_index')
-    texture_files_for_mapping = context.get('texture_files_for_mapping')
+    texture_files_for_mapping = context.get('texture_files_for_mapping') or []
     texture_rows = context.get('texture_rows')
     title = context.get('title')
     undo_label = context.get('undo_label')
@@ -843,12 +846,29 @@ def create_alignment_source_role_flush_callbacks(context: dict[str, object]) -> 
     source_index = context.get('source_index')
     source_part_adjustments = context.get('source_part_adjustments')
     source_role_overrides = context.get('source_role_overrides')
-    texture_files_for_mapping = context.get('texture_files_for_mapping')
+    texture_files_for_mapping = context.get('texture_files_for_mapping') or []
     update_state = context.get('update_state')
     update_states = context.get('update_states')
 
+    prompt_shell_context = context.get('prompt_shell_context')
+
+    def _prompt_context_value(name: str) -> object:
+        if isinstance(prompt_shell_context, dict) and name in prompt_shell_context:
+            return prompt_shell_context.get(name)
+        return context.get(name)
+
+    def _part_glow_color_checkbox() -> object:
+        return _prompt_context_value('part_glow_color_checkbox')
+
     def _apply_current_glow_color_to_role_overrides() -> None:
-        update_states = _source_part_glow_emissive_update_states_helper(source_part_adjustments, rgb=_selected_part_glow_rgb_from_controls(), use_color=bool(part_glow_color_checkbox.isChecked()))
+        checkbox = _part_glow_color_checkbox()
+        use_color = bool(
+            checkbox is not None
+            and callable(getattr(checkbox, "isChecked", None))
+            and checkbox.isChecked()
+        )
+        rgb = _selected_part_glow_rgb_from_controls() if callable(_selected_part_glow_rgb_from_controls) else ()
+        update_states = _source_part_glow_emissive_update_states_helper(source_part_adjustments, rgb=rgb, use_color=use_color)
         for update_state in update_states:
             adjustment = source_part_adjustments.get(update_state.source_index)
             if adjustment is not None:
@@ -969,18 +989,46 @@ def create_alignment_selected_part_glow_picker_callbacks(context: dict[str, obje
     spin = context.get('spin')
     value = context.get('value')
 
+    prompt_shell_context = context.get('prompt_shell_context')
+
+    def _prompt_context_value(name: str) -> object:
+        if isinstance(prompt_shell_context, dict) and name in prompt_shell_context:
+            return prompt_shell_context.get(name)
+        return context.get(name)
+
+    def _part_glow_color_pick_button() -> object:
+        return _prompt_context_value('part_glow_color_pick_button')
+
+    def _part_glow_color_spins() -> tuple[object, ...]:
+        spins = _prompt_context_value('part_glow_color_spins')
+        if not isinstance(spins, (list, tuple)):
+            return ()
+        return tuple(
+            spin
+            for spin in spins
+            if callable(getattr(spin, "blockSignals", None))
+            and callable(getattr(spin, "setValue", None))
+        )
+
     def _pick_selected_source_glow_color() -> None:
-        if not part_glow_color_pick_button.isEnabled():
+        pick_button = _part_glow_color_pick_button()
+        if (
+            pick_button is None
+            or not callable(getattr(pick_button, "isEnabled", None))
+            or not pick_button.isEnabled()
+            or not callable(_selected_part_glow_rgb_from_controls)
+        ):
             return
         rgb = _selected_part_glow_rgb_from_controls()
         color = QColorDialog.getColor(QColor(rgb[0], rgb[1], rgb[2]), dialog, 'Choose Glow Color')
         if not color.isValid():
             return
-        for spin, value in zip(part_glow_color_spins, (color.red(), color.green(), color.blue())):
+        for spin, value in zip(_part_glow_color_spins(), (color.red(), color.green(), color.blue())):
             spin.blockSignals(True)
             spin.setValue(int(value))
             spin.blockSignals(False)
-        _set_selected_source_glow_color()
+        if callable(_set_selected_source_glow_color):
+            _set_selected_source_glow_color()
 
     return SimpleNamespace(_pick_selected_source_glow_color=_pick_selected_source_glow_color)
 
@@ -1024,6 +1072,7 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
     _infer_model_preview_normal_strength = context.get('_infer_model_preview_normal_strength')
     _is_gltf_metallic_roughness_path = context.get('_is_gltf_metallic_roughness_path')
     _mapped_source_indices = context.get('_mapped_source_indices')
+    _mapped_source_indices_helper = context.get('_mapped_source_indices_helper')
     _material_authority_preview_inactive_reason = context.get('_material_authority_preview_inactive_reason')
     _material_authority_preview_parameters_helper = context.get('_material_authority_preview_parameters_helper')
     _material_authority_preview_signature = context.get('_material_authority_preview_signature')
@@ -1031,10 +1080,60 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
     _original_overlay_preview_model_state_helper = context.get('_original_overlay_preview_model_state_helper')
     _original_texture_preview_material_preview_enabled_helper = context.get('_original_texture_preview_material_preview_enabled_helper')
     _overlay_editable_mesh_state_helper = context.get('_overlay_editable_mesh_state_helper')
+
+    def _alignment_transform_generation() -> int:
+        if not callable(_current_alignment_transform_generation):
+            return 0
+        return int(_current_alignment_transform_generation() or 0)
+
+    def _mesh_edit_tab_active() -> bool:
+        if not callable(_alignment_mesh_edit_tab_active):
+            return False
+        return bool(_alignment_mesh_edit_tab_active())
+
+    def _alignment_preview_is_interactive_value() -> bool:
+        if not callable(_alignment_preview_is_interactive):
+            return False
+        return bool(_alignment_preview_is_interactive())
+
+    def _basic_controls_profile_enabled_value() -> bool:
+        if not callable(_basic_controls_profile_enabled):
+            return False
+        return bool(_basic_controls_profile_enabled())
+
+    def _complete_external_swap_enabled_value() -> bool:
+        if not callable(_complete_external_swap_enabled):
+            return False
+        return bool(_complete_external_swap_enabled())
+
+    def _complete_swap_material_profile_token_value() -> str:
+        if not callable(_current_complete_swap_material_profile_token):
+            return ""
+        return str(_current_complete_swap_material_profile_token() or "")
+
+    def _material_authority_preview_inactive_reason_value() -> str:
+        if not callable(_material_authority_preview_inactive_reason):
+            return ""
+        return str(_material_authority_preview_inactive_reason() or "")
+
+    def _mesh_edit_preview_source_indices_value() -> tuple[int, ...]:
+        if not callable(_mesh_edit_preview_source_indices):
+            return ()
+        return tuple(_mesh_edit_preview_source_indices() or ())
+
+    def _mapped_source_indices_value(mappings: object) -> set[int]:
+        if callable(_mapped_source_indices):
+            return set(_mapped_source_indices(mappings) or ())
+        if callable(_mapped_source_indices_helper):
+            return set(_mapped_source_indices_helper(mappings) or ())
+        return set()
+
     _preview_model_in_original_frame = context.get('_preview_model_in_original_frame')
     _preview_target_mesh_indices = context.get('_preview_target_mesh_indices')
     _queue_alignment_d3d11_preview = context.get('_queue_alignment_d3d11_preview')
     _record_runtime_event = context.get('_record_runtime_event')
+    if not callable(_record_runtime_event):
+        _record_runtime_event = lambda *_args, **_kwargs: None
     _refresh_alignment_virtual_sidecar_contract = context.get('_refresh_alignment_virtual_sidecar_contract')
     _remember_alignment_d3d11_source_editor_ids = context.get('_remember_alignment_d3d11_source_editor_ids')
     _resolve_model_texture_semantic_details = context.get('_resolve_model_texture_semantic_details')
@@ -1176,10 +1275,17 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
 
     def _refresh_static_dialog_preview(*, live_mesh_edit: bool = False) -> None:
         refresh_started = time.perf_counter()
-        refresh_transform_generation = _current_alignment_transform_generation()
+        refresh_transform_generation = _alignment_transform_generation()
         geometry_elapsed_ms = 0.0
         prepared_elapsed_ms = 0.0
         if state.replacement_preview_model is None:
+            _record_runtime_event(
+                "mesh_alignment_preview_refresh_skipped",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                reason="missing_replacement_preview_model",
+                modify_original_clone=modify_original_clone_mode,
+            )
             return
         for preview_widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):
             preview_widget.set_alignment_editing_enabled(True)
@@ -1188,13 +1294,21 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
         source_preview_cache_key = ''
         active_preview_mode = str(preview_mode_combo.currentData() or 'side_by_side')
         needs_original_material_preview = _original_texture_preview_material_preview_enabled_helper(modify_original_clone_mode, original_texture_preview_state)
-        refresh_route = _static_preview_refresh_route_state_helper(active_preview_mode=active_preview_mode, mesh_edit_enabled=mesh_edit_enabled_checkbox.isChecked(), mesh_edit_tab_active=_alignment_mesh_edit_tab_active(), replacement_mesh_available=state.replacement_mesh_for_mapping is not None, interactive_preview=_alignment_preview_is_interactive(), complete_external_swap_enabled=_complete_external_swap_enabled(), needs_original_material_preview=needs_original_material_preview, preview_controls_ready=bool(preview_controls_ready.get('ready')), original_mesh_available=original_mesh_for_mapping is not None)
+        refresh_route = _static_preview_refresh_route_state_helper(active_preview_mode=active_preview_mode, mesh_edit_enabled=mesh_edit_enabled_checkbox.isChecked(), mesh_edit_tab_active=_mesh_edit_tab_active(), replacement_mesh_available=state.replacement_mesh_for_mapping is not None, interactive_preview=_alignment_preview_is_interactive_value(), complete_external_swap_enabled=_complete_external_swap_enabled_value(), needs_original_material_preview=needs_original_material_preview, preview_controls_ready=bool(preview_controls_ready.get('ready')), original_mesh_available=original_mesh_for_mapping is not None)
         mesh_edit_direct_source_preview = refresh_route.mesh_edit_direct_source_preview
         force_direct_source_preview = _alignment_d3d11_record_direct_source_preview_flags_helper(alignment_d3d11_state, replacement_only_direct_source_preview=refresh_route.replacement_only_direct_source_preview, source_owned_direct_source_preview=refresh_route.source_owned_direct_source_preview)
         if refresh_route.require_original_reference and (not _ensure_original_reference_texture_preview_ready(active_preview_mode, reason='preview_refresh')):
+            _record_runtime_event(
+                "mesh_alignment_preview_refresh_waiting",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                active_preview_mode=active_preview_mode,
+                reason="original_reference_texture_preview",
+                modify_original_clone=modify_original_clone_mode,
+            )
             return
-        direct_source_preview_indices = _direct_source_preview_indices_helper(selected_source_highlight_indices, force_direct_source_preview=force_direct_source_preview, replacement_submesh_count=len(getattr(state.replacement_mesh_for_mapping, 'submeshes', ()) or ()), mesh_edit_direct_source_preview=mesh_edit_direct_source_preview, mesh_edit_source_indices=_mesh_edit_preview_source_indices() if mesh_edit_direct_source_preview else (), source_index_is_enabled_renderable=_source_index_is_enabled_renderable)
-        mapped_preview_source_indices = _mapped_source_indices(current_mappings)
+        direct_source_preview_indices = _direct_source_preview_indices_helper(selected_source_highlight_indices, force_direct_source_preview=force_direct_source_preview, replacement_submesh_count=len(getattr(state.replacement_mesh_for_mapping, 'submeshes', ()) or ()), mesh_edit_direct_source_preview=mesh_edit_direct_source_preview, mesh_edit_source_indices=_mesh_edit_preview_source_indices_value() if mesh_edit_direct_source_preview else (), source_index_is_enabled_renderable=_source_index_is_enabled_renderable)
+        mapped_preview_source_indices = _mapped_source_indices_value(current_mappings)
         use_direct_source_preview = _should_use_direct_source_preview_helper(direct_source_preview_indices, force_direct_source_preview=force_direct_source_preview, mesh_edit_direct_source_preview=mesh_edit_direct_source_preview, appended_source_indices=appended_source_indices, mapped_source_indices=mapped_preview_source_indices, active_preview_mode=active_preview_mode, original_mesh_available=original_mesh_for_mapping is not None, replacement_mesh_available=state.replacement_mesh_for_mapping is not None)
         if not use_direct_source_preview:
             direct_source_preview_index_map.clear()
@@ -1203,9 +1317,11 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
         source_selection_overlay_editor_id_map.clear()
         preview_submesh_index_map.clear()
         if refresh_route.can_build_source_geometry:
-            cache_key = _source_preview_geometry_cache_key_helper(_source_preview_geometry_key(current_mappings), use_direct_source_preview=use_direct_source_preview, direct_source_preview_indices=direct_source_preview_indices)
+            cache_key = ""
+            if callable(_source_preview_geometry_key) and callable(_source_preview_geometry_cache_key_helper):
+                cache_key = _source_preview_geometry_cache_key_helper(_source_preview_geometry_key(current_mappings), use_direct_source_preview=use_direct_source_preview, direct_source_preview_indices=direct_source_preview_indices)
             source_preview_cache_key = cache_key
-            cached_preview = _cached_static_preview_geometry_helper(static_preview_geometry_cache, cache_key, live_mesh_edit=live_mesh_edit)
+            cached_preview = _cached_static_preview_geometry_helper(static_preview_geometry_cache, cache_key, live_mesh_edit=live_mesh_edit) if cache_key else None
             if cached_preview is not None:
                 source_model, mapped_preview = _restore_static_preview_geometry_cache_payload_helper(cached_preview, direct_source_preview_index_map=direct_source_preview_index_map, source_overlay_preview_index_map=source_overlay_preview_index_map, preview_submesh_index_map=preview_submesh_index_map)
             else:
@@ -1220,7 +1336,7 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
                         placement_snapshot = _current_static_placement_snapshot(current_mappings, include_preview_only_independent_parts=True)
                         independent_preview_parts = list(placement_snapshot.get('independent_output_parts', []) or [])
                         geometry_started = time.perf_counter()
-                        preview_mesh = build_static_replacement_preview_mesh(original_mesh_for_mapping, preview_replacement_mesh, _static_options_from_placement_snapshot(placement_snapshot, complete_external_swap=bool(_complete_external_swap_enabled()), complete_external_material_reset=bool(_complete_external_swap_enabled()), complete_swap_material_profile=str(_current_complete_swap_material_profile_token()), global_gloss_reduction=float(global_gloss_reduction_spin.value()), edge_relief_strength=float(edge_relief_spin.value()), edge_relief_source=str(edge_relief_source_combo.currentData() or 'hybrid'), accent_glow_strength=float(accent_glow_spin.value()), auto_brightness_balance=float(auto_brightness_spin.value()), dark_detail_lift=float(source_brightness_spin.value()), tone_contrast=float(tone_contrast_spin.value())), max_source_faces_per_submesh=_alignment_preview_source_face_limit())
+                        preview_mesh = build_static_replacement_preview_mesh(original_mesh_for_mapping, preview_replacement_mesh, _static_options_from_placement_snapshot(placement_snapshot, complete_external_swap=_complete_external_swap_enabled_value(), complete_external_material_reset=_complete_external_swap_enabled_value(), complete_swap_material_profile=_complete_swap_material_profile_token_value(), global_gloss_reduction=float(global_gloss_reduction_spin.value()), edge_relief_strength=float(edge_relief_spin.value()), edge_relief_source=str(edge_relief_source_combo.currentData() or 'hybrid'), accent_glow_strength=float(accent_glow_spin.value()), auto_brightness_balance=float(auto_brightness_spin.value()), dark_detail_lift=float(source_brightness_spin.value()), tone_contrast=float(tone_contrast_spin.value())), max_source_faces_per_submesh=_alignment_preview_source_face_limit())
                         geometry_elapsed_ms += (time.perf_counter() - geometry_started) * 1000.0
                         source_overlay_preview_index_map.clear()
                         preview_submesh_index_map.clear()
@@ -1232,7 +1348,7 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
                             if preview_index is not None:
                                 source_overlay_preview_index_map[int(independent_part.source_submesh_index)] = preview_index
                         mapped_preview = True
-                    if not live_mesh_edit:
+                    if cache_key and not live_mesh_edit:
                         _store_static_preview_cache_entry_helper(static_preview_geometry_cache, cache_key, _static_preview_geometry_cache_payload_helper(source_model, mapped_preview=mapped_preview, direct_source_preview_index_map=direct_source_preview_index_map, source_overlay_preview_index_map=source_overlay_preview_index_map, preview_submesh_index_map=preview_submesh_index_map), paired_cache_to_clear=static_preview_prepared_cache)
                 except Exception:
                     preview_submesh_index_map.clear()
@@ -1246,10 +1362,10 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
         except Exception:
             preview_material_authority_profile = None
         preview_accent_glow_intensity = _accent_glow_preview_intensity_helper(preview_material_authority_profile) if preview_material_authority_profile is not None else 1.0
-        preview_material_authority_parameters = _material_authority_preview_parameters_helper(preview_material_authority_profile, enabled=True) if preview_material_authority_profile is not None and _complete_external_swap_enabled() and _basic_controls_profile_enabled() else ()
+        preview_material_authority_parameters = _material_authority_preview_parameters_helper(preview_material_authority_profile, enabled=True) if preview_material_authority_profile is not None and _complete_external_swap_enabled_value() and _basic_controls_profile_enabled_value() else ()
         use_original_material_preview = _original_texture_preview_material_preview_enabled_helper(modify_original_clone_mode, original_texture_preview_state)
         if state.texture_sets and (not use_original_material_preview) and (not mesh_edit_direct_source_preview):
-            _apply_source_material_preview_for_model_helper(preview_model, use_direct_source_preview=use_direct_source_preview, direct_source_preview_index_map=direct_source_preview_index_map, mapped_preview=mapped_preview, source_overlay_preview_index_map=source_overlay_preview_index_map, current_mappings=current_mappings, texture_sets=state.texture_sets, material_authority_profile=preview_material_authority_profile, complete_external_swap_enabled=_complete_external_swap_enabled(), basic_controls_profile_enabled=_basic_controls_profile_enabled(), texture_set_for_source_index=_texture_set_for_source_index, texture_set_for_mapping=lambda mapping: _texture_set_for_mapping_helper(mapping, texture_sets=state.texture_sets, replacement_mesh=state.replacement_mesh_for_mapping, texture_set_for_source_index=_texture_set_for_source_index), source_display_name=_source_display_name, preview_target_mesh_indices=_preview_target_mesh_indices, texture_set_factor_parameters=_texture_set_factor_parameters, material_authority_preview_texture_slots=material_authority_preview_texture_slots, replacement_texture_slot_preview_semantics=replacement_texture_slot_preview_semantics, resolve_model_texture_semantic_details=_resolve_model_texture_semantic_details, is_gltf_metallic_roughness_path=_is_gltf_metallic_roughness_path, infer_model_preview_normal_strength=_infer_model_preview_normal_strength, accent_glow_preview_intensity=preview_accent_glow_intensity)
+            _apply_source_material_preview_for_model_helper(preview_model, use_direct_source_preview=use_direct_source_preview, direct_source_preview_index_map=direct_source_preview_index_map, mapped_preview=mapped_preview, source_overlay_preview_index_map=source_overlay_preview_index_map, current_mappings=current_mappings, texture_sets=state.texture_sets, material_authority_profile=preview_material_authority_profile, complete_external_swap_enabled=_complete_external_swap_enabled_value(), basic_controls_profile_enabled=_basic_controls_profile_enabled_value(), texture_set_for_source_index=_texture_set_for_source_index, texture_set_for_mapping=lambda mapping: _texture_set_for_mapping_helper(mapping, texture_sets=state.texture_sets, replacement_mesh=state.replacement_mesh_for_mapping, texture_set_for_source_index=_texture_set_for_source_index), source_display_name=_source_display_name, preview_target_mesh_indices=_preview_target_mesh_indices, texture_set_factor_parameters=_texture_set_factor_parameters, material_authority_preview_texture_slots=material_authority_preview_texture_slots, replacement_texture_slot_preview_semantics=replacement_texture_slot_preview_semantics, resolve_model_texture_semantic_details=_resolve_model_texture_semantic_details, is_gltf_metallic_roughness_path=_is_gltf_metallic_roughness_path, infer_model_preview_normal_strength=_infer_model_preview_normal_strength, accent_glow_preview_intensity=preview_accent_glow_intensity)
         source_role_profile = preview_material_authority_profile if preview_material_authority_profile is not None else object()
         _apply_source_role_emissive_preview_for_model_helper(preview_model, use_direct_source_preview=use_direct_source_preview, direct_source_preview_index_map=direct_source_preview_index_map, mapped_preview=mapped_preview, source_overlay_preview_index_map=source_overlay_preview_index_map, current_mappings=current_mappings, texture_sets=state.texture_sets, source_part_adjustments=source_part_adjustments, profile=source_role_profile, texture_set_for_source_index=_texture_set_for_source_index, source_display_name=_source_display_name, preview_target_mesh_indices=_preview_target_mesh_indices)
         preview_model = _append_selected_source_highlight_overlay(preview_model, current_mappings)
@@ -1260,7 +1376,7 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
                 state.texture_override_preview_specs = updated_specs
                 texture_overrides_dirty['dirty'] = False
             _apply_manual_preview_texture_override_specs_helper(preview_model, state.texture_override_preview_specs, mapped_preview=mapped_preview, current_mappings=current_mappings, preview_target_mesh_indices=lambda model, target_name, source_indices, mapped, mappings: _preview_target_mesh_indices(model, target_name, source_indices, mapped_preview=mapped, current_mappings=mappings), resolve_model_texture_semantic_details=_resolve_model_texture_semantic_details, replacement_texture_slot_preview_semantics=replacement_texture_slot_preview_semantics, is_gltf_metallic_roughness_path=_is_gltf_metallic_roughness_path, infer_model_preview_normal_strength=_infer_model_preview_normal_strength, material_authority_preview_parameters=preview_material_authority_parameters, accent_glow_preview_intensity=preview_accent_glow_intensity)
-        if not _material_authority_preview_inactive_reason():
+        if not _material_authority_preview_inactive_reason_value():
             try:
                 material_authority_preview_signature_state.update(_material_authority_preview_signature())
             except Exception:
@@ -1273,6 +1389,16 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
         refreshed_preview_widgets: List[NativePreviewPanel] = []
         if _alignment_d3d11_preview_active():
             d3d11_preview_model = _alignment_d3d11_display_model_helper(preview_model, state.original_reference_preview_model, active_preview_mode=active_preview_mode, tag_workspace_model=_tag_alignment_d3d11_workspace_model, combine_preview_models=_combine_preview_models, clone_model=_clone_preview_model)
+            _record_runtime_event(
+                "mesh_alignment_preview_refresh_d3d11",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                active_preview_mode=active_preview_mode,
+                d3d11_model_ready=d3d11_preview_model is not None,
+                source_model_meshes=len(getattr(preview_model, "meshes", ()) or ()),
+                original_model_meshes=len(getattr(state.original_reference_preview_model, "meshes", ()) or ()),
+                modify_original_clone=modify_original_clone_mode,
+            )
             if d3d11_preview_model is not None:
                 _queue_alignment_d3d11_preview(d3d11_preview_model, label=f"{active_preview_mode.replace('_', ' ').title()} alignment preview")
             _sync_mesh_edit_preview_settings()
@@ -1283,7 +1409,7 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
 
         def _set_cached_static_preview_model(widget: NativePreviewPanel, model: ModelPreviewData, view_state: object, *, cache_suffix: str) -> None:
             nonlocal prepared_elapsed_ms
-            interactive_preview = _alignment_preview_is_interactive()
+            interactive_preview = _alignment_preview_is_interactive_value()
             widget.set_render_settings(_alignment_preview_widget_render_settings())
             widget.set_use_textures(True)
             widget.set_high_quality_textures(not interactive_preview)
@@ -1318,7 +1444,7 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
             original_overlay_model = _original_overlay_preview_model_state_helper(state.original_reference_preview_model, highlighted_indices=highlighted_original_indices, highlight_color=(1.0, 0.72, 0.22))
             overlay_model = _combine_preview_models(original_overlay_model, preview_model)
             if overlay_model is not None:
-                interactive_preview = _alignment_preview_is_interactive()
+                interactive_preview = _alignment_preview_is_interactive_value()
                 overlay_dialog_preview.set_render_settings(_alignment_preview_widget_render_settings())
                 overlay_dialog_preview.set_use_textures(True)
                 overlay_dialog_preview.set_high_quality_textures(not interactive_preview)
@@ -1347,7 +1473,7 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
         try:
             _refresh_static_dialog_preview(live_mesh_edit=live_mesh_edit)
         except Exception as exc:
-            _record_runtime_event("mesh_alignment_preview_refresh_failed", path=getattr(entry, "path", ""), dialog_title=dialog_title, message=str(exc), modify_original_clone=modify_original_clone_mode, defer_original_texture_preview=defer_original_texture_preview)
+            _record_runtime_event("mesh_alignment_preview_refresh_failed", path=getattr(entry, "path", ""), dialog_title=dialog_title, message=str(exc), traceback=traceback.format_exc(), modify_original_clone=modify_original_clone_mode, defer_original_texture_preview=defer_original_texture_preview)
             _set_alignment_d3d11_loading(False, f'Preview failed: {exc}')
             preview_failed_presentation = _alignment_d3d11_alignment_preview_failed_performance_helper(str(exc))
             _set_preview_performance_status(preview_failed_presentation.summary, details=preview_failed_presentation.details)
@@ -1372,11 +1498,17 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
     _mark_alignment_d3d11_rebuild_reason = context.get('_mark_alignment_d3d11_rebuild_reason')
     _original_reference_texture_preview_ready_result_state_helper = context.get('_original_reference_texture_preview_ready_result_state_helper')
     _queue_static_preview_refresh = context.get('_queue_static_preview_refresh')
+    _record_runtime_event = context.get('_record_runtime_event')
+    if not callable(_record_runtime_event):
+        _record_runtime_event = lambda *_args, **_kwargs: None
     _set_alignment_d3d11_progress = context.get('_set_alignment_d3d11_progress')
     _set_preview_performance_status = context.get('_set_preview_performance_status')
     alignment_d3d11_state = context.get('alignment_d3d11_state')
+    dialog_title = context.get('dialog_title')
+    entry = context.get('entry')
     elapsed_ms = context.get('elapsed_ms')
     message = context.get('message')
+    modify_original_clone_mode = context.get('modify_original_clone_mode')
     native_material_batches = context.get('native_material_batches')
     original_dialog_preview = context.get('original_dialog_preview')
     original_reference_texture_preview_state = context.get('original_reference_texture_preview_state')
@@ -1389,6 +1521,15 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
         ready_state = _original_reference_texture_preview_ready_result_state_helper(original_reference_texture_preview_state, request_current=_alignment_d3d11_original_texture_worker_request_current_helper(alignment_d3d11_state, request_id), widgets_live=_alignment_dialog_widgets_live(), native_material_batches=native_material_batches, elapsed_ms=elapsed_ms, d3d11_preview_active=_alignment_d3d11_preview_active())
         if not ready_state.handled:
             return
+        _record_runtime_event(
+            "mesh_alignment_original_texture_preview_ready",
+            path=getattr(entry, "path", ""),
+            dialog_title=dialog_title,
+            request_id=int(request_id or 0),
+            native_material_batches=int(native_material_batches or 0),
+            d3d11_preview_active=bool(_alignment_d3d11_preview_active()),
+            modify_original_clone=modify_original_clone_mode,
+        )
         state.original_reference_preview_model = preview_model_object if isinstance(preview_model_object, ModelPreviewData) else state.original_reference_preview_model
         if ready_state.should_apply_manifest_performance:
             _set_preview_performance_status(ready_state.manifest_performance.summary, details=ready_state.manifest_performance.details)
@@ -1595,7 +1736,7 @@ def create_alignment_source_material_plan_refresh_callbacks(context: dict[str, o
     source_preview_path = context.get('source_preview_path')
     source_texture_evidence = context.get('source_texture_evidence')
     target_name_for_plan = context.get('target_name_for_plan')
-    texture_files_for_mapping = context.get('texture_files_for_mapping')
+    texture_files_for_mapping = context.get('texture_files_for_mapping') or []
     texture_material_plan_loaded = context.get('texture_material_plan_loaded')
     texture_set = context.get('texture_set')
     texture_transform_group = context.get('texture_transform_group')

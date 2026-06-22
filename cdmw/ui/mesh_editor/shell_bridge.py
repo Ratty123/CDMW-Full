@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Optional, Sequence
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 
 from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
@@ -178,7 +179,7 @@ class MeshEditorShellBridgeMixin:
             path=getattr(entry, "path", ""),
             package=str(getattr(entry, "pamt_path", "") or ""),
         )
-        self._start_archive_modify_original_workspace(entry)
+        QTimer.singleShot(0, lambda current_entry=entry: self._start_archive_modify_original_workspace(current_entry))
 
     def _mesh_editor_import_replacement_requested(self, entry: object) -> None:
         if not isinstance(entry, ArchiveEntry):
@@ -217,6 +218,9 @@ class MeshEditorShellBridgeMixin:
             path=getattr(current_entry, "path", ""),
             package=str(getattr(current_entry, "pamt_path", "") or ""),
         )
-        self._start_archive_modify_original_workspace(current_entry)
+        QTimer.singleShot(
+            0,
+            lambda current_entry=current_entry: self._start_archive_modify_original_workspace(current_entry),
+        )
 
 __all__ = ["MeshEditorShellBridgeMixin"]

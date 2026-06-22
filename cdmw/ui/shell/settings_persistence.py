@@ -248,7 +248,7 @@ class SettingsPersistenceMixin:
         self.settings.setValue("upscale/mod_ready_conflict_mode", self._combo_value(self.mod_ready_conflict_mode_combo))
         self.settings.setValue("upscale/mod_ready_target_language", self.mod_ready_target_language_edit.text())
         current_key = self._tool_key_for_widget(self._current_navigation_widget())
-        self.settings.setValue("ui/active_tool_key", current_key or "dashboard")
+        self.settings.setValue("ui/active_tool_key", current_key or "archive_browser")
         self.settings.setValue("ui/main_tab_index", self.main_tabs.currentIndex())
         self.settings.setValue("ui/compare_sync_pan", self.compare_sync_pan_checkbox.isChecked())
         self.settings.setValue("ui/compare_preview_size_mode", self._combo_value(self.compare_preview_size_combo))
