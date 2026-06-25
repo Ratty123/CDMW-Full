@@ -1,4 +1,6 @@
 import json
+import os
+import shutil
 import struct
 import tempfile
 import threading
@@ -7,9 +9,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtCore import QCoreApplication, QObject, QThread, QTimer, Signal, Slot
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtCore import QObject, QProcess, QThread, QTimer, Signal, Slot
+from PySide6.QtWidgets import QApplication
 
 from cdmw.models import RunCancelled
+from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
 from cdmw.services.model_library_preview import (
     prepare_model_library_inline_preview,
     prepare_model_library_inline_preview_in_subprocess,
@@ -121,6 +127,59 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertLess(result["faces"], result["source_faces"])
             self.assertIsNotNone(result["quality_reduction"])
 
+    def test_qprocess_native_host_loads_model_library_package(self) -> None:
+        host = find_native_d3d11_host()
+        if host is None:
+            self.skipTest("native D3D11 host is not built")
+        with tempfile.TemporaryDirectory() as tmp:
+            scene_path = _write_triangle_gltf(Path(tmp), triangle_count=1200)
+            result = prepare_model_library_inline_preview(scene_path, model_name="Dense")
+            package_dir = Path(str(result["d3d11_package_dir"]))
+            status_file = package_dir / "qprocess_host_status.json"
+            app = QApplication.instance() or QApplication([])
+            process = QProcess()
+            process.setProgram(str(host))
+            process.setArguments(
+                [
+                    "--backend",
+                    "d3d11",
+                    "--preview-package",
+                    str(package_dir),
+                    "--status-file",
+                    str(status_file),
+                ]
+            )
+            errors: list[str] = []
+            process.errorOccurred.connect(lambda error: errors.append(str(error)))
+            loaded_payload: dict[str, object] = {}
+            try:
+                process.start()
+                deadline = time.perf_counter() + 12.0
+                while time.perf_counter() < deadline:
+                    app.processEvents()
+                    if status_file.is_file():
+                        payload = json.loads(status_file.read_text(encoding="utf-8"))
+                        event = str(payload.get("event", "") or "")
+                        if event == "loaded":
+                            loaded_payload = payload
+                            break
+                        if event == "error":
+                            self.fail(str(payload.get("message", "native host reported error")))
+                    if process.state() == QProcess.NotRunning and not loaded_payload:
+                        break
+                    time.sleep(0.02)
+            finally:
+                if process.state() != QProcess.NotRunning:
+                    process.terminate()
+                    if not process.waitForFinished(2000):
+                        process.kill()
+                        process.waitForFinished(2000)
+                shutil.rmtree(package_dir, ignore_errors=True)
+
+        self.assertFalse(errors)
+        self.assertEqual(loaded_payload.get("event"), "loaded")
+        self.assertGreater(int(loaded_payload.get("vertex_count", 0) or 0), 0)
+
     def test_backend_preview_honors_pre_cancelled_stop_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp))
@@ -191,7 +250,7 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp), triangle_count=1200)
-            app = QCoreApplication.instance() or QCoreApplication([])
+            app = QApplication.instance() or QApplication([])
             ticks: list[float] = []
             result_box: dict[str, object] = {}
             error_box: dict[str, str] = {}
