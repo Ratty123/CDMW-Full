@@ -2674,6 +2674,17 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("source_tree.itemClicked.connect(_handle_source_tree_item_clicked)", source)
         self.assertIn("parts_outliner_tree.set_source_drop_handler(_handle_parts_outliner_source_drop)", source)
         self.assertNotIn("parts_outliner_tree.currentItemChanged.connect(_parts_outliner_selection_changed)", source)
+        mapping_callbacks_start = source.index(
+            "parts_outliner_mapping_callbacks = create_alignment_parts_outliner_mapping_callbacks"
+        )
+        mapping_callbacks_end = source.index(
+            "_parts_outliner_source_label = parts_outliner_mapping_callbacks._parts_outliner_source_label",
+            mapping_callbacks_start,
+        )
+        mapping_callbacks_block = source[mapping_callbacks_start:mapping_callbacks_end]
+        self.assertIn('"_parts_outliner_selection_changed": lambda *args, **kwargs:', mapping_callbacks_block)
+        self.assertIn('"_select_source_part_from_viewport": lambda *args, **kwargs:', mapping_callbacks_block)
+        self.assertIn('"_target_selection_changed": lambda *args, **kwargs:', mapping_callbacks_block)
         self.assertIn("def _open_parts_outliner_target_dropdown", source)
         self.assertIn("def _open_parts_outliner_role_dropdown", source)
         self.assertIn("_parts_outliner_target_menu_specs_helper(target_labels)", source)
@@ -4653,6 +4664,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("force_direct = bool(replacement_only or source_owned)", d3d11_mapping_source)
         self.assertIn('state["force_direct_source_preview"] = force_direct', d3d11_mapping_source)
         self.assertIn("_direct_source_preview_indices_helper(", refresh_prelude)
+        refresh_body = source[refresh_start: source.index("preview_model = _clone_preview_model(source_model)", refresh_start)]
+        self.assertIn('reason="source_geometry_not_ready"', refresh_body)
+        self.assertNotIn("else:\n            source_model = state.replacement_preview_model", refresh_body)
         preview_models_source = ARCHIVE_STATIC_REPLACEMENT_PREVIEW_MODELS.read_text(encoding="utf-8")
         self.assertIn("if force_direct_source_preview or mesh_edit_direct_source_preview:", preview_models_source)
         self.assertIn('return f"{base_geometry_key}|direct-source:{index_key}"', preview_models_source)
@@ -4718,7 +4732,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("if callable(_sync_highlight_sets):", check_handler)
         self.assertIn("_set_source_parts_apply_pending(", check_handler)
         self.assertIn("_set_source_parts_preview_rebuild_pending(", check_handler)
-        self.assertIn("_queue_static_preview_rebuild()", check_handler)
+        self.assertIn("if callable(_queue_selection_preview_refresh):", check_handler)
+        self.assertIn("_queue_selection_preview_refresh()", check_handler)
+        self.assertIn("else:\n                    _queue_static_preview_rebuild()", check_handler)
 
         delete_start = source_part_mutation_source.index("def _delete_selected_source_parts(")
         delete_end = source_part_mutation_source.index("def _apply_source_part_preview_changes(", delete_start)

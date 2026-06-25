@@ -363,7 +363,7 @@ def manual_material_profile_panel_state(
     manual_selected = str(profile_name or "") == "material_authority_manual"
     return {
         "visible": manual_selected,
-        "enabled": bool(manual_selected and complete_enabled),
+        "enabled": bool(manual_selected),
     }
 
 

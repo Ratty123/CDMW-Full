@@ -61,6 +61,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:", source)
         self.assertIn("_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")", source)
         self.assertIn("mesh_edit_enabled_checkbox.toggled.connect(_mesh_edit_enabled_toggled)", source)
+        self.assertIn('prompt_shell_context["_sync_mesh_edit_preview_settings"] = _sync_mesh_edit_preview_settings', source)
+        self.assertIn('prompt_shell_context.get(\n                "_sync_mesh_edit_preview_settings"', source)
         self.assertNotIn(
             "mesh_edit_enabled_checkbox.toggled.connect(lambda _checked=False: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))",
             source,

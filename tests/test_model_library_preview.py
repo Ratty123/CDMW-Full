@@ -93,6 +93,26 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertEqual(result["faces"], 1)
             self.assertTrue((package_dir / "manifest.json").is_file())
 
+    def test_backend_uses_high_quality_combined_material_package(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scene_path = _write_triangle_gltf(Path(tmp))
+            package_dir = Path(tmp) / "package"
+
+            with patch(
+                "cdmw.services.model_library_preview.write_isolated_d3d11_preview_package",
+                return_value=package_dir,
+            ) as writer:
+                result = prepare_model_library_inline_preview(
+                    scene_path,
+                    model_name="Triangle",
+                    high_quality_textures=True,
+                )
+
+            self.assertEqual(result["d3d11_package_dir"], str(package_dir))
+            self.assertTrue(writer.called)
+            self.assertTrue(writer.call_args.kwargs["high_quality_textures"])
+            self.assertTrue(writer.call_args.kwargs["enable_material_combiner"])
+
     def test_backend_prepares_qt_preview_without_d3d11_package(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp))

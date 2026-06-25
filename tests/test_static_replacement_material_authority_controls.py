@@ -423,7 +423,7 @@ def test_material_authority_basic_controls_hint() -> None:
         visible=True,
         enabled=False,
         inactive_reason="",
-    ) == "Enable Complete source-owned mesh/material swap to use these controls."
+    ) == "Select Material Authority or Manual to use material controls."
     assert material_authority_basic_controls_hint(
         visible=True,
         enabled=True,
@@ -650,7 +650,7 @@ def test_material_authority_sidecar_option_state_regular_modes() -> None:
         "clear_dependent_sidecar_options": True,
         "rebuild_sidecar_enabled": True,
         "dependent_sidecar_options_enabled": False,
-        "complete_material_controls_enabled": False,
+        "complete_material_controls_enabled": True,
         "unsafe_preflight_enabled": False,
         "clear_unsafe_preflight": True,
     }
@@ -760,7 +760,7 @@ def test_material_authority_apply_sidecar_control_state_updates_widgets() -> Non
     assert rebuild.enabled is True
     assert [widget.checked for widget in dependent] == [False, False]
     assert [widget.enabled for widget in dependent] == [False, False]
-    assert complete[0].enabled is False
+    assert complete[0].enabled is True
     assert unsafe.enabled is False
     assert unsafe.checked is False
 

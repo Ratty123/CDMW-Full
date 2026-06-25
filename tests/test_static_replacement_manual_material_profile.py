@@ -190,7 +190,7 @@ def test_manual_material_profile_panel_dirty_and_token_state() -> None:
     assert manual_material_profile_panel_state(
         "material_authority_manual",
         complete_enabled=False,
-    ) == {"visible": True, "enabled": False}
+    ) == {"visible": True, "enabled": True}
     assert manual_material_profile_panel_state(
         "material_authority_detail_mask",
         complete_enabled=True,

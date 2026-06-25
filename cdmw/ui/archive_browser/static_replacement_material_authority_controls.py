@@ -700,7 +700,7 @@ def material_authority_basic_controls_hint(
     if not visible:
         return "Select Material Authority or Manual to use material controls."
     if not enabled:
-        return "Enable Complete source-owned mesh/material swap to use these controls."
+        return "Select Material Authority or Manual to use material controls."
     if inactive_reason:
         return f"Settings apply on export. Preview unchanged: {inactive_reason}"
     return "Auto brightness normalizes source base DDS exposure; Source brightness can dim or lift source color; Tone contrast shapes the curve."
@@ -728,7 +728,7 @@ def material_authority_sidecar_option_state(
         "clear_dependent_sidecar_options": not sidecar_enabled,
         "rebuild_sidecar_enabled": not complete_mode,
         "dependent_sidecar_options_enabled": dependent_enabled,
-        "complete_material_controls_enabled": bool(complete_mode),
+        "complete_material_controls_enabled": True,
         "unsafe_preflight_enabled": bool(complete_mode),
         "clear_unsafe_preflight": bool(not complete_mode and unsafe_preflight_checked),
     }

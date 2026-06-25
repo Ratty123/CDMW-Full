@@ -251,7 +251,10 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
             _mesh_edit_raw_preview_active(),
         )
         try:
-            sync_mesh_edit_preview_settings = context.get("_sync_mesh_edit_preview_settings")
+            sync_mesh_edit_preview_settings = prompt_shell_context.get(
+                "_sync_mesh_edit_preview_settings",
+                context.get("_sync_mesh_edit_preview_settings"),
+            )
             if callable(sync_mesh_edit_preview_settings):
                 sync_mesh_edit_preview_settings()
         except NameError:

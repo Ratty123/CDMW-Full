@@ -4159,7 +4159,14 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     mapping_selection_buttons.addStretch(1)
     mapping_layout.addLayout(mapping_selection_buttons)
 
-    parts_outliner_mapping_callbacks = create_alignment_parts_outliner_mapping_callbacks({**context, **globals(), **locals()})
+    parts_outliner_mapping_callbacks = create_alignment_parts_outliner_mapping_callbacks({
+        **context,
+        **globals(),
+        **locals(),
+        "_parts_outliner_selection_changed": lambda *args, **kwargs: _parts_outliner_selection_changed(*args, **kwargs),
+        "_select_source_part_from_viewport": lambda *args, **kwargs: _select_source_part_from_viewport(*args, **kwargs),
+        "_target_selection_changed": lambda *args, **kwargs: _target_selection_changed(*args, **kwargs),
+    })
     _parts_outliner_source_label = parts_outliner_mapping_callbacks._parts_outliner_source_label
     _parts_outliner_source_geometry = parts_outliner_mapping_callbacks._parts_outliner_source_geometry
     _selected_source_indices_from_tree = parts_outliner_mapping_callbacks._selected_source_indices_from_tree
@@ -4337,27 +4344,27 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
             finally:
                 tree.blockSignals(previous_blocked)
         _apply_part_selection_clear_scope_state(_part_selection_clear_scope_state_helper("all"))
-        try:
+        if _qt_object_is_valid(added_texture_tree):
             _clear_tree_current_item(added_texture_tree)
+        if isinstance(selected_added_part_texture_row, dict):
             selected_added_part_texture_row["source_index"] = -1
-        except NameError:
-            pass
-        try:
+        if _qt_object_is_valid(texture_override_tree):
             _clear_tree_current_item(texture_override_tree)
+        if isinstance(selected_texture_row, dict):
             selected_texture_row["row"] = None
-        except NameError:
-            pass
-        try:
+        if _qt_object_is_valid(material_plan_tree):
             _clear_tree_current_item(material_plan_tree)
+        if _qt_object_is_valid(material_routing_tree):
             _clear_tree_current_item(material_routing_tree)
+        if isinstance(selected_texture_plan_source, dict):
             selected_texture_plan_source["material_name"] = ""
             selected_texture_plan_source["source_indices"] = ()
+        if _qt_object_is_valid(dds_detail_label) and _qt_object_is_valid(dds_detail_panel):
             clear_state = _dds_detail_clear_state_helper(material_plan_control_text)
             dds_detail_label.setText(clear_state.detail_text)
-            _apply_dds_detail_thumbnail_state(clear_state.thumbnail)
+            if callable(_apply_dds_detail_thumbnail_state):
+                _apply_dds_detail_thumbnail_state(clear_state.thumbnail)
             dds_detail_panel.setVisible(clear_state.panel_visible)
-        except NameError:
-            pass
         _sync_highlight_sets()
         _refresh_original_reference_preview()
         _load_selected_part_controls()

@@ -1377,7 +1377,15 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
                     preview_submesh_index_map.clear()
                     source_model = state.replacement_preview_model
         else:
-            source_model = state.replacement_preview_model
+            _record_runtime_event(
+                "mesh_alignment_preview_refresh_waiting",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                active_preview_mode=active_preview_mode,
+                reason="source_geometry_not_ready",
+                modify_original_clone=modify_original_clone_mode,
+            )
+            return
         preview_model = _clone_preview_model(source_model)
         _apply_original_material_preview(preview_model, mapped_preview=mapped_preview, current_mappings=current_mappings)
         try:

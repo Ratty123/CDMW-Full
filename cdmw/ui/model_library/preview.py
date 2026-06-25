@@ -377,7 +377,7 @@ class ModelLibraryInlinePreviewMixin:
                 renderer_backend=renderer_backend,
                 model_name=model_name,
                 request_id=request_id,
-                high_quality_textures=False,
+                high_quality_textures=True,
                 progress=progress,
                 stop_event=stop_event,
             )

@@ -487,7 +487,10 @@ def build_preview_panel(tab: object) -> QWidget:
         "Local preview resolves glTF/GLB/OBJ/DAE textures from the model folder without launching inline D3D11."
     )
     tab.inline_preview_status_label.setObjectName("HintLabel")
-    tab.inline_preview_status_label.setWordWrap(True)
+    tab.inline_preview_status_label.setWordWrap(False)
+    tab.inline_preview_status_label.setMinimumHeight(24)
+    tab.inline_preview_status_label.setMaximumHeight(32)
+    tab.inline_preview_status_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     preview_layout.addWidget(tab.inline_preview_status_label)
     tab.inline_preview_flip_v_checkbox.toggled.connect(tab._handle_inline_preview_flip_v_toggled)
     tab.inline_preview_reset_orientation_button.clicked.connect(tab._handle_inline_preview_orientation_reset_clicked)

@@ -714,7 +714,7 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
             )
             return
         visible = _basic_controls_profile_enabled()
-        enabled = bool(visible and _complete_external_swap_enabled())
+        enabled = bool(visible)
         true_source_basic_group.setVisible(bool(visible))
         true_source_basic_group.setEnabled(enabled)
         true_source_basic_hint.setText(
@@ -4750,6 +4750,7 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
     _push_geometry_undo_snapshot = context.get('_push_geometry_undo_snapshot')
     _qt_object_is_valid = context.get('_qt_object_is_valid')
     _queue_material_edit_refresh = context.get('_queue_material_edit_refresh')
+    _queue_selection_preview_refresh = context.get('_queue_selection_preview_refresh')
     _queue_static_preview_rebuild = context.get('_queue_static_preview_rebuild')
     _queue_static_preview_refresh = context.get('_queue_static_preview_refresh')
     _refresh_source_assignment_columns = context.get('_refresh_source_assignment_columns')
@@ -4994,7 +4995,10 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
             _set_source_parts_apply_pending(_source_part_include_exclude_pending_reason_helper())
         else:
             _set_source_parts_preview_rebuild_pending(_source_part_include_exclude_pending_reason_helper())
-            _queue_static_preview_rebuild()
+            if callable(_queue_selection_preview_refresh):
+                _queue_selection_preview_refresh()
+            else:
+                _queue_static_preview_rebuild()
 
     _outliner_source_index_from_item = lambda item: _parts_outliner_source_index_helper(item)
 

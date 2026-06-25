@@ -423,6 +423,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         _selected_part_preview_indices = alignment_mesh_geometry_preview_section._selected_part_preview_indices
         _static_options_from_placement_snapshot = alignment_mesh_geometry_preview_section._static_options_from_placement_snapshot
         _sync_mesh_edit_preview_settings = alignment_mesh_geometry_preview_section._sync_mesh_edit_preview_settings
+        prompt_shell_context["_sync_mesh_edit_preview_settings"] = _sync_mesh_edit_preview_settings
         button = alignment_mesh_geometry_preview_section.button
         edit = alignment_mesh_geometry_preview_section.edit
         geometry_overview_group = alignment_mesh_geometry_preview_section.geometry_overview_group

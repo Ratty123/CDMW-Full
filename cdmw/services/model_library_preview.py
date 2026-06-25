@@ -191,7 +191,7 @@ def prepare_model_library_inline_preview(
     prepared_model, prepared_preview = prepare_model_preview(
         preview_model,
         render_settings=render_settings,
-        enable_material_combiner=False,
+        enable_material_combiner=True,
     )
     raise_if_cancelled(stop_event)
     package_dir = ""
@@ -207,7 +207,7 @@ def prepare_model_library_inline_preview(
                 use_textures=True,
                 high_quality_textures=bool(high_quality_textures),
                 backend="d3d11",
-                enable_material_combiner=False,
+                enable_material_combiner=True,
                 prefer_direct_dds=True,
                 editor_workspace="model_library",
                 on_progress=lambda _current, _total, message: progress(message),
