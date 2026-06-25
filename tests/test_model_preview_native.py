@@ -382,6 +382,46 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertEqual(ARCHIVE_MODEL_RENDERER_D3D11, normalize_archive_model_renderer_backend("old_removed_renderer"))
         self.assertEqual(ARCHIVE_MODEL_RENDERER_DEFAULT, normalize_archive_model_renderer_backend("unknown"))
 
+    def test_native_d3d11_highlight_commands_select_individual_parts(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+
+        app = QApplication.instance() or QApplication([])
+        commands: list[dict[str, object]] = []
+        host = NativeD3D11PreviewHostFrame()
+        host._send_host_json_command = lambda payload: commands.append(dict(payload)) or True  # type: ignore[method-assign]
+        try:
+            self.assertTrue(host.set_highlighted_source_submeshes([4, -1, 2, 4]))
+            self.assertEqual(
+                {
+                    "command": "set_highlights",
+                    "source_submesh_indices": [2, 4],
+                },
+                commands[-1],
+            )
+
+            self.assertTrue(
+                host.set_highlighted_alignment_submeshes(
+                    replacement_submesh_indices=[8, 3, 8],
+                    original_submesh_indices=[1, -1],
+                )
+            )
+            self.assertEqual(
+                {
+                    "command": "set_highlights",
+                    "source_submesh_indices": [1, 3, 8],
+                    "replacement_submesh_indices": [3, 8],
+                    "original_submesh_indices": [1],
+                },
+                commands[-1],
+            )
+        finally:
+            host.close()
+            host.deleteLater()
+            app.processEvents()
+
     def test_builds_batch_payload_bounds_color_and_texture(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             texture_path = Path(temp_dir) / "base.png"

@@ -93,6 +93,7 @@ class ModelLibraryTab(
         )
         self._task_thread: Optional[object] = None
         self._task_worker: Optional[object] = None
+        self._task_ui_bridge: Optional[object] = None
         self._task_complete_handler: Optional[Callable[[object], None]] = None
         self._task_error_handler: Optional[Callable[[str], None]] = None
         self._stop_event: Optional[object] = None

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
-import shutil
 import struct
+import threading
+from functools import lru_cache
 from typing import Dict, Mapping
 
 
@@ -16,19 +18,56 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _detect_executable(*names: str) -> Dict[str, object]:
+def _main_thread_probe_allowed() -> bool:
+    return threading.current_thread() is threading.main_thread()
+
+
+@lru_cache(maxsize=64)
+def _detect_executable_cached(names: tuple[str, ...], path_text: str, pathext_text: str) -> tuple[str, str]:
+    search_paths = [Path(value) for value in path_text.split(os.pathsep) if value]
+    extensions = [value.lower() for value in pathext_text.split(os.pathsep) if value]
+    if os.name == "nt":
+        extensions = [value.lower() for value in pathext_text.split(";") if value] or [".exe", ".bat", ".cmd"]
     for name in names:
-        path = shutil.which(name)
-        if path:
-            return {"status": "external_detected", "path": path}
-    return {"status": "not_detected", "path": ""}
+        raw_name = str(name or "").strip()
+        if not raw_name:
+            continue
+        candidates = [Path(raw_name)]
+        if os.name == "nt" and not Path(raw_name).suffix:
+            candidates.extend(Path(f"{raw_name}{extension}") for extension in extensions)
+        for candidate in candidates:
+            if candidate.is_absolute() and candidate.is_file():
+                return "external_detected", str(candidate)
+        for folder in search_paths:
+            for candidate in candidates:
+                path = folder / candidate
+                if path.is_file():
+                    return "external_detected", str(path)
+    return "not_detected", ""
+
+
+def _detect_executable(*names: str) -> Dict[str, object]:
+    if not _main_thread_probe_allowed():
+        return {"status": "not_detected", "path": ""}
+    status, path = _detect_executable_cached(
+        tuple(str(name or "").strip() for name in names),
+        os.environ.get("PATH", ""),
+        os.environ.get("PATHEXT", ""),
+    )
+    if path:
+        return {"status": status, "path": path}
+    return {"status": status, "path": ""}
 
 
 def _module_available(name: str) -> bool:
+    if not _main_thread_probe_allowed():
+        return False
     return importlib.util.find_spec(name) is not None
 
 
 def _existing_repo_tool(*relative_paths: str) -> str:
+    if not _main_thread_probe_allowed():
+        return ""
     root = _repo_root()
     for relative_path in relative_paths:
         path = root / relative_path
@@ -645,12 +684,13 @@ def shader_asset_fidelity_status(
 
 def asset_fidelity_preflight_manifest(manifest: Mapping[str, object] | None = None, *, package_dir: Path | None = None) -> Dict[str, object]:
     manifest = manifest if isinstance(manifest, Mapping) else {}
+    mesh_package_dir = package_dir if _main_thread_probe_allowed() else None
     preflight = {
         "schema_version": ASSET_FIDELITY_PREFLIGHT_SCHEMA_VERSION,
         "dds_encoder_matrix": dds_encoder_compatibility_matrix(),
         "tangent_basis": tangent_basis_report(),
         "import_validators": import_preflight_report(),
-        "mesh_health": mesh_health_report(manifest, package_dir=package_dir),
+        "mesh_health": mesh_health_report(manifest, package_dir=mesh_package_dir),
         "image_color": {
             **image_color_preflight_report(),
             "color_space_health": _color_space_health(manifest),

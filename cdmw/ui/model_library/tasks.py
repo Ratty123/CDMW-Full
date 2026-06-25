@@ -5,9 +5,32 @@ from __future__ import annotations
 import re
 from typing import Callable, Optional
 
-from PySide6.QtCore import QThread, Slot
+from PySide6.QtCore import QObject, QThread, Qt, Slot
 
 from cdmw.workers.model_library_workers import ModelLibraryTaskWorker as _ModelLibraryTaskWorker
+
+
+class _ModelLibraryTaskUiBridge(QObject):
+    def __init__(self, owner: object) -> None:
+        super().__init__(owner)  # type: ignore[arg-type]
+        self._owner = owner
+
+    @Slot(str)
+    def handle_progress(self, message: str) -> None:
+        self._owner._handle_task_progress(message)
+
+    @Slot(object)
+    def handle_completed(self, result: object) -> None:
+        self._owner._handle_task_completed(result)
+
+    @Slot(str)
+    def handle_error(self, message: str) -> None:
+        self._owner._handle_task_error(message)
+
+    @Slot()
+    def handle_finished(self) -> None:
+        self._owner._handle_task_finished()
+        self.deleteLater()
 
 
 class ModelLibraryTaskMixin:
@@ -30,17 +53,19 @@ class ModelLibraryTaskMixin:
         self._task_error_handler = error_handler
         thread = QThread(self)
         worker = _ModelLibraryTaskWorker(task)
+        bridge = _ModelLibraryTaskUiBridge(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.progress.connect(self._handle_task_progress)
-        worker.completed.connect(self._handle_task_completed)
-        worker.error.connect(self._handle_task_error)
+        worker.progress.connect(bridge.handle_progress, Qt.ConnectionType.QueuedConnection)
+        worker.completed.connect(bridge.handle_completed, Qt.ConnectionType.QueuedConnection)
+        worker.error.connect(bridge.handle_error, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._handle_task_finished)
+        thread.finished.connect(bridge.handle_finished, Qt.ConnectionType.QueuedConnection)
         self._task_thread = thread
         self._task_worker = worker
+        self._task_ui_bridge = bridge
         self.cancel_task_button.setEnabled(self._stop_event is not None)
         self.build_index_button.setEnabled(False)
         self.scan_local_button.setEnabled(False)
@@ -96,6 +121,7 @@ class ModelLibraryTaskMixin:
     def _handle_task_finished(self) -> None:
         self._task_thread = None
         self._task_worker = None
+        self._task_ui_bridge = None
         self._task_error_handler = None
         self._stop_event = None
         self._task_status_active = False

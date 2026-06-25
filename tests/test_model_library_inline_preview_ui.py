@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -25,6 +26,48 @@ class _QtPreviewModelLibraryTab(ModelLibraryTab):
 
 
 class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
+    def test_task_completion_handler_runs_on_ui_thread(self) -> None:
+        app = _app()
+        main_thread_id = threading.get_ident()
+        completed: dict[str, object] = {}
+        worker_thread_ids: list[int] = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            settings = create_settings(settings_file_path=root / "settings.ini")
+            tab = _QtPreviewModelLibraryTab(settings=settings, base_dir=root)
+            try:
+                def task(_progress: object) -> object:
+                    worker_thread_ids.append(threading.get_ident())
+                    return {"ok": True}
+
+                def complete(result: object) -> None:
+                    completed["thread_id"] = threading.get_ident()
+                    completed["result"] = result
+
+                tab._run_task("Testing task bridge...", task, complete)
+                deadline = time.perf_counter() + 5.0
+                while "thread_id" not in completed and time.perf_counter() < deadline:
+                    app.processEvents()
+                    time.sleep(0.01)
+
+                self.assertEqual({"ok": True}, completed.get("result"))
+                self.assertEqual(main_thread_id, completed.get("thread_id"))
+                self.assertTrue(worker_thread_ids)
+                self.assertNotEqual(main_thread_id, worker_thread_ids[0])
+                deadline = time.perf_counter() + 5.0
+                while tab._task_thread is not None and time.perf_counter() < deadline:
+                    app.processEvents()
+                    time.sleep(0.01)
+                self.assertIsNone(tab._task_thread)
+                self.assertIsNone(tab._task_ui_bridge)
+            finally:
+                if tab._task_thread is not None and tab._task_thread.isRunning():
+                    tab._task_thread.quit()
+                    tab._task_thread.wait(2000)
+                tab.close()
+                tab.deleteLater()
+                app.processEvents()
+
     def test_auto_preview_local_selection_loads_inline_preview_via_worker(self) -> None:
         app = _app()
         events: list[tuple[str, dict[str, object]]] = []
