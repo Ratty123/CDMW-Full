@@ -135,7 +135,10 @@ class ArchivePreviewSettingsMixin:
         diffuse_light_scale = self._read_float("preview/diffuse_light_scale", defaults.diffuse_light_scale)
         specular_base = self._read_float("preview/specular_base", defaults.specular_base)
         specular_max = self._read_float("preview/specular_max", defaults.specular_max)
-        if legacy_lighting_version < 3:
+        d3d11_tone_exposure = self._read_float("preview/d3d11_tone_exposure", defaults.d3d11_tone_exposure)
+        d3d11_tone_contrast = self._read_float("preview/d3d11_tone_contrast", defaults.d3d11_tone_contrast)
+        d3d11_tone_gamma = self._read_float("preview/d3d11_tone_gamma", defaults.d3d11_tone_gamma)
+        if legacy_lighting_version < 6:
             def _near(current: float, expected: float) -> bool:
                 try:
                     return abs(float(current) - float(expected)) <= 1e-6
@@ -156,7 +159,44 @@ class ArchivePreviewSettingsMixin:
                 and _near(d3d11_environment_strength, 0.45)
                 and _near(specular_max, 0.14)
             )
-            if old_saved_defaults_v1 or old_saved_defaults_v2:
+            old_saved_defaults_v3 = (
+                _near(d3d11_ao_strength, 0.65)
+                and _near(d3d11_roughness_bias, 0.10)
+                and _near(d3d11_metalness_scale, 1.00)
+                and _near(d3d11_environment_strength, 0.85)
+                and _near(ambient_strength, 0.72)
+                and _near(diffuse_wrap_bias, 0.72)
+                and _near(diffuse_light_scale, 0.95)
+                and _near(specular_base, 0.070)
+                and _near(specular_max, 0.32)
+            )
+            old_saved_defaults_v4 = (
+                _near(d3d11_ao_strength, 1.05)
+                and _near(d3d11_environment_strength, 2.00)
+                and _near(ambient_strength, 0.80)
+                and _near(diffuse_wrap_bias, 0.67)
+                and _near(diffuse_light_scale, 0.96)
+                and _near(specular_base, 0.205)
+                and _near(specular_max, 0.45)
+                and _near(d3d11_tone_exposure, 1.01)
+                and _near(d3d11_tone_contrast, 1.08)
+                and _near(d3d11_tone_gamma, 1.26)
+            )
+            old_saved_defaults_v5 = (
+                _near(d3d11_ao_strength, 0.20)
+                and _near(d3d11_roughness_bias, -0.06)
+                and _near(d3d11_metalness_scale, 1.45)
+                and _near(d3d11_environment_strength, 0.25)
+                and _near(ambient_strength, 1.00)
+                and _near(diffuse_wrap_bias, 1.00)
+                and _near(diffuse_light_scale, 0.08)
+                and _near(specular_base, 0.040)
+                and _near(specular_max, 0.18)
+                and _near(d3d11_tone_exposure, 1.04)
+                and _near(d3d11_tone_contrast, 1.00)
+                and _near(d3d11_tone_gamma, 1.00)
+            )
+            if old_saved_defaults_v1 or old_saved_defaults_v2 or old_saved_defaults_v3 or old_saved_defaults_v4 or old_saved_defaults_v5:
                 d3d11_ao_strength = defaults.d3d11_ao_strength
                 d3d11_roughness_bias = defaults.d3d11_roughness_bias
                 d3d11_metalness_scale = defaults.d3d11_metalness_scale
@@ -166,6 +206,9 @@ class ArchivePreviewSettingsMixin:
                 diffuse_light_scale = defaults.diffuse_light_scale
                 specular_base = defaults.specular_base
                 specular_max = defaults.specular_max
+                d3d11_tone_exposure = defaults.d3d11_tone_exposure
+                d3d11_tone_contrast = defaults.d3d11_tone_contrast
+                d3d11_tone_gamma = defaults.d3d11_tone_gamma
                 self.settings.setValue("preview/d3d11_ao_strength", d3d11_ao_strength)
                 self.settings.setValue("preview/d3d11_roughness_bias", d3d11_roughness_bias)
                 self.settings.setValue("preview/d3d11_metalness_scale", d3d11_metalness_scale)
@@ -175,7 +218,10 @@ class ArchivePreviewSettingsMixin:
                 self.settings.setValue("preview/diffuse_light_scale", diffuse_light_scale)
                 self.settings.setValue("preview/specular_base", specular_base)
                 self.settings.setValue("preview/specular_max", specular_max)
-            self.settings.setValue("preview/d3d11_lighting_defaults_version", 3)
+                self.settings.setValue("preview/d3d11_tone_exposure", d3d11_tone_exposure)
+                self.settings.setValue("preview/d3d11_tone_contrast", d3d11_tone_contrast)
+                self.settings.setValue("preview/d3d11_tone_gamma", d3d11_tone_gamma)
+            self.settings.setValue("preview/d3d11_lighting_defaults_version", 6)
         return clamp_model_preview_render_settings(
             ModelPreviewRenderSettings(
                 use_textures_by_default=self._read_bool("archive/model_use_textures", defaults.use_textures_by_default),
@@ -321,9 +367,9 @@ class ArchivePreviewSettingsMixin:
                 d3d11_metalness_scale=d3d11_metalness_scale,
                 d3d11_environment_strength=d3d11_environment_strength,
                 d3d11_emissive_gain=self._read_float("preview/d3d11_emissive_gain", defaults.d3d11_emissive_gain),
-                d3d11_tone_exposure=self._read_float("preview/d3d11_tone_exposure", defaults.d3d11_tone_exposure),
-                d3d11_tone_contrast=self._read_float("preview/d3d11_tone_contrast", defaults.d3d11_tone_contrast),
-                d3d11_tone_gamma=self._read_float("preview/d3d11_tone_gamma", defaults.d3d11_tone_gamma),
+                d3d11_tone_exposure=d3d11_tone_exposure,
+                d3d11_tone_contrast=d3d11_tone_contrast,
+                d3d11_tone_gamma=d3d11_tone_gamma,
             )
         )
 

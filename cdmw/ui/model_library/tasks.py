@@ -120,6 +120,9 @@ class ModelLibraryTaskMixin:
         self.local_results_view_button.setEnabled(True)
         self.refresh_results_view_button.setEnabled(True)
         self._update_selection_state()
+        hook = getattr(self, "_after_model_library_task_finished", None)
+        if callable(hook):
+            hook()
 
     def _set_status(self, message: str, *, error: bool = False) -> None:
         self.status_label.setText(message)

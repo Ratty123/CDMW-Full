@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Tuple
@@ -204,8 +205,11 @@ class ArchiveAssetCatalogDialogMixin:
         catalog_filter_timer = QTimer(dialog)
         catalog_filter_timer.setSingleShot(True)
         catalog_filter_timer.setInterval(160)
+        catalog_population_timer = QTimer(dialog)
+        catalog_population_timer.setSingleShot(True)
         icon_row_queue: List[QListWidgetItem] = []
         icon_visible_retry_budget = {"remaining": 8}
+        catalog_population_state: Dict[str, object] = {}
         restored_category = str(self.settings.value("ui/item_finder_category", "") or "")
         restored_group = str(self.settings.value("ui/item_finder_group", "") or "")
         restored_selected_key = str(self.settings.value("ui/item_finder_selected_key", "") or "")
@@ -433,80 +437,61 @@ class ArchiveAssetCatalogDialogMixin:
             if icon_row_queue:
                 icon_row_timer.start(16)
 
-        def _populate_catalog() -> None:
-            icon_row_timer.stop()
-            icon_row_queue.clear()
-            query = search_edit.text().strip().lower()
-            query_tokens = tuple(re.findall(r"[a-z0-9]+", query))
+        def _add_catalog_grid_item(row: Mapping[str, object]) -> None:
+            category = str(row.get("category", "") or "Item")
+            group = str(row.get("group", "") or "Unclassified")
+            pac_files = self._archive_asset_catalog_row_values(row, "pac_files")
+            icon_paths = self._archive_asset_catalog_row_values(row, "icon_paths")
+            display_name = str(row.get("display_name", "") or row.get("internal_name", "") or "Unnamed asset")
+            internal_name = str(row.get("internal_name", "") or "")
+            category_evidence = str(row.get("category_evidence", "") or "").strip()
+            variant_count = int(row.get("variant_count", 1) or 1)
+            linked_count = len(pac_files) + len(icon_paths)
+            table_labels = self._archive_asset_catalog_table_evidence_labels(row)
+            compatibility_tags = self._archive_asset_catalog_row_values(row, "compatibility_tags")
+            material_tags = self._archive_asset_catalog_row_values(row, "material_tags")
+            item = QListWidgetItem(display_name)
+            item.setIcon(self._build_archive_asset_catalog_icon(category, display_name))
+            item.setSizeHint(QSize(166, 140))
+            item.setData(Qt.UserRole, dict(row))
+            item.setData(Qt.UserRole + 1, "fallback")
+            item.setData(Qt.UserRole + 2, f"{category} / {group}")
+            tooltip_lines = [
+                display_name,
+                f"Internal: {internal_name or '-'}",
+                f"Category: {category} > {group}",
+                f"Evidence: {category_evidence or 'Name hint'}",
+                f"Direct links: {linked_count:,}",
+                f"Variants grouped: {variant_count:,}",
+            ]
+            if table_labels:
+                tooltip_lines.append(
+                    "Table fields: "
+                    + ", ".join(table_labels[:6])
+                    + (" ..." if len(table_labels) > 6 else "")
+                )
+            if compatibility_tags:
+                tooltip_lines.append(
+                    "Compatibility: "
+                    + ", ".join(compatibility_tags[:6])
+                    + (" ..." if len(compatibility_tags) > 6 else "")
+                )
+            if material_tags:
+                tooltip_lines.append(
+                    "Material tags: "
+                    + ", ".join(material_tags[:10])
+                    + (" ..." if len(material_tags) > 10 else "")
+                )
+            if pac_files:
+                tooltip_lines.append("Models: " + ", ".join(pac_files[:5]) + (" ..." if len(pac_files) > 5 else ""))
+            if icon_paths:
+                tooltip_lines.append("Icons: " + ", ".join(icon_paths[:3]) + (" ..." if len(icon_paths) > 3 else ""))
+            item.setToolTip("\n".join(tooltip_lines))
+            item_grid.addItem(item)
+
+        def _finish_catalog_population(*, hidden: bool) -> None:
+            shown = item_grid.count()
             selected_category, selected_group = _current_browser_filter()
-            item_grid.setUpdatesEnabled(False)
-            item_grid.clear()
-            shown = 0
-            hidden = 0
-            display_limit = 600 if not query_tokens and not selected_category and not selected_group else 2500
-            for row in self.archive_item_asset_catalog:
-                category = str(row.get("category", "") or "Item")
-                if selected_category and category != selected_category:
-                    continue
-                group = str(row.get("group", "") or "Unclassified")
-                if selected_group and group != selected_group:
-                    continue
-                haystack = self._archive_asset_catalog_text(row)
-                if query_tokens and not all(token in haystack for token in query_tokens):
-                    continue
-                pac_files = self._archive_asset_catalog_row_values(row, "pac_files")
-                icon_paths = self._archive_asset_catalog_row_values(row, "icon_paths")
-                display_name = str(row.get("display_name", "") or row.get("internal_name", "") or "Unnamed asset")
-                internal_name = str(row.get("internal_name", "") or "")
-                category_evidence = str(row.get("category_evidence", "") or "").strip()
-                variant_count = int(row.get("variant_count", 1) or 1)
-                linked_count = len(pac_files) + len(icon_paths)
-                table_labels = self._archive_asset_catalog_table_evidence_labels(row)
-                compatibility_tags = self._archive_asset_catalog_row_values(row, "compatibility_tags")
-                material_tags = self._archive_asset_catalog_row_values(row, "material_tags")
-                item = QListWidgetItem(display_name)
-                item.setIcon(self._build_archive_asset_catalog_icon(category, display_name))
-                item.setSizeHint(QSize(166, 140))
-                item.setData(Qt.UserRole, dict(row))
-                item.setData(Qt.UserRole + 1, "fallback")
-                item.setData(Qt.UserRole + 2, f"{category} / {group}")
-                tooltip_lines = [
-                    display_name,
-                    f"Internal: {internal_name or '-'}",
-                    f"Category: {category} > {group}",
-                    f"Evidence: {category_evidence or 'Name hint'}",
-                    f"Direct links: {linked_count:,}",
-                    f"Variants grouped: {variant_count:,}",
-                ]
-                if table_labels:
-                    tooltip_lines.append(
-                        "Table fields: "
-                        + ", ".join(table_labels[:6])
-                        + (" ..." if len(table_labels) > 6 else "")
-                    )
-                if compatibility_tags:
-                    tooltip_lines.append(
-                        "Compatibility: "
-                        + ", ".join(compatibility_tags[:6])
-                        + (" ..." if len(compatibility_tags) > 6 else "")
-                    )
-                if material_tags:
-                    tooltip_lines.append(
-                        "Material tags: "
-                        + ", ".join(material_tags[:10])
-                        + (" ..." if len(material_tags) > 10 else "")
-                    )
-                if pac_files:
-                    tooltip_lines.append("Models: " + ", ".join(pac_files[:5]) + (" ..." if len(pac_files) > 5 else ""))
-                if icon_paths:
-                    tooltip_lines.append("Icons: " + ", ".join(icon_paths[:3]) + (" ..." if len(icon_paths) > 3 else ""))
-                item.setToolTip("\n".join(tooltip_lines))
-                item_grid.addItem(item)
-                shown += 1
-                if shown >= display_limit:
-                    hidden += 1
-                    break
-            item_grid.setUpdatesEnabled(True)
             filter_text = "all items"
             if selected_category and selected_group:
                 filter_text = f"{selected_category} / {selected_group}"
@@ -537,6 +522,79 @@ class ArchiveAssetCatalogDialogMixin:
             QTimer.singleShot(140, _queue_catalog_row_icons_for_visible_rows)
             QTimer.singleShot(360, _queue_catalog_row_icons_for_visible_rows)
             QTimer.singleShot(900, _queue_catalog_row_icons_for_visible_rows)
+
+        def _continue_catalog_population() -> None:
+            rows = catalog_population_state.get("rows", ())
+            index = int(catalog_population_state.get("index", 0) or 0)
+            shown = int(catalog_population_state.get("shown", 0) or 0)
+            display_limit = int(catalog_population_state.get("display_limit", 0) or 0)
+            query_tokens = tuple(catalog_population_state.get("query_tokens", ()) or ())
+            selected_category = str(catalog_population_state.get("selected_category", "") or "")
+            selected_group = str(catalog_population_state.get("selected_group", "") or "")
+            first_icon_queue_done = bool(catalog_population_state.get("first_icon_queue_done", False))
+            deadline = time.perf_counter() + 0.016
+            added = 0
+            item_grid.setUpdatesEnabled(False)
+            try:
+                while index < len(rows) and shown < display_limit:
+                    row = rows[index]
+                    index += 1
+                    if not isinstance(row, Mapping):
+                        continue
+                    category = str(row.get("category", "") or "Item")
+                    if selected_category and category != selected_category:
+                        continue
+                    group = str(row.get("group", "") or "Unclassified")
+                    if selected_group and group != selected_group:
+                        continue
+                    if query_tokens:
+                        haystack = self._archive_asset_catalog_text(row)
+                        if not all(token in haystack for token in query_tokens):
+                            continue
+                    _add_catalog_grid_item(row)
+                    shown += 1
+                    added += 1
+                    if added >= 80 or time.perf_counter() >= deadline:
+                        break
+            finally:
+                item_grid.setUpdatesEnabled(True)
+            catalog_population_state["index"] = index
+            catalog_population_state["shown"] = shown
+            if shown and not first_icon_queue_done:
+                catalog_population_state["first_icon_queue_done"] = True
+                QTimer.singleShot(0, _queue_catalog_row_icons_for_visible_rows)
+            if index < len(rows) and shown < display_limit:
+                status_label.setText(f"Loading Item Finder rows... {shown:,} shown so far.")
+                catalog_population_timer.start(0)
+                return
+            _finish_catalog_population(hidden=index < len(rows) and shown >= display_limit)
+
+        def _populate_catalog() -> None:
+            catalog_filter_timer.stop()
+            catalog_population_timer.stop()
+            icon_row_timer.stop()
+            icon_row_queue.clear()
+            query = search_edit.text().strip().lower()
+            query_tokens = tuple(re.findall(r"[a-z0-9]+", query))
+            selected_category, selected_group = _current_browser_filter()
+            display_limit = 600 if not query_tokens and not selected_category and not selected_group else 2500
+            catalog_population_state.update(
+                {
+                    "rows": self.archive_item_asset_catalog,
+                    "index": 0,
+                    "shown": 0,
+                    "display_limit": display_limit,
+                    "query_tokens": query_tokens,
+                    "selected_category": selected_category,
+                    "selected_group": selected_group,
+                    "first_icon_queue_done": False,
+                }
+            )
+            item_grid.setUpdatesEnabled(False)
+            item_grid.clear()
+            item_grid.setUpdatesEnabled(True)
+            status_label.setText("Loading Item Finder rows...")
+            _continue_catalog_population()
 
         def _selected_catalog_row() -> Optional[Dict[str, object]]:
             item = item_grid.currentItem()
@@ -770,6 +828,7 @@ class ArchiveAssetCatalogDialogMixin:
         icon_row_timer.timeout.connect(_load_next_catalog_row_icon)
         icon_retry_timer.timeout.connect(_queue_catalog_row_icons_for_visible_rows)
         icon_visible_queue_timer.timeout.connect(_queue_catalog_row_icons_for_visible_rows)
+        catalog_population_timer.timeout.connect(_continue_catalog_population)
         catalog_filter_timer.timeout.connect(_populate_catalog)
         search_edit.textChanged.connect(lambda _text: catalog_filter_timer.start())
         clear_search_button.clicked.connect(search_edit.clear)
@@ -786,7 +845,7 @@ class ArchiveAssetCatalogDialogMixin:
         if restored_search_text:
             search_edit.setText(restored_search_text)
         category_tree.itemSelectionChanged.connect(lambda: catalog_filter_timer.start())
-        _populate_catalog()
+        QTimer.singleShot(0, _populate_catalog)
         try:
             dialog.exec()
         finally:
@@ -810,6 +869,7 @@ class ArchiveAssetCatalogDialogMixin:
             )
             self.settings.setValue("ui/item_finder_scroll_value", item_grid.verticalScrollBar().value())
             catalog_filter_timer.stop()
+            catalog_population_timer.stop()
             icon_preview_timer.stop()
             icon_row_timer.stop()
             icon_retry_timer.stop()

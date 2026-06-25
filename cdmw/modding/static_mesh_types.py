@@ -164,6 +164,7 @@ class StaticMeshReplacementOptions:
     allow_empty_target_submeshes: bool = True
     rebuild_material_sidecar: bool = False
     complete_external_swap: bool = False
+    full_import_model_replacement: bool = False
     neutralize_inherited_material_layers: bool = False
     complete_external_material_reset: bool = False
     enable_missing_base_color_parameters: bool = False

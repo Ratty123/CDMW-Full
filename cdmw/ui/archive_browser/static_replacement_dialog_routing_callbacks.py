@@ -195,6 +195,9 @@ def create_alignment_original_texture_intent_callbacks(context: dict[str, object
         return _original_index_from_tree_item(selected_items[0]) if selected_items else int(selected_original_part.get("index", -1))
 
     def _original_part_texture_intent_rows(original_index: int) -> List[Dict[str, str]]:
+        if not callable(_original_part_texture_intent_rows_helper):
+            return []
+
         def _preview_source_for_path(texture_path: str) -> Path | None:
             try:
                 return _archive_dds_preview_source_for_path(texture_path)
@@ -1070,63 +1073,97 @@ def create_alignment_complete_swap_callbacks(context: dict[str, object]) -> Simp
         _call_if_alignment_widgets_live(_queue_texture_preview_refresh)
 
     def _select_complete_swap_material_profile_silently(profile_name: str, *, persist: bool = False) -> None:
-        previous_blocked = bool(complete_swap_material_profile_combo.blockSignals(True))  # type: ignore[name-defined]
+        block_signals = getattr(complete_swap_material_profile_combo, "blockSignals", None)
+        if not callable(block_signals) or not callable(_select_complete_swap_material_profile):
+            return
+        previous_blocked = bool(block_signals(True))
         try:
-            _select_complete_swap_material_profile(profile_name, persist=persist)  # type: ignore[name-defined]
+            _select_complete_swap_material_profile(profile_name, persist=persist)
         finally:
-            complete_swap_material_profile_combo.blockSignals(previous_blocked)  # type: ignore[name-defined]
+            block_signals(previous_blocked)
+
+    def _complete_swap_widgets_live() -> bool:
+        return bool(callable(_alignment_dialog_widgets_live) and _alignment_dialog_widgets_live())
+
+    def _complete_swap_refresh_sidecar_options() -> None:
+        if callable(_refresh_sidecar_option_state):
+            _refresh_sidecar_option_state()
 
     def _sync_complete_external_swap_mode(checked: bool) -> None:
-        if not _alignment_dialog_widgets_live():
+        if not _complete_swap_widgets_live():
             return
-        transition_generation = _material_authority_complete_swap_next_transition_generation_helper(
-            complete_external_swap_checkbox.property("transition_generation")  # type: ignore[name-defined]
-        )
+        current_generation = complete_external_swap_checkbox.property("transition_generation")  # type: ignore[name-defined]
+        if callable(_material_authority_complete_swap_next_transition_generation_helper):
+            transition_generation = _material_authority_complete_swap_next_transition_generation_helper(current_generation)
+        else:
+            try:
+                transition_generation = int(current_generation or 0) + 1
+            except (TypeError, ValueError):
+                transition_generation = 1
         complete_external_swap_checkbox.setProperty("transition_generation", transition_generation)  # type: ignore[name-defined]
-        _set_alignment_d3d11_progress(
-            5,
-            _material_authority_complete_swap_update_queued_message_helper(),
-            stage="complete_swap_toggle_queued",
-            active=not _alignment_d3d11_live_frame_available(),
-        )
-        complete_swap_performance = _material_authority_complete_swap_update_performance_helper()
-        _set_preview_performance_status(
-            complete_swap_performance.summary,
-            details=complete_swap_performance.details,
-        )
+        if callable(_set_alignment_d3d11_progress) and callable(_material_authority_complete_swap_update_queued_message_helper):
+            live_frame_available = (
+                bool(_alignment_d3d11_live_frame_available())
+                if callable(_alignment_d3d11_live_frame_available)
+                else False
+            )
+            _set_alignment_d3d11_progress(
+                5,
+                _material_authority_complete_swap_update_queued_message_helper(),
+                stage="complete_swap_toggle_queued",
+                active=not live_frame_available,
+            )
+        if callable(_material_authority_complete_swap_update_performance_helper) and callable(_set_preview_performance_status):
+            complete_swap_performance = _material_authority_complete_swap_update_performance_helper()
+            _set_preview_performance_status(
+                complete_swap_performance.summary,
+                details=complete_swap_performance.details,
+            )
         if checked:
-            complete_external_swap_checkbox.setProperty(  # type: ignore[name-defined]
-                "previous_forced_child_states",
-                _material_authority_complete_swap_forced_child_states_helper(
+            forced_child_states = None
+            if callable(_material_authority_complete_swap_forced_child_states_helper):
+                forced_child_states = _material_authority_complete_swap_forced_child_states_helper(
                     rebuild_sidecar=rebuild_sidecar_checkbox.isChecked(),  # type: ignore[name-defined]
                     inject_base_color=inject_base_color_checkbox.isChecked(),  # type: ignore[name-defined]
                     source_color_faithful=source_color_faithful_checkbox.isChecked(),  # type: ignore[name-defined]
                     external_material_reset=external_material_reset_checkbox.isChecked(),  # type: ignore[name-defined]
                     prune_unmapped_original_dds=prune_unmapped_original_dds_checkbox.isChecked(),  # type: ignore[name-defined]
-                ),
+                )
+            complete_external_swap_checkbox.setProperty(  # type: ignore[name-defined]
+                "previous_forced_child_states",
+                forced_child_states,
             )
-            _set_checkbox_checked_silently_helper(rebuild_sidecar_checkbox, True)  # type: ignore[name-defined]
-            _set_checkbox_checked_silently_helper(inject_base_color_checkbox, True)  # type: ignore[name-defined]
-            _set_checkbox_checked_silently_helper(source_color_faithful_checkbox, True)  # type: ignore[name-defined]
-            _set_checkbox_checked_silently_helper(external_material_reset_checkbox, True)  # type: ignore[name-defined]
-            _set_checkbox_checked_silently_helper(prune_unmapped_original_dds_checkbox, True)  # type: ignore[name-defined]
-            _set_combo_index_silently_helper(
-                texture_output_size_combo,  # type: ignore[name-defined]
-                _material_authority_complete_swap_source_output_size_index_helper(
-                    texture_output_size_combo.findData("source")  # type: ignore[name-defined]
-                ),
-            )
-            current_profile = complete_swap_material_profile_combo.currentData()  # type: ignore[name-defined]
-            _select_complete_swap_material_profile_silently(
-                _material_authority_complete_swap_profile_name_helper(current_profile),
-                persist=True,
-            )
-            _refresh_sidecar_option_state()  # type: ignore[name-defined]
+            if callable(_set_checkbox_checked_silently_helper):
+                _set_checkbox_checked_silently_helper(rebuild_sidecar_checkbox, True)  # type: ignore[name-defined]
+                _set_checkbox_checked_silently_helper(inject_base_color_checkbox, True)  # type: ignore[name-defined]
+                _set_checkbox_checked_silently_helper(source_color_faithful_checkbox, True)  # type: ignore[name-defined]
+                _set_checkbox_checked_silently_helper(external_material_reset_checkbox, True)  # type: ignore[name-defined]
+                _set_checkbox_checked_silently_helper(prune_unmapped_original_dds_checkbox, True)  # type: ignore[name-defined]
+            find_data = getattr(texture_output_size_combo, "findData", None)
+            if (
+                callable(find_data)
+                and callable(_set_combo_index_silently_helper)
+                and callable(_material_authority_complete_swap_source_output_size_index_helper)
+            ):
+                _set_combo_index_silently_helper(
+                    texture_output_size_combo,  # type: ignore[name-defined]
+                    _material_authority_complete_swap_source_output_size_index_helper(
+                        find_data("source")
+                    ),
+                )
+            current_data = getattr(complete_swap_material_profile_combo, "currentData", None)
+            if callable(current_data) and callable(_material_authority_complete_swap_profile_name_helper):
+                current_profile = current_data()
+                _select_complete_swap_material_profile_silently(
+                    _material_authority_complete_swap_profile_name_helper(current_profile),
+                    persist=True,
+                )
+            _complete_swap_refresh_sidecar_options()
 
             def _apply_checked_complete_swap() -> None:
-                if not _alignment_dialog_widgets_live():
+                if not _complete_swap_widgets_live():
                     return
-                if not _material_authority_complete_swap_should_apply_checked_helper(
+                if callable(_material_authority_complete_swap_should_apply_checked_helper) and not _material_authority_complete_swap_should_apply_checked_helper(
                     current_generation=complete_external_swap_checkbox.property("transition_generation"),  # type: ignore[name-defined]
                     expected_generation=transition_generation,
                     checked=complete_external_swap_checkbox.isChecked(),  # type: ignore[name-defined]
@@ -1136,22 +1173,28 @@ def create_alignment_complete_swap_callbacks(context: dict[str, object]) -> Simp
 
             QTimer.singleShot(0, _apply_checked_complete_swap)
         else:
-            previous_states = _material_authority_complete_swap_restored_child_states_helper(
-                complete_external_swap_checkbox.property("previous_forced_child_states")  # type: ignore[name-defined]
+            previous_states = (
+                _material_authority_complete_swap_restored_child_states_helper(
+                    complete_external_swap_checkbox.property("previous_forced_child_states")  # type: ignore[name-defined]
+                )
+                if callable(_material_authority_complete_swap_restored_child_states_helper)
+                else None
             )
-            if previous_states is not None:
+            if previous_states is not None and callable(_set_checkbox_checked_silently_helper):
                 _set_checkbox_checked_silently_helper(rebuild_sidecar_checkbox, previous_states["rebuild_sidecar"])  # type: ignore[name-defined]
                 _set_checkbox_checked_silently_helper(inject_base_color_checkbox, previous_states["inject_base_color"])  # type: ignore[name-defined]
                 _set_checkbox_checked_silently_helper(source_color_faithful_checkbox, previous_states["source_color_faithful"])  # type: ignore[name-defined]
                 _set_checkbox_checked_silently_helper(external_material_reset_checkbox, previous_states["external_material_reset"])  # type: ignore[name-defined]
                 _set_checkbox_checked_silently_helper(prune_unmapped_original_dds_checkbox, previous_states["prune_unmapped_original_dds"])  # type: ignore[name-defined]
             complete_external_swap_checkbox.setProperty("previous_forced_child_states", None)  # type: ignore[name-defined]
-            _refresh_sidecar_option_state()  # type: ignore[name-defined]
-            if not _alignment_dialog_widgets_live():
+            _complete_swap_refresh_sidecar_options()
+            if not _complete_swap_widgets_live():
                 return
             try:
-                _refresh_output_impact_review()
-                _queue_texture_preview_refresh()
+                if callable(_refresh_output_impact_review):
+                    _refresh_output_impact_review()
+                if callable(_queue_texture_preview_refresh):
+                    _queue_texture_preview_refresh()
             except RuntimeError as exc:
                 message = str(exc)
                 if "already deleted" not in message and "Internal C++ object" not in message:

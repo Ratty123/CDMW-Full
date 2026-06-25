@@ -2,6 +2,7 @@
 #include <DirectXTex.h>
 #include <Windows.h>
 #include <windowsx.h>
+#include <wincodec.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <dxgi.h>
@@ -555,27 +556,27 @@ struct PreviewCameraState {
 struct RenderTuning {
     int max_anisotropy = 16;
     int diagnostic_mode = 0;
-    float mip_lod_bias = -0.85f;
+    float mip_lod_bias = -2.0f;
     bool cull_back_faces = false;
-    float light_azimuth_degrees = -52.0f;
-    float light_elevation_degrees = 27.0f;
+    float light_azimuth_degrees = -10.0f;
+    float light_elevation_degrees = 0.0f;
     int normal_y_mode = 0;
-    float ao_strength = 0.65f;
-    float roughness_bias = 0.10f;
-    float metalness_scale = 1.0f;
-    float environment_strength = 0.85f;
-    float emissive_gain = 1.0f;
-    float tone_exposure = 1.0f;
-    float tone_contrast = 1.0f;
-    float tone_gamma = 1.0f;
+    float ao_strength = 0.45f;
+    float roughness_bias = -0.04f;
+    float metalness_scale = 1.45f;
+    float environment_strength = 0.62f;
+    float emissive_gain = 2.2f;
+    float tone_exposure = 1.00f;
+    float tone_contrast = 1.08f;
+    float tone_gamma = 1.00f;
     std::string texture_address_mode = "wrap";
-    float ambient_strength = 0.72f;
-    float diffuse_wrap_bias = 0.72f;
-    float diffuse_light_scale = 0.95f;
-    float specular_base = 0.07f;
-    float specular_max = 0.32f;
+    float ambient_strength = 0.84f;
+    float diffuse_wrap_bias = 0.58f;
+    float diffuse_light_scale = 0.62f;
+    float specular_base = 0.055f;
+    float specular_max = 0.52f;
     float shininess_min = 28.0f;
-    float shininess_max = 72.0f;
+    float shininess_max = 152.0f;
 };
 
 static int diagnostic_mode_code(const std::string& value) {
@@ -1492,14 +1493,17 @@ static ViewSettings parse_view_settings(const std::string& manifest) {
 static void apply_render_tuning_preset(RenderTuning& tuning, const std::string& normalized_view_mode, const std::string& normalized_lighting_preset) {
     if (normalized_view_mode == "shiny_metal_inspection" || normalized_lighting_preset == "shiny_metal_inspection") {
         tuning.diagnostic_mode = 0;
-        tuning.ao_strength = std::min(tuning.ao_strength, 0.48f);
-        tuning.roughness_bias = std::min(tuning.roughness_bias, 0.02f);
-        tuning.environment_strength = std::max(tuning.environment_strength, 1.05f);
+        tuning.ao_strength = std::max(tuning.ao_strength, 0.45f);
+        tuning.roughness_bias = std::min(tuning.roughness_bias, -0.04f);
+        tuning.environment_strength = std::max(tuning.environment_strength, 0.62f);
         tuning.ambient_strength = std::max(tuning.ambient_strength, 0.84f);
-        tuning.diffuse_wrap_bias = std::max(tuning.diffuse_wrap_bias, 0.82f);
-        tuning.diffuse_light_scale = std::max(tuning.diffuse_light_scale, 1.08f);
-        tuning.specular_max = std::max(tuning.specular_max, 0.58f);
-        tuning.tone_exposure = std::max(tuning.tone_exposure, 1.05f);
+        tuning.diffuse_wrap_bias = std::min(tuning.diffuse_wrap_bias, 0.58f);
+        tuning.diffuse_light_scale = std::max(tuning.diffuse_light_scale, 0.62f);
+        tuning.specular_base = std::max(tuning.specular_base, 0.055f);
+        tuning.specular_max = std::max(tuning.specular_max, 0.52f);
+        tuning.tone_exposure = std::max(tuning.tone_exposure, 1.00f);
+        tuning.tone_contrast = std::max(tuning.tone_contrast, 1.08f);
+        tuning.tone_gamma = std::min(tuning.tone_gamma, 1.00f);
     } else if (normalized_view_mode == "game_outdoor" || normalized_view_mode == "cd_outdoor" || normalized_view_mode == "outdoor_game") {
         tuning.diagnostic_mode = 0;
         tuning.light_elevation_degrees = std::max(tuning.light_elevation_degrees, 42.0f);
@@ -1519,6 +1523,11 @@ static RenderTuning parse_render_tuning(const std::string& manifest) {
     const std::string d3d11_view_mode = json_string_field(manifest, "d3d11_view_mode");
     const std::string normalized_view_mode = lower_copy(d3d11_view_mode);
     const std::string normalized_lighting_preset = lower_copy(json_string_field(manifest, "lighting_preset"));
+    const bool has_explicit_render_tuning =
+        manifest.find("\"d3d11_mip_lod_bias\"") != std::string::npos ||
+        manifest.find("\"ambient_strength\"") != std::string::npos ||
+        manifest.find("\"diffuse_wrap_bias\"") != std::string::npos ||
+        manifest.find("\"specular_base\"") != std::string::npos;
     tuning.diagnostic_mode = diagnostic_mode_code(d3d11_view_mode.empty() ? json_string_field(manifest, "render_diagnostic_mode") : d3d11_view_mode);
     tuning.max_anisotropy = std::clamp(json_int_field(manifest, "max_anisotropy", tuning.max_anisotropy), 1, 16);
     tuning.mip_lod_bias = std::clamp(json_float_field(manifest, "d3d11_mip_lod_bias", tuning.mip_lod_bias), -2.0f, 1.0f);
@@ -1544,7 +1553,9 @@ static RenderTuning parse_render_tuning(const std::string& manifest) {
     tuning.specular_max = std::clamp(json_float_field(manifest, "specular_max", tuning.specular_max), tuning.specular_base, 1.00f);
     tuning.shininess_min = std::clamp(json_float_field(manifest, "shininess_min", tuning.shininess_min), 1.0f, 128.0f);
     tuning.shininess_max = std::clamp(json_float_field(manifest, "shininess_max", tuning.shininess_max), tuning.shininess_min, 256.0f);
-    apply_render_tuning_preset(tuning, normalized_view_mode, normalized_lighting_preset);
+    if (!has_explicit_render_tuning) {
+        apply_render_tuning_preset(tuning, normalized_view_mode, normalized_lighting_preset);
+    }
     return tuning;
 }
 
@@ -1948,14 +1959,14 @@ float3 preview_environment_color(float3 reflected_view, float roughness) {
     float back_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.72, 0.26, 0.64)))), lerp(18.0, 5.0, roughness));
     float opposite_softbox = pow(saturate(dot(reflected_view, normalize(float3(0.58, 0.30, 0.76)))), lerp(20.0, 6.0, roughness));
     float dark_band = pow(saturate(1.0 - abs(reflected_view.x * 1.8 + reflected_view.y * 0.35)), 3.2) * saturate(0.85 - reflected_view.z);
-    float3 env_color = lerp(float3(0.17, 0.18, 0.205), float3(0.68, 0.72, 0.80), env_lobe);
-    env_color = lerp(env_color, env_color * float3(0.82, 0.84, 0.88), dark_band * (1.0 - roughness) * 0.10);
-    env_color += horizon_band * float3(0.24, 0.25, 0.28);
-    env_color += front_softbox.xxx * float3(0.46, 0.52, 0.60);
-    env_color += top_softbox.xxx * float3(0.58, 0.56, 0.48);
-    env_color += side_softbox.xxx * float3(0.34, 0.40, 0.50);
-    env_color += back_softbox.xxx * float3(0.32, 0.37, 0.46);
-    env_color += opposite_softbox.xxx * float3(0.26, 0.30, 0.38);
+    float3 env_color = lerp(float3(0.10, 0.11, 0.13), float3(0.82, 0.88, 0.98), env_lobe);
+    env_color = lerp(env_color, env_color * float3(0.54, 0.56, 0.60), dark_band * (1.0 - roughness) * 0.32);
+    env_color += horizon_band * float3(0.30, 0.32, 0.36);
+    env_color += front_softbox.xxx * float3(0.78, 0.86, 0.98);
+    env_color += top_softbox.xxx * float3(0.92, 0.86, 0.68);
+    env_color += side_softbox.xxx * float3(0.48, 0.58, 0.76);
+    env_color += back_softbox.xxx * float3(0.44, 0.52, 0.66);
+    env_color += opposite_softbox.xxx * float3(0.38, 0.46, 0.60);
     return env_color;
 }
 float wrapped_ndotl(float3 normal_value, float3 light_value, float wrap_amount) {
@@ -1998,6 +2009,8 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float preview_brightness = max(material_value_params.z, 0.1);
     float3 albedo = srgb_to_linear(max(input.color, base_color_flip.rgb));
     float base_alpha = 1.0;
+    float early_category_code = flags5.x;
+    bool early_category_metal = early_category_code > 0.5 && early_category_code < 1.5;
     if (flags.x > 0.5) {
         float4 base_sample = base_tex.Sample(preview_sampler, uv);
         albedo = saturate(base_sample.rgb);
@@ -2006,12 +2019,17 @@ float4 ps_main(VSOut input) : SV_TARGET {
             float3 preview_tint = saturate(base_color_flip.rgb);
             float tint_luma = max(dot(preview_tint, float3(0.299, 0.587, 0.114)), 0.08);
             float3 tint_bias = clamp(preview_tint / tint_luma, float3(0.38, 0.38, 0.38), float3(1.72, 1.72, 1.72));
-            float strength = saturate(flags4.x);
+            float tint_chroma = max(preview_tint.r, max(preview_tint.g, preview_tint.b)) - min(preview_tint.r, min(preview_tint.g, preview_tint.b));
+            float neutral_metal_tint = early_category_metal ? saturate((0.12 - tint_chroma) * 8.0) : 0.0;
+            float strength = saturate(flags4.x * (early_category_metal ? lerp(0.05, 1.25, neutral_metal_tint) : 1.0));
             float albedo_luma = dot(albedo, float3(0.299, 0.587, 0.114));
             float lifted_luma = saturate(albedo_luma * (1.05 + strength * 0.35) + 0.10 * strength);
             float3 multiplied = saturate(albedo * tint_bias);
             float3 colorized = saturate(lifted_luma.xxx * tint_bias);
-            albedo = lerp(albedo, lerp(multiplied, colorized, 0.58), strength);
+            float neutral_metal_luma = saturate(albedo_luma * (0.55 + tint_luma * 0.45) + 0.012);
+            colorized = lerp(colorized, saturate(neutral_metal_luma.xxx * tint_bias), neutral_metal_tint);
+            float colorize_strength = lerp(0.58, 0.96, neutral_metal_tint);
+            albedo = lerp(albedo, lerp(multiplied, colorized, colorize_strength), strength);
         }
     }
     albedo = saturate(albedo * preview_brightness);
@@ -2044,7 +2062,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
             mask_sample = MASK_TEX.Sample(preview_sampler, uv); \
         } \
         float mask_value = select_mask_channel(mask_sample, layer_params[ID].x); \
-        float tint_alpha = saturate(layer_tint[ID].a); \
+        float tint_alpha = saturate(layer_tint[ID].a) * (early_category_metal ? 0.18 : 1.0); \
         layer_alpha[ID] = saturate(mask_value * layer_params[ID].y * tint_alpha); \
         float3 layer_sample = DIFFUSE_TEX.Sample(preview_sampler, uv).rgb; \
         float3 layer_tint_rgb = saturate(layer_tint[ID].rgb); \
@@ -2055,8 +2073,11 @@ float4 ps_main(VSOut input) : SV_TARGET {
         float3 layer_multiplied = saturate(layer_sample * layer_tint_bias); \
         float3 layer_colorized = saturate(layer_lifted_luma.xxx * layer_tint_bias); \
         float layer_chroma = max(layer_tint_rgb.r, max(layer_tint_rgb.g, layer_tint_rgb.b)) - min(layer_tint_rgb.r, min(layer_tint_rgb.g, layer_tint_rgb.b)); \
-        float layer_colorize_strength = saturate(0.18 + layer_chroma * 1.35); \
-        float3 layer_color = lerp(layer_multiplied, layer_colorized, layer_colorize_strength); \
+        float layer_colorize_strength = saturate(0.18 + layer_chroma * 1.35) * (early_category_metal ? 0.08 : 1.0); \
+        float strong_dye_strength = saturate((layer_chroma - 0.38) * 1.65) * (early_category_metal ? 0.05 : 1.0); \
+        float3 dye_authority_color = saturate(layer_tint_rgb * (0.62 + layer_lifted_luma * 0.70)); \
+        layer_alpha[ID] = saturate(layer_alpha[ID] * (1.0 + strong_dye_strength * 0.35)); \
+        float3 layer_color = lerp(lerp(layer_multiplied, layer_colorized, layer_colorize_strength), dye_authority_color, strong_dye_strength); \
         albedo = lerp(albedo, layer_color, layer_alpha[ID]); \
     }
     APPLY_ALBEDO_LAYER(0, layer0_diffuse_tex, layer0_mask_tex)
@@ -2137,6 +2158,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float metal_scale = 1.0;
     float specular_scale = 1.0;
     float roughness_bias = 0.0;
+)" R"(
     if (family_code > 0.5 && family_code < 1.5) {
         metal_scale = 0.12;
         specular_scale = 1.20;
@@ -2163,9 +2185,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
         roughness_bias = -0.03;
     }
     float category_metal_cap = category_metal ? 1.0 : (known_nonmetal ? 0.0 : lerp(0.12, 0.32, category_confidence));
-    float category_specular_cap = category_metal ? 1.0 : (category_glass ? 0.42 : (category_gem ? 0.48 : (category_eye ? 0.44 : (category_leather ? 0.24 : (category_wood ? 0.16 : (category_cloth ? 0.12 : (category_skin ? 0.16 : (category_hair ? 0.22 : (category_stone ? 0.10 : (category_tooth ? 0.18 : 0.18))))))))));
-    float category_env_scale = category_metal ? 0.94 : (category_glass ? 0.26 : (category_gem ? 0.30 : (category_eye ? 0.24 : (category_leather ? 0.10 : (category_wood ? 0.06 : (category_cloth ? 0.05 : (category_skin ? 0.05 : (category_hair ? 0.08 : (category_stone ? 0.04 : (category_tooth ? 0.08 : 0.08))))))))));
-    float category_roughness_floor = category_metal ? 0.16 : (category_glass ? 0.30 : (category_gem ? 0.26 : (category_eye ? 0.30 : (category_leather ? 0.64 : (category_wood ? 0.70 : (category_cloth ? 0.74 : (category_skin ? 0.68 : (category_hair ? 0.64 : (category_stone ? 0.82 : (category_tooth ? 0.58 : 0.66))))))))));
+    float category_specular_cap = category_metal ? 1.0 : (category_glass ? 0.42 : (category_gem ? 0.48 : (category_eye ? 0.44 : (category_leather ? 0.14 : (category_wood ? 0.16 : (category_cloth ? 0.055 : (category_skin ? 0.20 : (category_hair ? 0.22 : (category_stone ? 0.10 : (category_tooth ? 0.18 : 0.18))))))))));
+    float category_env_scale = category_metal ? 0.94 : (category_glass ? 0.26 : (category_gem ? 0.30 : (category_eye ? 0.24 : (category_leather ? 0.06 : (category_wood ? 0.06 : (category_cloth ? 0.025 : (category_skin ? 0.075 : (category_hair ? 0.08 : (category_stone ? 0.04 : (category_tooth ? 0.08 : 0.08))))))))));
+    float category_roughness_floor = category_metal ? 0.16 : (category_glass ? 0.30 : (category_gem ? 0.26 : (category_eye ? 0.30 : (category_leather ? 0.76 : (category_wood ? 0.70 : (category_cloth ? 0.84 : (category_skin ? 0.58 : (category_hair ? 0.64 : (category_stone ? 0.82 : (category_tooth ? 0.58 : 0.66))))))))));
     float category_metal_fallback = category_metal ? saturate(lerp(0.28, 0.62, category_confidence) * user_metalness_scale) : 0.0;
     if (category_metal && material_hints.y <= 0.02 && flags.z <= 0.5 && flags2.z <= 0.5) {
         metalness = max(metalness, category_metal_fallback);
@@ -2178,7 +2200,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
         roughness = max(roughness, category_roughness_floor);
         specular = min(specular, 0.28 * max(category_specular_cap, 0.20));
     }
-    specular = max(specular, render_tuning.z);
+    if (!conservative_nonmetal) {
+        specular = max(specular, render_tuning.z);
+    }
     if (flags.z > 0.5) {
         float4 m = material_tex.Sample(preview_sampler, uv);
         ao = min(ao, max(category_skin ? 0.72 : 0.58, m.r));
@@ -2241,7 +2265,8 @@ float4 ps_main(VSOut input) : SV_TARGET {
     roughness = max(roughness, category_roughness_floor);
     metalness = min(metalness, category_metal_cap);
     ao = saturate(1.0 - ((1.0 - ao) * render_tuning3.x));
-    specular = min(specular, min(max(max(render_tuning.w, render_tuning.z), lerp(0.30, 0.92, metalness)), category_metal ? 0.96 : max(0.18, category_specular_cap)));
+    float nonmetal_specular_cap = conservative_nonmetal ? category_specular_cap : max(0.18, category_specular_cap);
+    specular = min(specular, min(max(max(render_tuning.w, render_tuning.z), lerp(0.30, 0.92, metalness)), category_metal ? 0.96 : nonmetal_specular_cap));
     float height_value = 0.5;
     if (flags.w > 0.5) {
         height_value = height_tex.Sample(preview_sampler, uv).r;
@@ -2272,6 +2297,11 @@ float4 ps_main(VSOut input) : SV_TARGET {
     APPLY_HEIGHT_LAYER(2, layer2_height_tex)
     APPLY_HEIGHT_LAYER(3, layer3_height_tex)
 #undef APPLY_HEIGHT_LAYER
+    if (conservative_nonmetal) {
+        roughness = max(roughness, category_roughness_floor);
+        metalness = min(metalness, category_metal_cap);
+        specular = min(specular, category_specular_cap);
+    }
     if (debug_mode > 7.5 && debug_mode < 8.5) {
         return float4(saturate(metalness).xxx, 1.0);
     }
@@ -2284,51 +2314,69 @@ float4 ps_main(VSOut input) : SV_TARGET {
 )";
 
 static const char kShaderSourcePixelLighting[] = R"(
-    float3 l = normalize(light_dir.xyz);
-    float3 view_dir = float3(0.0, 0.0, -1.0);
-    if (flags5.w > 0.5 && dot(n, view_dir) < 0.0) {
-        n = -n;
-    }
-    float3 v = normalize(-view_dir);
-    float raw_ndotl = dot(n, l);
-    float diffuse_wrap = saturate(render_tuning2.z);
-    float ndotl = wrapped_ndotl(n, l, diffuse_wrap * 0.65);
-    float ndotv = max(0.045, saturate(abs(dot(n, v))));
-    float3 h = normalize(l + v);
-    float ndoth = saturate(dot(n, h));
-    float vdoth = saturate(dot(v, h));
     roughness = clamp(roughness, 0.035, 0.98);
     float smoothness = saturate(1.0 - roughness);
-    float3 dielectric_f0 = saturate(float3(0.04, 0.04, 0.04) * (0.55 + specular * 2.25));
-    float3 f0 = lerp(dielectric_f0, max(albedo, float3(0.02, 0.02, 0.02)), saturate(metalness));
-    float d = ggx_distribution(ndoth, roughness);
-    float g = geometry_smith(ndotv, ndotl, roughness);
-    float3 f = fresnel_schlick(vdoth, f0);
-    float3 specular_brdf = (d * g * f) / max(4.0 * ndotv * max(ndotl, 0.001), 0.001);
-    float3 kd = (1.0 - f) * (1.0 - metalness);
-    float height_light = lerp(1.0 - material_params.y, 1.0 + material_params.y, height_value);
-    float3 diffuse_brdf = kd * albedo * (1.0 / 3.14159265);
-    float3 key_light = float3(1.0, 0.94, 0.86) * max(render_tuning.y, 0.05) * 3.2;
-    float3 fill_dir = normalize(float3(-l.x * 0.72, max(0.22, abs(l.y) * 0.38), -l.z * 0.72));
-    float3 side_dir = normalize(float3(l.z, 0.30, -l.x));
-    float3 back_dir = normalize(float3(-l.x, 0.26, l.z));
-    float fill_light = wrapped_ndotl(n, fill_dir, diffuse_wrap) * (0.36 + diffuse_wrap * 0.30);
-    float side_light = wrapped_ndotl(n, side_dir, diffuse_wrap * 0.95) * (0.26 + diffuse_wrap * 0.24);
-    float back_light = wrapped_ndotl(n, back_dir, diffuse_wrap * 1.20) * (0.24 + diffuse_wrap * 0.22);
-    float up_hemi = saturate(n.y * 0.5 + 0.5);
-    float hemi_light = lerp(0.22 + diffuse_wrap * 0.18, 0.32 + diffuse_wrap * 0.20, up_hemi);
-    float diffuse_light = ndotl + fill_light + side_light + back_light + hemi_light;
-    float3 direct_diffuse = diffuse_brdf * key_light * diffuse_light * ao * height_light;
-    float3 direct_specular = specular_brdf * key_light * saturate(raw_ndotl) * ao * height_light;
-    float3 direct = direct_diffuse + direct_specular;
-    float3 ambient_diffuse = albedo * max(render_tuning.x, 0.58) * ao * (1.0 - metalness) * lerp(0.92, 0.62, smoothness);
-    float3 reflected_view = normalize(reflect(-v, n));
-    float3 env_color = preview_environment_color(reflected_view, roughness);
+    float texture_luma = dot(albedo, float3(0.299, 0.587, 0.114));
+    float ao_weight = saturate(render_tuning3.x) * (category_metal ? 1.00 : (glossy_nonmetal ? 0.82 : (category_skin ? 0.58 : (conservative_nonmetal ? 0.62 : 0.78))));
+    float stable_ao = lerp(1.0, saturate(ao), ao_weight);
+    float lift = category_metal ? 0.020 : (category_skin ? 0.025 : (category_hair ? 0.035 : 0.030));
+    float cloth_high_luma_guard = category_cloth ? saturate((texture_luma - 0.82) * 4.0) : 0.0;
+    float cloth_texture_boost = category_cloth ? lerp(0.03, -0.02, cloth_high_luma_guard) : 0.0;
+    float3 material_reference_albedo = saturate(albedo * (1.03 + cloth_texture_boost) + lift.xxx * saturate(1.0 - texture_luma));
+    if (category_skin) {
+        material_reference_albedo = saturate(material_reference_albedo * 1.04 + float3(0.004, 0.002, 0.001));
+    }
+    if (category_cloth && cloth_high_luma_guard > 0.001) {
+        float3 cloth_highlight_cap = float3(0.94, 0.91, 0.84);
+        material_reference_albedo = lerp(material_reference_albedo, min(material_reference_albedo, cloth_highlight_cap), cloth_high_luma_guard * 0.35);
+    }
+    if (category_metal) {
+        float3 metal_tint = saturate(base_color_flip.rgb);
+        float metal_tint_luma = max(dot(metal_tint, float3(0.299, 0.587, 0.114)), 0.08);
+        float3 metal_tint_bias = clamp(metal_tint / metal_tint_luma, float3(0.58, 0.58, 0.58), float3(1.42, 1.42, 1.42));
+        material_reference_albedo = saturate(lerp(material_reference_albedo, material_reference_albedo * metal_tint_bias, 0.34));
+    }
+    float3 view_dir = normalize(float3(0.0, 0.0, -1.0));
+    float3 key_dir = normalize(light_dir.xyz);
+    float3 fill_dir = normalize(float3(-key_dir.x * 0.55, 0.55, -0.80));
+    float3 half_dir = normalize(key_dir + view_dir);
+    float key_light = wrapped_ndotl(n, key_dir, render_tuning2.z);
+    float fill_light = wrapped_ndotl(n, fill_dir, 0.82);
+    float camera_shape = saturate(abs(dot(n, view_dir)));
+    float rim_shape = pow(saturate(1.0 - camera_shape), lerp(2.4, 1.2, smoothness));
+    float ambient_floor = category_metal ? 0.24 : (category_skin ? 0.60 : (conservative_nonmetal ? 0.58 : 0.52));
+    float diffuse_depth = saturate(ambient_floor * render_tuning.x + render_tuning.y * (key_light * 0.58 + fill_light * 0.30 + rim_shape * 0.12));
+    float depth_authority = category_metal ? 1.00 : (glossy_nonmetal ? 0.72 : (category_skin ? 0.40 : (category_hair ? 0.38 : (category_cloth ? 0.46 : (category_leather ? 0.52 : 0.50)))));
+    diffuse_depth = lerp(1.0, diffuse_depth, depth_authority);
+    float metal_cue = category_metal ? saturate(metalness * lerp(0.18, 0.58, smoothness)) : 0.0;
+    float glossy_cue = glossy_nonmetal ? saturate(specular * lerp(0.06, 0.20, smoothness)) : 0.0;
+    float nonmetal_texture_scale = conservative_nonmetal ? 1.03 : 1.0;
+    float metal_strength = category_metal ? saturate(metalness) : 0.0;
+    float metal_diffuse_scale = lerp(1.0, 0.34, metal_strength);
+    float3 color = material_reference_albedo * stable_ao * nonmetal_texture_scale * diffuse_depth * metal_diffuse_scale;
+    color += material_reference_albedo * metal_cue * 0.16;
+    color += material_reference_albedo * glossy_cue * 0.22;
+    float ndotv = saturate(camera_shape);
+    float ndoth = saturate(dot(n, half_dir));
+    float spec_power = lerp(render_tuning2.x, render_tuning2.y, smoothness);
+    float direct_lobe = pow(ndoth, spec_power) * saturate(key_light * 1.25);
+    float broad_metal_lobe = category_metal ? pow(ndoth, lerp(7.0, 22.0, smoothness)) * saturate(key_light * 0.85 + rim_shape * 0.45) : 0.0;
+    float3 f0 = lerp(float3(0.035, 0.035, 0.035), material_reference_albedo, saturate(metalness));
+    float3 direct_specular = fresnel_schlick(ndotv, f0) * (direct_lobe + broad_metal_lobe * 1.05) * render_tuning.w;
+    float direct_specular_scale = category_metal ? (1.10 + metalness * 0.85) : (glossy_nonmetal ? 0.18 : (conservative_nonmetal ? 0.025 : 0.08));
+    color += direct_specular * direct_specular_scale;
+    float3 reflected_view = normalize(reflect(-view_dir, n));
+    float3 env_reflection = preview_environment_color(reflected_view, roughness);
+    if (category_metal) {
+        float3 metal_tint = saturate(base_color_flip.rgb);
+        float tint_chroma = max(metal_tint.r, max(metal_tint.g, metal_tint.b)) - min(metal_tint.r, min(metal_tint.g, metal_tint.b));
+        float tint_luma = max(dot(metal_tint, float3(0.299, 0.587, 0.114)), 0.08);
+        float3 tint_bias = clamp(metal_tint / tint_luma, float3(0.70, 0.70, 0.70), float3(1.36, 1.36, 1.36));
+        env_reflection *= lerp(float3(1.0, 1.0, 1.0), tint_bias, saturate(tint_chroma * 0.44));
+    }
+    float env_material_scale = category_metal ? (0.55 + metalness * lerp(0.45, 1.10, smoothness)) : (glossy_nonmetal ? 0.18 : (conservative_nonmetal ? 0.018 : 0.08));
     float3 env_fresnel = fresnel_schlick(ndotv, f0);
-    float env_roughness_scale = lerp(0.82, 0.12, roughness);
-    float3 env_reflection = env_color * env_fresnel * env_roughness_scale * render_tuning3.w * category_env_scale;
-    float rim = pow(1.0 - ndotv, 2.4) * (0.015 + smoothness * (0.035 + metalness * 0.24));
-    float3 color = direct + ambient_diffuse + env_reflection + rim.xxx;
+    color += env_reflection * env_fresnel * render_tuning3.w * category_env_scale * env_material_scale;
     if (emissive_params.a > 0.001) {
         float encoded_emissive = emissive_params.a;
         bool has_emissive_tex = encoded_emissive > 1.5;
@@ -2340,9 +2388,8 @@ static const char kShaderSourcePixelLighting[] = R"(
             emissive_mask = max(emissive_sample.r, max(emissive_sample.g, emissive_sample.b));
             emissive_color = max(emissive_color, emissive_sample.rgb);
         }
-        float rim_boost = pow(1.0 - saturate(abs(dot(n, view_dir))), 2.6);
         float emissive_strength = emissive_intensity * saturate(emissive_mask) * render_tuning4.x;
-        color += emissive_color * (emissive_strength * 0.85 + rim_boost * emissive_strength * 0.55);
+        color += emissive_color * emissive_strength * 0.85;
     }
     color = lerp(color, editor_tint.rgb, saturate(editor_tint.a));
     float tone_exposure = max(render_tuning4.y, 0.05);
@@ -2484,6 +2531,55 @@ public:
 
     bool should_render() const {
         return render_requested_ || !first_frame_reported_ || cloth_preview_active();
+    }
+
+    std::string capture_back_buffer_to_png(const fs::path& output) {
+        if (!device_ || !context_ || !swap_chain_) {
+            return "{\"event\":\"frame_capture\",\"ok\":false,\"message\":\"D3D11 device is not ready\"}";
+        }
+        if (output.empty()) {
+            return "{\"event\":\"frame_capture\",\"ok\":false,\"message\":\"capture path is empty\"}";
+        }
+        try {
+            if (output.has_parent_path()) {
+                fs::create_directories(output.parent_path());
+            }
+        } catch (const std::exception& exc) {
+            std::ostringstream out;
+            out << "{\"event\":\"frame_capture\",\"ok\":false,\"message\":\"create_directories failed: "
+                << json_escape(exc.what()) << "\"}";
+            return out.str();
+        }
+        ComPtr<ID3D11Texture2D> back_buffer;
+        HRESULT hr = swap_chain_->GetBuffer(0, IID_PPV_ARGS(back_buffer.GetAddressOf()));
+        if (FAILED(hr)) {
+            std::ostringstream out;
+            out << "{\"event\":\"frame_capture\",\"ok\":false,\"message\":\"GetBuffer failed\",\"hresult\":\""
+                << hresult_hex(hr) << "\"}";
+            return out.str();
+        }
+        DirectX::ScratchImage image;
+        hr = DirectX::CaptureTexture(device_.Get(), context_.Get(), back_buffer.Get(), image);
+        if (FAILED(hr)) {
+            std::ostringstream out;
+            out << "{\"event\":\"frame_capture\",\"ok\":false,\"message\":\"CaptureTexture failed\",\"hresult\":\""
+                << hresult_hex(hr) << "\"}";
+            return out.str();
+        }
+        const DirectX::Image* frame = image.GetImage(0, 0, 0);
+        if (frame == nullptr) {
+            return "{\"event\":\"frame_capture\",\"ok\":false,\"message\":\"CaptureTexture returned no image\"}";
+        }
+        hr = DirectX::SaveToWICFile(*frame, DirectX::WIC_FLAGS_NONE, GUID_ContainerFormatPng, output.c_str());
+        if (FAILED(hr)) {
+            std::ostringstream out;
+            out << "{\"event\":\"frame_capture\",\"ok\":false,\"message\":\"SaveToWICFile failed\",\"hresult\":\""
+                << hresult_hex(hr) << "\"}";
+            return out.str();
+        }
+        std::ostringstream out;
+        out << "{\"event\":\"frame_capture\",\"ok\":true,\"path\":\"" << json_escape(cdmw_native_diag::path_to_utf8(output)) << "\"}";
+        return out.str();
     }
 
     void note_render_suppressed(const char* reason) {
@@ -2952,10 +3048,19 @@ public:
         for (const PreviewRenderView& view : active_render_views()) {
             draw_render_view(view);
         }
+        std::string capture_event;
+        if (!pending_capture_path_.empty()) {
+            fs::path capture_path = pending_capture_path_;
+            pending_capture_path_.clear();
+            capture_event = capture_back_buffer_to_png(capture_path);
+        }
         swap_chain_->Present(1, 0);
         ValidateRect(hwnd_, nullptr);
         if (!icon_capture_mode_) {
             draw_alignment_overlay_gdi();
+        }
+        if (!capture_event.empty()) {
+            send_json_event(capture_event);
         }
         ++frame_count_;
         stats_.frame_count = frame_count_;
@@ -3436,12 +3541,31 @@ private:
         context_->PSSetShader(pixel_shader_.Get(), nullptr, 0);
     }
 
+    float workspace_grid_y_for_view(const PreviewRenderView& view) const {
+        bool found = false;
+        float min_y = 0.0f;
+        for (const PreviewBatch& batch : batches_) {
+            if (!batch_visible_in_view(batch, view.role) || batch_is_reference(batch)) continue;
+            for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
+                const DirectX::XMFLOAT3 transformed = transformed_batch_position(batch, position);
+                if (!found) {
+                    min_y = transformed.y;
+                    found = true;
+                } else {
+                    min_y = std::min(min_y, transformed.y);
+                }
+            }
+        }
+        return found ? min_y - 0.035f : 0.0f;
+    }
+
     void draw_workspace_grid(const PreviewRenderView& view, const DirectX::XMMATRIX& world_view_projection) {
         std::vector<float> vertices;
         vertices.reserve(23u * 4u * 41u);
         constexpr int kGridHalfSteps = 12;
         constexpr float kGridStep = 0.25f;
         constexpr float kMajorEvery = 4.0f;
+        const float grid_y = workspace_grid_y_for_view(view);
         for (int index = -kGridHalfSteps; index <= kGridHalfSteps; ++index) {
             const float value = static_cast<float>(index) * kGridStep;
             const bool major = std::fmod(std::abs(static_cast<float>(index)), kMajorEvery) < 0.001f;
@@ -3449,16 +3573,16 @@ private:
             float g = major ? 0.28f : 0.17f;
             float b = major ? 0.34f : 0.22f;
             if (index == 0) {
-                append_line_vertex(vertices, -kGridHalfSteps * kGridStep, 0.0f, value, 0.55f, 0.12f, 0.12f);
-                append_line_vertex(vertices,  kGridHalfSteps * kGridStep, 0.0f, value, 0.55f, 0.12f, 0.12f);
-                append_line_vertex(vertices, value, 0.0f, -kGridHalfSteps * kGridStep, 0.10f, 0.48f, 0.24f);
-                append_line_vertex(vertices, value, 0.0f,  kGridHalfSteps * kGridStep, 0.10f, 0.48f, 0.24f);
+                append_line_vertex(vertices, -kGridHalfSteps * kGridStep, grid_y, value, 0.55f, 0.12f, 0.12f);
+                append_line_vertex(vertices,  kGridHalfSteps * kGridStep, grid_y, value, 0.55f, 0.12f, 0.12f);
+                append_line_vertex(vertices, value, grid_y, -kGridHalfSteps * kGridStep, 0.10f, 0.48f, 0.24f);
+                append_line_vertex(vertices, value, grid_y,  kGridHalfSteps * kGridStep, 0.10f, 0.48f, 0.24f);
                 continue;
             }
-            append_line_vertex(vertices, -kGridHalfSteps * kGridStep, 0.0f, value, r, g, b);
-            append_line_vertex(vertices,  kGridHalfSteps * kGridStep, 0.0f, value, r, g, b);
-            append_line_vertex(vertices, value, 0.0f, -kGridHalfSteps * kGridStep, r, g, b);
-            append_line_vertex(vertices, value, 0.0f,  kGridHalfSteps * kGridStep, r, g, b);
+            append_line_vertex(vertices, -kGridHalfSteps * kGridStep, grid_y, value, r, g, b);
+            append_line_vertex(vertices,  kGridHalfSteps * kGridStep, grid_y, value, r, g, b);
+            append_line_vertex(vertices, value, grid_y, -kGridHalfSteps * kGridStep, r, g, b);
+            append_line_vertex(vertices, value, grid_y,  kGridHalfSteps * kGridStep, r, g, b);
         }
         draw_colored_lines(vertices, world_view_projection, false);
     }
@@ -4664,6 +4788,12 @@ private:
             const bool mesh_edit_active = mesh_edit_batch_editable_in_view(batch, view);
             const bool mesh_edit_flat = mesh_edit_active && !mesh_edit_preserve_materials_for_batch(batch);
             draw_preview_batch(batch, batch_world * view_projection, batch_world, tint, mesh_edit_flat);
+            if (!view.wireframe && !icon_capture_mode_ && batch.highlight_strength > 0.0f && wireframe_rasterizer_) {
+                context_->RSSetState(wireframe_rasterizer_.Get());
+                const DirectX::XMFLOAT4 selection_wire_tint(1.0f, 0.05f, 0.95f, 0.96f);
+                draw_preview_batch(batch, batch_world * view_projection, batch_world, selection_wire_tint, true);
+                context_->RSSetState(render_tuning_.cull_back_faces && !batch.two_sided && cull_rasterizer_ ? cull_rasterizer_.Get() : rasterizer_.Get());
+            }
         }
         draw_cloth_debug_overlays(view, world_view_projection);
         draw_mesh_edit_overlay(view);
@@ -5998,12 +6128,6 @@ private:
         }
         if (command == "set_render_tuning") {
             render_tuning_ = parse_render_tuning(payload);
-            if (json_string_field(payload, "lighting_preset").empty() && !stats_.lighting_preset.empty()) {
-                apply_render_tuning_preset(
-                    render_tuning_,
-                    lower_copy(json_string_field(payload, "d3d11_view_mode")),
-                    lower_copy(stats_.lighting_preset));
-            }
             view_settings_ = parse_view_settings(payload);
             cloth_state_.enabled = json_bool_field(payload, "enable_tool_pbd_cloth_preview", cloth_state_.enabled);
             cloth_state_.paused = json_bool_field(payload, "pause_tool_pbd_cloth_preview", cloth_state_.paused);
@@ -6335,6 +6459,17 @@ private:
             event << "{\"event\":\"mesh_edit_triangles_replaced\",\"replaced_batches\":" << replaced_batches
                   << ",\"payload_file\":true}";
             send_json_event(event.str());
+            return true;
+        }
+        if (command == "capture_frame") {
+            const fs::path output = utf8_to_wide(json_string_field(payload, "path"));
+            if (output.empty()) {
+                send_json_event("{\"event\":\"frame_capture\",\"ok\":false,\"message\":\"capture path is empty\"}");
+                return false;
+            }
+            pending_capture_path_ = output;
+            request_render();
+            render();
             return true;
         }
         if (command == "set_view") {
@@ -7376,6 +7511,7 @@ private:
     std::uint64_t active_texture_bytes_ = 0;
     fs::path pending_package_dir_;
     fs::path pending_status_file_;
+    fs::path pending_capture_path_;
     bool pending_reset_view_ = false;
     std::uint64_t model_generation_ = 0;
     mutable std::uint64_t mesh_edit_cache_generation_ = 0;

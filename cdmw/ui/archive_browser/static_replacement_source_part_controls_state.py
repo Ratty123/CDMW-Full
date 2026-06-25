@@ -300,7 +300,7 @@ def source_part_output_action_state(
             source_checked=False,
             part_enabled_checked=False,
             undo_action="remove",
-            apply_pending=available,
+            apply_pending=False,
         )
     return SourcePartOutputActionState(
         available=available,
@@ -339,7 +339,7 @@ def source_part_check_toggle_state(
         enabled=bool(checked),
         undo_action="toggle",
         refresh_selected_controls=bool(available and normalized_source_index == normalized_selected_index),
-        apply_pending=available,
+        apply_pending=False,
     )
 
 

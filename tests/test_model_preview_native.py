@@ -1951,6 +1951,7 @@ class NativePreviewWidgetRuntimeTests(unittest.TestCase):
 
         self.assertTrue(widget.is_available(), widget.failure_reason())
         self.assertIn("1 batch", widget.debug_details_text())
+        self.assertEqual(getattr(widget, "_vertex_count", 0), 3)
         widget.close()
         widget.deleteLater()
         app.processEvents()

@@ -2768,6 +2768,11 @@ def build_mesh_import_preview(
     effective_static_source_mesh = imported_mesh
     if normalized_import_mode in {"static", "static_replacement", "static-mesh-replacement"}:
         base_static_options = static_replacement_options or StaticMeshReplacementOptions()
+        if bool(getattr(base_static_options, "full_import_model_replacement", False)) and not original_sidecars_for_static:
+            raise ValueError(
+                "Full Import Model Replacement requires a target material sidecar (.pac_xml/.pami) so "
+                "the imported model can own texture/material bindings instead of inheriting old target slots."
+            )
         effective_static_source_mesh = effective_static_replacement_source_mesh(
             original_mesh,
             imported_mesh,
@@ -3365,6 +3370,13 @@ def build_mesh_import_preview(
                 supplemental_file_specs = tuple(supplemental_file_specs) + generated_specs
                 generated_texture_count = sum(1 for payload in generated_payloads if payload.kind == "texture_generated")
                 generated_sidecar_count = sum(1 for payload in generated_payloads if payload.kind == "sidecar_generated")
+                if (
+                    bool(getattr(static_replacement_options, "full_import_model_replacement", False))
+                    and generated_sidecar_count <= 0
+                ):
+                    raise ValueError(
+                        "Full Import Model Replacement could not generate a patched target material sidecar."
+                    )
                 summary_lines.append(
                     f"Generated static replacement payloads: {generated_texture_count:,} texture(s), {generated_sidecar_count:,} sidecar(s)."
                 )
@@ -3372,6 +3384,14 @@ def build_mesh_import_preview(
                 summary_lines.append(
                     "Generated replacement texture payloads without a patched material sidecar because no original sidecar text was available."
                 )
+    if (
+        normalized_import_mode == "static_replacement"
+        and bool(getattr(static_replacement_options, "full_import_model_replacement", False))
+        and not any(str(getattr(spec, "kind", "") or "") == "sidecar_generated" for spec in supplemental_file_specs)
+    ):
+        raise ValueError(
+            "Full Import Model Replacement requires generated target material sidecar output."
+        )
     if supplemental_file_specs:
         mapped_count = sum(1 for spec in supplemental_file_specs if spec.target_path)
         unmapped_count = len(supplemental_file_specs) - mapped_count

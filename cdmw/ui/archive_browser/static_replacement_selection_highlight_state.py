@@ -90,7 +90,7 @@ def selection_highlight_sets_state(
         "d3d11_highlighted_indices": tuple(sorted(d3d11_highlight_ids)),
         "d3d11_original_highlighted_indices": highlighted_original_indices if highlight_active else (),
         "d3d11_selected_indices": _nonnegative_indices(default_d3d11_editor_ids) if gizmo_enabled else (),
-        "d3d11_hidden_source_indices": _nonnegative_indices(disabled_source_editor_ids) if bool(geometry_active) else (),
+        "d3d11_hidden_source_indices": _nonnegative_indices(disabled_source_editor_ids),
         "d3d11_gizmo_enabled": gizmo_enabled,
     }
 

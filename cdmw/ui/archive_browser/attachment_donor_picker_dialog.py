@@ -873,12 +873,15 @@ class ArchiveAttachmentDonorPickerDialogMixin:
             finder_filter_timer = QTimer(finder)
             finder_filter_timer.setSingleShot(True)
             finder_filter_timer.setInterval(180)
+            finder_population_timer = QTimer(finder)
+            finder_population_timer.setSingleShot(True)
             finder_icon_timer = QTimer(finder)
             finder_icon_timer.setSingleShot(True)
             finder_icon_visible_timer = QTimer(finder)
             finder_icon_visible_timer.setSingleShot(True)
             finder_icon_visible_timer.setInterval(80)
             finder_icon_queue: List[QListWidgetItem] = []
+            finder_population_state: Dict[str, object] = {}
             finder_result: Dict[str, object] = {}
 
             def _selected_item_finder_row() -> Optional[Dict[str, object]]:
@@ -1039,67 +1042,38 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                     finder_icon_queue[0:0] = matched_items
                     finder_icon_timer.start(0)
 
-            def _populate_item_finder_grid() -> None:
-                finder_icon_timer.stop()
-                finder_icon_queue.clear()
-                query = finder_search.text().strip().casefold()
-                query_tokens = tuple(re.findall(r"[a-z0-9]+", query))
-                selected_category = str(finder_category.currentData() or "")
-                _write_ui_breadcrumb(
-                    {
-                        "phase": "placement_item_finder_populate",
-                        "target_path": target_entry.path,
-                        "query": query,
-                        "category": selected_category,
-                        "catalog_rows": len(self.archive_item_asset_catalog),
-                    }
-                )
-                item_grid.setUpdatesEnabled(False)
-                try:
-                    item_grid.clear()
-                    shown = 0
-                    matched = 0
-                    for row in self.archive_item_asset_catalog:
-                        category = str(row.get("category", "") or "Item")
-                        if selected_category and category != selected_category:
-                            continue
-                        haystack = self._archive_asset_catalog_text(row)
-                        if query_tokens and not all(token in haystack for token in query_tokens):
-                            continue
-                        matched += 1
-                        display_name = _item_finder_row_display_name(row)
-                        group = str(row.get("group", "") or "Unclassified")
-                        table_labels = self._archive_asset_catalog_table_evidence_labels(row)
-                        compatibility_tags = self._archive_asset_catalog_row_values(row, "compatibility_tags")
-                        item = QListWidgetItem(display_name)
-                        item.setIcon(self._build_archive_asset_catalog_icon(category, display_name))
-                        item.setSizeHint(QSize(158, 128))
-                        item.setData(Qt.UserRole, dict(row))
-                        item.setData(Qt.UserRole + 1, "fallback")
-                        tooltip_lines = [
-                            display_name,
-                            f"Category: {category} / {group}",
-                            f"Internal: {str(row.get('internal_name', '') or '-')}",
-                        ]
-                        if table_labels:
-                            tooltip_lines.append(
-                                "Table fields: "
-                                + ", ".join(table_labels[:6])
-                                + (" ..." if len(table_labels) > 6 else "")
-                            )
-                        if compatibility_tags:
-                            tooltip_lines.append(
-                                "Compatibility: "
-                                + ", ".join(compatibility_tags[:6])
-                                + (" ..." if len(compatibility_tags) > 6 else "")
-                            )
-                        item.setToolTip("\n".join(tooltip_lines))
-                        item_grid.addItem(item)
-                        shown += 1
-                        if shown >= 1500:
-                            break
-                finally:
-                    item_grid.setUpdatesEnabled(True)
+            def _add_item_finder_grid_row(row: Mapping[str, object]) -> None:
+                category = str(row.get("category", "") or "Item")
+                display_name = _item_finder_row_display_name(row)
+                group = str(row.get("group", "") or "Unclassified")
+                table_labels = self._archive_asset_catalog_table_evidence_labels(row)
+                compatibility_tags = self._archive_asset_catalog_row_values(row, "compatibility_tags")
+                item = QListWidgetItem(display_name)
+                item.setIcon(self._build_archive_asset_catalog_icon(category, display_name))
+                item.setSizeHint(QSize(158, 128))
+                item.setData(Qt.UserRole, dict(row))
+                item.setData(Qt.UserRole + 1, "fallback")
+                tooltip_lines = [
+                    display_name,
+                    f"Category: {category} / {group}",
+                    f"Internal: {str(row.get('internal_name', '') or '-')}",
+                ]
+                if table_labels:
+                    tooltip_lines.append(
+                        "Table fields: "
+                        + ", ".join(table_labels[:6])
+                        + (" ..." if len(table_labels) > 6 else "")
+                    )
+                if compatibility_tags:
+                    tooltip_lines.append(
+                        "Compatibility: "
+                        + ", ".join(compatibility_tags[:6])
+                        + (" ..." if len(compatibility_tags) > 6 else "")
+                    )
+                item.setToolTip("\n".join(tooltip_lines))
+                item_grid.addItem(item)
+
+            def _finish_item_finder_grid_population() -> None:
                 if item_grid.count() > 0:
                     item_grid.setCurrentRow(0)
                 else:
@@ -1116,13 +1090,101 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                     {
                         "phase": "placement_item_finder_populated",
                         "target_path": target_entry.path,
-                        "query": query,
-                        "category": selected_category,
+                        "query": finder_population_state.get("query", ""),
+                        "category": finder_population_state.get("selected_category", ""),
                         "shown": item_grid.count(),
-                        "matched": matched,
+                        "matched": int(finder_population_state.get("matched", 0) or 0),
                     }
                 )
+                QTimer.singleShot(0, _queue_item_finder_donor_icons_for_visible_rows)
                 QTimer.singleShot(140, _queue_item_finder_donor_icons_for_visible_rows)
+                QTimer.singleShot(360, _queue_item_finder_donor_icons_for_visible_rows)
+
+            def _continue_item_finder_grid_population() -> None:
+                rows = finder_population_state.get("rows", ())
+                index = int(finder_population_state.get("index", 0) or 0)
+                shown = int(finder_population_state.get("shown", 0) or 0)
+                matched = int(finder_population_state.get("matched", 0) or 0)
+                display_limit = int(finder_population_state.get("display_limit", 0) or 0)
+                query_tokens = tuple(finder_population_state.get("query_tokens", ()) or ())
+                selected_category = str(finder_population_state.get("selected_category", "") or "")
+                first_icon_queue_done = bool(finder_population_state.get("first_icon_queue_done", False))
+                deadline = time.perf_counter() + 0.016
+                added = 0
+                item_grid.setUpdatesEnabled(False)
+                try:
+                    while index < len(rows) and shown < display_limit:
+                        row = rows[index]
+                        index += 1
+                        if not isinstance(row, Mapping):
+                            continue
+                        category = str(row.get("category", "") or "Item")
+                        if selected_category and category != selected_category:
+                            continue
+                        if query_tokens:
+                            haystack = self._archive_asset_catalog_text(row)
+                            if not all(token in haystack for token in query_tokens):
+                                continue
+                        matched += 1
+                        _add_item_finder_grid_row(row)
+                        shown += 1
+                        added += 1
+                        if added >= 100 or time.perf_counter() >= deadline:
+                            break
+                finally:
+                    item_grid.setUpdatesEnabled(True)
+                finder_population_state["index"] = index
+                finder_population_state["shown"] = shown
+                finder_population_state["matched"] = matched
+                if shown and not first_icon_queue_done:
+                    finder_population_state["first_icon_queue_done"] = True
+                    QTimer.singleShot(0, _queue_item_finder_donor_icons_for_visible_rows)
+                if index < len(rows) and shown < display_limit:
+                    finder_status.setText(f"Loading Item Finder rows... {shown:,} shown so far.")
+                    finder_population_timer.start(0)
+                    return
+                _finish_item_finder_grid_population()
+
+            def _populate_item_finder_grid() -> None:
+                finder_filter_timer.stop()
+                finder_population_timer.stop()
+                finder_icon_timer.stop()
+                finder_icon_queue.clear()
+                query = finder_search.text().strip().casefold()
+                query_tokens = tuple(re.findall(r"[a-z0-9]+", query))
+                selected_category = str(finder_category.currentData() or "")
+                display_limit = 600 if not query_tokens and not selected_category else 2500
+                _write_ui_breadcrumb(
+                    {
+                        "phase": "placement_item_finder_populate",
+                        "target_path": target_entry.path,
+                        "query": query,
+                        "category": selected_category,
+                        "catalog_rows": len(self.archive_item_asset_catalog),
+                    }
+                )
+                finder_population_state.clear()
+                finder_population_state.update(
+                    {
+                        "rows": self.archive_item_asset_catalog,
+                        "index": 0,
+                        "shown": 0,
+                        "matched": 0,
+                        "display_limit": display_limit,
+                        "query": query,
+                        "query_tokens": query_tokens,
+                        "selected_category": selected_category,
+                        "first_icon_queue_done": False,
+                    }
+                )
+                item_grid.setUpdatesEnabled(False)
+                item_grid.clear()
+                item_grid.setUpdatesEnabled(True)
+                candidate_tree.clear()
+                use_recommended_button.setEnabled(False)
+                use_candidate_button.setEnabled(False)
+                finder_status.setText("Loading Item Finder rows...")
+                _continue_item_finder_grid_population()
 
             def _refresh_item_finder_candidates() -> None:
                 row = _selected_item_finder_row()
@@ -1212,6 +1274,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                 finder.accept()
 
             finder_filter_timer.timeout.connect(_populate_item_finder_grid)
+            finder_population_timer.timeout.connect(_continue_item_finder_grid_population)
             finder_icon_timer.timeout.connect(_load_next_item_finder_donor_icon)
             finder_icon_visible_timer.timeout.connect(_queue_item_finder_donor_icons_for_visible_rows)
             finder_search.textChanged.connect(lambda _text: finder_filter_timer.start())
@@ -1226,7 +1289,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
             use_candidate_button.clicked.connect(lambda _checked=False: _choose_item_finder_candidate(recommended=False))
             finder_cancel_button.clicked.connect(finder.reject)
             self.archive_item_icon_prepared_callbacks.append(_handle_item_finder_donor_icon_prepared)
-            _populate_item_finder_grid()
+            QTimer.singleShot(0, _populate_item_finder_grid)
             try:
                 if finder.exec() == QDialog.Accepted:
                     donor = finder_result.get("donor")
@@ -1240,6 +1303,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                     pass
                 finder_icon_timer.stop()
                 finder_icon_visible_timer.stop()
+                finder_population_timer.stop()
                 finder_icon_queue.clear()
                 _write_ui_breadcrumb({"phase": "placement_item_finder_closed", "target_path": target_entry.path})
                 _write_heartbeat("running")

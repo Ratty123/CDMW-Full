@@ -657,6 +657,7 @@ def test_target_outliner_state_reports_invalid_removed_mapped_merged_and_physics
 
     original_mesh.submeshes[0].physics = "Review"
     assert target_outliner_state(0, (0,), **kwargs) == ("Physics", "#f2cc60")
+    assert target_outliner_state(0, (0,), modify_original_clone_mode=True, **kwargs) == ("Mapped", "#3fb950")
 
 
 def test_source_assignment_helpers_parse_mapping_edits() -> None:
@@ -1045,7 +1046,7 @@ def test_selection_highlight_sets_state_aggregates_preview_and_d3d11_routes() ->
     assert fallback_state["d3d11_highlighted_indices"] == (13,)
     assert fallback_state["d3d11_original_highlighted_indices"] == (5,)
     assert fallback_state["d3d11_selected_indices"] == ()
-    assert fallback_state["d3d11_hidden_source_indices"] == ()
+    assert fallback_state["d3d11_hidden_source_indices"] == (99,)
     assert fallback_state["d3d11_gizmo_enabled"] is False
 
     inactive_state = selection_highlight_sets_state(

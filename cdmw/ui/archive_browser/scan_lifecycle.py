@@ -621,9 +621,6 @@ class ArchiveScanLifecycleMixin:
                 self.archive_browser_warmup_completion_text = completion_text
                 warmup_text = "Loading texture sidecar cache in the background..."
                 self.archive_tree.setEnabled(True)
-                self.archive_stats_label.setText(
-                    f"{len(self.archive_entries):,} archive entries loaded. Texture sidecar cache is warming in the background."
-                )
                 self._set_archive_load_progress(
                     "Archive entries loaded. Texture sidecar cache is tracked in the compact status indicator.",
                     phase="Sidecar",

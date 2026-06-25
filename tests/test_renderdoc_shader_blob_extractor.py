@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 from tools.extract_renderdoc_shader_blobs import (
@@ -129,6 +130,43 @@ class RenderDocShaderBlobExtractorTests(unittest.TestCase):
             self.assertEqual("DXIL", output["blobs"][0]["shader_ir"])
             self.assertTrue(Path(output["blobs"][0]["path"]).is_file())
             self.assertEqual("not_requested", output["disassembler"]["status"])
+
+    def test_extracts_dxc_disassembly_bindings_when_requested(self) -> None:
+        disassembly = "\n".join(
+            [
+                "; Resource Bindings:",
+                "; Name Type Format Dim ID HLSL Bind Count",
+                "; __x__SceneConstantBuffer cbuffer NA NA CB0 cb2,space1 1",
+                "; __x__BaseTexture texture f32 2d T0 t4,space3 1",
+                "target datalayout = \"dxil\"",
+            ]
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive = root / "frame.zip"
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("000008", _fake_dxbc_with_dxil(b"ps"))
+            report = {
+                "candidates": [
+                    {
+                        "rank": 1,
+                        "chunk_index": 99,
+                        "pipeline_description": {"shaders": {"PS": {"blob_id": 8, "byte_length": len(_fake_dxbc_with_dxil(b"ps"))}}},
+                    }
+                ]
+            }
+
+            with mock.patch(
+                "tools.extract_renderdoc_shader_blobs.subprocess.run",
+                return_value=mock.Mock(returncode=0, stdout=disassembly, stderr=""),
+            ):
+                output = extract_shader_blobs(report, renderdoc_zip=archive, out_dir=root / "out", ranks=(1,), dxc=Path("dxc.exe"))
+
+        blob = output["blobs"][0]
+        self.assertEqual("used", output["disassembler"]["status"])
+        self.assertEqual("ok", blob["disassembly_status"])
+        self.assertTrue(blob["disassembly_path"].endswith(".asm"))
+        self.assertEqual("t4,space3", blob["resource_bindings"][1]["hlsl_bind"])
 
     def test_records_missing_zip_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

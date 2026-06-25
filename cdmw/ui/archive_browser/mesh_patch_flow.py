@@ -757,6 +757,7 @@ class ArchiveMeshPatchFlowMixin:
                 extra_supplemental_specs=setup.extra_supplemental_specs,
                 defer_original_texture_preview=bool(setup.defer_original_texture_preview),
                 runtime_export_target_entry=build_entry,
+                full_import_model_replacement=bool(setup.full_import_model_replacement),
                 embedded_host=self.mesh_editor_tab.builder_host() if hasattr(self, "mesh_editor_tab") else None,
                 continue_build_callback=_start_build_with_static_options,
             )

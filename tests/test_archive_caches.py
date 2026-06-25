@@ -13,7 +13,10 @@ from cdmw.core.archive import (
     _collect_archive_scan_sources,
     _collect_archive_scan_sources_from_entries,
     _deserialize_archive_derived_index_cache_payload_from_path,
+    _read_archive_name_search_shard_meta,
+    _write_archive_name_search_shard_meta,
     _write_raw_pickle_cache_payload_to_path,
+    _write_native_name_search_index_binary,
     build_archive_entry_basename_index,
     build_archive_entry_extension_index,
     build_archive_entry_path_index,
@@ -27,6 +30,7 @@ from cdmw.core.archive import (
     load_archive_derived_index_cache,
     load_archive_scan_cache,
     load_archive_texture_sidecar_cache_rows,
+    load_or_update_archive_name_search_shards,
     invalidate_archive_browser_cache,
     prune_archive_cache_root,
     resolve_archive_basic_index_cache_path,
@@ -723,7 +727,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 resolve_archive_derived_index_cache_path(root, cache_root)
             )
 
-            self.assertEqual(raw_payload.get("version"), 10)
+            self.assertEqual(raw_payload.get("version"), 11)
             self.assertEqual(
                 raw_payload.get("table_catalog"),
                 table_catalog_cache_metadata(row_counts={"item_asset_catalog": 1}),
@@ -994,6 +998,126 @@ class ArchiveCacheTests(unittest.TestCase):
             )
             self.assertIsNotNone((loaded or {}).get("name_search_index"))
 
+    def test_derived_index_cache_v10_still_loads(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            save_archive_scan_cache(root, cache_root, entries, metadata_out=scan_metadata)
+            save_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                entry_metadata_sources=scan_metadata.get("entry_metadata_sources") or (),
+            )
+            cache_path = resolve_archive_derived_index_cache_path(root, cache_root)
+            payload = _deserialize_archive_derived_index_cache_payload_from_path(cache_path)
+            payload["version"] = 10
+            _write_raw_pickle_cache_payload_to_path(
+                cache_path,
+                magic=_ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
+                payload=payload,
+            )
+
+            loaded = load_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                current_sources=scan_metadata.get("entry_metadata_sources") or (),
+            )
+
+            self.assertIsNotNone(loaded)
+
+    def test_name_search_shard_metadata_v1_still_loads(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("object/tools/cd_t0000_lantern_ring_0001.prefab", pamt, paz, data)]
+            name_index = build_archive_name_search_index(entries)
+            save_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                archive_name_search_index=name_index,
+            )
+            shard_dir = resolve_archive_name_search_shard_cache_dir(root, cache_root)
+            meta_path = next(shard_dir.glob("*.json"))
+            meta = _read_archive_name_search_shard_meta(meta_path)
+            meta["version"] = 1
+            _write_archive_name_search_shard_meta(meta_path, meta)
+
+            loaded_index = load_or_update_archive_name_search_shards(
+                root,
+                cache_root,
+                entries,
+                item_search_aliases=None,
+            )
+
+            self.assertIsNotNone(loaded_index)
+            self.assertEqual(loaded_index.rows_for_token("lantern"), (0,))
+
+    def test_corrupt_name_search_shard_binary_rebuilds_single_shard(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("object/tools/cd_t0000_lantern_ring_0001.prefab", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            save_archive_scan_cache(root, cache_root, entries, metadata_out=scan_metadata)
+            name_index = build_archive_name_search_index(entries)
+            save_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                archive_name_search_index=name_index,
+                entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                entry_metadata_sources=scan_metadata.get("entry_metadata_sources") or (),
+            )
+            shard_dir = resolve_archive_name_search_shard_cache_dir(root, cache_root)
+            shard_path = next(shard_dir.glob("*.bin"))
+            shard_path.write_bytes(b"bad")
+            logs: list[str] = []
+
+            loaded = load_archive_derived_index_cache(
+                root,
+                cache_root,
+                entries,
+                entry_metadata_signature=str(scan_metadata.get("entry_metadata_signature") or ""),
+                current_sources=scan_metadata.get("entry_metadata_sources") or (),
+                on_log=logs.append,
+            )
+            loaded_index = (loaded or {}).get("name_search_index")
+
+            self.assertIsNotNone(loaded_index)
+            self.assertEqual(loaded_index.rows_for_token("lantern"), (0,))
+            self.assertTrue(any("rebuilding" in line.lower() for line in logs))
+
+    def test_atomic_name_search_binary_write_keeps_previous_file_on_replace_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("object/tools/cd_t0000_lantern_ring_0001.prefab", pamt, paz, data)]
+            index = build_archive_name_search_index(entries)
+            binary_path = cache_root / "name.bin"
+            binary_path.parent.mkdir(parents=True)
+            binary_path.write_bytes(b"old-good")
+
+            with mock.patch.object(Path, "replace", side_effect=OSError("replace failed")):
+                with self.assertRaises(OSError):
+                    _write_native_name_search_index_binary(binary_path, index, len(entries))
+
+            self.assertEqual(binary_path.read_bytes(), b"old-good")
+
     def test_derived_index_cache_loads_name_search_rows_lazily(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1069,7 +1193,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 resolve_archive_derived_index_cache_path(root, cache_root),
                 magic=_ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
                 payload={
-                    "version": 10,
+                    "version": 11,
                     "created_at": 1.0,
                     "sources": sources,
                     "entry_count": len(entries),
@@ -1360,6 +1484,32 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertFalse(old_shards.exists())
             self.assertTrue(new_shards.exists())
             self.assertTrue(foreign_dir.exists())
+
+    def test_prune_archive_cache_root_skips_protected_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            cache_root.mkdir()
+            protected_shards = cache_root / "archive_name_search_shards_current"
+            old_shards = cache_root / "archive_scan_shards_old"
+            protected_shards.mkdir()
+            old_shards.mkdir()
+            (protected_shards / "a.bin").write_bytes(b"a" * 700)
+            (old_shards / "b.bin").write_bytes(b"b" * 700)
+            import os
+
+            os.utime(protected_shards / "a.bin", (100.0, 100.0))
+            os.utime(old_shards / "b.bin", (200.0, 200.0))
+
+            report = prune_archive_cache_root(
+                cache_root,
+                max_bytes=1000,
+                target_bytes=700,
+                protected_paths=(protected_shards,),
+            )
+
+            self.assertGreaterEqual(report["removed_files"], 1)
+            self.assertTrue(protected_shards.exists())
+            self.assertFalse(old_shards.exists())
 
 
 if __name__ == "__main__":

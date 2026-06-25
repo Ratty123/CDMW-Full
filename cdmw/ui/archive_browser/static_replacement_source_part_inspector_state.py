@@ -18,8 +18,8 @@ def source_parts_action_control_text() -> dict[str, str]:
             "and re-number later source indices. Original archive files are not modified."
         ),
         "apply_tooltip": (
-            "Rebuild preview after source include/exclude, delete, or unassign changes. Until Apply, selection can "
-            "change but geometry preview is not rebuilt."
+            "Apply a deferred source-part routing change when the pending label asks for it. Use, delete, and remove "
+            "source changes rebuild the preview immediately."
         ),
         "pending_label": "No unapplied source-part changes.",
     }

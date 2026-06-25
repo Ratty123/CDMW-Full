@@ -92,7 +92,7 @@ def create_alignment_preview_render_settings_callbacks(context: dict[str, object
     _alignment_d3d11_render_settings_rebuild_performance_helper = context.get('_alignment_d3d11_render_settings_rebuild_performance_helper')
     _alignment_d3d11_render_settings_route_helper = context.get('_alignment_d3d11_render_settings_route_helper')
     _alignment_d3d11_render_tuning_live_performance_helper = context.get('_alignment_d3d11_render_tuning_live_performance_helper')
-    _alignment_lit_render_settings = context.get('_alignment_lit_render_settings')
+    _alignment_lit_render_settings = context.get('_alignment_lit_render_settings_helper') or context.get('_alignment_lit_render_settings')
     _alignment_renderer_backend_for_dialog = context.get('_alignment_renderer_backend_for_dialog')
     _mark_alignment_d3d11_rebuild_reason = context.get('_mark_alignment_d3d11_rebuild_reason')
     _queue_static_preview_refresh = context.get('_queue_static_preview_refresh')
@@ -159,6 +159,16 @@ def create_alignment_preview_render_settings_callbacks(context: dict[str, object
     def _current_alignment_preview_render_settings() -> ModelPreviewRenderSettings:
         return _alignment_preview_render_settings_from_controls(state.preview_render_settings)
 
+    def _lit_alignment_settings(settings: object) -> ModelPreviewRenderSettings:
+        fallback_settings = state.preview_render_settings
+        if not isinstance(fallback_settings, ModelPreviewRenderSettings):
+            fallback_settings = self._current_model_preview_render_settings()
+        if callable(_alignment_lit_render_settings):
+            return _alignment_lit_render_settings(settings, fallback_settings)
+        return clamp_model_preview_render_settings(
+            settings if isinstance(settings, ModelPreviewRenderSettings) else fallback_settings
+        )
+
     def _alignment_preview_package_settings_changed(previous_settings: ModelPreviewRenderSettings, current_settings: ModelPreviewRenderSettings) -> bool:
         return _alignment_d3d11_package_settings_changed_helper(previous_settings, current_settings)
 
@@ -210,7 +220,7 @@ def create_alignment_preview_render_settings_callbacks(context: dict[str, object
 
     def _use_global_alignment_preview_settings() -> None:
         previous_settings = _current_alignment_preview_render_settings()
-        state.preview_render_settings = _alignment_lit_render_settings(self._current_model_preview_render_settings())
+        state.preview_render_settings = _lit_alignment_settings(self._current_model_preview_render_settings())
         _sync_alignment_preview_controls_from_settings(state.preview_render_settings)
         _apply_alignment_preview_render_settings(previous_settings=previous_settings)
 
@@ -230,7 +240,7 @@ def create_alignment_preview_render_settings_callbacks(context: dict[str, object
 
         def _sync_from_modal_settings(settings: Optional[object]=None) -> None:
             previous_settings = _current_alignment_preview_render_settings()
-            state.preview_render_settings = _alignment_lit_render_settings(settings) if isinstance(settings, ModelPreviewRenderSettings) else _alignment_lit_render_settings(self._current_model_preview_render_settings())
+            state.preview_render_settings = _lit_alignment_settings(settings if isinstance(settings, ModelPreviewRenderSettings) else self._current_model_preview_render_settings())
             _sync_alignment_preview_controls_from_settings(state.preview_render_settings)
             _apply_alignment_preview_render_settings(previous_settings=previous_settings)
         self._open_modal_model_preview_settings_dialog(dialog, archive_renderer_backend_enabled=True, archive_renderer_backend=_alignment_renderer_backend_for_dialog(), archive_renderer_backend_changed_handler=_set_alignment_renderer_from_dialog, settings_changed_handler=_sync_from_modal_settings, preview_settings=_current_alignment_preview_render_settings())
@@ -914,6 +924,7 @@ def create_alignment_selected_part_adjustment_callbacks(context: dict[str, objec
     _refresh_source_assignment_columns = context.get('_refresh_source_assignment_columns')
     _selected_source_indices_from_tree = context.get('_selected_source_indices_from_tree')
     _set_source_parts_apply_pending = context.get('_set_source_parts_apply_pending')
+    _sync_highlight_sets = context.get('_sync_highlight_sets')
     _source_part_adjustment_apply_state_helper = context.get('_source_part_adjustment_apply_state_helper')
     _source_part_edit_undo_label_helper = context.get('_source_part_edit_undo_label_helper')
     _source_part_include_exclude_pending_reason_helper = context.get('_source_part_include_exclude_pending_reason_helper')
@@ -967,6 +978,8 @@ def create_alignment_selected_part_adjustment_callbacks(context: dict[str, objec
         _refresh_source_assignment_columns(lightweight=not apply_state.enabled_changed)
         if queue_preview:
             if apply_state.enabled_changed:
+                if callable(_sync_highlight_sets):
+                    _sync_highlight_sets()
                 _set_source_parts_apply_pending(_source_part_include_exclude_pending_reason_helper())
             else:
                 _queue_part_transform_preview_update(tuple(apply_state.target_indices))
@@ -1090,6 +1103,15 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
         if not callable(_alignment_mesh_edit_tab_active):
             return False
         return bool(_alignment_mesh_edit_tab_active())
+
+    def _mesh_edit_enabled_checked() -> bool:
+        is_checked = getattr(mesh_edit_enabled_checkbox, "isChecked", None)
+        if not callable(is_checked):
+            return False
+        try:
+            return bool(is_checked())
+        except RuntimeError:
+            return False
 
     def _alignment_preview_is_interactive_value() -> bool:
         if not callable(_alignment_preview_is_interactive):
@@ -1294,7 +1316,7 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
         source_preview_cache_key = ''
         active_preview_mode = str(preview_mode_combo.currentData() or 'side_by_side')
         needs_original_material_preview = _original_texture_preview_material_preview_enabled_helper(modify_original_clone_mode, original_texture_preview_state)
-        refresh_route = _static_preview_refresh_route_state_helper(active_preview_mode=active_preview_mode, mesh_edit_enabled=mesh_edit_enabled_checkbox.isChecked(), mesh_edit_tab_active=_mesh_edit_tab_active(), replacement_mesh_available=state.replacement_mesh_for_mapping is not None, interactive_preview=_alignment_preview_is_interactive_value(), complete_external_swap_enabled=_complete_external_swap_enabled_value(), needs_original_material_preview=needs_original_material_preview, preview_controls_ready=bool(preview_controls_ready.get('ready')), original_mesh_available=original_mesh_for_mapping is not None)
+        refresh_route = _static_preview_refresh_route_state_helper(active_preview_mode=active_preview_mode, mesh_edit_enabled=_mesh_edit_enabled_checked(), mesh_edit_tab_active=_mesh_edit_tab_active(), replacement_mesh_available=state.replacement_mesh_for_mapping is not None, interactive_preview=_alignment_preview_is_interactive_value(), complete_external_swap_enabled=_complete_external_swap_enabled_value(), needs_original_material_preview=needs_original_material_preview, preview_controls_ready=bool(preview_controls_ready.get('ready')), original_mesh_available=original_mesh_for_mapping is not None)
         mesh_edit_direct_source_preview = refresh_route.mesh_edit_direct_source_preview
         force_direct_source_preview = _alignment_d3d11_record_direct_source_preview_flags_helper(alignment_d3d11_state, replacement_only_direct_source_preview=refresh_route.replacement_only_direct_source_preview, source_owned_direct_source_preview=refresh_route.source_owned_direct_source_preview)
         if refresh_route.require_original_reference and (not _ensure_original_reference_texture_preview_ready(active_preview_mode, reason='preview_refresh')):

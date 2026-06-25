@@ -9,7 +9,7 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("CDMW_GUI_STARTUP_SMOKE", "1")
 
-from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from cdmw.app.events import AppEventBus
 from cdmw.models import ArchiveEntry
@@ -115,6 +115,15 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             for button in self.window.mod_package_retrofit_tab.findChildren(QPushButton)
         }
         self.assertIn("Scan", button_labels)
+        self.assertIn("Preview Package Plan", button_labels)
+        self.assertNotIn("Refresh Game Index", button_labels)
+        label_text = " ".join(
+            label.text()
+            for label in self.window.mod_package_retrofit_tab.findChildren(QLabel)
+        )
+        self.assertIn("Scan loose or zipped mod packages", label_text)
+        self.assertNotIn("Game build", label_text)
+        self.assertNotIn("current game", label_text)
         self.assertFalse(
             any(label.startswith("Open ") and "Repackage Tool" in label for label in button_labels)
         )

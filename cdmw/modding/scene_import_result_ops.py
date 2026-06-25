@@ -202,7 +202,7 @@ def _decimate_submesh_for_import_quality(
     if best is None or not best[0] or not best[1]:
         return copy.deepcopy(submesh), False
     preview_vertices, sampled_faces, reduced_normals, reduced_uvs, used_cluster_indices = best
-    reduced = copy.deepcopy(submesh)
+    reduced = copy.copy(submesh)
     reduced.vertices = preview_vertices
     reduced.faces = sampled_faces
     reduced.uvs = reduced_uvs if len(reduced_uvs) == len(preview_vertices) else []
@@ -230,7 +230,8 @@ def reduce_scene_import_result_quality(
     if not isinstance(scene_result, SceneImportResult):
         raise TypeError("reduce_scene_import_result_quality requires a SceneImportResult.")
     source_mesh = scene_result.mesh
-    reduced_mesh = copy.deepcopy(source_mesh)
+    reduced_mesh = copy.copy(source_mesh)
+    reduced_mesh.lod_levels = copy.deepcopy(getattr(source_mesh, "lod_levels", []) or [])
     reduced_submeshes: list[SubMesh] = []
     changed_count = 0
     for submesh in getattr(source_mesh, "submeshes", ()) or ():

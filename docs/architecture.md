@@ -82,6 +82,8 @@ Large archive listing stays virtualized. Filtering and previews stay debounced.
 Icon/thumbnail work must prioritize visible rows and run in background workers.
 Archive scan, conversion, rebuild, import/export, hashing, recursive IO, and
 package build work must stay off the UI thread.
+Archive cache pruning keeps the current package root's cache artifacts and only
+evicts older cache files or cache directories for other package roots.
 
 ## Archive Mutation Safety
 

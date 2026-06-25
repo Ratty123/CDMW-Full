@@ -108,7 +108,7 @@ class _GltfMeshInstance:
     skin_index: int = -1
 
 
-def import_gltf(path: str | Path) -> SceneImportResult:
+def import_gltf(path: str | Path, *, include_external_audit: bool = True) -> SceneImportResult:
     from .scene_importer import SceneImportResult
 
     source_path = Path(path).expanduser().resolve()
@@ -253,6 +253,7 @@ def import_gltf(path: str | Path) -> SceneImportResult:
             extracted_embedded_files=tuple(_dedupe_paths(payload.extracted_embedded_files)),
             material_bindings=tuple(material_bindings),
         ),
+        enabled=include_external_audit,
     )
 
 

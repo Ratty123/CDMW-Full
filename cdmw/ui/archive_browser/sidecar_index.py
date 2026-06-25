@@ -120,6 +120,8 @@ class ArchiveSidecarIndexMixin:
         self._archive_sidecar_status_detail = detail_text
         self._archive_sidecar_status_current = max(0, int(current or 0))
         self._archive_sidecar_status_total = max(0, int(total or 0))
+        if not hasattr(self, "archive_sidecar_status_widget"):
+            return
         self.archive_sidecar_status_widget.setVisible(True)
         if total > 0:
             completed_value = min(max(int(current), 0), int(total))
@@ -173,10 +175,6 @@ class ArchiveSidecarIndexMixin:
                 return
         self._archive_sidecar_last_ui_progress_at = now
         self._archive_sidecar_last_ui_detail = str(detail or "")
-        if self.archive_entries and self.archive_browser_warmup_pending:
-            self.archive_stats_label.setText(
-                f"{len(self.archive_entries):,} archive entries loaded. {detail}"
-            )
 
     def _handle_archive_sidecar_complete(self, request_id: int, result: object) -> None:
         if self._shutting_down or request_id != self.archive_sidecar_request_id:
@@ -243,9 +241,6 @@ class ArchiveSidecarIndexMixin:
                 f"Archive scan complete. Found {len(self.archive_entries):,} entries."
             )
             self.archive_browser_warmup_completion_text = ""
-            self.archive_stats_label.setText(
-                f"{len(self.archive_entries):,} archive entries loaded. Texture sidecar cache ready."
-            )
             self._set_archive_load_progress(completion_text, phase="Ready", percent=100)
             self._set_archive_warmup_overlay(False)
             self.set_status_message(completion_text)

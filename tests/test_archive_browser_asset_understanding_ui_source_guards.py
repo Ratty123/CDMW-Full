@@ -4,6 +4,7 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAIN_WINDOW = REPO_ROOT / "cdmw" / "ui" / "shell" / "app_window.py"
+SHELL_MENUS = REPO_ROOT / "cdmw" / "ui" / "shell" / "menus.py"
 SHELL_WINDOW_RUNTIME_STATE = REPO_ROOT / "cdmw" / "ui" / "shell" / "window_runtime_state.py"
 SIGNAL_WIRING = REPO_ROOT / "cdmw" / "ui" / "shell" / "signal_wiring.py"
 SETTINGS_PERSISTENCE = REPO_ROOT / "cdmw" / "ui" / "shell" / "settings_persistence.py"
@@ -593,6 +594,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             + "\n"
             + (REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "controller.py").read_text(encoding="utf-8")
             + "\n"
+            + SHELL_MENUS.read_text(encoding="utf-8")
+            + "\n"
             + DASHBOARD_CONTROLLER.read_text(encoding="utf-8")
             + "\n"
             + STARTUP_CONTROLLER.read_text(encoding="utf-8")
@@ -616,12 +619,30 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_scan_progress_label.setText(phase_text)", source)
         self.assertIn("self._dashboard_set_archive_progress(phase_text, detail_text, percent_value)", source)
         self.assertIn('self.archive_scan_progress_label = QLabel("Ready")', source)
+        controls_source = ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8")
+        menus_source = SHELL_MENUS.read_text(encoding="utf-8")
+        self.assertNotIn('QGroupBox("Status")', controls_source)
+        self.assertNotIn("archive_status_group_layout", controls_source)
+        self.assertNotIn("Scan packages, filter rows, preview files, and extract archive entries.", controls_source)
+        self.assertNotIn("Set game/package and extraction paths in Settings > Archive Locations.", controls_source)
+        self.assertNotIn("archive_filters_layout.addWidget(self.archive_package_filter_hint_label)", controls_source)
+        self.assertIn("archive_log_panel = QWidget()", controls_source)
+        self.assertLess(
+            menus_source.index("menu_corner_layout.addWidget(self.archive_scan_progress_label)"),
+            menus_source.index("menu_corner_layout.addWidget(self.archive_scan_progress_bar)"),
+        )
+        self.assertLess(
+            menus_source.index("menu_corner_layout.addWidget(self.archive_scan_progress_bar)"),
+            menus_source.index("menu_corner_layout.addWidget(self.archive_cache_status_chip)"),
+        )
+        self.assertIn("menu_corner_layout.setSpacing(8)", menus_source)
+        self.assertIn("self.archive_scan_progress_bar.setFixedSize(118, 18)", menus_source)
+        self.assertIn("self.archive_cache_status_chip.setFixedWidth(132)", menus_source)
+        self.assertIn("self.archive_cache_status_chip.setAlignment(Qt.AlignCenter)", menus_source)
+        self.assertIn("self.archive_cache_status_chip.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)", menus_source)
         self.assertIn("def _set_archive_cache_status_chip(", source)
         self.assertIn('"building": "Cache: Building"', source)
-        self.assertLess(
-            source.index("archive_status_group_layout.addWidget(self.archive_scan_progress_bar)"),
-            source.index("archive_status_group_layout.addWidget(self.archive_scan_progress_label)"),
-        )
+        self.assertNotIn("percent_text =", source)
         self.assertIn('or "name search" in lowered', source)
         self.assertIn("phase_percent = int(round(100.0 * completed_value / max(total, 1)))", source)
         self.assertIn("detail_with_progress = f\"{progress_detail} ({phase_percent}%)\"", source)

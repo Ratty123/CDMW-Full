@@ -538,6 +538,29 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual("lit", defaults.render_diagnostic_mode)
         self.assertFalse(defaults.disable_all_support_maps)
         self.assertGreater(defaults.height_effect_max, 0.0)
+
+    def test_default_d3d11_settings_favor_metal_weapon_preview(self) -> None:
+        defaults = clamp_model_preview_render_settings(ModelPreviewRenderSettings())
+
+        self.assertEqual(16, defaults.max_anisotropy)
+        self.assertAlmostEqual(-2.0, defaults.d3d11_mip_lod_bias)
+        self.assertAlmostEqual(0.84, defaults.ambient_strength)
+        self.assertAlmostEqual(0.62, defaults.diffuse_light_scale)
+        self.assertAlmostEqual(0.58, defaults.diffuse_wrap_bias)
+        self.assertAlmostEqual(-10.0, defaults.d3d11_light_azimuth_degrees)
+        self.assertAlmostEqual(0.0, defaults.d3d11_light_elevation_degrees)
+        self.assertAlmostEqual(1.00, defaults.height_effect_max)
+        self.assertAlmostEqual(0.055, defaults.specular_base)
+        self.assertAlmostEqual(0.52, defaults.specular_max)
+        self.assertAlmostEqual(152.0, defaults.shininess_max)
+        self.assertAlmostEqual(0.45, defaults.d3d11_ao_strength)
+        self.assertAlmostEqual(-0.04, defaults.d3d11_roughness_bias)
+        self.assertAlmostEqual(1.45, defaults.d3d11_metalness_scale)
+        self.assertAlmostEqual(0.62, defaults.d3d11_environment_strength)
+        self.assertAlmostEqual(2.2, defaults.d3d11_emissive_gain)
+        self.assertAlmostEqual(1.00, defaults.d3d11_tone_exposure)
+        self.assertAlmostEqual(1.08, defaults.d3d11_tone_contrast)
+        self.assertAlmostEqual(1.00, defaults.d3d11_tone_gamma)
         self.assertGreater(defaults.specular_max, 0.0)
 
     def test_enhanced_relief_shader_path_is_gated(self) -> None:

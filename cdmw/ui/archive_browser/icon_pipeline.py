@@ -381,8 +381,6 @@ class ArchiveIconPipelineMixin:
             if self._archive_item_icon_negative_note(prepared_key):
                 continue
             rows.append(row)
-            if len(rows) >= self.archive_item_icon_preload_limit:
-                break
         self._queue_archive_asset_catalog_icon_warmup_rows(rows, replace=True, delay_ms=delay_ms)
 
     def _queue_archive_asset_catalog_icon_warmup_rows(

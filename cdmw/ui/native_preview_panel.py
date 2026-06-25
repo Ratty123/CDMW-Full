@@ -68,6 +68,7 @@ class NativePreviewPanel(QWidget):
         self._message = str(title or "")
         self._current_model = None
         self._prepared_preview = None
+        self._vertex_count = 0
         self._render_settings = ModelPreviewRenderSettings()
         self._use_textures = False
         self._high_quality_textures = False
@@ -126,6 +127,7 @@ class NativePreviewPanel(QWidget):
     def clear_model(self, message: str, **_kwargs: object) -> None:
         self._current_model = None
         self._prepared_preview = None
+        self._vertex_count = 0
         self._set_message(message)
 
     def set_model(self, model: object) -> None:
@@ -145,8 +147,12 @@ class NativePreviewPanel(QWidget):
         self._current_model = model
         self._prepared_preview = prepared_preview
         mesh_count = len(getattr(model, "meshes", ()) or ())
-        batch_count = len(getattr(prepared_preview, "batches", ()) or ()) if prepared_preview is not None else 0
+        batches = tuple(getattr(prepared_preview, "batches", ()) or ()) if prepared_preview is not None else ()
+        batch_count = len(batches)
         vertex_count = int(getattr(prepared_preview, "vertex_count", getattr(model, "vertex_count", 0)) or 0)
+        if vertex_count <= 0 and batches:
+            vertex_count = sum(int(getattr(batch, "index_count", 0) or 0) for batch in batches)
+        self._vertex_count = vertex_count
         self._set_message(f"Native D3D11 preview data ready: {mesh_count:,} mesh(es), {batch_count:,} batch(es), {vertex_count:,} vertices.")
         self._resume_interactive_timers_if_visible()
 

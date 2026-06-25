@@ -39,9 +39,10 @@ and tests. Use targeted deletion for cache/build output only.
 |---|---|---|---|---|
 | Startup and GUI launch | `cdmw/app/`, `cdmw/ui/shell/` | `cdmw_app.py`, `cdmw/ui/main_window.py` | `tests/test_shell_*.py`, `tests/test_runtime_dependency_smoke.py` | `docs/startup_flow.md` |
 | Archive browser and preview | `cdmw/ui/archive_browser/` | `cdmw/core/archive*.py`, `cdmw/workers/archive_*.py` | `tests/test_archive_*.py`, `tests/test_archive_browser_*.py` | `docs/archive_safety_model.md` |
-| Mesh Editor and replacement builder | `cdmw/ui/mesh_editor/`, `cdmw/ui/archive_browser/static_replacement_*.py` | `cdmw/modding/static_mesh_*.py`, `cdmw/rendering/native_preview_*.py` | `tests/test_mesh_*.py`, `tests/test_static_replacement_*.py` | `docs/architecture.md` |
+| Prefab JSON import | `cdmw/core/prefab_json.py`, `cdmw/core/prefab_corpus.py`, `cdmw/ui/archive_browser/prefab_json_actions.py` | `cdmw/core/crimson_formats.py`, `cdmw/core/archive_attachment_patches.py`, `cdmw/ui/archive_browser/actions.py`, `tools/report_prefab_json_import_corpus.py` | `tests/test_prefab_json_import.py`, `tests/test_prefab_corpus.py`, `tests/test_prefab_corpus_tool.py`, `tests/test_prefab_json_actions_source.py`, `tests/test_crimson_formats.py` | `docs/plans/active/prefab-json-import.md` |
+| Mesh Editor and replacement builder | `cdmw/ui/mesh_editor/`, `cdmw/ui/archive_browser/static_replacement_*.py`, `cdmw/ui/archive_browser/mesh_launch_flow.py` | `cdmw/modding/static_mesh_*.py`, dormant `cdmw/modding/full_import_model_replacement.py`, `cdmw/rendering/native_preview_*.py` | `tests/test_mesh_*.py`, `tests/test_static_replacement_*.py`, `tests/test_full_import_model_replacement.py` | `docs/architecture.md`, `docs/plans/active/full-import-model-replacement.md` |
 | Texture workflow and editor | `cdmw/ui/texture_workflow/` | `cdmw/core/texture_pipeline/`, `cdmw/domain/textures/` | `tests/test_texture_*.py`, `tests/test_static_texture_replacement.py` | `docs/architecture.md` |
-| Supporting feature tabs | `cdmw/ui/research/`, `cdmw/ui/model_library/`, `cdmw/ui/item_icons/`, `cdmw/ui/text_search/`, `cdmw/ui/replace_assistant/` | `cdmw/core/research*.py`, `cdmw/core/model_catalogue.py`, `cdmw/core/item_icon.py` | matching `tests/test_*` files | feature READMEs when present |
+| Supporting feature tabs | `cdmw/ui/research/`, `cdmw/ui/model_library/`, `cdmw/ui/item_icons/`, `cdmw/ui/text_search/`, `cdmw/ui/replace_assistant/` | `cdmw/core/research*.py`, `cdmw/core/model_catalogue.py`, `cdmw/core/item_icon.py`, `cdmw/services/model_library_preview.py` | matching `tests/test_*` files | feature READMEs when present |
 | Utility tools | `cdmw/ui/tools/` | `cdmw/core/mod_package_retrofit.py`, `cdmw/core/mod_package.py` | `tests/test_mod_package_retrofit.py`, `tests/test_restructure_runtime_regression_smoke.py` | `cdmw/ui/tools/README.md` |
 | Services/domain/workers | `cdmw/services/`, `cdmw/domain/`, `cdmw/workers/` | feature callers | `tests/test_services.py`, `tests/test_workers.py`, architecture tests | `docs/worker_lifecycle.md` |
 | App-managed workspace folders | `cdmw/services/workspace_layout.py` | `cdmw/core/texture_pipeline/workspace.py`, shell settings/startup | `tests/test_services.py`, startup/crash guards | `docs/architecture.md` |
@@ -64,6 +65,10 @@ The restructure is in app-readiness mode. Prefer fixing concrete runtime,
 import, startup, and test failures over more large-file splitting. Current
 evidence from crash reports showed Mesh Editor `Modify Original` failed before
 builder mount when `_archive_entry_identity_key` was used as a bound method.
+
+Model Library auto-preview and Preview Here prepare local models through
+`cdmw/services/model_library_preview.py` and show them in the inline native D3D11
+host; manual Archive Browser preview stays routed through `preview_mesh_requested`.
 
 ## Where Not To Edit
 

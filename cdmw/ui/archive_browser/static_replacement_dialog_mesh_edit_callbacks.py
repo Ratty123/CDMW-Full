@@ -866,6 +866,14 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             morph_slider_has_nonzero_values=_morph_slider_has_nonzero_values(),
         )
 
+    def _alignment_d3d11_mesh_edit_commands_active() -> bool:
+        return bool(
+            _alignment_d3d11_preview_active()
+            and callable(getattr(alignment_d3d11_preview_host, "set_mesh_edit_state", None))
+            and callable(getattr(alignment_d3d11_preview_host, "update_mesh_edit_vertices", None))
+            and callable(getattr(alignment_d3d11_preview_host, "replace_mesh_edit_triangles", None))
+        )
+
     def _sync_mesh_edit_preview_settings() -> None:
         allowed_indices = _mesh_edit_allowed_source_indices()
         active = (
@@ -876,7 +884,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         tool = _mesh_edit_current_tool()
         target_mode = _mesh_edit_target_mode_for_tool()
         delete_mode = str(mesh_edit_delete_mode_combo.currentData() or "release")
-        if _alignment_d3d11_preview_active():
+        if _alignment_d3d11_mesh_edit_commands_active():
             if active:
                 _clear_alignment_d3d11_fast_transform_state()
                 alignment_d3d11_preview_host.set_alignment_state(
@@ -1328,7 +1336,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         )
         mesh_edit_pending_live_vertices.clear()
         mesh_edit_pending_live_normals["include"] = False
-        if groups and _alignment_d3d11_preview_active():
+        if groups and _alignment_d3d11_mesh_edit_commands_active():
             alignment_d3d11_preview_host.update_mesh_edit_vertices(groups)
 
     mesh_edit_live_update_timer.timeout.connect(_flush_mesh_edit_live_vertex_updates)
@@ -1369,7 +1377,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
     def _mesh_edit_replace_live_triangles(source_indices: Iterable[int]) -> bool:
         if _mesh_edit_state.replacement_mesh_for_mapping is None:
             return False
-        if _alignment_d3d11_preview_active():
+        if _alignment_d3d11_mesh_edit_commands_active():
             mesh_edit_live_update_timer.stop()
             _flush_mesh_edit_live_vertex_updates()
             groups = _mesh_edit_triangle_replace_groups(source_indices)
@@ -1387,7 +1395,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         if _mesh_edit_state.replacement_mesh_for_mapping is None:
             return
         _mesh_edit_update_mesh_totals()
-        if _alignment_d3d11_preview_active():
+        if _alignment_d3d11_mesh_edit_commands_active():
             if changed_vertices_by_submesh:
                 _queue_mesh_edit_live_vertex_updates(
                     changed_vertices_by_submesh,

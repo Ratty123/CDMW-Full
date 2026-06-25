@@ -415,7 +415,8 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             pass
         _load_selected_part_controls()
         _sync_highlight_sets()
-        _set_source_parts_apply_pending(_source_part_deleted_pending_reason_helper(len(delete_indices)))
+        _set_source_parts_preview_rebuild_pending(_source_part_deleted_pending_reason_helper(len(delete_indices)))
+        _queue_static_preview_rebuild()
         self.set_status_message(_source_part_deleted_status_helper(len(delete_indices)))
 
     def _apply_source_part_preview_changes() -> None:

@@ -7,6 +7,7 @@ from typing import Dict, Iterable, Mapping, Sequence
 from cdmw.rendering.crimson_shader_registry import (
     AUTHORITY_CAPTURE_INFERRED,
     decode_crimson_texture_binding,
+    decode_profile_for_family,
     normalize_shader_family,
     renderdoc_truth_pass_checklist,
     texture_suffix_from_path,
@@ -70,6 +71,29 @@ def _parameter_name(entry: Mapping[str, object]) -> str:
         value = _string(entry.get(key, ""))
         if value and not value.isdigit():
             return value
+    return ""
+
+
+def _capture_binding_names(data: Mapping[str, object]) -> list[str]:
+    names: list[str] = []
+    for collection_name in ("srv_slots", "sampler_states", "constant_buffers"):
+        for item in _as_sequence(data.get(collection_name, ())):
+            if isinstance(item, Mapping):
+                names.append(_string(item.get("name", item.get("parameter_name", ""))))
+    for shader_name in ("vertex_shader", "pixel_shader", "compute_shader"):
+        shader = data.get(shader_name, {})
+        if not isinstance(shader, Mapping):
+            continue
+        for binding in _as_sequence(shader.get("resource_bindings", ())):
+            if isinstance(binding, Mapping):
+                names.append(_string(binding.get("name", "")))
+    return [name for name in names if name]
+
+
+def _infer_capture_shader_family(data: Mapping[str, object]) -> str:
+    lowered = " ".join(_capture_binding_names(data)).lower()
+    if any(token in lowered for token in ("waterconstantbuffer", "seaconstantbuffer", "g_waternormaltexture", "g_shallowwater", "g_foamtexture")):
+        return "environment_water"
     return ""
 
 
@@ -240,7 +264,7 @@ def infer_truth_findings(normalized: Mapping[str, object]) -> list[str]:
 
 
 def normalize_renderdoc_truth_pass(data: Mapping[str, object]) -> Dict[str, object]:
-    shader_family = normalize_shader_family(data.get("shader_family", ""))
+    shader_family = normalize_shader_family(data.get("shader_family", "")) or _infer_capture_shader_family(data)
     material_name = _string(data.get("material_name", data.get("drawcall", "")))
     pixel_shader_raw = data.get("pixel_shader", {})
     pixel_shader = pixel_shader_raw if isinstance(pixel_shader_raw, Mapping) else {}
@@ -313,6 +337,7 @@ def normalize_renderdoc_truth_pass(data: Mapping[str, object]) -> Dict[str, obje
             "disassembly_status": _string(compute_shader.get("disassembly_status", "")),
         },
         "normal_y_mode": _string(data.get("normal_y_mode", data.get("normal_y", ""))),
+        "normal_y_mode_unresolved": bool(data.get("normal_y_mode_unresolved", False)),
         "blend_state": dict(data.get("blend_state", {})) if isinstance(data.get("blend_state", {}), Mapping) else {},
         "raster_state": dict(data.get("raster_state", {})) if isinstance(data.get("raster_state", {}), Mapping) else {},
         "depth_stencil_state": dict(data.get("depth_stencil_state", {})) if isinstance(data.get("depth_stencil_state", {}), Mapping) else {},
@@ -328,6 +353,7 @@ def normalize_renderdoc_truth_pass(data: Mapping[str, object]) -> Dict[str, obje
             if isinstance(srv, Mapping) and srv.get("srgb_view", "") != ""
         ],
         "checklist": renderdoc_truth_pass_checklist(),
+        "registry_policy": decode_profile_for_family(shader_family or "generic"),
     }
     normalized["findings"] = infer_truth_findings(normalized)
     return normalized

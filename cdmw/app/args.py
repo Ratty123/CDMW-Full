@@ -17,6 +17,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--self-test", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--startup-splash-host", default="", help=argparse.SUPPRESS)
     parser.add_argument("--parent-pid", type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument("--model-library-preview-worker", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--input", default="", help=argparse.SUPPRESS)
+    parser.add_argument("--output", default="", help=argparse.SUPPRESS)
     return parser
 
 

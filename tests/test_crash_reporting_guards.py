@@ -876,7 +876,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _schedule_archive_asset_catalog_icon_preload(self, delay_ms: int = 900) -> None:", source)
         self.assertIn("self._schedule_archive_asset_catalog_icon_preload()", source)
         self.assertIn("self.archive_item_icon_pixmap_cache_limit = 1200", source)
-        self.assertIn("self.archive_item_icon_preload_limit = 1600", source)
+        self.assertNotIn("archive_item_icon_preload_limit", source)
         self.assertIn("self.archive_item_icon_prepared_path_cache", source)
         worker_source = ARCHIVE_WORKERS.read_text(encoding="utf-8")
         self.assertIn("class ArchiveItemIconWarmupWorker(QObject):", worker_source)
@@ -1046,6 +1046,7 @@ class CrashReportingGuardTests(unittest.TestCase):
                 (ROOT / "cdmw" / "ui" / "shell" / "log_controller.py").read_text(encoding="utf-8"),
                 ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8"),
                 MAIN_WINDOW.read_text(encoding="utf-8"),
+                THEMES.read_text(encoding="utf-8"),
             )
         )
         self.assertIn("def _archive_controls_sidebar_bounds(self) -> Tuple[int, int, int]:", source)
@@ -1056,6 +1057,25 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("archive_controls_font.setPointSize(max(8, archive_controls_font.pointSize() - 1))", source)
         self.assertIn("archive_controls_min, _archive_controls_pref, archive_controls_max = self._archive_controls_sidebar_bounds()", source)
         self.assertIn("self.archive_extension_picker_button.setEnabled(not busy)", source)
+        self.assertIn("self.archive_log_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)", source)
+        self.assertIn("archive_controls_layout.addWidget(archive_log_panel, 1)", source)
+        self.assertIn("archive_controls_wrapper_layout.addWidget(archive_controls_group, 1)", source)
+        self.assertNotIn("self.archive_log_view.setMaximumHeight(150)", source)
+        self.assertNotIn("archive_controls_wrapper_layout.addStretch(1)", source)
+        self.assertIn('self.archive_controls_scroll.setObjectName("ArchiveControlsScroll")', source)
+        self.assertIn('self.archive_controls_scroll.viewport().setObjectName("ArchiveControlsViewport")', source)
+        self.assertIn('archive_controls_wrapper.setObjectName("ArchiveControlsWrapper")', source)
+        self.assertIn('archive_controls_wrapper.setAttribute(Qt.WA_StyledBackground, True)', source)
+        self.assertIn("QScrollArea#ArchiveControlsScroll", source)
+        self.assertIn("QWidget#ArchiveControlsViewport", source)
+        self.assertIn("QWidget#ArchiveControlsWrapper", source)
+        self.assertIn(
+            'QScrollArea#ArchiveControlsScroll,\n'
+            '    QWidget#ArchiveControlsViewport,\n'
+            '    QWidget#ArchiveControlsWrapper {{\n'
+            '        background: {theme["surface"]};',
+            source,
+        )
 
     def test_archive_browser_rebalances_for_compact_screens(self) -> None:
         source = "\n".join(

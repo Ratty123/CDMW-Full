@@ -161,11 +161,15 @@ class ModelLibraryResultsViewMixin:
         self._auto_preview_timer.start()
 
     def handle_activated(self) -> None:
-        self._activation_preview_timer.start()
+        self._auto_preview_timer.stop()
 
     def _preview_current_model_if_auto_enabled(self) -> None:
-        if hasattr(self, "auto_preview_checkbox") and self.auto_preview_checkbox.isChecked():
-            self.preview_selected_model_here()
+        if not hasattr(self, "auto_preview_checkbox") or not self.auto_preview_checkbox.isChecked():
+            return
+        payload = self._selected_payload()
+        if not self._payload_can_preview_here(payload):
+            return
+        self.preview_selected_model_here()
 
     def _set_active_results_view(self, view: str, *, persist: bool = True) -> None:
         previous_view = getattr(self, "_active_results_view", "mirror")

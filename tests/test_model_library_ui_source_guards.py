@@ -352,6 +352,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn('QGroupBox("Selection")', source)
         self.assertIn('QGroupBox("Model Preview")', source)
         self.assertIn('QPushButton("Preview")', source)
+        self.assertIn('QCheckBox("Auto preview local selection")', source)
+        self.assertIn("Automatically previews local selections in the Model Library preview panel", source)
         self.assertIn("D3D11 Preview", source)
         self.assertIn("Preview In Archive Browser", source)
         self.assertNotIn("Import Local Model", source)
@@ -372,6 +374,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn('inline_render_settings.visible_texture_mode = "sidecar_visible_first"', source)
         self.assertIn('inline_render_settings.render_diagnostic_mode = "base_direct"', source)
         self.assertIn("inline_render_settings.disable_all_support_maps = True", source)
+        self.assertIn("inline_render_settings.low_quality_texture_max_dimension = 1024", source)
         self.assertIn("inline_preview_widget.set_render_settings(inline_render_settings)", source)
         self.assertIn("inline_preview_widget.set_use_textures(True)", source)
         self.assertIn("inline_preview_widget.set_high_quality_textures(True)", source)
@@ -387,14 +390,21 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("self._inline_preview_loaded_texture_count", source)
         self.assertIn("preview_render_settings = self.inline_preview_widget.render_settings()", source)
         self.assertIn("render_settings=preview_render_settings", source)
-        self.assertIn("enable_material_combiner=False", source)
-        self.assertIn("resolve_preview_batch_material_channels", source)
-        self.assertIn("def _inline_preview_material_channel_summary", source)
-        self.assertIn('"material_channel_summary": material_channel_summary', source)
+        self.assertIn("prepare_model_library_inline_preview(", source)
+        self.assertIn("prepare_model_library_inline_preview_in_subprocess", source)
+        self.assertIn("high_quality_textures=False", source)
+        self.assertIn("stop_event=stop_event", source)
+        self.assertIn("_pending_inline_preview_request = (Path(source_path), dict(payload), bool(reset_orientation))", source)
+        self.assertIn("def _after_model_library_task_finished", source)
+        self.assertIn("_inline_d3d11_diagnostic_paths", source)
+        self.assertIn("_check_inline_d3d11_start_timeout", source)
+        self.assertIn("_cleanup_inline_d3d11_packages", source)
+        self.assertNotIn("write_isolated_d3d11_preview_package", source)
+        self.assertNotIn("def _inline_preview_material_channel_summary", source)
         self.assertIn("channels: {material_channel_summary}", source)
-        self.assertIn("import_scene_mesh_with_report", source)
-        self.assertIn("parsed_mesh_to_preview_model", source)
-        self.assertIn("_attach_inline_preview_textures", source)
+        self.assertNotIn("import_scene_mesh_with_report", source)
+        self.assertNotIn("parsed_mesh_to_preview_model", source)
+        self.assertNotIn("_attach_inline_preview_textures", source)
         self.assertIn("_texture_status_for_payload", source)
         self.assertIn("_count_zip_texture_members", source)
         self.assertIn("Download to check", source)
@@ -425,7 +435,63 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("Open Catalogue", source)
         self.assertNotIn("preferred_format_combo", source)
 
-    def test_model_library_auto_preview_resolves_zip_off_ui_thread(self) -> None:
+    def test_model_library_keeps_preview_to_the_right_without_root_three_pane_overlap(self) -> None:
+        source = Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
+
+        self.assertIn("splitter = QSplitter(Qt.Orientation.Horizontal)", source)
+        self.assertIn("content_splitter = QSplitter(Qt.Orientation.Horizontal)", source)
+        self.assertIn("splitter.addWidget(controls_panel)", source)
+        self.assertIn("splitter.addWidget(content_splitter)", source)
+        self.assertIn("content_splitter.addWidget(results_panel)", source)
+        self.assertIn("content_splitter.addWidget(preview_panel)", source)
+        self.assertIn("preview_panel.setMinimumWidth(280)", source)
+        self.assertNotIn("right_splitter = QSplitter(Qt.Orientation.Vertical)", source)
+        self.assertNotIn("\n        splitter.addWidget(results_panel)\n", source)
+        self.assertNotIn("\n        splitter.addWidget(preview_panel)\n", source)
+        self.assertNotIn("\n        splitter.setStretchFactor(2", source)
+
+    def test_model_library_auto_preview_uses_inline_preview_here(self) -> None:
+        source = (
+            Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/controller.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/panels.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/view_state.py").read_text(encoding="utf-8")
+        )
+
+        self.assertIn("self._auto_preview_timer.timeout.connect(self._preview_current_model_if_auto_enabled)", source)
+        self.assertIn("self._schedule_auto_inline_preview()", source)
+        self.assertNotIn("_activation_preview_timer", source)
+        self.assertNotIn("_schedule_auto_archive_preview", source)
+        self.assertNotIn("_preview_current_model_in_archive_if_auto_enabled", source)
+        self.assertNotIn("_payload_can_auto_archive_preview", source)
+        self.assertNotIn("_cancel_inline_preview_for_archive_auto_preview", source)
+
+        schedule_start = source.index("    def _schedule_auto_inline_preview")
+        schedule_body = source[schedule_start: source.index("    def handle_activated", schedule_start)]
+        self.assertIn("_payload_can_preview_here(payload)", schedule_body)
+        self.assertNotIn("_payload_can_import(payload)", schedule_body)
+
+        activated_start = source.index("    def handle_activated")
+        activated_body = source[activated_start: source.index("    def _preview_current_model_if_auto_enabled", activated_start)]
+        self.assertIn("self._auto_preview_timer.stop()", activated_body)
+        self.assertNotIn("_schedule_auto_inline_preview", activated_body)
+        self.assertNotIn("preview_selected_model_here", activated_body)
+
+        finish_start = source.index("    def _finish_results_population")
+        finish_body = source[finish_start: source.index("    def _flush_results_population_batch", finish_start)]
+        self.assertNotIn("_schedule_auto_inline_preview()", finish_body)
+
+        auto_start = source.index("    def _preview_current_model_if_auto_enabled")
+        auto_body = source[auto_start: source.index("    def _set_active_results_view", auto_start)]
+        self.assertIn("self.preview_selected_model_here()", auto_body)
+        self.assertNotIn("self.preview_selected_model()", auto_body)
+        self.assertNotIn("_load_inline_model_preview", auto_body)
+        self.assertNotIn("_preview_model_library_mesh", auto_body)
+
+    def test_model_library_manual_inline_preview_resolves_zip_off_ui_thread(self) -> None:
         source = (
             Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
             + "\n"
@@ -441,14 +507,72 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         load_start = source.index("    def _load_inline_model_preview")
         task_start = source.index("        def task(", load_start)
         task_body = source[task_start: source.index("        def complete(", task_start)]
-        self.assertIn("resolved_import_path = resolve_importable_model_path(", task_body)
-        self.assertIn("import_scene_mesh_with_report(resolved_import_path)", task_body)
+        self.assertIn("extract_root = self._inline_preview_extract_root_for_source(source_path, payload)", task_body)
+        self.assertIn('if renderer_backend == "native_d3d11":', task_body)
+        self.assertIn("prepare_model_library_inline_preview_in_subprocess(", task_body)
+        self.assertIn("return prepare_model_library_inline_preview(", task_body)
+        self.assertIn("high_quality_textures=False", task_body)
+        self.assertIn("stop_event=stop_event", task_body)
+        self.assertNotIn("resolve_importable_model_path(", task_body)
+        self.assertNotIn("import_scene_mesh_with_report(", task_body)
+        self.assertNotIn("write_isolated_d3d11_preview_package(", task_body)
 
         complete_start = source.index("        def complete(", load_start)
         complete_body = source[complete_start: source.index("        def handle_error(", complete_start)]
+        self.assertIn("self.inline_preview_widget.set_prepared_model(preview_model, prepared_preview)", complete_body)
+        self.assertIn('renderer_note = " | renderer: Qt preview"', complete_body)
+        self.assertIn('self._set_inline_preview_status("Qt preview data was not built."', complete_body)
+        self.assertNotIn("Native D3D11 preview package was not built", complete_body)
         self.assertIn("payload[\"import_path\"] = str(resolved_import_path)", complete_body)
         self.assertIn("self._refresh_result_row_status(payload)", complete_body)
         self.assertNotIn("self._refresh_result_row_statuses()", complete_body)
+
+        cancel_body = source[load_start:task_start]
+        self.assertIn("_pending_inline_preview_request = (Path(source_path), dict(payload), bool(reset_orientation))", cancel_body)
+        self.assertIn("self._stop_event.set()", cancel_body)
+
+        finish_start = source.index("    def _after_model_library_task_finished")
+        finish_body = source[finish_start: source.index("    def generate_icon_from_preview", finish_start)]
+        self.assertIn("pending = self._pending_inline_preview_request", finish_body)
+        self.assertIn("QTimer.singleShot(", finish_body)
+        self.assertIn("self._load_inline_model_preview(", finish_body)
+
+        tasks_source = Path("cdmw/ui/model_library/tasks.py").read_text(encoding="utf-8")
+        self.assertIn('hook = getattr(self, "_after_model_library_task_finished", None)', tasks_source)
+        self.assertIn("if callable(hook):", tasks_source)
+        self.assertIn("hook()", tasks_source)
+
+    def test_inline_d3d11_host_is_shown_before_hwnd_capture(self) -> None:
+        source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
+        start = source.index("    def _start_inline_d3d11_process")
+        body = source[start: source.index("    def _handle_inline_d3d11_stderr", start)]
+
+        command_index = body.index("native_d3d11_renderer_command(")
+        self.assertLess(
+            body.index(
+                "self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)",
+                body.index("self._stop_inline_d3d11_process(cleanup_packages=True)"),
+            ),
+            command_index,
+        )
+        self.assertLess(body.index("self.inline_d3d11_preview_host.show()"), command_index)
+        self.assertIn("crash_dir, diagnostic_log = self._inline_d3d11_diagnostic_paths()", body)
+        self.assertIn("crash_dir=crash_dir", body)
+        self.assertIn("diagnostic_log=diagnostic_log", body)
+        self.assertIn("_check_inline_d3d11_start_timeout", body)
+        self.assertIn("cleanup_packages=True", body)
+        self.assertIn("QTimer.singleShot(0, process.start)", body)
+        self.assertIn("QTimer.singleShot(7000", source)
+
+    def test_d3d11_command_reads_diagnostic_env_defaults(self) -> None:
+        source = Path("cdmw/ui/native_d3d11_preview_host.py").read_text(encoding="utf-8")
+        start = source.index("def native_d3d11_renderer_command")
+        body = source[start: source.index("__all__", start)]
+
+        self.assertIn('os.environ.get("CDMW_CRASH_DIR"', body)
+        self.assertIn('os.environ.get("CDMW_NATIVE_DIAGNOSTIC_LOG"', body)
+        self.assertIn('arguments.extend(["--crash-dir", str(crash_dir)])', body)
+        self.assertIn('arguments.extend(["--diagnostic-log", str(diagnostic_log)])', body)
 
 
 if __name__ == "__main__":

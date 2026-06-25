@@ -101,7 +101,7 @@ def source_part_deleted_pending_reason(delete_count: int) -> str:
 
 
 def source_part_deleted_status(delete_count: int) -> str:
-    return f"Deleted {int(delete_count):,} replacement source part(s). Preview still shows old geometry until Apply."
+    return f"Deleted {int(delete_count):,} replacement source part(s). Preview is rebuilding."
 
 
 def source_part_group_routing_text() -> dict[str, str]:

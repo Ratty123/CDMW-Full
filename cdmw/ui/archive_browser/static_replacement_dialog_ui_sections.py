@@ -134,6 +134,7 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     self = context.get('self')
     setup_layout = context.get('setup_layout')
     static_dialog_preview = context.get('static_dialog_preview')
+    full_import_model_replacement = bool(context.get("full_import_model_replacement"))
 
     alignment_setup_options_control_text = _alignment_setup_options_control_text_helper()
     options_group = QGroupBox(alignment_setup_options_control_text["group_title"])
@@ -212,7 +213,6 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     )
     _select_complete_swap_material_profile(saved_complete_swap_material_profile)
     complete_swap_material_profile_combo.setToolTip(_material_authority_complete_swap_tooltip_helper())
-    complete_swap_material_profile_combo.setEnabled(False)
     material_route_summary_label = QLabel(_material_authority_route_summary_text_helper())
     material_route_summary_label.setObjectName("MeshAlignmentMaterialRouteSummary")
     material_route_summary_label.setWordWrap(True)
@@ -853,6 +853,11 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     complete_external_swap_checkbox.toggled.connect(_sync_complete_external_swap_mode)
     if preferred_complete_source_swap:
         _select_complete_swap_material_profile("material_authority_detail_mask", persist=False)
+        rebuild_sidecar_checkbox.setChecked(True)
+        prune_unmapped_original_dds_checkbox.setChecked(True)
+        source_color_faithful_checkbox.setChecked(True)
+        external_material_reset_checkbox.setChecked(True)
+        inject_base_color_checkbox.setChecked(True)
         complete_external_swap_checkbox.setChecked(True)
 
 
@@ -869,6 +874,45 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     texture_output_size_combo.currentIndexChanged.connect(_queue_texture_preview_refresh)
     _refresh_sidecar_option_state()
     _refresh_output_impact_review()
+
+    if full_import_model_replacement:
+        frozen_tooltip = (
+            "Locked by Full Import Model Replacement. Use regular Import Mesh for manual material, "
+            "texture, UV, or part mapping."
+        )
+        material_route_summary_label.setText(
+            "Full Import Model Replacement preset locked: imported source owns mesh, material, "
+            "and textures. Only placement transform is editable."
+        )
+        alignment_mode_combo.setCurrentIndex(max(0, alignment_mode_combo.findData("manual")))
+        scale_to_length_checkbox.setChecked(True)
+        flip_direction_checkbox.setChecked(False)
+        for widget in (
+            alignment_mode_combo,
+            scale_to_length_checkbox,
+            flip_direction_checkbox,
+            rebuild_sidecar_checkbox,
+            prune_unmapped_original_dds_checkbox,
+            inject_base_color_checkbox,
+            source_color_faithful_checkbox,
+            external_material_reset_checkbox,
+            complete_external_swap_checkbox,
+            complete_swap_material_profile_combo,
+            unsafe_material_preflight_checkbox,
+            texture_output_size_combo,
+            setup_texture_rotate_combo,
+            setup_texture_flip_u_checkbox,
+            setup_texture_flip_v_checkbox,
+            setup_texture_reset_button,
+            true_source_basic_group,
+            manual_profile_group,
+        ):
+            widget.setEnabled(False)
+            widget.setToolTip(frozen_tooltip)
+        true_source_basic_group.setVisible(False)
+        manual_profile_group.setVisible(False)
+        setup_texture_orientation_widget.setVisible(False)
+        texture_orientation_label.setVisible(False)
 
     alignment_custom_icon_callbacks = create_alignment_custom_icon_callbacks({**context, **globals(), **locals()})
     _alignment_custom_icon_override_spec = alignment_custom_icon_callbacks._alignment_custom_icon_override_spec
@@ -2435,19 +2479,6 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     alignment_preview_pixmap_callbacks = create_alignment_preview_pixmap_callbacks({**context, **globals(), **locals()})
     _read_preview_pixmap = alignment_preview_pixmap_callbacks._read_preview_pixmap
 
-    alignment_texture_detail_uv_callbacks = create_alignment_texture_detail_uv_callbacks({**context, **globals(), **locals()})
-    _apply_dds_detail_thumbnail_state = alignment_texture_detail_uv_callbacks._apply_dds_detail_thumbnail_state
-    _resolve_dds_detail_preview_path = alignment_texture_detail_uv_callbacks._resolve_dds_detail_preview_path
-    _refresh_dds_detail_thumbnail = alignment_texture_detail_uv_callbacks._refresh_dds_detail_thumbnail
-    _set_texture_transform_controls_enabled = alignment_texture_detail_uv_callbacks._set_texture_transform_controls_enabled
-    _load_texture_transform_controls = alignment_texture_detail_uv_callbacks._load_texture_transform_controls
-    _save_texture_transform_controls = alignment_texture_detail_uv_callbacks._save_texture_transform_controls
-    _sync_texture_transform_materials = alignment_texture_detail_uv_callbacks._sync_texture_transform_materials
-    _handle_texture_transform_material_changed = alignment_texture_detail_uv_callbacks._handle_texture_transform_material_changed
-    _reset_selected_texture_transform = alignment_texture_detail_uv_callbacks._reset_selected_texture_transform
-
-
-
     texture_uv_control_text = _texture_uv_control_text_helper()
     texture_transform_group = QGroupBox(texture_uv_control_text["transform_group"])
     texture_transform_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
@@ -2519,6 +2550,17 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     material_plan_tree.currentItemChanged.connect(lambda current, _previous: _highlight_texture_plan_item(current))
 
     texture_transform_controls_loading = _texture_transform_controls_loading_initial_state_helper()
+
+    alignment_texture_detail_uv_callbacks = create_alignment_texture_detail_uv_callbacks({**context, **globals(), **locals()})
+    _apply_dds_detail_thumbnail_state = alignment_texture_detail_uv_callbacks._apply_dds_detail_thumbnail_state
+    _resolve_dds_detail_preview_path = alignment_texture_detail_uv_callbacks._resolve_dds_detail_preview_path
+    _refresh_dds_detail_thumbnail = alignment_texture_detail_uv_callbacks._refresh_dds_detail_thumbnail
+    _set_texture_transform_controls_enabled = alignment_texture_detail_uv_callbacks._set_texture_transform_controls_enabled
+    _load_texture_transform_controls = alignment_texture_detail_uv_callbacks._load_texture_transform_controls
+    _save_texture_transform_controls = alignment_texture_detail_uv_callbacks._save_texture_transform_controls
+    _sync_texture_transform_materials = alignment_texture_detail_uv_callbacks._sync_texture_transform_materials
+    _handle_texture_transform_material_changed = alignment_texture_detail_uv_callbacks._handle_texture_transform_material_changed
+    _reset_selected_texture_transform = alignment_texture_detail_uv_callbacks._reset_selected_texture_transform
 
 
 
@@ -3799,7 +3841,6 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     original_tree.setContextMenuPolicy(Qt.CustomContextMenu)
     original_tree.customContextMenuRequested.connect(_show_original_parts_context_menu)
     source_tree.setContextMenuPolicy(Qt.CustomContextMenu)
-    source_tree.customContextMenuRequested.connect(_show_replacement_sources_context_menu)
     source_tree.itemClicked.connect(_handle_source_tree_item_clicked)
     original_parts_label = QLabel(str(source_tree_control_text["original_label_html"]))
     original_parts_label.setTextFormat(Qt.RichText)
@@ -4163,7 +4204,9 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     _finish_source_tree_population = alignment_source_tree_population_role_callbacks._finish_source_tree_population
 
     alignment_source_role_tree_population_callbacks = create_alignment_source_role_tree_callbacks({**context, **globals(), **locals()})
+    _show_replacement_sources_context_menu = alignment_source_role_tree_population_callbacks._show_replacement_sources_context_menu
     _populate_source_tree_chunk = alignment_source_role_tree_population_callbacks._populate_source_tree_chunk
+    source_tree.customContextMenuRequested.connect(_show_replacement_sources_context_menu)
     source_tree_population_timer.timeout.connect(_populate_source_tree_chunk)
     _queue_alignment_post_open_task(source_tree_population_timer.start)
 

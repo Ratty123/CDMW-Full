@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from pathlib import Path
-from typing import Callable, Dict, List, Mapping, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 from PySide6.QtCore import QTimer, QUrl, Qt
 from PySide6.QtGui import QBrush, QColor, QDesktopServices
@@ -47,7 +47,6 @@ from cdmw.ui.tools.mod_package_retrofit_view import (
     build_retrofit_update_plan_html,
     collect_retrofittable_packages,
     next_available_retrofit_package_name,
-    retrofit_game_build_from_root,
     retrofit_readiness_for_summary,
     retrofit_readiness_label_for_summary,
     retrofit_scan_readiness_summary,
@@ -87,13 +86,9 @@ class ArchiveModPackageRetrofitDialogMixin:
         title.setObjectName("SectionTitle")
         layout.addWidget(title)
 
-        mode_blurb = (
-            "This tool scans mod packages, compares selected packages against the loaded current game files in update mode, "
-            "repairs stale paths/new_paths where possible, and repackages selected packages for supported mod-manager profiles."
-        )
         intro = QLabel(
-            f"{mode_blurb} "
-            "Use repackage-only mode when you only want manager conversion without current-game compatibility checks."
+            "Scan loose or zipped mod packages and repackage them for another supported mod-manager profile. "
+            "Use checkboxes to process one package or many at once."
         )
         intro.setWordWrap(True)
         intro.setObjectName("HintLabel")
@@ -106,82 +101,25 @@ class ArchiveModPackageRetrofitDialogMixin:
         browse_source_button = QPushButton("Browse...")
         browse_output_button = QPushButton("Browse...")
         scan_button = QPushButton("Scan")
-        refresh_index_button = QPushButton("Refresh Game Index")
-        operation_combo = QComboBox()
-        operation_combo.addItem("Update for current game version + repackage", "update")
-        operation_combo.addItem("Repackage only (manager conversion)", "repackage")
         mode_hint_label = QLabel(
-            "Update mode compares selected packages against the loaded current game files before repackaging."
+            "Choose a target profile per row, such as Mod Manager, CDUMM, JMM JSON, Crimson Sharp, or Field JSON."
         )
         mode_hint_label.setObjectName("HintLabel")
         mode_hint_label.setWordWrap(True)
 
-        def _operation_mode() -> str:
-            return str(operation_combo.currentData() or "update")
-
-        def _is_update_mode() -> bool:
-            return _operation_mode() == "update"
-
-        def _hide_retrofit_clutter() -> None:
-            return
-
         path_layout = QGridLayout()
         path_layout.setHorizontalSpacing(8)
         path_layout.setVerticalSpacing(8)
-        path_layout.addWidget(QLabel("Operation"), 0, 0)
-        path_layout.addWidget(operation_combo, 0, 1)
-        path_layout.addWidget(mode_hint_label, 1, 1, 1, 2)
-        path_layout.addWidget(QLabel("Source folder"), 2, 0)
-        path_layout.addWidget(source_edit, 2, 1)
-        path_layout.addWidget(browse_source_button, 2, 2)
-        path_layout.addWidget(QLabel("Output folder"), 3, 0)
-        path_layout.addWidget(output_edit, 3, 1)
-        path_layout.addWidget(browse_output_button, 3, 2)
-        path_layout.addWidget(scan_button, 2, 3, 2, 1)
-        path_layout.addWidget(QLabel("Game file index"), 4, 0)
-        path_layout.addWidget(refresh_index_button, 4, 3)
+        path_layout.addWidget(QLabel("Source folder"), 0, 0)
+        path_layout.addWidget(source_edit, 0, 1)
+        path_layout.addWidget(browse_source_button, 0, 2)
+        path_layout.addWidget(QLabel("Output folder"), 1, 0)
+        path_layout.addWidget(output_edit, 1, 1)
+        path_layout.addWidget(browse_output_button, 1, 2)
+        path_layout.addWidget(scan_button, 0, 3, 2, 1)
+        path_layout.addWidget(mode_hint_label, 2, 1, 1, 2)
         path_layout.setColumnStretch(1, 1)
-        game_build_label = QLabel("Game build")
-        path_layout.addWidget(game_build_label, 5, 0)
-        game_build_status_label = QLabel("Detecting current game build...")
-        game_build_status_label.setObjectName("HintLabel")
-        game_build_status_label.setWordWrap(False)
-        game_build_status_label.setToolTip("Detected from the loaded archive/game files.")
-        path_layout.addWidget(game_build_status_label, 5, 1, 1, 2)
         layout.addLayout(path_layout)
-
-        def _detect_current_game_build() -> str:
-            for entry in list(getattr(self, "archive_entries", ())):
-                pamt_path = getattr(entry, "pamt_path", None)
-                if isinstance(pamt_path, Path):
-                    build = retrofit_game_build_from_root(pamt_path.parent.parent)
-                    if build:
-                        return build
-            configured_root = Path(self.archive_package_root_edit.text().strip()) if self.archive_package_root_edit else Path()
-            if configured_root.is_dir():
-                build = retrofit_game_build_from_root(configured_root)
-                if build:
-                    return build
-                for child in sorted(configured_root.iterdir(), key=lambda item: item.name.lower()):
-                    if not child.is_dir() or child.name.startswith("."):
-                        continue
-                    build = retrofit_game_build_from_root(child)
-                    if build:
-                        return build
-            return ""
-
-        def _build_archive_index_status_text() -> str:
-            if not _is_update_mode():
-                return "Game archive index disabled in Repackage only mode."
-            index_count = len(getattr(self, "archive_entries_by_basename", {}) or {})
-            if index_count:
-                return f"Loaded game archive index ({index_count:,} basenames)."
-            return "Game archive index not loaded -- compact-path repair may be limited."
-
-        archive_index_status_label = QLabel(_build_archive_index_status_text())
-        archive_index_status_label.setObjectName("HintLabel")
-        archive_index_status_label.setWordWrap(True)
-        layout.addWidget(archive_index_status_label)
 
         content_splitter = QSplitter(Qt.Horizontal)
         content_splitter.setChildrenCollapsible(False)
@@ -218,7 +156,7 @@ class ArchiveModPackageRetrofitDialogMixin:
                 "Language",
                 "Ready zip",
                 "Warnings",
-                "Update status",
+                "Package status",
             ]
         )
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -261,16 +199,13 @@ class ArchiveModPackageRetrofitDialogMixin:
         scan_summary_label.setWordWrap(True)
         left_layout.addWidget(scan_summary_label)
         legend_label = QLabel(
-            "Legend: Green=Yes (auto path-repair), Orange=No (manual review), "
-            "Amber=No (build update needed or missing build metadata), "
-            "Red=No (manual fixes / binary mismatch), "
-            "Blue=No (already aligned), Gray=No payloads."
+            "Status: Ready packages can be rewritten for the selected manager profile; warnings need review before processing."
         )
         legend_label.setObjectName("HintLabel")
         legend_label.setWordWrap(True)
         left_layout.addWidget(legend_label)
 
-        diff_label = QLabel("Update feasibility and plan for selected packages")
+        diff_label = QLabel("Retrofit/Repackage plan for selected packages")
         diff_label.setObjectName("HintLabel")
         diff_label.setWordWrap(True)
         diff_preview = QTextBrowser()
@@ -278,8 +213,7 @@ class ArchiveModPackageRetrofitDialogMixin:
         diff_preview.setOpenExternalLinks(False)
         diff_preview.setMinimumWidth(360)
         diff_preview.setHtml(
-            "<p>Select package rows and press <strong>Preview Update Plan</strong> or read this live preview below. "
-            "The live preview uses path and size checks; Preview Update Plan runs exact byte compare for selected packages in update mode.</p>"
+            "<p>Select package rows and press <strong>Preview Package Plan</strong>, or read this live preview.</p>"
         )
         right_layout.addWidget(diff_label)
         right_layout.addWidget(diff_preview, 1)
@@ -288,7 +222,7 @@ class ArchiveModPackageRetrofitDialogMixin:
         status_label.setObjectName("HintLabel")
         left_layout.addWidget(status_label)
 
-        selection_status_label = QLabel("Select package rows and check a box to see update summary.")
+        selection_status_label = QLabel("Select package rows and check a box to see package summary.")
         selection_status_label.setObjectName("HintLabel")
         selection_status_label.setWordWrap(True)
         right_layout.addWidget(selection_status_label)
@@ -306,7 +240,7 @@ class ArchiveModPackageRetrofitDialogMixin:
         QTimer.singleShot(120, _apply_content_splitter_sizes)
 
         button_row = QHBoxLayout()
-        preview_button = QPushButton("Preview Update Plan")
+        preview_button = QPushButton("Preview Package Plan")
         convert_button = QPushButton("Process Selected")
         open_output_button = QPushButton("Open Output Folder")
         button_row.addWidget(preview_button)
@@ -352,41 +286,16 @@ class ArchiveModPackageRetrofitDialogMixin:
                 return package_repair_summaries[row]
             return empty_repair_summary
 
-        current_game_build_text = ""
-
-        def _refresh_current_game_build_label() -> str:
-            nonlocal current_game_build_text
-            if not _is_update_mode():
-                current_game_build_text = ""
-                game_build_status_label.setText("Not used in Repackage only mode")
-                game_build_status_label.setToolTip("Current game build is only used when update mode is selected.")
-                return ""
-            detected = _detect_current_game_build()
-            current_game_build_text = detected
-            if detected:
-                game_build_status_label.setText(f"Detected game build: {detected}")
-                game_build_status_label.setToolTip(f"Current game build: {detected}")
-            else:
-                game_build_status_label.setText("Detected game build: unknown")
-                game_build_status_label.setToolTip(
-                    "Set Game / Package path in Archive Browser and refresh index to detect the game build."
-                )
-            return detected
-
         def _readiness_for_summary(summary: RetrofitPathRepairSummary) -> tuple[str, str, str]:
-            return retrofit_readiness_for_summary(summary, update_mode=_is_update_mode())
+            return retrofit_readiness_for_summary(summary, update_mode=False)
 
         def _readiness_label_for_summary(summary: RetrofitPathRepairSummary) -> str:
-            return retrofit_readiness_label_for_summary(summary, update_mode=_is_update_mode())
+            return retrofit_readiness_label_for_summary(summary, update_mode=False)
 
         def _rebuild_repair_summaries() -> None:
-            detected_build = _refresh_current_game_build_label()
-            archive_index = self.archive_entries_by_basename if _is_update_mode() else None
             package_repair_summaries[:] = [
                 build_retrofit_path_repair_summary(
                     package,
-                    archive_entries_by_basename=archive_index,
-                    current_game_build=detected_build,
                     compare_payload_bytes=False,
                 )
                 for package in packages
@@ -397,19 +306,17 @@ class ArchiveModPackageRetrofitDialogMixin:
             *,
             output_root: Optional[Path] = None,
             max_rows_per_package: int = 18,
-            summary_by_row: Optional[Mapping[int, RetrofitPathRepairSummary]] = None,
         ) -> str:
             return build_retrofit_update_plan_html(
                 rows,
                 packages=packages,
                 package_repair_summaries=package_repair_summaries,
-                update_mode=_is_update_mode(),
-                archive_index_size=len(getattr(self, "archive_entries_by_basename", {}) or {}),
+                update_mode=False,
+                archive_index_size=0,
                 profiles_by_row={int(row): _manager_for_row(int(row)) for row in rows},
                 profile_labels=profile_labels,
                 output_root=output_root,
                 max_rows_per_package=max_rows_per_package,
-                summary_by_row=summary_by_row,
             )
 
         def _refresh_diff_preview() -> None:
@@ -420,55 +327,6 @@ class ArchiveModPackageRetrofitDialogMixin:
                 return
             diff_preview.setHtml(_build_update_plan_html(rows, output_root=Path(output_edit.text().strip()).expanduser(), max_rows_per_package=12))
             selection_status_label.setText(_selection_readiness_summary(rows))
-
-        def _apply_operation_mode_text() -> None:
-            if _is_update_mode():
-                mode_hint_label.setText(
-                    "Update mode compares selected packages against the loaded current game files, repairs stale paths/new_paths where possible, then repackages."
-                )
-                legend_label.setText(
-                    "Legend: Green=Yes (auto path-repair), Orange=No (manual review), "
-                    "Amber=No (build update needed or missing build metadata), "
-                    "Red=No (manual fixes / payload differs), "
-                    "Blue=No (already aligned), Gray=No payloads."
-                )
-                diff_label.setText("Update feasibility and plan for selected packages")
-                preview_button.setText("Preview Update Plan")
-                refresh_index_button.setEnabled(True)
-                header_item = table.horizontalHeaderItem(11)
-                if header_item is not None:
-                    header_item.setText("Update status")
-                return
-            mode_hint_label.setText(
-                "Retrofitting mode does not inspect current game files or update stale paths. It only rewrites selected packages for another supported mod manager profile."
-            )
-            legend_label.setText(
-                "Retrofitting only: no current-game update check is performed here. Use the GitHub update variant for game-version updates."
-            )
-            diff_label.setText("Retrofitting plan for selected packages")
-            preview_button.setText("Preview Retrofit Plan")
-            refresh_index_button.setEnabled(False)
-            header_item = table.horizontalHeaderItem(11)
-            if header_item is not None:
-                header_item.setText("Operation status")
-
-        def _refresh_archive_status() -> None:
-            _apply_operation_mode_text()
-            archive_index_status_label.setText(_build_archive_index_status_text())
-            QTimer.singleShot(0, _hide_retrofit_clutter)
-            if table.rowCount() > 0:
-                _rebuild_repair_summaries()
-                _populate_table()
-            else:
-                _refresh_current_game_build_label()
-                selection_status_label.setText("No packages selected.")
-
-        def _refresh_archive_index() -> None:
-            self.scan_archives(force_refresh=True, activate_archive_tab=False)
-            archive_index_status_label.setText("Refreshing game archive index...")
-            QTimer.singleShot(1100, _refresh_archive_status)
-            QTimer.singleShot(2600, _refresh_archive_status)
-            QTimer.singleShot(4600, _refresh_archive_status)
 
         def _manager_for_row(row: int) -> str:
             combo = table.cellWidget(row, 5)
@@ -540,14 +398,14 @@ class ArchiveModPackageRetrofitDialogMixin:
             return retrofit_scan_readiness_summary(
                 package_count=len(packages),
                 summaries=package_repair_summaries,
-                update_mode=_is_update_mode(),
+                update_mode=False,
             )
 
         def _selection_readiness_summary(rows: Sequence[int]) -> str:
             return retrofit_selection_readiness_summary(
                 rows,
                 summaries=package_repair_summaries,
-                update_mode=_is_update_mode(),
+                update_mode=False,
             )
 
         def _show_processing_results_dialog(
@@ -565,7 +423,7 @@ class ArchiveModPackageRetrofitDialogMixin:
             summary_html = build_retrofit_processing_results_html(
                 processed,
                 failed,
-                update_mode=_is_update_mode(),
+                update_mode=False,
             )
             details_view = QTextBrowser()
             details_view.setReadOnly(True)
@@ -635,8 +493,6 @@ class ArchiveModPackageRetrofitDialogMixin:
                 manager_combo.currentIndexChanged.connect(lambda _index, table_row=row: _apply_retrofit_profile_defaults(table_row))
                 _apply_retrofit_profile_defaults(row)
             status_message = f"Found {len(packages):,} packaged mod folder(s)."
-            if _is_update_mode() and not getattr(self, "archive_entries_by_basename", {}):
-                status_message += " No game archive index loaded."
             status_label.setText(status_message)
             _refresh_diff_preview()
 
@@ -649,7 +505,6 @@ class ArchiveModPackageRetrofitDialogMixin:
             if not output_edit.text().strip():
                 output_edit.setText(str(source / "converted"))
             packages[:] = collect_retrofittable_packages(source)
-            _refresh_archive_status()
             _rebuild_repair_summaries()
             _populate_table()
 
@@ -670,27 +525,11 @@ class ArchiveModPackageRetrofitDialogMixin:
                 QMessageBox.information(message_parent, dialog_title, "Select at least one package to preview.")
                 return
             output_root = Path(output_edit.text().strip()).expanduser()
-            preview_summaries: Dict[int, RetrofitPathRepairSummary] = {}
-            if _is_update_mode():
-                detected_build = _refresh_current_game_build_label()
-                QApplication.setOverrideCursor(Qt.WaitCursor)
-                try:
-                    for row in rows:
-                        if 0 <= row < len(packages):
-                            preview_summaries[row] = build_retrofit_path_repair_summary(
-                                packages[row],
-                                archive_entries_by_basename=self.archive_entries_by_basename,
-                                current_game_build=detected_build,
-                                compare_payload_bytes=True,
-                            )
-                finally:
-                    QApplication.restoreOverrideCursor()
             diff_preview.setHtml(
                 _build_update_plan_html(
                     rows,
                     output_root=output_root,
                     max_rows_per_package=28,
-                    summary_by_row=preview_summaries,
                 )
             )
             selection_status_label.setText(_selection_readiness_summary(rows))
@@ -700,45 +539,6 @@ class ArchiveModPackageRetrofitDialogMixin:
             if not rows:
                 QMessageBox.information(message_parent, dialog_title, "Select at least one package to process.")
                 return
-            if _is_update_mode() and not getattr(self, "archive_entries_by_basename", {}):
-                QMessageBox.warning(
-                    message_parent,
-                    dialog_title,
-                    "Update mode requires a loaded game archive index so the tool can compare against current game files.\n\n"
-                    "Click Refresh Game Index first, or switch Operation to Repackage only.",
-                )
-                return
-            risky_rows: List[int] = []
-            if _is_update_mode():
-                for row in rows:
-                    summary = _summary_for_row(row)
-                    if summary.unresolved_path_count or summary.ambiguous_path_count:
-                        risky_rows.append(row)
-            if risky_rows:
-                risky_lines = [
-                    "Some selected packages are not fully auto-fixable.",
-                    "",
-                ]
-                for row in risky_rows[:6]:
-                    summary = _summary_for_row(row)
-                    package = packages[row]
-                    risky_lines.append(
-                        f"- {package.name}: unresolved={summary.unresolved_path_count}, ambiguous={summary.ambiguous_path_count}"
-                    )
-                if len(risky_rows) > 6:
-                    risky_lines.append(f"- ... {len(risky_rows) - 6} more.")
-                risky_lines.append("")
-                risky_lines.append("Proceed with processing anyway?")
-                if (
-                    QMessageBox.question(
-                        message_parent,
-                        dialog_title,
-                        "\n".join(risky_lines),
-                        QMessageBox.Yes | QMessageBox.No,
-                    )
-                    != QMessageBox.Yes
-                ):
-                    return
             output_root = Path(output_edit.text().strip()).expanduser()
             processed: List[tuple[str, Path, RetrofitPathRepairSummary]] = []
             failed: List[tuple[str, str]] = []
@@ -748,7 +548,6 @@ class ArchiveModPackageRetrofitDialogMixin:
                     package = packages[row]
                     profile = _manager_for_row(row)
                     scan_summary = _summary_for_row(row)
-                    archive_index_for_process = self.archive_entries_by_basename if _is_update_mode() else None
                     safe_name = next_available_retrofit_package_name(
                         package.name,
                         profile,
@@ -766,7 +565,6 @@ class ArchiveModPackageRetrofitDialogMixin:
                             output_root,
                             manager_profile=profile,
                             export_options=_export_options_for_row(row),
-                            archive_entries_by_basename=archive_index_for_process,
                         )
                         converted_output_name = (
                             f"{package.name}_{profile}" if safe_name == package.name else f"{safe_name}_{profile}"
@@ -803,9 +601,7 @@ class ArchiveModPackageRetrofitDialogMixin:
 
         browse_source_button.clicked.connect(_browse_source)
         browse_output_button.clicked.connect(_browse_output)
-        operation_combo.currentIndexChanged.connect(lambda _index: _refresh_archive_status())
         scan_button.clicked.connect(_scan)
-        refresh_index_button.clicked.connect(_refresh_archive_index)
         preview_button.clicked.connect(_preview_plan)
         convert_button.clicked.connect(_convert_selected)
         open_output_button.clicked.connect(_open_output)
@@ -818,8 +614,7 @@ class ArchiveModPackageRetrofitDialogMixin:
             else None
         )
 
-        _apply_operation_mode_text()
-        _refresh_archive_status()
+        selection_status_label.setText("No packages selected.")
         if run_initial_scan:
             _scan()
 

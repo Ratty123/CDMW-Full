@@ -25,6 +25,7 @@ from cdmw.core.archive_scan_cache import (
     _record_timing,
     _write_archive_sidecar_cache_metadata,
     _write_raw_pickle_cache_payload_to_path,
+    archive_cache_protected_paths,
     prune_archive_cache_root,
     resolve_archive_sidecar_cache_metadata_path,
     resolve_archive_sidecar_cache_path,
@@ -592,7 +593,10 @@ def save_archive_texture_sidecar_cache(
         on_progress(1, 1, "Texture sidecar cache is ready.")
     if on_log is not None:
         on_log(f"Texture sidecar cache updated: {cache_path}")
-    prune_report = prune_archive_cache_root(cache_root)
+    prune_report = prune_archive_cache_root(
+        cache_root,
+        protected_paths=archive_cache_protected_paths(package_root, cache_root),
+    )
     if on_log is not None and prune_report.get("removed_files"):
         on_log(
             "Archive cache pruned: "

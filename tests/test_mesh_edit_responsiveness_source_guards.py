@@ -56,7 +56,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('("Visible Only", "visible")', source)
         self.assertIn('("X-Ray", "xray")', source)
         self.assertIn("_mesh_edit_preview_source_indices = lambda", source)
-        self.assertIn("mesh_edit_source_indices=_mesh_edit_preview_source_indices()", source)
+        self.assertIn("_mesh_edit_replace_live_triangles(_mesh_edit_preview_source_indices())", source)
         self.assertIn("_mesh_edit_preview_source_indices()", source)
         self.assertIn("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:", source)
         self.assertIn("_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")", source)
@@ -324,7 +324,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("fast_settings.disable_normal_map = True", d3d11_presentation_source)
         self.assertNotIn("fast_settings.disable_material_map = True", d3d11_presentation_source)
         self.assertNotIn("fast_settings.disable_height_map = True", d3d11_presentation_source)
-        self.assertIn("mesh_edit_raw_package = _mesh_edit_raw_preview_active()", source)
+        self.assertIn("def _mesh_edit_raw_preview_active_value() -> bool:", source)
+        self.assertIn("mesh_edit_raw_package = _mesh_edit_raw_preview_active_value()", source)
         self.assertIn('worker_use_textures = bool(getattr(settings, "use_textures_by_default", True))', source)
         self.assertIn("original_reference_material_parity=worker_original_reference_material_parity", source)
         self.assertIn("reuse_prepared_geometry=bool(geometry_signature)", source)
@@ -332,7 +333,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         poll_start = source.index("def _poll_alignment_d3d11_status() -> None:")
         loaded_start = source.index('if event == "loaded":', poll_start)
         loaded_block = source[loaded_start: source.index('elif event == "loading":', loaded_start)]
-        self.assertIn("_sync_mesh_edit_preview_settings()", loaded_block)
+        self.assertIn("_sync_mesh_edit_preview_settings_if_ready()", loaded_block)
         self.assertIn("enable_material_combiner=bool(self.enable_material_combiner and self.use_textures)", worker_source)
         self.assertIn("def _mesh_edit_full_reset_mesh() -> None:", source)
         self.assertIn('"full_reset_mesh": "Full Reset Mesh"', mesh_edit_state_source)
@@ -463,6 +464,24 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("not mesh_edit_direct_source_preview or needs_original_material_preview", static_preview_state)
         self.assertIn("_apply_original_material_preview(", refresh_body)
         self.assertNotIn("if not mesh_edit_direct_source_preview:\n                        _apply_original_material_preview(", refresh_body)
+
+    def test_native_mesh_edit_commands_require_host_capability(self) -> None:
+        source = _mesh_edit_source()
+
+        helper_start = source.index("def _alignment_d3d11_mesh_edit_commands_active() -> bool:")
+        helper_body = source[helper_start: source.index("def _sync_mesh_edit_preview_settings", helper_start)]
+        self.assertIn("_alignment_d3d11_preview_active()", helper_body)
+        self.assertIn('callable(getattr(alignment_d3d11_preview_host, "set_mesh_edit_state", None))', helper_body)
+        self.assertIn('callable(getattr(alignment_d3d11_preview_host, "update_mesh_edit_vertices", None))', helper_body)
+        self.assertIn('callable(getattr(alignment_d3d11_preview_host, "replace_mesh_edit_triangles", None))', helper_body)
+
+        sync_start = source.index("def _sync_mesh_edit_preview_settings() -> None:")
+        sync_body = source[sync_start: source.index("def _refresh_mesh_edit_controls", sync_start)]
+        self.assertIn("if _alignment_d3d11_mesh_edit_commands_active():", sync_body)
+        self.assertLess(
+            sync_body.index("if _alignment_d3d11_mesh_edit_commands_active():"),
+            sync_body.index("alignment_d3d11_preview_host.set_mesh_edit_state("),
+        )
 
     def test_mesh_edit_disables_native_alignment_transform(self) -> None:
         source = _mesh_edit_source()

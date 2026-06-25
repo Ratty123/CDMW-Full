@@ -179,10 +179,9 @@ def _capture_hwnd_client(hwnd: int, output_path: Path) -> Mapping[str, Any]:
         user32.SetProcessDPIAware()
     except Exception:
         pass
-    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-    user32.SetForegroundWindow(hwnd)
-    user32.BringWindowToTop(hwnd)
-    time.sleep(0.3)
+    focus_report = _focus_window_for_input(hwnd)
+    if not _focus_report_targets_window(hwnd, focus_report):
+        return _diagnostic("focus_failed", "Game window did not have focus; skipped window capture.", hwnd=int(hwnd), **focus_report)
     rect = wintypes.RECT()
     left_top = wintypes.POINT(0, 0)
     right_bottom = wintypes.POINT(0, 0)
@@ -229,6 +228,10 @@ def _virtual_key_for_name(key: str) -> tuple[int, str]:
     }
     if key_text in aliases:
         return aliases[key_text]
+    if key_text.startswith("F") and key_text[1:].isdigit():
+        index = int(key_text[1:])
+        if 1 <= index <= 24:
+            return 0x6F + index, f"F{index}"
     return ord(key_text[:1]), key_text[:1]
 
 
@@ -237,6 +240,8 @@ def _focus_window_for_input(hwnd: int) -> Mapping[str, Any]:
 
     user32 = ctypes.windll.user32
     kernel32 = ctypes.windll.kernel32
+    target_pid = ctypes.c_ulong(0)
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(target_pid))
     user32.ShowWindow(hwnd, 9)
     current_thread = int(kernel32.GetCurrentThreadId())
     target_thread = int(user32.GetWindowThreadProcessId(hwnd, None))
@@ -252,11 +257,26 @@ def _focus_window_for_input(hwnd: int) -> Mapping[str, Any]:
         if attached:
             user32.AttachThreadInput(current_thread, target_thread, False)
     time.sleep(0.1)
+    foreground_hwnd = int(user32.GetForegroundWindow())
+    foreground_pid = ctypes.c_ulong(0)
+    if foreground_hwnd:
+        user32.GetWindowThreadProcessId(foreground_hwnd, ctypes.byref(foreground_pid))
     return {
         "foreground_ok": foreground_ok,
-        "foreground_hwnd": int(user32.GetForegroundWindow()),
+        "foreground_hwnd": foreground_hwnd,
+        "foreground_pid": int(foreground_pid.value),
+        "target_pid": int(target_pid.value),
         "attached_thread_input": attached,
     }
+
+
+def _focus_report_targets_window(hwnd: int, report: Mapping[str, Any]) -> bool:
+    foreground_hwnd = int(report.get("foreground_hwnd", 0) or 0)
+    if foreground_hwnd == int(hwnd):
+        return True
+    foreground_pid = int(report.get("foreground_pid", 0) or 0)
+    target_pid = int(report.get("target_pid", 0) or 0)
+    return bool(target_pid and foreground_pid == target_pid)
 
 
 def _send_input_scan_key(vk: int, *, hold_s: float) -> int:
@@ -329,6 +349,15 @@ def send_key_to_window(hwnd: int, key: str = "E", *, hold_s: float = 0.05) -> Ma
 
     vk, key_label = _virtual_key_for_name(key)
     focus_report = _focus_window_for_input(hwnd)
+    if not _focus_report_targets_window(hwnd, focus_report):
+        return {
+            "code": "focus_failed",
+            "message": f"Game window did not have focus; skipped key {key_label}.",
+            "key": key_label,
+            "hwnd": int(hwnd),
+            "sent_input_count": 0,
+            **focus_report,
+        }
     sent_count = _send_input_scan_key(vk, hold_s=hold_s)
     if sent_count < 2:
         return {
@@ -345,6 +374,125 @@ def send_key_to_window(hwnd: int, key: str = "E", *, hold_s: float = 0.05) -> Ma
         "key": key_label,
         "hwnd": int(hwnd),
         "sent_input_count": sent_count,
+        **focus_report,
+    }
+
+
+def click_window_client(
+    hwnd: int,
+    *,
+    button: str = "left",
+    x_ratio: float = 0.5,
+    y_ratio: float = 0.5,
+    hold_s: float = 0.05,
+) -> Mapping[str, Any]:
+    if os.name != "nt":
+        return _diagnostic("unsupported_platform", "Mouse input is only available on Windows.")
+
+    import ctypes
+    from ctypes import wintypes
+
+    button_key = str(button or "left").strip().lower()
+    button_flags = {
+        "left": (0x0002, 0x0004),
+        "right": (0x0008, 0x0010),
+        "middle": (0x0020, 0x0040),
+    }
+    if button_key not in button_flags:
+        return _diagnostic("unsupported_mouse_button", f"Unsupported mouse button: {button}", hwnd=int(hwnd), button=button_key)
+
+    focus_report = _focus_window_for_input(hwnd)
+    if not _focus_report_targets_window(hwnd, focus_report):
+        return {
+            "code": "focus_failed",
+            "message": f"Game window did not have focus; skipped {button_key} mouse click.",
+            "hwnd": int(hwnd),
+            "button": button_key,
+            "sent_input_count": 0,
+            **focus_report,
+        }
+
+    user32 = ctypes.windll.user32
+    rect = wintypes.RECT()
+    if not user32.GetClientRect(hwnd, ctypes.byref(rect)):
+        return _diagnostic("window_rect_failed", "Could not read game client bounds.", hwnd=int(hwnd), button=button_key, **focus_report)
+
+    width = max(1, int(rect.right - rect.left))
+    height = max(1, int(rect.bottom - rect.top))
+    point = wintypes.POINT(
+        max(0, min(width - 1, int(width * float(x_ratio)))),
+        max(0, min(height - 1, int(height * float(y_ratio)))),
+    )
+    if not user32.ClientToScreen(hwnd, ctypes.byref(point)):
+        return _diagnostic("client_to_screen_failed", "Could not map game client point to screen.", hwnd=int(hwnd), button=button_key, **focus_report)
+
+    x = int(point.x)
+    y = int(point.y)
+    if not bool(user32.SetCursorPos(x, y)):
+        return _diagnostic("mouse_move_failed", "Could not move cursor inside game window.", hwnd=int(hwnd), x=x, y=y, button=button_key, **focus_report)
+    down_flag, up_flag = button_flags[button_key]
+    user32.mouse_event(down_flag, 0, 0, 0, 0)
+    time.sleep(max(0.01, float(hold_s)))
+    user32.mouse_event(up_flag, 0, 0, 0, 0)
+    return {
+        "code": "mouse_click_sent",
+        "message": f"Sent {button_key} mouse click to game window.",
+        "hwnd": int(hwnd),
+        "button": button_key,
+        "x": x,
+        "y": y,
+        "sent_input_count": 2,
+        **focus_report,
+    }
+
+
+def interact_with_window_for_keyboard_prompts(hwnd: int, *, x_ratio: float = 0.15, y_ratio: float = 0.15) -> Mapping[str, Any]:
+    if os.name != "nt":
+        return _diagnostic("unsupported_platform", "Window interaction is only available on Windows.")
+
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    first_focus_report = _focus_window_for_input(hwnd)
+    rect = wintypes.RECT()
+    if not user32.GetClientRect(hwnd, ctypes.byref(rect)):
+        return _diagnostic("window_rect_failed", "Could not read game client bounds.", hwnd=int(hwnd), **first_focus_report)
+
+    width = max(1, int(rect.right - rect.left))
+    height = max(1, int(rect.bottom - rect.top))
+    point = wintypes.POINT(
+        max(0, min(width - 1, int(width * float(x_ratio)))),
+        max(0, min(height - 1, int(height * float(y_ratio)))),
+    )
+    if not user32.ClientToScreen(hwnd, ctypes.byref(point)):
+        return _diagnostic("client_to_screen_failed", "Could not map game client point to screen.", hwnd=int(hwnd), **first_focus_report)
+
+    x = int(point.x)
+    y = int(point.y)
+    moved = bool(user32.SetCursorPos(x, y)) and bool(user32.SetCursorPos(x + 1, y + 1))
+    if not moved:
+        return _diagnostic("mouse_move_failed", "Could not move cursor inside game window.", hwnd=int(hwnd), x=x, y=y, **first_focus_report)
+    user32.mouse_event(0x0002, 0, 0, 0, 0)
+    time.sleep(0.02)
+    user32.mouse_event(0x0004, 0, 0, 0, 0)
+    time.sleep(0.1)
+    focus_report = _focus_window_for_input(hwnd)
+    if not _focus_report_targets_window(hwnd, focus_report):
+        return {
+            "code": "focus_failed",
+            "message": "Game window did not have focus after prompt interaction.",
+            "hwnd": int(hwnd),
+            "x": x,
+            "y": y,
+            **focus_report,
+        }
+    return {
+        "code": "window_interacted_for_keyboard_prompts",
+        "message": "Focused game window and clicked inside client area.",
+        "hwnd": int(hwnd),
+        "x": x,
+        "y": y,
         **focus_report,
     }
 
@@ -434,8 +582,10 @@ __all__ = [
     "DEFAULT_CRIMSON_GAME_ROOT",
     "InGameCaptureResult",
     "capture_crimson_ingame_screenshot",
+    "click_window_client",
     "default_crimson_game_exe",
     "find_crimson_game_window",
+    "interact_with_window_for_keyboard_prompts",
     "launch_crimson_desert",
     "send_key_to_window",
     "wait_for_crimson_game_window",

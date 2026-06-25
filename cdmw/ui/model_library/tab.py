@@ -75,10 +75,13 @@ class ModelLibraryTab(
         self._inline_preview_loaded_payload: Optional[dict[str, object]] = None
         self._inline_d3d11_process: Optional[QProcess] = None
         self._inline_d3d11_active_package: Optional[Path] = None
+        self._inline_d3d11_retired_packages: list[Path] = []
         self._inline_d3d11_status_file: Optional[Path] = None
         self._inline_d3d11_status_mtime = 0.0
         self._inline_preview_loaded_texture_count = 0
         self._inline_preview_loaded_renderer_backend = ""
+        self._inline_preview_task_running = False
+        self._pending_inline_preview_request: Optional[tuple[Path, dict[str, object], bool]] = None
         self._pending_icon_generation_request_id = 0
         self._task_status_active = False
         self._result_sort_column = int(self.settings.value("model_library/result_sort_column", 1) or 1)
@@ -112,10 +115,6 @@ class ModelLibraryTab(
         self._result_items_by_payload_id: dict[int, QTreeWidgetItem] = {}
         self._checked_payloads_by_item: dict[int, dict[str, object]] = {}
         self._no_texture_download_item_ids: set[int] = set()
-        self._activation_preview_timer = QTimer(self)
-        self._activation_preview_timer.setSingleShot(True)
-        self._activation_preview_timer.setInterval(90)
-        self._activation_preview_timer.timeout.connect(self._schedule_auto_inline_preview)
         self._inline_d3d11_status_timer = QTimer(self)
         self._inline_d3d11_status_timer.setInterval(200)
         self._inline_d3d11_status_timer.timeout.connect(self._poll_inline_d3d11_status)
@@ -137,19 +136,25 @@ class ModelLibraryTab(
         controls_panel = build_controls_panel(self)
         results_panel = build_results_panel(self)
         preview_panel = build_preview_panel(self)
+        content_splitter = QSplitter(Qt.Orientation.Horizontal)
+        content_splitter.setChildrenCollapsible(False)
+        content_splitter.setHandleWidth(8)
         splitter.addWidget(controls_panel)
-        splitter.addWidget(results_panel)
-        splitter.addWidget(preview_panel)
+        splitter.addWidget(content_splitter)
+        content_splitter.addWidget(results_panel)
+        content_splitter.addWidget(preview_panel)
 
-        controls_min, _controls_pref, controls_max = responsive_sidebar_bounds(self, role="wide")
-        preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
+        controls_min, controls_pref, controls_max = responsive_sidebar_bounds(self, role="wide")
         controls_panel.setMinimumWidth(controls_min)
         controls_panel.setMaximumWidth(max(controls_max, 430))
-        preview_panel.setMinimumWidth(preview_min)
+        results_panel.setMinimumWidth(300)
+        preview_panel.setMinimumWidth(280)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setStretchFactor(2, 1)
-        splitter.setSizes([max(controls_min, 380), 760, preview_min])
+        splitter.setSizes([controls_pref, 900])
+        content_splitter.setStretchFactor(0, 1)
+        content_splitter.setStretchFactor(1, 1)
+        content_splitter.setSizes([460, 440])
 
         self._load_settings()
         self._refresh_roots_tree()

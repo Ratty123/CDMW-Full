@@ -27,6 +27,7 @@ CRIMSON_SHADER_FAMILIES = (
     "emissive",
     "emissive_v2",
     "static_multitextured",
+    "environment_water",
 )
 
 _FAMILY_DISPLAY_NAMES = {
@@ -38,6 +39,7 @@ _FAMILY_DISPLAY_NAMES = {
     "emissive": "Emissive",
     "emissive_v2": "Emissive_Ver2",
     "static_multitextured": "StaticMultiTextured",
+    "environment_water": "Environment Water",
 }
 
 _SUPPORTED_GLOBAL_MASK_FAMILIES = {
@@ -77,6 +79,21 @@ _DIRECT_SLOT_RULES = {
     "alphatexture": ("opacity", "crimson_opacity", {}, "opacity/cutout map"),
 }
 
+_WATER_ENVIRONMENT_RULES = {
+    "gwaternormaltexture": ("normal", "crimson_water_normal", "environment_layer", "Water surface normal input; keep runtime-owned"),
+    "gdisplacementtexture": ("height", "crimson_water_displacement", "environment_height", "Water displacement input; keep runtime-owned"),
+    "gshallowwaterheight": ("height", "crimson_water_height", "environment_height", "Shallow-water height simulation input; keep runtime-owned"),
+    "gshallowwatervelocity": ("layer", "crimson_water_velocity", "environment_simulation", "Shallow-water velocity simulation input; not a material texture"),
+    "gshallowwaterfoam": ("detail", "crimson_water_foam", "environment_layer", "Water foam layer input; keep runtime-owned"),
+    "gfoamtexture": ("detail", "crimson_water_foam", "environment_layer", "Water foam layer input; keep runtime-owned"),
+    "ggradienttexture": ("detail", "crimson_water_gradient", "environment_layer", "Water gradient/ramp input; keep runtime-owned"),
+    "gshallowwatermask": ("layer", "crimson_water_mask", "environment_mask", "Shallow-water mask input; not a source material slot"),
+    "grepuddlemask": ("layer", "crimson_puddle_mask", "environment_mask", "Puddle mask input; not a source material slot"),
+    "gnormaldepthhalf": ("layer", "crimson_normal_depth_buffer", "render_buffer", "Render buffer input; never promote as material texture"),
+    "gfdepthopaque": ("layer", "crimson_depth_buffer", "render_buffer", "Depth buffer input; never promote as material texture"),
+    "gbindlesstextures": ("material", "crimson_bindless_texture_table", "descriptor_table", "Bindless texture table; descriptor indices are not fixed material slots"),
+}
+
 
 @dataclass(frozen=True)
 class CrimsonShaderSlotRule:
@@ -91,6 +108,15 @@ class CrimsonShaderSlotRule:
 
 def _normalize_key(value: object) -> str:
     return "".join(ch for ch in str(value or "").strip().lower() if ch.isalnum())
+
+
+def _semantic_parameter_key(value: object) -> str:
+    text = str(value or "").strip()
+    if text.startswith("__"):
+        parts = [part for part in text.split("__") if part]
+        if parts:
+            return _normalize_key(parts[-1])
+    return _normalize_key(text)
 
 
 def normalize_shader_family(value: object) -> str:
@@ -110,6 +136,8 @@ def normalize_shader_family(value: object) -> str:
         return "cloth_v2" if "v2" in compact or "ver2" in compact else "cloth"
     if "emissive" in compact:
         return "emissive_v2" if "v2" in compact or "ver2" in compact else "emissive"
+    if any(marker in compact for marker in ("water", "shallowwater", "sea")):
+        return "environment_water"
     if "static" in compact and ("multi" in compact or "rgbtexture" in compact):
         return "static_multitextured"
     if "multitextured" in compact or "rgbtexture" in compact:
@@ -228,7 +256,7 @@ def decode_crimson_texture_binding(
 ) -> Dict[str, object]:
     family = normalize_shader_family(shader_family)
     parameter = str(parameter_name or "").strip()
-    parameter_key = _normalize_key(parameter)
+    parameter_key = _semantic_parameter_key(parameter)
     source = str(source_path or "").strip()
     slot = str(slot_name or "").strip().lower()
     subtype = str(semantic_subtype or "").strip().lower()
@@ -270,6 +298,28 @@ def decode_crimson_texture_binding(
                 "promoted_channels": dict(promoted),
                 "source_channels": dict(promoted),
                 "srgb": "true" if target_slot in {"base", "emissive"} else "false",
+                "known_slot": True,
+                "reason": reason,
+            }
+        )
+        return decode
+
+    water_rule = _WATER_ENVIRONMENT_RULES.get(parameter_key)
+    if water_rule is not None:
+        target_slot, source_kind, disposition, reason = water_rule
+        decode.update(
+            {
+                "slot": target_slot,
+                "source_kind": source_kind,
+                "authority": _authority_from_source(
+                    exact_rule=True,
+                    sidecar_kind=sidecar_kind,
+                    parameter_declared_by=parameter_declared_by,
+                    capture_inferred=capture_inferred,
+                    fallback_guess=fallback_guess,
+                ),
+                "disposition": disposition,
+                "srgb": "false",
                 "known_slot": True,
                 "reason": reason,
             }
@@ -746,6 +796,17 @@ def decode_profile_for_family(shader_family: object) -> Dict[str, object]:
         "capture_status": "not_captured",
         "renderdoc_truth_pass": renderdoc_truth_pass_checklist(),
     }
+    if family == "environment_water":
+        policy.update(
+            {
+                "capture_status": "captured_partial",
+                "material_profile_rule": {
+                    "recommended_profile": "material_authority_runtime_xml",
+                    "authority": AUTHORITY_CAPTURE_INFERRED,
+                    "reason": "RenderDoc rank 1 water draw uses runtime water, depth, bindless, and simulation inputs; preserve target XML/runtime bindings.",
+                },
+            }
+        )
     if family == "generic":
         policy["note"] = "unknown family; unresolved/diagnostic until sidecar or capture proves layout"
     return policy
@@ -783,6 +844,8 @@ def registry_manifest() -> Dict[str, object]:
             "_detailMaskTexture",
             "grime/detail/dye channel masks",
             "scratch roughness/metallic scalar hints",
+            "RenderDoc water environment globals",
+            "bindless descriptor tables",
         ],
         "unknown_policy": "unresolved_diagnostic",
     }

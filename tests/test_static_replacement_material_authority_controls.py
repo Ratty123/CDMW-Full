@@ -764,6 +764,20 @@ def test_material_authority_apply_sidecar_control_state_updates_widgets() -> Non
     assert unsafe.enabled is False
     assert unsafe.checked is False
 
+    enabled_complete = [WidgetProbe(), WidgetProbe()]
+    material_authority_apply_sidecar_control_state(
+        material_authority_sidecar_option_state(
+            sidecar_enabled=True,
+            complete_mode=True,
+            unsafe_preflight_checked=False,
+        ),
+        rebuild_sidecar_widget=WidgetProbe(),
+        dependent_widgets=[],
+        complete_widgets=enabled_complete,
+        unsafe_preflight_widget=WidgetProbe(),
+    )
+    assert [widget.enabled for widget in enabled_complete] == [True, True]
+
     forced_rebuild = WidgetProbe(checked=False)
     forced_state = material_authority_apply_sidecar_control_state(
         material_authority_sidecar_option_state(

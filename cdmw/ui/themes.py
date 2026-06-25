@@ -901,6 +901,11 @@ def build_app_stylesheet(
     QAbstractScrollArea {{
         background: transparent;
     }}
+    QScrollArea#ArchiveControlsScroll,
+    QWidget#ArchiveControlsViewport,
+    QWidget#ArchiveControlsWrapper {{
+        background: {theme["surface"]};
+    }}
     QListWidget::item {{
         padding: {metrics["list_pad_y"] + 1}px {metrics["list_pad_x"]}px;
         border-radius: 3px;
@@ -958,27 +963,22 @@ def build_app_stylesheet(
         border-radius: 4px;
         padding: 3px 6px;
     }}
-    QLabel#ArchiveCacheStatusChip[healthState="healthy"],
     QLabel#HintLabel[healthState="healthy"] {{
         color: #2fbf64;
         border-color: #2fbf64;
         font-weight: 700;
     }}
-    QLabel#ArchiveCacheStatusChip[healthState="building"],
     QLabel#HintLabel[healthState="building"] {{
         color: {theme["accent"]};
         border-color: {theme["accent"]};
         font-weight: 600;
     }}
-    QLabel#ArchiveCacheStatusChip[healthState="missing"],
-    QLabel#ArchiveCacheStatusChip[healthState="stale"],
     QLabel#HintLabel[healthState="missing"],
     QLabel#HintLabel[healthState="stale"] {{
         color: {theme["warning_text"]};
         border-color: {theme["warning_border"]};
         font-weight: 600;
     }}
-    QLabel#ArchiveCacheStatusChip[healthState="unhealthy"],
     QLabel#HintLabel[healthState="unhealthy"] {{
         color: {theme["error"]};
         border-color: {theme["error"]};

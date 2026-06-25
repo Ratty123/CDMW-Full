@@ -330,7 +330,6 @@ class ModelLibraryResultsMixin:
         self._pending_results_selected_payload = None
         self._populating_results = False
         self._update_selection_state()
-        self._schedule_auto_inline_preview()
 
     def _flush_results_population_batch(self) -> None:
         if not self._pending_results_rows:

@@ -48,6 +48,7 @@ class RenderDocCandidateTruthExportTests(unittest.TestCase):
         self.assertEqual(256, truth["pixel_shader"]["bytecode_length"])
         self.assertEqual("DXGI_FORMAT_R16G16B16A16_FLOAT", truth["render_target_formats"][0])
         self.assertEqual(44, truth["constant_buffers"][0]["resource"])
+        self.assertTrue(truth["normal_y_mode_unresolved"])
 
     def test_exports_shader_blob_manifest_metadata(self) -> None:
         report = {
@@ -197,6 +198,15 @@ class RenderDocCandidateTruthExportTests(unittest.TestCase):
                                         "address_v": "D3D12_TEXTURE_ADDRESS_MODE_WRAP",
                                         "source": "initial_contents_descriptor",
                                     },
+                                    {
+                                        "type": "CBV",
+                                        "heap": 7,
+                                        "index": 22,
+                                        "buffer_resource": 44,
+                                        "buffer_offset": 128,
+                                        "size_in_bytes": 256,
+                                        "source": "initial_contents_descriptor",
+                                    },
                                 ]
                             }
                         }
@@ -214,6 +224,8 @@ class RenderDocCandidateTruthExportTests(unittest.TestCase):
         self.assertEqual("initial_contents_descriptor", truth["srv_slots"][0]["source"])
         self.assertEqual("D3D12_FILTER_ANISOTROPIC", truth["sampler_states"][0]["filter"])
         self.assertEqual(5, truth["sampler_states"][0]["root_parameter"])
+        self.assertEqual(44, truth["constant_buffers"][0]["resource"])
+        self.assertEqual(256, truth["constant_buffers"][0]["size_in_bytes"])
 
     def test_cli_writes_truth_input(self) -> None:
         report = {

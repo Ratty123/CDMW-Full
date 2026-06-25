@@ -1016,7 +1016,8 @@ std::vector<NativeItemRecord> parse_iteminfo_bin(
         record.internal_name = name;
         const size_t search_end = std::min(data.size(), pos + 800);
         for (size_t scan = pos + 14; scan + 15 < search_end; ++scan) {
-            if (static_cast<unsigned char>(data[scan]) != 0x0E && static_cast<unsigned char>(data[scan]) != 0x0F) continue;
+            const unsigned char marker = static_cast<unsigned char>(data[scan]);
+            if (marker != 0x0E && marker != 0x0F && marker != 0x10) continue;
             const std::uint32_t count1 = read_u32(data, scan + 3);
             const std::uint32_t count2 = read_u32(data, scan + 7);
             if (!(count1 > 0 && count1 <= 5 && count2 > 0 && count2 <= 5)) continue;

@@ -55,6 +55,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     placement_context_note = context.get("placement_context_note")
     scene_import_result = context.get("scene_import_result")
     self = context.get("self")
+    full_import_model_replacement = bool(context.get("full_import_model_replacement"))
 
     control_tabs = QTabWidget(content_container)
     control_tabs.setObjectName("MeshAlignmentStickyWorkflowTabs")
@@ -93,6 +94,9 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     control_tabs.addTab(diagnostics_tab, alignment_workflow_control_text["diagnostics_label"])
     for tab_index, tab_label in enumerate(_alignment_workflow_tab_labels_helper()):
         control_tabs.setTabToolTip(tab_index, tab_label)
+    if full_import_model_replacement and hasattr(control_tabs, "setTabVisible"):
+        for advanced_tab in (parts_tab, mesh_edit_tab, textures_tab):
+            control_tabs.setTabVisible(control_tabs.indexOf(advanced_tab), False)
     diagnostics_page.setMinimumWidth(0 if embedded_alignment_builder else alignment_control_content_min_width)
     diagnostics_toolbar = QHBoxLayout()
     diagnostics_toolbar.setContentsMargins(5, 3, 5, 3)
@@ -144,6 +148,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     source_mix_control_text = _alignment_source_mix_control_text_helper()
     source_mix_tray = QGroupBox(source_mix_control_text["group_title"])
     source_mix_tray.setToolTip(source_mix_control_text["tray_tooltip"])
+    source_mix_tray.setVisible(not full_import_model_replacement)
     source_mix_tray.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
     source_mix_layout = QVBoxLayout(source_mix_tray)
     source_mix_layout.setContentsMargins(5, 3, 5, 3)

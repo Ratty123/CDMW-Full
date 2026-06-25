@@ -121,7 +121,7 @@ class ArchivePreviewLoadingMixin:
         self.archive_preview_loading_entry_name = entry.basename if entry is not None else "selected file"
         self.archive_preview_loading_loose = bool(self.archive_preview_requested_loose)
         self.archive_scan_progress_bar.setRange(0, 0)
-        self.archive_scan_progress_bar.setFormat("Loading preview...")
+        self.archive_scan_progress_bar.setFormat("Loading")
         self.set_status_message(
             f"Loading {'loose-file ' if self.archive_preview_loading_loose else ''}preview for {self.archive_preview_loading_entry_name}..."
         )
@@ -142,9 +142,11 @@ class ArchivePreviewLoadingMixin:
             return
         prefix = "Loading loose-file preview" if self.archive_preview_loading_loose else "Loading preview"
         detail = f"{prefix} for {self.archive_preview_loading_entry_name}... {elapsed:.1f}s"
-        self.archive_scan_progress_label.setText(detail)
+        self.archive_scan_progress_label.setText("Preview")
+        self.archive_scan_progress_label.setToolTip(detail)
         self.archive_scan_progress_bar.setRange(0, 0)
-        self.archive_scan_progress_bar.setFormat("Loading preview...")
+        self.archive_scan_progress_bar.setFormat("Loading")
+        self.archive_scan_progress_bar.setToolTip(detail)
         if not self.archive_preview_quick_result_active:
             self.archive_preview_meta_label.setText(f"{prefix}... {elapsed:.1f}s")
         loading_text = (
@@ -203,10 +205,12 @@ class ArchivePreviewLoadingMixin:
         self.archive_preview_quick_result_active = False
         if has_fast_result:
             message = "Fast preview remains visible; full preview timed out and was stopped."
-            self.archive_scan_progress_label.setText(message)
+            self.archive_scan_progress_label.setText("Preview timed out")
+            self.archive_scan_progress_label.setToolTip(message)
             self.archive_scan_progress_bar.setRange(0, 1)
             self.archive_scan_progress_bar.setValue(1)
             self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+            self.archive_scan_progress_bar.setToolTip(message)
             self._set_archive_preview_health_message(message, visible=True)
             self.set_status_message(message, error=True)
             return
@@ -233,15 +237,19 @@ class ArchivePreviewLoadingMixin:
             label = f"Preview ready for {entry_name}."
             if elapsed >= 1.0:
                 label = f"{label} ({elapsed:.1f}s)"
-            self.archive_scan_progress_label.setText(label)
+            self.archive_scan_progress_label.setText("Preview ready")
+            self.archive_scan_progress_label.setToolTip(label)
             self.archive_scan_progress_bar.setRange(0, 1)
             self.archive_scan_progress_bar.setValue(1)
             self.archive_scan_progress_bar.setFormat(self._archive_progress_format_text())
+            self.archive_scan_progress_bar.setToolTip(label)
         else:
             label = f"Preview failed for {entry_name}."
             if elapsed >= 1.0:
                 label = f"{label} ({elapsed:.1f}s)"
-            self.archive_scan_progress_label.setText(label)
+            self.archive_scan_progress_label.setText("Preview failed")
+            self.archive_scan_progress_label.setToolTip(label)
             self.archive_scan_progress_bar.setRange(0, 1)
             self.archive_scan_progress_bar.setValue(0)
             self.archive_scan_progress_bar.setFormat("Failed")
+            self.archive_scan_progress_bar.setToolTip(label)

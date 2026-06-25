@@ -230,19 +230,36 @@ def copied_source_texture_slot_overrides(
     """Convert copied-original source DDS intent into target-scoped overrides."""
     occupied = occupied_keys if occupied_keys is not None else set()
     disabled_sources = {int(index) for index in tuple(copied_original_texture_disabled_sources or ())}
+    copied_rows_by_source = copied_original_texture_intents_by_source if hasattr(copied_original_texture_intents_by_source, "get") else {}
+
+    def _target_rows(index: int) -> tuple[Mapping[str, object], ...]:
+        if not callable(original_part_texture_intent_rows):
+            return ()
+        return tuple(original_part_texture_intent_rows(index) or ())
+
+    def _slot_key(value: object) -> str:
+        if callable(texture_slot_contract_key):
+            return texture_slot_contract_key(str(value or ""))
+        return str(value or "").strip().lower() or "material"
+
+    def _source_label(index: int) -> str:
+        if callable(source_display_name):
+            return str(source_display_name(index))
+        return f"source {index}"
+
     overrides: list[StaticTextureSlotOverride] = []
     for mapping in tuple(parsed_mappings or ()):
         try:
             target_index = int(getattr(mapping, "target_submesh_index", -1))
         except (TypeError, ValueError):
             continue
-        target_rows = tuple(original_part_texture_intent_rows(target_index) or ())
+        target_rows = _target_rows(target_index)
         if not target_rows:
             continue
         target_rows_by_slot: dict[str, list[Mapping[str, object]]] = {}
         for target_row in target_rows:
             target_rows_by_slot.setdefault(
-                texture_slot_contract_key(str(target_row.get("slot_kind", "") or "")),
+                _slot_key(target_row.get("slot_kind", "")),
                 [],
             ).append(target_row)
         for source_index in tuple(getattr(mapping, "source_submesh_indices", ()) or ()):
@@ -252,14 +269,14 @@ def copied_source_texture_slot_overrides(
                 continue
             if source_index in disabled_sources:
                 continue
-            copied_rows = tuple(copied_original_texture_intents_by_source.get(source_index, ()) or ())
+            copied_rows = tuple(copied_rows_by_source.get(source_index, ()) or ())
             if not copied_rows:
                 continue
             for copied_row in copied_rows:
                 source_path = str(copied_row.get("source_path", "") or "").strip()
                 if not source_path:
                     continue
-                slot_key = texture_slot_contract_key(str(copied_row.get("slot_kind", "") or ""))
+                slot_key = _slot_key(copied_row.get("slot_kind", ""))
                 matching_target_rows = list(target_rows_by_slot.get(slot_key, ()))
                 if not matching_target_rows and slot_key == "base":
                     matching_target_rows = list(target_rows_by_slot.get("material", ()))
@@ -268,7 +285,7 @@ def copied_source_texture_slot_overrides(
                     slot_kind = str(target_row.get("slot_kind", "") or copied_row.get("slot_kind", "") or "material")
                     if not target_path:
                         continue
-                    override_key = (target_path.replace("\\", "/").lower(), texture_slot_contract_key(slot_kind))
+                    override_key = (target_path.replace("\\", "/").lower(), _slot_key(slot_kind))
                     if override_key in occupied:
                         continue
                     occupied.add(override_key)
@@ -279,7 +296,7 @@ def copied_source_texture_slot_overrides(
                             slot_kind=slot_kind,
                             target_material_name=str(getattr(mapping, "target_submesh_name", "") or ""),
                             enabled=True,
-                            source_material_name=source_display_name(source_index),
+                            source_material_name=_source_label(source_index),
                         )
                     )
     return tuple(overrides)

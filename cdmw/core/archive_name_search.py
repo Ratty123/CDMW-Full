@@ -21,7 +21,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
 from cdmw.models import ArchiveEntry
 
-_ARCHIVE_NAME_SEARCH_SHARD_META_VERSION = 1
+_ARCHIVE_NAME_SEARCH_SHARD_META_VERSION = 2
+_ARCHIVE_NAME_SEARCH_SHARD_META_SUPPORTED_VERSIONS = {1, _ARCHIVE_NAME_SEARCH_SHARD_META_VERSION}
 
 
 def _archive_base_dir(package_root: Path) -> Path:
@@ -941,6 +942,28 @@ def _write_native_name_search_index_binary(
     entry_count: int,
 ) -> None:
     binary_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def atomic_write(writer: Callable[[object], None]) -> None:
+        temp_path: Optional[Path] = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "wb",
+                delete=False,
+                dir=str(binary_path.parent),
+                prefix=f"{binary_path.name}.",
+                suffix=".tmp",
+            ) as handle:
+                temp_path = Path(handle.name)
+                writer(handle)
+            temp_path.replace(binary_path)
+        except Exception:
+            if temp_path is not None:
+                try:
+                    temp_path.unlink()
+                except OSError:
+                    pass
+            raise
+
     if (
         int(entry_count) == int(index.entry_count)
         and isinstance(index.token_rows, _LazyNativeNameSearchTokenRows)
@@ -950,9 +973,10 @@ def _write_native_name_search_index_binary(
                 return
         except OSError:
             pass
-        binary_path.write_bytes(index.token_rows.native_binary_data())
+        atomic_write(lambda handle: handle.write(index.token_rows.native_binary_data()))
         return
-    with binary_path.open("wb") as handle:
+
+    def write_index(handle: object) -> None:
         handle.write(b"CDNIDX1\0")
         handle.write(struct.pack("<III", 1, int(entry_count), len(index.token_rows)))
         for token in sorted(index.token_rows):
@@ -965,6 +989,8 @@ def _write_native_name_search_index_binary(
             handle.write(struct.pack("<I", len(rows)))
             if rows:
                 handle.write(struct.pack(f"<{len(rows)}I", *rows))
+
+    atomic_write(write_index)
 
 
 def _try_build_archive_name_search_index_native(
@@ -1259,7 +1285,7 @@ def _archive_name_search_shard_meta_matches(
     alias_signature: str,
 ) -> bool:
     return (
-        int(meta.get("version", 0) or 0) == _ARCHIVE_NAME_SEARCH_SHARD_META_VERSION
+        int(meta.get("version", 0) or 0) in _ARCHIVE_NAME_SEARCH_SHARD_META_SUPPORTED_VERSIONS
         and str(meta.get("relative_pamt_path") or "").replace("\\", "/") == group.relative_pamt_path.replace("\\", "/")
         and int(meta.get("entry_count", -1) or -1) == len(group.entries)
         and str(meta.get("entry_list_signature") or "") == group.entry_list_signature
@@ -1434,16 +1460,30 @@ def _load_or_update_archive_name_search_shards(
         binary_path = _archive_name_search_shard_binary_path(cache_dir, group.relative_pamt_path)
         meta_path = _archive_name_search_shard_meta_path(cache_dir, group.relative_pamt_path)
         source_shards[group.relative_pamt_path] = (binary_path, meta_path)
-        shard_indexes.append(
-            (
-                group.start_index,
-                _load_native_name_search_index_binary(
-                    binary_path,
-                    group.entries,
-                    on_progress=None,
-                ),
+        try:
+            shard_index = _load_native_name_search_index_binary(
+                binary_path,
+                group.entries,
+                on_progress=None,
             )
-        )
+        except Exception as exc:
+            if on_log is not None:
+                on_log(
+                    "Archive search cache shard binary could not be used; rebuilding "
+                    f"{group.relative_pamt_path}: {exc}"
+                )
+            shard_index = _build_archive_name_search_index_python(
+                group.entries,
+                item_search_aliases=item_search_aliases,
+                stop_event=stop_event,
+            )
+            _write_archive_name_search_index_shard(
+                cache_dir,
+                group,
+                shard_index,
+                alias_signature=alias_signature,
+            )
+        shard_indexes.append((group.start_index, shard_index))
         if on_progress is not None and (index == 1 or index % 20 == 0 or index == total_groups):
             on_progress(index, max(total_groups, 1), f"Loading archive search cache (2/3): path/name index... {index:,} / {total_groups:,}")
     token_rows = _MergedArchiveNameSearchTokenRows(shard_indexes, source_shards=source_shards)

@@ -173,14 +173,18 @@ def test_original_reference_preview_model_state_highlights_without_mutating_sour
     assert isinstance(preview, ModelPreviewData)
     assert preview is not original
     assert preview.meshes[0].preview_color == (0.22, 0.30, 0.38)
-    assert preview.meshes[1].preview_color == (1.0, 0.86, 0.08)
+    assert preview.meshes[1].preview_color == (1.0, 0.05, 0.95)
+    assert preview.meshes[1].preview_double_sided is True
+    assert preview.meshes[1].preview_role == "original_reference_selection"
+    assert preview.meshes[1].preview_native_material_overrides["material_shader_family"] == "gltf_unlit"
     assert original.meshes[1].preview_color == ()
     preserved = original_reference_preview_model_state(
         original,
         highlighted_indices=(1,),
         preserve_material_preview=True,
     )
-    assert preserved.meshes[1].preview_color == ()
+    assert preserved.meshes[1].preview_color == (1.0, 0.05, 0.95)
+    assert preserved.meshes[1].preview_role == "original_reference_selection"
 
 
 def test_original_overlay_preview_model_state_marks_original_meshes_and_highlights() -> None:
@@ -200,6 +204,8 @@ def test_original_overlay_preview_model_state_marks_original_meshes_and_highligh
     assert overlay.meshes[0].source_vertex_indices == []
     assert overlay.meshes[0].source_face_indices == []
     assert overlay.meshes[0].preview_color == (1.0, 0.72, 0.22)
+    assert overlay.meshes[0].preview_double_sided is True
+    assert overlay.meshes[0].preview_role == "original_reference_selection"
     assert overlay.meshes[1].preview_color == (0.30, 0.42, 0.54)
     assert original.meshes[0].source_submesh_index == 7
 
@@ -471,7 +477,7 @@ def test_source_selection_overlay_adjustments_reenables_and_adds_selected_source
     ]
 
 
-def test_apply_source_selection_overlay_mesh_state_clears_textures_and_marks_overlay() -> None:
+def test_apply_source_selection_overlay_mesh_state_preserves_textures_and_marks_overlay() -> None:
     mesh = ModelPreviewMesh(
         texture_name="base",
         preview_texture_path="base.dds",
@@ -481,27 +487,34 @@ def test_apply_source_selection_overlay_mesh_state_clears_textures_and_marks_ove
         preview_texture_tint=(1.0, 1.0, 1.0),
         preview_double_sided=False,
     )
-    mesh.preview_texture_image = object()
-    mesh.preview_normal_texture_image = object()
-    mesh.preview_material_texture_image = object()
-    mesh.preview_height_texture_image = object()
+    texture_image = object()
+    normal_image = object()
+    material_image = object()
+    height_image = object()
+    material_input = object()
+    mesh.preview_texture_image = texture_image
+    mesh.preview_normal_texture_image = normal_image
+    mesh.preview_material_texture_image = material_image
+    mesh.preview_height_texture_image = height_image
+    mesh.preview_material_texture_inputs = (material_input,)
 
     apply_source_selection_overlay_mesh_state(mesh, 7)
 
-    assert mesh.texture_name == ""
-    assert mesh.preview_texture_path == ""
-    assert mesh.preview_normal_texture_path == ""
-    assert mesh.preview_material_texture_path == ""
-    assert mesh.preview_height_texture_path == ""
-    assert mesh.preview_texture_image is None
-    assert mesh.preview_normal_texture_image is None
-    assert mesh.preview_material_texture_image is None
-    assert mesh.preview_height_texture_image is None
-    assert mesh.preview_material_texture_inputs == ()
-    assert mesh.preview_texture_tint == ()
-    assert mesh.preview_color == (0.05, 0.95, 1.0)
+    assert mesh.texture_name == "base"
+    assert mesh.preview_texture_path == "base.dds"
+    assert mesh.preview_normal_texture_path == "normal.dds"
+    assert mesh.preview_material_texture_path == "material.dds"
+    assert mesh.preview_height_texture_path == "height.dds"
+    assert mesh.preview_texture_image is texture_image
+    assert mesh.preview_normal_texture_image is normal_image
+    assert mesh.preview_material_texture_image is material_image
+    assert mesh.preview_height_texture_image is height_image
+    assert mesh.preview_material_texture_inputs == (material_input,)
+    assert mesh.preview_texture_tint == (1.0, 1.0, 1.0)
+    assert mesh.preview_color == (1.0, 0.05, 0.95)
     assert mesh.preview_double_sided is True
     assert mesh.preview_role == "replacement_source_selection_overlay"
+    assert mesh.preview_native_material_overrides["material_shader_family"] == "gltf_unlit"
     assert mesh.material_name == "selected source overlay 7"
 
 
@@ -517,7 +530,7 @@ def test_apply_source_selection_overlay_model_state_marks_valid_overlay_meshes()
     apply_source_selection_overlay_model_state(model)
 
     assert selected.source_submesh_index == 2_000_004
-    assert selected.preview_texture_path == ""
+    assert selected.preview_texture_path == "base.dds"
     assert selected.preview_role == "replacement_source_selection_overlay"
     assert selected.preview_double_sided is True
     assert ignored.source_submesh_index == -1

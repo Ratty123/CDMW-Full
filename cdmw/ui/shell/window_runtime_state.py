@@ -218,7 +218,6 @@ class ShellWindowRuntimeStateMixin:
         self.archive_item_icon_warmup_user_visible = False
         self.archive_item_icon_pixmap_cache_limit = 1200
         self.archive_item_icon_prepared_cache_limit = 1800
-        self.archive_item_icon_preload_limit = 1600
         self.archive_item_icon_warmup_thread: Optional[QThread] = None
         self.archive_item_icon_warmup_worker: Optional[ArchiveItemIconWarmupWorker] = None
         self.archive_item_icon_priority_queue: List[Dict[str, object]] = []

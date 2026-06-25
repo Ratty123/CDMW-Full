@@ -433,11 +433,36 @@ class AlignmentD3D11PackageWorker(QObject):
                     updated_dds[str(slot)] = retarget_descriptor(value)
             batch["dds_textures"] = updated_dds
 
+        def retarget_layer(value: object) -> object:
+            if not isinstance(value, Mapping):
+                return copy.deepcopy(value)
+            updated = copy.deepcopy(dict(value))
+            for path_key in (
+                "diffuse_source",
+                "mask_source",
+                "material_source",
+                "normal_source",
+                "height_source",
+            ):
+                resolved = cls._existing_package_file_path(package_dir, updated.get(path_key))
+                if resolved:
+                    updated[path_key] = resolved
+            return updated
+
+        material_layers = batch.get("material_layers")
+        if isinstance(material_layers, Sequence) and not isinstance(material_layers, (str, bytes, bytearray)):
+            batch["material_layers"] = [retarget_layer(item) for item in material_layers]
+        primary_material_layer = batch.get("primary_material_layer")
+        if isinstance(primary_material_layer, Mapping):
+            batch["primary_material_layer"] = retarget_layer(primary_material_layer)
+
     @classmethod
     def _replace_original_reference_with_native_package(
         cls,
         package_dir: Path,
         native_package_dir: Path,
+        *,
+        mirror_replacement_batches: bool = False,
     ) -> bool:
         try:
             package_dir = Path(package_dir)
@@ -456,34 +481,88 @@ class AlignmentD3D11PackageWorker(QObject):
             return False
         if not isinstance(native_batches, Sequence) or isinstance(native_batches, (str, bytes, bytearray)):
             return False
-        reference_batches: List[Dict[str, object]] = []
-        for raw_batch in native_batches:
-            if not isinstance(raw_batch, Mapping):
-                continue
-            batch = copy.deepcopy(dict(raw_batch))
-            cls._retarget_native_reference_batch_paths(batch, native_package_dir)
-            if not str(batch.get("vertex_file", "") or "").strip():
-                continue
-            batch["editor_role"] = "original_reference"
-            batch["role"] = "original_reference"
-            batch["editor_editable"] = False
-            batch["editable"] = False
-            batch["editor_part_name"] = str(
-                batch.get("material_name", "")
-                or batch.get("texture_name", "")
-                or f"original_{len(reference_batches)}"
-            ).strip()
-            reference_batches.append(batch)
+        def set_editor_identity(
+            batch: Dict[str, object],
+            *,
+            role: str,
+            editable: bool,
+            part_name: str,
+            fallback_source_index: Optional[int] = None,
+        ) -> None:
+            editor_identity = batch.get("editor_identity")
+            if not isinstance(editor_identity, dict):
+                editor_identity = {}
+                batch["editor_identity"] = editor_identity
+            if fallback_source_index is not None:
+                try:
+                    source_index = int(editor_identity.get("source_submesh_index", -1) or -1)
+                except (TypeError, ValueError, OverflowError):
+                    source_index = -1
+                if source_index < 0:
+                    editor_identity["source_submesh_index"] = int(fallback_source_index)
+            editor_identity["role"] = role
+            editor_identity["editable"] = bool(editable)
+            if part_name:
+                editor_identity["part_name"] = part_name
+            batch["editor_role"] = role
+            batch["role"] = role
+            batch["editor_editable"] = bool(editable)
+            batch["editable"] = bool(editable)
+            batch["editor_part_name"] = part_name
+
+        def native_batches_for_role(
+            *,
+            role: str,
+            editable: bool,
+            fallback_name_prefix: str,
+            fallback_source_indices: bool = False,
+        ) -> List[Dict[str, object]]:
+            role_batches: List[Dict[str, object]] = []
+            for raw_batch in native_batches:
+                if not isinstance(raw_batch, Mapping):
+                    continue
+                batch = copy.deepcopy(dict(raw_batch))
+                cls._retarget_native_reference_batch_paths(batch, native_package_dir)
+                if not str(batch.get("vertex_file", "") or "").strip():
+                    continue
+                part_name = str(
+                    batch.get("material_name", "")
+                    or batch.get("texture_name", "")
+                    or f"{fallback_name_prefix}_{len(role_batches)}"
+                ).strip()
+                set_editor_identity(
+                    batch,
+                    role=role,
+                    editable=editable,
+                    part_name=part_name,
+                    fallback_source_index=(len(role_batches) if fallback_source_indices else None),
+                )
+                role_batches.append(batch)
+            return role_batches
+
+        reference_batches = native_batches_for_role(
+            role="original_reference",
+            editable=False,
+            fallback_name_prefix="original",
+        )
         if not reference_batches:
             return False
         replacement_batches: List[Dict[str, object]] = []
-        for raw_batch in target_batches:
-            if not isinstance(raw_batch, Mapping):
-                continue
-            role = str(raw_batch.get("editor_role", raw_batch.get("role", "")) or "").strip().lower()
-            if role == "original_reference":
-                continue
-            replacement_batches.append(copy.deepcopy(dict(raw_batch)))
+        if mirror_replacement_batches:
+            replacement_batches = native_batches_for_role(
+                role="replacement_preview",
+                editable=True,
+                fallback_name_prefix="replacement",
+                fallback_source_indices=True,
+            )
+        else:
+            for raw_batch in target_batches:
+                if not isinstance(raw_batch, Mapping):
+                    continue
+                role = str(raw_batch.get("editor_role", raw_batch.get("role", "")) or "").strip().lower()
+                if role == "original_reference":
+                    continue
+                replacement_batches.append(copy.deepcopy(dict(raw_batch)))
         if not replacement_batches:
             return False
         merged_batches = reference_batches + replacement_batches
@@ -587,6 +666,12 @@ class AlignmentD3D11PackageWorker(QObject):
                 stop_event=self.stop_event,
                 on_progress=_emit_package_progress,
             )
+            if self.original_reference_native_package_dir is not None:
+                self._replace_original_reference_with_native_package(
+                    package_dir,
+                    self.original_reference_native_package_dir,
+                    mirror_replacement_batches=self.editor_workspace == "modify_original_alignment",
+                )
             package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
             if not self.stop_event.is_set():
                 _emit_progress(80, 100, "Preparing preview - package ready.")

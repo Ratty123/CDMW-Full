@@ -481,6 +481,39 @@ def test_copied_source_texture_slot_overrides_are_target_scoped_and_skip_disable
     )
 
 
+def test_copied_source_texture_slot_overrides_tolerates_missing_callbacks() -> None:
+    mappings = (SimpleNamespace(target_submesh_index=0, target_submesh_name="Body", source_submesh_indices=(1,)),)
+
+    assert copied_source_texture_slot_overrides(
+        mappings,
+        original_part_texture_intent_rows=None,  # type: ignore[arg-type]
+        copied_original_texture_intents_by_source={1: ({"slot_kind": "base", "source_path": "source/body.dds"},)},
+        copied_original_texture_disabled_sources=(),
+        source_display_name=None,  # type: ignore[arg-type]
+        texture_slot_contract_key=None,  # type: ignore[arg-type]
+    ) == ()
+
+    overrides = copied_source_texture_slot_overrides(
+        mappings,
+        original_part_texture_intent_rows=lambda _index: ({"slot_kind": "base", "texture_path": "target/body.dds"},),
+        copied_original_texture_intents_by_source={1: ({"slot_kind": "base", "source_path": "source/body.dds"},)},
+        copied_original_texture_disabled_sources=(),
+        source_display_name=None,  # type: ignore[arg-type]
+        texture_slot_contract_key=None,  # type: ignore[arg-type]
+    )
+
+    assert overrides == (
+        StaticTextureSlotOverride(
+            target_texture_path="target/body.dds",
+            source_path="source/body.dds",
+            slot_kind="base",
+            target_material_name="Body",
+            enabled=True,
+            source_material_name="source 1",
+        ),
+    )
+
+
 def test_copied_source_texture_slot_overrides_respects_occupied_keys() -> None:
     occupied = {("target/body.dds", "base")}
 

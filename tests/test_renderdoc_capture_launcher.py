@@ -32,6 +32,17 @@ class RenderDocCaptureLauncherTests(unittest.TestCase):
         self.assertIn("--working-dir", command)
         self.assertEqual(["--foo", "bar"], command[-2:])
 
+    def test_build_capture_command_can_wait_for_exit(self) -> None:
+        command = build_capture_command(
+            renderdoccmd=Path("C:/RenderDoc/renderdoccmd.exe"),
+            game_exe=Path("C:/game/bin64/CrimsonDesert.exe"),
+            capture_file=Path("C:/captures/frame.rdc"),
+            working_dir=Path("C:/game"),
+            wait_for_exit=True,
+        )
+
+        self.assertIn("--wait-for-exit", command)
+
     def test_build_inject_command_targets_existing_pid(self) -> None:
         command = build_inject_command(
             renderdoccmd=Path("C:/RenderDoc/renderdoccmd.exe"),

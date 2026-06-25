@@ -413,24 +413,3 @@ class ArchivePreviewResultMixin:
             )
             self.mesh_editor_tab.set_archive_selection(mesh_selection)
         self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
-        if not self.archive_entries:
-            self.archive_stats_label.setText("No archives scanned.")
-            return
-        render_note = ""
-        if not self._archive_tree_view_enabled():
-            rendered_entries = self.archive_tree.topLevelItemCount()
-            if rendered_entries < len(self.archive_filtered_entries):
-                render_note = f" First {max(0, rendered_entries):,} rows rendered; scroll to fetch more, refine filters, or use Folders view."
-        material_catalog_count = len(self._archive_material_catalog_rows())
-        catalog_note = (
-            f" Scope: {self.archive_active_asset_catalog_scope}. "
-            if self.archive_active_asset_catalog_scope
-            else f" Item Finder: {len(self.archive_item_asset_catalog):,} rows; Material Finder: {material_catalog_count:,} rows. "
-            if self.archive_item_asset_catalog
-            else ""
-        )
-        self.archive_stats_label.setText(
-            f"{len(self.archive_filtered_entries):,} shown / {len(self.archive_entries):,} total entries. "
-            f"DDS in current view: {self.archive_filtered_dds_count:,}. {catalog_note}"
-            f"Selected files: {selected_count:,}.{render_note}"
-        )

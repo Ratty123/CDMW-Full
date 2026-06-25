@@ -709,7 +709,7 @@ def _parse_archive_iteminfo_data(
         prefab_hashes: List[int] = []
         search_end = min(len(data), pos + 800)
         for scan in range(pos + 14, search_end - 15):
-            if data[scan] not in {0x0E, 0x0F}:
+            if data[scan] not in {0x0E, 0x0F, 0x10}:
                 continue
             count1 = struct.unpack_from("<I", data, scan + 3)[0]
             count2 = struct.unpack_from("<I", data, scan + 7)[0]

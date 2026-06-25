@@ -47,12 +47,73 @@ class CrimsonBinaryReference:
 
 
 @dataclass(frozen=True, slots=True)
+class CrimsonPrefabHeader:
+    magic: int
+    version: int
+    prefix_byte_length: int
+    first_string_offset: int
+
+
+@dataclass(frozen=True, slots=True)
+class CrimsonPrefabMemberDeclaration:
+    member_index: int
+    name_field_index: int
+    type_field_index: int
+    name_offset: int
+    type_offset: int
+    descriptor_offset: int
+    descriptor_byte_length: int
+    descriptor_words_le_u16: tuple[int, ...]
+    descriptor_kind: str
+    is_array: bool
+    is_reference: bool
+    is_transform: bool
+    array_stride_hint: int
+    array_count_hint: int
+    name: str
+    type_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class CrimsonPrefabByteSpan:
+    index: int
+    start: int
+    end: int
+    kind: str
+    field_index: int = -1
+
+
+@dataclass(frozen=True, slots=True)
+class CrimsonPrefabOffsetCandidate:
+    offset: int
+    value: int
+    target_kind: str
+    target_field_index: int
+
+
+@dataclass(frozen=True, slots=True)
+class CrimsonPrefabLayout:
+    byte_length: int
+    spans: tuple[CrimsonPrefabByteSpan, ...]
+    string_span_count: int
+    preserved_span_count: int
+    parsed_string_byte_count: int
+    preserved_byte_count: int
+    accounted_byte_count: int
+    fully_accounted: bool
+
+
+@dataclass(frozen=True, slots=True)
 class CrimsonPrefabDecode:
     references: tuple[CrimsonBinaryReference, ...]
     declared_fields: tuple[str, ...]
+    member_declarations: tuple[CrimsonPrefabMemberDeclaration, ...]
+    offset_candidates: tuple[CrimsonPrefabOffsetCandidate, ...]
     material_parameter_markers: tuple[str, ...]
     patchable_reference_count: int
     write_policy: str
+    header: CrimsonPrefabHeader
+    layout: CrimsonPrefabLayout
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +183,204 @@ def _declared_binary_field_names(data: bytes) -> tuple[str, ...]:
     return tuple(names)
 
 
+def _prefab_header(data: bytes) -> CrimsonPrefabHeader:
+    payload = bytes(data or b"")
+    magic = struct.unpack_from("<H", payload, 0)[0] if len(payload) >= 2 else 0
+    version = struct.unpack_from("<H", payload, 2)[0] if len(payload) >= 4 else 0
+    fields = parse_length_prefixed_string_fields(payload, max_length=4096)
+    first_string_offset = int(fields[0].offset) if fields else -1
+    prefix_byte_length = first_string_offset if first_string_offset >= 0 else len(payload)
+    return CrimsonPrefabHeader(
+        magic=magic,
+        version=version,
+        prefix_byte_length=prefix_byte_length,
+        first_string_offset=first_string_offset,
+    )
+
+
+def _looks_like_member_name(value: str) -> bool:
+    text = str(value or "").strip()
+    return bool(text.startswith("_") and "/" not in text and "\\" not in text and "." not in text)
+
+
+def _looks_like_member_type(value: str) -> bool:
+    text = str(value or "").strip()
+    if not text or text.startswith("_"):
+        return False
+    return "/" not in text and "\\" not in text
+
+
+def _prefab_descriptor_words(data: bytes, offset: int, byte_length: int) -> tuple[int, ...]:
+    if byte_length < 2 or offset < 0 or offset >= len(data):
+        return ()
+    word_count = min(byte_length // 2, 4)
+    end = offset + word_count * 2
+    if end > len(data):
+        return ()
+    return tuple(int(value) for value in struct.unpack_from(f"<{word_count}H", data, offset))
+
+
+def _prefab_descriptor_kind(name: str, type_name: str, words: Sequence[int]) -> tuple[str, bool, bool, bool]:
+    normalized_name = str(name or "").strip().lower()
+    normalized_type = str(type_name or "").strip().lower()
+    is_array = normalized_type.startswith("vector<") or normalized_type.endswith("[]")
+    if normalized_name.endswith("list") and len(words) >= 3 and (int(words[2]) & 0x1000):
+        is_array = True
+    is_reference = normalized_type in {"reflectobject", "reflectobjectptr"} or "referencepath" in normalized_type
+    is_transform = normalized_type in {"transform", "tiledtransform"} or normalized_type.endswith("transform")
+    if is_transform:
+        return "transform", is_array, is_reference, True
+    if is_array:
+        return "array", True, is_reference, False
+    if is_reference:
+        return "reference", False, True, False
+    if normalized_type == "bool":
+        return "bool", False, False, False
+    if normalized_type in {"uint64", "uint32", "uint16", "uint8", "int64", "int32", "int16", "int8", "float", "double"}:
+        return "scalar", False, False, False
+    if normalized_type in {"indexedstringa", "staticstringa"} or normalized_type.startswith("resource"):
+        return "string", False, is_reference, False
+    if words:
+        return "descriptor", False, False, False
+    return "unknown", False, False, False
+
+
+def _prefab_member_declarations(data: bytes) -> tuple[CrimsonPrefabMemberDeclaration, ...]:
+    fields = parse_length_prefixed_string_fields(data, max_length=256)
+    declarations: list[CrimsonPrefabMemberDeclaration] = []
+    for index, field in enumerate(fields[:-1]):
+        type_field = fields[index + 1]
+        if not _looks_like_member_name(field.text) or not _looks_like_member_type(type_field.text):
+            continue
+        descriptor_offset = type_field.offset + 4 + type_field.length
+        next_offset = fields[index + 2].offset if index + 2 < len(fields) else descriptor_offset
+        descriptor_byte_length = max(0, next_offset - descriptor_offset)
+        descriptor_words = _prefab_descriptor_words(data, descriptor_offset, descriptor_byte_length)
+        descriptor_kind, is_array, is_reference, is_transform = _prefab_descriptor_kind(
+            field.text,
+            type_field.text,
+            descriptor_words,
+        )
+        array_stride_hint = int(descriptor_words[1]) if is_array and len(descriptor_words) > 1 else 0
+        array_count_hint = int(descriptor_words[3]) if is_array and len(descriptor_words) > 3 else 0
+        declarations.append(
+            CrimsonPrefabMemberDeclaration(
+                member_index=len(declarations),
+                name_field_index=field.index,
+                type_field_index=type_field.index,
+                name_offset=field.offset,
+                type_offset=type_field.offset,
+                descriptor_offset=descriptor_offset,
+                descriptor_byte_length=descriptor_byte_length,
+                descriptor_words_le_u16=descriptor_words,
+                descriptor_kind=descriptor_kind,
+                is_array=is_array,
+                is_reference=is_reference,
+                is_transform=is_transform,
+                array_stride_hint=array_stride_hint,
+                array_count_hint=array_count_hint,
+                name=field.text,
+                type_name=type_field.text,
+            )
+        )
+    return tuple(declarations)
+
+
+def _prefab_layout(data: bytes) -> CrimsonPrefabLayout:
+    payload = bytes(data or b"")
+    spans: list[CrimsonPrefabByteSpan] = []
+    cursor = 0
+    string_span_count = 0
+    preserved_span_count = 0
+    parsed_string_byte_count = 0
+    preserved_byte_count = 0
+    fields = sorted(parse_length_prefixed_string_fields(payload, max_length=4096), key=lambda field: (field.offset, field.length))
+    for field in fields:
+        start = int(field.offset)
+        end = start + 4 + int(field.length)
+        if start < cursor:
+            continue
+        if start > cursor:
+            preserved_byte_count += start - cursor
+            preserved_span_count += 1
+            spans.append(
+                CrimsonPrefabByteSpan(
+                    index=len(spans),
+                    start=cursor,
+                    end=start,
+                    kind="preserved",
+                )
+            )
+        parsed_string_byte_count += end - start
+        string_span_count += 1
+        spans.append(
+            CrimsonPrefabByteSpan(
+                index=len(spans),
+                start=start,
+                end=end,
+                kind="string_field",
+                field_index=field.index,
+            )
+        )
+        cursor = end
+    if cursor < len(payload):
+        preserved_byte_count += len(payload) - cursor
+        preserved_span_count += 1
+        spans.append(
+            CrimsonPrefabByteSpan(
+                index=len(spans),
+                start=cursor,
+                end=len(payload),
+                kind="preserved",
+            )
+        )
+    accounted = parsed_string_byte_count + preserved_byte_count
+    return CrimsonPrefabLayout(
+        byte_length=len(payload),
+        spans=tuple(spans),
+        string_span_count=string_span_count,
+        preserved_span_count=preserved_span_count,
+        parsed_string_byte_count=parsed_string_byte_count,
+        preserved_byte_count=preserved_byte_count,
+        accounted_byte_count=accounted,
+        fully_accounted=accounted == len(payload),
+    )
+
+
+def _prefab_offset_candidates(data: bytes, layout: CrimsonPrefabLayout | None = None) -> tuple[CrimsonPrefabOffsetCandidate, ...]:
+    payload = bytes(data or b"")
+    prefab_layout = layout if isinstance(layout, CrimsonPrefabLayout) else _prefab_layout(payload)
+    target_offsets: dict[int, tuple[str, int]] = {}
+    for field in parse_length_prefixed_string_fields(payload, max_length=4096):
+        target_offsets[int(field.offset)] = ("string_length_prefix", field.index)
+        target_offsets[int(field.offset) + 4] = ("string_value", field.index)
+        target_offsets[int(field.offset) + 4 + int(field.length)] = ("string_end", field.index)
+    candidates: list[CrimsonPrefabOffsetCandidate] = []
+    seen: set[tuple[int, int]] = set()
+    for span in prefab_layout.spans:
+        if span.kind != "preserved":
+            continue
+        for offset in range(span.start, max(span.start, span.end - 3)):
+            value = struct.unpack_from("<I", payload, offset)[0]
+            target = target_offsets.get(value)
+            if target is None:
+                continue
+            key = (offset, value)
+            if key in seen:
+                continue
+            seen.add(key)
+            target_kind, field_index = target
+            candidates.append(
+                CrimsonPrefabOffsetCandidate(
+                    offset=offset,
+                    value=value,
+                    target_kind=target_kind,
+                    target_field_index=field_index,
+                )
+            )
+    return tuple(candidates)
+
+
 def decode_prefab(data: bytes) -> CrimsonPrefabDecode:
     declared = _declared_binary_field_names(data)
     material_markers = tuple(
@@ -130,14 +389,168 @@ def decode_prefab(data: bytes) -> CrimsonPrefabDecode:
         if any(token in name.lower() for token in ("material", "texture", "shader", "prefabmaterial"))
     )
     references = _binary_references(data)
-    patchable_count = sum(1 for reference in references if reference.role in {"model", "material_sidecar", "texture"})
+    patchable_count = sum(
+        1
+        for reference in references
+        if reference.role in {"model", "material_sidecar", "texture", "companion_metadata"}
+    )
+    layout = _prefab_layout(data)
     return CrimsonPrefabDecode(
         references=references,
         declared_fields=declared,
+        member_declarations=_prefab_member_declarations(data),
+        offset_candidates=_prefab_offset_candidates(data, layout),
         material_parameter_markers=material_markers,
         patchable_reference_count=patchable_count,
         write_policy="same-length ResourceReferencePath string patches only; no binary structure resizing",
+        header=_prefab_header(data),
+        layout=layout,
     )
+
+
+def rebuild_prefab_no_edit(data: bytes) -> bytes:
+    payload = bytes(data or b"")
+    layout = decode_prefab(payload).layout
+    if not layout.fully_accounted:
+        raise ValueError("Prefab layout is not fully byte-accounted.")
+    rebuilt = bytearray()
+    cursor = 0
+    for span in layout.spans:
+        if span.start != cursor:
+            raise ValueError("Prefab layout has a gap or overlap.")
+        if span.start < 0 or span.end < span.start or span.end > len(payload):
+            raise ValueError("Prefab layout span points outside the payload.")
+        if span.kind not in {"preserved", "string_field"}:
+            raise ValueError(f"Unsupported prefab layout span kind: {span.kind}.")
+        rebuilt.extend(payload[span.start : span.end])
+        cursor = span.end
+    if cursor != len(payload) or len(rebuilt) != layout.byte_length:
+        raise ValueError("Prefab layout rebuild did not account for the full payload.")
+    return bytes(rebuilt)
+
+
+def rebuild_prefab_same_length_strings(data: bytes, replacements_by_field_index: Mapping[int, str]) -> bytes:
+    payload = bytes(data or b"")
+    decoded = decode_prefab(payload)
+    layout = decoded.layout
+    if not layout.fully_accounted:
+        raise ValueError("Prefab layout is not fully byte-accounted.")
+    fields = {field.index: field for field in parse_length_prefixed_string_fields(payload, max_length=4096)}
+    replacements = {
+        int(field_index): str(value or "")
+        for field_index, value in dict(replacements_by_field_index or {}).items()
+    }
+    rebuilt = bytearray()
+    cursor = 0
+    for span in layout.spans:
+        if span.start != cursor:
+            raise ValueError("Prefab layout has a gap or overlap.")
+        if span.start < 0 or span.end < span.start or span.end > len(payload):
+            raise ValueError("Prefab layout span points outside the payload.")
+        if span.kind == "preserved":
+            rebuilt.extend(payload[span.start : span.end])
+            cursor = span.end
+            continue
+        if span.kind != "string_field":
+            raise ValueError(f"Unsupported prefab layout span kind: {span.kind}.")
+        field = fields.get(span.field_index)
+        if not isinstance(field, StructuredStringField):
+            raise ValueError("Prefab layout string span does not resolve to a parsed string field.")
+        if field.offset != span.start or field.offset + 4 + field.length != span.end:
+            raise ValueError("Prefab layout string span does not match parsed string field bounds.")
+        replacement = replacements.get(field.index)
+        if replacement is None:
+            rebuilt.extend(payload[span.start : span.end])
+            cursor = span.end
+            continue
+        encoded = replacement.encode("utf-8")
+        if len(encoded) != field.length:
+            raise ValueError(
+                f"Prefab string field {field.index} replacement must be exactly {field.length} byte(s); "
+                f"{replacement!r} is {len(encoded)} byte(s)."
+            )
+        current_length = struct.unpack_from("<I", payload, field.offset)[0]
+        if current_length != field.length:
+            raise ValueError("Prefab string length prefix changed before rebuilding.")
+        rebuilt.extend(payload[span.start : span.start + 4])
+        rebuilt.extend(encoded)
+        cursor = span.end
+    if cursor != len(payload) or len(rebuilt) != layout.byte_length:
+        raise ValueError("Prefab layout rebuild did not account for the full payload.")
+    return bytes(rebuilt)
+
+
+def rebuild_prefab_resized_strings(data: bytes, replacements_by_field_index: Mapping[int, str]) -> bytes:
+    payload = bytes(data or b"")
+    decoded = decode_prefab(payload)
+    layout = decoded.layout
+    if not layout.fully_accounted:
+        raise ValueError("Prefab layout is not fully byte-accounted.")
+    fields = {field.index: field for field in parse_length_prefixed_string_fields(payload, max_length=4096)}
+    replacements = {
+        int(field_index): str(value or "")
+        for field_index, value in dict(replacements_by_field_index or {}).items()
+    }
+    encoded_replacements: dict[int, bytes] = {}
+    field_deltas: list[tuple[int, int]] = []
+    for field_index, replacement in replacements.items():
+        field = fields.get(field_index)
+        if not isinstance(field, StructuredStringField):
+            continue
+        current_length = struct.unpack_from("<I", payload, field.offset)[0]
+        if current_length != field.length:
+            raise ValueError("Prefab string length prefix changed before rebuilding.")
+        encoded = replacement.encode("utf-8")
+        encoded_replacements[field_index] = encoded
+        delta = len(encoded) - int(field.length)
+        if delta:
+            field_deltas.append((field.offset + 4 + field.length, delta))
+    field_deltas.sort()
+
+    def shifted(position: int) -> int:
+        return int(position) + sum(delta for end, delta in field_deltas if end <= int(position))
+
+    candidates_by_offset = {candidate.offset: candidate for candidate in decoded.offset_candidates}
+    rebuilt = bytearray()
+    cursor = 0
+    for span in layout.spans:
+        if span.start != cursor:
+            raise ValueError("Prefab layout has a gap or overlap.")
+        if span.start < 0 or span.end < span.start or span.end > len(payload):
+            raise ValueError("Prefab layout span points outside the payload.")
+        if span.kind == "preserved":
+            segment = bytearray(payload[span.start : span.end])
+            patched_candidates: list[tuple[int, int]] = []
+            for offset, candidate in candidates_by_offset.items():
+                if offset < span.start or offset + 4 > span.end:
+                    continue
+                local_offset = offset - span.start
+                value = shifted(candidate.value)
+                struct.pack_into("<I", segment, local_offset, value)
+                patched_candidates.append((local_offset, value))
+            for local_offset, value in patched_candidates:
+                if struct.unpack_from("<I", segment, local_offset)[0] != value:
+                    raise ValueError("Prefab offset candidates overlap; length-changing rebuild is ambiguous.")
+            rebuilt.extend(segment)
+            cursor = span.end
+            continue
+        if span.kind != "string_field":
+            raise ValueError(f"Unsupported prefab layout span kind: {span.kind}.")
+        field = fields.get(span.field_index)
+        if not isinstance(field, StructuredStringField):
+            raise ValueError("Prefab layout string span does not resolve to a parsed string field.")
+        if field.offset != span.start or field.offset + 4 + field.length != span.end:
+            raise ValueError("Prefab layout string span does not match parsed string field bounds.")
+        encoded = encoded_replacements.get(field.index)
+        if encoded is None:
+            rebuilt.extend(payload[span.start : span.end])
+        else:
+            rebuilt.extend(len(encoded).to_bytes(4, "little"))
+            rebuilt.extend(encoded)
+        cursor = span.end
+    if cursor != len(payload):
+        raise ValueError("Prefab layout rebuild did not account for the full payload.")
+    return bytes(rebuilt)
 
 
 def decode_meshinfo(data: bytes) -> CrimsonMeshInfoDecode:
@@ -240,7 +653,7 @@ def build_prefab_resource_path_patch(
     *,
     roles: Sequence[str] = ("model", "material_sidecar", "texture"),
 ) -> PrefabResourcePathPatchResult:
-    payload = bytearray(data or b"")
+    payload = bytes(data or b"")
     normalized_replacements = {
         str(old or "").replace("\\", "/").strip(): str(new or "").replace("\\", "/").strip()
         for old, new in dict(replacements or {}).items()
@@ -248,11 +661,12 @@ def build_prefab_resource_path_patch(
     }
     allowed_roles = {str(role or "").strip().lower() for role in tuple(roles or ()) if str(role or "").strip()}
     proof: list[str] = [
-        "Prefab resource path patch uses recovered length-prefixed UTF-8 strings.",
+        "Prefab resource path patch uses recovered length-prefixed UTF-8 strings and the prefab layout encoder.",
         "Only exact-length replacements are allowed, so binary offsets and following fields do not move.",
     ]
     patched_count = 0
-    for reference in decode_prefab(data).references:
+    replacements_by_field_index: dict[int, str] = {}
+    for reference in decode_prefab(payload).references:
         if allowed_roles and reference.role not in allowed_roles:
             continue
         old_text = reference.text.replace("\\", "/").strip()
@@ -270,15 +684,14 @@ def build_prefab_resource_path_patch(
                 f"Prefab replacement for {old_text!r} must be exactly {reference.field.length} byte(s); "
                 f"{new_text!r} is {len(encoded)} byte(s)."
             )
-        start = int(reference.field.offset) + 4
-        end = start + int(reference.field.length)
         current_length = struct.unpack_from("<I", payload, int(reference.field.offset))[0]
         if current_length != int(reference.field.length):
             raise ValueError("Prefab string length prefix changed before patching.")
-        payload[start:end] = encoded
+        replacements_by_field_index[reference.field.index] = new_text
         patched_count += 1
         proof.append(f"{reference.role}: {old_text} -> {new_text}")
-    return PrefabResourcePathPatchResult(data=bytes(payload), patched_count=patched_count, proof_lines=tuple(proof))
+    patched = rebuild_prefab_same_length_strings(payload, replacements_by_field_index) if replacements_by_field_index else payload
+    return PrefabResourcePathPatchResult(data=patched, patched_count=patched_count, proof_lines=tuple(proof))
 
 
 def complete_swap_file_policy(extension: str) -> str:
@@ -303,6 +716,11 @@ __all__ = [
     "CrimsonMaterialInstance",
     "CrimsonMeshInfoDecode",
     "CrimsonPaaMetabinDecode",
+    "CrimsonPrefabByteSpan",
+    "CrimsonPrefabHeader",
+    "CrimsonPrefabLayout",
+    "CrimsonPrefabMemberDeclaration",
+    "CrimsonPrefabOffsetCandidate",
     "CrimsonPrefabDecode",
     "CrimsonTextureParameter",
     "PrefabResourcePathPatchResult",
@@ -312,4 +730,7 @@ __all__ = [
     "decode_paa_metabin",
     "decode_prefab",
     "parse_pami_material_instances",
+    "rebuild_prefab_no_edit",
+    "rebuild_prefab_resized_strings",
+    "rebuild_prefab_same_length_strings",
 ]

@@ -79,7 +79,12 @@ class RenderDocDrawTruthCandidateTests(unittest.TestCase):
     <uint name="RootParameterIndex">4</uint>
     <struct name="BaseDescriptor"><ResourceId name="heap">9</ResourceId><uint name="index">100</uint></struct>
   </chunk>
-  <chunk chunkIndex="9" name="ID3D12GraphicsCommandList::DrawIndexedInstanced" threadID="1">
+  <chunk chunkIndex="9" name="ID3D12GraphicsCommandList::SetGraphicsRootConstantBufferView" threadID="1">
+    <ResourceId name="pCommandList">11</ResourceId>
+    <uint name="RootParameterIndex">1</uint>
+    <struct name="BufferLocation"><ResourceId name="Buffer">55</ResourceId><uint name="Offset">256</uint></struct>
+  </chunk>
+  <chunk chunkIndex="10" name="ID3D12GraphicsCommandList::DrawIndexedInstanced" threadID="1">
     <ResourceId name="pCommandList">11</ResourceId>
     <uint name="IndexCountPerInstance">123</uint><uint name="InstanceCount">1</uint>
     <uint name="StartIndexLocation">0</uint><int name="BaseVertexLocation">0</int>
@@ -99,6 +104,8 @@ class RenderDocDrawTruthCandidateTests(unittest.TestCase):
         self.assertEqual("SRV", descriptor["type"])
         self.assertEqual("DXGI_FORMAT_BC7_UNORM_SRGB", descriptor["resource_desc"]["format"])
         self.assertEqual(256, candidate["pipeline_description"]["shaders"]["PS"]["byte_length"])
+        self.assertEqual(55, candidate["state"]["root_cbvs"]["1"]["resource"])
+        self.assertEqual(256, candidate["state"]["root_cbvs"]["1"]["offset"])
         self.assertEqual("D3D12_CULL_MODE_BACK", candidate["pipeline_description"]["raster_state"]["cull_mode"])
         self.assertEqual("DXGI_FORMAT_R16G16B16A16_FLOAT", candidate["pipeline_description"]["rtv_formats"][0])
         self.assertEqual(64, candidate["root_signature_description"]["blob_length"])
@@ -170,6 +177,138 @@ class RenderDocDrawTruthCandidateTests(unittest.TestCase):
         self.assertEqual(2048, descriptor["resource_desc"]["width"])
         self.assertEqual("WeaponAlbedo", descriptor["resource_desc"]["name"])
         self.assertEqual(1, report["resource_name_count"])
+
+    def test_preserves_initial_descriptor_cbv_and_sampler_types(self) -> None:
+        xml = """<capture>
+  <chunk chunkIndex="1" name="Internal::Initial Contents">
+    <array>
+      <struct typename="D3D12Descriptor">
+        <enum name="type" string="CBV">4096</enum>
+        <ResourceId name="heap">9</ResourceId><uint name="index">100</uint>
+        <struct name="Descriptor">
+          <struct name="BufferLocation"><ResourceId name="Buffer">42</ResourceId><uint name="Offset">64</uint></struct>
+          <uint name="SizeInBytes">256</uint>
+        </struct>
+      </struct>
+      <struct typename="D3D12Descriptor">
+        <enum name="type" string="Sampler">0</enum>
+        <ResourceId name="heap">9</ResourceId><uint name="index">101</uint>
+        <struct name="Descriptor">
+          <enum name="Filter" string="D3D12_FILTER_ANISOTROPIC">85</enum>
+          <enum name="AddressU" string="D3D12_TEXTURE_ADDRESS_MODE_WRAP">1</enum>
+          <enum name="AddressV" string="D3D12_TEXTURE_ADDRESS_MODE_CLAMP">3</enum>
+          <uint name="MaxAnisotropy">16</uint>
+        </struct>
+      </struct>
+    </array>
+  </chunk>
+  <chunk chunkIndex="2" name="ID3D12GraphicsCommandList::SetGraphicsRootDescriptorTable">
+    <ResourceId name="pCommandList">11</ResourceId>
+    <uint name="RootParameterIndex">4</uint>
+    <struct name="BaseDescriptor"><ResourceId name="heap">9</ResourceId><uint name="index">100</uint></struct>
+  </chunk>
+  <chunk chunkIndex="3" name="ID3D12GraphicsCommandList::DrawIndexedInstanced">
+    <ResourceId name="pCommandList">11</ResourceId>
+    <uint name="IndexCountPerInstance">3</uint><uint name="InstanceCount">1</uint>
+  </chunk>
+</capture>"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "capture.xml"
+            path.write_text(xml, encoding="utf-8")
+
+            report = locate_draw_truth_candidates(path, descriptor_window=2)
+
+        descriptors = report["candidates"][0]["state"]["root_descriptor_tables"]["4"]["descriptors"]
+        self.assertEqual("CBV", descriptors[0]["type"])
+        self.assertEqual(42, descriptors[0]["buffer_resource"])
+        self.assertEqual(256, descriptors[0]["size_in_bytes"])
+        self.assertEqual("Sampler", descriptors[1]["type"])
+        self.assertEqual("D3D12_FILTER_ANISOTROPIC", descriptors[1]["filter"])
+
+    def test_ranks_material_draw_before_earlier_screen_triangle(self) -> None:
+        xml = """<capture>
+  <chunk chunkIndex="1" name="ID3D12Device10::Device_CreatePlacedResource2">
+    <struct name="pDesc">
+      <enum name="Dimension" string="D3D12_RESOURCE_DIMENSION_TEXTURE2D">3</enum>
+      <uint name="Width">2048</uint><uint name="Height">1024</uint>
+      <uint name="DepthOrArraySize">1</uint><uint name="MipLevels">10</uint>
+      <enum name="Format" string="DXGI_FORMAT_BC7_UNORM_SRGB">99</enum>
+    </struct>
+    <ResourceId name="pResource">42</ResourceId>
+  </chunk>
+  <chunk chunkIndex="2" name="Internal::Initial Contents">
+    <array>
+      <struct typename="D3D12Descriptor">
+        <enum name="type" string="SRV">4097</enum>
+        <ResourceId name="heap">9</ResourceId><uint name="index">100</uint>
+        <ResourceId name="Resource">42</ResourceId>
+        <struct name="Descriptor">
+          <enum name="Format" string="DXGI_FORMAT_BC7_UNORM_SRGB">99</enum>
+          <enum name="ViewDimension" string="D3D12_SRV_DIMENSION_TEXTURE2D">4</enum>
+        </struct>
+      </struct>
+      <struct typename="D3D12Descriptor">
+        <enum name="type" string="Sampler">0</enum>
+        <ResourceId name="heap">9</ResourceId><uint name="index">101</uint>
+        <struct name="Descriptor"><enum name="Filter" string="D3D12_FILTER_ANISOTROPIC">85</enum></struct>
+      </struct>
+      <struct typename="D3D12Descriptor">
+        <enum name="type" string="CBV">4096</enum>
+        <ResourceId name="heap">9</ResourceId><uint name="index">102</uint>
+        <struct name="Descriptor">
+          <struct name="BufferLocation"><ResourceId name="Buffer">55</ResourceId><uint name="Offset">0</uint></struct>
+          <uint name="SizeInBytes">256</uint>
+        </struct>
+      </struct>
+    </array>
+  </chunk>
+  <chunk chunkIndex="3" name="ID3D12Device2::CreatePipelineState">
+    <struct name="pDesc">
+      <ResourceId name="pRootSignature">33</ResourceId>
+      <struct name="VS"><buffer name="pShaderBytecode" byteLength="128">88</buffer></struct>
+      <struct name="PS"><buffer name="pShaderBytecode" byteLength="128">89</buffer></struct>
+    </struct>
+    <ResourceId name="pPipelineState">22</ResourceId>
+  </chunk>
+  <chunk chunkIndex="4" name="ID3D12Device2::CreatePipelineState">
+    <struct name="pDesc">
+      <ResourceId name="pRootSignature">33</ResourceId>
+      <struct name="VS"><buffer name="pShaderBytecode" byteLength="128">188</buffer></struct>
+      <struct name="PS"><buffer name="pShaderBytecode" byteLength="256">189</buffer></struct>
+    </struct>
+    <ResourceId name="pPipelineState">44</ResourceId>
+  </chunk>
+  <chunk chunkIndex="5" name="ID3D12GraphicsCommandList::SetPipelineState">
+    <ResourceId name="pCommandList">11</ResourceId><ResourceId name="pPipelineState">22</ResourceId>
+  </chunk>
+  <chunk chunkIndex="6" name="ID3D12GraphicsCommandList::DrawIndexedInstanced">
+    <ResourceId name="pCommandList">11</ResourceId><uint name="IndexCountPerInstance">3</uint><uint name="InstanceCount">1</uint>
+  </chunk>
+  <chunk chunkIndex="7" name="ID3D12GraphicsCommandList::SetPipelineState">
+    <ResourceId name="pCommandList">11</ResourceId><ResourceId name="pPipelineState">44</ResourceId>
+  </chunk>
+  <chunk chunkIndex="8" name="ID3D12GraphicsCommandList::SetGraphicsRootDescriptorTable">
+    <ResourceId name="pCommandList">11</ResourceId>
+    <uint name="RootParameterIndex">4</uint>
+    <struct name="BaseDescriptor"><ResourceId name="heap">9</ResourceId><uint name="index">100</uint></struct>
+  </chunk>
+  <chunk chunkIndex="9" name="ID3D12GraphicsCommandList::DrawIndexedInstanced">
+    <ResourceId name="pCommandList">11</ResourceId><uint name="IndexCountPerInstance">1200</uint><uint name="InstanceCount">1</uint>
+  </chunk>
+</capture>"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "capture.xml"
+            path.write_text(xml, encoding="utf-8")
+
+            report = locate_draw_truth_candidates(path, descriptor_window=3)
+
+        top = report["candidates"][0]
+        self.assertEqual(9, top["chunk_index"])
+        self.assertEqual(1, top["rank"])
+        self.assertEqual(2, top["action_rank"])
+        self.assertEqual(1, top["selection_evidence"]["bc_srv_count"])
+        self.assertEqual(1, top["selection_evidence"]["sampler_count"])
+        self.assertEqual(1, top["selection_evidence"]["constant_buffer_count"])
 
     def test_cli_writes_json_and_csv(self) -> None:
         xml = """<capture>

@@ -48,8 +48,7 @@ class DashboardControllerMixin:
         if normalized not in {"unknown", "healthy", "building", "missing", "stale", "unhealthy"}:
             normalized = "unknown"
         if active:
-            percent_text = f" {min(max(int(percent or 0), 0), 100)}%" if percent is not None else ""
-            text = f"Cache: Building{percent_text}"
+            text = "Cache: Building"
         else:
             text = {
                 "healthy": "Cache: Healthy",

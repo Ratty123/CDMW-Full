@@ -932,6 +932,16 @@ def write_isolated_d3d11_preview_package(
         native_material_overrides = _native_material_overrides_for_batch(batch)
         if native_material_overrides:
             batch_payload.update(native_material_overrides)
+            if str(material_category or "").strip().lower() in {"cloth", "leather", "wood", "skin", "hair", "stone", "tooth"}:
+                batch_payload["roughness"] = _safe_float(material_hints.get("roughness"), 0.55)
+                batch_payload["metalness"] = _safe_float(material_hints.get("metalness"), 0.0)
+                batch_payload["specular"] = _safe_float(material_hints.get("specular"), 0.08)
+                batch_payload["native_material_hints"] = material_hints
+                material_analysis = batch_payload.get("material_analysis")
+                if isinstance(material_analysis, dict):
+                    material_analysis["roughness_hint"] = batch_payload["roughness"]
+                    material_analysis["metalness_hint"] = batch_payload["metalness"]
+                    material_analysis["specular_hint"] = batch_payload["specular"]
             note_values = list(str(note) for note in tuple(batch_payload.get("notes", ()) or ()) if str(note))
             note_values.append("native material manifest overrides applied")
             batch_payload["notes"] = list(dict.fromkeys(note_values))
@@ -1004,16 +1014,16 @@ def write_isolated_d3d11_preview_package(
     lighting_preset = _lighting_preset_for_settings(settings)
     if has_metal_preview_response and lighting_preset == "neutral_studio":
         lighting_preset = "shiny_metal_inspection"
-    ambient_strength = _safe_float(getattr(settings, "ambient_strength", 0.72), 0.72)
-    diffuse_wrap_bias = _safe_float(getattr(settings, "diffuse_wrap_bias", 0.72), 0.72)
-    diffuse_light_scale = _safe_float(getattr(settings, "diffuse_light_scale", 0.95), 0.95)
-    specular_base = _safe_float(getattr(settings, "specular_base", 0.07), 0.07)
-    specular_max = _safe_float(getattr(settings, "specular_max", 0.32), 0.32)
+    ambient_strength = _safe_float(getattr(settings, "ambient_strength", 0.84), 0.84)
+    diffuse_wrap_bias = _safe_float(getattr(settings, "diffuse_wrap_bias", 0.58), 0.58)
+    diffuse_light_scale = _safe_float(getattr(settings, "diffuse_light_scale", 0.62), 0.62)
+    specular_base = _safe_float(getattr(settings, "specular_base", 0.055), 0.055)
+    specular_max = _safe_float(getattr(settings, "specular_max", 0.52), 0.52)
     shininess_min = _safe_float(getattr(settings, "shininess_min", 28.0), 28.0)
-    shininess_max = _safe_float(getattr(settings, "shininess_max", 72.0), 72.0)
-    tone_exposure = _safe_float(getattr(settings, "d3d11_tone_exposure", 1.0), 1.0)
-    tone_contrast = _safe_float(getattr(settings, "d3d11_tone_contrast", 1.0), 1.0)
-    tone_gamma = _safe_float(getattr(settings, "d3d11_tone_gamma", 1.0), 1.0)
+    shininess_max = _safe_float(getattr(settings, "shininess_max", 152.0), 152.0)
+    tone_exposure = _safe_float(getattr(settings, "d3d11_tone_exposure", 1.00), 1.00)
+    tone_contrast = _safe_float(getattr(settings, "d3d11_tone_contrast", 1.08), 1.08)
+    tone_gamma = _safe_float(getattr(settings, "d3d11_tone_gamma", 1.00), 1.00)
     if aggregate_geometry_chunks:
         (geometry_dir / "geometry.bin").write_bytes(b"".join(aggregate_geometry_chunks))
     if aggregate_identity_chunks:
@@ -1053,22 +1063,22 @@ def write_isolated_d3d11_preview_package(
         },
         "render_diagnostic_mode": str(getattr(settings, "render_diagnostic_mode", "lit") or "lit"),
         "d3d11_view_mode": str(getattr(settings, "d3d11_view_mode", "lit") or "lit"),
-        "d3d11_mip_lod_bias": _safe_float(getattr(settings, "d3d11_mip_lod_bias", -0.85), -0.85),
+        "d3d11_mip_lod_bias": _safe_float(getattr(settings, "d3d11_mip_lod_bias", -2.0), -2.0),
         "d3d11_cull_back_faces": bool(getattr(settings, "d3d11_cull_back_faces", False)),
         "d3d11_light_azimuth_degrees": _safe_float(
-            getattr(settings, "d3d11_light_azimuth_degrees", -52.0),
-            -52.0,
+            getattr(settings, "d3d11_light_azimuth_degrees", -10.0),
+            -10.0,
         ),
         "d3d11_light_elevation_degrees": _safe_float(
-            getattr(settings, "d3d11_light_elevation_degrees", 27.0),
-            27.0,
+            getattr(settings, "d3d11_light_elevation_degrees", 0.0),
+            0.0,
         ),
         "d3d11_normal_y_mode": str(getattr(settings, "d3d11_normal_y_mode", "asset") or "asset"),
-        "d3d11_ao_strength": _safe_float(getattr(settings, "d3d11_ao_strength", 1.0), 1.0),
-        "d3d11_roughness_bias": _safe_float(getattr(settings, "d3d11_roughness_bias", 0.0), 0.0),
-        "d3d11_metalness_scale": _safe_float(getattr(settings, "d3d11_metalness_scale", 1.0), 1.0),
-        "d3d11_environment_strength": _safe_float(getattr(settings, "d3d11_environment_strength", 1.0), 1.0),
-        "d3d11_emissive_gain": _safe_float(getattr(settings, "d3d11_emissive_gain", 1.0), 1.0),
+        "d3d11_ao_strength": _safe_float(getattr(settings, "d3d11_ao_strength", 0.45), 0.45),
+        "d3d11_roughness_bias": _safe_float(getattr(settings, "d3d11_roughness_bias", -0.04), -0.04),
+        "d3d11_metalness_scale": _safe_float(getattr(settings, "d3d11_metalness_scale", 1.45), 1.45),
+        "d3d11_environment_strength": _safe_float(getattr(settings, "d3d11_environment_strength", 0.62), 0.62),
+        "d3d11_emissive_gain": _safe_float(getattr(settings, "d3d11_emissive_gain", 2.2), 2.2),
         "d3d11_tone_exposure": tone_exposure,
         "d3d11_tone_contrast": tone_contrast,
         "d3d11_tone_gamma": tone_gamma,

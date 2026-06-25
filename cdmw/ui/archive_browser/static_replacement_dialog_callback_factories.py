@@ -56,6 +56,15 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
             return False
         return bool(_alignment_mesh_edit_tab_active())
 
+    def _mesh_edit_enabled_checked() -> bool:
+        is_checked = getattr(mesh_edit_enabled_checkbox, "isChecked", None)
+        if not callable(is_checked):
+            return False
+        try:
+            return bool(is_checked())
+        except RuntimeError:
+            return False
+
     def _refresh_mesh_editor_diagnostics(*, auto: bool = False) -> None:
         text_widget = _mesh_editor_diagnostics_text_widget_helper(mesh_editor_diagnostics_state)
         if not isinstance(text_widget, QPlainTextEdit):
@@ -77,7 +86,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "d3d11_status_label", lambda: alignment_d3d11_preview_status_label.text())
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "preview_timing_label", lambda: preview_performance_label.text())
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_tab_active", _mesh_edit_tab_active)
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_enabled", lambda: bool(mesh_edit_enabled_checkbox.isChecked()))
+        _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_enabled", _mesh_edit_enabled_checked)
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_raw_preview_active", lambda: bool(_mesh_edit_raw_preview_active()))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_show_vertices", lambda: bool(mesh_edit_show_vertices_checkbox.isChecked()))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_tool", lambda: str(mesh_edit_tool_combo.currentData() or ""))
@@ -697,6 +706,13 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
         _queue_material_authority_adjustment_preview_refresh()
 
     def _refresh_true_source_basic_controls_state() -> None:
+        if bool(context.get("full_import_model_replacement")):
+            true_source_basic_group.setVisible(False)
+            true_source_basic_group.setEnabled(False)
+            true_source_basic_hint.setText(
+                "Material Authority tuning is locked by Full Import Model Replacement."
+            )
+            return
         visible = _basic_controls_profile_enabled()
         enabled = bool(visible and _complete_external_swap_enabled())
         true_source_basic_group.setVisible(bool(visible))
@@ -965,6 +981,7 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
     _set_double_spin_value_silently_helper = context.get('_set_double_spin_value_silently_helper')
     _set_mapping_indices = context.get('_set_mapping_indices')
     _set_source_parts_apply_pending = context.get('_set_source_parts_apply_pending')
+    _set_source_parts_preview_rebuild_pending = context.get('_set_source_parts_preview_rebuild_pending')
     _set_source_role_override_value = context.get('_set_source_role_override_value')
     _source_part_control_load_state_helper = context.get('_source_part_control_load_state_helper')
     _source_part_control_state_helper = context.get('_source_part_control_state_helper')
@@ -1423,8 +1440,14 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
         part_enabled_checkbox.setChecked(action_state.part_enabled_checked)
         part_enabled_checkbox.blockSignals(False)
         _refresh_source_assignment_columns()
+        if callable(_sync_highlight_sets):
+            _sync_highlight_sets()
         if action_state.apply_pending:
             _set_source_parts_apply_pending(_source_part_include_exclude_pending_reason_helper())
+        else:
+            if callable(_set_source_parts_preview_rebuild_pending):
+                _set_source_parts_preview_rebuild_pending(_source_part_include_exclude_pending_reason_helper())
+            _queue_static_preview_rebuild()
 
     return SimpleNamespace(
         _refresh_selected_part_copied_texture_controls=_refresh_selected_part_copied_texture_controls,
@@ -2983,7 +3006,7 @@ def create_alignment_accept_build_callbacks(context: dict[str, object]) -> Simpl
             parsed_mappings,
             include_preview_only_independent_parts=False,
         )
-        return _static_options_from_placement_snapshot(
+        options = _static_options_from_placement_snapshot(
             placement_snapshot,
             texture_slot_overrides=texture_slot_overrides,
             include_edited_source_mesh=bool(include_edited_source_mesh),
@@ -3008,6 +3031,13 @@ def create_alignment_accept_build_callbacks(context: dict[str, object]) -> Simpl
                 prune_unmapped_original_dds_checkbox.isChecked() or _complete_external_swap_enabled()
             ),
         )
+        if bool(context.get("full_import_model_replacement")):
+            from cdmw.modding.full_import_model_replacement import (
+                apply_full_import_model_replacement_preset,
+            )
+
+            return apply_full_import_model_replacement_preset(options)
+        return options
 
     return SimpleNamespace(
         _apply_alignment_build_status_view=_apply_alignment_build_status_view,
@@ -3045,10 +3075,11 @@ def create_alignment_accept_dispatch_callbacks(context: dict[str, object]) -> Si
     on_accept = context.get('on_accept')
     replacement_export_allowed = context.get('replacement_export_allowed')
     self = context.get('self')
+    continue_build_available = callable(continue_build_callback)
 
     def _accept_static_options() -> None:
         accept_route = _alignment_build_accept_route_helper(
-            continue_build=continue_build_callback is not None,
+            continue_build=continue_build_available,
             running=_alignment_build_accept_running_helper(build_accept_state),
         )
         if accept_route.should_ignore:
@@ -3065,13 +3096,22 @@ def create_alignment_accept_dispatch_callbacks(context: dict[str, object]) -> Si
             _accept_static_options_after_status_paint()
 
     def _accept_static_options_after_status_paint() -> None:
-        static_options = _build_static_options_from_dialog(
-            show_messages=True,
-            include_edited_source_mesh=True,
-        )
+        try:
+            static_options = _build_static_options_from_dialog(
+                show_messages=True,
+                include_edited_source_mesh=True,
+            )
+        except Exception as exc:
+            QMessageBox.warning(
+                dialog,
+                _alignment_build_mod_warning_title_helper(),
+                str(exc),
+            )
+            _finish_alignment_build_state(_alignment_build_failed_status_helper(exc), False)
+            return
         options_route = _alignment_build_options_route_helper(
             options_available=static_options is not None,
-            continue_build=continue_build_callback is not None,
+            continue_build=continue_build_available,
         )
         if options_route.should_reset_build_status:
             _apply_alignment_build_status_view(
@@ -3908,17 +3948,27 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
         rotation_degrees: Sequence[float] = (0.0, 0.0, 0.0),
         scale_xyz: Sequence[float] = (1.0, 1.0, 1.0),
     ) -> bool:
+        transform_generation = (
+            _current_alignment_transform_generation()
+            if callable(_current_alignment_transform_generation)
+            else 0
+        )
         payload = _alignment_d3d11_fast_transform_payload_helper(
             source_submesh_indices=source_submesh_indices,
             translation=translation,
             rotation_degrees=rotation_degrees,
             scale_xyz=scale_xyz,
-            transform_generation=_current_alignment_transform_generation(),
+            transform_generation=transform_generation,
+        )
+        preview_active = (
+            _alignment_d3d11_preview_active()
+            if callable(_alignment_d3d11_preview_active)
+            else False
         )
         queue_state = _alignment_d3d11_fast_transform_queue_state_helper(
             alignment_d3d11_state,
             payload,
-            preview_active=_alignment_d3d11_preview_active(),
+            preview_active=preview_active,
             drag_active=bool(alignment_d3d11_drag_transaction.get("active")),
         )
         if not bool(queue_state["send_preview"]):
@@ -4206,11 +4256,18 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
             return None
 
     def _alignment_part_source_indices_for_commit() -> List[int]:
+        if not callable(_part_source_indices_for_commit_helper):
+            return []
+        geometry_tab_active = (
+            _alignment_geometry_tab_active()
+            if callable(_alignment_geometry_tab_active)
+            else False
+        )
         return list(
             _part_source_indices_for_commit_helper(
                 transform_source_indices,
                 replacement_mesh_for_mapping,
-                geometry_tab_active=_alignment_geometry_tab_active(),
+                geometry_tab_active=geometry_tab_active,
             )
         )
 
@@ -4929,13 +4986,15 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
         adjustment.enabled = toggle_state.enabled
         _refresh_source_assignment_columns()
         if toggle_state.refresh_selected_controls:
-            try:
+            if callable(_load_selected_part_controls):
                 _load_selected_part_controls()
-            except NameError:
-                pass
-        _sync_highlight_sets()
+        if callable(_sync_highlight_sets):
+            _sync_highlight_sets()
         if toggle_state.apply_pending:
             _set_source_parts_apply_pending(_source_part_include_exclude_pending_reason_helper())
+        else:
+            _set_source_parts_preview_rebuild_pending(_source_part_include_exclude_pending_reason_helper())
+            _queue_static_preview_rebuild()
 
     _outliner_source_index_from_item = lambda item: _parts_outliner_source_index_helper(item)
 
@@ -6573,10 +6632,11 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
             alignment_transform_generation,
         )
         _safe_stop_alignment_timer(alignment_d3d11_reload_timer)
-        try:
-            _alignment_d3d11_stop_worker()
-        except NameError:
-            pass
+        stop_worker = _alignment_d3d11_stop_worker
+        if not callable(stop_worker):
+            stop_worker = context.get("_alignment_d3d11_stop_worker")
+        if callable(stop_worker):
+            stop_worker()
         return generation
 
     def _clear_alignment_d3d11_fast_transform_state(*, reset_host: bool = False) -> None:
@@ -6658,6 +6718,15 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
         _alignment_mesh_edit_tab_active,
     )
 
+    def _mesh_edit_enabled_checked() -> bool:
+        is_checked = getattr(mesh_edit_enabled_checkbox, "isChecked", None)
+        if not callable(is_checked):
+            return False
+        try:
+            return bool(is_checked())
+        except RuntimeError:
+            return False
+
     mesh_edit_raw_preview_state = _mesh_edit_raw_preview_initial_state_helper()
 
     def _alignment_preview_widget_render_settings() -> ModelPreviewRenderSettings:
@@ -6668,11 +6737,8 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
         )
 
     def _alignment_preview_source_face_limit() -> int:
-        try:
-            if mesh_edit_enabled_checkbox.isChecked():
-                return 0
-        except NameError:
-            pass
+        if _mesh_edit_enabled_checked():
+            return 0
         mesh = replacement_mesh_for_mapping or replacement_mesh_base_for_mapping
         if mesh is None:
             return 0
@@ -6697,11 +6763,8 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
         )
 
     def _alignment_preview_selected_source_face_limit(source_indices: Sequence[int]) -> int:
-        try:
-            if mesh_edit_enabled_checkbox.isChecked():
-                return 0
-        except NameError:
-            pass
+        if _mesh_edit_enabled_checked():
+            return 0
         mesh = replacement_mesh_for_mapping or replacement_mesh_base_for_mapping
         if mesh is None:
             return _alignment_preview_source_face_limit()
@@ -6719,11 +6782,8 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
         )
 
     def _alignment_preview_background_source_face_limit(source_indices: Sequence[int]) -> int:
-        try:
-            if mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active():
-                return 0
-        except NameError:
-            pass
+        if _mesh_edit_enabled_checked() and callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active():
+            return 0
         mesh = replacement_mesh_for_mapping or replacement_mesh_base_for_mapping
         if mesh is None:
             return _alignment_preview_source_face_limit()
@@ -6837,24 +6897,33 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
         static_preview_refresh_timer.start()
 
     def _queue_selection_preview_refresh(*_args: object) -> None:
+        def _set_preview_performance_status_if_ready(summary: str, *, details: str = "") -> None:
+            if callable(_set_preview_performance_status):
+                _set_preview_performance_status(summary, details=details)
+
         if bool(source_parts_apply_state.get("pending")):
-            _sync_highlight_sets()
+            if callable(_sync_highlight_sets):
+                _sync_highlight_sets()
             reason = str(source_parts_apply_state.get("reason", "") or "part changes").strip()
-            presentation = _source_parts_selection_pending_presentation_helper(reason)
-            _set_preview_performance_status(
-                presentation.performance_summary,
-                details=presentation.performance_details,
-            )
+            if callable(_source_parts_selection_pending_presentation_helper):
+                presentation = _source_parts_selection_pending_presentation_helper(reason)
+                _set_preview_performance_status_if_ready(
+                    presentation.performance_summary,
+                    details=presentation.performance_details,
+                )
             return
         if _d3d11_preview_active():
-            _sync_highlight_sets()
-            performance = _alignment_d3d11_selection_highlight_performance_helper()
-            _set_preview_performance_status(
-                performance.summary,
-                details=performance.details,
-            )
+            if callable(_sync_highlight_sets):
+                _sync_highlight_sets()
+            if callable(_alignment_d3d11_selection_highlight_performance_helper):
+                performance = _alignment_d3d11_selection_highlight_performance_helper()
+                _set_preview_performance_status_if_ready(
+                    performance.summary,
+                    details=performance.details,
+                )
             return
-        _queue_static_preview_refresh()
+        if callable(_sync_highlight_sets):
+            _sync_highlight_sets()
 
     def _queue_static_preview_rebuild(*_args: object) -> None:
         _mark_alignment_d3d11_rebuild_reason("geometry")
@@ -6868,7 +6937,8 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
         _mark_alignment_d3d11_rebuild_reason("material")
         if _static_preview_batch_queue_request_helper(static_preview_batch_state, "texture"):
             return
-        _alignment_d3d11_invalidate_package_cache("material")
+        if callable(_alignment_d3d11_invalidate_package_cache):
+            _alignment_d3d11_invalidate_package_cache("material")
         texture_overrides_dirty["dirty"] = True
         static_preview_refresh_timer.start()
 
@@ -6878,7 +6948,8 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
             return
         static_preview_geometry_cache.clear()
         static_preview_prepared_cache.clear()
-        _alignment_d3d11_invalidate_package_cache("texture_uv")
+        if callable(_alignment_d3d11_invalidate_package_cache):
+            _alignment_d3d11_invalidate_package_cache("texture_uv")
         texture_overrides_dirty["dirty"] = True
         static_preview_refresh_timer.start()
 
@@ -8117,7 +8188,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             reuse_prepared_geometry=bool(geometry_signature),
             geometry_cache_dir=preview_cache_root / "geometry",
             texture_cache_dir=preview_cache_root / "textures",
-            original_reference_native_package_dir=None,
+            original_reference_native_package_dir=native_reference_package_dir,
         )
         thread = QThread(dialog)
         worker.moveToThread(thread)
@@ -8863,6 +8934,11 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
             return False
         return bool(_alignment_geometry_tab_active())
 
+    def _d3d11_preview_active() -> bool:
+        if not callable(_alignment_d3d11_preview_active):
+            return False
+        return bool(_alignment_d3d11_preview_active())
+
     def _d3d11_editor_ids_for_source_indices(indices: object, **kwargs: object) -> tuple[object, ...]:
         if not callable(_alignment_d3d11_editor_ids_for_source_indices):
             return ()
@@ -8902,7 +8978,7 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
         renderer_route = _alignment_preview_renderer_route_helper(
             preview_renderer_combo.currentData(),
             d3d11_available=alignment_d3d11_available,
-            d3d11_active=_alignment_d3d11_preview_active(),
+            d3d11_active=_d3d11_preview_active(),
         )
         if renderer_route.should_report_unavailable:
             _set_alignment_d3d11_loading(False, alignment_preview_control_text["d3d11_unavailable_status"])
@@ -8936,7 +9012,7 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
             _set_preview_mode()
 
     def _sync_highlight_sets() -> None:
-        d3d11_active = _alignment_d3d11_preview_active()
+        d3d11_active = _d3d11_preview_active()
         geometry_active = _geometry_tab_active() if d3d11_active else False
         selection_state = _selection_highlight_sets_state_helper(
             selected_source_highlights=tuple(selected_source_highlight_indices),
@@ -9006,7 +9082,7 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
         return (original_dialog_preview, static_dialog_preview)
 
     def _preview_mode_needs_static_refresh(mode: str) -> bool:
-        if _alignment_d3d11_preview_active():
+        if _d3d11_preview_active():
             mode_refresh_needed = _alignment_d3d11_mode_refresh_needed_helper(
                 alignment_d3d11_state,
                 mode,
@@ -9040,7 +9116,7 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
         needs_static_refresh = _preview_mode_needs_static_refresh(mode)
         mode_route = _alignment_preview_mode_route_helper(
             mode,
-            d3d11_active=_alignment_d3d11_preview_active(),
+            d3d11_active=_d3d11_preview_active(),
             needs_static_refresh=needs_static_refresh,
         )
         if mode_route.d3d11_active:
@@ -9057,7 +9133,8 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
             if mode_route.should_restore_view_state:
                 _restore_alignment_preview_mode_view_state(mode_route.mode)
             if mode_route.should_replay_fast_transform:
-                _replay_alignment_d3d11_fast_transform()
+                if callable(_replay_alignment_d3d11_fast_transform):
+                    _replay_alignment_d3d11_fast_transform()
         else:
             preview_stack.setCurrentIndex(mode_route.static_stack_index)
             if mode_route.should_restore_view_state:
@@ -9797,6 +9874,22 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
             )
         )
 
+    def _mesh_edit_enabled_checked() -> bool:
+        is_checked = getattr(mesh_edit_enabled_checkbox, "isChecked", None)
+        if not callable(is_checked):
+            return False
+        try:
+            return bool(is_checked())
+        except RuntimeError:
+            return False
+
+    def _mesh_edit_active_for_alignment_basis() -> bool:
+        return bool(
+            _mesh_edit_enabled_checked()
+            and callable(_alignment_mesh_edit_tab_active)
+            and _alignment_mesh_edit_tab_active()
+        )
+
     def _build_selected_source_highlight_overlay_model(
         current_mappings: Sequence[StaticSubmeshMapping],
     ) -> Optional[ModelPreviewData]:
@@ -9823,7 +9916,7 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
             output_source_indices=set(requested_source_indices),
             alignment_basis_mesh=(
                 replacement_mesh_base_for_mapping
-                if mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active()
+                if _mesh_edit_active_for_alignment_basis()
                 else None
             ),
         )
@@ -9887,7 +9980,7 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
             output_source_indices=requested_source_indices,
             alignment_basis_mesh=(
                 replacement_mesh_base_for_mapping
-                if mesh_edit_enabled_checkbox.isChecked() and _alignment_mesh_edit_tab_active()
+                if _mesh_edit_active_for_alignment_basis()
                 else None
             ),
         )

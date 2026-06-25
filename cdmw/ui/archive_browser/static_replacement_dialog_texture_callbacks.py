@@ -1210,21 +1210,27 @@ def create_alignment_material_plan_column_callbacks(context: dict[str, object]) 
 
     def _fit_material_routing_tree_columns() -> None:
         column_specs = _material_plan_column_fit_specs_helper()["routing"]
-        _auto_fit_alignment_tree_columns(
-            material_routing_tree,
-            column_specs["minimum_widths"],
-            column_specs["maximum_widths"],
-            expand_columns=column_specs["expand_columns"],
-        )
+        try:
+            _auto_fit_alignment_tree_columns(
+                material_routing_tree,
+                column_specs["minimum_widths"],
+                column_specs["maximum_widths"],
+                expand_columns=column_specs["expand_columns"],
+            )
+        except RuntimeError:
+            return
 
     def _fit_material_plan_tree_columns() -> None:
         column_specs = _material_plan_column_fit_specs_helper()["plan"]
-        _auto_fit_alignment_tree_columns(
-            material_plan_tree,
-            column_specs["minimum_widths"],
-            column_specs["maximum_widths"],
-            expand_columns=column_specs["expand_columns"],
-        )
+        try:
+            _auto_fit_alignment_tree_columns(
+                material_plan_tree,
+                column_specs["minimum_widths"],
+                column_specs["maximum_widths"],
+                expand_columns=column_specs["expand_columns"],
+            )
+        except RuntimeError:
+            return
 
     def _schedule_material_plan_column_refit() -> None:
         callbacks = {

@@ -39,6 +39,7 @@ from cdmw.core.archive_scan_cache import (
     _normalize_archive_source_rows,
     _record_timing,
     _write_raw_pickle_cache_payload_to_path,
+    archive_cache_protected_paths,
     prune_archive_cache_root,
     resolve_archive_basic_index_cache_path,
     resolve_archive_basic_index_shard_cache_dir,
@@ -57,7 +58,7 @@ def format_byte_size(value: int) -> str:
     return archive_core.format_byte_size(value)
 
 
-_ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {10}
+_ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {10, 11}
 
 def _encode_archive_entry_index_rows(
     index: Mapping[str, Sequence[ArchiveEntry]],
@@ -329,7 +330,10 @@ def load_or_update_archive_basic_index_shards(
             )
         else:
             on_log("Loaded archive path lookup shards from cache.")
-    prune_report = prune_archive_cache_root(cache_root)
+    prune_report = prune_archive_cache_root(
+        cache_root,
+        protected_paths=archive_cache_protected_paths(package_root, cache_root),
+    )
     if on_log is not None and prune_report.get("removed_files"):
         on_log(
             "Archive cache pruned: "
@@ -391,7 +395,10 @@ def save_archive_basic_index_cache(
     )
     if on_log is not None:
         on_log(f"Archive path lookup cache updated: {cache_path}")
-    prune_report = prune_archive_cache_root(cache_root)
+    prune_report = prune_archive_cache_root(
+        cache_root,
+        protected_paths=archive_cache_protected_paths(package_root, cache_root),
+    )
     if on_log is not None and prune_report.get("removed_files"):
         on_log(
             "Archive cache pruned: "
@@ -611,7 +618,10 @@ def save_archive_derived_index_cache(
     )
     if on_log is not None:
         on_log(f"Archive search cache updated: {cache_path}")
-    prune_report = prune_archive_cache_root(cache_root)
+    prune_report = prune_archive_cache_root(
+        cache_root,
+        protected_paths=archive_cache_protected_paths(package_root, cache_root),
+    )
     if on_log is not None and prune_report.get("removed_files"):
         on_log(
             "Archive cache pruned: "
@@ -774,12 +784,25 @@ def load_archive_derived_index_cache(
                 else:
                     try:
                         if metadata_verified:
-                            name_search_index = _load_archive_name_search_shards_trusted(
-                                package_root,
-                                cache_root,
-                                entries,
-                                on_progress=on_progress,
-                            )
+                            try:
+                                name_search_index = _load_archive_name_search_shards_trusted(
+                                    package_root,
+                                    cache_root,
+                                    entries,
+                                    on_progress=on_progress,
+                                )
+                            except Exception as exc:
+                                if on_log is not None:
+                                    on_log(f"Archive search cache shard files need repair: {exc}")
+                                name_search_index = _load_or_update_archive_name_search_shards(
+                                    package_root,
+                                    cache_root,
+                                    entries,
+                                    aliases_for_shards,
+                                    load_name_search_index=True,
+                                    on_progress=on_progress,
+                                    on_log=on_log,
+                                )
                         else:
                             name_search_index = _load_or_update_archive_name_search_shards(
                                 package_root,

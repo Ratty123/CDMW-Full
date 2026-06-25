@@ -57,9 +57,9 @@ def source_parts_apply_pending_presentation(reason: str) -> SourcePartsPendingPr
     reason_text = _source_parts_reason(reason, "part changes")
     return SourcePartsPendingPresentation(
         apply_button_enabled=True,
-        label_text=f"Pending: {reason_text}. Preview still shows the previous build until Apply.",
+        label_text=f"Pending: {reason_text}. Press Apply to rebuild preview.",
         label_visible=True,
-        performance_summary="Part changes pending. Deleted/unchecked parts may still render until Apply.",
+        performance_summary="Part routing changes pending. Press Apply to rebuild preview.",
         performance_details=reason_text,
     )
 

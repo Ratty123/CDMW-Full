@@ -18,9 +18,13 @@ from cdmw.rendering.native_preview_screenshot import (
 )
 from cdmw.rendering.ingame_capture import (
     DEFAULT_CRIMSON_GAME_ROOT,
+    _capture_hwnd_client,
     capture_crimson_ingame_screenshot,
+    click_window_client,
     default_crimson_game_exe,
     find_crimson_game_window,
+    interact_with_window_for_keyboard_prompts,
+    send_key_to_window,
 )
 from cdmw.rendering.test_run_sword_tuning import (
     TEST_RUN_SWORD_BASELINE_SETTINGS,
@@ -406,6 +410,95 @@ class InGameCaptureTests(unittest.TestCase):
         codes = {item["code"] for item in result.diagnostics}
         self.assertIn("game_window_not_found", codes)
         self.assertIn("capture_blocked", codes)
+
+    def test_send_key_to_window_skips_input_when_focus_fails(self) -> None:
+        with patch("cdmw.rendering.ingame_capture._focus_window_for_input", return_value={"foreground_ok": False, "foreground_hwnd": 20}), patch(
+            "cdmw.rendering.ingame_capture._send_input_scan_key"
+        ) as send:
+            report = send_key_to_window(10, "E")
+
+        self.assertEqual("focus_failed", report["code"])
+        self.assertEqual(0, report["sent_input_count"])
+        send.assert_not_called()
+
+    def test_send_key_to_window_supports_renderdoc_f12_hotkey(self) -> None:
+        with patch(
+            "cdmw.rendering.ingame_capture._focus_window_for_input",
+            return_value={"foreground_ok": True, "foreground_hwnd": 10, "foreground_pid": 100, "target_pid": 100},
+        ), patch("cdmw.rendering.ingame_capture._send_input_scan_key", return_value=2) as send:
+            report = send_key_to_window(10, "F12")
+
+        self.assertEqual("key_sent", report["code"])
+        self.assertEqual("F12", report["key"])
+        send.assert_called_once_with(0x7B, hold_s=0.05)
+
+    def test_click_window_client_skips_mouse_input_when_focus_fails(self) -> None:
+        with patch(
+            "cdmw.rendering.ingame_capture._focus_window_for_input",
+            return_value={"foreground_ok": False, "foreground_hwnd": 20, "foreground_pid": 200, "target_pid": 100},
+        ), patch("ctypes.windll.user32") as user32:
+            report = click_window_client(10)
+
+        self.assertEqual("focus_failed", report["code"])
+        self.assertEqual(0, report["sent_input_count"])
+        user32.mouse_event.assert_not_called()
+
+    def test_click_window_client_sends_bounded_left_click(self) -> None:
+        def get_client_rect(_hwnd: int, rect_ref: object) -> int:
+            rect = rect_ref._obj
+            rect.left = 0
+            rect.top = 0
+            rect.right = 200
+            rect.bottom = 100
+            return 1
+
+        with patch(
+            "cdmw.rendering.ingame_capture._focus_window_for_input",
+            return_value={"foreground_ok": True, "foreground_hwnd": 10, "foreground_pid": 100, "target_pid": 100},
+        ), patch("ctypes.windll.user32") as user32:
+            user32.GetClientRect.side_effect = get_client_rect
+            user32.ClientToScreen.return_value = 1
+            user32.SetCursorPos.return_value = 1
+            report = click_window_client(10, hold_s=0.01)
+
+        self.assertEqual("mouse_click_sent", report["code"])
+        self.assertEqual("left", report["button"])
+        self.assertEqual(2, report["sent_input_count"])
+        self.assertEqual(2, user32.mouse_event.call_count)
+
+    def test_window_capture_skips_occluded_or_unfocused_window(self) -> None:
+        with patch(
+            "cdmw.rendering.ingame_capture._focus_window_for_input",
+            return_value={"foreground_ok": False, "foreground_hwnd": 20, "foreground_pid": 200, "target_pid": 100},
+        ), patch("ctypes.windll.user32") as user32, tempfile.TemporaryDirectory() as temp_dir:
+            report = _capture_hwnd_client(10, Path(temp_dir) / "capture.png")
+
+        self.assertEqual("focus_failed", report["code"])
+        user32.GetClientRect.assert_not_called()
+
+    def test_window_interaction_fails_closed_when_click_does_not_focus_game(self) -> None:
+        def get_client_rect(_hwnd: int, rect_ref: object) -> int:
+            rect = rect_ref._obj
+            rect.left = 0
+            rect.top = 0
+            rect.right = 100
+            rect.bottom = 100
+            return 1
+
+        with patch(
+            "cdmw.rendering.ingame_capture._focus_window_for_input",
+            side_effect=[
+                {"foreground_ok": False, "foreground_hwnd": 20, "foreground_pid": 200, "target_pid": 100},
+                {"foreground_ok": False, "foreground_hwnd": 20, "foreground_pid": 200, "target_pid": 100},
+            ],
+        ), patch("ctypes.windll.user32") as user32:
+            user32.GetClientRect.side_effect = get_client_rect
+            user32.ClientToScreen.return_value = 1
+            user32.SetCursorPos.return_value = 1
+            report = interact_with_window_for_keyboard_prompts(10)
+
+        self.assertEqual("focus_failed", report["code"])
+        self.assertEqual(2, user32.mouse_event.call_count)
 
     def test_capture_ingame_cli_writes_blocker_report_when_game_is_not_running(self) -> None:
         if find_crimson_game_window():

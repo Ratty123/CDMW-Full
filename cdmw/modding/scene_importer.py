@@ -213,7 +213,7 @@ def import_scene_mesh(path: str | Path) -> ParsedMesh:
     return import_scene_mesh_with_report(path).mesh
 
 
-def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
+def import_scene_mesh_with_report(path: str | Path, *, include_external_audit: bool = True) -> SceneImportResult:
     source_path = Path(path).expanduser().resolve()
     suffix = source_path.suffix.lower()
     if suffix == ".zip":
@@ -226,7 +226,7 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
                 f"ZIP file does not contain an importable model: {source_path}. "
                 "Expected OBJ, DAE, glTF, GLB, PAC, PAM, or PAMLOD."
             )
-        result = import_scene_mesh_with_report(resolved_path)
+        result = import_scene_mesh_with_report(resolved_path, include_external_audit=include_external_audit)
         member_label = members[0] if members else resolved_path.name
         result.diagnostics = (
             f"Resolved ZIP archive {source_path.name} to {member_label}.",
@@ -259,6 +259,7 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
         return _result_with_external_audit(
             source_path,
             SceneImportResult(mesh=mesh, diagnostics=diagnostics, discovered_texture_files=discovered_textures),
+            enabled=include_external_audit,
         )
     if suffix == ".dae":
         mesh = import_dae(source_path)
@@ -272,9 +273,10 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
         return _result_with_external_audit(
             source_path,
             SceneImportResult(mesh=mesh, diagnostics=diagnostics, discovered_texture_files=discovered_textures),
+            enabled=include_external_audit,
         )
     if suffix in {".gltf", ".glb"}:
-        return import_gltf(source_path)
+        return import_gltf(source_path, include_external_audit=include_external_audit)
     if suffix in LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS:
         mesh = parse_mesh(source_path.read_bytes(), source_path.as_posix())
         if not mesh.submeshes or mesh.total_faces <= 0:
@@ -312,6 +314,7 @@ def import_scene_mesh_with_report(path: str | Path) -> SceneImportResult:
                 discovered_texture_files=discovered_textures,
                 discovered_supplemental_files=discovered_supplemental,
             ),
+            enabled=include_external_audit,
         )
     if suffix in {".fbx", ".blend", ".usd", ".usda", ".usdc", ".usdz"}:
         raise ValueError(

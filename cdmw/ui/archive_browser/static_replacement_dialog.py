@@ -26,6 +26,7 @@ class ArchiveStaticReplacementDialogMixin:
         extra_supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
         defer_original_texture_preview: bool = False,
         runtime_export_target_entry: Optional[ArchiveEntry] = None,
+        full_import_model_replacement: bool = False,
         embedded_host: Optional[QWidget] = None,
         continue_build_callback: Optional[
             Callable[
@@ -58,6 +59,7 @@ class ArchiveStaticReplacementDialogMixin:
             extra_supplemental_specs=extra_supplemental_specs,
             defer_original_texture_preview=defer_original_texture_preview,
             runtime_export_target_entry=runtime_export_target_entry,
+            full_import_model_replacement=full_import_model_replacement,
             embedded_host=embedded_host,
             continue_build_callback=continue_build_callback,
             on_accept=on_accept,

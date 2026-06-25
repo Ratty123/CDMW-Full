@@ -79,9 +79,14 @@ def new_alignment_scroll_tab(
     return scroll, page, page_layout
 
 
-def clear_tree_current_item(tree: QTreeWidget) -> None:
-    tree.clearSelection()
-    tree.setCurrentIndex(QModelIndex())
+def clear_tree_current_item(tree: QTreeWidget | None) -> None:
+    if tree is None:
+        return
+    try:
+        tree.clearSelection()
+        tree.setCurrentIndex(QModelIndex())
+    except RuntimeError:
+        return
 
 
 def commit_spinbox_text(spin: QDoubleSpinBox, *, block_signals: bool = False) -> None:
@@ -522,8 +527,18 @@ def auto_fit_tree_columns(
     expand_column: int = -1,
     expand_columns: Sequence[int] = (),
 ) -> None:
-    header = tree.header()
+    if not qt_object_is_valid(tree):
+        return
+    try:
+        header = tree.header()
+    except RuntimeError as exc:
+        message = str(exc)
+        if "already deleted" in message or "Internal C++ object" in message:
+            return
+        raise
     if header is None:
+        return
+    if not qt_object_is_valid(header):
         return
     if bool(tree.property("cdmw_defer_autofit")):
         return

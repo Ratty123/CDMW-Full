@@ -101,6 +101,7 @@ _ARCHIVE_MODEL_FAMILY_VARIANT_SUFFIXES: Tuple[str, ...] = (
     "_u",
     "_s",
     "_t",
+    "_in",
     "_c",
     "_d",
     "_index01",

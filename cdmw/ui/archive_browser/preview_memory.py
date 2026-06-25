@@ -107,7 +107,6 @@ class ArchivePreviewMemoryAuditMixin:
             ),
             "archive_item_icon_cache_entries": len(getattr(self, "archive_item_icon_pixmap_cache", {}) or {}),
             "archive_item_icon_cache_limit": int(getattr(self, "archive_item_icon_pixmap_cache_limit", 0) or 0),
-            "archive_item_icon_preload_limit": int(getattr(self, "archive_item_icon_preload_limit", 0) or 0),
             "archive_item_icon_preload_queue_entries": len(getattr(self, "archive_item_icon_preload_queue", []) or []),
             "archive_item_icon_priority_queue_entries": len(
                 getattr(self, "archive_item_icon_priority_queue", []) or []

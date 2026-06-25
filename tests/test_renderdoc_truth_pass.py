@@ -142,6 +142,41 @@ class RenderDocTruthPassTests(unittest.TestCase):
         self.assertNotIn("blend state unresolved", report["findings"])
         self.assertNotIn("raster state unresolved", report["findings"])
 
+    def test_preserves_explicit_normal_y_unresolved_flag(self) -> None:
+        report = normalize_renderdoc_truth_pass({"material_name": "Draw", "normal_y_mode_unresolved": True})
+
+        self.assertTrue(report["normal_y_mode_unresolved"])
+        self.assertIn("normal Y mode unresolved", report["findings"])
+
+    def test_infers_environment_water_profile_from_renderdoc_reflection_names(self) -> None:
+        report = normalize_renderdoc_truth_pass(
+            {
+                "material_name": "draw_33072",
+                "srv_slots": [
+                    {
+                        "slot": 50,
+                        "name": "__3__36__0__0__g_waterNormalTexture",
+                        "hlsl_bind": "t8,space36",
+                    },
+                    {
+                        "slot": 54,
+                        "name": "__0__7__0__0__g_bindlessTextures",
+                        "hlsl_bind": "t0,space7unbounded",
+                    },
+                ],
+                "sampler_states": [{"slot": 0}],
+                "constant_buffers": [{"name": "__3__35__0__0__WaterConstantBuffer", "hlsl_bind": "cb4,space35"}],
+                "pixel_shader": {"disassembly_path": "ps.asm"},
+                "blend_state": {"alpha_to_coverage": False},
+                "raster_state": {"cull_mode": "back"},
+            }
+        )
+
+        self.assertEqual("environment_water", report["shader_family"])
+        self.assertEqual("crimson_water_normal", report["srv_slots"][0]["registry_decode"]["source_kind"])
+        self.assertEqual("descriptor_table", report["srv_slots"][1]["registry_decode"]["disposition"])
+        self.assertEqual("material_authority_runtime_xml", report["registry_policy"]["material_profile_rule"]["recommended_profile"])
+
     def test_cli_writes_summary_and_capture_reports(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

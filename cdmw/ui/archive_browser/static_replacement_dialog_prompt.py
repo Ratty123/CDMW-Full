@@ -37,6 +37,7 @@ def prompt_archive_static_replacement_options(
     extra_supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
     defer_original_texture_preview: bool = False,
     runtime_export_target_entry: Optional[ArchiveEntry] = None,
+    full_import_model_replacement: bool = False,
     embedded_host: Optional[QWidget] = None,
     continue_build_callback: Optional[
         Callable[
@@ -104,10 +105,16 @@ def prompt_archive_static_replacement_options(
             "_alignment_texture_lookup_indexes",
         ),
     )
+    def _sync_highlight_sets_when_ready(*args, **kwargs):
+        callback = prompt_shell_context.get("_sync_highlight_sets")
+        if callable(callback):
+            return callback(*args, **kwargs)
+        return None
+
     alignment_preview_shell_section = create_alignment_preview_shell_section({
         **prompt_shell_context,
         **locals(),
-        '_sync_highlight_sets': (lambda *args, **kwargs: _sync_highlight_sets(*args, **kwargs)),
+        '_sync_highlight_sets': _sync_highlight_sets_when_ready,
     })
     (
         _alignment_current_camera_state, _alignment_d3d11_host_ready, _alignment_d3d11_live_frame_available, _alignment_d3d11_loading_stuck,

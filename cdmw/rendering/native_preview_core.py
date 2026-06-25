@@ -493,6 +493,7 @@ def render_settings_to_native_preview_core_dict(settings: Optional[ModelPreviewR
         "d3d11_tone_gamma",
         "d3d11_texture_address_mode",
         "ambient_strength",
+        "diffuse_wrap_bias",
         "diffuse_light_scale",
         "orbit_sensitivity",
         "pan_sensitivity",
@@ -648,10 +649,10 @@ def _repair_native_preview_core_manifest(
         updated.get("lighting_preset", ""),
     )
     updated["diffuse_wrap_bias"] = _clamp(
-        updated.get("diffuse_wrap_bias", getattr(render_settings, "diffuse_wrap_bias", 0.72)),
+        updated.get("diffuse_wrap_bias", getattr(render_settings, "diffuse_wrap_bias", 0.58)),
         0.0,
         1.0,
-        _safe_float(getattr(render_settings, "diffuse_wrap_bias", 0.72), 0.72),
+        _safe_float(getattr(render_settings, "diffuse_wrap_bias", 0.58), 0.58),
     )
     if "render_settings" not in updated:
         updated["render_settings"] = render_settings_to_native_preview_core_dict(render_settings)

@@ -11,7 +11,7 @@ import time
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Mapping, Optional, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 try:
     import lz4.block as lz4_block
@@ -51,13 +51,13 @@ _ARCHIVE_SIDECAR_CACHE_MAGIC = b"CTFSIDE1"
 _ARCHIVE_SIDECAR_CACHE_VERSION = 9
 _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT = 1
 _ARCHIVE_DERIVED_INDEX_CACHE_MAGIC = b"CTFDERI1"
-_ARCHIVE_DERIVED_INDEX_CACHE_VERSION = 10
+_ARCHIVE_DERIVED_INDEX_CACHE_VERSION = 11
 _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_VERSION = 1
 _ARCHIVE_BASIC_INDEX_CACHE_MAGIC = b"CTFBASI1"
 _ARCHIVE_BASIC_INDEX_CACHE_VERSION = 2
 _ARCHIVE_BASIC_INDEX_SHARD_CACHE_MAGIC = b"CTFSHBI1"
 _ARCHIVE_BASIC_INDEX_SHARD_CACHE_VERSION = 1
-_ARCHIVE_NAME_SEARCH_SHARD_META_VERSION = 1
+_ARCHIVE_NAME_SEARCH_SHARD_META_VERSION = 2
 _ARCHIVE_ENTRY_METADATA_SIGNATURE_FORMAT = 1
 _ARCHIVE_DERIVED_INDEX_CACHE_MAX_SAFE_BYTES = 64 * 1024 * 1024
 _ARCHIVE_BASIC_INDEX_CACHE_MAX_SAFE_BYTES = 256 * 1024 * 1024
@@ -155,6 +155,21 @@ def resolve_archive_name_search_index_cache_path(package_root: Path, cache_root:
     return cache_root / f"archive_name_search_{_archive_cache_root_digest(package_root)}.bin"
 
 
+def archive_cache_protected_paths(package_root: Path, cache_root: Path) -> Tuple[Path, ...]:
+    return (
+        resolve_archive_scan_cache_path(package_root, cache_root),
+        resolve_archive_scan_shard_cache_dir(package_root, cache_root),
+        resolve_archive_sidecar_cache_path(package_root, cache_root),
+        resolve_archive_sidecar_cache_metadata_path(package_root, cache_root),
+        resolve_archive_derived_index_cache_path(package_root, cache_root),
+        resolve_archive_item_icon_thumbnail_cache_dir(package_root, cache_root),
+        resolve_archive_basic_index_cache_path(package_root, cache_root),
+        resolve_archive_basic_index_shard_cache_dir(package_root, cache_root),
+        resolve_archive_name_search_index_cache_path(package_root, cache_root),
+        resolve_archive_name_search_shard_cache_dir(package_root, cache_root),
+    )
+
+
 def resolve_crimson_desert_executable(package_root: Path) -> Optional[Path]:
     base_dir = _archive_base_dir(package_root)
     candidate_roots: List[Path] = []
@@ -245,10 +260,34 @@ def prune_archive_cache_root(
     *,
     max_bytes: int = _ARCHIVE_CACHE_ROOT_MAX_BYTES,
     target_bytes: int = _ARCHIVE_CACHE_ROOT_TARGET_BYTES,
+    protected_paths: Sequence[Path] = (),
 ) -> Dict[str, int]:
     root = Path(cache_root)
     if max_bytes <= 0 or target_bytes < 0 or not root.is_dir():
         return {"files": 0, "bytes": 0, "removed_files": 0, "removed_bytes": 0}
+
+    def protection_key(path: Path) -> str:
+        try:
+            resolved = Path(path).expanduser().resolve()
+        except OSError:
+            resolved = Path(path).expanduser()
+        return os.path.normcase(os.fspath(resolved)).rstrip("\\/").casefold()
+
+    protected_keys = tuple(key for key in (protection_key(path) for path in protected_paths) if key)
+
+    def is_protected(path: Path) -> bool:
+        if not protected_keys:
+            return False
+        path_key = protection_key(path)
+        for protected_key in protected_keys:
+            if (
+                path_key == protected_key
+                or path_key.startswith(protected_key + os.sep)
+                or protected_key.startswith(path_key + os.sep)
+            ):
+                return True
+        return False
+
     units: List[Tuple[float, int, int, Path]] = []
     total_bytes = 0
     try:
@@ -258,6 +297,7 @@ def prune_archive_cache_root(
     for path in children:
         if not any(path.name.startswith(prefix) for prefix in _ARCHIVE_CACHE_ROOT_PREFIXES):
             continue
+        protected = is_protected(path)
         file_count = 0
         latest_mtime = 0.0
         size = 0
@@ -288,6 +328,8 @@ def prune_archive_cache_root(
         else:
             continue
         total_bytes += size
+        if protected:
+            continue
         units.append((latest_mtime, size, file_count, path))
     if total_bytes <= max_bytes:
         return {"files": sum(item[2] for item in units), "bytes": total_bytes, "removed_files": 0, "removed_bytes": 0}
@@ -923,7 +965,10 @@ def save_archive_item_icon_thumbnail_cache(
             "last_used_at": time.time(),
         }
         _write_archive_item_icon_thumbnail_manifest(cache_dir, manifest)
-    prune_archive_cache_root(cache_root)
+    prune_archive_cache_root(
+        cache_root,
+        protected_paths=archive_cache_protected_paths(package_root, cache_root),
+    )
     return destination
 
 
@@ -1827,7 +1872,10 @@ def load_or_update_archive_scan_shards(
         timings.setdefault("cache_load_s", 0.0)
         timings.setdefault("scan_shard_load_s", 0.0)
         timings.setdefault("scan_shard_rescan_s", float(timings.get("archive_scan_s", 0.0) or 0.0))
-    prune_report = prune_archive_cache_root(cache_root)
+    prune_report = prune_archive_cache_root(
+        cache_root,
+        protected_paths=archive_cache_protected_paths(package_root, cache_root),
+    )
     if on_log is not None and prune_report.get("removed_files"):
         on_log(
             "Archive cache pruned: "
@@ -1928,7 +1976,10 @@ def save_archive_scan_cache(
         on_progress(1, 1, "Archive index cache written; preparing browser indexes...")
     if on_log:
         on_log(f"Archive cache updated: {cache_path}")
-    prune_report = prune_archive_cache_root(cache_root)
+    prune_report = prune_archive_cache_root(
+        cache_root,
+        protected_paths=archive_cache_protected_paths(package_root, cache_root),
+    )
     if on_log and prune_report.get("removed_files"):
         on_log(
             "Archive cache pruned: "

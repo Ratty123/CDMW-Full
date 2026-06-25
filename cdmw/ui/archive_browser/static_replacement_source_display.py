@@ -403,6 +403,7 @@ def target_outliner_state(
     replacement_mesh: object | None,
     enabled_renderable_source_indices: Callable[[Sequence[int]], tuple[int, ...]],
     target_physics_status_text: Callable[[str, object], str],
+    modify_original_clone_mode: bool = False,
 ) -> tuple[str, str]:
     if target_index < 0:
         return "Invalid", "#f85149"
@@ -422,7 +423,7 @@ def target_outliner_state(
             str(getattr(target, "material", "") or getattr(target, "name", "") or f"target {target_index}"),
             target,
         )
-    if physics == "Review":
+    if physics == "Review" and not bool(modify_original_clone_mode):
         return "Physics", "#f2cc60"
     if len(enabled_source_indices) > 1:
         return "Merged", "#d29922"

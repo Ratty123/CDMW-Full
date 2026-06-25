@@ -454,6 +454,11 @@ class ArchiveBrowserActionMixin:
             inspect_sidecar_action.triggered.connect(lambda _checked=False: self._inspect_current_archive_binary_sidecar())
             export_sidecar_json_action = menu.addAction(menu_icons["data"], "Export Decode JSON...")
             export_sidecar_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_binary_sidecar_json())
+            if entry.extension == ".prefab":
+                export_prefab_edit_json_action = menu.addAction(menu_icons["data"], "Export Prefab Edit JSON...")
+                export_prefab_edit_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_prefab_edit_json())
+                import_prefab_edit_json_action = menu.addAction(menu_icons["data"], "Import Prefab Edit JSON...")
+                import_prefab_edit_json_action.triggered.connect(lambda _checked=False: self._import_current_archive_prefab_edit_json())
 
         if entry.extension in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
             edit_structured_action = menu.addAction(menu_icons["data"], "Edit Structured Data Safely...")

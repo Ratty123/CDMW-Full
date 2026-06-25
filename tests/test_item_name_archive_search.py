@@ -8,6 +8,7 @@ from unittest import mock
 
 from cdmw.core.archive import (
     active_archive_entry_for_virtual_path,
+    archive_entry_item_name_match,
     archive_entry_is_mod_package,
     crypt_chacha20_filename,
     filter_archive_entries,
@@ -670,6 +671,45 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
 
         self.assertEqual([entry.path for entry in filtered], ["character/model/cd_phm_01_sword_0279_sub01.pac"])
 
+    def test_archive_filter_matches_item_alias_for_weapon_in_companion_suffix(self) -> None:
+        entries = [
+            _entry("character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0036.pac"),
+            _entry("character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0036_in.pac"),
+            _entry("character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0099_in.pac"),
+        ]
+
+        filtered = filter_archive_entries(
+            entries,
+            filter_text="Hwando",
+            exclude_filter_text="",
+            extension_filter="*",
+            package_filter_text="",
+            structure_filter="",
+            role_filter="all",
+            exclude_common_technical_suffixes=False,
+            min_size_kb=0,
+            previewable_only=False,
+            item_search_aliases={
+                "cd_phm_02_sword_0036": "hwando hwando_twohandsword cd_phm_02_sword_0036.pac",
+            },
+        )
+
+        self.assertEqual(
+            [entry.basename for entry in filtered],
+            ["cd_phm_02_sword_0036.pac", "cd_phm_02_sword_0036_in.pac"],
+        )
+
+    def test_item_name_match_uses_weapon_in_companion_as_related_hint(self) -> None:
+        exact_name, name_hint, reason = archive_entry_item_name_match(
+            _entry("character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0036_in.pac"),
+            item_display_names={"cd_phm_02_sword_0036": "Hwando"},
+            item_exact_display_names={"cd_phm_02_sword_0036": "Hwando"},
+        )
+
+        self.assertEqual(exact_name, "")
+        self.assertEqual(name_hint, "Name hint: Hwando")
+        self.assertIn("Possible related item name", reason)
+
     def test_stringinfo_icon_hashes_can_supply_compatible_model_stems(self) -> None:
         icon_name = b"ItemIcon_Prefab_cd_phm_01_sword_0166_index01_r"
         icon_hash = hashlittle(icon_name, 0xC5EDE)
@@ -729,6 +769,44 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].prefab_hashes, [prefab_hash])
         self.assertIn("ItemInfo._prefabDataList", summarize_table_evidence(records[0].table_evidence))
+
+    def test_iteminfo_prefab_hash_parser_accepts_prefab_list_marker_byte_10(self) -> None:
+        prefab_hash = hashlittle(b"cd_phm_02_sword_0036", 0xC5EDE)
+        sheath_hash = hashlittle(b"cd_phm_02_sword_0036_in", 0xC5EDE)
+        internal_name = b"Hwando_TwoHandSword"
+        loc_id = b"4295310893383792"
+        iteminfo_data = (
+            (1000080).to_bytes(4, "little")
+            + (len(internal_name) + 1).to_bytes(4, "little")
+            + internal_name
+            + _ITEMINFO_MARKER
+            + b"\x00" * (18 - len(_ITEMINFO_MARKER))
+            + len(loc_id).to_bytes(4, "little")
+            + loc_id
+            + b"\x00" * 360
+            + b"\x10\x03\x01"
+            + (1).to_bytes(4, "little")
+            + (2).to_bytes(4, "little")
+            + prefab_hash.to_bytes(4, "little")
+            + sheath_hash.to_bytes(4, "little")
+        )
+
+        records = _parse_archive_iteminfo_data(
+            iteminfo_data,
+            {"eng": {loc_id.decode("ascii"): "Hwando"}},
+        )
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].prefab_hashes, [prefab_hash, sheath_hash])
+        index = _build_archive_item_search_index_from_records(
+            records,
+            [
+                _entry("character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0036.pac"),
+                _entry("character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0036_in.pac"),
+            ],
+        )
+        self.assertEqual(index.model_base_exact_display_names["cd_phm_02_sword_0036"], "Hwando")
+        self.assertEqual(index.model_base_exact_display_names["cd_phm_02_sword_0036_in"], "Hwando")
 
     def test_item_records_can_carry_multilingual_names(self) -> None:
         record = ArchiveItemRecord(

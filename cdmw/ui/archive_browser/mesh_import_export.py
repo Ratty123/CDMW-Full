@@ -65,6 +65,7 @@ class ArchiveMeshImportExportMixin:
         force_static_replacement: bool = False,
         placement_review_title: str = "",
         placement_context_note: str = "",
+        full_import_model_replacement: bool = False,
         ) -> Optional[MeshImportSetupSelection]:
         setup_control_text = _mesh_import_setup_control_text()
         source_display_label = source_label.strip() or str(scene_path)
@@ -648,6 +649,7 @@ class ArchiveMeshImportExportMixin:
             source_label=source_display_label,
             placement_review_title=placement_review_title,
             placement_context_note=placement_context_note.strip(),
+            full_import_model_replacement=bool(full_import_model_replacement),
         )
 
     def _start_archive_mesh_export(self, entry: ArchiveEntry, export_format: str) -> None:

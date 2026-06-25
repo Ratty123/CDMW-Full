@@ -545,24 +545,6 @@ class ArchiveBrowserTreeControllerMixin:
         target_item: Optional[QTreeWidgetItem] = None,
         defer_default_selection: bool = False,
     ) -> None:
-        total_entries = len(self.archive_entries)
-        filtered_entries = len(self.archive_filtered_entries)
-        rendered_entries = self.archive_tree.topLevelItemCount()
-        render_note = ""
-        if not self._archive_tree_view_enabled() and rendered_entries < filtered_entries:
-            render_note = f" First {max(0, rendered_entries):,} rows rendered; scroll to fetch more, refine filters, or use Folders view."
-        material_catalog_count = len(self._archive_material_catalog_rows())
-        catalog_note = (
-            f" Scope: {self.archive_active_asset_catalog_scope}."
-            if self.archive_active_asset_catalog_scope
-            else f" Item Finder: {len(self.archive_item_asset_catalog):,} rows; Material Finder: {material_catalog_count:,} rows."
-            if self.archive_item_asset_catalog
-            else ""
-        )
-        self.archive_stats_label.setText(
-            f"{filtered_entries:,} shown / {total_entries:,} total entries. DDS in current view: {self.archive_filtered_dds_count:,}.{catalog_note}{render_note}"
-        )
-
         current_item = self.archive_tree.currentItem()
         if target_item is None and current_item is not None and not defer_default_selection:
             target_item = current_item

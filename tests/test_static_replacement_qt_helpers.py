@@ -91,6 +91,10 @@ def test_clear_tree_current_item_clears_selection_and_current_index() -> None:
     assert tree.currentIndex().isValid() is False
 
 
+def test_clear_tree_current_item_ignores_missing_tree() -> None:
+    clear_tree_current_item(None)
+
+
 def test_commit_spinbox_text_interprets_pending_line_edit_text() -> None:
     spin = QDoubleSpinBox()
     spin.setRange(-10.0, 10.0)
@@ -353,6 +357,16 @@ def test_auto_fit_tree_columns_honors_defer_property() -> None:
 
     assert tree.columnWidth(0) == 77
     assert tree.columnWidth(1) == 88
+
+
+def test_auto_fit_tree_columns_ignores_deleted_tree() -> None:
+    tree = QTreeWidget()
+    tree.setColumnCount(1)
+    tree.deleteLater()
+    QTimer.singleShot(0, _APP.quit)
+    _APP.exec()
+
+    auto_fit_tree_columns(tree, (20,), (200,), expand_column=0)
 
 
 def test_install_tree_column_autofit_registers_filter() -> None:

@@ -1042,6 +1042,28 @@ def _descriptor_has_local_strong_nonmetal_token(descriptor: str) -> bool:
     )
 
 
+def _descriptor_has_apparel_cloth_slot(descriptor: str) -> bool:
+    text = str(descriptor or "").replace("\\", "/").lower()
+    return (
+        "/9_upperbody/" in text
+        or "/10_lowerbody/" in text
+        or "_ub_" in text
+        or "_lb_" in text
+        or any(
+            _descriptor_contains_token(text, token)
+            for token in ("upperbody", "lowerbody", "sleeve", "pants", "trouser", "shirt", "tunic")
+        )
+    )
+
+
+def _descriptor_has_structural_metal_slot(descriptor: str) -> bool:
+    text = str(descriptor or "").replace("\\", "/").lower()
+    return any(
+        _descriptor_contains_token(text, token)
+        for token in ("metal", "steel", "iron", "blade", "plate", "chain", "mail")
+    )
+
+
 def _batch_weapon_masked_base_tint_should_stay_masked(batch: PreparedModelPreviewBatch, *, source_path: object = "") -> bool:
     descriptor = _material_input_descriptor(batch)
     if not _source_or_descriptor_has_weapon_surface(source_path, descriptor):
@@ -1341,11 +1363,15 @@ def _resolved_batch_material_category(
         return "hair", 0.76
 
     packed_text = " ".join(str(value or "") for value in tuple(material_contract.get("packed_channels", ()) or ())).lower()
-    strong_nonmetal_descriptor = any(_descriptor_contains_token(descriptor, token) for token in nonmetal_tokens)
+    apparel_cloth_descriptor = (
+        _descriptor_has_apparel_cloth_slot(" ".join((str(source_path or ""), descriptor, local_descriptor)))
+        and not _descriptor_has_structural_metal_slot(local_descriptor)
+    )
+    strong_nonmetal_descriptor = any(_descriptor_contains_token(descriptor, token) for token in nonmetal_tokens) or apparel_cloth_descriptor
     if any(
         _descriptor_contains_token(descriptor, token)
         for token in ("cloth", "fabric", "flag", "banner", "vest", "tassel", "fringe", "ribbon", "sash", "rope", "cloak", "cape", "skirt", "dress", "mantle", "robe", "flap")
-    ):
+    ) or apparel_cloth_descriptor:
         return "cloth", 0.72
     explicit_metal = bool(
         not strong_nonmetal_descriptor
@@ -1434,6 +1460,8 @@ def _resolved_batch_material_category_reason(
         ):
             return "metal:material_channel"
         return "metal:material_or_part_token"
+    if category == "cloth" and _descriptor_has_apparel_cloth_slot(" ".join((str(source_path or ""), descriptor))):
+        return "nonmetal:apparel_slot_token"
     if category in {"leather", "wood", "cloth", "skin", "hair", "stone", "tooth"}:
         return f"nonmetal:{category}_token"
     if category in {"glass", "gem", "eye"}:

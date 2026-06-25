@@ -31,6 +31,7 @@ from cdmw.rendering.native_preview_package import (
     read_isolated_d3d11_preview_manifest,
     write_isolated_d3d11_preview_package,
 )
+from cdmw.workers.d3d11_package_workers import AlignmentD3D11PackageWorker
 
 
 def _archive_d3d11_ui_source() -> str:
@@ -103,6 +104,175 @@ def _minimal_bc_dds(fourcc: bytes = b"DXT1") -> bytes:
 
 
 class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
+    def test_alignment_worker_splices_native_archive_reference_batches(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            target_dir = root / "target"
+            native_dir = root / "native"
+            (target_dir / "geometry").mkdir(parents=True)
+            (native_dir / "geometry").mkdir(parents=True)
+            (native_dir / "textures").mkdir(parents=True)
+            (target_dir / "geometry" / "old.bin").write_bytes(b"old")
+            (target_dir / "geometry" / "replacement.bin").write_bytes(b"replacement")
+            (native_dir / "geometry" / "native.bin").write_bytes(b"native")
+            (native_dir / "geometry" / "native_identity.bin").write_bytes(b"identity")
+            (native_dir / "textures" / "native_base.png").write_bytes(b"png")
+            (native_dir / "textures" / "native_base.dds").write_bytes(_minimal_bc_dds())
+            (native_dir / "textures" / "native_layer.dds").write_bytes(_minimal_bc_dds())
+            (native_dir / "textures" / "native_mask.dds").write_bytes(_minimal_bc_dds())
+            (native_dir / "textures" / "native_layer_ma.dds").write_bytes(_minimal_bc_dds())
+            (target_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "batches": [
+                            {
+                                "vertex_file": "geometry/old.bin",
+                                "editor_role": "original_reference",
+                                "material_name": "Old",
+                                "vertex_count": 1,
+                                "face_count": 1,
+                            },
+                            {
+                                "vertex_file": "geometry/replacement.bin",
+                                "editor_role": "replacement_preview",
+                                "material_name": "Replacement",
+                                "vertex_count": 2,
+                                "face_count": 1,
+                            },
+                        ],
+                        "batch_count": 2,
+                        "mesh_count": 2,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (native_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "batches": [
+                            {
+                                "vertex_file": "geometry/native.bin",
+                                "editor_identity": {"identity_file": "geometry/native_identity.bin"},
+                                "textures": {"base": "textures/native_base.png"},
+                                "dds_textures": {"base": {"source_path": "textures/native_base.dds"}},
+                                "material_layers": [
+                                    {
+                                        "layer_role": "detail",
+                                        "diffuse_source": "textures/native_layer.dds",
+                                        "mask_source": "textures/native_mask.dds",
+                                        "material_source": "textures/native_layer_ma.dds",
+                                    }
+                                ],
+                                "primary_material_layer": {
+                                    "layer_role": "detail",
+                                    "diffuse_source": "textures/native_layer.dds",
+                                },
+                                "material_name": "NativeBlade",
+                                "texture_name": "NativeTexture",
+                                "vertex_count": 3,
+                                "face_count": 1,
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            replaced = AlignmentD3D11PackageWorker._replace_original_reference_with_native_package(
+                target_dir,
+                native_dir,
+            )
+            manifest = json.loads((target_dir / "manifest.json").read_text(encoding="utf-8"))
+            mirror_dir = root / "mirror"
+            (mirror_dir / "geometry").mkdir(parents=True)
+            (mirror_dir / "geometry" / "old.bin").write_bytes(b"old")
+            (mirror_dir / "geometry" / "replacement.bin").write_bytes(b"replacement")
+            (mirror_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "batches": [
+                            {
+                                "vertex_file": "geometry/old.bin",
+                                "editor_role": "original_reference",
+                                "material_name": "Old",
+                                "vertex_count": 1,
+                                "face_count": 1,
+                            },
+                            {
+                                "vertex_file": "geometry/replacement.bin",
+                                "editor_role": "replacement_preview",
+                                "material_name": "FallbackReplacement",
+                                "vertex_count": 2,
+                                "face_count": 1,
+                            },
+                        ],
+                        "batch_count": 2,
+                        "mesh_count": 2,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            mirrored = AlignmentD3D11PackageWorker._replace_original_reference_with_native_package(
+                mirror_dir,
+                native_dir,
+                mirror_replacement_batches=True,
+            )
+            mirror_manifest = json.loads((mirror_dir / "manifest.json").read_text(encoding="utf-8"))
+
+        self.assertTrue(replaced)
+        self.assertEqual("native_preview_core", manifest["original_reference_package_source"])
+        self.assertEqual(2, manifest["batch_count"])
+        reference_batch, replacement_batch = manifest["batches"]
+        self.assertEqual("original_reference", reference_batch["editor_role"])
+        self.assertEqual("original_reference", reference_batch["editor_identity"]["role"])
+        self.assertFalse(reference_batch["editor_identity"]["editable"])
+        self.assertEqual("NativeBlade", reference_batch["material_name"])
+        self.assertEqual(str(native_dir / "textures" / "native_base.png"), reference_batch["textures"]["base"])
+        self.assertEqual(
+            str(native_dir / "textures" / "native_base.dds"),
+            reference_batch["dds_textures"]["base"]["source_path"],
+        )
+        self.assertEqual(
+            str(native_dir / "geometry" / "native_identity.bin"),
+            reference_batch["editor_identity"]["identity_file"],
+        )
+        self.assertEqual(
+            str(native_dir / "textures" / "native_layer.dds"),
+            reference_batch["material_layers"][0]["diffuse_source"],
+        )
+        self.assertEqual(
+            str(native_dir / "textures" / "native_mask.dds"),
+            reference_batch["material_layers"][0]["mask_source"],
+        )
+        self.assertEqual(
+            str(native_dir / "textures" / "native_layer_ma.dds"),
+            reference_batch["material_layers"][0]["material_source"],
+        )
+        self.assertEqual(
+            str(native_dir / "textures" / "native_layer.dds"),
+            reference_batch["primary_material_layer"]["diffuse_source"],
+        )
+        self.assertEqual("replacement_preview", replacement_batch["editor_role"])
+        self.assertEqual("Replacement", replacement_batch["material_name"])
+        self.assertTrue(mirrored)
+        mirror_reference_batch, mirror_replacement_batch = mirror_manifest["batches"]
+        self.assertEqual("NativeBlade", mirror_reference_batch["material_name"])
+        self.assertEqual("NativeBlade", mirror_replacement_batch["material_name"])
+        self.assertEqual("original_reference", mirror_reference_batch["editor_identity"]["role"])
+        self.assertEqual("replacement_preview", mirror_replacement_batch["editor_identity"]["role"])
+        self.assertFalse(mirror_reference_batch["editor_identity"]["editable"])
+        self.assertTrue(mirror_replacement_batch["editor_identity"]["editable"])
+        self.assertEqual(0, mirror_replacement_batch["editor_identity"]["source_submesh_index"])
+        self.assertEqual(
+            str(native_dir / "textures" / "native_base.dds"),
+            mirror_replacement_batch["dds_textures"]["base"]["source_path"],
+        )
+        worker_source = Path("cdmw/workers/d3d11_package_workers.py").read_text(encoding="utf-8")
+        self.assertIn(
+            'mirror_replacement_batches=self.editor_workspace == "modify_original_alignment"',
+            worker_source,
+        )
+
     def test_writes_empty_preview_package(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             package_dir = write_isolated_d3d11_preview_package(
@@ -2384,6 +2554,51 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
                 self.assertIn("material_category_reason", batch)
                 self.assertEqual(batch["material_category"], batch["material_analysis"]["category"])
 
+    def test_apparel_slot_path_overrides_metallic_mask_for_cloth_lowerbody(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base = temp_path / "cloth_base.png"
+            base_image = QImage(4, 4, QImage.Format_RGBA8888)
+            base_image.fill(QColor(145, 136, 104, 255))
+            self.assertTrue(base_image.save(str(base), "PNG"))
+            blob = b"".join(
+                (
+                    _vertex(-1.0, 0.0, 0.0, uv=(0.0, 0.0)),
+                    _vertex(1.0, 0.0, 0.0, uv=(1.0, 0.0)),
+                    _vertex(0.0, 1.0, 0.0, uv=(0.5, 1.0)),
+                )
+            )
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_lb_00_0318.pac"),
+                PreparedModelPreviewData(
+                    source_path="character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_lb_00_0318.pac",
+                    batches=(
+                        PreparedModelPreviewBatch(
+                            material_name="CD_PHM_00_LB_0055_00_01_01",
+                            texture_name="cd_phm_00_lb_0055_00_01_01",
+                            vertex_blob=blob,
+                            index_count=3,
+                            preview_texture_path=str(base),
+                            has_texture_coordinates=True,
+                            preview_native_material_overrides={
+                                "roughness": 0.24,
+                                "metalness": 0.68,
+                                "specular": 0.68,
+                            },
+                        ),
+                    ),
+                ),
+                output_root=temp_path / "package",
+            )
+
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+
+            self.assertEqual("cloth", batch["material_category"])
+            self.assertEqual("nonmetal:apparel_slot_token", batch["material_category_reason"])
+            self.assertEqual(0.0, batch["metalness"])
+            self.assertLessEqual(batch["specular"], 0.28)
+            self.assertGreaterEqual(batch["roughness"], 0.48)
+
     def test_emissive_texture_gets_default_glow_without_sidecar_intensity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -2702,11 +2917,19 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("batch_world * view_projection", source)
         self.assertIn("base_tint_strength", source)
         self.assertIn("boosted_preview_layer_weight", source)
-        self.assertIn("float tint_alpha = saturate(layer_tint[ID].a);", source)
+        self.assertIn("float tint_alpha = saturate(layer_tint[ID].a) * (early_category_metal ? 0.18 : 1.0);", source)
+        self.assertIn("float strong_dye_strength = saturate((layer_chroma - 0.38) * 1.65) * (early_category_metal ? 0.05 : 1.0);", source)
+        self.assertIn("float3 dye_authority_color = saturate(layer_tint_rgb * (0.62 + layer_lifted_luma * 0.70));", source)
+        self.assertIn("neutral_metal_tint", source)
+        self.assertIn("neutral_metal_luma", source)
         self.assertIn('const bool draw_albedo_layer = lower_copy(layer.role) != "base";', source)
         self.assertIn("prefer_generated_base_texture", source)
         self.assertIn("batch.base_dds.clear()", source)
-        self.assertIn("env_reflection", source)
+        self.assertIn("material_reference_albedo", source)
+        self.assertIn("stable_ao", source)
+        self.assertIn("float3 color = material_reference_albedo * stable_ao * nonmetal_texture_scale * diffuse_depth * metal_diffuse_scale;", source)
+        self.assertIn("color += material_reference_albedo * metal_cue * 0.16;", source)
+        self.assertNotIn("color += float3(0.78, 0.82, 0.88) * metal_cue;", source)
         self.assertIn("ggx_distribution", source)
         self.assertIn("geometry_smith", source)
         self.assertIn("fresnel_schlick", source)
@@ -2930,6 +3153,7 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("render_tuning_overridden_", source)
         self.assertIn("if (!view_settings_overridden_)", source)
         self.assertIn("if (!render_tuning_overridden_)", source)
+        self.assertNotIn("!stats_.lighting_preset.empty()", source)
         self.assertIn("texture_details", source)
         self.assertIn("material_contract_schema", source)
         self.assertIn("material_channel_contract_schema", source)
@@ -3091,7 +3315,7 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("batch.two_sided", source)
         self.assertIn('json_bool_field(object, "two_sided", json_bool_field(object, "double_sided", false))', source)
         self.assertIn("render_tuning_.cull_back_faces && !batch.two_sided && cull_rasterizer_", source)
-        self.assertIn("flags5.w > 0.5 && dot(n, view_dir) < 0.0", source)
+        self.assertIn("float camera_shape = saturate(abs(dot(n, view_dir)));", source)
         self.assertIn("batch.two_sided ? 1.0f : 0.0f", source)
         self.assertIn("batch.alpha_threshold", source)
 

@@ -124,6 +124,7 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
     texture_filter_refresh = context.get("texture_filter_refresh")
     texture_overrides_dirty = context.get("texture_overrides_dirty")
     texture_override_rows = context.get("texture_override_rows")
+    modify_original_clone_mode = bool(context.get("modify_original_clone_mode"))
 
     def _replacement_mesh():
         return _safe_call(_get_replacement_mesh_for_mapping)
@@ -205,6 +206,7 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
         replacement_mesh=_replacement_mesh(),
         enabled_renderable_source_indices=_enabled_renderable_source_indices,
         target_physics_status_text=_target_physics_status_text,
+        modify_original_clone_mode=modify_original_clone_mode,
     )
     _source_outliner_state = lambda source_index, assigned_targets=(): _source_outliner_state_helper(
         source_index,

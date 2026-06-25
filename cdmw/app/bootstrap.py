@@ -27,6 +27,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         from cdmw.ui.startup_splash_host import run_startup_splash_host
 
         return run_startup_splash_host(Path(args.startup_splash_host), parent_pid=int(args.parent_pid or 0))
+    if args.model_library_preview_worker:
+        from cdmw.services.model_library_preview import run_model_library_preview_worker
+
+        return run_model_library_preview_worker(Path(args.input), Path(args.output))
 
     if args.cli and args.gui:
         parser.error("Choose only one of --cli or --gui.")

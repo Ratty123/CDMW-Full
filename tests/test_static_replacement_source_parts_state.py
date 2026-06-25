@@ -375,7 +375,7 @@ def test_source_part_check_toggle_state_routes_source_tree_checkbox() -> None:
     assert state.enabled is True
     assert state.undo_action == "toggle"
     assert state.refresh_selected_controls is True
-    assert state.apply_pending is True
+    assert state.apply_pending is False
 
     guarded_state = source_part_check_toggle_state(
         source_index=4,
@@ -431,7 +431,7 @@ def test_source_part_output_action_state_routes_reset_and_remove_controls() -> N
     assert remove_state.source_checked is False
     assert remove_state.part_enabled_checked is False
     assert remove_state.undo_action == "remove"
-    assert remove_state.apply_pending is True
+    assert remove_state.apply_pending is False
 
     unavailable_state = source_part_output_action_state(
         action="remove",
@@ -1166,7 +1166,7 @@ def test_source_parts_action_control_text_preserves_copy_and_object_names() -> N
     assert text["delete_object"] == "MeshRoutingDeleteSourcePartsButton"
     assert text["apply_object"] == "MeshRoutingApplySourcePartsButton"
     assert "Original archive files are not modified" in text["delete_tooltip"]
-    assert "geometry preview is not rebuilt" in text["apply_tooltip"]
+    assert "Use, delete, and remove source changes rebuild the preview immediately" in text["apply_tooltip"]
     assert text["pending_label"] == "No unapplied source-part changes."
 
 
@@ -2203,9 +2203,7 @@ def test_source_part_delete_and_edit_text_preserves_status_copy() -> None:
     assert delete_text["none_deletable"] == "No deletable replacement source part selected."
     assert delete_text["undo_label"] == "Delete source part"
     assert source_part_deleted_pending_reason(3) == "deleted 3 source part(s); target routes were unassigned/remapped"
-    assert source_part_deleted_status(3) == (
-        "Deleted 3 replacement source part(s). Preview still shows old geometry until Apply."
-    )
+    assert source_part_deleted_status(3) == "Deleted 3 replacement source part(s). Preview is rebuilding."
 
     routing_text = source_part_group_routing_text()
     assert routing_text["no_source_title"] == "No Source Parts"
@@ -2309,15 +2307,9 @@ def test_source_parts_apply_pending_presentation_keeps_existing_status_text() ->
     presentation = source_parts_apply_pending_presentation("source include/exclude changed")
 
     assert presentation.apply_button_enabled is True
-    assert (
-        presentation.label_text
-        == "Pending: source include/exclude changed. Preview still shows the previous build until Apply."
-    )
+    assert presentation.label_text == "Pending: source include/exclude changed. Press Apply to rebuild preview."
     assert presentation.label_visible is True
-    assert (
-        presentation.performance_summary
-        == "Part changes pending. Deleted/unchecked parts may still render until Apply."
-    )
+    assert presentation.performance_summary == "Part routing changes pending. Press Apply to rebuild preview."
     assert presentation.performance_details == "source include/exclude changed"
 
 

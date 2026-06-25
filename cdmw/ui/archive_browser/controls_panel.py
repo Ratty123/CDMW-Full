@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPlainTextEdit,
-    QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -48,13 +47,6 @@ class ArchiveControlsPanelMixin:
         archive_controls_layout = archive_controls_group.body_layout
         archive_controls_layout.setContentsMargins(10, 10, 10, 10)
         archive_controls_layout.setSpacing(8)
-
-        archive_hint = QLabel(
-            "Scan packages, filter rows, preview files, and extract archive entries."
-        )
-        archive_hint.setObjectName("HintLabel")
-        archive_hint.setWordWrap(True)
-        archive_controls_layout.addWidget(archive_hint)
 
         self.archive_locations_section = CollapsibleSection("Archive Locations", expanded=False)
         archive_locations_group = QGroupBox("Game And Extraction Paths")
@@ -95,12 +87,6 @@ class ArchiveControlsPanelMixin:
         archive_locations_hint.setWordWrap(True)
         self.archive_locations_section.body_layout.addWidget(archive_locations_hint)
         self.archive_locations_section.body_layout.addWidget(archive_locations_group)
-        archive_locations_pointer = QLabel(
-            "Set game/package and extraction paths in Settings > Archive Locations."
-        )
-        archive_locations_pointer.setObjectName("HintLabel")
-        archive_locations_pointer.setWordWrap(True)
-        archive_controls_layout.addWidget(archive_locations_pointer)
 
         archive_search_group = QGroupBox("Search")
         archive_search_layout = QVBoxLayout(archive_search_group)
@@ -196,68 +182,23 @@ class ArchiveControlsPanelMixin:
         archive_search_layout.addLayout(archive_filter_grid)
         archive_controls_layout.addWidget(archive_search_group)
 
-        archive_status_group = QGroupBox("Status")
-        archive_status_group_layout = QVBoxLayout(archive_status_group)
-        archive_status_group_layout.setContentsMargins(8, 8, 8, 8)
-        archive_status_group_layout.setSpacing(6)
-
-        archive_status_row = QHBoxLayout()
-        archive_status_row.setSpacing(8)
-        self.archive_stats_label = QLabel("No archives scanned.")
-        self.archive_stats_label.setObjectName("HintLabel")
-        self.archive_stats_label.setWordWrap(True)
-        archive_status_row.addWidget(self.archive_stats_label, stretch=1)
-
-        self.archive_sidecar_status_widget = QWidget()
-        self.archive_sidecar_status_widget.setVisible(False)
-        self.archive_sidecar_status_widget.setMaximumWidth(150)
-        self.archive_sidecar_status_widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        archive_sidecar_status_layout = QHBoxLayout(self.archive_sidecar_status_widget)
-        archive_sidecar_status_layout.setContentsMargins(0, 0, 0, 0)
-        archive_sidecar_status_layout.setSpacing(6)
-        self.archive_sidecar_status_label = QLabel("Sidecar")
-        self.archive_sidecar_status_label.setObjectName("HintLabel")
-        self.archive_sidecar_status_label.setWordWrap(False)
-        self.archive_sidecar_status_label.setMaximumWidth(82)
-        self.archive_sidecar_status_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        archive_sidecar_status_layout.addWidget(self.archive_sidecar_status_label)
-        self.archive_sidecar_status_bar = QProgressBar()
-        self.archive_sidecar_status_bar.setTextVisible(False)
-        self.archive_sidecar_status_bar.setRange(0, 1)
-        self.archive_sidecar_status_bar.setValue(0)
-        self.archive_sidecar_status_bar.setFixedSize(56, 8)
-        archive_sidecar_status_layout.addWidget(self.archive_sidecar_status_bar)
-        archive_status_row.addWidget(self.archive_sidecar_status_widget, alignment=Qt.AlignRight | Qt.AlignTop)
-        archive_status_group_layout.addLayout(archive_status_row)
-
-        self.archive_scan_progress_bar = QProgressBar()
-        self.archive_scan_progress_bar.setRange(0, 100)
-        self.archive_scan_progress_bar.setValue(0)
-        self.archive_scan_progress_bar.setTextVisible(True)
-        self.archive_scan_progress_bar.setFormat("0%")
-        self.archive_scan_progress_bar.setToolTip("Ready to scan archive indexes.")
-        archive_status_group_layout.addWidget(self.archive_scan_progress_bar)
-
-        self.archive_scan_progress_label = QLabel("Ready")
-        self.archive_scan_progress_label.setObjectName("HintLabel")
-        self.archive_scan_progress_label.setAlignment(Qt.AlignCenter)
-        self.archive_scan_progress_label.setToolTip("Ready to scan archive indexes.")
-        self.archive_scan_progress_label.setWordWrap(False)
-        archive_status_group_layout.addWidget(self.archive_scan_progress_label)
-
         self.archive_preview_settings_status_label = QLabel("")
         self.archive_preview_settings_status_label.setObjectName("HintLabel")
         self.archive_preview_settings_status_label.setWordWrap(True)
         self.archive_preview_settings_status_label.setVisible(False)
 
-        archive_log_group = QGroupBox("Archive Scan Log")
-        archive_log_group_layout = QVBoxLayout(archive_log_group)
-        archive_log_group_layout.setContentsMargins(8, 8, 8, 8)
-        archive_log_group_layout.setSpacing(6)
+        archive_log_panel = QWidget()
+        archive_log_group_layout = QVBoxLayout(archive_log_panel)
+        archive_log_group_layout.setContentsMargins(0, 0, 0, 0)
+        archive_log_group_layout.setSpacing(4)
         archive_log_actions = QHBoxLayout()
         archive_log_actions.setSpacing(8)
+        archive_log_label = QLabel("Archive Scan Log")
+        archive_log_label.setObjectName("HintLabel")
         self.clear_archive_log_button = QPushButton("Clear")
         self.clear_archive_log_button.setMinimumWidth(72)
+        self.clear_archive_log_button.setMinimumHeight(24)
+        archive_log_actions.addWidget(archive_log_label)
         archive_log_actions.addStretch(1)
         archive_log_actions.addWidget(self.clear_archive_log_button)
         archive_log_group_layout.addLayout(archive_log_actions)
@@ -265,10 +206,11 @@ class ArchiveControlsPanelMixin:
         self.archive_log_view = QPlainTextEdit()
         self.archive_log_view.setReadOnly(True)
         self.archive_log_view.setMinimumHeight(96)
-        self.archive_log_view.setMaximumHeight(150)
+        self.archive_log_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.archive_log_view.document().setMaximumBlockCount(2000)
         self.archive_log_highlighter = LogHighlighter(self.archive_log_view.document(), self.current_theme_key)
         archive_log_group_layout.addWidget(self.archive_log_view)
+        archive_log_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         archive_filters_group = QGroupBox("Filters")
         archive_filters_layout = QVBoxLayout(archive_filters_group)
@@ -307,6 +249,8 @@ class ArchiveControlsPanelMixin:
         self.archive_package_filter_edit.setToolTip("Limit results to matching package names or pamt paths.")
         self.archive_previewable_only_checkbox.setToolTip("Show only files the built-in preview can handle.")
         self.archive_browser_view_mode_combo.setToolTip("Choose how the filtered archive rows are grouped visually. This does not change extraction, preview, or patch behavior.")
+        self.archive_package_filter_hint_label = QLabel("")
+        self.archive_package_filter_hint_label.setVisible(False)
         archive_package_filter_label = QLabel("Package")
         archive_package_filter_label.setObjectName("HintLabel")
         archive_package_filter_row.addWidget(archive_package_filter_label)
@@ -376,13 +320,6 @@ class ArchiveControlsPanelMixin:
         archive_secondary_actions_row.addWidget(self.archive_filter_clear_button)
         archive_filters_layout.addLayout(archive_secondary_actions_row)
 
-        self.archive_package_filter_hint_label = QLabel(
-            "Exclude accepts semicolon-separated substrings or globs."
-        )
-        self.archive_package_filter_hint_label.setObjectName("HintLabel")
-        self.archive_package_filter_hint_label.setWordWrap(True)
-        archive_filters_layout.addWidget(self.archive_package_filter_hint_label)
-
         archive_actions_group = QGroupBox("Actions")
         archive_actions_group_layout = QVBoxLayout(archive_actions_group)
         archive_actions_group_layout.setContentsMargins(8, 8, 8, 8)
@@ -414,23 +351,25 @@ class ArchiveControlsPanelMixin:
         archive_actions_row.addWidget(self.archive_open_in_editor_button, 1, 1)
         archive_actions_row.addWidget(self.archive_resolve_in_research_button, 2, 0, 1, 2)
         archive_actions_group_layout.addLayout(archive_actions_row)
-        archive_controls_layout.addWidget(archive_status_group)
         archive_controls_layout.addWidget(archive_actions_group)
         archive_controls_layout.addWidget(archive_filters_group)
-        archive_controls_layout.addWidget(archive_log_group)
+        archive_controls_layout.addWidget(archive_log_panel, 1)
 
         self.archive_controls_scroll = QScrollArea()
+        self.archive_controls_scroll.setObjectName("ArchiveControlsScroll")
         self.archive_controls_scroll.setWidgetResizable(True)
         self.archive_controls_scroll.setFrameShape(QFrame.NoFrame)
+        self.archive_controls_scroll.viewport().setObjectName("ArchiveControlsViewport")
         self.archive_controls_scroll.setMinimumWidth(archive_controls_min)
         self.archive_controls_scroll.setMaximumWidth(archive_controls_max)
         archive_controls_wrapper = QWidget()
+        archive_controls_wrapper.setObjectName("ArchiveControlsWrapper")
+        archive_controls_wrapper.setAttribute(Qt.WA_StyledBackground, True)
         archive_controls_wrapper_layout = QVBoxLayout(archive_controls_wrapper)
         archive_controls_wrapper_layout.setContentsMargins(0, 0, 0, 0)
         archive_controls_wrapper_layout.setSpacing(0)
         pump_startup_splash("Preparing archive tools...")
-        archive_controls_wrapper_layout.addWidget(archive_controls_group)
-        archive_controls_wrapper_layout.addStretch(1)
+        archive_controls_wrapper_layout.addWidget(archive_controls_group, 1)
         self.archive_controls_scroll.setWidget(archive_controls_wrapper)
         self.archive_splitter.addWidget(self.archive_controls_scroll)
 

@@ -317,17 +317,19 @@ def source_selection_overlay_adjustments(
 
 
 def apply_source_selection_overlay_mesh_state(mesh: object, source_index: int) -> None:
-    clear_preview_mesh_textures(mesh)
-    mesh.texture_name = ""
-    mesh.preview_texture_image = None
-    mesh.preview_normal_texture_image = None
-    mesh.preview_material_texture_image = None
-    mesh.preview_height_texture_image = None
-    mesh.preview_material_texture_inputs = ()
-    mesh.preview_texture_tint = ()
-    mesh.preview_color = (0.05, 0.95, 1.0)
+    mesh.preview_color = (1.0, 0.05, 0.95)
     mesh.preview_double_sided = True
     mesh.preview_role = "replacement_source_selection_overlay"
+    overrides = dict(getattr(mesh, "preview_native_material_overrides", {}) or {})
+    overrides.update(
+        {
+            "material_shader_family": "gltf_unlit",
+            "roughness": 0.0,
+            "metalness": 0.0,
+            "specular": 1.0,
+        }
+    )
+    mesh.preview_native_material_overrides = overrides
     mesh.material_name = f"selected source overlay {int(source_index)}"
 
 

@@ -298,10 +298,17 @@ def _append_scene_parameter(target: list[PreviewMaterialParameterInput], paramet
         target.append(parameter)
 
 
-def _result_with_external_audit(source_path: Path, result: SceneImportResult) -> SceneImportResult:
+def _result_with_external_audit(
+    source_path: Path,
+    result: SceneImportResult,
+    *,
+    enabled: bool = True,
+) -> SceneImportResult:
     from .scene_importer import SceneImportResult
 
     if not isinstance(result, SceneImportResult):
+        return result
+    if not enabled:
         return result
     if result.external_audit is None:
         result.external_audit = audit_external_model(source_path, result)

@@ -58,7 +58,7 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
 
     build_footer = _make_alignment_build_footer_helper(
         root_layout,
-        continue_build=continue_build_callback is not None,
+        continue_build=callable(continue_build_callback),
         export_allowed=bool(replacement_export_allowed["allowed"]),
         export_block_reason=str(replacement_export_allowed["reason"] or ""),
     )

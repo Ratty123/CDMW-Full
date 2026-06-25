@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QSizePolicy, QWidget
 
 
 class MenuController:
@@ -40,18 +40,38 @@ class ShellMenusMixin:
         self.menu_corner_widget = QWidget()
         menu_corner_layout = QHBoxLayout(self.menu_corner_widget)
         menu_corner_layout.setContentsMargins(0, 0, 0, 0)
-        menu_corner_layout.setSpacing(6)
+        menu_corner_layout.setSpacing(8)
+        self.archive_scan_progress_label = QLabel("Ready")
+        self.archive_scan_progress_label.setObjectName("HintLabel")
+        self.archive_scan_progress_label.setMinimumHeight(26)
+        self.archive_scan_progress_label.setFixedWidth(110)
+        self.archive_scan_progress_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.archive_scan_progress_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.archive_scan_progress_label.setToolTip("Ready to scan archive indexes.")
+        self.archive_scan_progress_bar = QProgressBar()
+        self.archive_scan_progress_bar.setRange(0, 100)
+        self.archive_scan_progress_bar.setValue(0)
+        self.archive_scan_progress_bar.setTextVisible(True)
+        self.archive_scan_progress_bar.setFormat("0%")
+        self.archive_scan_progress_bar.setFixedSize(118, 18)
+        self.archive_scan_progress_bar.setToolTip("Ready to scan archive indexes.")
         self.archive_cache_status_chip = QLabel("Cache: Unknown")
         self.archive_cache_status_chip.setObjectName("ArchiveCacheStatusChip")
         self.archive_cache_status_chip.setMinimumHeight(26)
-        self.archive_cache_status_chip.setMaximumWidth(240)
-        self.archive_cache_status_chip.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self.archive_cache_status_chip.setFixedWidth(132)
+        self.archive_cache_status_chip.setAlignment(Qt.AlignCenter)
+        self.archive_cache_status_chip.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.archive_cache_status_chip.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.archive_cache_status_chip.setToolTip("Cache Status: Unknown. Archive cache has not been checked.")
         self.support_corner_button = QPushButton("Support Me")
         self.support_corner_button.setIcon(self._build_support_heart_icon())
         self.support_corner_button.setToolTip("Open the optional Ko-fi support dialog.")
         self.support_corner_button.setMinimumHeight(26)
+        self.support_corner_button.setFixedWidth(136)
+        self.support_corner_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        menu_corner_layout.addWidget(self.archive_scan_progress_label)
+        menu_corner_layout.addWidget(self.archive_scan_progress_bar)
+        menu_corner_layout.addSpacing(6)
         menu_corner_layout.addWidget(self.archive_cache_status_chip)
         menu_corner_layout.addWidget(self.support_corner_button)
         menu_bar.setCornerWidget(self.menu_corner_widget, Qt.TopRightCorner)

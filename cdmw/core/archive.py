@@ -147,6 +147,7 @@ from cdmw.core.archive_scan_cache import (
     resolve_crimson_desert_executable,
     sha256_file,
     invalidate_archive_browser_cache,
+    archive_cache_protected_paths,
     prune_archive_cache_root,
     _candidate_archive_scan_cache_paths,
     _archive_base_dir,

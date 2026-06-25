@@ -69,6 +69,35 @@ class ShaderLongRunStatusTests(unittest.TestCase):
 
         capture_item = next(item for item in report["plan_items"] if item["name"] == "renderdoc_truth_pass")
         self.assertEqual(STATUS_COMPLETE, capture_item["status"])
+        target_item = next(item for item in report["plan_items"] if item["name"] == "renderdoc_target_material_selection")
+        self.assertEqual(STATUS_COMPLETE, target_item["status"])
+        self.assertIn("blade", target_item["evidence"]["matched_captures"][0]["matched_terms"])
+
+    def test_report_records_non_target_environment_capture(self) -> None:
+        report = build_status_report(
+            extract_manifest={"sidecar_entries_selected": 10},
+            audit_summary={"rows": 1000, "unknown_rows": 1},
+            dds_summary={"dds_files": 1, "fatal_files": 0},
+            material_profile_summary={"material_profile_rows": 4, "pso_rows": 2},
+            capture_reports=[
+                {
+                    "schema_version": 1,
+                    "captures": [
+                        {
+                            "material_name": "draw_33072",
+                            "shader_family": "environment_water",
+                            "drawcall": "chunk_33072",
+                            "srv_slots": [{"name": "g_waterNormalTexture"}],
+                        }
+                    ],
+                }
+            ],
+        )
+
+        target_item = next(item for item in report["plan_items"] if item["name"] == "renderdoc_target_material_selection")
+        self.assertEqual(STATUS_PARTIAL, target_item["status"])
+        self.assertEqual(0, target_item["evidence"]["matched_capture_count"])
+        self.assertEqual("environment_water", target_item["evidence"]["observed_shader_families"][0]["shader_family"])
 
     def test_report_marks_disassembly_only_capture_partial_and_records_bindless_summary(self) -> None:
         report = build_status_report(
@@ -203,6 +232,8 @@ class ShaderLongRunStatusTests(unittest.TestCase):
             dds = root / "dds.json"
             profiles = root / "profiles.json"
             bindings = root / "bindings.json"
+            capture = root / "capture.json"
+            correlation = root / "correlation.json"
             out_json = root / "status.json"
             out_md = root / "status.md"
             extract.write_text(json.dumps({"sidecar_entries_selected": 3}), encoding="utf-8")
@@ -210,6 +241,8 @@ class ShaderLongRunStatusTests(unittest.TestCase):
             dds.write_text(json.dumps({"dds_files": 1, "fatal_files": 0}), encoding="utf-8")
             profiles.write_text(json.dumps({"material_profile_rows": 2, "pso_rows": 1}), encoding="utf-8")
             bindings.write_text(json.dumps({"blob_count": 1}), encoding="utf-8")
+            capture.write_text(json.dumps({"schema_version": 1, "srv_slots": [{"resource": "1"}]}), encoding="utf-8")
+            correlation.write_text(json.dumps({"unique_high_confidence_count": 1}), encoding="utf-8")
 
             exit_code = main(
                 [
@@ -223,6 +256,10 @@ class ShaderLongRunStatusTests(unittest.TestCase):
                     str(profiles),
                     "--shader-binding-summary",
                     str(bindings),
+                    "--capture-report",
+                    str(capture),
+                    "--dds-correlation-summary",
+                    str(correlation),
                     "--out-json",
                     str(out_json),
                     "--out-md",

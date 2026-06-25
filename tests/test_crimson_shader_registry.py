@@ -96,13 +96,39 @@ class CrimsonShaderRegistryTests(unittest.TestCase):
                 self.assertEqual(source_kind, decode["source_kind"])
                 self.assertFalse(decode["promoted_channels"])
 
+    def test_renderdoc_water_bindings_are_runtime_environment_inputs(self) -> None:
+        cases = (
+            ("__3__36__0__0__g_waterNormalTexture", "crimson_water_normal", "normal", "environment_layer"),
+            ("__3__36__0__0__g_displacementTexture", "crimson_water_displacement", "height", "environment_height"),
+            ("__3__36__0__0__g_normalDepthHalf", "crimson_normal_depth_buffer", "layer", "render_buffer"),
+            ("__0__7__0__0__g_bindlessTextures", "crimson_bindless_texture_table", "material", "descriptor_table"),
+        )
+        for parameter_name, source_kind, slot, disposition in cases:
+            with self.subTest(parameter_name=parameter_name):
+                decode = decode_crimson_texture_binding(
+                    shader_family="environment_water",
+                    parameter_name=parameter_name,
+                    capture_inferred=True,
+                )
+
+                self.assertEqual("capture_inferred", decode["authority"])
+                self.assertEqual(source_kind, decode["source_kind"])
+                self.assertEqual(slot, decode["slot"])
+                self.assertEqual(disposition, decode["disposition"])
+                self.assertFalse(decode["promoted_channels"])
+
     def test_registry_manifest_lists_authority_values(self) -> None:
         manifest = registry_manifest()
 
         self.assertEqual(1, manifest["schema_version"])
         self.assertIn("standard_v2", [family["family"] for family in manifest["families"]])
+        self.assertIn("environment_water", [family["family"] for family in manifest["families"]])
         self.assertIn("authoritative", manifest["authority_values"])
         self.assertEqual("checklist_only", decode_profile_for_family("Hair")["renderdoc_truth_pass"]["status"])
+        self.assertEqual(
+            "material_authority_runtime_xml",
+            decode_profile_for_family("Water")["material_profile_rule"]["recommended_profile"],
+        )
 
 
 if __name__ == "__main__":

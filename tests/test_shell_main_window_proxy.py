@@ -13,6 +13,9 @@ class _ActualMainWindow:
 
 
 class ShellMainWindowProxyTests(unittest.TestCase):
+    def setUp(self) -> None:
+        main_window_proxy._loaded_main_window_class = None  # type: ignore[attr-defined]
+
     def tearDown(self) -> None:
         main_window_proxy._loaded_main_window_class = None  # type: ignore[attr-defined]
 
