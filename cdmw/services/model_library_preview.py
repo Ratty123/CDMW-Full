@@ -13,7 +13,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Optional
 
-from cdmw.core.common import run_process_with_cancellation
+from cdmw.core.common import raise_if_cancelled, run_process_with_cancellation
 from cdmw.core.archive_modding import (
     attach_scene_preview_textures,
     import_scene_mesh_with_report,
@@ -150,12 +150,14 @@ def prepare_model_library_inline_preview(
     request_id: int = 0,
     high_quality_textures: bool = False,
     progress: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> dict[str, object]:
     progress = progress or (lambda _message: None)
     source = Path(source_path)
     metadata = dict(payload or {})
     name = str(model_name or metadata.get("name", "") or source.stem or "model")
     backend = str(renderer_backend or "native_d3d11").strip().lower()
+    raise_if_cancelled(stop_event)
     progress(f"Resolving model preview source: {source}")
     resolved_import_path = resolve_importable_model_path(source, extract_root=extract_root)
     if resolved_import_path is None:
@@ -163,8 +165,10 @@ def prepare_model_library_inline_preview(
             f"{source.suffix or 'This file'} does not contain an importable model: "
             f"{', '.join(sorted(IMPORTABLE_MODEL_EXTENSIONS))}."
         )
+    raise_if_cancelled(stop_event)
     progress(f"Reading model file: {resolved_import_path}")
     scene_result = import_scene_mesh_with_report(resolved_import_path, include_external_audit=False)
+    raise_if_cancelled(stop_event)
     original_vertices = int(scene_result.mesh.total_vertices)
     original_faces = int(scene_result.mesh.total_faces)
     submeshes = tuple(getattr(scene_result.mesh, "submeshes", ()) or ())
@@ -180,13 +184,16 @@ def prepare_model_library_inline_preview(
             max_faces_per_submesh=_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH,
             max_vertices_per_submesh=_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH,
         )
+    raise_if_cancelled(stop_event)
     preview_model = parsed_mesh_to_preview_model(scene_result.mesh)
     texture_count = attach_scene_preview_textures(preview_model, scene_result, resolved_import_path)
+    raise_if_cancelled(stop_event)
     prepared_model, prepared_preview = prepare_model_preview(
         preview_model,
         render_settings=render_settings,
         enable_material_combiner=False,
     )
+    raise_if_cancelled(stop_event)
     package_dir = ""
     package_ms = 0.0
     if backend == "native_d3d11":
@@ -207,6 +214,7 @@ def prepare_model_library_inline_preview(
             )
         )
         package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
+    raise_if_cancelled(stop_event)
     audit = getattr(scene_result, "external_audit", None)
     return {
         "request_id": int(request_id),

@@ -43,7 +43,7 @@ class ArchiveFilesPanelMixin:
         archive_tab_layout.addWidget(self.archive_splitter, stretch=1)
 
     def _build_archive_files_panel(self) -> None:
-        archive_files_group = FlatSectionPanel("Archive Files")
+        archive_files_group = FlatSectionPanel("Files")
         archive_files_min, _archive_files_pref, _archive_files_max = responsive_sidebar_bounds(self, role="narrow")
         self.archive_files_min_width = archive_files_min
         archive_files_group.setMinimumWidth(archive_files_min)

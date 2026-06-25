@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 from PySide6.QtCore import QThread, Slot
 
-from cdmw.ui.model_library.workers import ModelLibraryTaskWorker as _ModelLibraryTaskWorker
+from cdmw.workers.model_library_workers import ModelLibraryTaskWorker as _ModelLibraryTaskWorker
 
 
 class ModelLibraryTaskMixin:
@@ -70,6 +70,9 @@ class ModelLibraryTaskMixin:
 
     @Slot(str)
     def _handle_task_progress(self, message: str) -> None:
+        recorder = getattr(self, "_record_model_library_preview_event", None)
+        if bool(getattr(self, "_inline_preview_task_running", False)) and callable(recorder):
+            recorder("model_library_preview_progress", message=str(message))
         self._set_status(str(message))
 
     @Slot(object)

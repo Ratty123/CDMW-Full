@@ -66,6 +66,7 @@ class ShellToolTabsMixin:
             settings=self.settings,
             base_dir=self.settings_file_path.parent,
             theme_key=self.current_theme_key,
+            record_runtime_event=getattr(self, "_record_runtime_event", None),
         )
         self.model_library_tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)

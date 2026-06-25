@@ -162,6 +162,7 @@ def create_alignment_original_texture_intent_callbacks(context: dict[str, object
     Path = context.get('Path')
     _archive_dds_preview_source_for_path = context.get('_archive_dds_preview_source_for_path')
     _binding_matches_target = context.get('_binding_matches_target')
+    _binding_matches_target_helper = context.get('_binding_matches_target_helper')
     _copied_original_dds_badge_helper = context.get('_copied_original_dds_badge_helper')
     _copied_original_texture_tooltip_helper = context.get('_copied_original_texture_tooltip_helper')
     _matches_target = context.get('_matches_target')
@@ -199,6 +200,8 @@ def create_alignment_original_texture_intent_callbacks(context: dict[str, object
             return []
 
         def _preview_source_for_path(texture_path: str) -> Path | None:
+            if not callable(_archive_dds_preview_source_for_path):
+                return None
             try:
                 return _archive_dds_preview_source_for_path(texture_path)
             except NameError:
@@ -208,6 +211,8 @@ def create_alignment_original_texture_intent_callbacks(context: dict[str, object
             try:
                 if callable(_binding_matches_target):
                     return _binding_matches_target(binding, target_name)
+                if callable(_binding_matches_target_helper):
+                    return _binding_matches_target_helper(binding, target_name)
             except NameError:
                 pass
             binding_names = (
@@ -218,6 +223,11 @@ def create_alignment_original_texture_intent_callbacks(context: dict[str, object
             target_key = target_name.lower()
             return any(name.strip().lower() == target_key for name in binding_names)
 
+        def _classify_texture_binding(parameter_name: str, texture_path: str) -> object:
+            if callable(classify_texture_binding):
+                return classify_texture_binding(parameter_name, texture_path)
+            return SimpleNamespace(slot_kind="material")
+
         return _original_part_texture_intent_rows_helper(
             original_index,
             original_mesh_for_mapping,
@@ -225,7 +235,7 @@ def create_alignment_original_texture_intent_callbacks(context: dict[str, object
             target_label=_original_target_label,
             preview_source_for_path=_preview_source_for_path,
             binding_matches_target=_matches_target,
-            classify_texture_binding=classify_texture_binding,
+            classify_texture_binding=_classify_texture_binding,
         )
 
     def _copied_original_texture_tooltip(source_index: int) -> str:

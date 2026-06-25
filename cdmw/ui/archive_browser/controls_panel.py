@@ -33,7 +33,7 @@ class ArchiveControlsPanelMixin:
     """Build archive browser sidebar controls."""
 
     def _build_archive_controls_panel(self, pump_startup_splash: Callable[[str], None]) -> None:
-        archive_controls_group = FlatSectionPanel("Archive Controls")
+        archive_controls_group = FlatSectionPanel("Controls")
         archive_controls_group.setObjectName("ArchiveControlsPanel")
         self.archive_controls_group = archive_controls_group
         archive_controls_font = QFont(archive_controls_group.font())

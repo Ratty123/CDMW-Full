@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,
-    QLabel,
     QLineEdit,
     QListWidgetItem,
     QMenu,
@@ -118,10 +117,6 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(10, 10, 10, 10)
         root_layout.setSpacing(8)
-
-        header = QLabel("Icon Creator")
-        header.setObjectName("SectionTitle")
-        root_layout.addWidget(header)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)

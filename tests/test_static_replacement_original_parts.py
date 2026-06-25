@@ -27,6 +27,9 @@ from cdmw.ui.archive_browser.static_replacement_original_parts import (
     source_physics_status_text,
     target_physics_status_text,
 )
+from cdmw.ui.archive_browser.static_replacement_dialog_routing_callbacks import (
+    create_alignment_original_texture_intent_callbacks,
+)
 
 
 @dataclass
@@ -210,6 +213,46 @@ def test_original_part_texture_intent_rows_collects_sidecar_and_mesh_dds_sorted_
         binding_matches_target=lambda _binding, _target: True,
         classify_texture_binding=lambda _parameter, _path: SimpleNamespace(slot_kind="base"),
     ) == []
+
+
+def test_original_texture_intent_callbacks_tolerate_missing_preview_resolver() -> None:
+    mesh = SimpleNamespace(submeshes=[SimpleNamespace(name="body", material="bodyMat", texture="mesh.dds")])
+    bindings = [SimpleNamespace(submesh_name="bodyMat", texture_path="base.dds", parameter_name="Base")]
+    callbacks = create_alignment_original_texture_intent_callbacks(
+        {
+            "_original_index_from_tree_item": lambda _item: -1,
+            "_original_part_texture_intent_rows_helper": original_part_texture_intent_rows,
+            "_original_target_label": lambda _index: "bodyMat",
+            "_copied_original_texture_tooltip_helper": copied_original_texture_tooltip,
+            "_copied_original_dds_badge_helper": copied_original_dds_badge,
+            "_archive_dds_preview_source_for_path": None,
+            "_binding_matches_target": None,
+            "classify_texture_binding": lambda parameter, _path: SimpleNamespace(
+                slot_kind="base" if parameter == "Base" else "material"
+            ),
+            "copied_original_texture_disabled_sources": set(),
+            "copied_original_texture_intents_by_source": {},
+            "original_mesh_for_mapping": mesh,
+            "original_tree": SimpleNamespace(currentItem=lambda: None, selectedItems=lambda: []),
+            "selected_original_part": {"index": -1},
+            "sidecar_bindings": bindings,
+        }
+    )
+
+    assert callbacks._original_part_texture_intent_rows(0) == [
+        {
+            "parameter_name": "Base",
+            "texture_path": "base.dds",
+            "slot_kind": "base",
+            "source_path": "",
+        },
+        {
+            "parameter_name": "mesh texture",
+            "texture_path": "mesh.dds",
+            "slot_kind": "base",
+            "source_path": "",
+        },
+    ]
 
 
 def test_copied_original_texture_tooltip_limits_rows_and_marks_visible_only() -> None:

@@ -1,5 +1,6 @@
 import json
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from types import MethodType, SimpleNamespace
@@ -13,6 +14,30 @@ from cdmw.ui.model_library_tab import (
 
 
 class ModelLibraryUiSourceGuardTests(unittest.TestCase):
+    def test_model_library_preview_package_cleanup_runs_in_worker_thread(self) -> None:
+        from cdmw.workers.model_library_workers import remove_model_library_preview_package_dir
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            skipped_dir = temp / "not_a_preview_package"
+            skipped_dir.mkdir()
+            self.assertIsNone(remove_model_library_preview_package_dir(skipped_dir))
+            self.assertTrue(skipped_dir.is_dir())
+
+            package_dir = temp / "cdmw_isolated_d3d11_test"
+            package_dir.mkdir()
+            (package_dir / "payload.txt").write_text("delete me", encoding="utf-8")
+
+            thread = remove_model_library_preview_package_dir(package_dir)
+
+            self.assertIsNotNone(thread)
+            assert thread is not None
+            self.assertIsNot(threading.current_thread(), thread)
+            thread.join(timeout=5)
+            self.assertFalse(thread.is_alive())
+            self.assertFalse(package_dir.exists())
+            self.assertTrue(skipped_dir.is_dir())
+
     def test_model_library_texture_status_classification_is_explicit(self) -> None:
         for status in ("Found (3)", "In ZIP (2)", "Resolved (4)"):
             self.assertEqual(model_library_texture_status_kind(status), "present")
@@ -161,6 +186,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
 
         self.assertIn("from cdmw.ui.model_library import ModelLibraryTab", source)
         self.assertIn("self.model_library_tab = ModelLibraryTab", source)
+        self.assertIn('record_runtime_event=getattr(self, "_record_runtime_event", None)', source)
         self.assertIn("import_mesh_requested.connect", source)
         self.assertIn("preview_mesh_requested.connect", source)
         self.assertIn("item_icon_source_generated.connect", source)
@@ -391,7 +417,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("preview_render_settings = self.inline_preview_widget.render_settings()", source)
         self.assertIn("render_settings=preview_render_settings", source)
         self.assertIn("prepare_model_library_inline_preview(", source)
-        self.assertIn("prepare_model_library_inline_preview_in_subprocess", source)
+        self.assertNotIn("prepare_model_library_inline_preview_in_subprocess", source)
         self.assertIn("high_quality_textures=False", source)
         self.assertIn("stop_event=stop_event", source)
         self.assertIn("_pending_inline_preview_request = (Path(source_path), dict(payload), bool(reset_orientation))", source)
@@ -445,6 +471,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("content_splitter.addWidget(results_panel)", source)
         self.assertIn("content_splitter.addWidget(preview_panel)", source)
         self.assertIn("preview_panel.setMinimumWidth(280)", source)
+        self.assertNotIn('header = QLabel("Model Library")', source)
         self.assertNotIn("right_splitter = QSplitter(Qt.Orientation.Vertical)", source)
         self.assertNotIn("\n        splitter.addWidget(results_panel)\n", source)
         self.assertNotIn("\n        splitter.addWidget(preview_panel)\n", source)
@@ -496,6 +523,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
             + "\n"
             + Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/tasks.py").read_text(encoding="utf-8")
         )
 
         preview_start = source.index("    def preview_selected_model_here")
@@ -508,14 +537,17 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         task_start = source.index("        def task(", load_start)
         task_body = source[task_start: source.index("        def complete(", task_start)]
         self.assertIn("extract_root = self._inline_preview_extract_root_for_source(source_path, payload)", task_body)
-        self.assertIn('if renderer_backend == "native_d3d11":', task_body)
-        self.assertIn("prepare_model_library_inline_preview_in_subprocess(", task_body)
         self.assertIn("return prepare_model_library_inline_preview(", task_body)
+        self.assertNotIn("prepare_model_library_inline_preview_in_subprocess(", task_body)
         self.assertIn("high_quality_textures=False", task_body)
         self.assertIn("stop_event=stop_event", task_body)
         self.assertNotIn("resolve_importable_model_path(", task_body)
         self.assertNotIn("import_scene_mesh_with_report(", task_body)
         self.assertNotIn("write_isolated_d3d11_preview_package(", task_body)
+        self.assertIn("_record_model_library_preview_event", source)
+        self.assertIn('"model_library_preview_start"', source)
+        self.assertIn('"model_library_preview_progress"', source)
+        self.assertIn('"model_library_d3d11_loaded"', source)
 
         complete_start = source.index("        def complete(", load_start)
         complete_body = source[complete_start: source.index("        def handle_error(", complete_start)]
@@ -538,9 +570,35 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("self._load_inline_model_preview(", finish_body)
 
         tasks_source = Path("cdmw/ui/model_library/tasks.py").read_text(encoding="utf-8")
+        self.assertIn("from cdmw.workers.model_library_workers import ModelLibraryTaskWorker", tasks_source)
+        self.assertNotIn("from cdmw.ui.model_library.workers import ModelLibraryTaskWorker", tasks_source)
         self.assertIn('hook = getattr(self, "_after_model_library_task_finished", None)', tasks_source)
         self.assertIn("if callable(hook):", tasks_source)
         self.assertIn("hook()", tasks_source)
+
+        worker_facade_source = Path("cdmw/ui/model_library/workers.py").read_text(encoding="utf-8")
+        self.assertIn("from cdmw.workers.model_library_workers import ModelLibraryTaskWorker", worker_facade_source)
+
+        preview_source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
+        worker_source = Path("cdmw/workers/model_library_workers.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "from cdmw.workers.model_library_workers import remove_model_library_preview_package_dir",
+            preview_source,
+        )
+        self.assertIn("remove_model_library_preview_package_dir(package_dir)", preview_source)
+        self.assertNotIn("shutil.rmtree", preview_source)
+        self.assertIn("threading.Thread(", worker_source)
+        self.assertIn("shutil.rmtree(package_dir, ignore_errors=True)", worker_source)
+
+        source_path_start = source.index("    def _inline_preview_source_path_for_payload")
+        source_path_body = source[source_path_start: source.index("    def _inline_preview_extract_root_for_source", source_path_start)]
+        local_start = source_path_body.index('if payload.get("kind") != "mirror"')
+        local_fast_path = source_path_body[
+            local_start
+            : source_path_body.index("            if path.is_file()", local_start)
+        ]
+        self.assertIn("return path", local_fast_path)
+        self.assertNotIn("path.is_file()", local_fast_path)
 
     def test_inline_d3d11_host_is_shown_before_hwnd_capture(self) -> None:
         source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
@@ -561,7 +619,12 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("diagnostic_log=diagnostic_log", body)
         self.assertIn("_check_inline_d3d11_start_timeout", body)
         self.assertIn("cleanup_packages=True", body)
-        self.assertIn("QTimer.singleShot(0, process.start)", body)
+        self.assertIn('"model_library_d3d11_process_configured"', body)
+        self.assertIn('"model_library_d3d11_process_started"', body)
+        self.assertIn("process.start()", body)
+        self.assertNotIn("QTimer.singleShot(0, process.start)", body)
+        self.assertIn('"model_library_d3d11_start_failed"', body)
+        self.assertIn('self._set_inline_preview_status("Native D3D11 renderer did not start."', body)
         self.assertIn("QTimer.singleShot(7000", source)
 
     def test_d3d11_command_reads_diagnostic_env_defaults(self) -> None:

@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+import os
+import tempfile
+import time
+import unittest
+from pathlib import Path
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtWidgets import QApplication
+
+from cdmw.services.settings_service import create_settings
+from cdmw.ui.model_library import ModelLibraryTab
+from tests.test_model_library_preview import _write_triangle_gltf
+
+
+def _app() -> QApplication:
+    return QApplication.instance() or QApplication([])
+
+
+class _QtPreviewModelLibraryTab(ModelLibraryTab):
+    def _inline_preview_renderer_backend(self) -> str:
+        return "qt"
+
+
+class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
+    def test_auto_preview_local_selection_loads_inline_preview_via_worker(self) -> None:
+        app = _app()
+        events: list[tuple[str, dict[str, object]]] = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            scene_path = _write_triangle_gltf(root, triangle_count=1200)
+            settings = create_settings(settings_file_path=root / "settings.ini")
+            tab = _QtPreviewModelLibraryTab(
+                settings=settings,
+                base_dir=root,
+                record_runtime_event=lambda event, **fields: events.append((str(event), dict(fields))),
+            )
+            try:
+                tab.show()
+                tab.auto_preview_checkbox.setChecked(True)
+                tab._set_active_results_view("local", persist=False)
+                payload = {
+                    "kind": "local",
+                    "name": "Dense Triangle",
+                    "path": str(scene_path),
+                    "extension": ".gltf",
+                    "size": scene_path.stat().st_size,
+                    "source": "Local",
+                }
+                tab._populate_results([payload])
+                while tab._populating_results:
+                    app.processEvents()
+                    time.sleep(0.01)
+
+                tab._schedule_auto_inline_preview()
+                deadline = time.perf_counter() + 10.0
+                while tab._inline_preview_loaded_import_path is None and time.perf_counter() < deadline:
+                    app.processEvents()
+                    time.sleep(0.01)
+
+                self.assertEqual(tab._inline_preview_loaded_import_path, scene_path)
+                self.assertEqual(tab._inline_preview_loaded_renderer_backend, "qt")
+                self.assertIn("model_library_preview_start", [event for event, _fields in events])
+                self.assertIn("model_library_preview_prepared", [event for event, _fields in events])
+                self.assertGreater(int(getattr(tab.inline_preview_widget, "_vertex_count", 0) or 0), 0)
+            finally:
+                if tab._task_thread is not None and tab._task_thread.isRunning():
+                    if tab._stop_event is not None and hasattr(tab._stop_event, "set"):
+                        tab._stop_event.set()
+                    tab._task_thread.quit()
+                    tab._task_thread.wait(2000)
+                tab.close()
+                tab.deleteLater()
+                app.processEvents()
+
+
+if __name__ == "__main__":
+    unittest.main()

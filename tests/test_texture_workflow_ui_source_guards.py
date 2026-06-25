@@ -143,7 +143,7 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
 
         self.assertIn("class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget)", tab_source)
         self.assertIn("class ItemIconRecordListMixin:", controller_source)
-        self.assertIn('header = QLabel("Icon Creator")', source)
+        self.assertNotIn('header = QLabel("Icon Creator")', source)
         self.assertIn('self.settings.value("item_icons/library_roots", "[]")', source)
         self.assertIn('self.index_path = self.library_root / "icon_index.json"', source)
         self.assertIn('QGroupBox("Library Folders")', source)

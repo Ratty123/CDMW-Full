@@ -626,6 +626,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def mount_embedded_builder(self, builder: QWidget) -> None:", mesh_editor_source)
         self.assertIn("def show_empty_state(self, message: str = \"\") -> None:", mesh_editor_source)
         self.assertIn("if self.has_active_builder():", mesh_editor_source)
+        self.assertNotIn('title = QLabel("Mesh Editor")', mesh_editor_source)
         self.assertNotIn("MeshEditorToolShelf", mesh_editor_source)
         self.assertNotIn("MeshEditorPreviewToolbar", mesh_editor_source)
         self.assertNotIn("MeshEditorCameraToolbar", mesh_editor_source)
@@ -3020,10 +3021,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('_source_part_edit_undo_label_helper("adjust")', part_update_block)
         self.assertIn("if queue_preview:", part_update_block)
         self.assertIn("_source_part_include_exclude_pending_reason_helper()", part_update_block)
-        self.assertIn("_set_source_parts_apply_pending(", part_update_block)
+        self.assertIn("_set_source_parts_preview_rebuild_pending(", part_update_block)
+        self.assertIn("_queue_static_preview_rebuild()", part_update_block)
         self.assertIn("_queue_part_transform_preview_update(tuple(apply_state.target_indices))", part_update_block)
-        self.assertNotIn("_set_source_parts_preview_rebuild_pending(", part_update_block)
-        self.assertNotIn("_queue_static_preview_rebuild()", part_update_block)
+        self.assertNotIn("_set_source_parts_apply_pending(", part_update_block)
         part_commit_start = source.index("def _alignment_part_source_indices_for_commit")
         part_commit_end = source.index("_alignment_single_part_source_index_for_preview = (", part_commit_start)
         part_commit_block = source[part_commit_start:part_commit_end]
@@ -4396,6 +4397,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
 
     def test_true_source_basic_controls_are_wired_to_static_options(self) -> None:
         source = _main_window_source()
+        prompt_transform_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_TRANSFORM.read_text(encoding="utf-8")
         authority_controls_source = ARCHIVE_STATIC_REPLACEMENT_MATERIAL_AUTHORITY_CONTROLS.read_text(encoding="utf-8")
         qt_helper_source = ARCHIVE_STATIC_REPLACEMENT_QT_HELPERS.read_text(encoding="utf-8")
         static_source = _static_replacer_source()
@@ -4456,6 +4458,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("material_authority_preview_controls_signature", authority_controls_source)
         self.assertIn("material_authority_preview_signature", authority_controls_source)
         self.assertIn("_material_authority_preview_signature_helper(", source)
+        self.assertIn("def _complete_external_swap_enabled() -> bool:", source)
+        self.assertIn("return bool(complete_external_swap_checkbox.isChecked())", source)
+        self.assertIn("_complete_external_swap_enabled=locals().get('_complete_external_swap_enabled')", source)
+        self.assertIn("_complete_external_swap_enabled, _complete_external_swap_mappings", prompt_transform_source)
+        self.assertIn('"_complete_external_swap_enabled", "_complete_external_swap_mappings"', prompt_transform_source)
         self.assertIn("material_authority_adjustment_setting_state", authority_controls_source)
         self.assertIn("material_authority_controls_affect_visible_preview", authority_controls_source)
         self.assertIn("material_authority_preview_texture_slots", source)
@@ -5044,7 +5051,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_sync_highlight_sets()", queue_source)
         self.assertIn("_alignment_d3d11_selection_highlight_performance_helper()", queue_source)
         self.assertIn("Selection changes use live D3D11 highlight commands", d3d11_presentation_source)
-        self.assertNotIn("_queue_static_preview_refresh()", queue_source)
+        self.assertIn("_queue_static_preview_refresh()", queue_source)
+        self.assertLess(
+            queue_source.index("_alignment_d3d11_selection_highlight_performance_helper()"),
+            queue_source.index("_queue_static_preview_refresh()"),
+        )
         self.assertNotIn('static_preview_refresh_timer.start()', queue_source)
 
     def test_alignment_startup_attaches_scene_preview_textures_before_first_d3d11_request(self) -> None:

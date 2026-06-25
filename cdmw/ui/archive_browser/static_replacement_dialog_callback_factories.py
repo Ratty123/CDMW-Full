@@ -6924,6 +6924,7 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
             return
         if callable(_sync_highlight_sets):
             _sync_highlight_sets()
+        _queue_static_preview_refresh()
 
     def _queue_static_preview_rebuild(*_args: object) -> None:
         _mark_alignment_d3d11_rebuild_reason("geometry")

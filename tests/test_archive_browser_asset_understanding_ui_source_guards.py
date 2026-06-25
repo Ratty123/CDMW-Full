@@ -73,6 +73,18 @@ TEXTURE_WORKFLOW_UPSCALE_BACKEND_PANEL = REPO_ROOT / "cdmw" / "ui" / "texture_wo
 
 
 class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
+    def test_archive_browser_panel_titles_do_not_repeat_tab_name(self) -> None:
+        controls_source = ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8")
+        files_source = ARCHIVE_FILES_PANEL.read_text(encoding="utf-8")
+        preview_source = ARCHIVE_PREVIEW_LAYOUT.read_text(encoding="utf-8")
+
+        self.assertIn('FlatSectionPanel("Controls")', controls_source)
+        self.assertIn('FlatSectionPanel("Files")', files_source)
+        self.assertIn('FlatSectionPanel("Preview")', preview_source)
+        self.assertNotIn('FlatSectionPanel("Archive Controls")', controls_source)
+        self.assertNotIn('FlatSectionPanel("Archive Files")', files_source)
+        self.assertNotIn('FlatSectionPanel("Archive Preview")', preview_source)
+
     def test_item_finder_uses_persistent_icon_cache_and_visible_warmup(self) -> None:
         source = "\n".join(
             (

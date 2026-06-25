@@ -959,8 +959,8 @@ def create_alignment_selected_part_adjustment_callbacks(context: dict[str, objec
         apply_state = _source_part_adjustment_apply_state_helper(source_part_adjustments, source_index=source_index, selected_source_indices=_selected_source_indices_from_tree(), enabled=bool(part_enabled_checkbox.isChecked()), offset_xyz=(part_offset_x_spin.value(), part_offset_y_spin.value(), part_offset_z_spin.value()), rotate_xyz_degrees=(part_rotate_x_spin.value(), part_rotate_y_spin.value(), part_rotate_z_spin.value()), scale_xyz=(part_scale_x_spin.value(), part_scale_y_spin.value(), part_scale_z_spin.value()), uniform_scale=part_uniform_spin.value(), default_adjustment=StaticSourcePartAdjustment)
         if not apply_state.available or not apply_state.changed:
             return False
-            if push_undo:
-                _push_geometry_undo_snapshot(_source_part_edit_undo_label_helper("adjust"))
+        if push_undo:
+            _push_geometry_undo_snapshot(_source_part_edit_undo_label_helper("adjust"))
         for target_source_index in apply_state.target_indices:
             adjustment = _ensure_source_part_adjustment(target_source_index)
             adjustment.enabled = apply_state.enabled
@@ -980,7 +980,8 @@ def create_alignment_selected_part_adjustment_callbacks(context: dict[str, objec
             if apply_state.enabled_changed:
                 if callable(_sync_highlight_sets):
                     _sync_highlight_sets()
-                _set_source_parts_apply_pending(_source_part_include_exclude_pending_reason_helper())
+                _set_source_parts_preview_rebuild_pending(_source_part_include_exclude_pending_reason_helper())
+                _queue_static_preview_rebuild()
             else:
                 _queue_part_transform_preview_update(tuple(apply_state.target_indices))
         return True

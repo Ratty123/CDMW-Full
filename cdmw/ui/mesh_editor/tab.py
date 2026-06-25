@@ -93,8 +93,6 @@ class MeshEditorTab(QWidget):
         header_layout.setHorizontalSpacing(8)
         header_layout.setVerticalSpacing(3)
 
-        title = QLabel("Mesh Editor")
-        title.setObjectName("SectionTitle")
         self.target_label = QLabel("Target: none")
         self.target_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.target_label.setWordWrap(True)
@@ -105,10 +103,9 @@ class MeshEditorTab(QWidget):
         self.open_archive_button.setObjectName("MeshEditorShowTargetArchiveButton")
         self.open_archive_button.clicked.connect(self._emit_open_archive_target)
 
-        header_layout.addWidget(title, 0, 0)
-        header_layout.addWidget(self.target_label, 1, 0)
-        header_layout.addWidget(self.session_label, 2, 0)
-        header_layout.addWidget(self.open_archive_button, 0, 1, 3, 1)
+        header_layout.addWidget(self.target_label, 0, 0)
+        header_layout.addWidget(self.session_label, 1, 0)
+        header_layout.addWidget(self.open_archive_button, 0, 1, 2, 1)
         header_layout.setColumnStretch(0, 1)
         layout.addWidget(header)
 

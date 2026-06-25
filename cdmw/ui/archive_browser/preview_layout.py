@@ -39,7 +39,7 @@ class ArchivePreviewLayoutMixin:
     """Build the Archive Preview panel."""
 
     def _build_archive_preview_panel(self) -> None:
-        archive_preview_group = FlatSectionPanel("Archive Preview")
+        archive_preview_group = FlatSectionPanel("Preview")
         archive_preview_min, _archive_preview_pref, _archive_preview_max = responsive_sidebar_bounds(self, role="wide")
         self.archive_preview_min_width = archive_preview_min
         archive_preview_group.setMinimumWidth(archive_preview_min)

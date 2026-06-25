@@ -49,7 +49,7 @@ Use `%TEMP%` for pytest temp dirs when `.pytest-tmp` is locked.
 ## Supporting Feature Tabs
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_research_archive_picker_state.py tests/test_research_analysis_state.py tests/test_research_classification_review_state.py tests/test_research_display_preferences_state.py tests/test_research_layout_state.py tests/test_research_notes_state.py tests/test_research_reference_payload_state.py tests/test_research_refresh_population_state.py tests/test_research_texture_group_state.py tests/test_research_tree_column_specs.py tests/test_research_models.py tests/test_research_workers.py tests/test_research_state.py tests/test_model_library_ui_source_guards.py tests/test_item_icons_state.py
+.\.venv\Scripts\python.exe -m pytest tests/test_research_archive_picker_state.py tests/test_research_analysis_state.py tests/test_research_classification_review_state.py tests/test_research_display_preferences_state.py tests/test_research_layout_state.py tests/test_research_notes_state.py tests/test_research_reference_payload_state.py tests/test_research_refresh_population_state.py tests/test_research_texture_group_state.py tests/test_research_tree_column_specs.py tests/test_research_models.py tests/test_research_workers.py tests/test_research_state.py tests/test_model_library_inline_preview_ui.py tests/test_model_library_ui_source_guards.py tests/test_item_icons_state.py
 ```
 
 ## Runtime Regression Smokes

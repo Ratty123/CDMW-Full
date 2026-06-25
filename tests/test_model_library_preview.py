@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from PySide6.QtCore import QCoreApplication, QObject, QThread, QTimer, Signal, Slot
 
+from cdmw.models import RunCancelled
 from cdmw.services.model_library_preview import (
     prepare_model_library_inline_preview,
     prepare_model_library_inline_preview_in_subprocess,
@@ -119,6 +120,15 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertEqual(result["source_faces"], 1200)
             self.assertLess(result["faces"], result["source_faces"])
             self.assertIsNotNone(result["quality_reduction"])
+
+    def test_backend_preview_honors_pre_cancelled_stop_event(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scene_path = _write_triangle_gltf(Path(tmp))
+            stop_event = threading.Event()
+            stop_event.set()
+
+            with self.assertRaises(RunCancelled):
+                prepare_model_library_inline_preview(scene_path, model_name="Triangle", stop_event=stop_event)
 
     def test_subprocess_backend_prepares_d3d11_package(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

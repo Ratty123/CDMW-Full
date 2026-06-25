@@ -177,6 +177,10 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     complete_external_swap_checkbox.setObjectName("MeshAlignmentCompleteExternalSwapCheckbox")
     complete_external_swap_checkbox.setChecked(False)
     complete_external_swap_checkbox.setToolTip(material_authority_setup_tooltips["complete_external_swap"])
+
+    def _complete_external_swap_enabled() -> bool:
+        return bool(complete_external_swap_checkbox.isChecked())
+
     complete_swap_material_profile_combo = QComboBox()
     complete_swap_material_profile_combo.setObjectName("MeshAlignmentCompleteSwapMaterialProfileCombo")
     visible_complete_swap_material_profile_names = MATERIAL_AUTHORITY_VISIBLE_COMPLETE_SWAP_PROFILE_NAMES
@@ -1139,6 +1143,7 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
         _basic_controls_profile_enabled=locals().get('_basic_controls_profile_enabled'),
         _capture_static_preview_baked_transform_state=locals().get('_capture_static_preview_baked_transform_state'),
         _coerce_manual_profile_values=locals().get('_coerce_manual_profile_values'),
+        _complete_external_swap_enabled=locals().get('_complete_external_swap_enabled'),
         _complete_external_swap_mappings=locals().get('_complete_external_swap_mappings'),
         _current_complete_swap_material_profile_token=locals().get('_current_complete_swap_material_profile_token'),
         _current_manual_material_profile_values=locals().get('_current_manual_material_profile_values'),

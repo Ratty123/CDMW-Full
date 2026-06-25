@@ -5,7 +5,6 @@ from typing import Callable, Optional
 
 from PySide6.QtCore import QProcess, QSettings, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QLabel,
     QSplitter,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -58,12 +57,14 @@ class ModelLibraryTab(
         settings: QSettings,
         base_dir: Path,
         theme_key: str = "graphite",
+        record_runtime_event: Optional[Callable[..., object]] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.settings = settings
         self.base_dir = Path(base_dir)
         self.theme_key = str(theme_key or "graphite")
+        self._record_runtime_event = record_runtime_event if callable(record_runtime_event) else None
         self.local_models: list[dict[str, object]] = []
         self.mirror_results: list[dict[str, object]] = []
         self._result_payloads_by_item: dict[int, dict[str, object]] = {}
@@ -123,10 +124,6 @@ class ModelLibraryTab(
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(10, 10, 10, 10)
         root_layout.setSpacing(8)
-
-        header = QLabel("Model Library")
-        header.setObjectName("SectionTitle")
-        root_layout.addWidget(header)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)

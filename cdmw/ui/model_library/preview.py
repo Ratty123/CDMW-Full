@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import threading
 import time
 from pathlib import Path
@@ -18,14 +17,23 @@ from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_CO
 from cdmw.core.model_catalogue import is_importable_model_path
 from cdmw.services.model_library_preview import (
     prepare_model_library_inline_preview,
-    prepare_model_library_inline_preview_in_subprocess,
 )
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.native_d3d11_preview_host import native_d3d11_renderer_command
+from cdmw.workers.model_library_workers import remove_model_library_preview_package_dir
 
 
 class ModelLibraryInlinePreviewMixin:
     """Manage inline Model Library previews and generated icon captures."""
+
+    def _record_model_library_preview_event(self, event: str, **fields: object) -> None:
+        recorder = getattr(self, "_record_runtime_event", None)
+        if not callable(recorder):
+            return
+        try:
+            recorder(event, **fields)
+        except Exception:
+            pass
 
     def preview_selected_model_here(self) -> None:
         payload = self._selected_payload()
@@ -81,15 +89,7 @@ class ModelLibraryInlinePreviewMixin:
         return crash_dir, diagnostic_log
 
     def _remove_inline_d3d11_package_dir(self, package_dir: Optional[Path]) -> None:
-        if package_dir is None:
-            return
-        package_dir = Path(package_dir)
-        if not package_dir.name.startswith("cdmw_isolated_d3d11_"):
-            return
-        try:
-            shutil.rmtree(package_dir, ignore_errors=True)
-        except OSError:
-            pass
+        remove_model_library_preview_package_dir(package_dir)
 
     def _cleanup_inline_d3d11_packages(self, *, include_active: bool = False) -> None:
         packages = list(getattr(self, "_inline_d3d11_retired_packages", []) or [])
@@ -110,12 +110,19 @@ class ModelLibraryInlinePreviewMixin:
         except OSError:
             pass
         previous_package = self._inline_d3d11_active_package
+        reuse_process = self._inline_d3d11_process_running()
+        self._record_model_library_preview_event(
+            "model_library_d3d11_start",
+            package_dir=str(package_dir),
+            status_file=str(status_file),
+            reuse_process=bool(reuse_process),
+        )
         if previous_package is not None and Path(previous_package) != package_dir:
             self._inline_d3d11_retired_packages.append(Path(previous_package))
         self._inline_d3d11_active_package = package_dir
         self._inline_d3d11_status_file = status_file
         self._inline_d3d11_status_mtime = 0.0
-        if self._inline_d3d11_process_running():
+        if reuse_process:
             self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
             self.inline_d3d11_preview_host.clear_preview(status_file)
             if self.inline_d3d11_preview_host.load_package(package_dir, status_file, reset_view=True):
@@ -149,21 +156,35 @@ class ModelLibraryInlinePreviewMixin:
         except Exception:
             pass
         process.setProcessChannelMode(QProcess.SeparateChannels)
+        process.started.connect(lambda: self._record_model_library_preview_event("model_library_d3d11_process_started"))
         process.readyReadStandardError.connect(lambda process=process: self._handle_inline_d3d11_stderr(process))
         process.finished.connect(lambda exit_code, _exit_status, process=process: self._handle_inline_d3d11_finished(process, exit_code))
         process.errorOccurred.connect(lambda error, process=process: self._handle_inline_d3d11_error(process, error))
         self._inline_d3d11_process = process
         self._start_inline_d3d11_status_timer()
-        QTimer.singleShot(0, process.start)
+        self._record_model_library_preview_event(
+            "model_library_d3d11_process_configured",
+            program=program,
+            arguments=list(arguments),
+            package_dir=str(package_dir),
+            status_file=str(status_file),
+        )
+        process.start()
         QTimer.singleShot(10000, lambda expected_status=status_file, process=process: self._check_inline_d3d11_start_timeout(expected_status, process))
         return True
 
     def _check_inline_d3d11_start_timeout(self, expected_status: Path, process: QProcess) -> None:
         if self._inline_d3d11_status_file != expected_status or process is not self._inline_d3d11_process:
             return
-        if not self._inline_d3d11_process_running() or expected_status.is_file():
+        if expected_status.is_file():
+            return
+        if not self._inline_d3d11_process_running():
+            self._set_inline_preview_status("Native D3D11 renderer did not start.", error=True)
+            self._record_model_library_preview_event("model_library_d3d11_start_failed", status_file=str(expected_status))
+            self._stop_inline_d3d11_process(cleanup_packages=True)
             return
         self._set_inline_preview_status("Native D3D11 renderer did not start in time.", error=True)
+        self._record_model_library_preview_event("model_library_d3d11_start_timeout", status_file=str(expected_status))
         self._stop_inline_d3d11_process(cleanup_packages=True)
 
     def _handle_inline_d3d11_stderr(self, process: QProcess) -> None:
@@ -181,6 +202,7 @@ class ModelLibraryInlinePreviewMixin:
             self._inline_d3d11_process = None
             self._stop_inline_d3d11_status_timer()
             self._set_inline_preview_status(f"Native D3D11 preview process error: {error}", error=True)
+            self._record_model_library_preview_event("model_library_d3d11_error", error=str(error))
             self._cleanup_inline_d3d11_packages(include_active=True)
             try:
                 process.deleteLater()
@@ -193,6 +215,7 @@ class ModelLibraryInlinePreviewMixin:
             self._stop_inline_d3d11_status_timer()
             if int(exit_code) != 0:
                 self._set_inline_preview_status(f"Native D3D11 preview exited with code {int(exit_code)}.", error=True)
+            self._record_model_library_preview_event("model_library_d3d11_finished", exit_code=int(exit_code))
             self._cleanup_inline_d3d11_packages(include_active=True)
 
     def _poll_inline_d3d11_status(self) -> None:
@@ -219,8 +242,17 @@ class ModelLibraryInlinePreviewMixin:
             vertex_count = int(payload.get("vertex_count", 0) or 0)
             self._cleanup_inline_d3d11_packages(include_active=False)
             self._set_inline_preview_status(f"Native D3D11 Model Library preview ready: {batch_count:,} batch(es), {vertex_count:,} vertices.")
+            self._record_model_library_preview_event(
+                "model_library_d3d11_loaded",
+                batch_count=batch_count,
+                vertex_count=vertex_count,
+            )
         elif event == "error":
             self._set_inline_preview_status(str(payload.get("message", "Native D3D11 preview failed.") or ""), error=True)
+            self._record_model_library_preview_event(
+                "model_library_d3d11_status_error",
+                message=str(payload.get("message", "") or ""),
+            )
             self._stop_inline_d3d11_process(cleanup_packages=True)
 
     def _stop_inline_d3d11_process(self, *, cleanup_packages: bool = False) -> None:
@@ -326,22 +358,17 @@ class ModelLibraryInlinePreviewMixin:
         self._inline_preview_loaded_import_path = None
         self._inline_preview_loaded_payload = None
         preview_render_settings = self.inline_preview_widget.render_settings()
+        self._record_model_library_preview_event(
+            "model_library_preview_start",
+            request_id=request_id,
+            source_path=str(source_path),
+            model_name=model_name,
+            renderer_backend=renderer_backend,
+            kind=str(payload.get("kind", "") or ""),
+        )
 
         def task(progress: Callable[[str], None]) -> object:
             extract_root = self._inline_preview_extract_root_for_source(source_path, payload)
-            if renderer_backend == "native_d3d11":
-                return prepare_model_library_inline_preview_in_subprocess(
-                    source_path,
-                    payload=payload,
-                    extract_root=extract_root,
-                    render_settings=preview_render_settings,
-                    renderer_backend=renderer_backend,
-                    model_name=model_name,
-                    request_id=request_id,
-                    high_quality_textures=False,
-                    progress=progress,
-                    stop_event=stop_event,
-                )
             return prepare_model_library_inline_preview(
                 source_path,
                 payload=payload,
@@ -352,6 +379,7 @@ class ModelLibraryInlinePreviewMixin:
                 request_id=request_id,
                 high_quality_textures=False,
                 progress=progress,
+                stop_event=stop_event,
             )
 
         def complete(result: object) -> None:
@@ -367,6 +395,16 @@ class ModelLibraryInlinePreviewMixin:
             loaded_renderer_backend = active_renderer or "qt"
             if active_renderer == "native_d3d11" and str(result.get("d3d11_package_dir", "") or "").strip():
                 package_dir = Path(str(result.get("d3d11_package_dir", "") or ""))
+                self._record_model_library_preview_event(
+                    "model_library_preview_prepared",
+                    request_id=request_id,
+                    import_path=str(result.get("import_path", "") or source_path),
+                    renderer_backend=active_renderer,
+                    d3d11_package_dir=str(package_dir),
+                    vertices=int(result.get("vertices", 0) or 0),
+                    faces=int(result.get("faces", 0) or 0),
+                    textures=int(result.get("textures", 0) or 0),
+                )
                 if self._start_inline_d3d11_process(package_dir, render_settings=preview_render_settings):
                     loaded_renderer_backend = "native_d3d11"
                     renderer_note = f" | renderer: native D3D11 package ({float(result.get('d3d11_package_ms', 0.0) or 0.0):.1f} ms)"
@@ -377,6 +415,15 @@ class ModelLibraryInlinePreviewMixin:
                 if preview_model is None:
                     self._set_inline_preview_status("Qt preview data was not built.", error=True)
                     return
+                self._record_model_library_preview_event(
+                    "model_library_preview_prepared",
+                    request_id=request_id,
+                    import_path=str(result.get("import_path", "") or source_path),
+                    renderer_backend=active_renderer or "qt",
+                    vertices=int(result.get("vertices", 0) or 0),
+                    faces=int(result.get("faces", 0) or 0),
+                    textures=int(result.get("textures", 0) or 0),
+                )
                 self._stop_inline_d3d11_process(cleanup_packages=True)
                 self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
                 self.inline_preview_widget.set_prepared_model(preview_model, prepared_preview)
@@ -426,6 +473,12 @@ class ModelLibraryInlinePreviewMixin:
                 return
             self._pending_icon_generation_request_id = 0
             self._sync_inline_preview_orientation_controls()
+            self._record_model_library_preview_event(
+                "model_library_preview_error",
+                request_id=request_id,
+                source_path=str(source_path),
+                message=str(message),
+            )
             self._set_inline_preview_status(f"Preview failed: {message}", error=True)
 
         self._run_task(
@@ -572,6 +625,10 @@ class ModelLibraryInlinePreviewMixin:
             if not path_text:
                 continue
             path = Path(path_text)
+            if payload.get("kind") != "mirror" and (
+                is_importable_model_path(path) or path.suffix.lower() == ".zip"
+            ):
+                return path
             if path.is_file() and (is_importable_model_path(path) or path.suffix.lower() == ".zip"):
                 return path
         if payload.get("kind") != "mirror":

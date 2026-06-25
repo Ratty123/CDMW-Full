@@ -16,7 +16,7 @@ def finish_static_replacement_prompt_transform(context: dict[str, object]) -> No
     alignment_setup_options_transform_section = create_alignment_setup_options_transform_section(context)
     (
         _alignment_custom_icon_override_spec, _basic_controls_profile_enabled, _capture_static_preview_baked_transform_state, _coerce_manual_profile_values,
-        _complete_external_swap_mappings, _current_complete_swap_material_profile_token, _current_manual_material_profile_values, _current_material_authority_preview_profile,
+        _complete_external_swap_enabled, _complete_external_swap_mappings, _current_complete_swap_material_profile_token, _current_manual_material_profile_values, _current_material_authority_preview_profile,
         _material_authority_preview_inactive_reason, _material_authority_preview_signature, _queue_material_authority_adjustment_preview_refresh, _queue_part_transform_preview_update,
         _refresh_manual_material_profile_panel, _refresh_manual_profile_control_effects, _refresh_sidecar_option_state, _replay_alignment_d3d11_fast_transform,
         _save_complete_swap_material_profile, _save_manual_profile_presets, _select_complete_swap_material_profile, _set_manual_profile_dirty,
@@ -48,7 +48,7 @@ def finish_static_replacement_prompt_transform(context: dict[str, object]) -> No
         alignment_setup_options_transform_section,
         (
             "_alignment_custom_icon_override_spec", "_basic_controls_profile_enabled", "_capture_static_preview_baked_transform_state", "_coerce_manual_profile_values",
-            "_complete_external_swap_mappings", "_current_complete_swap_material_profile_token", "_current_manual_material_profile_values", "_current_material_authority_preview_profile",
+            "_complete_external_swap_enabled", "_complete_external_swap_mappings", "_current_complete_swap_material_profile_token", "_current_manual_material_profile_values", "_current_material_authority_preview_profile",
             "_material_authority_preview_inactive_reason", "_material_authority_preview_signature", "_queue_material_authority_adjustment_preview_refresh", "_queue_part_transform_preview_update",
             "_refresh_manual_material_profile_panel", "_refresh_manual_profile_control_effects", "_refresh_sidecar_option_state", "_replay_alignment_d3d11_fast_transform",
             "_save_complete_swap_material_profile", "_save_manual_profile_presets", "_select_complete_swap_material_profile", "_set_manual_profile_dirty",

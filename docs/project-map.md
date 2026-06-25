@@ -67,8 +67,9 @@ evidence from crash reports showed Mesh Editor `Modify Original` failed before
 builder mount when `_archive_entry_identity_key` was used as a bound method.
 
 Model Library auto-preview and Preview Here prepare local models through
-`cdmw/services/model_library_preview.py` and show them in the inline native D3D11
-host; manual Archive Browser preview stays routed through `preview_mesh_requested`.
+`cdmw/services/model_library_preview.py` inside the Model Library task worker,
+then show them in the inline native D3D11 host. Manual Archive Browser preview
+stays routed through `preview_mesh_requested`.
 
 ## Where Not To Edit
 
