@@ -13,6 +13,7 @@ from cdmw.core.model_catalogue import (
     download_mirror_model_candidate,
     catalogue_stats,
     initialize_catalogue_db,
+    local_model_texture_status,
     mirror_download_candidates,
     normalize_mirror_base_url,
     normalize_mirror_model_record,
@@ -84,6 +85,9 @@ class ModelCatalogueTests(unittest.TestCase):
             (root / "source.fbx").write_bytes(b"fbx")
             with zipfile.ZipFile(root / "packed.zip", "w") as zip_file:
                 zip_file.writestr("scene/model.gltf", "{}")
+                zip_file.writestr("textures/diffuse.png", b"png")
+            (root / "textures").mkdir()
+            (root / "textures" / "model_d.png").write_bytes(b"png")
             (root / "notes.txt").write_text("ignore", encoding="utf-8")
 
             rows = scan_local_model_files([root])
@@ -98,6 +102,29 @@ class ModelCatalogueTests(unittest.TestCase):
         self.assertTrue(by_name["model.dae"].import_supported)
         self.assertTrue(by_name["packed.zip"].import_supported)
         self.assertFalse(by_name["source.fbx"].import_supported)
+        self.assertEqual(by_name["model.glb"].texture_status, "Embedded/Unknown")
+        self.assertEqual(by_name["model.dae"].texture_status, "Found (1)")
+        self.assertEqual(by_name["packed.zip"].texture_status, "In ZIP (1)")
+        self.assertEqual(by_name["source.fbx"].texture_status, "Unknown")
+
+    def test_local_model_texture_status_counts_nearby_and_zip_textures(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            scene_dir = root / "asset" / "gltf"
+            scene_dir.mkdir(parents=True)
+            scene_path = scene_dir / "scene.gltf"
+            scene_path.write_text("{}", encoding="utf-8")
+            texture_dir = root / "asset" / "textures"
+            texture_dir.mkdir()
+            (texture_dir / "diffuse.dds").write_bytes(b"dds")
+            archive_path = root / "packed.zip"
+            with zipfile.ZipFile(archive_path, "w") as zip_file:
+                zip_file.writestr("model.gltf", "{}")
+                zip_file.writestr("textures/normal.tga", b"tga")
+
+            self.assertEqual(local_model_texture_status(scene_path), "Found (1)")
+            self.assertEqual(local_model_texture_status(archive_path), "In ZIP (1)")
+            self.assertEqual(local_model_texture_status(root / "model.glb"), "Embedded/Unknown")
 
     def test_scan_local_model_files_uses_metadata_name_when_available(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

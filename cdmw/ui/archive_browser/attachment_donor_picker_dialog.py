@@ -12,27 +12,9 @@ from typing import Dict, List, Optional, Tuple
 from PySide6.QtCore import QSize, Qt, QThread, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QApplication,
-    QComboBox,
-    QDialog,
-    QFileDialog,
-    QFrame,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QListView,
-    QListWidget,
-    QListWidgetItem,
-    QMessageBox,
-    QProgressBar,
-    QPushButton,
-    QSizePolicy,
-    QSplitter,
-    QTreeWidget,
-    QTreeWidgetItem,
-    QVBoxLayout,
-    QWidget,
+    QAbstractItemView, QApplication, QComboBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QLabel,
+    QLineEdit, QListView, QListWidget, QListWidgetItem, QMessageBox, QProgressBar, QPushButton,
+    QSizePolicy, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from cdmw.constants import DEFAULT_UI_THEME
@@ -1340,18 +1322,8 @@ class ArchiveAttachmentDonorPickerDialogMixin:
             folder = Path(folder_text)
             files_root = folder / "files" if (folder / "files").is_dir() else folder
             local_suffixes = (
-                ".pac",
-                ".pam",
-                ".pamlod",
-                ".prefab",
-                ".hkx",
-                ".hkt",
-                ".paa",
-                ".motionblending",
-                ".sockets.xml",
-                ".pac_xml",
-                ".prefabdata_xml",
-                ".prefabdata.xml",
+                ".pac", ".pam", ".pamlod", ".prefab", ".hkx", ".hkt", ".paa", ".motionblending",
+                ".sockets.xml", ".pac_xml", ".prefabdata_xml", ".prefabdata.xml",
             )
             mapped = 0
             existing_keys = {attachment_donor_entry_key(entry) for entry, _path, _note in loose_donor_candidates}

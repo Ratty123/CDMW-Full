@@ -134,6 +134,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
                 "_metadata_path_from_group",
                 "_display_root_for_metadata_group",
                 "_download_group_local_row",
+                "_importable_path_from_group",
+                "_texture_status_from_group",
                 "_find_importable_file_under",
                 "_preferred_download_archive_path",
             ):
@@ -149,6 +151,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
                     "size": archive_path.stat().st_size,
                     "modified_at": archive_path.stat().st_mtime,
                     "import_supported": True,
+                    "texture_status": "In ZIP (1)",
                     "source": "Local model library",
                 },
                 {
@@ -161,6 +164,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
                     "size": scene_path.stat().st_size,
                     "modified_at": scene_path.stat().st_mtime,
                     "import_supported": True,
+                    "texture_status": "Found (2)",
                     "source": "Local model library",
                 },
             ]
@@ -172,6 +176,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertEqual(normalized[0]["source"], "Downloaded")
         self.assertEqual(normalized[0]["archive_path"], str(archive_path))
         self.assertEqual(normalized[0]["import_path"], str(scene_path))
+        self.assertEqual(normalized[0]["texture_status"], "Found (2)")
 
     def test_main_window_registers_model_library_import_signal(self) -> None:
         source = (
@@ -432,12 +437,9 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("parsed_mesh_to_preview_model", source)
         self.assertNotIn("_attach_inline_preview_textures", source)
         self.assertIn("_texture_status_for_payload", source)
-        self.assertIn("_count_zip_texture_members", source)
         self.assertIn("Download to check", source)
         self.assertIn("Embedded/Unknown", source)
-        self.assertIn("None found", source)
         self.assertIn("All {hidden:,} mirror result(s) are hidden", source)
-        self.assertIn("SCENE_TEXTURE_SOURCE_EXTENSIONS", source)
         self.assertIn("Show File URLs", source)
         self.assertIn("Open File URL", source)
         self.assertIn("Select All", source)
@@ -450,7 +452,6 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("Local", source)
         self.assertIn("_ensure_download_root_registered", source)
         self.assertIn("resolve_importable_model_path", source)
-        self.assertIn("zip_contains_importable_model", source)
         self.assertIn("_normalize_local_model_rows", source)
         self.assertIn("_download_group_local_row", source)
         self.assertIn('"source": "Downloaded"', source)
@@ -460,6 +461,16 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("status_label.setVisible(False)", source)
         self.assertNotIn("Open Catalogue", source)
         self.assertNotIn("preferred_format_combo", source)
+
+        texture_source = Path("cdmw/ui/model_library/texture_status.py").read_text(encoding="utf-8")
+        local_rows_source = Path("cdmw/ui/model_library/local_rows.py").read_text(encoding="utf-8")
+        commands_source = Path("cdmw/ui/model_library/commands.py").read_text(encoding="utf-8")
+        self.assertNotIn("zipfile", texture_source)
+        self.assertNotIn("rglob(", texture_source)
+        self.assertNotIn("iterdir(", texture_source)
+        self.assertNotIn("zip_contains_importable_model", texture_source)
+        self.assertNotIn("zip_contains_importable_model", local_rows_source)
+        self.assertNotIn("zip_contains_importable_model", commands_source)
 
     def test_model_library_keeps_preview_to_the_right_without_root_three_pane_overlap(self) -> None:
         source = Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")

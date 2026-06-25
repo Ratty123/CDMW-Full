@@ -84,6 +84,7 @@ _GENERIC_LOCAL_MODEL_DIRECTORY_NAMES = _GENERIC_LOCAL_MODEL_FILE_STEMS | {
 
 _TRAILING_MODEL_CATALOGUE_UID_RE = re.compile(r"[-_\s]+[0-9a-fA-F]{24,64}$")
 _LOCAL_MODEL_SCAN_IGNORED_DIRECTORY_NAMES = {".cdmw_extracted", ".cdmw_nested_zip"}
+LOCAL_MODEL_TEXTURE_EXTENSIONS = {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"}
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,7 @@ class LocalModelFile:
     size: int
     modified_at: float
     import_supported: bool
+    texture_status: str = ""
 
     @property
     def relative_path(self) -> str:
@@ -115,6 +117,7 @@ class LocalModelFile:
             "modified_at": self.modified_at,
             "import_supported": self.import_supported,
             "source": "Local model library",
+            "texture_status": self.texture_status,
         }
 
 
@@ -204,6 +207,7 @@ def scan_local_model_files(
     results: list[LocalModelFile] = []
     seen: set[str] = set()
     metadata_name_cache: dict[str, str] = {}
+    texture_count_cache: dict[tuple[str, str], int] = {}
     for root_value in roots:
         root = Path(root_value).expanduser()
         try:
@@ -238,6 +242,7 @@ def scan_local_model_files(
                 import_supported = suffix in IMPORTABLE_MODEL_EXTENSIONS
                 if suffix == ".zip":
                     import_supported = zip_contains_importable_model(resolved)
+                texture_status = local_model_texture_status(resolved, cache=texture_count_cache)
                 results.append(
                     LocalModelFile(
                         path=resolved,
@@ -247,6 +252,7 @@ def scan_local_model_files(
                         size=int(stat.st_size),
                         modified_at=float(stat.st_mtime),
                         import_supported=import_supported,
+                        texture_status=texture_status,
                     )
                 )
         except OSError:
@@ -341,6 +347,104 @@ def _local_model_name_token(value: str) -> str:
 
 def is_importable_model_path(path: Path | str) -> bool:
     return Path(path).suffix.lower() in IMPORTABLE_MODEL_EXTENSIONS
+
+
+def local_model_texture_status(path: Path | str, *, cache: Optional[dict[tuple[str, str], int]] = None) -> str:
+    model_path = Path(path)
+    suffix = model_path.suffix.lower()
+    if suffix == ".zip":
+        count = _count_zip_texture_members(model_path, cache=cache)
+        return f"In ZIP ({count})" if count > 0 else "None found"
+    if suffix == ".glb":
+        return "Embedded/Unknown"
+    if not is_importable_model_path(model_path):
+        return "Unknown"
+    count = _nearby_texture_count(model_path, cache=cache)
+    return f"Found ({count})" if count > 0 else "None found"
+
+
+def _nearby_texture_count(scene_path: Path, *, cache: Optional[dict[tuple[str, str], int]] = None) -> int:
+    roots: list[tuple[Path, bool]] = [
+        (scene_path.parent, False),
+        (scene_path.parent / "textures", True),
+        (scene_path.parent / "texture", True),
+        (scene_path.parent.parent / "textures", True),
+        (scene_path.parent.parent / "texture", True),
+    ]
+    seen_roots: set[str] = set()
+    total = 0
+    for root, recursive in roots:
+        if not root.is_dir():
+            continue
+        try:
+            key = str(root.resolve()).casefold()
+        except OSError:
+            key = str(root.absolute()).casefold()
+        if key in seen_roots:
+            continue
+        seen_roots.add(key)
+        total += _count_texture_files(root, recursive=recursive, cache=cache)
+    return total
+
+
+def _count_texture_files(
+    root: Path,
+    *,
+    recursive: bool,
+    limit: int = 999,
+    cache: Optional[dict[tuple[str, str], int]] = None,
+) -> int:
+    try:
+        resolved = root.resolve()
+    except OSError:
+        resolved = root.absolute()
+    cache_key = (str(resolved).casefold(), "r" if recursive else "flat")
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+    count = 0
+    iterator = resolved.rglob("*") if recursive else resolved.iterdir()
+    try:
+        for candidate in iterator:
+            if candidate.is_file() and candidate.suffix.lower() in LOCAL_MODEL_TEXTURE_EXTENSIONS:
+                count += 1
+                if count >= limit:
+                    break
+    except OSError:
+        count = 0
+    if cache is not None:
+        cache[cache_key] = count
+    return count
+
+
+def _count_zip_texture_members(
+    archive_path: Path,
+    *,
+    limit: int = 999,
+    cache: Optional[dict[tuple[str, str], int]] = None,
+) -> int:
+    try:
+        resolved = archive_path.resolve()
+    except OSError:
+        resolved = archive_path.absolute()
+    cache_key = (str(resolved).casefold(), "zip-textures")
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+    count = 0
+    try:
+        with zipfile.ZipFile(resolved, "r") as zip_file:
+            for member in zip_file.infolist():
+                member_name = member.filename.replace("\\", "/")
+                if member.is_dir() or not member_name or member_name.startswith("/") or "../" in f"/{member_name}":
+                    continue
+                if PurePosixPath(member_name).suffix.lower() in LOCAL_MODEL_TEXTURE_EXTENSIONS:
+                    count += 1
+                    if count >= limit:
+                        break
+    except (OSError, zipfile.BadZipFile):
+        count = 0
+    if cache is not None:
+        cache[cache_key] = count
+    return count
 
 
 def zip_importable_members(archive_path: Path | str) -> tuple[str, ...]:

@@ -26,13 +26,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
 @dataclass(frozen=True, slots=True)
 class IntSliderSpinRow:
     slider: QSlider
     spin: QSpinBox
     row: QHBoxLayout
-
 
 def inline_help_button(text: str) -> QPushButton:
     button = QPushButton("?")
@@ -42,7 +40,6 @@ def inline_help_button(text: str) -> QPushButton:
     button.setFocusPolicy(Qt.NoFocus)
     return button
 
-
 def alignment_camera_button(label: str, object_name: str, tooltip: str) -> QPushButton:
     button = QPushButton(label)
     button.setObjectName(object_name)
@@ -50,7 +47,6 @@ def alignment_camera_button(label: str, object_name: str, tooltip: str) -> QPush
     button.setMaximumWidth(64)
     button.setToolTip(tooltip)
     return button
-
 
 def new_alignment_scroll_tab(
     parent: QWidget,
@@ -78,7 +74,6 @@ def new_alignment_scroll_tab(
     scroll.setWidget(page)
     return scroll, page, page_layout
 
-
 def clear_tree_current_item(tree: QTreeWidget | None) -> None:
     if tree is None:
         return
@@ -87,7 +82,6 @@ def clear_tree_current_item(tree: QTreeWidget | None) -> None:
         tree.setCurrentIndex(QModelIndex())
     except RuntimeError:
         return
-
 
 def commit_spinbox_text(spin: QDoubleSpinBox, *, block_signals: bool = False) -> None:
     previous_blocked = False
@@ -103,7 +97,6 @@ def commit_spinbox_text(spin: QDoubleSpinBox, *, block_signals: bool = False) ->
                 spin.blockSignals(previous_blocked)
             except RuntimeError:
                 pass
-
 
 def make_double_spin(
     value: float,
@@ -123,12 +116,10 @@ def make_double_spin(
         spin.setSuffix(suffix)
     return spin
 
-
 def set_double_spin_value_silently(spin: QDoubleSpinBox, value: float) -> None:
     spin.blockSignals(True)
     spin.setValue(float(value))
     spin.blockSignals(False)
-
 
 def make_spinbox_slider(
     spin: QDoubleSpinBox,
@@ -179,7 +170,6 @@ def wrap_spin_with_slider(spin: QDoubleSpinBox, slider: QSlider) -> QWidget:
     wrapper_layout.addWidget(spin)
     wrapper_layout.addWidget(slider)
     return wrapper
-
 
 def make_int_slider_spin_row(
     *,

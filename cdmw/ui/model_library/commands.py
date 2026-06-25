@@ -16,7 +16,6 @@ from cdmw.core.model_catalogue import (
     MirrorDownloadResult,
     download_mirror_model_candidate,
     is_importable_model_path,
-    zip_contains_importable_model,
 )
 
 
@@ -503,7 +502,7 @@ class ModelLibraryCommandsMixin:
         if "import_supported" in payload:
             return bool(payload.get("import_supported"))
         path = Path(str(payload.get("path", "") or ""))
-        return path.suffix.lower() == ".zip" and zip_contains_importable_model(path)
+        return path.suffix.lower() == ".zip"
 
 
 __all__ = ["ModelLibraryCommandsMixin"]

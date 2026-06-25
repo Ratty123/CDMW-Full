@@ -6,9 +6,6 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from cdmw.core.model_catalogue import zip_contains_importable_model
-
-
 class ModelLibraryLocalRowsMixin:
     """Normalize downloaded mirror assets into one local-library row."""
 
@@ -140,7 +137,7 @@ class ModelLibraryLocalRowsMixin:
         group_rows: list[dict[str, object]],
         display_root: Path,
     ) -> dict[str, object]:
-        import_path = self._find_importable_file_under(asset_dir)
+        import_path = self._importable_path_from_group(group_rows)
         archive_path = self._preferred_download_archive_path(asset_dir, metadata, group_rows)
         display_path = import_path or archive_path or Path(str(group_rows[0].get("path", "") or asset_dir))
         try:
@@ -168,7 +165,11 @@ class ModelLibraryLocalRowsMixin:
         license_label = str(metadata.get("license_label", "") or license_payload.get("label", "") or "")
         import_supported = bool(import_path and import_path.is_file())
         if not import_supported and display_path.suffix.lower() == ".zip":
-            import_supported = zip_contains_importable_model(display_path)
+            import_supported = any(
+                str(row.get("path", "") or "") == str(display_path) and bool(row.get("import_supported"))
+                for row in group_rows
+            )
+        texture_status = self._texture_status_from_group(group_rows) or "Unknown"
         row = {
             "kind": "local",
             "name": str(metadata.get("name", "") or display_path.stem),
@@ -188,9 +189,32 @@ class ModelLibraryLocalRowsMixin:
             "license_label": license_label,
             "creator_name": creator_name,
             "creator_username": creator_username,
+            "texture_status": texture_status,
         }
-        row["texture_status"] = self._texture_status_for_payload(row)
         return row
+
+    def _importable_path_from_group(self, group_rows: list[dict[str, object]]) -> Optional[Path]:
+        priority = {".gltf": 0, ".glb": 1, ".obj": 2, ".dae": 3}
+        candidates = [
+            Path(str(row.get("path", "") or ""))
+            for row in group_rows
+            if bool(row.get("import_supported"))
+        ]
+        candidates = [path for path in candidates if path.is_file() and path.suffix.lower() in priority]
+        if not candidates:
+            return None
+        candidates.sort(key=lambda path: (priority.get(path.suffix.lower(), 99), str(path).lower()))
+        return candidates[0]
+
+    def _texture_status_from_group(self, group_rows: list[dict[str, object]]) -> str:
+        statuses = [str(row.get("texture_status", "") or "").strip() for row in group_rows]
+        for prefix in ("Found (", "In ZIP ("):
+            status = next((item for item in statuses if item.startswith(prefix)), "")
+            if status:
+                return status
+        if "Embedded/Unknown" in statuses:
+            return "Embedded/Unknown"
+        return next((status for status in statuses if status), "")
 
     def _preferred_download_archive_path(
         self,

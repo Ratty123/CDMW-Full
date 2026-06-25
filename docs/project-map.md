@@ -70,6 +70,9 @@ Model Library auto-preview and Preview Here prepare local models through
 `cdmw/services/model_library_preview.py` inside the Model Library task worker,
 then show them in the inline native D3D11 host. Manual Archive Browser preview
 stays routed through `preview_mesh_requested`.
+Local Model Library scans compute texture status in `cdmw/core/model_catalogue.py`
+while the scan task is already off the UI thread; result population reads the
+payload field and must not rescan ZIPs or folders from UI code.
 
 ## Where Not To Edit
 
