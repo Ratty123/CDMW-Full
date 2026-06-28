@@ -34,6 +34,8 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         _app()
         dialog = ModelPreviewSettingsDialog(settings=ModelPreviewRenderSettings(render_diagnostic_mode="rich_lit"))
 
+        self.assertEqual("Preview Settings", dialog.windowTitle())
+        self.assertNotIn("Performance", [dialog.tabs.tabText(index) for index in range(dialog.tabs.count())])
         rich_index = dialog.render_diagnostic_mode_combo.findData("rich_lit")
         self.assertGreaterEqual(rich_index, 0)
         self.assertEqual("Enhanced Relief Preview", dialog.render_diagnostic_mode_combo.itemText(rich_index))

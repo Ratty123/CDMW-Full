@@ -70,6 +70,18 @@ class SourcePartRoleOverrideState:
     emissive_color_rgb: tuple[int, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class SourcePartMaterialAdjustmentState:
+    available: bool
+    changed: bool
+    target_indices: tuple[int, ...]
+    brightness: float
+    contrast: float
+    saturation: float
+    gamma: float
+    tint_rgb: tuple[int, int, int]
+
+
 def _source_part_rgb(values: Sequence[object]) -> tuple[int, int, int]:
     normalized_values: list[int] = []
     for raw_value in tuple(values or ())[:3]:
@@ -93,6 +105,14 @@ def _float3(values: Sequence[object], default: float = 0.0) -> tuple[float, floa
     while len(normalized) < 3:
         normalized.append(float(default))
     return normalized[0], normalized[1], normalized[2]
+
+
+def _source_part_clamped_float(value: object, *, default: float, minimum: float, maximum: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        number = float(default)
+    return max(float(minimum), min(float(maximum), number))
 
 
 def source_part_adjustment_apply_state(
@@ -193,6 +213,96 @@ def source_part_adjustment_values_changed(
             or tuple(float(value) for value in getattr(adjustment, "rotate_xyz_degrees", ())) != expected_rotation
             or tuple(float(value) for value in getattr(adjustment, "scale_xyz", ())) != expected_scale
             or float(getattr(adjustment, "uniform_scale", 1.0)) != expected_uniform
+        ):
+            return True
+    return False
+
+
+def source_part_material_adjustment_state(
+    source_part_adjustments: Mapping[int, object],
+    *,
+    source_index: object,
+    selected_source_indices: Sequence[int],
+    brightness: object,
+    contrast: object,
+    saturation: object,
+    gamma: object,
+    tint_rgb: Sequence[object],
+    default_adjustment: Callable[[int], object],
+) -> SourcePartMaterialAdjustmentState:
+    try:
+        normalized_source_index = int(source_index)
+    except (TypeError, ValueError):
+        normalized_source_index = -1
+    normalized_brightness = _source_part_clamped_float(brightness, default=0.0, minimum=-100.0, maximum=100.0)
+    normalized_contrast = _source_part_clamped_float(contrast, default=0.0, minimum=-100.0, maximum=100.0)
+    normalized_saturation = _source_part_clamped_float(saturation, default=0.0, minimum=-100.0, maximum=100.0)
+    normalized_gamma = _source_part_clamped_float(gamma, default=1.0, minimum=0.25, maximum=4.0)
+    normalized_tint = _source_part_rgb(tint_rgb)
+    if normalized_source_index < 0:
+        return SourcePartMaterialAdjustmentState(
+            available=False,
+            changed=False,
+            target_indices=(),
+            brightness=normalized_brightness,
+            contrast=normalized_contrast,
+            saturation=normalized_saturation,
+            gamma=normalized_gamma,
+            tint_rgb=normalized_tint,
+        )
+    target_indices = source_part_normalized_target_indices(normalized_source_index, selected_source_indices)
+    changed = source_part_material_adjustment_values_changed(
+        source_part_adjustments,
+        target_indices,
+        brightness=normalized_brightness,
+        contrast=normalized_contrast,
+        saturation=normalized_saturation,
+        gamma=normalized_gamma,
+        tint_rgb=normalized_tint,
+        default_adjustment=default_adjustment,
+    )
+    return SourcePartMaterialAdjustmentState(
+        available=bool(target_indices),
+        changed=changed,
+        target_indices=target_indices,
+        brightness=normalized_brightness,
+        contrast=normalized_contrast,
+        saturation=normalized_saturation,
+        gamma=normalized_gamma,
+        tint_rgb=normalized_tint,
+    )
+
+
+def source_part_material_adjustment_values_changed(
+    source_part_adjustments: Mapping[int, object],
+    target_indices: Sequence[int],
+    *,
+    brightness: float,
+    contrast: float,
+    saturation: float,
+    gamma: float,
+    tint_rgb: Sequence[int],
+    default_adjustment: Callable[[int], object],
+) -> bool:
+    expected_tint = _source_part_rgb(tint_rgb)
+    for target_source_index in tuple(target_indices or ()):
+        try:
+            normalized_index = int(target_source_index)
+        except (TypeError, ValueError):
+            continue
+        adjustment = source_part_adjustments.get(
+            normalized_index,
+            default_adjustment(normalized_index),
+        )
+        current_tint = tuple(getattr(adjustment, "material_tint_rgb", ()) or ())
+        if not current_tint:
+            current_tint = (255, 255, 255)
+        if (
+            abs(float(getattr(adjustment, "material_brightness", 0.0) or 0.0) - float(brightness)) > 1e-8
+            or abs(float(getattr(adjustment, "material_contrast", 0.0) or 0.0) - float(contrast)) > 1e-8
+            or abs(float(getattr(adjustment, "material_saturation", 0.0) or 0.0) - float(saturation)) > 1e-8
+            or abs(float(getattr(adjustment, "material_gamma", 1.0) or 1.0) - float(gamma)) > 1e-8
+            or _source_part_rgb(current_tint) != expected_tint
         ):
             return True
     return False
@@ -332,6 +442,7 @@ __all__ = [
     "SourcePartAdjustmentApplyState",
     "SourcePartGlowColorActionState",
     "SourcePartGlowEmissiveUpdateState",
+    "SourcePartMaterialAdjustmentState",
     "SourcePartRoleActionState",
     "SourcePartRoleExportFlushState",
     "SourcePartRoleOverrideState",
@@ -339,6 +450,8 @@ __all__ = [
     "source_part_adjustment_values_changed",
     "source_part_glow_color_action_state",
     "source_part_glow_emissive_update_states",
+    "source_part_material_adjustment_state",
+    "source_part_material_adjustment_values_changed",
     "source_part_role_action_state",
     "source_part_role_export_flush_states",
     "source_part_role_override_state",

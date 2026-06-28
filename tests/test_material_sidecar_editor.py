@@ -532,10 +532,10 @@ class MaterialSidecarEditorHelperTests(unittest.TestCase):
             material_sidecar_selected_color_swatch_stylesheet("#112233"),
         )
         self.assertEqual(
-            ("Show Preview", "Refresh Preview", "3D Preview Settings...", "Live Color Preview"),
+            ("Show Preview", "Refresh Preview", "Preview Settings...", "Live Color Preview"),
             material_sidecar_preview_control_labels(),
         )
-        self.assertIn("global 3D preview settings", material_sidecar_preview_settings_tooltip_text())
+        self.assertIn("global preview settings", material_sidecar_preview_settings_tooltip_text())
         self.assertEqual("Preview has not been built yet.", material_sidecar_initial_preview_status_text())
         self.assertEqual(
             ("Pick Color...", "Reset Selected", "Export Edited Material Mod...", "Close"),

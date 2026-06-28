@@ -2529,6 +2529,54 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn("glow", tuple(blade_set.source_role_tags))  # type: ignore[union-attr]
         self.assertEqual((85.0 / 255.0, 170.0 / 255.0, 1.0), blade_set.accent_glow_color_rgb)  # type: ignore[union-attr]
 
+    def test_source_part_material_adjustment_isolates_duplicate_material_slot(self) -> None:
+        texture_set = ReplacementTextureSet(
+            material_name="material_0",
+            slots={
+                "base": ReplacementTextureSlot(
+                    "material_0",
+                    "base",
+                    Path(__file__),
+                )
+            },
+        )
+        texture_sets = {"material_0": texture_set}
+        mesh = ParsedMesh(
+            submeshes=[
+                SubMesh(name="Guard", material="material_0", faces=[(0, 1, 2)]),
+                SubMesh(name="Blade", material="material_0", faces=[(0, 1, 2)]),
+            ]
+        )
+
+        _apply_source_part_role_overrides(
+            texture_sets,
+            mesh,
+            [
+                StaticSourcePartAdjustment(
+                    source_submesh_index=1,
+                    material_brightness=50,
+                    material_contrast=20,
+                    material_saturation=25,
+                    material_gamma=0.75,
+                    material_tint_rgb=(128, 255, 64),
+                )
+            ],
+        )
+
+        alias_key = "__source_part_1_material_0"
+        self.assertIn(alias_key, texture_sets)
+        self.assertIs(texture_sets["material_0"], texture_set)
+        self.assertEqual(alias_key, getattr(mesh.submeshes[1], "cdmw_source_texture_set_key"))
+        adjusted_slot = texture_sets[alias_key].slots["base"]
+        self.assertAlmostEqual(1.5, adjusted_slot.base_color_scale)
+        self.assertAlmostEqual(20.0, adjusted_slot.base_color_tone_contrast)
+        self.assertAlmostEqual(1.25, adjusted_slot.base_color_saturation)
+        self.assertAlmostEqual(0.75, adjusted_slot.base_color_gamma)
+        self.assertEqual((128 / 255.0, 1.0, 64 / 255.0), adjusted_slot.base_color_factor)
+        original_slot = texture_set.slots["base"]
+        self.assertAlmostEqual(1.0, original_slot.base_color_scale)
+        self.assertEqual((), original_slot.base_color_factor)
+
     def test_source_part_glow_role_exports_only_routed_wrapper_for_duplicate_material_names(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             from PIL import Image

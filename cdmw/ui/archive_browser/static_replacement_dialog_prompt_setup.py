@@ -39,6 +39,8 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
     _set_replacement_mesh_base_for_mapping = context['_set_replacement_mesh_base_for_mapping']
     _set_replacement_mesh_for_mapping = context['_set_replacement_mesh_for_mapping']
     _set_replacement_preview_model = context['_set_replacement_preview_model']
+    _set_texture_sets = context['_set_texture_sets']
+    texture_uv_global_transform_state = context.get('texture_uv_global_transform_state')
 
     alignment_setup_failed = False
     alignment_setup_error = ""
@@ -128,6 +130,26 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
                 attach_scene_preview_textures(replacement_preview_model, scene_import_result, obj_path)
             except Exception:
                 pass
+            source_format = str(getattr(replacement_mesh_base_for_mapping, "format", "") or "").strip().lower()
+            if (
+                isinstance(texture_uv_global_transform_state, dict)
+                and source_format in {"obj", "gltf", "glb", "dae"}
+                and not bool(texture_uv_global_transform_state.get("flip_v"))
+                and not bool(texture_uv_global_transform_state.get("flip_u"))
+                and int(texture_uv_global_transform_state.get("rotate_degrees") or 0) == 0
+            ):
+                texture_uv_global_transform_state.update(
+                    {
+                        "source_material_name": "__global__",
+                        "rotate_degrees": 0,
+                        "flip_u": False,
+                        "flip_v": True,
+                        "offset_u": 0.0,
+                        "offset_v": 0.0,
+                        "scale_u": 1.0,
+                        "scale_v": 1.0,
+                    }
+                )
         original_dialog_preview.set_render_settings(preview_render_settings)
         static_dialog_preview.set_render_settings(preview_render_settings)
         original_dialog_preview.set_use_textures(True)
@@ -504,6 +526,12 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
             texture_files_for_mapping=texture_files_for_mapping,
             seen_texture_file_keys=seen_texture_file_keys,
             allowed_extensions=SCENE_TEXTURE_SOURCE_EXTENSIONS,
+        )
+        _set_texture_sets(
+            group_replacement_texture_sets(
+                texture_files_for_mapping,
+                obj_mesh=replacement_mesh_for_mapping,
+            )
         )
         alignment_texture_material_section = create_alignment_texture_material_section({
             **context,

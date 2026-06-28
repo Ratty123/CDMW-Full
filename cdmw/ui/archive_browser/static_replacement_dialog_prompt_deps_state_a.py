@@ -360,6 +360,7 @@ from cdmw.ui.archive_browser.static_replacement_source_part_adjustment_state imp
     source_part_adjustment_apply_state as _source_part_adjustment_apply_state_helper,
     source_part_glow_color_action_state as _source_part_glow_color_action_state_helper,
     source_part_glow_emissive_update_states as _source_part_glow_emissive_update_states_helper,
+    source_part_material_adjustment_state as _source_part_material_adjustment_state_helper,
     source_part_role_action_state as _source_part_role_action_state_helper,
     source_part_role_export_flush_states as _source_part_role_export_flush_states_helper,
     source_part_role_override_state as _source_part_role_override_state_helper,

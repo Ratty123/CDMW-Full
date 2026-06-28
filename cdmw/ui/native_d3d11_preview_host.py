@@ -375,6 +375,47 @@ class NativeD3D11PreviewHostFrame(QFrame):
             }
         )
 
+    def set_material_overrides(
+        self,
+        *,
+        source_submesh_indices: Sequence[int] = (),
+        editor_role: str = "replacement_preview",
+        texture_brightness: Optional[float] = None,
+        roughness: Optional[float] = None,
+        metalness: Optional[float] = None,
+        specular: Optional[float] = None,
+        height_scale: Optional[float] = None,
+        emissive_intensity: Optional[float] = None,
+        emissive_color: Sequence[float] = (),
+        contrast: Optional[float] = None,
+        saturation: Optional[float] = None,
+        gamma: Optional[float] = None,
+        tint_color: Sequence[float] = (),
+    ) -> bool:
+        payload: Dict[str, object] = {
+            "command": "set_material_overrides",
+            "editor_role": str(editor_role or "replacement_preview"),
+            "source_submesh_indices": [int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0],
+        }
+        for key, value in (
+            ("texture_brightness", texture_brightness),
+            ("roughness", roughness),
+            ("metalness", metalness),
+            ("specular", specular),
+            ("height_scale", height_scale),
+            ("emissive_intensity", emissive_intensity),
+            ("contrast", contrast),
+            ("saturation", saturation),
+            ("gamma", gamma),
+        ):
+            if value is not None:
+                payload[key] = float(value)
+        if emissive_color:
+            payload["emissive_color"] = [float(value) for value in tuple(emissive_color or ())[:3]]
+        if tint_color:
+            payload["tint_color"] = [float(value) for value in tuple(tint_color or ())[:3]]
+        return self._send_host_json_command(payload)
+
     def set_icon_capture_mode(self, enabled: bool) -> bool:
         return self._send_host_json_command(
             {

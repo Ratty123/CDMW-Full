@@ -132,14 +132,24 @@ def plan_static_output_draw_sections(
     source_adjustments_by_index = _source_part_adjustments_by_index(normalized_options.source_part_adjustments)
 
     def _source_adjustment_material_key(source_index: int, material_key: str) -> str:
-        if not material_key or int(source_material_key_counts.get(material_key, 0) or 0) <= 1:
+        if not material_key:
             return ""
         adjustment = source_adjustments_by_index.get(source_index)
         if adjustment is None:
             return ""
         role = str(getattr(adjustment, "material_role", "") or "").strip().lower()
         glow_rgb = tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())
-        if not role and not glow_rgb:
+        material_tint = tuple(getattr(adjustment, "material_tint_rgb", ()) or ())
+        has_material_adjustment = (
+            abs(float(getattr(adjustment, "material_brightness", 0.0) or 0.0)) > 0.0001
+            or abs(float(getattr(adjustment, "material_contrast", 0.0) or 0.0)) > 0.0001
+            or abs(float(getattr(adjustment, "material_saturation", 0.0) or 0.0)) > 0.0001
+            or abs(float(getattr(adjustment, "material_gamma", 1.0) or 1.0) - 1.0) > 0.0001
+            or bool(material_tint)
+        )
+        if not role and not glow_rgb and not has_material_adjustment:
+            return ""
+        if not has_material_adjustment and int(source_material_key_counts.get(material_key, 0) or 0) <= 1:
             return ""
         return f"__source_part_{source_index}_{material_key}"
 

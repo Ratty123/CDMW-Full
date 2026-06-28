@@ -483,8 +483,8 @@ class AboutDocumentationGermanMixin:
                     "html": """
                     <p>Das Menu <b>Fenster</b> kann schwere Arbeitsbereiche in eigene Top-Level-Fenster verschieben, ohne ihren Platz in der Hauptnavigation zu verlieren.</p>
                     <ul>
-                      <li><b>Aktuellen Tab abtrennen</b> verschiebt das aktuelle Werkzeug in ein neues Fenster und laesst einen Platzhalter zurueck.</li>
-                      <li><b>Aktuelles Werkzeug andocken</b> und <b>Alle Werkzeuge andocken</b> bringen abgetrennte Werkzeuge in ihre urspruenglichen Tabgruppen zurueck.</li>
+                      <li><b>Aktuelles Werkzeug abtrennen</b> verschiebt das aktuelle Werkzeug in ein neues Fenster und laesst einen Platzhalter zurueck.</li>
+                      <li><b>Aktuelles Werkzeug wieder andocken</b> und <b>Alle Werkzeuge wieder andocken</b> bringen abgetrennte Werkzeuge in ihre urspruenglichen Tabgruppen zurueck.</li>
                       <li>Abgetrennte Geometrie wird unter <code>window/detached/&lt;tool&gt;/geometry</code> gespeichert; das Hauptfenster nutzt <code>window/geometry</code>.</li>
                       <li><b>Einstellungen / Layout</b> steuert, ob Pane-Groessen und Splitter sitzungsuebergreifend gespeichert werden.</li>
                     </ul>

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from cdmw.ui.archive_browser.static_replacement_accept_state import (
     alignment_build_accept_route,
     alignment_accept_handler_failed_status,
@@ -25,6 +27,88 @@ from cdmw.ui.archive_browser.static_replacement_accept_state import (
     alignment_dialog_mark_closing,
     replacement_export_allowed_initial_state,
 )
+from cdmw.ui.archive_browser.static_replacement_dialog_callback_factories import (
+    create_alignment_accept_dispatch_callbacks,
+)
+
+
+class _BuildButton:
+    def __init__(self) -> None:
+        self.enabled = True
+
+    def setEnabled(self, enabled: bool) -> None:
+        self.enabled = bool(enabled)
+
+
+class _MessageBox:
+    warnings: list[tuple[object, str, str]] = []
+
+    @classmethod
+    def warning(cls, dialog: object, title: str, message: str) -> None:
+        cls.warnings.append((dialog, title, message))
+
+
+class _ImmediateTimer:
+    @staticmethod
+    def singleShot(_delay_ms: int, callback: object) -> None:
+        callback()
+
+
+class _StatusSink:
+    def __init__(self) -> None:
+        self.messages: list[tuple[str, bool]] = []
+
+    def set_status_message(self, message: str, error: bool = False) -> None:
+        self.messages.append((message, error))
+
+
+def _accept_dispatch_context(
+    *,
+    options: object | None = None,
+    build_options_callback: object | None = None,
+    continue_build_callback: object | None = None,
+) -> tuple[dict[str, object], list[object], list[str], list[tuple[str, bool]], _BuildButton, _StatusSink]:
+    _MessageBox.warnings = []
+    import_button = _BuildButton()
+    status_sink = _StatusSink()
+    view_states: list[object] = []
+    status_updates: list[str] = []
+    finishes: list[tuple[str, bool]] = []
+    dialog = SimpleNamespace()
+
+    def build_options(**kwargs: object) -> object | None:
+        if build_options_callback is not None:
+            return build_options_callback(**kwargs)
+        return options
+
+    context = {
+        "QMessageBox": _MessageBox,
+        "QTimer": _ImmediateTimer,
+        "_alignment_build_accept_route_helper": alignment_build_accept_route,
+        "_alignment_build_accept_running_helper": alignment_build_accept_running,
+        "_alignment_build_accept_set_running_helper": alignment_build_accept_set_running,
+        "_alignment_build_callback_result_route_helper": alignment_build_callback_result_route,
+        "_alignment_build_failed_status_helper": alignment_build_failed_status,
+        "_alignment_build_mod_warning_title_helper": alignment_build_mod_warning_title,
+        "_alignment_build_options_route_helper": alignment_build_options_route,
+        "_alignment_build_started_status_helper": alignment_build_started_status,
+        "_alignment_build_status_reset_helper": alignment_build_status_reset,
+        "_alignment_dialog_mark_accepted_helper": alignment_dialog_mark_accepted,
+        "_apply_alignment_build_status_view": view_states.append,
+        "_build_static_options_from_dialog": build_options if build_options_callback is not None or options is not None else None,
+        "_dispatch_alignment_accept": lambda accepted_options: None,
+        "_finish_alignment_build_state": lambda message, success: finishes.append((message, success)),
+        "_set_alignment_build_status": status_updates.append,
+        "build_accept_state": alignment_build_accept_initial_state(),
+        "continue_build_callback": continue_build_callback,
+        "dialog": dialog,
+        "dialog_accepted_state": alignment_dialog_accept_initial_state(),
+        "import_button": import_button,
+        "on_accept": None,
+        "replacement_export_allowed": replacement_export_allowed_initial_state(),
+        "self": status_sink,
+    }
+    return context, view_states, status_updates, finishes, import_button, status_sink
 
 
 def test_alignment_dialog_closing_initial_state_preserves_default() -> None:
@@ -118,6 +202,79 @@ def test_alignment_build_options_and_callback_routes_cover_reset_accept_and_star
     assert alignment_build_callback_result_route(False).should_report_started is False
     assert alignment_build_callback_result_route(True).should_reset_build_status is False
     assert alignment_build_callback_result_route(True).should_report_started is True
+
+
+def test_build_mod_after_material_authority_calls_continue_build_callback() -> None:
+    options = SimpleNamespace(
+        submesh_mappings=[SimpleNamespace(target_submesh_index=0)],
+        complete_swap_material_profile="material_authority_detail_mask",
+    )
+    build_calls: list[tuple[object, object, str]] = []
+
+    def continue_build(static_options: object, dialog: object, _set_status: object, _finish: object, mode: str) -> bool:
+        build_calls.append((static_options, dialog, mode))
+        return True
+
+    context, _views, status_updates, _finishes, import_button, status_sink = _accept_dispatch_context(
+        options=options,
+        continue_build_callback=continue_build,
+    )
+
+    create_alignment_accept_dispatch_callbacks(context)._accept_static_options()
+
+    assert build_calls == [(options, context["dialog"], "loose")]
+    assert context["dialog"]._static_options is options
+    assert import_button.enabled is False
+    assert "Collecting mesh replacement mod build settings..." in status_updates
+    assert status_sink.messages == [(alignment_build_started_status(), False)]
+    assert _MessageBox.warnings == []
+
+
+def test_build_mod_after_mesh_edit_requests_edited_source_mesh() -> None:
+    edited_mesh = object()
+    options = SimpleNamespace(submesh_mappings=[], edited_source_mesh=edited_mesh)
+    build_kwargs: dict[str, object] = {}
+    build_calls: list[object] = []
+
+    def build_options(**kwargs: object) -> object:
+        build_kwargs.update(kwargs)
+        return options
+
+    def continue_build(static_options: object, *_args: object) -> bool:
+        build_calls.append(static_options)
+        return True
+
+    context, _views, _status_updates, _finishes, _import_button, _status_sink = _accept_dispatch_context(
+        build_options_callback=build_options,
+        continue_build_callback=continue_build,
+    )
+
+    create_alignment_accept_dispatch_callbacks(context)._accept_static_options()
+
+    assert build_kwargs["include_edited_source_mesh"] is True
+    assert build_calls == [options]
+    assert context["dialog"]._static_options.edited_source_mesh is edited_mesh
+    assert _MessageBox.warnings == []
+
+
+def test_build_mod_missing_options_builder_reports_warning_without_calling_build() -> None:
+    build_calls: list[object] = []
+
+    context, _views, _status_updates, finishes, _import_button, _status_sink = _accept_dispatch_context(
+        continue_build_callback=lambda *args: build_calls.append(args) or True,
+    )
+
+    create_alignment_accept_dispatch_callbacks(context)._accept_static_options()
+
+    assert build_calls == []
+    assert _MessageBox.warnings == [
+        (
+            context["dialog"],
+            "Build Mod",
+            "Build Mod options builder is unavailable.",
+        )
+    ]
+    assert finishes == [("Mesh replacement build failed: Build Mod options builder is unavailable.", False)]
 
 
 def test_replacement_export_allowed_initial_state_preserves_default() -> None:

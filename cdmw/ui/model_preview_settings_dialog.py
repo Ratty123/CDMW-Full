@@ -138,7 +138,7 @@ class ModelPreviewSettingsDialog(QDialog):
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("3D Preview Settings")
+        self.setWindowTitle("Preview Settings")
         self.setModal(False)
         self.resize(560, 420)
         self._applying_settings = False
@@ -178,7 +178,6 @@ class ModelPreviewSettingsDialog(QDialog):
         self.tabs.addTab(quality_tab, "Quality / Lighting")
         self.tabs.addTab(diagnostics_tab, "Render Diagnostics")
         self.tabs.addTab(controls_tab, "Controls")
-        self.tabs.addTab(performance_tab, "Performance")
         self._archive_performance_tab = performance_tab
 
         general_form = QFormLayout()
@@ -1110,6 +1109,4 @@ class ModelPreviewSettingsDialog(QDialog):
         defaults.invert_pan_x = current.invert_pan_x
         defaults.invert_pan_y = current.invert_pan_y
         self.set_settings(defaults)
-        self.set_archive_performance_settings(ArchivePerformanceSettings())
         self.settings_changed.emit(self.current_settings())
-        self.archive_performance_changed.emit(self.current_archive_performance_settings())

@@ -326,6 +326,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("Scoped to", source)
         self.assertIn("Mirror Catalogue", source)
         self.assertIn("Local Library", source)
+        self.assertIn("button.setMinimumWidth(button.sizeHint().width() + 12)", source)
         self.assertIn('QGroupBox("Mirror Index Source")', source)
         self.assertIn("self.mirror_group.setVisible(self._active_results_view == \"mirror\")", source)
         self.assertIn("results_search_label = QLabel(\"Mirror search\")", source)

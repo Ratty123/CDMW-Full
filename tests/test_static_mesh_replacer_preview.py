@@ -853,6 +853,51 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         self.assertLess(y_span, 1e-6)
         self.assertGreater(z_span, 1.9)
 
+    def test_grid_flat_does_not_follow_upright_target_axis_off_grid(self) -> None:
+        original = _mesh(
+            "upright_target.pac",
+            [
+                SubMesh(
+                    name="target blade",
+                    material="target blade",
+                    vertices=[(0.0, 0.0, 0.0), (0.0, 10.0, 0.0), (2.0, 0.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "upright_replacement.obj",
+            [
+                SubMesh(
+                    name="replacement blade",
+                    material="replacement blade",
+                    vertices=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 2.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target blade",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+
+        preview = build_static_replacement_preview_mesh(
+            original,
+            replacement,
+            StaticMeshReplacementOptions(
+                transform=StaticReplacementTransform(alignment_mode="grid_flat", scale_to_original_length=False),
+                submesh_mappings=[mapping],
+            ),
+        )
+
+        vertices = preview.submeshes[0].vertices
+        y_span = max(vertex[1] for vertex in vertices) - min(vertex[1] for vertex in vertices)
+        z_span = max(vertex[2] for vertex in vertices) - min(vertex[2] for vertex in vertices)
+        self.assertLess(y_span, 1e-6)
+        self.assertGreater(z_span, 1.9)
+
     def test_preview_allows_large_mapped_target_that_export_rejects(self) -> None:
         original = _mesh(
             "helmet.pac",

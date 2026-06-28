@@ -70,6 +70,13 @@ def source_part_inspector_control_text() -> dict[str, str]:
         "use_copied_texture_tooltip": "Use the DDS refs copied from the original part for this pasted replacement source.",
         "use_route_texture_tooltip": "Ignore copied DDS refs and use the normal replacement material route.",
         "remove_copied_texture_tooltip": "Remove the copied DDS intent from this source. Geometry remains.",
+        "material_label": "Material",
+        "material_gamma_label": "Gamma",
+        "material_tint_label": "Tint",
+        "material_adjustment_tooltip": (
+            "Per-part live material adjustment. Brightness, contrast, saturation, gamma, and tint are applied "
+            "to this source part's base/emissive texture preview and loose export."
+        ),
     }
 
 

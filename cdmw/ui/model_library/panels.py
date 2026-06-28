@@ -285,6 +285,9 @@ def build_results_panel(tab: object) -> QWidget:
     tab.refresh_results_view_button = QPushButton("Refresh")
     tab.mirror_results_view_button.setCheckable(True)
     tab.local_results_view_button.setCheckable(True)
+    for button in (tab.mirror_results_view_button, tab.local_results_view_button):
+        button.setMinimumWidth(button.sizeHint().width() + 12)
+        button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
     tab.results_view_button_group = QButtonGroup(tab)
     tab.results_view_button_group.setExclusive(True)
     tab.results_view_button_group.addButton(tab.mirror_results_view_button)

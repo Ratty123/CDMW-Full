@@ -82,9 +82,10 @@ class ArchiveModPackageRetrofitDialogMixin:
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
 
-        title = QLabel(dialog_title)
-        title.setObjectName("SectionTitle")
-        layout.addWidget(title)
+        if on_close is not None:
+            title = QLabel(dialog_title)
+            title.setObjectName("SectionTitle")
+            layout.addWidget(title)
 
         intro = QLabel(
             "Scan loose or zipped mod packages and repackage them for another supported mod-manager profile. "

@@ -1739,6 +1739,24 @@ def test_alignment_d3d11_fast_transform_preview_state_skips_missing_editor_ids()
     )
 
 
+def test_alignment_d3d11_fast_transform_preview_state_ignores_editor_id_resolver_errors() -> None:
+    state = {
+        "pending_part_fast_transforms": {
+            1: {"translation": (1.0, 0.0, 0.0)},
+        },
+    }
+
+    def broken_resolver(_source_indices):
+        raise TypeError("'NoneType' object is not callable")
+
+    assert alignment_d3d11_fast_transform_preview_state(state, broken_resolver) == (
+        (0.0, 0.0, 0.0),
+        (0.0, 0.0, 0.0),
+        (1.0, 1.0, 1.0),
+        [],
+    )
+
+
 def test_alignment_d3d11_fast_transform_send_state_builds_scope_and_transform_payload() -> None:
     state: dict[str, object] = {
         "pending_fast_transform": {
@@ -1774,6 +1792,33 @@ def test_alignment_d3d11_fast_transform_send_state_builds_scope_and_transform_pa
         state,
         lambda source_indices: tuple(source_indices),
     )["update_scope"] is False
+
+
+def test_alignment_d3d11_fast_transform_send_state_ignores_bad_scope_editor_ids() -> None:
+    state: dict[str, object] = {
+        "pending_fast_transform": {
+            "translation": (1.0, 2.0, 3.0),
+        },
+        "pending_part_fast_transforms": {
+            2: {"translation": (7.0, 8.0, 9.0)},
+        },
+    }
+
+    def broken_resolver(_source_indices):
+        raise TypeError("'NoneType' object is not callable")
+
+    assert alignment_d3d11_fast_transform_send_state(
+        state,
+        broken_resolver,
+        scope_source_indices=(2,),
+    ) == {
+        "update_scope": True,
+        "scope_source_indices": (),
+        "translation": (1.0, 2.0, 3.0),
+        "rotation_degrees": (0.0, 0.0, 0.0),
+        "scale_xyz": (1.0, 1.0, 1.0),
+        "part_transforms": [],
+    }
 
 
 def test_alignment_d3d11_fast_transform_replay_state_routes_clear_send_or_noop() -> None:

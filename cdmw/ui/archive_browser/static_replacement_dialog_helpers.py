@@ -59,6 +59,7 @@ from cdmw.ui.archive_browser.static_replacement_texture_matching import (
     source_texture_evidence_by_local_path,
     texture_file_lookup_maps,
 )
+from cdmw.ui.archive_browser.static_replacement_source_part_defaults import is_default_source_part_adjustment
 
 
 _IMPORTANT_STATIC_TEXTURE_TOKENS = {
@@ -149,19 +150,6 @@ def mapping_source_cell_text(summary: str, ok: bool) -> str:
     if normalized.startswith("Empty target"):
         return "-"
     return normalized or "-"
-
-
-def is_default_source_part_adjustment(adjustment: object) -> bool:
-    return (
-        bool(getattr(adjustment, "enabled", False))
-        and all(abs(float(value)) <= 1e-8 for value in getattr(adjustment, "offset_xyz", ()))
-        and all(abs(float(value)) <= 1e-8 for value in getattr(adjustment, "rotate_xyz_degrees", ()))
-        and all(abs(float(value) - 1.0) <= 1e-8 for value in getattr(adjustment, "scale_xyz", ()))
-        and abs(float(getattr(adjustment, "uniform_scale", 1.0)) - 1.0) <= 1e-8
-        and str(getattr(adjustment, "pivot_mode", "part_center") or "part_center") == "part_center"
-        and not str(getattr(adjustment, "material_role", "") or "").strip()
-        and not tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())
-    )
 
 
 def texture_context_path_html(path_text: object) -> str:

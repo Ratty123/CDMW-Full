@@ -147,7 +147,7 @@ class ResponsivenessControllerMixin:
         preview_width = int(getattr(getattr(self, "archive_preview_group", None), "width", lambda: 0)() or 0)
         compact = layout_width <= 1600 or (0 < preview_width <= 620)
         pairs = (
-            ("archive_model_preview_settings_button", "3D", "3D Settings"),
+            ("archive_model_preview_settings_button", "Preview Settings", "Preview Settings"),
             ("archive_asset_family_button", "Asset", "Asset Family"),
             ("archive_texture_open_button", "Preview Row", "Preview Row"),
             ("archive_texture_edit_hkx_button", "Edit HKX", "Edit Row HKX..."),

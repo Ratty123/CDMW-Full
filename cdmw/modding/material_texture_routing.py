@@ -1171,6 +1171,85 @@ def _normalized_source_part_material_role(raw_role: object) -> str:
     return value.replace(" ", "/")
 
 
+def _source_part_float(value: object, *, default: float, minimum: float, maximum: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        number = float(default)
+    return max(float(minimum), min(float(maximum), number))
+
+
+def _source_part_tint_rgb(value: object) -> tuple[float, float, float]:
+    raw_values = tuple(value or ())
+    if not raw_values:
+        return (1.0, 1.0, 1.0)
+    normalized: list[float] = []
+    for raw in raw_values[:3]:
+        try:
+            normalized.append(max(0.0, min(1.0, float(raw) / 255.0)))
+        except (TypeError, ValueError, OverflowError):
+            normalized.append(1.0)
+    while len(normalized) < 3:
+        normalized.append(1.0)
+    return normalized[0], normalized[1], normalized[2]
+
+
+def _source_part_has_texture_adjustment(adjustment: object) -> bool:
+    tint = _source_part_tint_rgb(getattr(adjustment, "material_tint_rgb", ()))
+    return (
+        abs(_source_part_float(getattr(adjustment, "material_brightness", 0.0), default=0.0, minimum=-100.0, maximum=100.0)) > 0.0001
+        or abs(_source_part_float(getattr(adjustment, "material_contrast", 0.0), default=0.0, minimum=-100.0, maximum=100.0)) > 0.0001
+        or abs(_source_part_float(getattr(adjustment, "material_saturation", 0.0), default=0.0, minimum=-100.0, maximum=100.0)) > 0.0001
+        or abs(_source_part_float(getattr(adjustment, "material_gamma", 1.0), default=1.0, minimum=0.25, maximum=4.0) - 1.0) > 0.0001
+        or any(abs(component - 1.0) > 0.0001 for component in tint)
+    )
+
+
+def _source_part_adjusted_slot(source_slot: ReplacementTextureSlot, adjustment: object) -> ReplacementTextureSlot:
+    slot_kind = str(getattr(source_slot, "slot_kind", "") or "").strip().lower()
+    if slot_kind not in {"base", "emissive"}:
+        return source_slot
+    brightness = _source_part_float(getattr(adjustment, "material_brightness", 0.0), default=0.0, minimum=-100.0, maximum=100.0)
+    contrast = _source_part_float(getattr(adjustment, "material_contrast", 0.0), default=0.0, minimum=-100.0, maximum=100.0)
+    saturation = _source_part_float(getattr(adjustment, "material_saturation", 0.0), default=0.0, minimum=-100.0, maximum=100.0)
+    gamma = _source_part_float(getattr(adjustment, "material_gamma", 1.0), default=1.0, minimum=0.25, maximum=4.0)
+    tint = _source_part_tint_rgb(getattr(adjustment, "material_tint_rgb", ()))
+    existing_factor = tuple(getattr(source_slot, "base_color_factor", ()) or ())
+    if len(existing_factor) >= 3:
+        factor = tuple(max(0.0, min(1.0, float(existing_factor[index]) * tint[index])) for index in range(3))
+    else:
+        factor = tint if any(abs(component - 1.0) > 0.0001 for component in tint) else existing_factor
+    return replace(
+        source_slot,
+        base_color_factor=factor,
+        base_color_scale=max(
+            0.0,
+            min(4.0, float(getattr(source_slot, "base_color_scale", 1.0) or 1.0) * (1.0 + brightness / 100.0)),
+        ),
+        base_color_gamma=max(
+            0.1,
+            min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0) * gamma),
+        ),
+        base_color_saturation=max(
+            0.0,
+            min(4.0, float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0) * (1.0 + saturation / 100.0)),
+        ),
+        base_color_tone_contrast=max(
+            -100.0,
+            min(100.0, float(getattr(source_slot, "base_color_tone_contrast", 0.0) or 0.0) + contrast),
+        ),
+    )
+
+
+def _apply_source_part_texture_adjustment(texture_set: ReplacementTextureSet, adjustment: object) -> None:
+    if not _source_part_has_texture_adjustment(adjustment):
+        return
+    texture_set.slots = {
+        slot_kind: _source_part_adjusted_slot(slot, adjustment)
+        for slot_kind, slot in tuple((texture_set.slots or {}).items())
+    }
+
+
 def _apply_source_part_role_overrides(
     texture_sets: Mapping[str, ReplacementTextureSet],
     obj_mesh: ParsedMesh,
@@ -1186,7 +1265,8 @@ def _apply_source_part_role_overrides(
             material_key_counts[key] = int(material_key_counts.get(key, 0) or 0) + 1
     for adjustment in tuple(source_part_adjustments or ()):
         role = _normalized_source_part_material_role(getattr(adjustment, "material_role", ""))
-        if not role:
+        has_texture_adjustment = _source_part_has_texture_adjustment(adjustment)
+        if not role and not has_texture_adjustment:
             continue
         try:
             source_index = int(getattr(adjustment, "source_submesh_index"))
@@ -1201,7 +1281,7 @@ def _apply_source_part_role_overrides(
             texture_set = _texture_set_for_source_texture_reference(submesh, texture_sets)
         if texture_set is None:
             continue
-        if isinstance(texture_sets, dict) and int(material_key_counts.get(material_key, 0) or 0) > 1:
+        if isinstance(texture_sets, dict) and (has_texture_adjustment or int(material_key_counts.get(material_key, 0) or 0) > 1):
             alias_key = f"__source_part_{source_index}_{str(texture_set.material_name or material_key or 'material').strip().lower()}"
             cloned_slots = {
                 slot_kind: replace(slot, material_name=alias_key)
@@ -1225,13 +1305,15 @@ def _apply_source_part_role_overrides(
                 setattr(submesh, "cdmw_source_texture_set_key", alias_key)
             except Exception:
                 pass
-        existing = tuple(str(tag or "").strip().lower() for tag in (texture_set.source_role_tags or ()) if str(tag or "").strip())
-        if role not in existing:
-            texture_set.source_role_tags = (*existing, role)
-        if role == "glow":
-            glow_rgb = _normalized_accent_glow_rgb(getattr(adjustment, "emissive_color_rgb", ()))
-            if glow_rgb:
-                texture_set.accent_glow_color_rgb = glow_rgb
+        _apply_source_part_texture_adjustment(texture_set, adjustment)
+        if role:
+            existing = tuple(str(tag or "").strip().lower() for tag in (texture_set.source_role_tags or ()) if str(tag or "").strip())
+            if role not in existing:
+                texture_set.source_role_tags = (*existing, role)
+            if role == "glow":
+                glow_rgb = _normalized_accent_glow_rgb(getattr(adjustment, "emissive_color_rgb", ()))
+                if glow_rgb:
+                    texture_set.accent_glow_color_rgb = glow_rgb
 
 
 def _choose_source_materials_for_targets(

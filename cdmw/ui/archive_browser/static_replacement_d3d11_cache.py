@@ -213,6 +213,15 @@ def alignment_d3d11_model_cache_signature(
 ) -> str:
     mesh_signatures = []
     for mesh in getattr(model, "meshes", ()) or ():
+        raw_native_overrides = getattr(mesh, "preview_native_material_overrides", {}) or {}
+        if not isinstance(raw_native_overrides, Mapping):
+            raw_native_overrides = {}
+        native_overrides = tuple(
+            sorted(
+                (str(key), repr(value))
+                for key, value in raw_native_overrides.items()
+            )
+        )
         material_inputs = tuple(
             (
                 str(getattr(item, "parameter_name", "") or ""),
@@ -271,6 +280,7 @@ def alignment_d3d11_model_cache_signature(
                 getattr(mesh, "preview_vertex_alpha_min", None),
                 int(getattr(mesh, "preview_vertex_color_count", 0) or 0),
                 bool(getattr(mesh, "preview_double_sided", False)),
+                native_overrides,
                 material_inputs,
             )
         )
@@ -353,6 +363,15 @@ def alignment_d3d11_material_cache_key(
     }
     mesh_signatures = []
     for mesh in getattr(model, "meshes", ()) or ():
+        raw_native_overrides = getattr(mesh, "preview_native_material_overrides", {}) or {}
+        if not isinstance(raw_native_overrides, Mapping):
+            raw_native_overrides = {}
+        native_overrides = tuple(
+            sorted(
+                (str(key), repr(value))
+                for key, value in raw_native_overrides.items()
+            )
+        )
         material_inputs = tuple(
             (
                 str(getattr(item, "parameter_name", "") or ""),
@@ -408,6 +427,7 @@ def alignment_d3d11_material_cache_key(
                 int(getattr(mesh, "preview_vertex_color_count", 0) or 0),
                 str(getattr(mesh, "preview_alpha_mode", "") or ""),
                 bool(getattr(mesh, "preview_double_sided", False)),
+                native_overrides,
                 material_inputs,
             )
         )

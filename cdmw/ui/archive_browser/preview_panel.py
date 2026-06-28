@@ -177,10 +177,9 @@ class ArchivePreviewTextToolsMixin:
         return tools
 
     def _update_archive_preview_text_tools_visibility(self, *_args) -> None:
-        if not hasattr(self, "archive_preview_text_tools"):
-            return
         current_widget = self.archive_preview_stack.currentWidget()
-        self.archive_preview_text_tools.setVisible(current_widget is self.archive_preview_text_edit)
+        if hasattr(self, "archive_preview_text_tools"):
+            self.archive_preview_text_tools.setVisible(current_widget is self.archive_preview_text_edit)
         if hasattr(self, "archive_preview_info_tools"):
             self.archive_preview_info_tools.setVisible(current_widget is self.archive_preview_info_edit)
         if hasattr(self, "archive_preview_controls_hint_label"):

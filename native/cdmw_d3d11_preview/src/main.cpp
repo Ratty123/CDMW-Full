@@ -43,7 +43,8 @@ static constexpr float kAlignmentAxisExtent = 0.95f;
 static constexpr float kAlignmentAxisMarkerSize = 0.055f;
 static constexpr float kAlignmentAxisLabelSize = 0.075f;
 static const DirectX::XMFLOAT4 kFixedPreviewClearColor = DirectX::XMFLOAT4(0.082f, 0.098f, 0.114f, 1.0f);
-static constexpr float kZoomSteps[] = {0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f, 12.0f, 16.0f};
+static constexpr float kZoomSteps[] = {0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f, 12.0f, 16.0f, 24.0f, 32.0f, 48.0f, 64.0f};
+static constexpr float kMaxZoomFactor = 64.0f;
 static constexpr UINT kCdmwSetZoomMessage = WM_APP + 0x431u;
 static constexpr UINT kCdmwSetFitMessage = WM_APP + 0x432u;
 static constexpr UINT kCdmwResetViewMessage = WM_APP + 0x433u;
@@ -51,7 +52,6 @@ static constexpr ULONG_PTR kCdmwCommandCopyData = 0x43444D57u; // "CDMW"
 static constexpr ULONG_PTR kCdmwEventCopyData = 0x44334431u; // "D3D1"
 static constexpr size_t kSrvCacheSoftMaxEntries = 512;
 static constexpr std::uint64_t kSrvCacheSoftMaxBytes = 384ull * 1024ull * 1024ull;
-static constexpr size_t kDenseMeshEditMaterialPreserveTriangles = 1800u;
 static constexpr DWORD kIdleWaitMs = 50;
 static constexpr double kParentHealthCheckMs = 1000.0;
 static constexpr double kParentHangExitMs = 30000.0;
@@ -218,6 +218,10 @@ struct PreviewBatch {
     float emissive_color[3] = {0.35f, 0.68f, 1.0f};
     float base_tint_strength = 0.0f;
     float texture_brightness = 1.0f;
+    float texture_contrast = 1.0f;
+    float texture_saturation = 1.0f;
+    float texture_gamma = 1.0f;
+    float texture_tint[3] = {1.0f, 1.0f, 1.0f};
     float texture_uv_scale[2] = {1.0f, 1.0f};
     float layer_weight = 0.0f;
     float layer_channel_index = 0.0f;
@@ -451,6 +455,8 @@ struct ConstantBuffer {
     DirectX::XMFLOAT4 flags5;
     DirectX::XMFLOAT4 emissive_params;
     DirectX::XMFLOAT4 material_value_params;
+    DirectX::XMFLOAT4 material_color_params;
+    DirectX::XMFLOAT4 material_tint_params;
     DirectX::XMFLOAT4 layer_params[kMaxMaterialLayers];
     DirectX::XMFLOAT4 layer_tint[kMaxMaterialLayers];
     DirectX::XMFLOAT4 layer_hints[kMaxMaterialLayers];
@@ -780,6 +786,11 @@ static float json_float_field(const std::string& object, const std::string& name
     } catch (...) {
         return fallback;
     }
+}
+
+static bool json_has_field(const std::string& object, const std::string& name) {
+    std::regex pattern("\"" + name + "\"\\s*:");
+    return std::regex_search(object, pattern);
 }
 
 static std::vector<std::string> objects_with_key(const std::string& text, const std::string& key) {
@@ -1350,8 +1361,13 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.height_scale_hint = std::clamp(json_float_field(object, "height_scale", 0.0f), 0.0f, 1.0f);
         batch.emissive_intensity = std::clamp(json_float_field(object, "emissive_intensity", 0.0f), 0.0f, 32.0f);
         parse_float3_array_field(object, "emissive_color", batch.emissive_color);
+        batch.highlight_strength = std::clamp(json_float_field(object, "highlight_strength", 0.0f), 0.0f, 1.0f);
         batch.base_tint_strength = std::clamp(json_float_field(object, "base_tint_strength", 0.0f), 0.0f, 1.0f);
         batch.texture_brightness = std::clamp(json_float_field(object, "texture_brightness", 1.0f), 0.1f, 3.0f);
+        batch.texture_contrast = std::clamp(json_float_field(object, "texture_contrast", 1.0f), 0.25f, 2.5f);
+        batch.texture_saturation = std::clamp(json_float_field(object, "texture_saturation", 1.0f), 0.0f, 4.0f);
+        batch.texture_gamma = std::clamp(json_float_field(object, "texture_gamma", 1.0f), 0.25f, 4.0f);
+        parse_float3_array_field(object, "texture_tint", batch.texture_tint);
         const std::vector<float> texture_uv_scale = json_float_array_field(object, "texture_uv_scale");
         if (!texture_uv_scale.empty()) {
             batch.texture_uv_scale[0] = std::clamp(texture_uv_scale[0], 0.05f, 64.0f);
@@ -1871,6 +1887,8 @@ cbuffer Constants : register(b0) {
     float4 flags5;
     float4 emissive_params;
     float4 material_value_params;
+    float4 material_color_params;
+    float4 material_tint_params;
     float4 layer_params[4];
     float4 layer_tint[4];
     float4 layer_hints[4];
@@ -2007,6 +2025,10 @@ float4 ps_main(VSOut input) : SV_TARGET {
     }
     uv *= max(material_value_params.xy, float2(0.05, 0.05));
     float preview_brightness = max(material_value_params.z, 0.1);
+    float preview_contrast = max(material_color_params.x, 0.01);
+    float preview_saturation = max(material_color_params.y, 0.0);
+    float preview_gamma = max(material_color_params.z, 0.01);
+    float3 preview_tint_color = max(material_tint_params.rgb, float3(0.0, 0.0, 0.0));
     float3 albedo = srgb_to_linear(max(input.color, base_color_flip.rgb));
     float base_alpha = 1.0;
     float early_category_code = flags5.x;
@@ -2033,6 +2055,13 @@ float4 ps_main(VSOut input) : SV_TARGET {
         }
     }
     albedo = saturate(albedo * preview_brightness);
+    albedo *= preview_tint_color;
+    float albedo_luma_adjusted = dot(albedo, float3(0.299, 0.587, 0.114));
+    albedo = saturate(albedo_luma_adjusted.xxx + (albedo - albedo_luma_adjusted.xxx) * preview_saturation);
+    albedo = saturate((albedo - 0.5) * preview_contrast + 0.5);
+    if (abs(preview_gamma - 1.0) > 0.001) {
+        albedo = pow(saturate(albedo), float3(preview_gamma, preview_gamma, preview_gamma));
+    }
     albedo = max(albedo, float3(0.012, 0.012, 0.012));
     if (flags3.z > 0.5 && base_alpha < max(flags3.w, 0.001)) {
         discard;
@@ -2129,8 +2158,9 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float specular = 0.15;
     float metalness = 0.0;
     float user_metalness_scale = max(render_tuning3.z, 0.0);
+    bool explicit_material_authority_hint = material_hints.x > 0.02 || material_hints.y > 0.02 || material_hints.z > 0.02 || material_hints.w > 0.02;
     if (material_hints.x > 0.02) {
-        roughness = lerp(roughness, material_hints.x, 0.32);
+        roughness = lerp(roughness, material_hints.x, 0.72);
     }
     if (material_hints.y > 0.02) {
         metalness = max(metalness, saturate(material_hints.y * user_metalness_scale));
@@ -2188,6 +2218,12 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float category_specular_cap = category_metal ? 1.0 : (category_glass ? 0.42 : (category_gem ? 0.48 : (category_eye ? 0.44 : (category_leather ? 0.14 : (category_wood ? 0.16 : (category_cloth ? 0.055 : (category_skin ? 0.20 : (category_hair ? 0.22 : (category_stone ? 0.10 : (category_tooth ? 0.18 : 0.18))))))))));
     float category_env_scale = category_metal ? 0.94 : (category_glass ? 0.26 : (category_gem ? 0.30 : (category_eye ? 0.24 : (category_leather ? 0.06 : (category_wood ? 0.06 : (category_cloth ? 0.025 : (category_skin ? 0.075 : (category_hair ? 0.08 : (category_stone ? 0.04 : (category_tooth ? 0.08 : 0.08))))))))));
     float category_roughness_floor = category_metal ? 0.16 : (category_glass ? 0.30 : (category_gem ? 0.26 : (category_eye ? 0.30 : (category_leather ? 0.76 : (category_wood ? 0.70 : (category_cloth ? 0.84 : (category_skin ? 0.58 : (category_hair ? 0.64 : (category_stone ? 0.82 : (category_tooth ? 0.58 : 0.66))))))))));
+    if (explicit_material_authority_hint && !conservative_nonmetal) {
+        float gloss_hint = saturate((1.0 - material_hints.x) * 0.85 + material_hints.z * 0.45);
+        category_specular_cap = max(category_specular_cap, max(material_hints.z, gloss_hint));
+        category_env_scale = max(category_env_scale, lerp(0.12, 0.42, gloss_hint));
+        category_roughness_floor = min(category_roughness_floor, lerp(0.08, 0.42, saturate(material_hints.x)));
+    }
     float category_metal_fallback = category_metal ? saturate(lerp(0.28, 0.62, category_confidence) * user_metalness_scale) : 0.0;
     if (category_metal && material_hints.y <= 0.02 && flags.z <= 0.5 && flags2.z <= 0.5) {
         metalness = max(metalness, category_metal_fallback);
@@ -2247,6 +2283,14 @@ float4 ps_main(VSOut input) : SV_TARGET {
     APPLY_MATERIAL_LAYER(2, layer2_material_tex)
     APPLY_MATERIAL_LAYER(3, layer3_material_tex)
 #undef APPLY_MATERIAL_LAYER
+    if (explicit_material_authority_hint) {
+        if (material_hints.x > 0.02) {
+            roughness = lerp(roughness, material_hints.x, 0.55);
+        }
+        if (material_hints.z > 0.02) {
+            specular = max(specular, material_hints.z);
+        }
+    }
     if (debug_mode > 5.5 && debug_mode < 6.5) {
         return float4(saturate(ao), saturate(roughness), saturate(specular), 1.0);
     }
@@ -2330,6 +2374,18 @@ static const char kShaderSourcePixelLighting[] = R"(
         float3 cloth_highlight_cap = float3(0.94, 0.91, 0.84);
         material_reference_albedo = lerp(material_reference_albedo, min(material_reference_albedo, cloth_highlight_cap), cloth_high_luma_guard * 0.35);
     }
+    if (material_hints.w > 0.02 && flags.w <= 0.5) {
+        float relief_edge = saturate((abs(ddx(texture_luma)) + abs(ddy(texture_luma))) * 34.0);
+        material_reference_albedo = saturate(
+            material_reference_albedo * (1.0 + relief_edge * saturate(material_hints.w) * 0.24)
+            - (1.0 - relief_edge) * saturate(material_hints.w) * 0.018);
+    }
+    if (explicit_material_authority_hint && material_hints.x > 0.62 && !conservative_nonmetal) {
+        float matte_preview = saturate((material_hints.x - 0.62) * 2.63);
+        float luma = dot(material_reference_albedo, float3(0.299, 0.587, 0.114));
+        float3 flattened = lerp(material_reference_albedo, luma.xxx, 0.42);
+        material_reference_albedo = lerp(material_reference_albedo, flattened * 0.88 + 0.018.xxx, matte_preview * 0.58);
+    }
     if (category_metal) {
         float3 metal_tint = saturate(base_color_flip.rgb);
         float metal_tint_luma = max(dot(metal_tint, float3(0.299, 0.587, 0.114)), 0.08);
@@ -2350,12 +2406,16 @@ static const char kShaderSourcePixelLighting[] = R"(
     diffuse_depth = lerp(1.0, diffuse_depth, depth_authority);
     float metal_cue = category_metal ? saturate(metalness * lerp(0.18, 0.58, smoothness)) : 0.0;
     float glossy_cue = glossy_nonmetal ? saturate(specular * lerp(0.06, 0.20, smoothness)) : 0.0;
+    float authority_gloss_cue = (explicit_material_authority_hint && !conservative_nonmetal)
+        ? saturate((1.0 - material_hints.x) * 0.55 + material_hints.z * 0.75 + material_hints.y * 0.35)
+        : 0.0;
     float nonmetal_texture_scale = conservative_nonmetal ? 1.03 : 1.0;
     float metal_strength = category_metal ? saturate(metalness) : 0.0;
     float metal_diffuse_scale = lerp(1.0, 0.34, metal_strength);
     float3 color = material_reference_albedo * stable_ao * nonmetal_texture_scale * diffuse_depth * metal_diffuse_scale;
     color += material_reference_albedo * metal_cue * 0.16;
     color += material_reference_albedo * glossy_cue * 0.22;
+    color += material_reference_albedo * authority_gloss_cue * (0.035 + rim_shape * 0.16);
     float ndotv = saturate(camera_shape);
     float ndoth = saturate(dot(n, half_dir));
     float spec_power = lerp(render_tuning2.x, render_tuning2.y, smoothness);
@@ -2375,6 +2435,7 @@ static const char kShaderSourcePixelLighting[] = R"(
         env_reflection *= lerp(float3(1.0, 1.0, 1.0), tint_bias, saturate(tint_chroma * 0.44));
     }
     float env_material_scale = category_metal ? (0.55 + metalness * lerp(0.45, 1.10, smoothness)) : (glossy_nonmetal ? 0.18 : (conservative_nonmetal ? 0.018 : 0.08));
+    env_material_scale = max(env_material_scale, authority_gloss_cue * 0.32);
     float3 env_fresnel = fresnel_schlick(ndotv, f0);
     color += env_reflection * env_fresnel * render_tuning3.w * category_env_scale * env_material_scale;
     if (emissive_params.a > 0.001) {
@@ -3231,12 +3292,24 @@ private:
         pan_x_ = camera.pan_x;
         pan_y_ = camera.pan_y;
         pan_z_ = camera.pan_z;
-        reference_camera_ = camera;
     }
 
     PreviewCameraState camera_for_view_role(PreviewViewRole role) const {
-        (void)role;
+        if (role == PreviewViewRole::Reference) {
+            return reference_camera_;
+        }
         return replacement_camera();
+    }
+
+    void set_camera_for_role(PreviewViewRole role, const PreviewCameraState& camera) {
+        if (role == PreviewViewRole::Reference) {
+            reference_camera_ = camera;
+            return;
+        }
+        if (role == PreviewViewRole::All) {
+            reference_camera_ = camera;
+        }
+        set_replacement_camera(camera);
     }
 
     DirectX::XMMATRIX world_matrix_for_camera(const PreviewCameraState& camera) const {
@@ -3939,6 +4012,20 @@ private:
                 std::clamp(batch.texture_uv_scale[1], 0.05f, 64.0f),
                 std::clamp(batch.texture_brightness, 0.1f, 3.0f),
                 0.0f);
+        constants.material_color_params = mesh_edit_flat
+            ? DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f)
+            : DirectX::XMFLOAT4(
+                std::clamp(batch.texture_contrast, 0.25f, 2.5f),
+                std::clamp(batch.texture_saturation, 0.0f, 4.0f),
+                std::clamp(batch.texture_gamma, 0.25f, 4.0f),
+                0.0f);
+        constants.material_tint_params = mesh_edit_flat
+            ? DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f)
+            : DirectX::XMFLOAT4(
+                std::clamp(batch.texture_tint[0], 0.0f, 4.0f),
+                std::clamp(batch.texture_tint[1], 0.0f, 4.0f),
+                std::clamp(batch.texture_tint[2], 0.0f, 4.0f),
+                0.0f);
         if (!mesh_edit_flat) {
             for (int layer_index = 0; layer_index < kMaxMaterialLayers; ++layer_index) {
                 const PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
@@ -4021,7 +4108,8 @@ private:
     }
 
     static bool mesh_edit_preserve_materials_for_batch(const PreviewBatch& batch) {
-        return batch.cpu_positions.size() / 3u > kDenseMeshEditMaterialPreserveTriangles;
+        (void)batch;
+        return false;
     }
 
     std::pair<int, int> mesh_edit_source_key(const PreviewBatch& batch, size_t vertex_index) const {
@@ -4753,6 +4841,109 @@ private:
         draw_mesh_edit_vertex_dots_instanced(view, *dot_vertices, brush_vertices, xray_mode);
     }
 
+    void draw_highlight_bounds_overlay(const PreviewRenderView& view) {
+        if (icon_capture_mode_ || view.viewport.Width <= 4.0f || view.viewport.Height <= 4.0f) return;
+
+        std::vector<float> vertices;
+        vertices.reserve(batches_.size() * 48u);
+        const DirectX::XMMATRIX identity = DirectX::XMMatrixIdentity();
+
+        auto append_screen_vertex = [&](float x, float y, float r, float g, float b) {
+            const float local_x = x - view.viewport.TopLeftX;
+            const float local_y = y - view.viewport.TopLeftY;
+            const float clip_x = (local_x / std::max(1.0f, view.viewport.Width)) * 2.0f - 1.0f;
+            const float clip_y = 1.0f - (local_y / std::max(1.0f, view.viewport.Height)) * 2.0f;
+            append_line_vertex(vertices, clip_x, clip_y, 0.0f, r, g, b);
+        };
+        auto add_triangle = [&](ScreenPoint a, ScreenPoint b, ScreenPoint c, float r, float g, float blue) {
+            append_screen_vertex(a.x, a.y, r, g, blue);
+            append_screen_vertex(b.x, b.y, r, g, blue);
+            append_screen_vertex(c.x, c.y, r, g, blue);
+        };
+        auto add_thick_line = [&](ScreenPoint start, ScreenPoint end, float width_pixels, float r, float g, float blue) {
+            const float dx = end.x - start.x;
+            const float dy = end.y - start.y;
+            const float length = std::max(1.0f, std::hypot(dx, dy));
+            const float px = -dy / length * width_pixels * 0.5f;
+            const float py = dx / length * width_pixels * 0.5f;
+            ScreenPoint a{start.x + px, start.y + py};
+            ScreenPoint b{end.x + px, end.y + py};
+            ScreenPoint c{end.x - px, end.y - py};
+            ScreenPoint d{start.x - px, start.y - py};
+            add_triangle(a, b, c, r, g, blue);
+            add_triangle(a, c, d, r, g, blue);
+        };
+        auto add_rect = [&](float left, float top, float right, float bottom, float width_pixels, float r, float g, float blue) {
+            add_thick_line(ScreenPoint{left, top}, ScreenPoint{right, top}, width_pixels, r, g, blue);
+            add_thick_line(ScreenPoint{right, top}, ScreenPoint{right, bottom}, width_pixels, r, g, blue);
+            add_thick_line(ScreenPoint{right, bottom}, ScreenPoint{left, bottom}, width_pixels, r, g, blue);
+            add_thick_line(ScreenPoint{left, bottom}, ScreenPoint{left, top}, width_pixels, r, g, blue);
+        };
+
+        const float viewport_left = view.viewport.TopLeftX;
+        const float viewport_top = view.viewport.TopLeftY;
+        const float viewport_right = view.viewport.TopLeftX + view.viewport.Width;
+        const float viewport_bottom = view.viewport.TopLeftY + view.viewport.Height;
+        for (const PreviewBatch& batch : batches_) {
+            if (batch.highlight_strength <= 0.0f || !batch_visible_in_view(batch, view.role)) continue;
+            bool projected = false;
+            float min_x = 0.0f;
+            float min_y = 0.0f;
+            float max_x = 0.0f;
+            float max_y = 0.0f;
+            for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
+                float screen_x = 0.0f;
+                float screen_y = 0.0f;
+                if (!project_batch_position_for_view(batch, position, view, screen_x, screen_y, nullptr)) continue;
+                if (!projected) {
+                    min_x = max_x = screen_x;
+                    min_y = max_y = screen_y;
+                    projected = true;
+                } else {
+                    min_x = std::min(min_x, screen_x);
+                    max_x = std::max(max_x, screen_x);
+                    min_y = std::min(min_y, screen_y);
+                    max_y = std::max(max_y, screen_y);
+                }
+            }
+            if (!projected) continue;
+
+            float left = min_x - 7.0f;
+            float top = min_y - 7.0f;
+            float right = max_x + 7.0f;
+            float bottom = max_y + 7.0f;
+            const float center_x = (left + right) * 0.5f;
+            const float center_y = (top + bottom) * 0.5f;
+            if (right - left < 22.0f) {
+                left = center_x - 11.0f;
+                right = center_x + 11.0f;
+            }
+            if (bottom - top < 22.0f) {
+                top = center_y - 11.0f;
+                bottom = center_y + 11.0f;
+            }
+            left = std::clamp(left, viewport_left + 2.0f, viewport_right - 2.0f);
+            right = std::clamp(right, viewport_left + 2.0f, viewport_right - 2.0f);
+            top = std::clamp(top, viewport_top + 2.0f, viewport_bottom - 2.0f);
+            bottom = std::clamp(bottom, viewport_top + 2.0f, viewport_bottom - 2.0f);
+            if (right - left < 2.0f || bottom - top < 2.0f) continue;
+
+            const bool reference = batch_is_reference(batch);
+            add_rect(left, top, right, bottom, 6.0f, 0.0f, 0.0f, 0.0f);
+            add_rect(
+                left,
+                top,
+                right,
+                bottom,
+                3.0f,
+                reference ? 1.0f : 0.0f,
+                reference ? 0.78f : 0.88f,
+                reference ? 0.10f : 1.0f);
+        }
+
+        draw_colored_triangles(vertices, identity, true);
+    }
+
     void draw_render_view(const PreviewRenderView& view) {
         context_->RSSetViewports(1, &view.viewport);
         context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : (render_tuning_.cull_back_faces && cull_rasterizer_ ? cull_rasterizer_.Get() : rasterizer_.Get()));
@@ -4774,7 +4965,7 @@ private:
                 1.0f,
                 0.72f,
                 0.18f,
-                icon_capture_mode_ ? 0.0f : std::clamp(batch.highlight_strength, 0.0f, 0.42f));
+                icon_capture_mode_ ? 0.0f : std::clamp(batch.highlight_strength, 0.0f, 0.74f));
             if (reference) {
                 tint = DirectX::XMFLOAT4(
                     batch.highlight_strength > 0.0f ? 1.0f : 0.36f,
@@ -4788,13 +4979,8 @@ private:
             const bool mesh_edit_active = mesh_edit_batch_editable_in_view(batch, view);
             const bool mesh_edit_flat = mesh_edit_active && !mesh_edit_preserve_materials_for_batch(batch);
             draw_preview_batch(batch, batch_world * view_projection, batch_world, tint, mesh_edit_flat);
-            if (!view.wireframe && !icon_capture_mode_ && batch.highlight_strength > 0.0f && wireframe_rasterizer_) {
-                context_->RSSetState(wireframe_rasterizer_.Get());
-                const DirectX::XMFLOAT4 selection_wire_tint(1.0f, 0.05f, 0.95f, 0.96f);
-                draw_preview_batch(batch, batch_world * view_projection, batch_world, selection_wire_tint, true);
-                context_->RSSetState(render_tuning_.cull_back_faces && !batch.two_sided && cull_rasterizer_ ? cull_rasterizer_.Get() : rasterizer_.Get());
-            }
         }
+        draw_highlight_bounds_overlay(view);
         draw_cloth_debug_overlays(view, world_view_projection);
         draw_mesh_edit_overlay(view);
         if (!icon_capture_mode_) {
@@ -6206,7 +6392,7 @@ private:
                 } else {
                     active = highlighted.find(batch.source_submesh_index) != highlighted.end();
                 }
-                batch.highlight_strength = active ? (role == "original_reference" ? 0.82f : 0.38f) : 0.0f;
+                batch.highlight_strength = active ? (role == "original_reference" ? 0.82f : 0.74f) : 0.0f;
                 if (active) ++highlighted_batches;
             }
             request_render();
@@ -6230,6 +6416,56 @@ private:
             std::ostringstream event;
             event << "{\"event\":\"part_visibility\",\"hidden_parts\":" << hidden_source_submeshes_.size()
                   << ",\"visible_batches\":" << visible_batches << "}";
+            send_json_event(event.str());
+            return true;
+        }
+        if (command == "set_material_overrides") {
+            const std::string requested_role = lower_copy(json_string_field(payload, "editor_role", "replacement_preview"));
+            std::set<int> requested_sources;
+            for (int value : json_int_array_field(payload, "source_submesh_indices")) {
+                if (value >= 0) requested_sources.insert(value);
+            }
+            const bool scoped_sources = !requested_sources.empty();
+            const bool has_brightness = json_has_field(payload, "texture_brightness");
+            const bool has_roughness = json_has_field(payload, "roughness");
+            const bool has_metalness = json_has_field(payload, "metalness");
+            const bool has_specular = json_has_field(payload, "specular");
+            const bool has_height_scale = json_has_field(payload, "height_scale");
+            const bool has_emissive_intensity = json_has_field(payload, "emissive_intensity");
+            const bool has_contrast = json_has_field(payload, "contrast");
+            const bool has_saturation = json_has_field(payload, "saturation");
+            const bool has_gamma = json_has_field(payload, "gamma");
+            const std::vector<float> emissive_color = json_float_array_field(payload, "emissive_color");
+            const std::vector<float> tint_color = json_float_array_field(payload, "tint_color");
+            int updated_batches = 0;
+            for (PreviewBatch& batch : batches_) {
+                const std::string role = lower_copy(batch.editor_role);
+                if (!requested_role.empty() && requested_role != "all" && role != requested_role) continue;
+                if (scoped_sources && requested_sources.find(batch.source_submesh_index) == requested_sources.end()) continue;
+                if (has_brightness) batch.texture_brightness = std::clamp(json_float_field(payload, "texture_brightness", batch.texture_brightness), 0.1f, 3.0f);
+                if (has_roughness) batch.roughness_hint = std::clamp(json_float_field(payload, "roughness", batch.roughness_hint), 0.0f, 1.0f);
+                if (has_metalness) batch.metalness_hint = std::clamp(json_float_field(payload, "metalness", batch.metalness_hint), 0.0f, 1.0f);
+                if (has_specular) batch.specular_hint = std::clamp(json_float_field(payload, "specular", batch.specular_hint), 0.0f, 1.0f);
+                if (has_height_scale) batch.height_scale_hint = std::clamp(json_float_field(payload, "height_scale", batch.height_scale_hint), 0.0f, 1.0f);
+                if (has_emissive_intensity) batch.emissive_intensity = std::clamp(json_float_field(payload, "emissive_intensity", batch.emissive_intensity), 0.0f, 32.0f);
+                if (has_contrast) batch.texture_contrast = std::clamp(json_float_field(payload, "contrast", batch.texture_contrast), 0.25f, 2.5f);
+                if (has_saturation) batch.texture_saturation = std::clamp(json_float_field(payload, "saturation", batch.texture_saturation), 0.0f, 4.0f);
+                if (has_gamma) batch.texture_gamma = std::clamp(json_float_field(payload, "gamma", batch.texture_gamma), 0.25f, 4.0f);
+                if (emissive_color.size() >= 3) {
+                    batch.emissive_color[0] = std::clamp(emissive_color[0], 0.0f, 2.0f);
+                    batch.emissive_color[1] = std::clamp(emissive_color[1], 0.0f, 2.0f);
+                    batch.emissive_color[2] = std::clamp(emissive_color[2], 0.0f, 2.0f);
+                }
+                if (tint_color.size() >= 3) {
+                    batch.texture_tint[0] = std::clamp(tint_color[0], 0.0f, 4.0f);
+                    batch.texture_tint[1] = std::clamp(tint_color[1], 0.0f, 4.0f);
+                    batch.texture_tint[2] = std::clamp(tint_color[2], 0.0f, 4.0f);
+                }
+                ++updated_batches;
+            }
+            request_render();
+            std::ostringstream event;
+            event << "{\"event\":\"material_overrides\",\"updated_batches\":" << updated_batches << "}";
             send_json_event(event.str());
             return true;
         }
@@ -6483,14 +6719,14 @@ private:
             PreviewCameraState camera = camera_for_view_role(role);
             camera.yaw = json_float_field(payload, "yaw", camera.yaw);
             camera.pitch = std::clamp(json_float_field(payload, "pitch", camera.pitch), -89.0f, 89.0f);
-            camera.zoom_factor = std::clamp(json_float_field(payload, "zoom_factor", camera.zoom_factor), 0.1f, 16.0f);
+            camera.zoom_factor = std::clamp(json_float_field(payload, "zoom_factor", camera.zoom_factor), 0.1f, kMaxZoomFactor);
             camera.fit_to_view = json_bool_field(payload, "fit_to_view", camera.fit_to_view);
             camera.distance = camera.fit_to_view ? kFitDistance : kFitDistance / std::max(camera.zoom_factor, 0.1f);
             camera.pan_x = json_float_field(payload, "pan_x", camera.pan_x);
             camera.pan_y = json_float_field(payload, "pan_y", camera.pan_y);
             camera.pan_z = json_float_field(payload, "pan_z", camera.pan_z);
-            set_replacement_camera(camera);
-            send_view_event("set_view", PreviewViewRole::Replacement);
+            set_camera_for_role(role, camera);
+            send_view_event("set_view", role);
             request_render();
             return true;
         }
@@ -6509,8 +6745,16 @@ private:
     }
 
     void reset_camera_for_role(PreviewViewRole role) {
-        (void)role;
+        if (role == PreviewViewRole::Reference) {
+            reset_camera(reference_camera_);
+            send_view_event("reset", role);
+            return;
+        }
+        if (role == PreviewViewRole::All) {
+            reset_camera(reference_camera_);
+        }
         reset_replacement_camera();
+        send_view_event("reset", role);
     }
 
     void reset_view() {
@@ -6519,7 +6763,7 @@ private:
         drag_mode_ = 0;
         drag_button_ = 0;
         if (GetCapture() == hwnd_) ReleaseCapture();
-        send_view_event("reset", PreviewViewRole::Replacement);
+        send_view_event("reset", PreviewViewRole::All);
     }
 
     void cancel_mouse_interaction(bool release_capture = true) {
@@ -6533,17 +6777,15 @@ private:
     }
 
     void set_zoom_factor(float zoom_factor) {
-        zoom_factor_ = std::clamp(zoom_factor, 0.1f, 16.0f);
+        zoom_factor_ = std::clamp(zoom_factor, 0.1f, kMaxZoomFactor);
         fit_to_view_ = false;
         distance_ = kFitDistance / zoom_factor_;
-        reference_camera_ = replacement_camera();
         send_view_event("zoom", PreviewViewRole::Replacement);
     }
 
     void set_fit_to_view(bool fit_to_view) {
         fit_to_view_ = fit_to_view;
         distance_ = fit_to_view_ ? kFitDistance : kFitDistance / std::max(zoom_factor_, 0.1f);
-        reference_camera_ = replacement_camera();
         send_view_event("fit", PreviewViewRole::Replacement);
     }
 
@@ -6561,7 +6803,7 @@ private:
         bool pan_requested = msg == WM_MBUTTONDOWN || msg == WM_RBUTTONDOWN || (msg == WM_LBUTTONDOWN && shift_down);
         drag_mode_ = pan_requested ? 2 : (msg == WM_LBUTTONDOWN ? 1 : 0);
         drag_button_ = msg;
-        drag_view_role_ = PreviewViewRole::Replacement;
+        drag_view_role_ = input_view_role_at(x, y);
         last_mouse_x_ = x;
         last_mouse_y_ = y;
         if (drag_mode_ != 0) SetCapture(hwnd_);
@@ -6590,7 +6832,7 @@ private:
             camera.pan_x += static_cast<float>(delta_x) * units_per_pixel * view_settings_.pan_sensitivity * horizontal_sign;
             camera.pan_y += static_cast<float>(delta_y) * units_per_pixel * view_settings_.pan_sensitivity * vertical_sign;
         }
-        set_replacement_camera(camera);
+        set_camera_for_role(drag_view_role_, camera);
     }
 
     void end_mouse_drag(UINT msg) {
@@ -6609,7 +6851,7 @@ private:
 
     void apply_wheel_delta(int wheel_delta, int x, int y) {
         if (wheel_delta == 0) return;
-        const PreviewViewRole role = PreviewViewRole::Replacement;
+        const PreviewViewRole role = input_view_role_at(x, y);
         PreviewCameraState camera = camera_for_view_role(role);
         int step = wheel_delta > 0 ? 1 : -1;
         float current_zoom = camera.fit_to_view ? current_display_scale(camera.distance) : camera.zoom_factor;
@@ -6626,7 +6868,7 @@ private:
         camera.fit_to_view = false;
         camera.zoom_factor = kZoomSteps[next_index];
         camera.distance = kFitDistance / camera.zoom_factor;
-        set_replacement_camera(camera);
+        set_camera_for_role(role, camera);
         send_view_event("wheel", role);
     }
 

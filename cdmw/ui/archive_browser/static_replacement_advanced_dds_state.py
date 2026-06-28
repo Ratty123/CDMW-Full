@@ -185,7 +185,7 @@ def advanced_dds_override_row_scan_state(
             binding_shader_family = str(getattr(binding, "shader_family", "") or "").strip()
             suggested_source = (
                 ""
-                if texture_is_shared(target_path)
+                if texture_is_shared(target_path) or not callable(best_source_for_slot)
                 else best_source_for_slot(
                     target_name,
                     source_indices,

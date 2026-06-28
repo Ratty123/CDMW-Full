@@ -549,6 +549,25 @@ def resolve_importable_model_path(path: Path | str, *, extract_root: Optional[Pa
     source_path = Path(path).expanduser()
     if source_path.is_file() and is_importable_model_path(source_path):
         return source_path
+    if source_path.is_dir():
+        direct_candidates = sorted(
+            candidate
+            for candidate in source_path.iterdir()
+            if candidate.is_file() and is_importable_model_path(candidate)
+        )
+        if direct_candidates:
+            return direct_candidates[0]
+        for folder_name in ("gltf", "glb", "source", "model", "models"):
+            model_dir = source_path / folder_name
+            if not model_dir.is_dir():
+                continue
+            for candidate in sorted(model_dir.rglob("*")):
+                if candidate.is_file() and is_importable_model_path(candidate):
+                    return candidate
+        for candidate in sorted(source_path.rglob("*")):
+            if candidate.is_file() and is_importable_model_path(candidate):
+                return candidate
+        return None
     if source_path.suffix.lower() != ".zip" or not source_path.is_file():
         return None
     members = zip_importable_member_refs(source_path)

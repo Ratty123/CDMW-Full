@@ -484,8 +484,8 @@ class AboutDocumentationSpanishMixin:
                     "html": """
                     <p>El menu <b>Ventana</b> permite mover areas pesadas a ventanas separadas sin perder su posicion en la navegacion principal.</p>
                     <ul>
-                      <li><b>Separar pestana actual</b> mueve la herramienta actual a una ventana nueva y deja un marcador en su lugar.</li>
-                      <li><b>Acoplar herramienta actual</b> y <b>Acoplar todas las herramientas</b> devuelven herramientas separadas a sus grupos originales.</li>
+                      <li><b>Separar herramienta actual</b> mueve la herramienta actual a una ventana nueva y deja un marcador en su lugar.</li>
+                      <li><b>Volver a acoplar herramienta actual</b> y <b>Volver a acoplar todas las herramientas</b> devuelven herramientas separadas a sus grupos originales.</li>
                       <li>La geometria separada se guarda como <code>window/detached/&lt;tool&gt;/geometry</code>; la ventana principal usa <code>window/geometry</code>.</li>
                       <li><b>Configuracion / Layout</b> controla si se recuerdan tamanos de paneles y splitters.</li>
                     </ul>

@@ -507,7 +507,7 @@ def test_material_authority_preview_signature_row_helpers(tmp_path) -> None:
             3: SimpleNamespace(material_role="", emissive_color_rgb=()),
         }
     )
-    assert source_role_rows == ((2, "emissive", (1, 2, 3)),)
+    assert source_role_rows == ((2, "emissive", (1, 2, 3), 0.0, 0.0, 0.0, 1.0, ()),)
     assert material_authority_preview_controls_signature(
         global_gloss_reduction=-5,
         auto_brightness=50,
@@ -587,7 +587,7 @@ def test_material_authority_preview_signature_composes_visible_rows_and_controls
         accent_glow=6,
         glow_color_enabled=True,
         glow_rgb=(7, 8, 9),
-        source_role_rows=((2, "emissive", (1, 2, 3)),),
+        source_role_rows=((2, "emissive", (1, 2, 3), 0.0, 0.0, 0.0, 1.0, ()),),
     )
     assert signature == material_authority_preview_signature_hashes(
         visible_payload=visible_payload,

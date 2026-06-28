@@ -269,6 +269,7 @@ def test_alignment_d3d11_model_cache_signature_tracks_material_inputs() -> None:
         preview_vertex_color_count=3,
         preview_double_sided=True,
         preview_material_texture_inputs=(material_input,),
+        preview_native_material_overrides={},
     )
     model = SimpleNamespace(
         path="model.mesh",
@@ -295,6 +296,16 @@ def test_alignment_d3d11_model_cache_signature_tracks_material_inputs() -> None:
     )
 
     assert signature != changed_signature
+
+    override_signature = changed_signature
+    mesh.preview_native_material_overrides = {"native_material_hints": {"roughness": 0.8}}
+    native_override_signature = alignment_d3d11_model_cache_signature(
+        model,
+        file_signature=lambda value: (str(value), len(str(value)), 0),
+        sample_sequence=lambda values: tuple(values),
+    )
+
+    assert override_signature != native_override_signature
 
 
 def test_alignment_d3d11_geometry_cache_key_tracks_clone_mode_and_geometry() -> None:
@@ -356,7 +367,7 @@ def test_alignment_d3d11_material_cache_key_tracks_quality_and_authority_payload
         visible_texture_mode="all",
         alpha_handling_mode="blend",
     )
-    model = SimpleNamespace(meshes=())
+    model = SimpleNamespace(meshes=(SimpleNamespace(preview_native_material_overrides={}),))
     signature = lambda value: (str(value), len(str(value)), 0)
 
     normal_key = alignment_d3d11_material_cache_key(
@@ -383,6 +394,16 @@ def test_alignment_d3d11_material_cache_key_tracks_quality_and_authority_payload
         material_authority_preview_signature="b",
         file_signature=signature,
     )
+    model.meshes[0].preview_native_material_overrides = {"native_material_hints": {"roughness": 0.8}}
+    native_override_key = alignment_d3d11_material_cache_key(
+        model,
+        settings,
+        package_quality="normal",
+        donor_material_plan_payload=(),
+        material_authority_preview_signature="a",
+        file_signature=signature,
+    )
 
     assert normal_key != fast_key
     assert normal_key != authority_key
+    assert normal_key != native_override_key

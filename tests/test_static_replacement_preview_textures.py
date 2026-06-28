@@ -28,11 +28,13 @@ from cdmw.ui.archive_browser.static_replacement_preview_textures import (
     accent_glow_preview_enabled,
     accent_glow_preview_intensity,
     add_preview_material_input,
+    apply_material_authority_preview_native_hints,
     apply_manual_preview_texture_override_specs,
     apply_source_material_preview,
     apply_source_material_preview_for_model,
     apply_source_role_emissive_preview,
     apply_source_role_emissive_preview_for_model,
+    clear_material_authority_preview_native_hints,
     clear_replacement_preview_texture_bindings,
     clear_source_role_emissive_preview,
     material_authority_preview_parameters,
@@ -74,6 +76,87 @@ def test_material_authority_preview_parameters_clamps_numeric_values() -> None:
         ("_specularAmount", 0.25, "0.250000"),
     ]
     assert material_authority_preview_parameters(SimpleNamespace(scratch_roughness=1), enabled=False) == ()
+
+
+def test_material_authority_preview_native_hints_track_profile_controls() -> None:
+    mesh = SimpleNamespace(
+        preview_texture_brightness=1.0,
+        preview_native_material_overrides={"native_material_hints": {"specular": 0.2, "keep": 1.0}},
+    )
+
+    apply_material_authority_preview_native_hints(
+        mesh,
+        SimpleNamespace(
+            base_color_scale=1.1,
+            base_color_shadow_lift=40,
+            base_color_auto_balance=50,
+            base_color_gamma=0.9,
+            base_color_tone_contrast=-20,
+            scratch_roughness=0.25,
+            scratch_metallic=0.6,
+            shine_scalar=0.8,
+            displacement_scale_multiplier=0.35,
+        ),
+        enabled=True,
+    )
+
+    assert mesh.preview_texture_brightness > 1.2
+    hints = mesh.preview_native_material_overrides["native_material_hints"]
+    assert hints["roughness"] == 0.25
+    assert hints["metalness"] == 0.6
+    assert hints["specular"] == 0.8
+    assert hints["height_scale"] == 0.35
+
+    clear_material_authority_preview_native_hints(mesh)
+
+    assert mesh.preview_native_material_overrides["native_material_hints"] == {"specular": 0.2, "keep": 1.0}
+
+
+def test_material_authority_preview_for_model_updates_imported_mesh_without_texture_sets() -> None:
+    model = SimpleNamespace(
+        meshes=[
+            SimpleNamespace(
+                preview_texture_brightness=1.0,
+                preview_native_material_overrides={},
+                preview_material_texture_inputs=("base",),
+            )
+        ]
+    )
+
+    apply_source_material_preview_for_model(
+        model,
+        use_direct_source_preview=False,
+        direct_source_preview_index_map={},
+        mapped_preview=False,
+        source_overlay_preview_index_map={},
+        current_mappings=(),
+        texture_sets={},
+        material_authority_profile=SimpleNamespace(
+            base_color_scale=1.35,
+            base_color_shadow_lift=25,
+            base_color_auto_balance=20,
+            base_color_gamma=0.8,
+            base_color_tone_contrast=-30,
+            scratch_roughness=0.2,
+        ),
+        complete_external_swap_enabled=True,
+        basic_controls_profile_enabled=True,
+        texture_set_for_source_index=lambda *_args: None,
+        texture_set_for_mapping=lambda *_args: None,
+        source_display_name=lambda index: f"source {index}",
+        preview_target_mesh_indices=lambda *_args: (),
+        texture_set_factor_parameters=lambda *_args: (),
+        material_authority_preview_texture_slots=lambda *_args, **_kwargs: {},
+        replacement_texture_slot_preview_semantics=lambda *_args, **_kwargs: ("", "", (), ""),
+        resolve_model_texture_semantic_details=lambda _path: ("", "", None, ()),
+        is_gltf_metallic_roughness_path=lambda _path: False,
+        infer_model_preview_normal_strength=lambda **_kwargs: 1.0,
+        accent_glow_preview_intensity=1.0,
+    )
+
+    mesh = model.meshes[0]
+    assert mesh.preview_texture_brightness > 1.35
+    assert mesh.preview_native_material_overrides["native_material_hints"]["roughness"] == 0.2
 
 
 def test_static_preview_prepared_cache_key_tracks_texture_and_highlight_state() -> None:
@@ -435,6 +518,7 @@ def test_apply_source_material_preview_updates_slots_and_material_inputs() -> No
     assert mesh.preview_material_texture_subtype == "metallic_roughness"
     assert mesh.preview_material_texture_packed_channels == ("roughness", "metallic")
     assert mesh.preview_sidecar_shader_family == "SkinnedMeshEmissive_Ver2"
+    assert mesh.preview_native_material_overrides["native_material_hints"]["roughness"] == 0.25
 
     inputs = tuple(mesh.preview_material_texture_inputs)
     assert [item.slot_kind for item in inputs] == ["base", "normal", "material", "emissive"]

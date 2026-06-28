@@ -181,6 +181,25 @@ def test_advanced_dds_override_row_scan_state_skips_shared_non_dds_duplicates_an
     assert len(state.seen_texture_rows) == 1
 
 
+def test_advanced_dds_override_row_scan_state_allows_missing_source_resolver() -> None:
+    mapping = SimpleNamespace(target_submesh_name="Body", source_submesh_indices=(2,))
+    binding = SimpleNamespace(part_name="Body", parameter_name="_base", texture_path="body.dds")
+
+    state = advanced_dds_override_row_scan_state(
+        (mapping,),
+        (binding,),
+        {},
+        set(),
+        binding_matches_target=lambda binding, target_name: str(getattr(binding, "part_name", "")) == target_name,
+        best_source_for_slot=None,
+        texture_is_shared=lambda _path: False,
+    )
+
+    assert len(state.texture_override_rows) == 1
+    assert state.texture_override_rows[0]["suggested_source"] == ""
+    assert state.texture_override_rows[0]["state_label"] == "Needs review"
+
+
 def test_advanced_dds_suggested_source_counts_normalizes_sources() -> None:
     rows = (
         {"suggested_source": " Textures/Body.dds "},

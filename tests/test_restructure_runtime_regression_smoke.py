@@ -79,6 +79,16 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             self.window._activate_tool_widget(widget)
             self.assertIs(self.window._current_navigation_widget(), widget, key)
 
+        window_actions = [
+            action.text().replace("&", "")
+            for action in self.window.window_menu.actions()
+            if not action.isSeparator()
+        ]
+        self.assertEqual(
+            ["Detach Current Tool", "Reattach Current Tool", "Reattach All Tools"],
+            window_actions[:3],
+        )
+
     def test_new_user_opens_archive_browser_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             settings = create_settings(settings_file_path=Path(temp_dir) / "cdmw-test.cfg")

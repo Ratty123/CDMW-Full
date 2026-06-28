@@ -134,6 +134,7 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     self = context.get('self')
     setup_layout = context.get('setup_layout')
     static_dialog_preview = context.get('static_dialog_preview')
+    texture_uv_global_transform_state = context.get('texture_uv_global_transform_state') or {}
     full_import_model_replacement = bool(context.get("full_import_model_replacement"))
 
     alignment_setup_options_control_text = _alignment_setup_options_control_text_helper()
@@ -507,17 +508,6 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
         (("Disabled", "disabled"), ("Intensity texture", "intensity")),
         "Disabled removes glow. Intensity binds source emissive textures or emissive material colors for any glowing part.",
     )
-    _manual_combo(
-        39,
-        "authority_contract",
-        "Authority path",
-        (
-            ("Material Authority", "true_source_authority_detail_mask"),
-            ("Legacy True Source", "true_source_authority"),
-            ("Legacy Runtime XML", "runtime_xml_preserve"),
-        ),
-        "Final-package contract. Material Authority is the proven detail-mask route. Legacy modes are kept only for repair/debug compatibility.",
-    )
     _manual_int(6, "base_color_lift", "Dark lift", 0, 128, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Right brightens black/dark pixels so detail survives. Left keeps source darker.")
     _manual_float(7, "base_color_gamma", "Gamma lift", 0.25, 2.50, 0.05, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Left brightens midtones. Right darkens midtones.")
     _manual_float(8, "base_color_saturation", "Color saturation", 0.00, 2.00, 0.05, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Left makes colors more muted. Right makes colors stronger.")
@@ -681,6 +671,11 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     alignment_texture_orientation_callbacks = create_alignment_texture_orientation_callbacks({**context, **globals(), **locals()})
     _save_setup_texture_orientation = alignment_texture_orientation_callbacks._save_setup_texture_orientation
     _reset_setup_texture_orientation = alignment_texture_orientation_callbacks._reset_setup_texture_orientation
+    setup_texture_rotate_combo.setCurrentIndex(
+        max(0, setup_texture_rotate_combo.findData(int(texture_uv_global_transform_state.get("rotate_degrees") or 0)))
+    )
+    setup_texture_flip_u_checkbox.setChecked(bool(texture_uv_global_transform_state.get("flip_u")))
+    setup_texture_flip_v_checkbox.setChecked(bool(texture_uv_global_transform_state.get("flip_v")))
 
     custom_icon_checkbox = QCheckBox(custom_icon_control_text["use_custom_icon"])
     custom_icon_checkbox.setToolTip(custom_icon_control_text["use_custom_icon_tooltip"])
@@ -1988,6 +1983,8 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     _alignment_virtual_sidecar_contract_state_helper = context.get('_alignment_virtual_sidecar_contract_state_helper')
     _apply_source_material_texture_overrides_to_ui_texture_sets = context.get('_apply_source_material_texture_overrides_to_ui_texture_sets')
     _best_source_for_slot = context.get('_best_source_for_slot')
+    if not callable(_best_source_for_slot):
+        _best_source_for_slot = lambda *_args, **_kwargs: ""
     _binding_matches_target_callback = context.get('_binding_matches_target')
     _binding_matches_target_helper = context.get('_binding_matches_target_helper')
     _commit_spinbox_text = context.get('_commit_spinbox_text')
@@ -3823,18 +3820,44 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     _copy_selected_original_part = alignment_original_part_copy_callbacks._copy_selected_original_part
 
 
-    alignment_source_role_tree_callbacks = create_alignment_source_role_tree_callbacks({**context, **globals(), **locals()})
+    alignment_source_role_tree_callbacks = create_alignment_source_role_tree_callbacks({
+        **context,
+        **globals(),
+        **locals(),
+        "_apply_source_part_preview_changes": lambda *args, **kwargs: _apply_source_part_preview_changes(*args, **kwargs),
+        "_delete_selected_source_parts": lambda *args, **kwargs: _delete_selected_source_parts(*args, **kwargs),
+        "_load_selected_part_controls": lambda *args, **kwargs: _load_selected_part_controls(*args, **kwargs),
+        "_refresh_parts_outliner": lambda *args, **kwargs: _refresh_parts_outliner(*args, **kwargs),
+        "_selected_source_index": lambda *args, **kwargs: _selected_source_index(*args, **kwargs),
+        "_selected_source_indices_from_tree": lambda *args, **kwargs: _selected_source_indices_from_tree(*args, **kwargs),
+    })
     _apply_source_role_selection = alignment_source_role_tree_callbacks._apply_source_role_selection
     _show_replacement_sources_context_menu = alignment_source_role_tree_callbacks._show_replacement_sources_context_menu
     _populate_source_tree_chunk = alignment_source_role_tree_callbacks._populate_source_tree_chunk
 
 
-    alignment_source_tree_role_callbacks = create_alignment_source_tree_role_callbacks({**context, **globals(), **locals()})
+    alignment_source_tree_role_callbacks = create_alignment_source_tree_role_callbacks({
+        **context,
+        **globals(),
+        **locals(),
+        "_apply_source_role_selection": lambda *args, **kwargs: _apply_source_role_selection(*args, **kwargs),
+        "_refresh_parts_outliner": lambda *args, **kwargs: _refresh_parts_outliner(*args, **kwargs),
+    })
     _open_source_tree_role_dropdown = alignment_source_tree_role_callbacks._open_source_tree_role_dropdown
     _handle_source_tree_item_clicked = alignment_source_tree_role_callbacks._handle_source_tree_item_clicked
     _finish_source_tree_population = alignment_source_tree_role_callbacks._finish_source_tree_population
 
-    alignment_source_role_tree_callbacks = create_alignment_source_role_tree_callbacks({**context, **globals(), **locals()})
+    alignment_source_role_tree_callbacks = create_alignment_source_role_tree_callbacks({
+        **context,
+        **globals(),
+        **locals(),
+        "_apply_source_part_preview_changes": lambda *args, **kwargs: _apply_source_part_preview_changes(*args, **kwargs),
+        "_delete_selected_source_parts": lambda *args, **kwargs: _delete_selected_source_parts(*args, **kwargs),
+        "_load_selected_part_controls": lambda *args, **kwargs: _load_selected_part_controls(*args, **kwargs),
+        "_refresh_parts_outliner": lambda *args, **kwargs: _refresh_parts_outliner(*args, **kwargs),
+        "_selected_source_index": lambda *args, **kwargs: _selected_source_index(*args, **kwargs),
+        "_selected_source_indices_from_tree": lambda *args, **kwargs: _selected_source_indices_from_tree(*args, **kwargs),
+    })
     _apply_source_role_selection = alignment_source_role_tree_callbacks._apply_source_role_selection
     _show_replacement_sources_context_menu = alignment_source_role_tree_callbacks._show_replacement_sources_context_menu
     _populate_source_tree_chunk = alignment_source_role_tree_callbacks._populate_source_tree_chunk
@@ -4212,10 +4235,26 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     _sync_target_mapping_tree_item = parts_outliner_mapping_callbacks._sync_target_mapping_tree_item
     _set_mapping_indices = parts_outliner_mapping_callbacks._set_mapping_indices
 
-    alignment_source_tree_population_role_callbacks = create_alignment_source_tree_role_callbacks({**context, **globals(), **locals()})
+    alignment_source_tree_population_role_callbacks = create_alignment_source_tree_role_callbacks({
+        **context,
+        **globals(),
+        **locals(),
+        "_apply_source_role_selection": lambda *args, **kwargs: _apply_source_role_selection(*args, **kwargs),
+        "_refresh_parts_outliner": lambda *args, **kwargs: _refresh_parts_outliner(*args, **kwargs),
+    })
     _finish_source_tree_population = alignment_source_tree_population_role_callbacks._finish_source_tree_population
 
-    alignment_source_role_tree_population_callbacks = create_alignment_source_role_tree_callbacks({**context, **globals(), **locals()})
+    alignment_source_role_tree_population_callbacks = create_alignment_source_role_tree_callbacks({
+        **context,
+        **globals(),
+        **locals(),
+        "_apply_source_part_preview_changes": lambda *args, **kwargs: _apply_source_part_preview_changes(*args, **kwargs),
+        "_delete_selected_source_parts": lambda *args, **kwargs: _delete_selected_source_parts(*args, **kwargs),
+        "_load_selected_part_controls": lambda *args, **kwargs: _load_selected_part_controls(*args, **kwargs),
+        "_refresh_parts_outliner": lambda *args, **kwargs: _refresh_parts_outliner(*args, **kwargs),
+        "_selected_source_index": lambda *args, **kwargs: _selected_source_index(*args, **kwargs),
+        "_selected_source_indices_from_tree": lambda *args, **kwargs: _selected_source_indices_from_tree(*args, **kwargs),
+    })
     _show_replacement_sources_context_menu = alignment_source_role_tree_population_callbacks._show_replacement_sources_context_menu
     _populate_source_tree_chunk = alignment_source_role_tree_population_callbacks._populate_source_tree_chunk
     source_tree.customContextMenuRequested.connect(_show_replacement_sources_context_menu)
@@ -4658,6 +4697,84 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     part_button_row.addWidget(reset_geometry_button)
     part_button_row.addStretch(1)
     part_layout.addLayout(part_button_row, 12, 0, 1, 4)
+    part_material_brightness_spin = _make_double_spin_helper(0.0, -100.0, 100.0, 0, 1.0, "%")
+    part_material_contrast_spin = _make_double_spin_helper(0.0, -100.0, 100.0, 0, 1.0, "%")
+    part_material_saturation_spin = _make_double_spin_helper(0.0, -100.0, 100.0, 0, 1.0, "%")
+    part_material_gamma_spin = _make_double_spin_helper(1.0, 0.25, 4.0, 2, 0.01)
+    part_material_tint_r_spin = _make_double_spin_helper(255.0, 0.0, 255.0, 0, 1.0)
+    part_material_tint_g_spin = _make_double_spin_helper(255.0, 0.0, 255.0, 0, 1.0)
+    part_material_tint_b_spin = _make_double_spin_helper(255.0, 0.0, 255.0, 0, 1.0)
+    part_material_controls = (
+        part_material_brightness_spin,
+        part_material_contrast_spin,
+        part_material_saturation_spin,
+        part_material_gamma_spin,
+        part_material_tint_r_spin,
+        part_material_tint_g_spin,
+        part_material_tint_b_spin,
+    )
+    for prefix, spin in (
+        ("R ", part_material_tint_r_spin),
+        ("G ", part_material_tint_g_spin),
+        ("B ", part_material_tint_b_spin),
+    ):
+        spin.setPrefix(prefix)
+    for spin in part_material_controls:
+        spin.setMinimumWidth(0)
+        spin.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    part_material_tooltip = source_part_inspector_control_text["material_adjustment_tooltip"]
+    for spin in part_material_controls:
+        spin.setToolTip(part_material_tooltip)
+    part_layout.addWidget(QLabel(source_part_inspector_control_text["material_label"]), 13, 0)
+    part_layout.addWidget(
+        _part_spin_with_slider(
+            part_material_brightness_spin,
+            scale=1.0,
+            slider_minimum=-100.0,
+            slider_maximum=100.0,
+            tooltip=part_material_tooltip,
+        ),
+        13,
+        1,
+    )
+    part_layout.addWidget(
+        _part_spin_with_slider(
+            part_material_contrast_spin,
+            scale=1.0,
+            slider_minimum=-100.0,
+            slider_maximum=100.0,
+            tooltip=part_material_tooltip,
+        ),
+        13,
+        2,
+    )
+    part_layout.addWidget(
+        _part_spin_with_slider(
+            part_material_saturation_spin,
+            scale=1.0,
+            slider_minimum=-100.0,
+            slider_maximum=100.0,
+            tooltip=part_material_tooltip,
+        ),
+        13,
+        3,
+    )
+    part_layout.addWidget(QLabel(source_part_inspector_control_text["material_gamma_label"]), 14, 0)
+    part_layout.addWidget(
+        _part_spin_with_slider(
+            part_material_gamma_spin,
+            scale=100.0,
+            slider_minimum=0.25,
+            slider_maximum=4.0,
+            tooltip=part_material_tooltip,
+        ),
+        14,
+        1,
+    )
+    part_layout.addWidget(QLabel(source_part_inspector_control_text["material_tint_label"]), 15, 0)
+    part_layout.addWidget(part_material_tint_r_spin, 15, 1)
+    part_layout.addWidget(part_material_tint_g_spin, 15, 2)
+    part_layout.addWidget(part_material_tint_b_spin, 15, 3)
     part_inspector_loading = _part_inspector_loading_initial_state_helper()
 
     alignment_source_part_glow_callbacks = create_alignment_source_part_glow_callbacks({**context, **globals(), **locals()})
@@ -4684,6 +4801,7 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     alignment_selected_part_adjustment_callbacks = create_alignment_selected_part_adjustment_callbacks({**context, **globals(), **locals(), '_queue_part_transform_preview_update': (lambda *args, **kwargs: _queue_part_transform_preview_update(*args, **kwargs))})
     _update_selected_part_adjustment = alignment_selected_part_adjustment_callbacks._update_selected_part_adjustment
     alignment_selected_part_control_callbacks = create_alignment_selected_part_control_callbacks({**context, **globals(), **locals()})
+    _update_selected_part_material_adjustment = alignment_selected_part_control_callbacks._update_selected_part_material_adjustment
     _refresh_selected_part_copied_texture_controls = alignment_selected_part_control_callbacks._refresh_selected_part_copied_texture_controls
     _use_copied_original_texture_for_selected_source = alignment_selected_part_control_callbacks._use_copied_original_texture_for_selected_source
     _use_route_texture_for_selected_copied_source = alignment_selected_part_control_callbacks._use_route_texture_for_selected_copied_source
@@ -4766,6 +4884,14 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
         part_spin.valueChanged.connect(_update_selected_part_adjustment)
         part_spin.editingFinished.connect(
             lambda spin=part_spin: (_commit_spinbox_text(spin), _update_selected_part_adjustment())
+        )
+    for part_material_spin in part_material_controls:
+        part_material_spin.valueChanged.connect(_update_selected_part_material_adjustment)
+        part_material_spin.editingFinished.connect(
+            lambda spin=part_material_spin: (
+                _commit_spinbox_text(spin),
+                _update_selected_part_material_adjustment(),
+            )
         )
     part_source_combo.currentIndexChanged.connect(_selected_part_source_changed)
     part_enabled_checkbox.toggled.connect(_update_selected_part_adjustment)
@@ -4925,6 +5051,14 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
         part_inspector_loading=locals().get('part_inspector_loading'),
         part_name_label=locals().get('part_name_label'),
         part_nudge_step_spin=locals().get('part_nudge_step_spin'),
+        part_material_brightness_spin=locals().get('part_material_brightness_spin'),
+        part_material_contrast_spin=locals().get('part_material_contrast_spin'),
+        part_material_controls=locals().get('part_material_controls'),
+        part_material_gamma_spin=locals().get('part_material_gamma_spin'),
+        part_material_saturation_spin=locals().get('part_material_saturation_spin'),
+        part_material_tint_b_spin=locals().get('part_material_tint_b_spin'),
+        part_material_tint_g_spin=locals().get('part_material_tint_g_spin'),
+        part_material_tint_r_spin=locals().get('part_material_tint_r_spin'),
         part_nudge_x_minus_button=locals().get('part_nudge_x_minus_button'),
         part_nudge_x_plus_button=locals().get('part_nudge_x_plus_button'),
         part_nudge_y_minus_button=locals().get('part_nudge_y_minus_button'),

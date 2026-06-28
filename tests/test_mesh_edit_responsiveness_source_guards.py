@@ -430,6 +430,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("source_center = _mesh_edit_preview_point_to_source_point(source_submesh_index, center)", apply_body)
         self.assertIn("source_radius = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, radius)", apply_body)
         self.assertIn("source_amount = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, amount)", apply_body)
+        self.assertIn("_mesh_edit_abort_inverse_stroke()", apply_body)
+        self.assertLess(
+            apply_body.index("_mesh_edit_abort_inverse_stroke()"),
+            apply_body.index("changed = apply_vertex_delta("),
+        )
+        delta_start = source.index("def _mesh_edit_preview_delta_to_source_delta(")
+        delta_body = source[delta_start: source.index("def _mesh_edit_preview_point_to_source_point(", delta_start)]
+        self.assertIn("return None", delta_body)
+        self.assertIn("source delta transform is unavailable", delta_body)
         self.assertIn("changed = apply_vertex_delta(", apply_body)
         self.assertIn("submesh,\n                    vertex_indices,", apply_body)
         self.assertIn("changed = apply_brush_deformation(", apply_body)

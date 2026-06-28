@@ -188,6 +188,20 @@ class ModelCatalogueTests(unittest.TestCase):
             self.assertEqual(resolved.name, "model.gltf")
             self.assertTrue(resolved.is_file())
 
+    def test_resolve_importable_model_path_finds_nested_gltf_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            model_dir = root / "Animated-Sword-uid"
+            nested = model_dir / "gltf"
+            nested.mkdir(parents=True)
+            (nested / "scene.bin").write_bytes(b"bin")
+            scene = nested / "scene.gltf"
+            scene.write_text("{}", encoding="utf-8")
+
+            resolved = resolve_importable_model_path(model_dir)
+
+            self.assertEqual(resolved, scene)
+
     def test_download_mirror_model_can_require_importable_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             record = normalize_mirror_model_record(

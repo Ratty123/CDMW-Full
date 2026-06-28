@@ -323,19 +323,41 @@ def material_authority_preview_slot_signature_row(
 
 def material_authority_source_role_signature_rows(
     adjustments: object,
-) -> tuple[tuple[int, str, tuple[int, ...]], ...]:
-    rows: list[tuple[int, str, tuple[int, ...]]] = []
+) -> tuple[tuple[object, ...], ...]:
+    rows: list[tuple[object, ...]] = []
     items = adjustments.items() if hasattr(adjustments, "items") else ()
     for source_index, adjustment in sorted(items):
         material_role = str(getattr(adjustment, "material_role", "") or "")
         glow_rgb = tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())
-        if not material_role.strip() and not glow_rgb:
+        try:
+            material_brightness = round(float(getattr(adjustment, "material_brightness", 0.0) or 0.0), 4)
+            material_contrast = round(float(getattr(adjustment, "material_contrast", 0.0) or 0.0), 4)
+            material_saturation = round(float(getattr(adjustment, "material_saturation", 0.0) or 0.0), 4)
+            material_gamma = round(float(getattr(adjustment, "material_gamma", 1.0) or 1.0), 4)
+        except (TypeError, ValueError, OverflowError):
+            material_brightness = material_contrast = material_saturation = 0.0
+            material_gamma = 1.0
+        material_tint = tuple(getattr(adjustment, "material_tint_rgb", ()) or ())
+        material_tint_rgb = tuple(int(value) for value in material_tint[:3]) if material_tint else ()
+        has_material_adjustment = (
+            abs(material_brightness) > 0.0001
+            or abs(material_contrast) > 0.0001
+            or abs(material_saturation) > 0.0001
+            or abs(material_gamma - 1.0) > 0.0001
+            or bool(material_tint_rgb)
+        )
+        if not material_role.strip() and not glow_rgb and not has_material_adjustment:
             continue
         rows.append(
             (
                 int(source_index),
                 material_role,
                 tuple(int(value) for value in glow_rgb),
+                material_brightness,
+                material_contrast,
+                material_saturation,
+                material_gamma,
+                material_tint_rgb,
             )
         )
     return tuple(rows)

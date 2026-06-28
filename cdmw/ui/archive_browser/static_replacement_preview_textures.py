@@ -17,6 +17,12 @@ from cdmw.ui.archive_browser.static_replacement_preview_cache import (
     model_has_preview_texture_keys,
     static_preview_prepared_cache_key,
 )
+from cdmw.ui.archive_browser.static_replacement_preview_material_authority import (
+    apply_material_authority_preview_native_hints,
+    clear_material_authority_preview_native_hints,
+    material_authority_preview_native_override_values,
+    material_authority_preview_parameters,
+)
 
 
 def source_preview_path(source_path_text: object) -> str:
@@ -40,38 +46,6 @@ def accent_glow_preview_enabled(profile: object) -> bool:
     except (TypeError, ValueError, OverflowError):
         return False
     return strength > 0.0
-
-
-def material_authority_preview_parameters(
-    profile: object,
-    *,
-    enabled: bool,
-) -> tuple[PreviewMaterialParameterInput, ...]:
-    if not enabled:
-        return ()
-    parameters: list[PreviewMaterialParameterInput] = []
-    for attr_name, parameter_name in (
-        ("scratch_roughness", "_scratchRoughness"),
-        ("scratch_metallic", "_scratchMetallic"),
-        ("shine_scalar", "_specularAmount"),
-        ("displacement_scale_multiplier", "_heightIntensity"),
-    ):
-        value = getattr(profile, attr_name, None)
-        if value is None:
-            continue
-        try:
-            numeric_value = max(0.0, min(1.0, float(value)))
-        except (TypeError, ValueError, OverflowError):
-            continue
-        parameters.append(
-            PreviewMaterialParameterInput(
-                parameter_kind="float",
-                parameter_name=parameter_name,
-                value=f"{numeric_value:.6f}",
-                numeric_value=numeric_value,
-            )
-        )
-    return tuple(parameters)
 
 
 def add_preview_material_input(
@@ -220,6 +194,11 @@ def apply_source_material_preview(
 ) -> None:
     clear_replacement_preview_texture_bindings(mesh)
     material_authority_enabled = bool(complete_external_swap_enabled and basic_controls_profile_enabled)
+    apply_material_authority_preview_native_hints(
+        mesh,
+        material_authority_profile,
+        enabled=material_authority_enabled and material_authority_profile is not None,
+    )
     if material_authority_enabled and material_authority_profile is not None:
         try:
             slots = material_authority_preview_texture_slots(texture_set, material_authority_profile, enabled=True)
@@ -507,6 +486,18 @@ def apply_source_material_preview_for_model(
     accent_glow_preview_intensity: float,
 ) -> None:
     meshes = list(getattr(preview_model, "meshes", ()) or ())
+    material_authority_enabled = bool(
+        complete_external_swap_enabled
+        and basic_controls_profile_enabled
+        and material_authority_profile is not None
+    )
+    if material_authority_enabled:
+        for mesh in meshes:
+            apply_material_authority_preview_native_hints(
+                mesh,
+                material_authority_profile,
+                enabled=True,
+            )
     if not texture_sets:
         return
 
@@ -932,15 +923,18 @@ __all__ = [
     "accent_glow_preview_enabled",
     "accent_glow_preview_intensity",
     "add_preview_material_input",
+    "apply_material_authority_preview_native_hints",
     "apply_manual_preview_texture_override_specs",
     "apply_native_preview_core_material_manifest",
     "load_native_preview_core_material_manifest_for_alignment",
     "apply_source_material_preview",
     "apply_source_material_preview_for_model",
     "apply_source_role_emissive_preview_for_model",
+    "clear_material_authority_preview_native_hints",
     "clear_replacement_preview_texture_bindings",
     "clear_source_role_emissive_preview",
     "apply_source_role_emissive_preview",
+    "material_authority_preview_native_override_values",
     "material_authority_preview_parameters",
     "model_has_preview_texture_keys",
     "preview_glow_color_from_candidates",

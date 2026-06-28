@@ -217,7 +217,6 @@ class RecolorVariantsTab(QWidget):
         self._build_source_section(controls_layout)
         self._build_template_section(controls_layout)
         self._build_output_section(controls_layout)
-        controls_layout.addStretch(1)
         self._build_results_section(results_layout)
 
         self.summary_label = QLabel("Choose a loose or zip mod, then analyze it for safe recolor targets.")
@@ -249,7 +248,7 @@ class RecolorVariantsTab(QWidget):
 
         self.empty_state = EmptyStatePanel(
             "No analysis loaded",
-            "Analyze a source mod to show safe basecolor/overlay texture slots and locked technical maps.",
+            "Analyze a Source Mod to show safe basecolor/overlay texture slots and locked technical maps.",
             compact=True,
         )
         self.empty_state.setVisible(True)
@@ -329,6 +328,7 @@ class RecolorVariantsTab(QWidget):
 
     def _build_source_section(self, parent_layout: QVBoxLayout) -> None:
         section = FlatSectionPanel("Source Mod", body_margins=(10, 10, 10, 10), body_spacing=8)
+        section.header_widget.setVisible(False)
         layout = QGridLayout()
         layout.setHorizontalSpacing(8)
         layout.setVerticalSpacing(8)
@@ -337,7 +337,7 @@ class RecolorVariantsTab(QWidget):
         self.source_path_edit.setPlaceholderText("Folder or .zip package")
         self.source_browse_button = QPushButton("Browse")
         self.analyze_button = QPushButton("Analyze Mod")
-        layout.addWidget(QLabel("Source"), 0, 0)
+        layout.addWidget(QLabel("Source Mod"), 0, 0)
         source_row = QHBoxLayout()
         source_row.setContentsMargins(0, 0, 0, 0)
         source_row.setSpacing(6)
@@ -416,8 +416,8 @@ class RecolorVariantsTab(QWidget):
         self.preserve_luma_checkbox.setChecked(True)
         self.import_template_button = QPushButton("Import JSON")
         self.export_template_button = QPushButton("Export JSON")
-        self.save_template_button = QPushButton("Save Template")
-        self.preview_template_button = QPushButton("Preview Matches")
+        self.save_template_button = QPushButton("Save Templates")
+        self.preview_template_button = QPushButton("Review Matches")
 
         basic_rows = (
             ("Template", self.template_combo),
@@ -476,7 +476,7 @@ class RecolorVariantsTab(QWidget):
         self.output_browse_button = QPushButton("Browse")
         self.overwrite_checkbox = QCheckBox("Clear existing generated package folders")
         self.overwrite_checkbox.setObjectName("RecolorVariantNoInPlaceOverwrite")
-        self.overwrite_checkbox.setToolTip("This only clears generated output folders. The source mod is never modified in place.")
+        self.overwrite_checkbox.setToolTip("This only clears generated output folders. The Source Mod is never modified in place.")
         self.build_button = QPushButton("Build Variants")
         self.stop_button = QPushButton("Stop")
         self.stop_button.setEnabled(False)
@@ -688,11 +688,11 @@ class RecolorVariantsTab(QWidget):
     def analyze_source(self) -> None:
         source_text = self.source_path_edit.text().strip()
         if not source_text:
-            self.status_message_requested.emit("Choose a source mod folder or zip first.", True)
+            self.status_message_requested.emit("Choose a Source Mod folder or zip first.", True)
             return
         source = Path(source_text).expanduser()
         if not source.exists():
-            self.status_message_requested.emit(f"Source mod not found: {source}", True)
+            self.status_message_requested.emit(f"Source Mod not found: {source}", True)
             return
         self._save_settings()
         self._append_log(f"Analyzing recolor targets: {source}")
@@ -766,7 +766,7 @@ class RecolorVariantsTab(QWidget):
 
     def preview_current_template(self) -> None:
         if self.analysis is None:
-            self.status_message_requested.emit("Analyze a source mod first.", True)
+            self.status_message_requested.emit("Analyze a Source Mod first.", True)
             return
         template = self._template_from_controls()
         preview = preview_recolor_variant_template(self.analysis, template)
@@ -976,7 +976,7 @@ class RecolorVariantsTab(QWidget):
 
     def start_build(self) -> None:
         if self.analysis is None:
-            self.status_message_requested.emit("Analyze a source mod first.", True)
+            self.status_message_requested.emit("Analyze a Source Mod first.", True)
             return
         profiles = self._selected_profiles()
         if not profiles:
@@ -996,7 +996,7 @@ class RecolorVariantsTab(QWidget):
         self.stop_button.setEnabled(True)
         self.outputs_tree.clear()
         self._refresh_preview_summary()
-        self._append_log("Starting recolor variant build. Source mod will not be modified in place.")
+        self._append_log("Starting recolor variant build. Source Mod will not be modified in place.")
         self.worker_thread = QThread(self)
         self.build_worker = RecolorVariantBuildWorker(
             self.analysis,

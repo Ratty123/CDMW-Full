@@ -581,9 +581,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertNotIn("archive_view_backend_combo", source)
         self.assertNotIn("archive_ui_frame_budget_spin", source)
         self.assertNotIn("archive_background_worker_limit_spin", source)
-        self.assertIn('self.tabs.addTab(performance_tab, "Performance")', dialog_source)
-        self.assertIn('QGroupBox("Related-File Indexing")', dialog_source)
-        self.assertIn('QGroupBox("Preview Cache")', dialog_source)
+        self.assertNotIn('self.tabs.addTab(performance_tab, "Performance")', dialog_source)
         self.assertNotIn('self.tabs.addTab(performance_tab, "Archive Performance")', dialog_source)
 
     def test_disabling_sidecar_index_cancels_active_and_pending_work(self) -> None:

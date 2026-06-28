@@ -393,6 +393,36 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('\\"sampler_mip_lod_bias\\"', d3d11_text)
         self.assertIn('\\"sampler_recreate_count\\"', d3d11_text)
 
+    def test_d3d11_preview_accepts_live_material_override_command(self) -> None:
+        d3d11_text = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        host_text = Path("cdmw/ui/native_d3d11_preview_host.py").read_text(encoding="utf-8")
+
+        self.assertIn('if (command == "set_material_overrides")', d3d11_text)
+        self.assertIn('json_has_field(payload, "texture_brightness")', d3d11_text)
+        self.assertIn("batch.texture_brightness = std::clamp", d3d11_text)
+        self.assertIn('json_has_field(payload, "contrast")', d3d11_text)
+        self.assertIn("batch.texture_contrast = std::clamp", d3d11_text)
+        self.assertIn("batch.texture_saturation = std::clamp", d3d11_text)
+        self.assertIn("batch.texture_gamma = std::clamp", d3d11_text)
+        self.assertIn('json_float_array_field(payload, "tint_color")', d3d11_text)
+        self.assertIn("batch.roughness_hint = std::clamp", d3d11_text)
+        self.assertIn("batch.emissive_intensity = std::clamp", d3d11_text)
+        self.assertIn("def set_material_overrides(", host_text)
+        self.assertIn('"command": "set_material_overrides"', host_text)
+        self.assertIn('("contrast", contrast)', host_text)
+        self.assertIn('("gamma", gamma)', host_text)
+        self.assertIn('"tint_color"', host_text)
+
+    def test_d3d11_preview_uses_screen_space_highlight_bounds(self) -> None:
+        d3d11_text = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn('json_float_field(object, "highlight_strength", 0.0f)', d3d11_text)
+        self.assertIn("void draw_highlight_bounds_overlay(const PreviewRenderView& view)", d3d11_text)
+        self.assertIn("batch.highlight_strength <= 0.0f", d3d11_text)
+        self.assertIn("project_batch_position_for_view(batch, position, view", d3d11_text)
+        self.assertIn("draw_highlight_bounds_overlay(view);", d3d11_text)
+        self.assertNotIn("selection_wire_tint", d3d11_text)
+
     def test_preview_core_service_recycles_after_job_count_limit(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -1248,6 +1278,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("mesh_edit_source_vertex_selected", source)
         self.assertIn("mesh_edit_preserve_materials_for_batch(batch)", source)
         self.assertIn("const bool mesh_edit_flat = mesh_edit_active && !mesh_edit_preserve_materials_for_batch(batch)", source)
+        preserve_start = source.index("static bool mesh_edit_preserve_materials_for_batch")
+        preserve_body = source[preserve_start: source.index("std::pair<int, int> mesh_edit_source_key", preserve_start)]
+        self.assertIn("return false;", preserve_body)
+        self.assertNotIn("kDenseMeshEditMaterialPreserveTriangles", source)
         self.assertIn("else if (!dense_topology_overlay)", source)
         self.assertIn("batch_is_reference(batch) || !batch_visible_in_view(batch, PreviewViewRole::Replacement)", source)
         self.assertIn("add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 2.4f, 1.0f, 0.48f, 0.12f)", source)

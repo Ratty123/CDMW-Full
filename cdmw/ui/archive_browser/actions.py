@@ -16,6 +16,41 @@ from cdmw.core.material_sidecar_editor import is_material_sidecar_entry
 from cdmw.models import ArchiveEntry, AssetFamilyGraph, AssetFamilyMember
 
 
+ARCHIVE_CONTEXT_MENU_ICON_COLORS = {
+    "view": "#6AA9FF",
+    "file": "#7BD88F",
+    "workflow": "#F6C85F",
+    "family": "#B58CFF",
+    "mesh": "#FF8A65",
+    "texture": "#45D4C8",
+    "physics": "#D1D5DB",
+    "data": "#9CA3AF",
+    "audio": "#F472B6",
+    "maintenance": "#94A3B8",
+}
+
+
+def archive_context_menu_icon(color: str) -> QIcon:
+    pixmap = QPixmap(12, 12)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    try:
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(color))
+        painter.drawRoundedRect(1, 1, 10, 10, 2, 2)
+    finally:
+        painter.end()
+    return QIcon(pixmap)
+
+
+def archive_context_menu_icons() -> dict[str, QIcon]:
+    return {
+        key: archive_context_menu_icon(color)
+        for key, color in ARCHIVE_CONTEXT_MENU_ICON_COLORS.items()
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class ArchiveBrowserAction:
     key: str
@@ -278,30 +313,7 @@ class ArchiveBrowserActionMixin:
         if hasattr(menu, "setToolTipsVisible"):
             menu.setToolTipsVisible(True)
 
-        def _archive_context_menu_icon(color: str) -> QIcon:
-            pixmap = QPixmap(12, 12)
-            pixmap.fill(Qt.transparent)
-            painter = QPainter(pixmap)
-            try:
-                painter.setRenderHint(QPainter.Antialiasing)
-                painter.setPen(Qt.NoPen)
-                painter.setBrush(QColor(color))
-                painter.drawRoundedRect(1, 1, 10, 10, 2, 2)
-            finally:
-                painter.end()
-            return QIcon(pixmap)
-
-        menu_icons = {
-            "view": _archive_context_menu_icon("#6AA9FF"),
-            "file": _archive_context_menu_icon("#7BD88F"),
-            "workflow": _archive_context_menu_icon("#F6C85F"),
-            "family": _archive_context_menu_icon("#B58CFF"),
-            "mesh": _archive_context_menu_icon("#FF8A65"),
-            "texture": _archive_context_menu_icon("#45D4C8"),
-            "physics": _archive_context_menu_icon("#D1D5DB"),
-            "data": _archive_context_menu_icon("#9CA3AF"),
-            "audio": _archive_context_menu_icon("#F472B6"),
-        }
+        menu_icons = archive_context_menu_icons()
 
         def _add_menu_section(kind: str, label: str) -> None:
             menu.addSection(menu_icons[kind], label)
@@ -559,4 +571,9 @@ class ArchiveBrowserActionMixin:
         self._export_character_dependency_package_for_entry(entry)
 
 
-__all__ = ["ArchiveBrowserAction", "ArchiveBrowserActionMixin"]
+__all__ = [
+    "ArchiveBrowserAction",
+    "ArchiveBrowserActionMixin",
+    "archive_context_menu_icon",
+    "archive_context_menu_icons",
+]

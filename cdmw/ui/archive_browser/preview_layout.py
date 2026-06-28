@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.ui.archive_browser.actions import archive_context_menu_icons
 from cdmw.ui.archive_browser.preview_state import archive_model_preview_refresh_tooltip
 from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
 from cdmw.ui.widgets import (
@@ -125,12 +126,12 @@ class ArchivePreviewLayoutMixin:
             "Clear the temporary Flip Base V and Disable Support Maps preview overrides."
         )
         self.archive_model_preview_reset_overrides_button.setVisible(False)
-        self.archive_model_preview_settings_button = QPushButton("3D Settings")
+        self.archive_model_preview_settings_button = QPushButton("Preview Settings")
         self.archive_model_preview_settings_button.setToolTip(
-            "Open 3D preview controls for textures, quality, orbit, pan, and inversion."
+            "Open preview controls for textures, quality, orbit, pan, and inversion."
         )
-        self.archive_model_preview_settings_button.setMinimumWidth(116)
-        self.archive_model_preview_settings_button.setMaximumWidth(150)
+        self.archive_model_preview_settings_button.setMinimumWidth(142)
+        self.archive_model_preview_settings_button.setMaximumWidth(180)
         self.archive_model_preview_settings_button.setMinimumHeight(24)
         self.archive_model_preview_settings_button.setMaximumHeight(28)
         self.archive_model_preview_settings_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
@@ -303,6 +304,7 @@ class ArchivePreviewLayoutMixin:
             "Load a whole loose mod folder, match files by virtual path, review asset families, and write selected replacements as one loose package."
         )
         self.archive_model_action_menu_groups = []
+        archive_action_menu_icons = archive_context_menu_icons()
 
         def _make_archive_action_menu_button(
             title: str,
@@ -336,6 +338,44 @@ class ArchivePreviewLayoutMixin:
             self.archive_model_action_menu_groups.append((button, title, action_pairs))
             return button
 
+        def _make_sectioned_archive_action_menu_button(
+            title: str,
+            sections: Sequence[Tuple[str, str, Sequence[Tuple[Optional[str], QPushButton]]]],
+        ) -> QToolButton:
+            button = QToolButton()
+            button.setObjectName("ArchiveActionMenuButton")
+            button.setText(title)
+            button.setPopupMode(QToolButton.InstantPopup)
+            button.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            button.setMinimumWidth(86)
+            button.setMinimumHeight(24)
+            button.setMaximumHeight(26)
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            menu = QMenu(button)
+            menu.setObjectName("ArchiveActionMenu")
+            if hasattr(menu, "setToolTipsVisible"):
+                menu.setToolTipsVisible(True)
+            action_pairs = []
+            for kind, section_label, items in sections:
+                icon = archive_action_menu_icons.get(kind)
+                if icon is None:
+                    menu.addSection(section_label)
+                else:
+                    menu.addSection(icon, section_label)
+                for label, source_button in items:
+                    action_text = self._archive_action_menu_text(source_button, label, source_button.isEnabled())
+                    action = menu.addAction(icon, action_text) if icon is not None else menu.addAction(action_text)
+                    action.setToolTip(source_button.toolTip())
+                    action.setStatusTip(source_button.toolTip())
+                    action.setWhatsThis(source_button.toolTip())
+                    action.setEnabled(source_button.isEnabled())
+                    action.triggered.connect(lambda _checked=False, target=source_button: target.click())
+                    action_pairs.append((action, source_button, label))
+            button.setMenu(menu)
+            button.setEnabled(any(source_button.isEnabled() for _action, source_button, _label in action_pairs))
+            self.archive_model_action_menu_groups.append((button, title, action_pairs))
+            return button
+
         self.archive_export_menu_button = _make_archive_action_menu_button(
             "Export",
             (
@@ -362,31 +402,69 @@ class ArchivePreviewLayoutMixin:
                 ("Import HKX XML", self.archive_hkx_import_xml_button),
             ),
         )
-        self.archive_hkx_menu_button = _make_archive_action_menu_button(
-            "HKX",
-            (
-                ("Edit HKX", self.archive_hkx_placement_button),
-                ("Edit Selected HKX", self.archive_hkx_edit_button),
-                ("Scan HKX Corpus", self.archive_hkx_corpus_button),
-            ),
-        )
-        self.archive_tools_menu_button = _make_archive_action_menu_button(
+        self.archive_tools_menu_button = _make_sectioned_archive_action_menu_button(
             "Tools",
             (
-                ("Preview", self.archive_action_preview_button),
-                ("Open Preview Window", self.archive_action_open_preview_window_button),
-                ("Copy Filename", self.archive_action_copy_filename_button),
-                ("Show Only This File", self.archive_action_show_only_file_button),
-                ("Asset Family", self.archive_action_asset_family_button),
-                ("Filter to Family", self.archive_action_filter_to_family_button),
-                ("Build Loose Package From Sources", self.archive_action_source_mix_button),
-                (None, self.archive_weapon_placement_studio_button),
-                ("Modify Original Mesh", self.archive_model_modify_original_button),
-                (None, self.archive_model_swap_in_game_button),
-                ("Inspect Selected Sidecar", self.archive_sidecar_inspect_button),
-                ("Scan Sidecar Corpus", self.archive_sidecar_corpus_button),
-                ("Edit Material Values", self.archive_material_values_button),
-                ("Restore Backup", self.archive_restore_patch_backup_button),
+                (
+                    "view",
+                    "View + Inspect",
+                    (
+                        ("Preview", self.archive_action_preview_button),
+                        ("Open Preview Window", self.archive_action_open_preview_window_button),
+                        ("Copy Filename", self.archive_action_copy_filename_button),
+                    ),
+                ),
+                (
+                    "family",
+                    "Asset Family",
+                    (
+                        ("Asset Family", self.archive_action_asset_family_button),
+                        ("Filter to Family", self.archive_action_filter_to_family_button),
+                    ),
+                ),
+                (
+                    "workflow",
+                    "Source Package",
+                    (("Build Loose Package From Sources", self.archive_action_source_mix_button),),
+                ),
+                (
+                    "mesh",
+                    "Mesh Edit",
+                    (
+                        ("Modify Original Mesh", self.archive_model_modify_original_button),
+                        (None, self.archive_model_swap_in_game_button),
+                    ),
+                ),
+                (
+                    "physics",
+                    "Physics / HKX",
+                    (
+                        ("Edit HKX", self.archive_hkx_placement_button),
+                        ("Edit Selected HKX", self.archive_hkx_edit_button),
+                        ("Scan HKX Corpus", self.archive_hkx_corpus_button),
+                    ),
+                ),
+                (
+                    "data",
+                    "Structured Data",
+                    (
+                        ("Inspect Selected Sidecar", self.archive_sidecar_inspect_button),
+                        ("Scan Sidecar Corpus", self.archive_sidecar_corpus_button),
+                    ),
+                ),
+                (
+                    "texture",
+                    "Material",
+                    (("Edit Material Values", self.archive_material_values_button),),
+                ),
+                (
+                    "maintenance",
+                    "Maintenance",
+                    (
+                        ("Restore Backup", self.archive_restore_patch_backup_button),
+                        (None, self.archive_weapon_placement_studio_button),
+                    ),
+                ),
             ),
         )
         archive_preview_title_row.addWidget(self.archive_preview_title_label, stretch=1)
@@ -497,7 +575,6 @@ class ArchivePreviewLayoutMixin:
         archive_model_action_menus = (
             self.archive_export_menu_button,
             self.archive_import_menu_button,
-            self.archive_hkx_menu_button,
             self.archive_tools_menu_button,
         )
         for button in archive_model_action_menus:
@@ -575,8 +652,6 @@ class ArchivePreviewLayoutMixin:
         archive_preview_tab_layout = QVBoxLayout(archive_preview_tab)
         archive_preview_tab_layout.setContentsMargins(0, 0, 0, 0)
         archive_preview_tab_layout.setSpacing(6)
-        self.archive_preview_text_tools = self._build_archive_text_tools(self.archive_preview_text_edit)
-        self.archive_preview_info_tools = self._build_archive_text_tools(self.archive_preview_info_edit)
         self.archive_preview_controls_hint_label = QLabel(
             "Controls: left-drag orbit | middle/right-drag pan | Shift+left-drag pan | mouse wheel zoom | Fit resets view."
         )
@@ -585,16 +660,12 @@ class ArchivePreviewLayoutMixin:
         self.archive_preview_controls_hint_label.setToolTip(
             "These controls move the preview camera/view only. Mesh placement and exported transforms are changed in edit/alignment tools."
         )
-        archive_preview_tab_layout.addWidget(self.archive_preview_text_tools)
-        archive_preview_tab_layout.addWidget(self.archive_preview_info_tools)
         archive_preview_tab_layout.addWidget(self.archive_preview_stack)
         archive_preview_tab_layout.addWidget(self.archive_preview_controls_hint_label)
         archive_details_tab = QWidget()
         archive_details_tab_layout = QVBoxLayout(archive_details_tab)
         archive_details_tab_layout.setContentsMargins(0, 0, 0, 0)
         archive_details_tab_layout.setSpacing(6)
-        self.archive_details_text_tools = self._build_archive_text_tools(self.archive_preview_details_edit)
-        archive_details_tab_layout.addWidget(self.archive_details_text_tools)
         archive_details_tab_layout.addWidget(self.archive_preview_details_edit)
         self.archive_preview_tabs.addTab(archive_preview_tab, "Preview")
         self.archive_preview_tabs.addTab(archive_details_tab, "Details")

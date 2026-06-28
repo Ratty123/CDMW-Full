@@ -47,6 +47,11 @@ class StaticSourcePartAdjustment:
     pivot_mode: str = "part_center"
     material_role: str = ""
     emissive_color_rgb: tuple[int, int, int] = ()
+    material_brightness: float = 0.0
+    material_contrast: float = 0.0
+    material_saturation: float = 0.0
+    material_gamma: float = 1.0
+    material_tint_rgb: tuple[int, int, int] = ()
 
 
 @dataclass

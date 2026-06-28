@@ -389,7 +389,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>Model preview</h4>
                 <ul>
                   <li>Open supported <code>.pam</code>, <code>.pamlod</code>, and <code>.pac</code> entries in Archive Browser to inspect geometry, bounds, materials, sidecars, and referenced textures.</li>
-                  <li>Use <b>3D Preview Settings</b> when textures, support maps, lighting, or orientation need adjustment for inspection.</li>
+                  <li>Use <b>Preview Settings</b> when textures, support maps, lighting, or orientation need adjustment for inspection.</li>
                   <li>Referenced files are discovery aids. Export them with the model when you need context for external tools.</li>
                 </ul>
                 <h4>Mesh export and import</h4>
@@ -552,8 +552,8 @@ class AboutDocumentationEnglishMixin:
                 "html": """
                 <p>The <b>Window</b> menu lets heavy work areas run in their own top-level windows while keeping their original navigation slots available.</p>
                 <ul>
-                  <li><b>Detach Current Tab</b> moves the current detachable tool into a separate window and leaves a placeholder behind.</li>
-                  <li><b>Attach Current Tool</b> and <b>Attach All Tools</b> return detached tools to their original tab groups.</li>
+                  <li><b>Detach Current Tool</b> moves the current detachable tool into a separate window and leaves a placeholder behind.</li>
+                  <li><b>Reattach Current Tool</b> and <b>Reattach All Tools</b> return detached tools to their original tab groups.</li>
                   <li>Detached windows remember their geometry under <code>window/detached/&lt;tool&gt;/geometry</code>. The main window stores <code>window/geometry</code>.</li>
                   <li><b>Settings / Layout</b> controls whether pane sizes and splitters are remembered across sessions.</li>
                   <li>Archive Browser, Texture Workflow, Texture Editor, Model Library, Icon Creator, Research, and Text Search can be restored from their placeholders or the Window menu.</li>

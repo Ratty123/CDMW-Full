@@ -304,7 +304,7 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
 
     alignment_d3d11_package_lifecycle_callbacks = create_alignment_d3d11_package_lifecycle_callbacks({**context, **globals(), **locals()})
     (
-        _apply_source_material_texture_overrides_to_ui_texture_sets, _alignment_d3d11_preview_active, _reapply_global_flip_v_fast_preview, _try_apply_global_flip_v_fast_preview,
+        _apply_source_material_texture_overrides_to_ui_texture_sets, _alignment_d3d11_preview_active, _alignment_d3d11_editor_ids_for_source_indices, _alignment_d3d11_source_indices_for_editor_id, _alignment_mesh_edit_tab_active, _reapply_global_flip_v_fast_preview, _try_apply_global_flip_v_fast_preview,
         _alignment_default_d3d11_editor_ids, _cleanup_alignment_d3d11_package, _alignment_d3d11_invalidate_package_cache, _alignment_d3d11_geometry_cache_key,
         _alignment_d3d11_preview_cache_signature, _alignment_d3d11_preview_cache_key, _alignment_d3d11_package_cache_get, _alignment_d3d11_package_cache_put,
         _drop_alignment_d3d11_package_reload, _alignment_d3d11_stop_process, _alignment_d3d11_stop_worker, _shutdown_alignment_d3d11_preview,
@@ -316,7 +316,7 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
     ) = static_replacement_section_values(
         alignment_d3d11_package_lifecycle_callbacks,
         (
-            "_apply_source_material_texture_overrides_to_ui_texture_sets", "_alignment_d3d11_preview_active", "_reapply_global_flip_v_fast_preview", "_try_apply_global_flip_v_fast_preview",
+            "_apply_source_material_texture_overrides_to_ui_texture_sets", "_alignment_d3d11_preview_active", "_alignment_d3d11_editor_ids_for_source_indices", "_alignment_d3d11_source_indices_for_editor_id", "_alignment_mesh_edit_tab_active", "_reapply_global_flip_v_fast_preview", "_try_apply_global_flip_v_fast_preview",
             "_alignment_default_d3d11_editor_ids", "_cleanup_alignment_d3d11_package", "_alignment_d3d11_invalidate_package_cache", "_alignment_d3d11_geometry_cache_key",
             "_alignment_d3d11_preview_cache_signature", "_alignment_d3d11_preview_cache_key", "_alignment_d3d11_package_cache_get", "_alignment_d3d11_package_cache_put",
             "_drop_alignment_d3d11_package_reload", "_alignment_d3d11_stop_process", "_alignment_d3d11_stop_worker", "_shutdown_alignment_d3d11_preview",
@@ -327,6 +327,10 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
             "_handle_alignment_d3d11_error", "_handle_alignment_d3d11_finished", "_poll_alignment_d3d11_status",
         ),
     )
+    prompt_shell_context["_alignment_d3d11_source_indices_for_editor_id"] = _alignment_d3d11_source_indices_for_editor_id
+    context["_alignment_d3d11_source_indices_for_editor_id"] = _alignment_d3d11_source_indices_for_editor_id
+    prompt_shell_context["_alignment_mesh_edit_tab_active"] = _alignment_mesh_edit_tab_active
+    context["_alignment_mesh_edit_tab_active"] = _alignment_mesh_edit_tab_active
 
     alignment_preview_mode_callbacks = create_alignment_preview_mode_callbacks({**context, **globals(), **locals()})
     _set_preview_renderer = alignment_preview_mode_callbacks._set_preview_renderer

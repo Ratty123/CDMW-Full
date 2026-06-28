@@ -1020,7 +1020,7 @@ def test_selection_highlight_sets_state_aggregates_preview_and_d3d11_routes() ->
     assert state == {
         "highlighted_source_indices": (1, 2, 3),
         "highlighted_original_indices": (4, 5),
-        "d3d11_highlighted_indices": (20, 21, 30),
+        "d3d11_highlighted_indices": (10, 11, 20, 21),
         "d3d11_original_highlighted_indices": (4, 5),
         "d3d11_selected_indices": (7, 8),
         "d3d11_hidden_source_indices": (99,),

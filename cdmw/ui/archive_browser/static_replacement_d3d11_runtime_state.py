@@ -161,6 +161,22 @@ def _fast_transform_vector(
         return default
 
 
+def _fast_transform_editor_ids(
+    editor_ids_for_source_indices: Callable[[Sequence[int]], Sequence[int]],
+    source_indices: Sequence[int],
+) -> tuple[int, ...]:
+    if not callable(editor_ids_for_source_indices):
+        return ()
+    try:
+        resolved = editor_ids_for_source_indices(source_indices)
+    except (AttributeError, TypeError, ValueError):
+        return ()
+    try:
+        return tuple(int(index) for index in tuple(resolved or ()) if int(index) >= 0)
+    except (TypeError, ValueError, OverflowError):
+        return ()
+
+
 def alignment_d3d11_fast_transform_preview_state(
     state: Mapping[str, object],
     editor_ids_for_source_indices: Callable[[Sequence[int]], Sequence[int]],
@@ -186,7 +202,7 @@ def alignment_d3d11_fast_transform_preview_state(
             source_index = int(raw_source_index)
         except (TypeError, ValueError):
             continue
-        editor_ids = editor_ids_for_source_indices((source_index,))
+        editor_ids = _fast_transform_editor_ids(editor_ids_for_source_indices, (source_index,))
         if not editor_ids:
             continue
         part_transforms.append(
@@ -206,6 +222,8 @@ def alignment_d3d11_fast_transform_send_state(
     *,
     scope_source_indices: Sequence[int] | None = None,
 ) -> dict[str, object]:
+    if not callable(editor_ids_for_source_indices):
+        editor_ids_for_source_indices = lambda _indices: ()
     global_translation, global_rotation, global_scale, part_transforms = alignment_d3d11_fast_transform_preview_state(
         state,
         editor_ids_for_source_indices,
@@ -217,7 +235,7 @@ def alignment_d3d11_fast_transform_send_state(
             source_indices = tuple(int(index) for index in tuple(scope_source_indices or ()))
         except (TypeError, ValueError, OverflowError):
             source_indices = ()
-        scope_editor_ids = tuple(int(index) for index in tuple(editor_ids_for_source_indices(source_indices) or ()))
+        scope_editor_ids = _fast_transform_editor_ids(editor_ids_for_source_indices, source_indices)
     return {
         "update_scope": update_scope,
         "scope_source_indices": scope_editor_ids,

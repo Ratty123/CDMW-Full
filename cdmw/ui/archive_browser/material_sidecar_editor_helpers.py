@@ -201,12 +201,12 @@ def material_sidecar_selected_color_swatch_stylesheet(color_name: object) -> str
 
 
 def material_sidecar_preview_control_labels() -> tuple[str, str, str, str]:
-    return ("Show Preview", "Refresh Preview", "3D Preview Settings...", "Live Color Preview")
+    return ("Show Preview", "Refresh Preview", "Preview Settings...", "Live Color Preview")
 
 
 def material_sidecar_preview_settings_tooltip_text() -> str:
     return (
-        "Use the same global 3D preview settings as the Archive Preview and Mesh Replacement Alignment previews."
+        "Use the same global preview settings as the Archive Preview and Mesh Replacement Alignment previews."
     )
 
 

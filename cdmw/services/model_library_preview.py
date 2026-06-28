@@ -28,6 +28,8 @@ from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_p
 
 _INLINE_PREVIEW_MAX_FACES_PER_SUBMESH = 500
 _INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH = 1200
+_NATIVE_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH = 50_000
+_NATIVE_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH = 80_000
 _SUBPROCESS_TIMEOUT_SECONDS = 300
 
 
@@ -173,16 +175,21 @@ def prepare_model_library_inline_preview(
     original_faces = int(scene_result.mesh.total_faces)
     submeshes = tuple(getattr(scene_result.mesh, "submeshes", ()) or ())
     quality_reduction = None
+    max_faces = _INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
+    max_vertices = _INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
+    if backend == "native_d3d11" and bool(high_quality_textures):
+        max_faces = _NATIVE_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
+        max_vertices = _NATIVE_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
     if any(
-        len(getattr(submesh, "faces", ()) or ()) > _INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
-        or len(getattr(submesh, "vertices", ()) or ()) > _INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
+        len(getattr(submesh, "faces", ()) or ()) > max_faces
+        or len(getattr(submesh, "vertices", ()) or ()) > max_vertices
         for submesh in submeshes
     ):
         progress("Reducing preview mesh density...")
         scene_result, quality_reduction = reduce_scene_import_result_quality(
             scene_result,
-            max_faces_per_submesh=_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH,
-            max_vertices_per_submesh=_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH,
+            max_faces_per_submesh=max_faces,
+            max_vertices_per_submesh=max_vertices,
         )
     raise_if_cancelled(stop_event)
     preview_model = parsed_mesh_to_preview_model(scene_result.mesh)

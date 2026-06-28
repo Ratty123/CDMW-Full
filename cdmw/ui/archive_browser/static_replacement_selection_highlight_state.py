@@ -82,7 +82,8 @@ def selection_highlight_sets_state(
     d3d11_highlight_ids: set[int] = set()
     if highlight_active:
         overlay_ids = _nonnegative_indices(selected_source_overlay_ids)
-        d3d11_highlight_ids.update(overlay_ids or _nonnegative_indices(selected_source_editor_ids))
+        editor_ids = _nonnegative_indices(selected_source_editor_ids)
+        d3d11_highlight_ids.update(editor_ids or overlay_ids)
         d3d11_highlight_ids.update(_nonnegative_indices(selected_target_source_editor_ids))
     return {
         "highlighted_source_indices": highlighted_source_indices,

@@ -363,7 +363,7 @@ def _attach_pbd_cloth_preview_to_model_preview(
     model_preview.cloth_preview = cloth_preview
     return [
         (
-            f"{cloth_preview.summary} Enable Tool-side PBD physics preview in 3D Preview Settings to simulate it; "
+            f"{cloth_preview.summary} Enable Tool-side PBD physics preview in Preview Settings to simulate it; "
             "this is not game-exact Havok/Pearl Abyss physics."
         )
     ]

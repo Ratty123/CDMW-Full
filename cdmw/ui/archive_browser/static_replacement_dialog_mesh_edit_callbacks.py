@@ -62,13 +62,31 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
     Qt = context.get('Qt')
     Sequence = context.get('Sequence')
     _alignment_d3d11_preview_active = context.get('_alignment_d3d11_preview_active')
-    _alignment_d3d11_source_indices_for_editor_id = context.get('_alignment_d3d11_source_indices_for_editor_id')
+    _alignment_d3d11_source_indices_for_editor_id_callback = context.get('_alignment_d3d11_source_indices_for_editor_id')
     _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
+    prompt_shell_context = context.get('prompt_shell_context')
 
     def _mesh_edit_tab_active() -> bool:
-        if not callable(_alignment_mesh_edit_tab_active):
+        callback = _alignment_mesh_edit_tab_active
+        if not callable(callback):
+            callback = context.get('_alignment_mesh_edit_tab_active')
+        if not callable(callback) and isinstance(prompt_shell_context, dict):
+            callback = prompt_shell_context.get('_alignment_mesh_edit_tab_active')
+        if not callable(callback):
             return False
-        return bool(_alignment_mesh_edit_tab_active())
+        return bool(callback())
+
+    def _alignment_d3d11_source_indices_for_editor_id(editor_id: int) -> tuple[int, ...]:
+        callback = _alignment_d3d11_source_indices_for_editor_id_callback
+        if not callable(callback):
+            callback = context.get('_alignment_d3d11_source_indices_for_editor_id')
+        if not callable(callback) and isinstance(prompt_shell_context, dict):
+            callback = prompt_shell_context.get('_alignment_d3d11_source_indices_for_editor_id')
+        if not callable(callback):
+            return ()
+        return tuple(int(index) for index in tuple(callback(editor_id) or ()) if int(index) >= 0)
+
+    _d3d11_source_indices_for_editor_id = _alignment_d3d11_source_indices_for_editor_id
 
     _apply_alignment_dialog_responsive_layout = context.get('_apply_alignment_dialog_responsive_layout')
     _clear_alignment_d3d11_fast_transform_state = context.get('_clear_alignment_d3d11_fast_transform_state')
@@ -1229,6 +1247,10 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         normalization_scale=getattr(original_reference_preview_model, "normalization_scale", 1.0),
     )
 
+    def _record_mesh_edit_event(event_name: str, **payload: object) -> None:
+        if callable(_record_runtime_event):
+            _record_runtime_event(event_name, **payload)
+
     def _mesh_edit_source_to_preview_point(point: Sequence[object]) -> tuple[float, float, float]:
         normalizer = original_reference_preview_model or _mesh_edit_state.replacement_preview_model
         return _mesh_edit_source_to_preview_point_helper(
@@ -1287,7 +1309,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 alignment_basis_mesh=_mesh_edit_state.replacement_mesh_base_for_mapping or _mesh_edit_state.replacement_mesh_for_mapping,
             )
         except Exception as exc:
-            _record_runtime_event("mesh_edit_live_transform_error", message=str(exc))
+            _record_mesh_edit_event("mesh_edit_live_transform_error", message=str(exc))
             return _mesh_edit_adjusted_sources_for_live_preview(requested)
         return {
             source_index: transformed_sources[source_index]
@@ -1470,17 +1492,50 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
 
     _mesh_edit_payload_has_drag_motion = lambda payload: _mesh_edit_payload_has_drag_motion_helper(payload)
 
+    def _mesh_edit_inverse_context_ready(source_index: int) -> bool | None:
+        if not callable(_mesh_edit_has_inverse_transform_context_helper):
+            if original_mesh_for_mapping is None or _mesh_edit_state.replacement_mesh_for_mapping is None:
+                return False
+            return None
+        return bool(
+            _mesh_edit_has_inverse_transform_context_helper(
+                original_mesh=original_mesh_for_mapping,
+                replacement_mesh=_mesh_edit_state.replacement_mesh_for_mapping,
+                source_index=source_index,
+            )
+        )
+
+    def _mesh_edit_inverse_failure(kind: str, source_index: int, exc: object) -> None:
+        _record_mesh_edit_event(
+            f"mesh_edit_{kind}_inverse_error",
+            source_index=int(source_index),
+            message=str(exc),
+        )
+
+    def _mesh_edit_abort_inverse_stroke() -> None:
+        snapshot = mesh_edit_active_stroke.get("snapshot")
+        if isinstance(ParsedMesh, type) and isinstance(snapshot, ParsedMesh):
+            _mesh_edit_restore_snapshot(snapshot)
+        _mesh_edit_pop_undo_snapshot()
+        _pop_geometry_undo_snapshot()
+        mesh_edit_active_stroke.clear()
+        _refresh_mesh_edit_controls()
+        try:
+            self.set_status_message("Mesh Editing transform is not ready; drag ignored.", error=True)
+        except TypeError:
+            self.set_status_message("Mesh Editing transform is not ready; drag ignored.")
+
     def _mesh_edit_preview_delta_to_source_delta(
         source_index: int,
         transformed_delta: Sequence[object],
-    ) -> tuple[float, float, float]:
+    ) -> tuple[float, float, float] | None:
         delta = _mesh_edit_vector3_or_zero_helper(transformed_delta)
-        if not _mesh_edit_has_inverse_transform_context_helper(
-            original_mesh=original_mesh_for_mapping,
-            replacement_mesh=_mesh_edit_state.replacement_mesh_for_mapping,
-            source_index=source_index,
-        ):
+        inverse_context = _mesh_edit_inverse_context_ready(source_index)
+        if inverse_context is False:
             return delta
+        if inverse_context is None or not callable(source_delta_for_transformed_delta):
+            _mesh_edit_inverse_failure("delta", source_index, "source delta transform is unavailable")
+            return None
         try:
             return source_delta_for_transformed_delta(
                 original_mesh_for_mapping,
@@ -1494,24 +1549,20 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 alignment_basis_mesh=_mesh_edit_state.replacement_mesh_base_for_mapping or _mesh_edit_state.replacement_mesh_for_mapping,
             )
         except Exception as exc:
-            _record_runtime_event(
-                "mesh_edit_delta_inverse_error",
-                source_index=int(source_index),
-                message=str(exc),
-            )
-            return delta
+            _mesh_edit_inverse_failure("delta", source_index, exc)
+            return None
 
     def _mesh_edit_preview_point_to_source_point(
         source_index: int,
         transformed_point: Sequence[object],
-    ) -> tuple[float, float, float]:
+    ) -> tuple[float, float, float] | None:
         point = _mesh_edit_vector3_or_zero_helper(transformed_point)
-        if not _mesh_edit_has_inverse_transform_context_helper(
-            original_mesh=original_mesh_for_mapping,
-            replacement_mesh=_mesh_edit_state.replacement_mesh_for_mapping,
-            source_index=source_index,
-        ):
+        inverse_context = _mesh_edit_inverse_context_ready(source_index)
+        if inverse_context is False:
             return point
+        if inverse_context is None or not callable(source_point_for_transformed_point):
+            _mesh_edit_inverse_failure("point", source_index, "source point transform is unavailable")
+            return None
         try:
             return source_point_for_transformed_point(
                 original_mesh_for_mapping,
@@ -1525,24 +1576,20 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 alignment_basis_mesh=_mesh_edit_state.replacement_mesh_base_for_mapping or _mesh_edit_state.replacement_mesh_for_mapping,
             )
         except Exception as exc:
-            _record_runtime_event(
-                "mesh_edit_point_inverse_error",
-                source_index=int(source_index),
-                message=str(exc),
-            )
-            return point
+            _mesh_edit_inverse_failure("point", source_index, exc)
+            return None
 
     def _mesh_edit_preview_distance_to_source_distance(
         source_index: int,
         transformed_distance: float,
-    ) -> float:
+    ) -> float | None:
         distance = _mesh_edit_distance_or_zero_helper(transformed_distance)
-        if not _mesh_edit_has_inverse_transform_context_helper(
-            original_mesh=original_mesh_for_mapping,
-            replacement_mesh=_mesh_edit_state.replacement_mesh_for_mapping,
-            source_index=source_index,
-        ):
+        inverse_context = _mesh_edit_inverse_context_ready(source_index)
+        if inverse_context is False:
             return abs(distance)
+        if inverse_context is None or not callable(source_distance_for_transformed_distance):
+            _mesh_edit_inverse_failure("distance", source_index, "source distance transform is unavailable")
+            return None
         try:
             return source_distance_for_transformed_distance(
                 original_mesh_for_mapping,
@@ -1556,18 +1603,14 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 alignment_basis_mesh=_mesh_edit_state.replacement_mesh_base_for_mapping or _mesh_edit_state.replacement_mesh_for_mapping,
             )
         except Exception as exc:
-            _record_runtime_event(
-                "mesh_edit_distance_inverse_error",
-                source_index=int(source_index),
-                message=str(exc),
-            )
-            return abs(distance)
+            _mesh_edit_inverse_failure("distance", source_index, exc)
+            return None
 
     _mesh_edit_vertices_from_payload = lambda payload: _mesh_edit_payload_selected_indices_helper(
         payload,
         _mesh_edit_state.replacement_mesh_for_mapping,
         allowed_source_indices=_mesh_edit_allowed_source_indices(),
-        source_indices_for_editor_id=_alignment_d3d11_source_indices_for_editor_id,
+        source_indices_for_editor_id=_d3d11_source_indices_for_editor_id,
         payload_index_key="source_vertex_indices",
         mesh_collection_attr="vertices",
     )
@@ -1576,7 +1619,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         payload,
         _mesh_edit_state.replacement_mesh_for_mapping,
         allowed_source_indices=_mesh_edit_allowed_source_indices(),
-        source_indices_for_editor_id=_alignment_d3d11_source_indices_for_editor_id,
+        source_indices_for_editor_id=_d3d11_source_indices_for_editor_id,
         payload_index_key="source_face_indices",
         mesh_collection_attr="faces",
     )
@@ -1725,6 +1768,15 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             source_center = _mesh_edit_preview_point_to_source_point(source_submesh_index, center)
             source_radius = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, radius)
             source_amount = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, amount)
+            if (
+                source_delta is None
+                or source_step_delta is None
+                or source_center is None
+                or source_radius is None
+                or source_amount is None
+            ):
+                _mesh_edit_abort_inverse_stroke()
+                return
             mirror_pairs = (
                 mirror_pairs_by_submesh.get(source_submesh_index)
                 if isinstance(mirror_pairs_by_submesh, Mapping)

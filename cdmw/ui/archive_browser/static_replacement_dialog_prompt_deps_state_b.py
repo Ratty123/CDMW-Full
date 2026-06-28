@@ -296,6 +296,7 @@ from cdmw.ui.archive_browser.static_replacement_preview_textures import (
     apply_native_preview_core_material_manifest as _apply_native_preview_core_material_manifest_helper,
     apply_source_role_emissive_preview_for_model as _apply_source_role_emissive_preview_for_model_helper,
     load_native_preview_core_material_manifest_for_alignment as _load_native_preview_core_material_manifest_for_alignment_helper,
+    material_authority_preview_native_override_values as _material_authority_preview_native_override_values_helper,
     material_authority_preview_parameters as _material_authority_preview_parameters_helper,
     texture_set_for_mapping as _texture_set_for_mapping_helper,
 )

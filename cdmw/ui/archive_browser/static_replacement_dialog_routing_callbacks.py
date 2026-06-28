@@ -863,6 +863,7 @@ def create_alignment_complete_swap_callbacks(context: dict[str, object]) -> Simp
     _call_if_alignment_widgets_live = context.get('_call_if_alignment_widgets_live')
     _is_marker_source = context.get('_is_marker_source')
     _mapped_source_indices = context.get('_mapped_source_indices')
+    _mapped_source_indices_helper = context.get('_mapped_source_indices_helper')
     _mapping_edit_valid_source_indices_helper = context.get('_mapping_edit_valid_source_indices_helper')
     _mapping_table_build_complete_helper = context.get('_mapping_table_build_complete_helper')
     _material_authority_complete_swap_forced_child_states_helper = context.get('_material_authority_complete_swap_forced_child_states_helper')
@@ -1030,10 +1031,19 @@ def create_alignment_complete_swap_callbacks(context: dict[str, object]) -> Simp
             for target_index, target in enumerate(original_mesh_for_mapping.submeshes)
         ]
 
+    def _mapped_source_indices_value(mappings: object) -> set[int]:
+        if callable(_mapped_source_indices):
+            return set(_mapped_source_indices(mappings) or ())
+        if callable(_mapped_source_indices_helper):
+            return set(_mapped_source_indices_helper(mappings) or ())
+        return set()
+
     def _apply_complete_external_swap_routing_to_ui(*, push_undo: bool = True) -> None:
         if not _alignment_dialog_widgets_live():
             return
         def _call_if_alignment_widgets_live(callback: Callable[[], None]) -> None:
+            if not callable(callback):
+                return
             if not _alignment_dialog_widgets_live():
                 return
             try:
@@ -1045,14 +1055,24 @@ def create_alignment_complete_swap_callbacks(context: dict[str, object]) -> Simp
                 raise
 
         mappings = _complete_external_swap_mappings()
-        live_frame_available = _alignment_d3d11_live_frame_available()
-        _set_alignment_d3d11_progress(
-            8,
-            _material_authority_complete_swap_routing_progress_message_helper(),
-            stage="complete_swap_routing",
-            active=not live_frame_available,
+        live_frame_available = (
+            bool(_alignment_d3d11_live_frame_available())
+            if callable(_alignment_d3d11_live_frame_available)
+            else False
         )
-        if push_undo:
+        progress_message = (
+            _material_authority_complete_swap_routing_progress_message_helper()
+            if callable(_material_authority_complete_swap_routing_progress_message_helper)
+            else "Applying Material Authority routing..."
+        )
+        if callable(_set_alignment_d3d11_progress):
+            _set_alignment_d3d11_progress(
+                8,
+                progress_message,
+                stage="complete_swap_routing",
+                active=not live_frame_available,
+            )
+        if push_undo and callable(_push_geometry_undo_snapshot):
             _push_geometry_undo_snapshot("Apply complete external swap routing")
         for mapping in mappings:
             edit = mapping_edits_by_target.get(int(mapping.target_submesh_index))
@@ -1061,7 +1081,7 @@ def create_alignment_complete_swap_callbacks(context: dict[str, object]) -> Simp
             text = ", ".join(str(index) for index in tuple(mapping.source_submesh_indices or ()))
             edit.setText(text)
             edit.setProperty("committed_mapping_text", text)
-        mapped_sources = _mapped_source_indices(mappings)
+        mapped_sources = _mapped_source_indices_value(mappings)
         independent_output_source_indices.difference_update(mapped_sources)
         texture_override_assignments.clear()
         texture_overrides_dirty["dirty"] = True
@@ -1075,10 +1095,16 @@ def create_alignment_complete_swap_callbacks(context: dict[str, object]) -> Simp
             _call_if_alignment_widgets_live(_refresh_texture_override_tree)
         except NameError:
             pass
-        _queue_source_material_plan_refresh(
-            force_plan=True,
-            reason=_material_authority_complete_swap_routing_reason_helper(),
-        )
+        if callable(_queue_source_material_plan_refresh):
+            routing_reason = (
+                _material_authority_complete_swap_routing_reason_helper()
+                if callable(_material_authority_complete_swap_routing_reason_helper)
+                else "complete_swap_routing"
+            )
+            _queue_source_material_plan_refresh(
+                force_plan=True,
+                reason=routing_reason,
+            )
         _call_if_alignment_widgets_live(_refresh_output_impact_review)
         _call_if_alignment_widgets_live(_queue_texture_preview_refresh)
 

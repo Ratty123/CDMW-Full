@@ -203,6 +203,8 @@ def _compute_anchor_alignment(
             source_axis = (-source_axis[0], -source_axis[1], -source_axis[2])
         if transform.flip_target_axis:
             target_axis = (-target_axis[0], -target_axis[1], -target_axis[2])
+        if alignment_mode == "grid_flat":
+            target_axis = _grid_flat_target_axis(original_mesh, target_axis)
         source_length = _axis_length(replacement_mesh, source_axis)
         target_length = _axis_length(original_mesh, target_axis)
         scale = (
@@ -419,6 +421,20 @@ def _grid_flat_normal_for_axis(primary_axis: tuple[float, float, float]) -> tupl
     if abs(_dot(primary, grid_normal)) < 0.85:
         return grid_normal
     return (0.0, 0.0, 1.0)
+
+
+def _grid_flat_target_axis(
+    original_mesh: ParsedMesh,
+    target_axis: tuple[float, float, float],
+) -> tuple[float, float, float]:
+    normalized = _normalize(target_axis)
+    if abs(_dot(normalized, (0.0, 1.0, 0.0))) < 0.85:
+        return normalized
+    vertices = _renderable_mesh_vertices(original_mesh)
+    if not vertices:
+        return (1.0, 0.0, 0.0)
+    dims = _dims(*_bbox(vertices))
+    return (1.0, 0.0, 0.0) if dims[0] >= dims[2] else (0.0, 0.0, 1.0)
 
 
 def _secondary_axis_vector(mesh: ParsedMesh, primary_axis: tuple[float, float, float]) -> tuple[float, float, float]:

@@ -189,6 +189,9 @@ ARCHIVE_STATIC_REPLACEMENT_ORIGINAL_PREVIEW_MODELS = (
 ARCHIVE_STATIC_REPLACEMENT_PREVIEW_TEXTURES = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_preview_textures.py"
 )
+ARCHIVE_STATIC_REPLACEMENT_PREVIEW_MATERIAL_AUTHORITY = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_preview_material_authority.py"
+)
 ARCHIVE_STATIC_REPLACEMENT_PREVIEW_STATUS_STATE = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_preview_status_state.py"
 )
@@ -1323,12 +1326,13 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("reference_overlay.no_depth = true;", overlay_block)
         self.assertIn("overlay_depth_state_", native_source)
         self.assertIn("batch.editor_role = lower_copy(json_string_field(editor_identity, \"role\"))", native_source)
-        self.assertIn('role == "original_reference" ? 0.82f : 0.38f', native_source)
+        self.assertIn('role == "original_reference" ? 0.82f : 0.74f', native_source)
+        self.assertIn("std::clamp(batch.highlight_strength, 0.0f, 0.74f)", native_source)
         self.assertIn("batch.highlight_strength > 0.0f ? 1.0f : 0.36f", native_source)
         self.assertIn("batch.highlight_strength > 0.0f ? 0.82f : 0.58f", native_source)
         self.assertIn("batch.highlight_strength > 0.0f ? 0.04f : 1.0f", native_source)
-        self.assertIn("const DirectX::XMFLOAT4 selection_wire_tint(1.0f, 0.05f, 0.95f, 0.96f);", native_source)
-        self.assertIn("draw_preview_batch(batch, batch_world * view_projection, batch_world, selection_wire_tint, true);", native_source)
+        self.assertIn("const bool mesh_edit_flat = mesh_edit_active && !mesh_edit_preserve_materials_for_batch(batch);", native_source)
+        self.assertIn("draw_preview_batch(batch, batch_world * view_projection, batch_world, tint, mesh_edit_flat);", native_source)
         self.assertIn("mesh.preview_role = role", source)
         self.assertIn('"original_reference"', d3d11_mapping_source)
         self.assertIn('"replacement_preview"', d3d11_mapping_source)
@@ -1729,6 +1733,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         prompt_shell_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SHELL.read_text(encoding="utf-8")
         prompt_setup_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP.read_text(encoding="utf-8")
         prompt_state_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_STATE_CALLBACKS.read_text(encoding="utf-8")
+        mesh_edit_callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_MESH_EDIT_CALLBACKS.read_text(encoding="utf-8")
         remaining_callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS.read_text(encoding="utf-8")
         routing_callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_ROUTING_CALLBACKS.read_text(encoding="utf-8")
         selection_mapping_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_SELECTION_MAPPING.read_text(encoding="utf-8")
@@ -1755,7 +1760,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("NameError = _context_builtin(context, 'NameError')", ui_sections_source)
         self.assertIn("if callable(_refresh_mesh_edit_controls):", callback_factory_source)
         self.assertIn("texture_files_for_mapping = context.get('texture_files_for_mapping') or ()", callback_factory_source)
-        self.assertIn("texture_sets = context.get('texture_sets') or {}", callback_factory_source)
+        self.assertIn("_get_texture_sets = context.get('_get_texture_sets')", callback_factory_source)
+        self.assertIn("def _current_texture_sets_for_material_authority() -> Mapping[str, object]:", callback_factory_source)
+        self.assertIn("getter = context.get('_get_texture_sets')", callback_factory_source)
         self.assertIn("_mesh_editor_diagnostics_append_safe_value_helper(lines, \"mesh_edit_tab_active\", _mesh_edit_tab_active)", callback_factory_source)
         self.assertIn("def _alignment_transform_generation() -> int:", remaining_callback_source)
         self.assertIn("mesh_edit_tab_active=_mesh_edit_tab_active()", remaining_callback_source)
@@ -1787,7 +1794,18 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("if callable(_binding_matches_target):", routing_callback_source)
         self.assertIn("def _binding_matches_target(binding: object, target_name: str) -> bool:", ui_sections_source)
-        self.assertIn("def _d3d11_editor_ids_for_source_indices(indices: object, **kwargs: object) -> tuple[object, ...]:", callback_factory_source)
+        self.assertIn("def _d3d11_editor_ids_for_source_indices(indices: object, **kwargs: object) -> tuple[int, ...]:", callback_factory_source)
+        self.assertIn('prompt_shell_context.get("_alignment_d3d11_editor_ids_for_source_indices")', callback_factory_source)
+        self.assertIn("_alignment_d3d11_editor_ids_for_source_indices=_alignment_d3d11_editor_ids_for_source_indices", callback_factory_source)
+        self.assertIn("_alignment_d3d11_source_indices_for_editor_id=_alignment_d3d11_source_indices_for_editor_id", callback_factory_source)
+        self.assertIn("_alignment_mesh_edit_tab_active=_alignment_mesh_edit_tab_active", callback_factory_source)
+        self.assertIn("_alignment_d3d11_editor_ids_for_source_indices", prompt_state_source)
+        self.assertIn('prompt_shell_context["_alignment_d3d11_source_indices_for_editor_id"] = _alignment_d3d11_source_indices_for_editor_id', prompt_state_source)
+        self.assertIn('prompt_shell_context["_alignment_mesh_edit_tab_active"] = _alignment_mesh_edit_tab_active', prompt_state_source)
+        self.assertIn("prompt_shell_context = context.get('prompt_shell_context')", mesh_edit_callback_source)
+        self.assertIn("prompt_shell_context.get('_alignment_mesh_edit_tab_active')", mesh_edit_callback_source)
+        self.assertIn("prompt_shell_context.get('_alignment_d3d11_source_indices_for_editor_id')", mesh_edit_callback_source)
+        self.assertIn("source_indices_for_editor_id=_d3d11_source_indices_for_editor_id", mesh_edit_callback_source)
         self.assertIn("if callable(_replay_alignment_d3d11_fast_transform):", callback_factory_source)
         self.assertIn(
             "alignment_mesh_geometry_preview_section = create_alignment_mesh_geometry_preview_section({\n            **context,",
@@ -1797,7 +1815,19 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             prompt_setup_source.index("texture_files_for_mapping: List[Path] = []"),
             prompt_setup_source.index("alignment_texture_material_section = create_alignment_texture_material_section"),
         )
+        self.assertIn("_set_texture_sets = context['_set_texture_sets']", prompt_setup_source)
+        self.assertIn("_set_texture_sets(\n            group_replacement_texture_sets(", prompt_setup_source)
+        self.assertLess(
+            prompt_setup_source.index("_set_texture_sets(\n            group_replacement_texture_sets("),
+            prompt_setup_source.index("alignment_texture_material_section = create_alignment_texture_material_section"),
+        )
         self.assertIn("'rebuild_sidecar_checkbox': (lambda: context.get('rebuild_sidecar_checkbox'))", prompt_setup_source)
+        source_role_context_start = ui_sections_source.index("alignment_source_role_tree_population_callbacks = create_alignment_source_role_tree_callbacks")
+        source_role_context_end = ui_sections_source.index("_show_replacement_sources_context_menu = alignment_source_role_tree_population_callbacks", source_role_context_start)
+        source_role_context = ui_sections_source[source_role_context_start:source_role_context_end]
+        self.assertIn('"_delete_selected_source_parts": lambda *args, **kwargs: _delete_selected_source_parts(*args, **kwargs)', source_role_context)
+        self.assertIn('"_load_selected_part_controls": lambda *args, **kwargs: _load_selected_part_controls(*args, **kwargs)', source_role_context)
+        self.assertIn('"_selected_source_indices_from_tree": lambda *args, **kwargs: _selected_source_indices_from_tree(*args, **kwargs)', source_role_context)
         self.assertIn(
             "alignment_texture_material_section = create_alignment_texture_material_section({\n            **context,",
             prompt_setup_source,
@@ -1968,8 +1998,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("clear_textures=True", material_preview_source)
         self.assertIn("alignment_preview_view_sync = _alignment_preview_view_sync_initial_state_helper()", source)
         self.assertIn("def _sync_alignment_preview_view_state", source)
-        self.assertIn("original_dialog_preview.view_state_changed.connect", source)
-        self.assertIn("static_dialog_preview.view_state_changed.connect", source)
+        self.assertNotIn("original_dialog_preview.view_state_changed.connect", source)
+        self.assertNotIn("static_dialog_preview.view_state_changed.connect", source)
         self.assertIn("mesh_editor_d3d11_view_state_reset_generation", source)
         self.assertIn("_mesh_editor_session_request_key", source)
         self.assertIn("_alignment_d3d11_saved_view_state", source)
@@ -2769,12 +2799,20 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         source_role_start = source.index("def _apply_source_role_selection")
         source_role_end = source.index("def _show_replacement_sources_context_menu", source_role_start)
         source_role_block = source[source_role_start:source_role_end]
-        self.assertIn("_queue_material_edit_refresh(", source_role_block)
-        self.assertIn("_refresh_source_assignment_columns(lightweight=True)", source_role_block)
+        self.assertIn('queue_material_edit = _late_callback("_queue_material_edit_refresh", _queue_material_edit_refresh)', source_role_block)
+        self.assertIn("queue_material_edit(", source_role_block)
+        self.assertIn(
+            'refresh_assignment_columns = _late_callback("_refresh_source_assignment_columns", _refresh_source_assignment_columns)',
+            source_role_block,
+        )
+        self.assertIn("refresh_assignment_columns(lightweight=True)", source_role_block)
         self.assertIn("reason=action_state.refresh_reason", source_role_block)
-        self.assertIn("_source_part_role_action_state_helper(", source_role_block)
+        self.assertIn("_source_part_role_action_state_helper,", source_role_block)
+        self.assertIn("role_action_state = _late_callback(", source_role_block)
+        self.assertIn("if not callable(role_action_state):", source_role_block)
         self.assertIn("source_index=source_index", source_role_block)
-        self.assertIn("_set_source_role_override_value(action_state.source_index, action_state.normalized_role)", source_role_block)
+        self.assertIn('set_role_override = _late_callback("_set_source_role_override_value", _set_source_role_override_value)', source_role_block)
+        self.assertIn("set_role_override(action_state.source_index, action_state.normalized_role)", source_role_block)
         self.assertNotIn("source_index = int(source_index)", source_role_block)
         self.assertNotIn("_queue_static_preview_rebuild()", source_role_block)
         selected_role_start = source.index("def _set_selected_source_role")
@@ -3138,14 +3176,18 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         fast_flip_end = source.index("_alignment_geometry_tab_active = lambda", fast_flip_start)
         fast_flip_block = source[fast_flip_start:fast_flip_end]
         self.assertIn("def _reapply_global_flip_v_fast_preview(expected_flip_v: bool) -> None:", fast_flip_block)
+        self.assertIn("def _reapply_current_global_flip_v_fast_preview() -> None:", fast_flip_block)
         self.assertIn("alignment_d3d11_preview_host.set_texture_flip_vertical(bool(expected_flip_v)", fast_flip_block)
         self.assertIn("_texture_uv_fast_preview_record_global_flip_v_helper(", fast_flip_block)
         self.assertIn('_set_alignment_d3d11_progress(100, "Preview ready.", active=False)', fast_flip_block)
         self.assertIn("QTimer.singleShot(160", fast_flip_block)
         self.assertIn("texture_overrides_dirty[\"dirty\"] = True", fast_flip_block)
+        self.assertIn("_reapply_current_global_flip_v_fast_preview()", source)
         host_source = _native_d3d11_preview_host_source()
         self.assertIn('"command": "set_texture_flip_vertical"', host_source)
         self.assertIn('"enabled": bool(enabled)', host_source)
+        self.assertIn("def set_material_overrides(", host_source)
+        self.assertIn('"command": "set_material_overrides"', host_source)
 
     def test_mesh_editor_builder_uses_embedded_host_and_live_preview_state(self) -> None:
         prompt_shell = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SHELL.read_text(encoding="utf-8")
@@ -4154,11 +4196,16 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             source.index("def _apply_complete_external_swap_routing_to_ui")
             : source.index("def _select_complete_swap_material_profile_silently", source.index("def _apply_complete_external_swap_routing_to_ui"))
         ]
+        self.assertIn("def _mapped_source_indices_value(mappings: object) -> set[int]:", source)
+        self.assertIn("mapped_sources = _mapped_source_indices_value(mappings)", complete_apply_block)
         self.assertIn('stage="complete_swap_routing"', complete_apply_block)
         self.assertIn("_material_authority_complete_swap_routing_progress_message_helper()", complete_apply_block)
+        self.assertIn("if callable(_set_alignment_d3d11_progress):", complete_apply_block)
+        self.assertIn("if push_undo and callable(_push_geometry_undo_snapshot):", complete_apply_block)
         self.assertIn("_queue_source_material_plan_refresh(", complete_apply_block)
+        self.assertIn("if callable(_queue_source_material_plan_refresh):", complete_apply_block)
         self.assertIn("force_plan=True", complete_apply_block)
-        self.assertIn("reason=_material_authority_complete_swap_routing_reason_helper(),", complete_apply_block)
+        self.assertIn("reason=routing_reason", complete_apply_block)
         self.assertIn(
             "material_authority_complete_swap_routing_reason",
             authority_controls_source,
@@ -4219,6 +4266,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         source = _main_window_source()
         manual_profile_source = ARCHIVE_STATIC_REPLACEMENT_MANUAL_MATERIAL_PROFILE.read_text(encoding="utf-8")
         authority_controls_source = ARCHIVE_STATIC_REPLACEMENT_MATERIAL_AUTHORITY_CONTROLS.read_text(encoding="utf-8")
+        preview_material_authority_source = ARCHIVE_STATIC_REPLACEMENT_PREVIEW_MATERIAL_AUTHORITY.read_text(encoding="utf-8")
         material_source = _material_replacer_source()
         self.assertIn('label="Material Authority Manual"', material_source)
         self.assertIn("serialize_complete_swap_manual_material_profile", source)
@@ -4308,9 +4356,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('"roughness_min"', source)
         self.assertIn('"metallic_scale"', source)
         self.assertIn("preview_material_authority_parameters = _material_authority_preview_parameters_helper(", source)
-        self.assertIn('("scratch_roughness", "_scratchRoughness")', source)
-        self.assertIn('("scratch_metallic", "_scratchMetallic")', source)
-        self.assertIn('("shine_scalar", "_specularAmount")', source)
+        self.assertIn('("scratch_roughness", "_scratchRoughness")', preview_material_authority_source)
+        self.assertIn('("scratch_metallic", "_scratchMetallic")', preview_material_authority_source)
+        self.assertIn('("shine_scalar", "_specularAmount")', preview_material_authority_source)
         self.assertIn("material_authority_preview_parameters=preview_material_authority_parameters", source)
         self.assertIn("material_parameters=tuple(material_authority_preview_parameters)", source)
 
@@ -4530,6 +4578,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('tuple(getattr(item, "material_parameters", ()) or ())', cache_signature_block)
         self.assertIn('str(getattr(parameter, "numeric_value", "") or "")', cache_signature_block)
         self.assertIn('str(getattr(mesh, "preview_material_texture_path", "") or "")', cache_signature_block)
+        self.assertIn('raw_native_overrides = getattr(mesh, "preview_native_material_overrides", {}) or {}', cache_signature_block)
+        self.assertIn("native_overrides,", cache_signature_block)
 
     def test_alignment_live_preview_uses_virtual_sidecar_texture_contract(self) -> None:
         source = _main_window_source()
@@ -4666,6 +4716,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_direct_source_preview_indices_helper(", refresh_prelude)
         refresh_body = source[refresh_start: source.index("preview_model = _clone_preview_model(source_model)", refresh_start)]
         self.assertIn('reason="source_geometry_not_ready"', refresh_body)
+        self.assertIn("def _empty_direct_source_preview_model() -> ModelPreviewData:", refresh_body)
+        self.assertIn("source_model = _empty_direct_source_preview_model()", refresh_body)
+        self.assertNotIn("_build_direct_source_preview_model(current_mappings, tuple(direct_source_preview_indices)) or state.replacement_preview_model", refresh_body)
         self.assertNotIn("else:\n            source_model = state.replacement_preview_model", refresh_body)
         preview_models_source = ARCHIVE_STATIC_REPLACEMENT_PREVIEW_MODELS.read_text(encoding="utf-8")
         self.assertIn("if force_direct_source_preview or mesh_edit_direct_source_preview:", preview_models_source)
@@ -4780,13 +4833,19 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         menu_start = source.index("def _show_replacement_sources_context_menu(")
         menu_end = source.index("def _populate_source_tree_chunk", menu_start)
         menu_helper = source[menu_start:menu_end]
-        self.assertIn("selected_source_indices = _selected_source_indices_from_tree(include_fallback=False)", menu_helper)
-        self.assertIn("preserved_multi_indices = _source_tree_context_selection_multi_indices_helper(", menu_helper)
-        self.assertIn("_source_tree_context_menu_selection_state_helper(", menu_helper)
+        self.assertIn("def _late_callback(name: str, captured: object) -> object:", source)
+        self.assertIn('set_role_override = _late_callback("_set_source_role_override_value", _set_source_role_override_value)', source)
+        self.assertIn('push_undo = _late_callback("_push_geometry_undo_snapshot", _push_geometry_undo_snapshot)', source)
+        self.assertIn('queue_material_edit = _late_callback("_queue_material_edit_refresh", _queue_material_edit_refresh)', source)
+        self.assertIn('selected_indices_from_tree = _late_callback(', menu_helper)
+        self.assertIn("selected_source_indices = selected_indices_from_tree(include_fallback=False)", menu_helper)
+        self.assertIn("preserved_multi_indices = preserved_indices_for_menu(", menu_helper)
+        self.assertIn("context_selection = menu_selection_state(", menu_helper)
         self.assertIn("selected_source_indices = list(context_selection.selected_source_indices)", menu_helper)
         self.assertIn("def source_tree_context_menu_selection_state", source_tree_state_source)
-        self.assertIn("delete_source_indices = selected_source_indices or _selected_source_indices_from_tree(include_fallback=True)", menu_helper)
-        self.assertIn("_delete_selected_source_parts(delete_source_indices)", menu_helper)
+        self.assertIn("delete_source_indices = selected_source_indices or selected_indices_from_tree(include_fallback=True)", menu_helper)
+        self.assertIn('delete_parts = _late_callback("_delete_selected_source_parts", _delete_selected_source_parts)', menu_helper)
+        self.assertIn("delete_parts(delete_source_indices)", menu_helper)
         self.assertIn("_source_tree_role_menu_specs_helper(SOURCE_TREE_ROLE_OPTIONS)", source)
         self.assertIn("def source_tree_role_menu_specs", source_tree_state_source)
         self.assertIn("_source_tree_population_chunk_policy_helper()", source)
@@ -5029,9 +5088,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
     def test_alignment_direct_source_preview_applies_imported_texture_sets(self) -> None:
         source = _main_window_source()
         preview_textures_source = ARCHIVE_STATIC_REPLACEMENT_PREVIEW_TEXTURES.read_text(encoding="utf-8")
-        self.assertIn("if state.texture_sets and (not use_original_material_preview) and (not mesh_edit_direct_source_preview):", source)
+        self.assertIn("material_authority_preview_active = (", source)
+        self.assertIn("if (state.texture_sets or material_authority_preview_active) and (not use_original_material_preview) and (not mesh_edit_direct_source_preview):", source)
         self.assertIn("if mesh_edit_direct_source_preview", source)
         self.assertIn("_apply_source_material_preview_for_model_helper(", source)
+        self.assertIn("if not texture_sets:", preview_textures_source)
+        self.assertIn("apply_material_authority_preview_native_hints(", preview_textures_source)
         self.assertIn("if use_direct_source_preview and direct_source_preview_index_map:", preview_textures_source)
         self.assertIn("for source_index, mesh_index in direct_source_preview_index_map.items():", preview_textures_source)
         self.assertIn("if not mapped_preview and not source_overlay_preview_index_map:", preview_textures_source)
@@ -5054,7 +5116,14 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('"source_selection_overlay_to_d3d11_ids"', d3d11_mapping_source)
         self.assertIn('state["source_selection_overlay_to_d3d11_ids"]', d3d11_mapping_source)
         self.assertIn("selection_overlay=True", source)
-        self.assertIn("preview_model = _append_selected_source_highlight_overlay(preview_model, current_mappings)", source)
+        self.assertIn("if _alignment_d3d11_preview_active():", source)
+        self.assertIn("source_selection_overlay_preview_index_map.clear()", source)
+        self.assertIn("source_selection_overlay_editor_id_map.clear()", source)
+        self.assertRegex(
+            source,
+            r"else:\n\s+preview_model = _append_selected_source_highlight_overlay"
+            r"\(preview_model, current_mappings\)",
+        )
         self.assertIn("_mapped_source_indices(current_mappings) | set(requested_source_indices)", source)
         self.assertIn("_alignment_d3d11_record_source_editor_id_maps_helper(", source)
         self.assertIn("for raw_key, raw_values in mapping.items():", d3d11_mapping_source)
@@ -5084,6 +5153,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)", startup)
         self.assertIn("if isinstance(scene_import_result, SceneImportResult):", startup)
         self.assertIn("attach_scene_preview_textures(replacement_preview_model, scene_import_result, obj_path)", startup)
+        self.assertIn('"flip_v": True', startup)
+        ui_sections = ARCHIVE_STATIC_REPLACEMENT_DIALOG_UI_SECTIONS.read_text(encoding="utf-8")
+        self.assertIn('setup_texture_flip_v_checkbox.setChecked(bool(texture_uv_global_transform_state.get("flip_v")))', ui_sections)
 
     def test_alignment_imported_textures_clear_stale_original_d3d11_bindings(self) -> None:
         preview_textures_source = ARCHIVE_STATIC_REPLACEMENT_PREVIEW_TEXTURES.read_text(encoding="utf-8")

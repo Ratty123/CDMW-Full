@@ -88,8 +88,8 @@ class ArchiveReferencePreviewMixin:
             action_row.addWidget(edit_hkx_button)
         pending_hkx_editor_entry: Dict[str, ArchiveEntry] = {}
         native_reference_package_path = str(getattr(result, "native_preview_package_path", "") or "").strip()
-        preview_dialog_settings_button = QPushButton("3D Preview Settings...")
-        preview_dialog_settings_button.setToolTip("Open the global 3D preview settings used by every model preview window.")
+        preview_dialog_settings_button = QPushButton("Preview Settings...")
+        preview_dialog_settings_button.setToolTip("Open the global preview settings used by every model preview window.")
         preview_dialog_settings_button.setVisible(
             result.preferred_view == "model"
             and (result.preview_model is not None or bool(native_reference_package_path))

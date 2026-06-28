@@ -147,6 +147,20 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertLess(result["faces"], result["source_faces"])
             self.assertIsNotNone(result["quality_reduction"])
 
+    def test_native_high_quality_preview_preserves_moderate_mesh_detail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scene_path = _write_triangle_gltf(Path(tmp), triangle_count=1200)
+
+            result = prepare_model_library_inline_preview(
+                scene_path,
+                model_name="Dense",
+                high_quality_textures=True,
+            )
+
+            self.assertEqual(result["source_faces"], 1200)
+            self.assertEqual(result["faces"], result["source_faces"])
+            self.assertIsNone(result["quality_reduction"])
+
     def test_qprocess_native_host_loads_model_library_package(self) -> None:
         host = find_native_d3d11_host()
         if host is None:
