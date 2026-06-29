@@ -158,6 +158,7 @@ _STRUCTURED_BINARY_ASSET_REFERENCE_EXTENSIONS: frozenset[str] = frozenset(
         ".pae",
         ".paem",
         ".paseq",
+        ".paseqc",
         ".paschedule",
         ".paschedulepath",
         ".pastage",
@@ -344,7 +345,7 @@ def archive_entry_role_label(entry: Optional[ArchiveEntry]) -> str:
         return "HKX"
     if ext == ".paa_metabin":
         return "Animation Metadata"
-    if ext in {".paa", ".motionblending", ".pae", ".paem", ".papr", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    if ext in {".paa", ".motionblending", ".pae", ".paem", ".papr", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
         return "Animation"
     if ext == ".pab":
         return "Skeleton / Rig"

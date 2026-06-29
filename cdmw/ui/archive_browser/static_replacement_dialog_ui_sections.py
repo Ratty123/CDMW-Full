@@ -48,6 +48,7 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     QSizePolicy = context.get('QSizePolicy')
     QSlider = context.get('QSlider')
     QSpinBox = context.get('QSpinBox')
+    QVBoxLayout = context.get('QVBoxLayout')
     QWidget = context.get('QWidget')
     Qt = context.get('Qt')
     TEXTURE_OUTPUT_SIZE_OPTIONS = context.get('TEXTURE_OUTPUT_SIZE_OPTIONS')
@@ -79,6 +80,10 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     _manual_material_profile_tooltips_helper = context.get('_manual_material_profile_tooltips_helper')
     _manual_profile_dirty_initial_state_helper = context.get('_manual_profile_dirty_initial_state_helper')
     _manual_profile_ready_initial_state_helper = context.get('_manual_profile_ready_initial_state_helper')
+    _modify_original_advanced_texture_tuning_settings_key_helper = context.get('_modify_original_advanced_texture_tuning_settings_key_helper')
+    _modify_original_manual_texture_tuning_presets_key_helper = context.get('_modify_original_manual_texture_tuning_presets_key_helper')
+    _modify_original_manual_texture_tuning_settings_key_helper = context.get('_modify_original_manual_texture_tuning_settings_key_helper')
+    _modify_original_manual_texture_tuning_values_helper = context.get('_modify_original_manual_texture_tuning_values_helper')
     _material_authority_adjustment_labels_helper = context.get('_material_authority_adjustment_labels_helper')
     _material_authority_adjustment_tooltips_helper = context.get('_material_authority_adjustment_tooltips_helper')
     _material_authority_clamped_int_helper = context.get('_material_authority_clamped_int_helper')
@@ -125,25 +130,36 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     custom_icon_control_text = context.get('custom_icon_control_text')
     entry = context.get('entry')
     generate_alignment_icon_button = context.get('generate_alignment_icon_button')
+    modify_original_clone_mode = bool(context.get('modify_original_clone_mode'))
     original_mesh_for_mapping = context.get('original_mesh_for_mapping')
     overlay_dialog_preview = context.get('overlay_dialog_preview')
+    placement_note = context.get('placement_note')
     preferred_complete_source_swap = context.get('preferred_complete_source_swap')
     preview_controls_ready = context.get('preview_controls_ready')
     read_complete_swap_calibrated_material_profile = context.get('read_complete_swap_calibrated_material_profile')
     replacement_only_preview = context.get('replacement_only_preview')
     self = context.get('self')
+    advanced_setup_section = context.get('advanced_setup_section')
     setup_layout = context.get('setup_layout')
+    setup_advanced_layout = context.get('setup_advanced_layout')
     static_dialog_preview = context.get('static_dialog_preview')
     texture_uv_global_transform_state = context.get('texture_uv_global_transform_state') or {}
     full_import_model_replacement = bool(context.get("full_import_model_replacement"))
 
     alignment_setup_options_control_text = _alignment_setup_options_control_text_helper()
     options_group = QGroupBox(alignment_setup_options_control_text["group_title"])
-    form = QGridLayout(options_group)
-    form.setContentsMargins(5, 3, 5, 3)
+    options_layout = QVBoxLayout(options_group)
+    options_layout.setContentsMargins(5, 3, 5, 3)
+    options_layout.setSpacing(3)
+    form = QGridLayout()
+    form.setContentsMargins(0, 0, 0, 0)
     form.setHorizontalSpacing(6)
     form.setVerticalSpacing(2)
-    setup_layout.addWidget(options_group)
+    options_layout.addLayout(form)
+    if setup_advanced_layout is not None:
+        setup_advanced_layout.addWidget(options_group)
+    else:
+        setup_layout.addWidget(options_group)
 
     alignment_mode_combo = QComboBox()
     _populate_combo_options_helper(alignment_mode_combo, ALIGNMENT_MODE_OPTIONS)
@@ -415,8 +431,21 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     unsafe_material_preflight_checkbox.setChecked(False)
     unsafe_material_preflight_checkbox.setToolTip(material_authority_control_tooltips["unsafe_preflight"])
     unsafe_material_preflight_checkbox.setEnabled(False)
-    manual_profile_settings_key = "settings/complete_swap_manual_material_profile"
-    manual_profile_presets_key = "settings/complete_swap_manual_material_profile_presets"
+    import_manual_profile_settings_key = "settings/complete_swap_manual_material_profile"
+    import_manual_profile_presets_key = "settings/complete_swap_manual_material_profile_presets"
+    modify_original_manual_profile_settings_key = _modify_original_manual_texture_tuning_settings_key_helper()
+    modify_original_manual_profile_presets_key = _modify_original_manual_texture_tuning_presets_key_helper()
+    modify_original_texture_tuning_enabled_key = _modify_original_advanced_texture_tuning_settings_key_helper()
+    manual_profile_settings_key = (
+        modify_original_manual_profile_settings_key
+        if modify_original_clone_mode
+        else import_manual_profile_settings_key
+    )
+    manual_profile_presets_key = (
+        modify_original_manual_profile_presets_key
+        if modify_original_clone_mode
+        else import_manual_profile_presets_key
+    )
     manual_profile_defaults = next(
         (
             profile
@@ -425,11 +454,25 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
         ),
         None,
     )
+    modify_original_profile_defaults = next(
+        (
+            profile
+            for profile in complete_swap_material_runtime_profiles()
+            if str(getattr(profile, "name", "") or "") == "material_authority_detail_mask"
+        ),
+        None,
+    )
+    if modify_original_clone_mode:
+        manual_profile_defaults = modify_original_profile_defaults or manual_profile_defaults
     manual_profile_default_values = _manual_material_profile_default_values_helper(manual_profile_defaults)
-    stored_manual_profile_values = _stored_manual_material_profile_values_helper(
-        stored_complete_swap_material_profile,
-        stored_complete_swap_material_profile_obj,
-        manual_profile_default_values,
+    stored_manual_profile_values = (
+        {}
+        if modify_original_clone_mode
+        else _stored_manual_material_profile_values_helper(
+            stored_complete_swap_material_profile,
+            stored_complete_swap_material_profile_obj,
+            manual_profile_default_values,
+        )
     )
 
     _load_manual_profile_values = lambda: _load_manual_material_profile_values_helper(
@@ -439,6 +482,11 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
         )
 
     manual_profile_saved_values = _load_manual_profile_values()
+    if modify_original_clone_mode:
+        manual_profile_saved_values = _modify_original_manual_texture_tuning_values_helper(
+            manual_profile_saved_values,
+            defaults=manual_profile_default_values,
+        )
 
     _coerce_manual_profile_values = lambda raw_values: _coerce_manual_material_profile_values_helper(
         raw_values,
@@ -475,39 +523,40 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     _manual_check = alignment_manual_profile_control_callbacks._manual_check
     _manual_rgb = alignment_manual_profile_control_callbacks._manual_rgb
 
-    _manual_combo(
-        0,
-        "base_binding_mode",
-        "Color slot",
-        (("Overlay color texture", "overlay_texture"), ("Color-blend slot", "overlay_from_colorblend_slot"), ("Disabled", "disabled")),
-        "Where source base color is written. Overlay is safest. Color-blend is experimental. Disabled removes source base-color binding.",
-    )
-    _manual_combo(
-        1,
-        "mask_binding_mode",
-        "PBR/mask slot",
-        (
-            ("Detail mask material", "detail_mask_material"),
-            ("Legacy color-blend mask", "color_blending_mask"),
-            ("Scratch scalars only", "scratch_scalars"),
-            ("Disabled", "disabled"),
-        ),
-        "Where generated AO/roughness/metal mask is written. Detail mask material is the proven non-gloss route. Legacy color-blend can restore the old glossy response.",
-    )
-    _manual_combo(
-        2,
-        "support_policy",
-        "Support maps",
-        (("Source only", "source_only"), ("Source plus neutral gaps", "generated_or_neutral"), ("Keep original support", "keep_original_support")),
-        "Controls normal/height/detail support routing. Source only avoids stock contamination; source plus neutral gaps fills missing support; keep original may restore target detail but can reintroduce old grime/dark response.",
-    )
-    _manual_combo(
-        3,
-        "emissive_mode",
-        "Emissive",
-        (("Disabled", "disabled"), ("Intensity texture", "intensity")),
-        "Disabled removes glow. Intensity binds source emissive textures or emissive material colors for any glowing part.",
-    )
+    if not modify_original_clone_mode:
+        _manual_combo(
+            0,
+            "base_binding_mode",
+            "Color slot",
+            (("Overlay color texture", "overlay_texture"), ("Color-blend slot", "overlay_from_colorblend_slot"), ("Disabled", "disabled")),
+            "Where source base color is written. Overlay is safest. Color-blend is experimental. Disabled removes source base-color binding.",
+        )
+        _manual_combo(
+            1,
+            "mask_binding_mode",
+            "PBR/mask slot",
+            (
+                ("Detail mask material", "detail_mask_material"),
+                ("Legacy color-blend mask", "color_blending_mask"),
+                ("Scratch scalars only", "scratch_scalars"),
+                ("Disabled", "disabled"),
+            ),
+            "Where generated AO/roughness/metal mask is written. Detail mask material is the proven non-gloss route. Legacy color-blend can restore the old glossy response.",
+        )
+        _manual_combo(
+            2,
+            "support_policy",
+            "Support maps",
+            (("Source only", "source_only"), ("Source plus neutral gaps", "generated_or_neutral"), ("Keep original support", "keep_original_support")),
+            "Controls normal/height/detail support routing. Source only avoids stock contamination; source plus neutral gaps fills missing support; keep original may restore target detail but can reintroduce old grime/dark response.",
+        )
+        _manual_combo(
+            3,
+            "emissive_mode",
+            "Emissive",
+            (("Disabled", "disabled"), ("Intensity texture", "intensity")),
+            "Disabled removes glow. Intensity binds source emissive textures or emissive material colors for any glowing part.",
+        )
     _manual_int(6, "base_color_lift", "Dark lift", 0, 128, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Right brightens black/dark pixels so detail survives. Left keeps source darker.")
     _manual_float(7, "base_color_gamma", "Gamma lift", 0.25, 2.50, 0.05, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Left brightens midtones. Right darkens midtones.")
     _manual_float(8, "base_color_saturation", "Color saturation", 0.00, 2.00, 0.05, "Affects generated base DDS (*_base*.dds / _overlayColorTexture). Left makes colors more muted. Right makes colors stronger.")
@@ -540,7 +589,8 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     _manual_check(35, "factor_only_material_mask", "Generate factor-only mask", "Generates neutral roughness/metal mask for untextured/factor-only materials. No effect for fully textured materials.")
     _manual_check(36, "force_neutral_layer_support", "Fill missing support with neutral maps", "Source-only support routing: writes neutral normal/height/detail/mask when source support is missing. No effect when source support is complete or support mode is not Source only.")
     _manual_check(37, "preserve_target_layer_response", "Preserve target layer response", "Sidecar XML reset: keeps more old CD layer/detail/shader response. Useful for lost detail, but can restore grime/dark tint/gloss.")
-    _manual_check(38, "source_color_layer_authority", "Route source color to layer slots", "Sidecar XML texture routing: pushes source base color into compatible visible color/detail/grime slots if those slots exist. Can improve authority or overbind.")
+    if not modify_original_clone_mode:
+        _manual_check(38, "source_color_layer_authority", "Route source color to layer slots", "Sidecar XML texture routing: pushes source base color into compatible visible color/detail/grime slots if those slots exist. Can improve authority or overbind.")
     manual_profile_texture_impact = QLabel(_manual_material_profile_texture_impact_html_helper())
     manual_profile_texture_impact.setObjectName("HintLabel")
     manual_profile_texture_impact.setTextFormat(Qt.RichText)
@@ -548,6 +598,8 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     manual_profile_layout.addWidget(manual_profile_texture_impact, 40, 0, 1, 4)
     manual_profile_preset_group = QGroupBox(manual_profile_control_text["preset_group"])
     manual_profile_preset_group.setObjectName("MeshAlignmentManualMaterialProfilePresetGroup")
+    if modify_original_clone_mode:
+        manual_profile_preset_group.setVisible(False)
     manual_profile_preset_layout = QGridLayout(manual_profile_preset_group)
     manual_profile_preset_layout.setContentsMargins(6, 4, 6, 4)
     manual_profile_preset_layout.setHorizontalSpacing(6)
@@ -619,6 +671,20 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     manual_profile_layout.addWidget(manual_profile_preview_warning, 42, 0, 1, 4)
     manual_profile_group.setVisible(False)
     manual_profile_ready["ready"] = True
+    modify_original_texture_tuning_checkbox = QCheckBox("Advanced Texture Tuning")
+    modify_original_texture_tuning_checkbox.setObjectName("MeshAlignmentModifyOriginalAdvancedTextureTuningCheckbox")
+    modify_original_texture_tuning_checkbox.setToolTip(
+        "Enable tuning-only texture/material values for Modify Original output. "
+        "Import Mesh Material Authority settings are not used."
+    )
+    modify_original_texture_tuning_checkbox.setVisible(bool(modify_original_clone_mode))
+    modify_original_tuning_raw = self.settings.value(modify_original_texture_tuning_enabled_key, "false")
+    modify_original_texture_tuning_checkbox.setChecked(
+        str(modify_original_tuning_raw).strip().lower() in {"1", "true", "yes", "on"}
+    )
+
+    def _modify_original_texture_tuning_enabled() -> bool:
+        return bool(modify_original_clone_mode and modify_original_texture_tuning_checkbox.isChecked())
 
     manual_profile_runtime_callbacks = create_manual_material_profile_runtime_callbacks({**context, **globals(), **locals()})
     _current_manual_material_profile_values = manual_profile_runtime_callbacks._current_manual_material_profile_values
@@ -712,23 +778,39 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
         custom_icon_target_combo.addItem(icon_entry.path, icon_entry)
     form.addWidget(scale_to_length_checkbox, 1, 0, 1, 2)
     form.addWidget(flip_direction_checkbox, 2, 0, 1, 2)
-    form.addWidget(material_route_summary_label, 3, 0, 1, 2)
-    form.addWidget(rebuild_sidecar_checkbox, 4, 0, 1, 2)
-    form.addWidget(prune_unmapped_original_dds_checkbox, 5, 0, 1, 2)
-    form.addWidget(inject_base_color_checkbox, 6, 0, 1, 2)
-    form.addWidget(source_color_faithful_checkbox, 7, 0, 1, 2)
-    form.addWidget(external_material_reset_checkbox, 8, 0, 1, 2)
-    form.addWidget(complete_external_swap_checkbox, 9, 0, 1, 2)
+
+    material_authority_section = CollapsibleSection("Material Authority", expanded=False)
+    material_authority_widget = QWidget()
+    material_authority_form = QGridLayout(material_authority_widget)
+    material_authority_form.setContentsMargins(0, 0, 0, 0)
+    material_authority_form.setHorizontalSpacing(6)
+    material_authority_form.setVerticalSpacing(2)
+    material_authority_section.body_layout.addWidget(material_authority_widget)
+    options_layout.addWidget(material_authority_section)
+    material_authority_section.setVisible(not modify_original_clone_mode)
+    material_authority_form.addWidget(material_route_summary_label, 0, 0, 1, 2)
+    material_authority_form.addWidget(rebuild_sidecar_checkbox, 1, 0, 1, 2)
+    material_authority_form.addWidget(prune_unmapped_original_dds_checkbox, 2, 0, 1, 2)
+    material_authority_form.addWidget(inject_base_color_checkbox, 3, 0, 1, 2)
+    material_authority_form.addWidget(source_color_faithful_checkbox, 4, 0, 1, 2)
+    material_authority_form.addWidget(external_material_reset_checkbox, 5, 0, 1, 2)
+    material_authority_form.addWidget(complete_external_swap_checkbox, 6, 0, 1, 2)
     runtime_material_profile_label = QLabel(material_authority_setup_labels["runtime_material_profile"])
-    form.addWidget(runtime_material_profile_label, 10, 0)
-    form.addWidget(complete_swap_material_profile_combo, 10, 1)
-    form.addWidget(true_source_basic_group, 11, 0, 1, 2)
-    form.addWidget(unsafe_material_preflight_checkbox, 12, 0, 1, 2)
-    form.addWidget(manual_profile_group, 13, 0, 1, 2)
-    form.addWidget(sidecar_warning_label, 14, 0, 1, 2)
+    material_authority_form.addWidget(runtime_material_profile_label, 7, 0)
+    material_authority_form.addWidget(complete_swap_material_profile_combo, 7, 1)
+    material_authority_form.addWidget(true_source_basic_group, 8, 0, 1, 2)
+    material_authority_form.addWidget(unsafe_material_preflight_checkbox, 9, 0, 1, 2)
+    modify_original_texture_tuning_section = CollapsibleSection("Advanced Texture Tuning", expanded=False)
+    modify_original_texture_tuning_section.setVisible(bool(modify_original_clone_mode))
+    modify_original_texture_tuning_section.body_layout.addWidget(modify_original_texture_tuning_checkbox)
+    if modify_original_clone_mode:
+        modify_original_texture_tuning_section.body_layout.addWidget(manual_profile_group)
+    else:
+        material_authority_form.addWidget(manual_profile_group, 10, 0, 1, 2)
+    material_authority_form.addWidget(sidecar_warning_label, 11, 0, 1, 2)
     texture_size_label = QLabel(material_authority_setup_labels["texture_size"])
-    form.addWidget(texture_size_label, 15, 0)
-    form.addWidget(texture_output_size_combo, 15, 1)
+    form.addWidget(texture_size_label, 3, 0)
+    form.addWidget(texture_output_size_combo, 3, 1)
     setup_texture_orientation_widget = QWidget()
     setup_texture_orientation_row = QHBoxLayout(setup_texture_orientation_widget)
     setup_texture_orientation_row.setContentsMargins(0, 0, 0, 0)
@@ -738,9 +820,17 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     setup_texture_orientation_row.addWidget(setup_texture_flip_v_checkbox)
     setup_texture_orientation_row.addWidget(setup_texture_reset_button)
     texture_orientation_label = QLabel(material_authority_setup_labels["texture_orientation"])
-    form.addWidget(texture_orientation_label, 16, 0)
-    form.addWidget(setup_texture_orientation_widget, 16, 1)
-    form.addWidget(custom_icon_checkbox, 17, 0, 1, 2)
+    form.addWidget(texture_orientation_label, 4, 0)
+    form.addWidget(setup_texture_orientation_widget, 4, 1)
+
+    item_icon_section = CollapsibleSection("Item Icon", expanded=False)
+    item_icon_widget = QWidget()
+    item_icon_form = QGridLayout(item_icon_widget)
+    item_icon_form.setContentsMargins(0, 0, 0, 0)
+    item_icon_form.setHorizontalSpacing(6)
+    item_icon_form.setVerticalSpacing(2)
+    item_icon_section.body_layout.addWidget(item_icon_widget)
+    item_icon_form.addWidget(custom_icon_checkbox, 0, 0, 1, 2)
     custom_icon_source_row = QHBoxLayout()
     custom_icon_source_row.setContentsMargins(0, 0, 0, 0)
     custom_icon_source_row.setSpacing(5)
@@ -748,12 +838,12 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     custom_icon_source_row.addWidget(custom_icon_file_button)
     custom_icon_source_row.addWidget(custom_icon_folder_button)
     custom_icon_source_row.addWidget(custom_icon_library_button)
-    form.addWidget(QLabel(custom_icon_control_text["source_label"]), 18, 0)
-    form.addLayout(custom_icon_source_row, 18, 1)
-    form.addWidget(QLabel(custom_icon_control_text["target_label"]), 19, 0)
-    form.addWidget(custom_icon_target_combo, 19, 1)
-    form.addWidget(custom_icon_status, 20, 0, 1, 2)
-    form.addWidget(save_generated_icon_to_library_checkbox, 21, 0, 1, 2)
+    item_icon_form.addWidget(QLabel(custom_icon_control_text["source_label"]), 1, 0)
+    item_icon_form.addLayout(custom_icon_source_row, 1, 1)
+    item_icon_form.addWidget(QLabel(custom_icon_control_text["target_label"]), 2, 0)
+    item_icon_form.addWidget(custom_icon_target_combo, 2, 1)
+    item_icon_form.addWidget(custom_icon_status, 3, 0, 1, 2)
+    item_icon_form.addWidget(save_generated_icon_to_library_checkbox, 4, 0, 1, 2)
     setup_texture_rotate_combo.currentIndexChanged.connect(_save_setup_texture_orientation)
     setup_texture_flip_u_checkbox.toggled.connect(_save_setup_texture_orientation)
     setup_texture_flip_v_checkbox.toggled.connect(_save_setup_texture_orientation)
@@ -866,6 +956,15 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
             _refresh_manual_material_profile_panel(),
             _refresh_global_gloss_reduction_hint(),
             _refresh_true_source_basic_controls_state(),
+            _refresh_output_impact_review(),
+            _queue_texture_preview_refresh(),
+        )
+    )
+    modify_original_texture_tuning_checkbox.toggled.connect(
+        lambda checked: (
+            self.settings.setValue(modify_original_texture_tuning_enabled_key, bool(checked)),
+            _refresh_manual_material_profile_panel(),
+            _save_complete_swap_material_profile(),
             _refresh_output_impact_review(),
             _queue_texture_preview_refresh(),
         )
@@ -1044,6 +1143,13 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     transform_section = CollapsibleSection(alignment_transform_control_text["section_title"], expanded=True)
     transform_section.body_layout.addWidget(transform_group)
     setup_layout.addWidget(transform_section)
+    setup_layout.addWidget(item_icon_section)
+    if advanced_setup_section is not None:
+        setup_layout.addWidget(advanced_setup_section)
+    if modify_original_clone_mode:
+        setup_layout.addWidget(modify_original_texture_tuning_section)
+    if placement_note is not None:
+        setup_layout.addWidget(placement_note)
 
     scale_syncing = _scale_syncing_initial_state_helper()
     scale_spins = (scale_x_spin, scale_y_spin, scale_z_spin)
@@ -1145,6 +1251,7 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
         _current_material_authority_preview_profile=locals().get('_current_material_authority_preview_profile'),
         _material_authority_preview_inactive_reason=locals().get('_material_authority_preview_inactive_reason'),
         _material_authority_preview_signature=locals().get('_material_authority_preview_signature'),
+        _modify_original_texture_tuning_enabled=locals().get('_modify_original_texture_tuning_enabled'),
         _queue_material_authority_adjustment_preview_refresh=locals().get('_queue_material_authority_adjustment_preview_refresh'),
         _queue_part_transform_preview_update=locals().get('_queue_part_transform_preview_update'),
         _refresh_manual_material_profile_panel=locals().get('_refresh_manual_material_profile_panel'),
@@ -1206,6 +1313,10 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
         manual_profile_ready=locals().get('manual_profile_ready'),
         manual_profile_saved_values=locals().get('manual_profile_saved_values'),
         manual_profile_settings_key=locals().get('manual_profile_settings_key'),
+        material_authority_section=locals().get('material_authority_section'),
+        modify_original_texture_tuning_checkbox=locals().get('modify_original_texture_tuning_checkbox'),
+        modify_original_texture_tuning_enabled_key=locals().get('modify_original_texture_tuning_enabled_key'),
+        modify_original_texture_tuning_section=locals().get('modify_original_texture_tuning_section'),
         object_name=locals().get('object_name'),
         offset_x_spin=locals().get('offset_x_spin'),
         offset_y_spin=locals().get('offset_y_spin'),
@@ -1452,9 +1563,11 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     mesh_edit_shrink_selection_button = QPushButton(mesh_edit_action_control_text["shrink_selection"])
     mesh_edit_smooth_selection_button = QPushButton(mesh_edit_action_control_text["smooth_selection"])
     mesh_edit_subdivide_selection_button = QPushButton(mesh_edit_action_control_text["subdivide_selection"])
+    mesh_edit_split_selection_button = QPushButton(mesh_edit_action_control_text["split_selection"])
     mesh_edit_select_part_button.setToolTip(mesh_edit_action_control_text["select_part_tooltip"])
     mesh_edit_invert_selection_button.setToolTip(mesh_edit_action_control_text["invert_selection_tooltip"])
     mesh_edit_subdivide_selection_button.setToolTip(mesh_edit_action_control_text["subdivide_selection_tooltip"])
+    mesh_edit_split_selection_button.setToolTip(mesh_edit_action_control_text["split_selection_tooltip"])
     mesh_edit_delete_faces_button = QPushButton(mesh_edit_action_control_text["delete_faces"])
     mesh_edit_delete_faces_button.setToolTip(mesh_edit_action_control_text["delete_faces_tooltip"])
     mesh_edit_undo_button = QPushButton(mesh_edit_action_control_text["undo"])
@@ -1469,6 +1582,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         mesh_edit_shrink_selection_button,
         mesh_edit_smooth_selection_button,
         mesh_edit_subdivide_selection_button,
+        mesh_edit_split_selection_button,
         mesh_edit_delete_faces_button,
         mesh_edit_undo_button,
         mesh_edit_redo_button,
@@ -1581,6 +1695,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     mesh_edit_layout.addWidget(mesh_edit_invert_selection_button)
     mesh_edit_layout.addWidget(mesh_edit_selection_actions_widget)
     mesh_edit_layout.addWidget(mesh_edit_subdivide_selection_button)
+    mesh_edit_layout.addWidget(mesh_edit_split_selection_button)
     mesh_edit_layout.addWidget(mesh_edit_delete_faces_button)
     mesh_edit_button_row = QHBoxLayout()
     mesh_edit_button_row.setContentsMargins(0, 0, 0, 0)
@@ -1588,6 +1703,12 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     mesh_edit_button_row.addWidget(mesh_edit_undo_button)
     mesh_edit_button_row.addWidget(mesh_edit_redo_button)
     alignment_mesh_edit_callbacks = create_alignment_mesh_edit_callbacks({**context, **globals(), **locals()})
+    if dialog is not None:
+        setattr(
+            dialog,
+            "_mesh_editor_action_bar_action_requested",
+            alignment_mesh_edit_callbacks._mesh_editor_action_bar_action_requested,
+        )
     _mesh_edit_adjusted_sources_for_live_preview = alignment_mesh_edit_callbacks._mesh_edit_adjusted_sources_for_live_preview
     _mesh_edit_all_live_vertices_for_sources = alignment_mesh_edit_callbacks._mesh_edit_all_live_vertices_for_sources
     _mesh_edit_all_vertices_in_scope = alignment_mesh_edit_callbacks._mesh_edit_all_vertices_in_scope
@@ -1896,6 +2017,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         mesh_edit_smooth_selection_button=locals().get('mesh_edit_smooth_selection_button'),
         mesh_edit_status_label=locals().get('mesh_edit_status_label'),
         mesh_edit_strength_spin=locals().get('mesh_edit_strength_spin'),
+        mesh_edit_split_selection_button=locals().get('mesh_edit_split_selection_button'),
         mesh_edit_subdivide_selection_button=locals().get('mesh_edit_subdivide_selection_button'),
         mesh_edit_supported=locals().get('mesh_edit_supported'),
         mesh_edit_tool_buttons=locals().get('mesh_edit_tool_buttons'),
@@ -2476,7 +2598,6 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     dds_detail_layout.addWidget(dds_detail_label, 1)
     material_plan_layout.addWidget(dds_detail_panel)
     dds_detail_panel.setVisible(False)
-    material_plan_layout.addWidget(material_plan_advanced_section)
 
     alignment_preview_pixmap_callbacks = create_alignment_preview_pixmap_callbacks({**context, **globals(), **locals()})
     _read_preview_pixmap = alignment_preview_pixmap_callbacks._read_preview_pixmap
@@ -2590,6 +2711,7 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     texture_transform_reset_button.clicked.connect(_reset_selected_texture_transform)
     material_plan_layout.addWidget(texture_transform_group)
     texture_transform_group.setVisible(False)
+    material_plan_layout.addWidget(material_plan_advanced_section)
 
     alignment_material_plan_column_callbacks = create_alignment_material_plan_column_callbacks({**context, **globals(), **locals()})
     _fit_material_routing_tree_columns = alignment_material_plan_column_callbacks._fit_material_routing_tree_columns
@@ -3499,6 +3621,7 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
     )
 
 def create_alignment_source_parts_outliner_section(context: dict[str, object]) -> SimpleNamespace:
+    CollapsibleSection = context.get('CollapsibleSection')
     Dict = context.get('Dict')
     MeshReplacementPartsOutlinerTree = context.get('MeshReplacementPartsOutlinerTree')
     QAbstractItemView = context.get('QAbstractItemView')
@@ -3609,6 +3732,7 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     _wrap_spin_with_slider_helper = context.get('_wrap_spin_with_slider_helper')
     added_texture_tree = context.get('added_texture_tree')
     alignment_part_clipboard = context.get('alignment_part_clipboard')
+    alignment_d3d11_preview_host = context.get('alignment_d3d11_preview_host')
     alignment_startup_text = context.get('alignment_startup_text')
     clear_alignment_selection_button = context.get('clear_alignment_selection_button')
     complete_external_swap_checkbox = context.get('complete_external_swap_checkbox')
@@ -3638,9 +3762,11 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     dds_detail_label = context.get('dds_detail_label')
     dds_detail_panel = context.get('dds_detail_panel')
     dialog = context.get('dialog')
+    mapping_hint = context.get('mapping_hint')
     mapping_edits_by_target = context.get('mapping_edits_by_target')
     mapping_layout = context.get('mapping_layout')
     material_plan_control_text = context.get('material_plan_control_text')
+    modify_original_clone_mode = bool(context.get('modify_original_clone_mode'))
     material_plan_tree = context.get('material_plan_tree')
     material_routing_tree = context.get('material_routing_tree')
     original_items_by_index = context.get('original_items_by_index')
@@ -3833,6 +3959,7 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     })
     _apply_source_role_selection = alignment_source_role_tree_callbacks._apply_source_role_selection
     _show_replacement_sources_context_menu = alignment_source_role_tree_callbacks._show_replacement_sources_context_menu
+    _show_replacement_sources_context_menu_for_viewport = alignment_source_role_tree_callbacks._show_replacement_sources_context_menu_for_viewport
     _populate_source_tree_chunk = alignment_source_role_tree_callbacks._populate_source_tree_chunk
 
 
@@ -3860,6 +3987,7 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     })
     _apply_source_role_selection = alignment_source_role_tree_callbacks._apply_source_role_selection
     _show_replacement_sources_context_menu = alignment_source_role_tree_callbacks._show_replacement_sources_context_menu
+    _show_replacement_sources_context_menu_for_viewport = alignment_source_role_tree_callbacks._show_replacement_sources_context_menu_for_viewport
     _populate_source_tree_chunk = alignment_source_role_tree_callbacks._populate_source_tree_chunk
 
 
@@ -3872,7 +4000,7 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     source_tree.itemClicked.connect(_handle_source_tree_item_clicked)
     original_parts_label = QLabel(str(source_tree_control_text["original_label_html"]))
     original_parts_label.setTextFormat(Qt.RichText)
-    original_parts_label.setVisible(False)
+    original_parts_label.setVisible(True)
     mapping_layout.addWidget(original_parts_label)
     _fit_alignment_tree_height_to_rows(original_tree, minimum=72, screen_margin=520, maximum=220)
     _auto_fit_alignment_tree_columns(
@@ -3881,10 +4009,10 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
         (48, 220, 140, 180, 160),
         expand_column=1,
     )
-    original_tree.setVisible(False)
+    original_tree.setVisible(True)
     mapping_layout.addWidget(original_tree, 0)
     original_button_panel = QWidget()
-    original_button_panel.setVisible(False)
+    original_button_panel.setVisible(True)
     original_button_row = QHBoxLayout(original_button_panel)
     original_button_row.setContentsMargins(0, 0, 0, 0)
     original_button_row.addWidget(original_copy_button)
@@ -3893,7 +4021,7 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     original_button_row.addStretch(1)
     mapping_layout.addWidget(original_button_panel)
     mapping_layout.addWidget(source_parts_group, 0)
-    source_parts_group.setVisible(False)
+    source_parts_group.setVisible(True)
 
     _alignment_startup_step(alignment_startup_text["replacement_source_queue"])
     source_tree_population_timer = QTimer(dialog)
@@ -3946,6 +4074,12 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
 
     _alignment_startup_step(alignment_startup_text["routing_controls"])
     mapping_table_action_control_text = _mapping_table_action_control_text_helper()
+    advanced_routing_section = CollapsibleSection("Advanced Routing", expanded=False)
+    advanced_routing_section.setVisible(not modify_original_clone_mode)
+    advanced_routing_layout = advanced_routing_section.body_layout
+    if mapping_hint is not None:
+        advanced_routing_layout.addWidget(mapping_hint)
+    mapping_layout.addWidget(advanced_routing_section)
     mapping_tree = QTreeWidget()
     mapping_tree.setHeaderLabels(list(mapping_table_action_control_text["headers"]))
     mapping_tree.setMinimumHeight(96)
@@ -4101,20 +4235,20 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
             ),
         ),
     )
-    mapping_layout.addWidget(parts_outliner_group, 0)
+    advanced_routing_layout.addWidget(parts_outliner_group, 0)
     target_slots_label = QLabel(mapping_table_action_control_text["target_slots_html"])
     target_slots_label.setWordWrap(True)
     target_slots_label.setTextFormat(Qt.RichText)
     target_slots_label.setToolTip(mapping_table_action_control_text["target_slots_tooltip"])
     target_slots_label.setVisible(False)
-    mapping_layout.addWidget(target_slots_label)
-    mapping_layout.addWidget(mapping_progress_label)
+    advanced_routing_layout.addWidget(target_slots_label)
+    advanced_routing_layout.addWidget(mapping_progress_label)
     mapping_progress_label.setVisible(False)
     mapping_filter_row = QHBoxLayout()
     mapping_filter_row.addWidget(low_confidence_filter_checkbox)
     mapping_filter_row.addWidget(empty_targets_filter_checkbox)
     mapping_filter_row.addStretch(1)
-    mapping_layout.addLayout(mapping_filter_row)
+    advanced_routing_layout.addLayout(mapping_filter_row)
     clear_all_guesses_button = QPushButton(mapping_table_action_control_text["clear_all_guesses"])
     apply_best_guesses_button = QPushButton(mapping_table_action_control_text["apply_best_guesses"])
     group_materials_button = QPushButton(mapping_table_action_control_text["group_materials"])
@@ -4136,22 +4270,21 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     mapping_action_row.addWidget(group_materials_button)
     mapping_action_row.addWidget(preview_target_button)
     mapping_action_row.addStretch(1)
-    mapping_layout.addLayout(mapping_action_row)
+    advanced_routing_layout.addLayout(mapping_action_row)
     show_advanced_mapping_checkbox = QCheckBox(mapping_table_action_control_text["advanced_mapping"])
     show_advanced_mapping_checkbox.setToolTip(mapping_table_action_control_text["advanced_mapping_tooltip"])
-    show_advanced_mapping_checkbox.setProperty("cdmw_default_on_for_all_users", True)
-    show_advanced_mapping_checkbox.setChecked(True)
-    mapping_layout.addWidget(show_advanced_mapping_checkbox)
+    show_advanced_mapping_checkbox.setChecked(False)
+    advanced_routing_layout.addWidget(show_advanced_mapping_checkbox)
     mapping_tree.setColumnHidden(2, True)
     mapping_tree.setVisible(False)
 
-    mapping_layout.addWidget(mapping_tree, 0)
+    advanced_routing_layout.addWidget(mapping_tree, 0)
 
     mapping_status_label = QLabel(mapping_table_action_control_text["mapping_status_initial"])
     mapping_status_label.setWordWrap(True)
     mapping_status_label.setTextFormat(Qt.RichText)
     mapping_status_label.setObjectName("MeshRoutingSelectedContractSummary")
-    mapping_layout.addWidget(mapping_status_label)
+    advanced_routing_layout.addWidget(mapping_status_label)
     mapping_buttons = QHBoxLayout()
     mapping_route_control_text = _mapping_route_control_text_helper()
     primary_route_buttons: dict[str, QPushButton] = {}
@@ -4168,7 +4301,7 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     remove_source_button = primary_route_buttons["remove_source"]
     clear_target_button = primary_route_buttons["clear_target"]
     mapping_buttons.addStretch(1)
-    mapping_layout.addLayout(mapping_buttons)
+    advanced_routing_layout.addLayout(mapping_buttons)
     mapping_selection_buttons = QHBoxLayout()
     selection_route_buttons: dict[str, QPushButton] = {}
     for button_spec in _mapping_route_selection_button_specs_helper(mapping_route_control_text):
@@ -4180,7 +4313,7 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     clear_replacement_selection_button = selection_route_buttons["clear_replacement"]
     clear_all_selection_button = selection_route_buttons["clear_all"]
     mapping_selection_buttons.addStretch(1)
-    mapping_layout.addLayout(mapping_selection_buttons)
+    advanced_routing_layout.addLayout(mapping_selection_buttons)
 
     parts_outliner_mapping_callbacks = create_alignment_parts_outliner_mapping_callbacks({
         **context,
@@ -4256,6 +4389,9 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
         "_selected_source_indices_from_tree": lambda *args, **kwargs: _selected_source_indices_from_tree(*args, **kwargs),
     })
     _show_replacement_sources_context_menu = alignment_source_role_tree_population_callbacks._show_replacement_sources_context_menu
+    _show_replacement_sources_context_menu_for_viewport = (
+        alignment_source_role_tree_population_callbacks._show_replacement_sources_context_menu_for_viewport
+    )
     _populate_source_tree_chunk = alignment_source_role_tree_population_callbacks._populate_source_tree_chunk
     source_tree.customContextMenuRequested.connect(_show_replacement_sources_context_menu)
     source_tree_population_timer.timeout.connect(_populate_source_tree_chunk)
@@ -4930,11 +5066,18 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     _source_selection_changed = alignment_source_tree_selection_callbacks._source_selection_changed
     _ensure_source_tree_item_available = alignment_source_tree_selection_callbacks._ensure_source_tree_item_available
     _select_source_part_from_viewport = alignment_source_tree_selection_callbacks._select_source_part_from_viewport
+    _d3d11_source_part_context_requested = alignment_source_tree_selection_callbacks._d3d11_source_part_context_requested
+    _d3d11_source_part_hovered = alignment_source_tree_selection_callbacks._d3d11_source_part_hovered
     _d3d11_source_part_selected = alignment_source_tree_selection_callbacks._d3d11_source_part_selected
     _original_selection_changed = alignment_source_tree_selection_callbacks._original_selection_changed
     _target_selection_changed = alignment_source_tree_selection_callbacks._target_selection_changed
     _parts_outliner_selection_changed = alignment_source_tree_selection_callbacks._parts_outliner_selection_changed
     _clear_part_selections_when_leaving_geometry = alignment_source_tree_selection_callbacks._clear_part_selections_when_leaving_geometry
+    if alignment_d3d11_preview_host is not None:
+        alignment_d3d11_preview_host.source_part_hovered.connect(_d3d11_source_part_hovered)
+        alignment_d3d11_preview_host.source_part_selected.connect(_d3d11_source_part_selected)
+        if hasattr(alignment_d3d11_preview_host, "source_part_context_requested"):
+            alignment_d3d11_preview_host.source_part_context_requested.connect(_d3d11_source_part_context_requested)
 
     return SimpleNamespace(
         _add_dialog_supplemental_file=locals().get('_add_dialog_supplemental_file'),
@@ -4951,6 +5094,8 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
         _copied_original_texture_tooltip=locals().get('_copied_original_texture_tooltip'),
         _copy_original_part_payload=locals().get('_copy_original_part_payload'),
         _copy_source_part_with_adjustment=locals().get('_copy_source_part_with_adjustment'),
+        _d3d11_source_part_context_requested=locals().get('_d3d11_source_part_context_requested'),
+        _d3d11_source_part_hovered=locals().get('_d3d11_source_part_hovered'),
         _d3d11_source_part_selected=locals().get('_d3d11_source_part_selected'),
         _finish_source_tree_population=locals().get('_finish_source_tree_population'),
         _flush_source_role_overrides_for_export=locals().get('_flush_source_role_overrides_for_export'),

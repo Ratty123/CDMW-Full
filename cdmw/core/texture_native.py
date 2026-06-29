@@ -385,6 +385,76 @@ def ensure_native_dds_preview_png(
     )
 
 
+def decode_dds_preview_with_directxtex(
+    dds_path: Path,
+    output_png_path: Path,
+    *,
+    max_dimension: int,
+    slot_kind: str = "base",
+    srgb: str = "auto",
+    normal_space: str = "auto",
+    timeout_seconds: float = 20.0,
+    temp_root: Optional[Path] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> Optional[Dict[str, Any]]:
+    raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
+    binary = find_directxtex_texture_binary()
+    if binary is None:
+        return None
+    source_path = Path(dds_path).expanduser().resolve()
+    preview_path = Path(output_png_path).expanduser().resolve()
+    if not source_path.is_file():
+        return None
+    temp_parent = Path(temp_root).expanduser().resolve() if temp_root is not None else None
+    if temp_parent is not None:
+        temp_parent.mkdir(parents=True, exist_ok=True)
+    job_root = Path(tempfile.mkdtemp(prefix="cdmw_directxtex_preview_", dir=str(temp_parent) if temp_parent is not None else None))
+    job_path = job_root / "job.json"
+    report_path = job_root / "report.json"
+    try:
+        preview_path.parent.mkdir(parents=True, exist_ok=True)
+        job = {
+            "input": str(source_path),
+            "output": str(preview_path),
+            "max_dimension": max(1, int(max_dimension or 4096)),
+            "slot": str(slot_kind or "base").strip().lower() or "base",
+            "srgb": str(srgb or "auto").strip().lower() or "auto",
+            "normal_space": str(normal_space or "auto").strip().lower() or "auto",
+        }
+        job_path.write_text(
+            json.dumps({"version": 1, "backend": DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": [job]}, indent=2),
+            encoding="utf-8",
+        )
+        try:
+            returncode, _stdout, _stderr = run_process_with_cancellation(
+                [str(binary), "batch-preview-json", str(job_path), str(report_path), *_native_diagnostic_args()],
+                timeout_seconds=max(1.0, float(timeout_seconds)),
+                stop_event=stop_event,
+            )
+        except RunCancelled:
+            raise
+        except Exception:
+            return None
+        if returncode != 0 or not report_path.is_file():
+            return None
+        try:
+            parsed = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        items = parsed.get("items") if isinstance(parsed, dict) else None
+        if not isinstance(items, list) or not items:
+            return None
+        item = items[0]
+        if not isinstance(item, dict) or str(item.get("status") or "").lower() != "decoded" or not preview_path.is_file():
+            return None
+        item.setdefault("backend", DIRECTXTEX_TEXTURE_BACKEND_ID)
+        item.setdefault("native_backend", "directxtex")
+        write_native_texture_report_sidecar(preview_path, item)
+        return dict(item)
+    finally:
+        shutil.rmtree(job_root, ignore_errors=True)
+
+
 def encode_dds_with_directxtex(
     png_path: Path,
     output_dds_path: Path,
@@ -393,6 +463,7 @@ def encode_dds_with_directxtex(
     width: int = 0,
     height: int = 0,
     mip_count: int = 1,
+    overwrite: bool = True,
     timeout_seconds: float = 60.0,
     stop_event: Optional[threading.Event] = None,
 ) -> Optional[Dict[str, Any]]:
@@ -405,6 +476,7 @@ def encode_dds_with_directxtex(
                 "width": int(width or 0),
                 "height": int(height or 0),
                 "mip_count": int(mip_count or 1),
+                "overwrite": bool(overwrite),
             },
         ),
         timeout_seconds=timeout_seconds,

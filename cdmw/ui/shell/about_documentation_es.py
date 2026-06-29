@@ -455,6 +455,7 @@ class AboutDocumentationSpanishMixin:
                     <ul>
                       <li><b>Output root</b> contiene resultados DDS normales.</li>
                       <li><b>Exportacion mod-ready</b> crea estructura suelta con manifest.json, metadatos opcionales de manager y opcional .no_encrypt.</li>
+                      <li><b>Gestores de mods destino</b> puede escribir formatos DMM, CDUMM, JMM JSON, Crimson Sharp / Crimson Browser y Field-JSON v3.1. CDUMM usa <code>manifest.json</code>, <code>modinfo.json</code>, <code>.no_encrypt</code> y contenedor <code>files/</code>; DMM de texturas usa <code>modinfo.json</code>, y DMM de mallas conserva <code>manifest.json</code> mas <code>modinfo.json</code>.</li>
                       <li>Los parches de archivo requieren confirmacion y usan backup/restauracion cuando esta disponible.</li>
                     </ul>
                     """,
@@ -467,7 +468,9 @@ class AboutDocumentationSpanishMixin:
                     "html": """
                     <p><b>Perfil &gt; Exportar perfil</b> guarda la configuracion del flujo y una copia completa de los ajustes de la app: rutas, reglas/perfiles, metadatos de paquete, filtros del explorador, apariencia, idioma, inicio, rendimiento, cache/indexacion, vista 3D, Reemplazador, Editor de texturas, avisos de seguridad y geometria de ventanas.</p>
                     <ul>
+                      <li>Un perfil de app es una sola captura global, no perfiles separados por pestana. Incluye preferencias por herramienta y layout de ventanas separadas dentro de ese archivo.</li>
                       <li><b>Importar perfil</b> restaura primero el flujo y despues recarga esos ajustes en Configuracion, Reemplazador y Editor de texturas.</li>
+                      <li>Los perfiles no guardan archivos abiertos, documentos activos ni sesiones de proyecto por pestana.</li>
                       <li><b>Exportar diagnosticos</b> incluye el mismo perfil, logs, resumen de cache, analisis de chaiNNer, contexto de fallos si existe, README, licencia y avisos de terceros.</li>
                       <li><b>Configuracion / Inicio</b>: carga automatica del archivo, preferencia de cache, ultima pestana y filtros del explorador.</li>
                       <li><b>Configuracion / Rendimiento</b>: perfil de recursos, backend de vista, presupuesto UI, workers, aceleracion nativa, indexacion de sidecars y cache D3D11.</li>

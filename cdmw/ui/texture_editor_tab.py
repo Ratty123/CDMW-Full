@@ -49,6 +49,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.domain.textures.editor_presets import texture_editor_dds_presets
+from cdmw.services.texture_editor_service import native_texture_editor_backend_status_text
 from cdmw.ui.texture_workflow.editor_action_state import (
     texture_editor_guide_action_state,
     texture_editor_image_action_state,
@@ -91,7 +93,6 @@ from cdmw.ui.texture_workflow.editor_layer_state import (
 )
 from cdmw.ui.texture_workflow.editor_session import (
     _TextureEditorSession,
-    texture_editor_active_session_original_flattened,
     texture_editor_document_composite_revision,
 )
 from cdmw.ui.texture_workflow.editor_shortcuts_ui import TextureEditorShortcutsUiMixin
@@ -161,6 +162,7 @@ class TextureEditorTab(
     send_to_replace_assistant_requested = Signal(str, object)
     send_to_texture_workflow_requested = Signal(str, object)
     send_to_item_icons_requested = Signal(str, object)
+    native_dds_ready = Signal(str, object)
     browse_archive_requested = Signal(str)
     open_in_compare_requested = Signal(str, object)
 
@@ -334,6 +336,8 @@ class TextureEditorTab(
         self.open_project_button = QPushButton("Open Project...")
         self.save_project_button = QPushButton("Save Project")
         self.save_png_button = QPushButton("Export PNG")
+        self.export_dds_button = QPushButton("Export DDS...")
+        self.preview_compressed_button = QPushButton("Preview Compressed")
         self.send_replace_button = QPushButton("To Replace")
         self.send_workflow_button = QPushButton("To Workflow")
         self.send_item_icons_button = QPushButton("To Icon Creator")
@@ -341,6 +345,8 @@ class TextureEditorTab(
         self.redo_button = QPushButton("Redo")
         self.shortcuts_button = QPushButton("Shortcuts")
         self.save_png_button.setObjectName("EditorPrimaryButton")
+        self.export_dds_button.setObjectName("EditorPrimaryButton")
+        self.preview_compressed_button.setObjectName("EditorPanelButton")
         self.send_replace_button.setObjectName("EditorPrimaryButton")
         self.send_workflow_button.setObjectName("EditorPrimaryButton")
         self.send_item_icons_button.setObjectName("EditorPrimaryButton")
@@ -360,6 +366,17 @@ class TextureEditorTab(
         self.status_label.setWordWrap(True)
         self.status_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         self.status_label.setMinimumHeight(36)
+        self.native_dds_preset_combo = QComboBox()
+        for preset in texture_editor_dds_presets():
+            self.native_dds_preset_combo.addItem(preset.label, preset.key)
+        self.native_dds_format_combo = QComboBox()
+        self.native_dds_mip_combo = QComboBox()
+        self.native_dds_mip_combo.addItem("Preset Mips", "")
+        self.native_dds_mip_combo.addItem("Full Mips", "full")
+        self.native_dds_mip_combo.addItem("Single Mip", "single")
+        self.native_dds_status_label = QLabel(native_texture_editor_backend_status_text())
+        self.native_dds_status_label.setObjectName("HintLabel")
+        self.native_dds_status_label.setWordWrap(True)
 
         self.main_splitter = QSplitter(Qt.Horizontal)
         self.main_splitter.setChildrenCollapsible(False)
@@ -391,6 +408,8 @@ class TextureEditorTab(
         self.action_open_project = QAction("Open Project...", self)
         self.action_save_project = QAction("Save Project", self)
         self.action_export_png = QAction("Export PNG", self)
+        self.action_export_dds = QAction("Export DDS...", self)
+        self.action_preview_compressed = QAction("Preview Compressed", self)
         self.action_send_replace = QAction("Send To Texture Replacer", self)
         self.action_send_workflow = QAction("Send To Texture Workflow", self)
         self.action_send_item_icons = QAction("Send To Icon Creator", self)
@@ -404,6 +423,8 @@ class TextureEditorTab(
         for action in (
             self.action_save_project,
             self.action_export_png,
+            self.action_export_dds,
+            self.action_preview_compressed,
             self.action_send_replace,
             self.action_send_workflow,
             self.action_send_item_icons,
@@ -422,6 +443,19 @@ class TextureEditorTab(
         edit_actions.addWidget(self.redo_button, 1, 1)
         edit_actions.addWidget(self.shortcuts_button, 2, 0, 1, 2)
         left_actions_layout.addLayout(edit_actions)
+        native_export_layout = QGridLayout()
+        native_export_layout.setHorizontalSpacing(6)
+        native_export_layout.setVerticalSpacing(6)
+        native_export_label = QLabel("DDS")
+        native_export_label.setObjectName("HintLabel")
+        native_export_layout.addWidget(native_export_label, 0, 0, 1, 2)
+        native_export_layout.addWidget(self.native_dds_preset_combo, 1, 0, 1, 2)
+        native_export_layout.addWidget(self.native_dds_format_combo, 2, 0)
+        native_export_layout.addWidget(self.native_dds_mip_combo, 2, 1)
+        native_export_layout.addWidget(self.export_dds_button, 3, 0)
+        native_export_layout.addWidget(self.preview_compressed_button, 3, 1)
+        native_export_layout.addWidget(self.native_dds_status_label, 4, 0, 1, 2)
+        left_actions_layout.addLayout(native_export_layout)
         left_actions_layout.addWidget(self.warning_label)
         left_actions_layout.addWidget(self.status_label)
         tool_layout.addWidget(left_actions_body)
@@ -1424,6 +1458,7 @@ class TextureEditorTab(
         )
 
         self._connect_signals()
+        self._refresh_native_dds_format_options()
         self._rebuild_brush_preset_combo(preserve_key="custom")
         self._set_active_tool("paint")
         self._load_settings()

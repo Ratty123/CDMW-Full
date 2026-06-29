@@ -243,6 +243,11 @@ def build_par_structured_preview(
     )
     paseq_timeline = paseq_metadata.get("timeline", {}) if isinstance(paseq_metadata, Mapping) else {}
     paseq_playback = paseq_metadata.get("playback_readiness", {}) if isinstance(paseq_metadata, Mapping) else {}
+    papr_metadata = (
+        sidecar_document.get("papr", {})
+        if normalized_extension == ".papr"
+        else {}
+    )
     if normalized_extension == ".paa":
         title = "PAA animation inspector"
         metadata_label = "Animation"
@@ -255,7 +260,10 @@ def build_par_structured_preview(
     elif normalized_extension == ".motionblending":
         title = "Motion blending inspector"
         metadata_label = "Motion Blending"
-    elif normalized_extension in {".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    elif normalized_extension == ".papr":
+        title = "Animation constraint inspector"
+        metadata_label = "Animation Constraint"
+    elif normalized_extension in _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS:
         title = "Animation schedule inspector"
         metadata_label = "Animation / Schedule Metadata"
     else:
@@ -287,6 +295,11 @@ def build_par_structured_preview(
         lines.append(f"- Timeline fields: {int(paseq_timeline.get('timeline_field_count') or 0):,}")
         lines.append(f"- Event/phase markers: {int(paseq_timeline.get('event_marker_count') or 0):,}")
         lines.append(f"- Timing candidates: {int(paseq_timeline.get('timing_candidate_count') or 0):,}")
+    if isinstance(papr_metadata, Mapping) and papr_metadata:
+        lines.append(f"- Constraint string evidence: {int(papr_metadata.get('string_evidence_count') or 0):,}")
+        physics_rows = papr_metadata.get("related_physics_rows") if isinstance(papr_metadata.get("related_physics_rows"), Sequence) else ()
+        if physics_rows:
+            lines.append(f"- Related physics references: {len(physics_rows):,}")
     if asset_references:
         lines.append(f"- Related asset hints: {len(asset_references):,}")
     if related_references:
@@ -397,6 +410,62 @@ def build_par_structured_preview(
                 )
             if len(event_markers) > 12:
                 lines.append(f"  ... {len(event_markers) - 12} more")
+        timing_evidence = paseq_timeline.get("timing_evidence") if isinstance(paseq_timeline.get("timing_evidence"), Mapping) else {}
+        if timing_evidence:
+            lines.extend(["", "FPS timing evidence:"])
+            lines.append(f"  - Status: {timing_evidence.get('fps_binding_status') or 'unknown'}")
+            lines.append(f"  - Confidence: {timing_evidence.get('fps_binding_confidence') or 'unknown'}")
+            declarations = [row for row in timing_evidence.get("fps_field_declarations") or [] if isinstance(row, Mapping)]
+            for row in declarations[:4]:
+                lines.append(
+                    "  - "
+                    f"{row.get('name') or '_framesPerSecond'}: {row.get('declared_type') or 'unknown'} "
+                    f"@0x{int(row.get('offset') or 0):X} "
+                    f"(field={row.get('confidence') or 'unknown'}, value={row.get('value_confidence') or 'unknown'})"
+                )
+            candidate_rows = [
+                row for row in timing_evidence.get("fps_candidate_value_rows") or [] if isinstance(row, Mapping)
+            ]
+            for row in candidate_rows[:6]:
+                lines.append(
+                    "  - "
+                    f"candidate {row.get('kind') or 'fps'} @0x{int(row.get('offset') or 0):X} "
+                    f"= {row.get('value')} "
+                    f"({row.get('status') or row.get('confidence') or 'unknown'}, "
+                    f"value={row.get('value_confidence') or 'unknown'})"
+                )
+            proof_gap = str(timing_evidence.get("proof_gap") or "").strip()
+            if proof_gap:
+                lines.append(f"  - Gap: {proof_gap}")
+            blend_declarations = [
+                row for row in timing_evidence.get("blend_field_declarations") or [] if isinstance(row, Mapping)
+            ]
+            if blend_declarations:
+                lines.extend(["", "Blend window evidence:"])
+                lines.append(f"  - Status: {timing_evidence.get('blend_binding_status') or 'unknown'}")
+                lines.append(f"  - Confidence: {timing_evidence.get('blend_binding_confidence') or 'unknown'}")
+                for row in blend_declarations[:8]:
+                    lines.append(
+                        "  - "
+                        f"{row.get('name') or 'blend'}: {row.get('declared_type') or 'unknown'} "
+                        f"@0x{int(row.get('offset') or 0):X} "
+                        f"({row.get('kind') or 'blend_field'}, field={row.get('confidence') or 'unknown'}, "
+                        f"value={row.get('value_confidence') or 'unknown'})"
+                    )
+                blend_candidate_rows = [
+                    row for row in timing_evidence.get("blend_candidate_value_rows") or [] if isinstance(row, Mapping)
+                ]
+                for row in blend_candidate_rows[:6]:
+                    lines.append(
+                        "  - "
+                        f"candidate {row.get('kind') or 'blend'} @0x{int(row.get('offset') or 0):X} "
+                        f"= {row.get('value')} "
+                        f"({row.get('status') or row.get('confidence') or 'unknown'}, "
+                        f"value={row.get('value_confidence') or 'unknown'})"
+                    )
+                blend_gap = str(timing_evidence.get("blend_proof_gap") or "").strip()
+                if blend_gap:
+                    lines.append(f"  - Gap: {blend_gap}")
         timing_candidates = [row for row in paseq_timeline.get("timing_candidates") or [] if isinstance(row, Mapping)]
         if timing_candidates:
             lines.extend(["", "Candidate timing values:"])
@@ -413,6 +482,115 @@ def build_par_structured_preview(
             lines.append(f"  - Ready for 3D playback: {bool(paseq_playback.get('ready_for_3d_playback'))}")
             for blocker in [str(value) for value in paseq_playback.get("blocking_gaps") or [] if str(value).strip()][:6]:
                 lines.append(f"  - Blocker: {blocker}")
+
+    if isinstance(papr_metadata, Mapping) and papr_metadata:
+        evidence_rows = [row for row in papr_metadata.get("evidence_rows") or [] if isinstance(row, Mapping)]
+        role_counts = papr_metadata.get("role_counts") if isinstance(papr_metadata.get("role_counts"), Mapping) else {}
+        if role_counts or evidence_rows:
+            lines.extend(["", "Constraint string evidence:"])
+            if role_counts:
+                role_text = ", ".join(f"{key}:{value}" for key, value in sorted(role_counts.items()))
+                lines.append(f"  - Roles: {role_text}")
+            for row in evidence_rows[:18]:
+                lines.append(
+                    "  - "
+                    f"0x{int(row.get('offset') or 0):X} {row.get('role') or 'constraint_string'}: "
+                    f"{row.get('text') or ''} "
+                    f"(field={row.get('field_confidence') or 'unknown'}, role={row.get('role_confidence') or 'unknown'})"
+                )
+            if len(evidence_rows) > 18:
+                lines.append(f"  ... {len(evidence_rows) - 18} more")
+        expression_evidence = papr_metadata.get("expression_evidence")
+        if isinstance(expression_evidence, Mapping) and expression_evidence:
+            lines.extend(["", "Constraint expression evidence:"])
+            channel_counts = expression_evidence.get("channel_counts") if isinstance(expression_evidence.get("channel_counts"), Mapping) else {}
+            limit_counts = expression_evidence.get("limit_operator_counts") if isinstance(expression_evidence.get("limit_operator_counts"), Mapping) else {}
+            shape_counts = expression_evidence.get("shape_counts") if isinstance(expression_evidence.get("shape_counts"), Mapping) else {}
+            numeric_role_counts = expression_evidence.get("numeric_role_counts") if isinstance(expression_evidence.get("numeric_role_counts"), Mapping) else {}
+            if channel_counts:
+                channel_text = ", ".join(f"{key}:{value}" for key, value in sorted(channel_counts.items()))
+                lines.append(f"  - Channels: {channel_text}")
+            if limit_counts:
+                limit_text = ", ".join(f"{key}:{value}" for key, value in sorted(limit_counts.items()))
+                lines.append(f"  - Limit operators: {limit_text}")
+            if shape_counts:
+                shape_text = ", ".join(f"{key}:{value}" for key, value in sorted(shape_counts.items()))
+                lines.append(f"  - Syntax shapes: {shape_text}")
+            if numeric_role_counts:
+                role_text = ", ".join(f"{key}:{value}" for key, value in sorted(numeric_role_counts.items()))
+                lines.append(f"  - Numeric roles: {role_text}")
+            lines.append(
+                "  - "
+                f"Numeric constants: {int(expression_evidence.get('numeric_value_count') or 0)} "
+                f"(tokens={expression_evidence.get('token_confidence') or 'unknown'}, "
+                f"semantics={expression_evidence.get('semantics_confidence') or 'unknown'})"
+            )
+        offset_evidence = papr_metadata.get("offset_evidence")
+        if isinstance(offset_evidence, Mapping) and offset_evidence:
+            lines.extend(["", "Constraint field offset evidence:"])
+            lines.append(
+                "  - "
+                f"{offset_evidence.get('status') or 'readable_string_offsets'}: "
+                f"target={int(offset_evidence.get('target_offset_count') or 0)}, "
+                f"helper={int(offset_evidence.get('helper_offset_count') or 0)}, "
+                f"parent={int(offset_evidence.get('parent_offset_count') or 0)} "
+                f"(offsets={offset_evidence.get('offset_confidence') or 'unknown'}, "
+                f"record={offset_evidence.get('record_confidence') or 'unknown'})"
+            )
+        record_candidates = [row for row in papr_metadata.get("record_candidates") or [] if isinstance(row, Mapping)]
+        if record_candidates:
+            lines.extend(["", "Constraint record candidates:"])
+            record_candidate_count = int(papr_metadata.get("record_candidate_count") or len(record_candidates))
+            for row in record_candidates[:12]:
+                target = str(row.get("target_bone") or "").strip() or "unknown target"
+                parent = str(row.get("parent_bone") or "").strip()
+                helper = str(row.get("helper_bone") or "").strip()
+                context = f"target={target}"
+                if helper:
+                    context = f"{context}, helper={helper}"
+                if parent:
+                    context = f"{context}, parent={parent}"
+                field_sequence = tuple(str(value) for value in row.get("record_field_sequence") or () if str(value))
+                sequence_text = f"; order={'>'.join(field_sequence)}" if field_sequence else ""
+                gap_counts = row.get("record_gap_class_counts") if isinstance(row.get("record_gap_class_counts"), Mapping) else {}
+                gap_status = str(row.get("record_gap_status") or "")
+                gap_text = ""
+                if gap_status or gap_counts:
+                    gap_summary = ", ".join(f"{key}:{value}" for key, value in sorted(gap_counts.items()))
+                    gap_text = f"; gaps={gap_status or 'unknown'}"
+                    if gap_summary:
+                        gap_text = f"{gap_text} ({gap_summary})"
+                scalar_counts = row.get("record_gap_scalar_kind_counts") if isinstance(row.get("record_gap_scalar_kind_counts"), Mapping) else {}
+                scalar_text = ""
+                if scalar_counts:
+                    scalar_summary = ", ".join(f"{key}:{value}" for key, value in sorted(scalar_counts.items()))
+                    scalar_text = f"; scalars={row.get('record_gap_scalar_status') or 'unknown'} ({scalar_summary})"
+                match_counts = row.get("record_gap_numeric_match_role_counts") if isinstance(row.get("record_gap_numeric_match_role_counts"), Mapping) else {}
+                match_text = ""
+                if match_counts:
+                    match_summary = ", ".join(f"{key}:{value}" for key, value in sorted(match_counts.items()))
+                    match_text = f"; numeric_matches={row.get('record_gap_numeric_match_status') or 'unknown'} ({match_summary})"
+                lines.append(
+                    "  - "
+                    f"0x{int(row.get('offset') or 0):X} {row.get('constraint_type') or 'constraint_candidate'}: "
+                    f"{context}; expr={row.get('expression') or ''}{sequence_text}{gap_text}{scalar_text}{match_text} "
+                    f"(field={row.get('field_confidence') or 'unknown'}, record={row.get('record_confidence') or 'unknown'}, "
+                    f"solver={row.get('solver_status') or 'blocked'})"
+                )
+            if record_candidate_count > 12:
+                lines.append(f"  ... {record_candidate_count - 12} more")
+        physics_rows = [row for row in papr_metadata.get("related_physics_rows") or [] if isinstance(row, Mapping)]
+        if physics_rows:
+            lines.extend(["", "Related physics evidence:"])
+            for row in physics_rows[:8]:
+                lines.append(
+                    "  - "
+                    f"{row.get('reference_name') or 'physics'} -> {row.get('resolved_archive_path') or ''} "
+                    f"({row.get('relation_confidence') or 'unknown'})"
+                )
+        proof_gap = str(papr_metadata.get("proof_gap") or "").strip()
+        if proof_gap:
+            lines.append(f"  - Gap: {proof_gap}")
 
     if declared_rows:
         lines.extend(["", "Declared Fields:"])
@@ -525,7 +703,9 @@ def build_par_structured_preview(
         detail_lines.append(
             "This inspector summarizes AnimationMetaData headers, filename-derived motion hints, same-stem relationships, and packed metadata bytes. Editing is disabled."
         )
-    elif normalized_extension in {".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    elif normalized_extension == ".papr":
+        detail_lines.append("This inspector summarizes animation constraint declarations and readable rig references. Constraint solving and editing remain disabled.")
+    elif normalized_extension in _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS:
         detail_lines.append(
             "This inspector summarizes animation schedule/sequence timeline lanes, dependency references, timing candidates, and same-stem motion references. Editing and playback remain disabled."
         )
@@ -611,13 +791,21 @@ def _structured_asset_profile(
             ),
             "Summarizes PACCD customization slot rows and palette-like byte values. It is read-only evidence for character appearance variants.",
         )
-    if normalized_extension in {".paschedule", ".paschedulepath", ".paseq", ".pastage"}:
+    if normalized_extension in _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS:
         return (
             "Animation schedule inspector",
             "Animation / Schedule Metadata",
             _group_animation_field_name,
             ("Skeleton", "Animation Files", "Motion Space", "Parameters", "Delaunay Data", "Scene / Stage", "Misc"),
             "Summarizes schedule/sequence metadata and readable animation references. Playback and editing are not implemented.",
+        )
+    if normalized_extension == ".papr":
+        return (
+            "Animation constraint inspector",
+            "Animation Constraint",
+            _group_animation_field_name,
+            ("Skeleton", "Animation Files", "Motion Space", "Parameters", "Delaunay Data", "Scene / Stage", "Misc"),
+            "Summarizes animation constraint metadata and readable rig references. Constraint solving and editing are not implemented.",
         )
     if normalized_extension == ".seqmt":
         return (

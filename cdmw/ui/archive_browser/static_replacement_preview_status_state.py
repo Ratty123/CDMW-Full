@@ -77,7 +77,7 @@ def alignment_preview_control_text() -> dict[str, str]:
         ),
         "renderer_tooltip": "Local renderer for Mesh Replacement Alignment. This does not change the Archive Browser renderer.",
         "renderer_label": "Renderer",
-        "renderer_scope": "Mesh Replacement Alignment renderer and texture controls are available from Lighting / Texture Settings.",
+        "renderer_scope": "Mesh Replacement Alignment renderer and texture controls are available from Preview Settings.",
         "preview_mode_tooltip": (
             "Side by side compares original and replacement. Overlay draws both in one view. "
             "Replacement only gives more room to inspect the imported asset."
@@ -91,9 +91,13 @@ def alignment_preview_control_text() -> dict[str, str]:
         "gizmo_tooltip": (
             "Show move/rotate axis handles in the D3D11 alignment preview. This only affects the preview controls."
         ),
+        "part_pick": "Part Pick",
+        "part_pick_tooltip": (
+            "In the D3D11 preview, hover highlights source parts and right-click opens the selected part menu."
+        ),
         "d3d11_view_tooltip": "D3D11 view mode for the live alignment and mesh-edit preview.",
         "d3d11_view_label": "D3D11 view",
-        "settings_button": "Lighting / Texture Settings...",
+        "settings_button": "Preview Settings...",
         "use_global": "Use Global",
         "use_global_tooltip": "Reset the alignment render controls to the current global 3D preview settings.",
         "camera_label": "Camera",

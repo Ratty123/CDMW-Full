@@ -6,6 +6,46 @@ import json
 from collections.abc import Mapping, Sequence
 
 
+MODIFY_ORIGINAL_ADVANCED_TEXTURE_TUNING_SETTINGS_KEY = "settings/modify_original_advanced_texture_tuning"
+MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_SETTINGS_KEY = "settings/modify_original_manual_texture_tuning"
+MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_PRESETS_KEY = "settings/modify_original_manual_texture_tuning_presets"
+
+MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_KEYS = (
+    "base_color_lift",
+    "base_color_scale",
+    "base_color_gamma",
+    "base_color_saturation",
+    "base_color_value_max",
+    "emissive_color_scale",
+    "emissive_color_saturation",
+    "emissive_color_value_max",
+    "roughness_default",
+    "roughness_min",
+    "roughness_scale",
+    "roughness_max",
+    "metallic_default",
+    "metallic_min",
+    "metallic_scale",
+    "metallic_max",
+    "ao_default",
+    "alpha_default",
+    "scratch_roughness",
+    "scratch_metallic",
+    "shine_scalar",
+    "displacement_scale_multiplier",
+    "displacement_scale_max",
+    "neutral_color_rgb",
+    "roughness_inverted",
+    "metallic_inverted",
+    "force_nonmetal",
+    "preserve_scratch_alpha",
+    "allow_factor_only_authority",
+    "factor_only_material_mask",
+    "force_neutral_layer_support",
+    "preserve_target_layer_response",
+)
+
+
 def manual_material_profile_default_values(profile: object | None) -> dict[str, object]:
     return {
         "base_binding_mode": str(getattr(profile, "base_binding_mode", "overlay_texture") or "overlay_texture"),
@@ -48,6 +88,31 @@ def manual_material_profile_default_values(profile: object | None) -> dict[str, 
         "source_color_layer_authority": bool(getattr(profile, "source_color_layer_authority", False)),
         "global_gloss_reduction": float(getattr(profile, "global_gloss_reduction", 0.0) or 0.0),
     }
+
+
+def modify_original_advanced_texture_tuning_settings_key() -> str:
+    return MODIFY_ORIGINAL_ADVANCED_TEXTURE_TUNING_SETTINGS_KEY
+
+
+def modify_original_manual_texture_tuning_presets_key() -> str:
+    return MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_PRESETS_KEY
+
+
+def modify_original_manual_texture_tuning_settings_key() -> str:
+    return MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_SETTINGS_KEY
+
+
+def modify_original_manual_texture_tuning_values(
+    raw_values: object,
+    *,
+    defaults: Mapping[str, object],
+) -> dict[str, object]:
+    values = dict(defaults)
+    if isinstance(raw_values, Mapping):
+        for key in MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_KEYS:
+            if key in values and key in raw_values:
+                values[key] = raw_values[key]
+    return values
 
 
 def stored_manual_material_profile_values(
@@ -446,6 +511,7 @@ def delete_manual_material_profile_preset(
 
 
 __all__ = [
+    "MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_KEYS",
     "coerce_manual_material_profile_values",
     "delete_manual_material_profile_preset",
     "load_manual_material_profile_presets",
@@ -463,6 +529,10 @@ __all__ = [
     "manual_material_profile_token",
     "manual_profile_dirty_initial_state",
     "manual_profile_ready_initial_state",
+    "modify_original_advanced_texture_tuning_settings_key",
+    "modify_original_manual_texture_tuning_presets_key",
+    "modify_original_manual_texture_tuning_settings_key",
+    "modify_original_manual_texture_tuning_values",
     "manual_material_profile_preset_from_fields",
     "manual_material_profile_preset_metadata",
     "manual_material_profile_preset_names",

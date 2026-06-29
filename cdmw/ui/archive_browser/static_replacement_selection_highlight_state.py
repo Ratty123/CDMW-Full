@@ -58,15 +58,21 @@ def selection_highlight_sets_state(
     selected_target_source_editor_ids: Sequence[int],
     disabled_source_editor_ids: Sequence[int],
     default_d3d11_editor_ids: Sequence[int],
+    hovered_source_highlights: Sequence[int] = (),
+    hovered_source_editor_ids: Sequence[int] = (),
+    part_pick_checked: bool = False,
 ) -> dict[str, object]:
     selected_source_indices = _nonnegative_indices(selected_source_highlights)
     selected_target_source_indices = _nonnegative_indices(selected_target_source_highlights)
+    hovered_source_indices = _nonnegative_indices(hovered_source_highlights) if bool(part_pick_checked) else ()
     selected_original_indices = _nonnegative_indices(selected_original_highlights)
     selected_target_original_indices = _nonnegative_indices(selected_target_original_highlights)
-    highlighted_source_indices = tuple(sorted(set(selected_source_indices).union(selected_target_source_indices)))
+    highlighted_source_indices = tuple(
+        sorted(set(selected_source_indices).union(selected_target_source_indices).union(hovered_source_indices))
+    )
     highlighted_original_indices = tuple(sorted(set(selected_original_indices).union(selected_target_original_indices)))
 
-    highlight_active = bool(geometry_active) or bool(texture_tab_active)
+    highlight_active = bool(geometry_active) or bool(texture_tab_active) or bool(hovered_source_indices)
     gizmo_enabled = bool(preview_gizmo_checked) and not bool(mesh_edit_raw_active)
     if not bool(d3d11_active):
         return {
@@ -85,6 +91,8 @@ def selection_highlight_sets_state(
         editor_ids = _nonnegative_indices(selected_source_editor_ids)
         d3d11_highlight_ids.update(editor_ids or overlay_ids)
         d3d11_highlight_ids.update(_nonnegative_indices(selected_target_source_editor_ids))
+        if bool(part_pick_checked):
+            d3d11_highlight_ids.update(_nonnegative_indices(hovered_source_editor_ids))
     return {
         "highlighted_source_indices": highlighted_source_indices,
         "highlighted_original_indices": highlighted_original_indices,

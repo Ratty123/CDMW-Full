@@ -75,6 +75,7 @@ def mesh_edit_action_control_text() -> dict[str, str]:
         "shrink_selection": "Shrink Selection",
         "smooth_selection": "Smooth / Feather Selection",
         "subdivide_selection": "Subdivide Selection",
+        "split_selection": "Split Selection To Part",
         "delete_faces": "Delete Selected Faces",
         "undo": "Undo",
         "redo": "Redo",
@@ -87,6 +88,7 @@ def mesh_edit_action_control_text() -> dict[str, str]:
         "select_part_tooltip": "Select every vertex in the current editable Mesh Editing scope.",
         "invert_selection_tooltip": "Invert the selected vertices inside the current editable Mesh Editing scope.",
         "subdivide_selection_tooltip": "Add local triangle density around selected vertices, then keep sculpting.",
+        "split_selection_tooltip": "Move selected faces into a new replacement source part.",
         "delete_faces_tooltip": "Delete triangles touched by selected Mesh Editing vertices. Cut boundaries are left open.",
     }
 
@@ -116,6 +118,15 @@ def mesh_edit_subdivide_text() -> dict[str, str]:
     }
 
 
+def mesh_edit_split_text() -> dict[str, str]:
+    return {
+        "morph_blocker": "Bake or reset Morph Sliders before splitting mesh faces.",
+        "select_faces": "Select faces or vertices before splitting mesh faces.",
+        "no_selected_faces": "No faces are selected for splitting.",
+        "multiple_parts": "Select faces from one source part before splitting.",
+    }
+
+
 def mesh_edit_live_delete_status(removed_faces: int) -> str:
     removed = int(removed_faces)
     if removed:
@@ -135,10 +146,15 @@ def mesh_edit_subdivided_selection_status(added_faces: int) -> str:
     return f"Subdivided {int(added_faces):,} new face(s) for Mesh Editing detail."
 
 
+def mesh_edit_split_selection_status(moved_faces: int) -> str:
+    return f"Split {int(moved_faces):,} face(s) into a new replacement source part."
+
+
 def mesh_edit_topology_changed_status(action: str) -> str:
     labels = {
         "remove_faces": "Remove Faces changed topology. Use Reset Scope to restore Morph Slider compatibility.",
         "subdivide_selection": "Subdivide Selection changed topology. Use Reset Scope to restore Morph Slider compatibility.",
+        "split_selection": "Split Selection changed topology. Use Reset Scope to restore Morph Slider compatibility.",
     }
     return labels.get(str(action or "").strip(), "")
 
@@ -691,6 +707,8 @@ __all__ = [
     "mesh_edit_should_restore_deleted_output",
     "mesh_edit_subdivide_text",
     "mesh_edit_subdivided_selection_status",
+    "mesh_edit_split_selection_status",
+    "mesh_edit_split_text",
     "mesh_edit_topology_changed_status",
     "mesh_edit_has_inverse_transform_context",
     "mesh_edit_sorted_index_groups",

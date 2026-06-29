@@ -50,6 +50,8 @@ class ShellToolTabsMixin:
         self.mesh_editor_tab = MeshEditorTab(
             settings=self.settings,
             theme_key=self.current_theme_key,
+            get_archive_texture_entries_by_normalized_path=lambda: getattr(self, "archive_entries_by_normalized_path", {}) or {},
+            get_archive_texture_entries_by_basename=lambda: getattr(self, "archive_entries_by_basename", {}) or {},
         )
         self.mesh_editor_tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
@@ -59,6 +61,8 @@ class ShellToolTabsMixin:
         self.mesh_editor_tab.import_preview_requested.connect(self._mesh_editor_import_preview_requested)
         self.mesh_editor_tab.in_game_swap_requested.connect(self._mesh_editor_in_game_swap_requested)
         self.mesh_editor_tab.open_archive_target_requested.connect(self._mesh_editor_show_archive_target_requested)
+        self.mesh_editor_tab.mesh_action_requested.connect(self._mesh_editor_action_requested)
+        self.mesh_editor_tab.open_texture_source_requested.connect(self._open_source_in_texture_editor)
         self.assets_tabs.addTab(self.mesh_editor_tab, "Mesh Editor")
 
         pump_startup_splash("Preparing model library...")
@@ -205,6 +209,7 @@ class ShellToolTabsMixin:
         self.texture_editor_tab.send_to_item_icons_requested.connect(
             self._handle_texture_editor_send_to_item_icons
         )
+        self.texture_editor_tab.native_dds_ready.connect(self.mesh_editor_tab.apply_texture_editor_dds_preview)
         self.texture_tabs.addTab(self.texture_editor_tab, "Editor")
 
         self.item_icons_tab = ItemIconLibraryTab(

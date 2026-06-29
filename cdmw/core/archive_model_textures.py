@@ -3095,7 +3095,7 @@ def _describe_model_related_file_label(entry: ArchiveEntry) -> str:
         return "Animation Metadata"
     if extension == ".motionblending":
         return "Motion Blending"
-    if extension in {".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    if extension in {".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
         return "Animation Metadata"
     if extension == ".seqmt":
         return "Sequence Texture Metadata"

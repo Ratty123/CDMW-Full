@@ -413,6 +413,24 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('("gamma", gamma)', host_text)
         self.assertIn('"tint_color"', host_text)
 
+    def test_d3d11_preview_wires_source_part_picking_and_context_event(self) -> None:
+        d3d11_text = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        host_text = Path("cdmw/ui/native_d3d11_preview_host.py").read_text(encoding="utf-8")
+
+        self.assertIn("source_part_context_requested = Signal(int, int, int)", host_text)
+        self.assertIn("def set_source_part_picking(self, enabled: bool) -> bool:", host_text)
+        self.assertIn('"command": "set_source_part_picking"', host_text)
+        self.assertIn('elif event == "source_part_context_requested":', host_text)
+        self.assertIn("self.source_part_context_requested.emit(", host_text)
+
+        self.assertIn("bool picking_enabled = false;", d3d11_text)
+        self.assertIn("void send_source_part_context_event", d3d11_text)
+        self.assertIn('out << "{\\"event\\":\\"source_part_context_requested\\""', d3d11_text)
+        self.assertIn("bool request_source_part_context(WPARAM wparam, int x, int y)", d3d11_text)
+        self.assertIn("if (request_source_part_context(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))", d3d11_text)
+        self.assertIn("if (source_part_.click_pending)", d3d11_text)
+        self.assertIn('if (command == "set_source_part_picking")', d3d11_text)
+
     def test_d3d11_preview_uses_screen_space_highlight_bounds(self) -> None:
         d3d11_text = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
 
@@ -422,6 +440,15 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("project_batch_position_for_view(batch, position, view", d3d11_text)
         self.assertIn("draw_highlight_bounds_overlay(view);", d3d11_text)
         self.assertNotIn("selection_wire_tint", d3d11_text)
+
+    def test_d3d11_grid_uses_reference_batches_in_reference_view(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        start = source.index("float workspace_grid_y_for_view")
+        end = source.index("void draw_workspace_grid", start)
+        grid_source = source[start:end]
+
+        self.assertIn("if (!batch_visible_in_view(batch, view.role)) continue;", grid_source)
+        self.assertNotIn("batch_is_reference(batch)", grid_source)
 
     def test_preview_core_service_recycles_after_job_count_limit(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

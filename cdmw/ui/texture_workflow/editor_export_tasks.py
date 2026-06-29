@@ -16,6 +16,11 @@ from cdmw.core.texture_editor import (
     save_texture_editor_project,
 )
 from cdmw.models import TextureEditorDocument, TextureEditorSourceBinding
+from cdmw.services.texture_editor_service import (
+    TextureEditorNativeDdsOptions,
+    TextureEditorNativeDdsResult,
+    TextureEditorNativeDdsService,
+)
 from cdmw.ui.texture_workflow.editor_export_state import texture_editor_workspace_png_path
 
 
@@ -123,4 +128,28 @@ def export_texture_editor_grid_slices_task(
         padding=padding,
         trim_transparent=trim_transparent,
         skip_empty=skip_empty,
+    )
+
+
+def export_texture_editor_native_dds_task(
+    document: TextureEditorDocument,
+    layer_pixels: Mapping[str, np.ndarray],
+    options: TextureEditorNativeDdsOptions,
+) -> TextureEditorNativeDdsResult:
+    return TextureEditorNativeDdsService().export_dds(
+        document,
+        copy_texture_editor_layer_pixels(layer_pixels),
+        options,
+    )
+
+
+def preview_texture_editor_native_dds_task(
+    document: TextureEditorDocument,
+    layer_pixels: Mapping[str, np.ndarray],
+    options: TextureEditorNativeDdsOptions,
+) -> TextureEditorNativeDdsResult:
+    return TextureEditorNativeDdsService().preview_compressed(
+        document,
+        copy_texture_editor_layer_pixels(layer_pixels),
+        options,
     )

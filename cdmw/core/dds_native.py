@@ -65,6 +65,7 @@ _DXGI_COMPRESSED_FORMATS: Dict[int, Tuple[str, str, int, bool, bool]] = {
 _DXGI_UNCOMPRESSED_FORMATS: Dict[int, Tuple[str, str, int, bool, bool]] = {
     28: ("R8G8B8A8_UNORM", "rgba8", 4, False, True),
     29: ("R8G8B8A8_UNORM_SRGB", "rgba8", 4, True, True),
+    56: ("R16_UNORM", "r16", 2, False, False),
     49: ("R8G8_UNORM", "rg8", 2, False, False),
     61: ("R8_UNORM", "r8", 1, False, False),
     87: ("B8G8R8A8_UNORM", "bgra8", 4, False, True),
@@ -158,6 +159,11 @@ def inspect_dds_native(data: bytes, *, payload_size: Optional[int] = None) -> Dd
         return DdsNativeInfo(width, height, mip_count, "", reason=f"unsupported DDS pixel format size: {pixel_format_size}")
     pf_flags = _read_u32(data, pixel_format_offset + 4)
     fourcc_bytes = data[pixel_format_offset + 8 : pixel_format_offset + 12]
+    rgb_bit_count = _read_u32(data, pixel_format_offset + 12)
+    red_mask = _read_u32(data, pixel_format_offset + 16)
+    green_mask = _read_u32(data, pixel_format_offset + 20)
+    blue_mask = _read_u32(data, pixel_format_offset + 24)
+    alpha_mask = _read_u32(data, pixel_format_offset + 28)
     data_offset = 128
     dxgi_format = 0
     format_tuple: Optional[Tuple[str, str, int, bool, bool]] = None
@@ -176,6 +182,23 @@ def inspect_dds_native(data: bytes, *, payload_size: Optional[int] = None) -> Dd
                 is_compressed = False
         else:
             format_tuple = _FOURCC_COMPRESSED_FORMATS.get(fourcc_bytes)
+    elif pf_flags & DDS_LUMINANCE:
+        if rgb_bit_count == 8 and red_mask == 0x000000FF:
+            dxgi_format = 61
+        elif rgb_bit_count == 16 and red_mask == 0x0000FFFF:
+            dxgi_format = 56
+        if dxgi_format:
+            format_tuple = _DXGI_UNCOMPRESSED_FORMATS.get(dxgi_format)
+            is_compressed = False
+    elif pf_flags & DDS_RGB:
+        masks = (red_mask, green_mask, blue_mask, alpha_mask)
+        if rgb_bit_count == 32 and masks == (0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000):
+            dxgi_format = 28
+        elif rgb_bit_count == 32 and masks[:3] == (0x00FF0000, 0x0000FF00, 0x000000FF):
+            dxgi_format = 87
+        if dxgi_format:
+            format_tuple = _DXGI_UNCOMPRESSED_FORMATS.get(dxgi_format)
+            is_compressed = False
     if format_tuple is None:
         name = f"DXGI_{dxgi_format}" if dxgi_format else (fourcc or "uncompressed_or_unknown")
         return DdsNativeInfo(
@@ -186,7 +209,7 @@ def inspect_dds_native(data: bytes, *, payload_size: Optional[int] = None) -> Dd
             dxgi_format=dxgi_format,
             fourcc=fourcc,
             data_offset=data_offset,
-            reason="DDS format is not a supported BC compressed 2D texture",
+            reason="DDS format is not a supported 2D texture format",
         )
     format_name, family, bytes_per_block, srgb, default_alpha = format_tuple
     block_width = 4 if is_compressed else 1

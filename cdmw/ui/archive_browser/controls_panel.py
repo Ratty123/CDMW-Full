@@ -88,7 +88,7 @@ class ArchiveControlsPanelMixin:
         self.archive_locations_section.body_layout.addWidget(archive_locations_hint)
         self.archive_locations_section.body_layout.addWidget(archive_locations_group)
 
-        archive_search_group = QGroupBox("Search")
+        archive_search_group = QGroupBox()
         archive_search_layout = QVBoxLayout(archive_search_group)
         archive_search_layout.setContentsMargins(8, 8, 8, 8)
         archive_search_layout.setSpacing(6)

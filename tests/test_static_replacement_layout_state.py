@@ -55,9 +55,9 @@ def test_alignment_dialog_responsive_layout_builds_embedded_splitter_sizes_once(
     assert layout.controls_policy == "preferred"
     assert layout.controls_min_width == 260
     assert layout.preview_min_width == 220
-    assert layout.main_stretch == (0, 1)
-    assert layout.main_sizes == (480, 720)
-    assert layout.preview_sizes == (374, 316)
+    assert layout.main_stretch == (1, 0)
+    assert layout.main_sizes == (840, 360)
+    assert layout.preview_sizes == (436, 369)
     assert alignment_dialog_responsive_layout(
         state,
         width=1200,
@@ -117,7 +117,7 @@ def test_alignment_dialog_responsive_layout_covers_compact_and_wide_mesh_edit_mo
     assert wide_mesh.content_min_width == 620
     assert wide_mesh.controls_max_width == 620
     assert wide_mesh.preview_min_width == 620
-    assert wide_mesh.main_sizes == (480, 1520)
+    assert wide_mesh.main_sizes == (1520, 480)
     assert wide_mesh.preview_sizes == (790, 668)
 
 

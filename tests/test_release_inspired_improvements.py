@@ -193,6 +193,49 @@ class ReleaseInspiredImprovementTests(unittest.TestCase):
         self.assertEqual("palette", report.confidence)
         self.assertEqual("character/skeleton/rig_body.pab", report.selected_path)
 
+    def test_skeleton_resolver_prefers_prefabdata_skeleton_and_reports_pabc_context(self) -> None:
+        model = _entry("character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pac")
+        identity = _entry("character/identityskeleton.pab")
+        descriptor = _entry("character/prefab/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.prefabdata_xml")
+        skeleton = _entry("character/model/1_pc/2_phw/phw_01.pab")
+        pabc = _entry("character/binary/skeletonvariation/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pabc")
+        papr = _entry("character/model/1_pc/2_phw/phw_01.papr")
+        socket = _entry("character/descriptors/socketbonedata/phw_01.pab.sockets.xml")
+        entries = (model, identity, descriptor, skeleton, pabc, papr, socket)
+        path_index = {entry.path.lower(): (entry,) for entry in entries}
+        basename_index: dict[str, tuple[ArchiveEntry, ...]] = {}
+        for entry in entries:
+            basename_index[entry.basename.lower()] = (entry,)
+
+        def read_payload(entry: ArchiveEntry) -> bytes:
+            if entry is descriptor:
+                return (
+                    '<PrefabData>'
+                    '<SkeletonName FileName="1_pc/2_phw/phw_01.pab" />'
+                    '<SkeletonVariationName FileName="1_PC/10_PGW/Nude/CD_PGW_00_Nude_00_0001.pabc" />'
+                    '<AnimationConstraintName FileName="1_pc/2_phw/phw_01.papr" />'
+                    '<SocketFileName FileName="phw_01.pab.sockets.xml" />'
+                    '</PrefabData>'
+                ).encode("utf-8")
+            return _pab_payload(name_hash=0x00ABCDEF)
+
+        selected, report = resolve_skeleton_for_model(
+            model,
+            entries,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            pac_data=b"no palette",
+            read_entry_data=read_payload,
+        )
+
+        self.assertIs(selected, skeleton)
+        self.assertEqual("descriptor", report.confidence)
+        self.assertEqual(descriptor.path, report.descriptor_path)
+        self.assertEqual(pabc.path, report.skeleton_variation_path)
+        self.assertEqual(papr.path, report.animation_constraint_path)
+        self.assertEqual(socket.path, report.socket_path)
+        self.assertNotEqual(identity.path, report.selected_path)
+
     def test_skeleton_resolver_refuses_ambiguous_heuristic_candidates(self) -> None:
         model = _entry("character/model/body_a.pac", data=b"no palette")
         first = _entry("character/model/rig_a.pab")

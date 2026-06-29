@@ -268,6 +268,11 @@ class ArchiveModPackageRetrofitDialogMixin:
         empty_repair_summary = RetrofitPathRepairSummary(mappings=tuple())
         _safe_output_name_suffixes: Dict[str, int] = {}
 
+        def _apply_widget_localization(widget: QWidget) -> None:
+            apply_localizer = getattr(getattr(self, "ui_localizer", None), "apply", None)
+            if callable(apply_localizer):
+                apply_localizer(widget)
+
         def _set_table_cell_text(row: int, col: int, value: str) -> None:
             text = value or "-"
             item = QTableWidgetItem(text)
@@ -465,6 +470,7 @@ class ArchiveModPackageRetrofitDialogMixin:
                 if default_index >= 0:
                     manager_combo.setCurrentIndex(default_index)
                 manager_combo.setToolTip("Choose the manager profile to generate for this package.")
+                _apply_widget_localization(manager_combo)
                 table.setCellWidget(row, 5, manager_combo)
                 structure_combo = QComboBox()
                 structure_combo.addItem("Game-relative folders", "game_relative")
@@ -472,17 +478,21 @@ class ArchiveModPackageRetrofitDialogMixin:
                 structure_combo.addItem("Custom compact paths", "custom_compact_paths")
                 structure_combo.addItem("DMM texture folder", "dmm_texture")
                 structure_combo.addItem("Field-JSON v3.1 assets", "field_json_v31")
+                _apply_widget_localization(structure_combo)
                 table.setCellWidget(row, 6, structure_combo)
                 conflict_combo = QComboBox()
                 conflict_combo.addItem("Normal", "")
                 conflict_combo.addItem("Override wins", "override")
+                _apply_widget_localization(conflict_combo)
                 table.setCellWidget(row, 7, conflict_combo)
                 language_edit = QLineEdit()
                 language_edit.setPlaceholderText("Optional")
+                _apply_widget_localization(language_edit)
                 table.setCellWidget(row, 8, language_edit)
                 ready_zip_checkbox = QCheckBox()
                 ready_zip_checkbox.setChecked(True)
                 ready_zip_checkbox.setToolTip("Write rebuilt zip beside the converted folder.")
+                _apply_widget_localization(ready_zip_checkbox)
                 table.setCellWidget(row, 9, ready_zip_checkbox)
                 _set_table_cell_text(row, 10, "; ".join(package.warnings))
                 feasibility_text = _readiness_label_for_summary(_summary_for_row(row))
@@ -618,6 +628,7 @@ class ArchiveModPackageRetrofitDialogMixin:
         selection_status_label.setText("No packages selected.")
         if run_initial_scan:
             _scan()
+        _apply_widget_localization(parent)
 
 
 __all__ = ["ArchiveModPackageRetrofitDialogMixin"]

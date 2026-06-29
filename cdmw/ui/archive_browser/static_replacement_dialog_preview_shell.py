@@ -89,7 +89,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     layout = QVBoxLayout(content_container)
     layout.setContentsMargins(4, 3, 4, 3)
     layout.setSpacing(3)
-    main_splitter.addWidget(controls_panel)
     preview_panel = QWidget(dialog)
     preview_panel.setMinimumWidth(alignment_preview_min_width)
     preview_panel_layout = QVBoxLayout(preview_panel)
@@ -154,6 +153,11 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_gizmo_checkbox.setChecked(False)
     preview_gizmo_checkbox.setToolTip(alignment_preview_control_text["gizmo_tooltip"])
     preview_controls_row.addWidget(preview_gizmo_checkbox)
+    preview_part_pick_checkbox = QCheckBox(alignment_preview_control_text["part_pick"])
+    preview_part_pick_checkbox.setChecked(False)
+    preview_part_pick_checkbox.setToolTip(alignment_preview_control_text["part_pick_tooltip"])
+    preview_controls_row.addWidget(preview_part_pick_checkbox)
+    hovered_source_part = {"index": -1}
     alignment_d3d11_view_mode_combo = QComboBox()
     _populate_combo_options_helper(
         alignment_d3d11_view_mode_combo,
@@ -521,6 +525,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     camera_reset_button.clicked.connect(lambda _checked=False: _set_alignment_camera(-35.0, 20.0))
 
     preview_gizmo_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())
+    preview_part_pick_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())
     preview_stack = QStackedWidget(preview_panel)
     preview_stack.addWidget(preview_splitter)
     preview_stack.addWidget(overlay_dialog_preview)
@@ -550,10 +555,11 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     _run_static_preview_batch = alignment_dialog_layout_callbacks._run_static_preview_batch
     preview_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     main_splitter.addWidget(preview_panel)
+    main_splitter.addWidget(controls_panel)
     main_splitter.setCollapsible(0, False)
     main_splitter.setCollapsible(1, False)
     main_splitter.setStretchFactor(0, 1)
-    main_splitter.setStretchFactor(1, 1)
+    main_splitter.setStretchFactor(1, 0)
     root_layout.addWidget(main_splitter, 1)
 
     dialog.resizeEvent = _responsive_dialog_resize_event  # type: ignore[method-assign]
@@ -626,7 +632,9 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         preview_disable_tint_checkbox=locals().get('preview_disable_tint_checkbox'),
         preview_disable_uv_scale_checkbox=locals().get('preview_disable_uv_scale_checkbox'),
         preview_gizmo_checkbox=locals().get('preview_gizmo_checkbox'),
+        preview_part_pick_checkbox=locals().get('preview_part_pick_checkbox'),
         preview_help=locals().get('preview_help'),
+        hovered_source_part=locals().get('hovered_source_part'),
         preview_mode_combo=locals().get('preview_mode_combo'),
         preview_panel=locals().get('preview_panel'),
         preview_performance_label=locals().get('preview_performance_label'),

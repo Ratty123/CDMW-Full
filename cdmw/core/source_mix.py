@@ -148,6 +148,7 @@ def source_mix_role_for_virtual_path(path_value: str | Path) -> str:
         ".paem",
         ".motionblending",
         ".paseq",
+        ".paseqc",
         ".paschedule",
         ".paschedulepath",
         ".pastage",

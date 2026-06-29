@@ -247,6 +247,8 @@ static DXGI_FORMAT dxgi_format_from_name(const std::string& raw_format) {
         {"R8G8B8A8_UNORM_SRGB", DXGI_FORMAT_R8G8B8A8_UNORM_SRGB},
         {"B8G8R8A8_UNORM", DXGI_FORMAT_B8G8R8A8_UNORM},
         {"B8G8R8A8_UNORM_SRGB", DXGI_FORMAT_B8G8R8A8_UNORM_SRGB},
+        {"R8_UNORM", DXGI_FORMAT_R8_UNORM},
+        {"R16_UNORM", DXGI_FORMAT_R16_UNORM},
         {"R16G16B16A16_FLOAT", DXGI_FORMAT_R16G16B16A16_FLOAT},
         {"R16G16B16A16_UNORM", DXGI_FORMAT_R16G16B16A16_UNORM},
         {"R16G16B16A16_SNORM", DXGI_FORMAT_R16G16B16A16_SNORM},
@@ -276,6 +278,8 @@ static std::string dxgi_format_name(DXGI_FORMAT format) {
     case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return "DXGI_FORMAT_R8G8B8A8_UNORM_SRGB";
     case DXGI_FORMAT_B8G8R8A8_UNORM: return "DXGI_FORMAT_B8G8R8A8_UNORM";
     case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB: return "DXGI_FORMAT_B8G8R8A8_UNORM_SRGB";
+    case DXGI_FORMAT_R8_UNORM: return "DXGI_FORMAT_R8_UNORM";
+    case DXGI_FORMAT_R16_UNORM: return "DXGI_FORMAT_R16_UNORM";
     default: return "DXGI_FORMAT_" + std::to_string(static_cast<unsigned int>(format));
     }
 }
@@ -673,6 +677,8 @@ static std::string encode_dds(const EncodeJob& job) {
             "\",\"message\":\"SaveToDDSFile failed: 0x" + std::to_string(static_cast<unsigned int>(hr)) + "\"}";
     }
     const DirectX::TexMetadata metadata = final_image->GetMetadata();
+    std::error_code size_error;
+    const auto output_byte_size = fs::file_size(fs::path(job.output), size_error);
     std::ostringstream out;
     out << "{"
         << "\"status\":\"encoded\","
@@ -689,6 +695,7 @@ static std::string encode_dds(const EncodeJob& job) {
         << "\"width\":" << metadata.width << ","
         << "\"height\":" << metadata.height << ","
         << "\"mip_count\":" << metadata.mipLevels << ","
+        << "\"output_byte_size\":" << (size_error ? 0 : output_byte_size) << ","
         << "\"encode_ms\":" << elapsed
         << "}";
     return out.str();

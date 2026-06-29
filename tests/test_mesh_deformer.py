@@ -9,11 +9,13 @@ from cdmw.modding.mesh_deformer import (
     assert_mesh_topology_unchanged,
     build_vertex_adjacency,
     build_x_mirror_pairs,
+    clone_mesh_for_editing,
     compact_orphan_vertices,
     delete_faces_by_indices,
     delete_faces_touching_vertices,
     mesh_topology_signature,
     recompute_submesh_normals,
+    subdivide_faces_touching_vertices,
 )
 from cdmw.modding.mesh_exporter import export_obj
 from cdmw.modding.mesh_importer import import_obj
@@ -55,6 +57,67 @@ def _strip_submesh(rows: int = 6) -> SubMesh:
 
 
 class MeshDeformerTests(unittest.TestCase):
+    def test_clone_mesh_for_editing_preserves_material_route_metadata(self) -> None:
+        source = _submesh()
+        source.cdmw_material_authority_profile = "material_authority_detail_mask"
+        source.cdmw_material_authority_contract = "true_source_authority_detail_mask"
+        source.cdmw_source_material_name = "source_mat"
+        source.cdmw_target_material_slot_index = 3
+        source.cdmw_source_texture_set_key = "source_mat"
+        source.preview_native_material_overrides = {"roughness": 0.35, "metalness": 0.8}
+        mesh = ParsedMesh(format="obj", submeshes=[source])
+
+        clone = clone_mesh_for_editing(mesh)
+        cloned_submesh = clone.submeshes[0]
+
+        self.assertEqual("material_authority_detail_mask", cloned_submesh.cdmw_material_authority_profile)
+        self.assertEqual("true_source_authority_detail_mask", cloned_submesh.cdmw_material_authority_contract)
+        self.assertEqual("source_mat", cloned_submesh.cdmw_source_material_name)
+        self.assertEqual(3, cloned_submesh.cdmw_target_material_slot_index)
+        self.assertEqual("source_mat", cloned_submesh.cdmw_source_texture_set_key)
+        self.assertEqual({"roughness": 0.35, "metalness": 0.8}, cloned_submesh.preview_native_material_overrides)
+        self.assertIsNot(source.preview_native_material_overrides, cloned_submesh.preview_native_material_overrides)
+
+    def test_topology_helpers_ignore_overflow_indices_and_faces(self) -> None:
+        source = _submesh()
+        source.faces = [(0, float("inf"), 2), (0, 1, 2), (1, 3, 2)]  # type: ignore[list-item]
+
+        signature = mesh_topology_signature(ParsedMesh(format="obj", submeshes=[source]))
+        self.assertEqual((3,), signature.face_counts)
+        self.assertEqual((((0, 1, 2), (1, 3, 2)),), signature.faces)
+
+        adjacency = build_vertex_adjacency(source)
+        self.assertEqual({1, 2}, adjacency[0])
+        self.assertEqual({0, 2, 3}, adjacency[1])
+
+        delete_mesh = ParsedMesh(format="obj", submeshes=[copy.deepcopy(source)])
+        deleted = delete_faces_by_indices(
+            delete_mesh,
+            {float("inf"): (0,), 0: (float("inf"), 1)},  # type: ignore[dict-item]
+            remove_orphans=False,
+            recompute_normals=False,
+        )
+        self.assertEqual((0,), deleted.affected_submesh_indices)
+        self.assertEqual(1, deleted.removed_face_count)
+        self.assertEqual([(1, 3, 2)], delete_mesh.submeshes[0].faces)
+
+        compacted = copy.deepcopy(source)
+        compacted.faces = [(0, float("inf"), 2), (0, 1, 2)]  # type: ignore[list-item]
+        compact = compact_orphan_vertices(compacted, recompute_normals=False)
+        self.assertEqual((0,), compact.affected_submesh_indices)
+        self.assertEqual(1, compact.removed_vertex_count)
+        self.assertEqual([(0, 1, 2)], compacted.faces)
+
+        subdivide_mesh = ParsedMesh(format="obj", submeshes=[copy.deepcopy(source)])
+        subdivided = subdivide_faces_touching_vertices(
+            subdivide_mesh,
+            selected_faces_by_submesh={0: (float("inf"), 1)},
+            max_faces_per_submesh=float("inf"),  # type: ignore[arg-type]
+            recompute_normals=False,
+        )
+        self.assertEqual((0,), subdivided.affected_submesh_indices)
+        self.assertEqual(3, subdivided.added_vertex_count)
+
     def test_grab_preserves_topology_and_recomputes_normals(self) -> None:
         mesh = ParsedMesh(format="obj", submeshes=[_submesh()])
         before = mesh_topology_signature(mesh)

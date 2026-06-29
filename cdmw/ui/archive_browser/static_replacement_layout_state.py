@@ -80,10 +80,10 @@ def alignment_dialog_responsive_layout(
             state,
             force_sizes=force_sizes,
         )
-        control_width = max(380, min(620, int(normalized_width * 0.40)))
+        control_width = max(360, min(540, int(normalized_width * 0.30)))
         main_sizes = (
-            control_width,
             max(220, normalized_width - control_width),
+            control_width,
         ) if resize_needed else None
         preview_width = max(1, normalized_width - control_width)
         preview_sizes = (
@@ -100,10 +100,10 @@ def alignment_dialog_responsive_layout(
             content_policy="preferred",
             controls_min_width=260,
             content_min_width=0,
-            controls_max_width=16777215,
+            controls_max_width=620,
             content_max_width=16777215,
             preview_min_width=220,
-            main_stretch=(0, 1),
+            main_stretch=(1, 0),
             main_sizes=main_sizes,
             preview_sizes=preview_sizes,
         )
@@ -124,7 +124,7 @@ def alignment_dialog_responsive_layout(
             controls_max_width=16777215,
             content_max_width=16777215,
             preview_min_width=0,
-            main_stretch=(1, 1),
+            main_stretch=(1, 0),
             main_sizes=(
                 max(360, int(normalized_height * 0.56)),
                 max(280, int(normalized_height * 0.36)),
@@ -164,8 +164,8 @@ def alignment_dialog_responsive_layout(
         controls_max_width=int(mesh_edit_control_max_width) if bool(mesh_edit_tools_active) else 16777215,
         content_max_width=16777215,
         preview_min_width=int(alignment_preview_min_width),
-        main_stretch=(1, 1),
-        main_sizes=(control_width, max(760, normalized_width - control_width)) if should_resize else None,
+        main_stretch=(1, 0),
+        main_sizes=(max(760, normalized_width - control_width), control_width) if should_resize else None,
         preview_sizes=(
             max(360, int(preview_width * 0.52)),
             max(360, int(preview_width * 0.44)),

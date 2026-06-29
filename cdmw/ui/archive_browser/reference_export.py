@@ -212,7 +212,7 @@ class ArchiveReferenceExportMixin:
                 return "Skeleton / Rig"
             if relation_group == "physics / collision" or reference_kind == "physics":
                 return "Physics / Collision"
-            if relation_group == "animation / motion" or extension in {".hkx", ".hkt", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+            if relation_group == "animation / motion" or extension in {".hkx", ".hkt", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
                 return "Animation / Motion"
             if extension:
                 return extension.lstrip(".").upper()

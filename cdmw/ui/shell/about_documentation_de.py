@@ -454,6 +454,7 @@ class AboutDocumentationGermanMixin:
                     <ul>
                       <li><b>Ausgabe-Stamm</b> enthaelt normale DDS-Ergebnisse.</li>
                       <li><b>Mod-ready Export</b> erzeugt eine Loose-Struktur mit manifest.json, optionalen Manager-Metadaten und optional .no_encrypt.</li>
+                      <li><b>Ziel-Mod-Manager</b> kann DMM-, CDUMM-, JMM-JSON-, Crimson-Sharp-/Crimson-Browser- und Field-JSON-v3.1-Formate schreiben. CDUMM nutzt <code>manifest.json</code>, <code>modinfo.json</code>, <code>.no_encrypt</code> und einen <code>files/</code>-Wrapper; DMM-Texturordner nutzen <code>modinfo.json</code>, DMM-Meshordner behalten <code>manifest.json</code> plus <code>modinfo.json</code>.</li>
                       <li>Archiv-Patches brauchen Bestaetigung und nutzen Backup/Wiederherstellung, wo verfuegbar.</li>
                     </ul>
                     """,
@@ -466,7 +467,9 @@ class AboutDocumentationGermanMixin:
                     "html": """
                     <p><b>Profil &gt; Profil exportieren</b> speichert die Workflow-Konfiguration und einen vollstaendigen App-Einstellungssnapshot: Pfade, Regeln/Profile, Paketmetadaten, aktuelle Archiv-Browser-Steuerung, Darstellung, Sprache, Startverhalten, Leistung, Cache/Indexierung, 3D-Vorschau, Textur-Ersetzer, Textur-Editor, Sicherheitsabfragen und Fenstergeometrie.</p>
                     <ul>
+                      <li>Ein App-Profil ist ein einzelner app-weiter Snapshot, keine getrennten Profile pro Tab. Es enthaelt Werkzeugpraeferenzen und Layout abgetrennter Fenster in einer Profildatei.</li>
                       <li><b>Profil importieren</b> stellt zuerst den Workflow wieder her und laedt danach die Einstellungen in Einstellungen, Textur-Ersetzer und Textur-Editor.</li>
+                      <li>Profile speichern keine geoeffneten Archive, aktiven Dokumente oder Projekt-Sitzungen pro Tab.</li>
                       <li><b>Diagnosen exportieren</b> enthaelt dasselbe Profil, Logs, Cache-Zusammenfassung, chaiNNer-Analyse, Crash-Kontext wenn vorhanden, README, Lizenz und Drittanbieterhinweise.</li>
                       <li><b>Einstellungen / Start</b>: Archiv-Autoload, Cache-Praeferenz, letzter Tab und Archivfilter.</li>
                       <li><b>Einstellungen / Leistung</b>: Ressourcenprofil, Ansichtsbackend, UI-Budget, Worker, native Beschleunigung, Sidecar-Indexierung und D3D11-Cache.</li>

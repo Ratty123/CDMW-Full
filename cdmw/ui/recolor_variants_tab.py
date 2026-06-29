@@ -214,15 +214,15 @@ class RecolorVariantsTab(QWidget):
         self.splitter.setStretchFactor(2, 1)
         self.splitter.setSizes(build_responsive_splitter_sizes(1680, [22, 52, 26], [340, 660, 360]))
 
+        self.summary_label = QLabel("Choose a loose or zip mod, then analyze it for safe recolor targets.")
+        self.summary_label.setObjectName("HintLabel")
+        self.summary_label.setWordWrap(True)
+        controls_layout.addWidget(self.summary_label)
+
         self._build_source_section(controls_layout)
         self._build_template_section(controls_layout)
         self._build_output_section(controls_layout)
         self._build_results_section(results_layout)
-
-        self.summary_label = QLabel("Choose a loose or zip mod, then analyze it for safe recolor targets.")
-        self.summary_label.setObjectName("HintLabel")
-        self.summary_label.setWordWrap(True)
-        main_layout.addWidget(self.summary_label)
 
         self.preview_summary_label = QLabel("Preview a template to see the exact texture and material-color impact before building.")
         self.preview_summary_label.setObjectName("RecolorVariantPreviewSummary")

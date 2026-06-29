@@ -56,6 +56,13 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     scene_import_result = context.get("scene_import_result")
     self = context.get("self")
     full_import_model_replacement = bool(context.get("full_import_model_replacement"))
+    static_replacement_workflow_mode = (
+        "full_import"
+        if full_import_model_replacement
+        else "modify_original"
+        if modify_original_clone_mode
+        else "import_mesh"
+    )
 
     control_tabs = QTabWidget(content_container)
     control_tabs.setObjectName("MeshAlignmentStickyWorkflowTabs")
@@ -97,6 +104,8 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     if full_import_model_replacement and hasattr(control_tabs, "setTabVisible"):
         for advanced_tab in (parts_tab, mesh_edit_tab, textures_tab):
             control_tabs.setTabVisible(control_tabs.indexOf(advanced_tab), False)
+    elif static_replacement_workflow_mode == "modify_original" and hasattr(control_tabs, "setTabVisible"):
+        control_tabs.setTabVisible(control_tabs.indexOf(textures_tab), False)
     diagnostics_page.setMinimumWidth(0 if embedded_alignment_builder else alignment_control_content_min_width)
     diagnostics_toolbar = QHBoxLayout()
     diagnostics_toolbar.setContentsMargins(5, 3, 5, 3)
@@ -145,10 +154,17 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     intro.setObjectName("HintLabel")
     intro.setVisible(False)
     setup_layout.addWidget(intro)
+    summary_section = CollapsibleSection("Summary", expanded=False)
+    setup_summary_layout = summary_section.body_layout
+    setup_layout.addWidget(summary_section)
+    advanced_setup_section = CollapsibleSection("Advanced", expanded=False)
+    advanced_setup_section.setVisible(not full_import_model_replacement)
+    setup_advanced_layout = advanced_setup_section.body_layout
+    placement_note = None
     source_mix_control_text = _alignment_source_mix_control_text_helper()
     source_mix_tray = QGroupBox(source_mix_control_text["group_title"])
     source_mix_tray.setToolTip(source_mix_control_text["tray_tooltip"])
-    source_mix_tray.setVisible(not full_import_model_replacement)
+    source_mix_tray.setVisible(static_replacement_workflow_mode == "import_mesh")
     source_mix_tray.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
     source_mix_layout = QVBoxLayout(source_mix_tray)
     source_mix_layout.setContentsMargins(5, 3, 5, 3)
@@ -188,7 +204,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     modify_original_parity_label.setToolTip(modify_original_parity_presentation.tooltip)
     modify_original_parity_label.setMaximumHeight(28)
     source_mix_layout.addWidget(modify_original_parity_label)
-    setup_layout.addWidget(source_mix_tray)
+    setup_advanced_layout.addWidget(source_mix_tray)
 
     alignment_source_mix_callbacks = create_alignment_source_mix_callbacks({**context, **locals()})
     _choose_loaded_archive_mesh_source_for_alignment = alignment_source_mix_callbacks._choose_loaded_archive_mesh_source_for_alignment
@@ -204,7 +220,6 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
         placement_note.setTextFormat(Qt.RichText)
         placement_note.setObjectName("HintLabel")
         placement_note.setToolTip(placement_context_note.strip())
-        setup_layout.addWidget(placement_note)
     if import_diagnostics:
         import_diagnostics_control_text = _alignment_import_diagnostics_control_text_helper()
         import_group = QGroupBox(import_diagnostics_control_text["details_group"])
@@ -219,7 +234,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
         import_layout.addWidget(import_label)
         import_section = CollapsibleSection(import_diagnostics_control_text["import_notes_section"], expanded=False)
         import_section.body_layout.addWidget(import_group)
-        setup_layout.addWidget(import_section)
+        setup_summary_layout.addWidget(import_section)
 
     _alignment_startup_step(alignment_startup_text["alignment_summary"])
     context_html, context_values = self._build_archive_static_placement_context_html(
@@ -255,7 +270,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
         context_layout.addWidget(label_widget, fact_row, 0)
         context_layout.addWidget(value_widget, fact_row, 1)
     context_group.setToolTip(context_html)
-    setup_layout.addWidget(context_group)
+    setup_summary_layout.addWidget(context_group)
 
     return SimpleNamespace(
         _add_loose_source_folder_for_alignment=locals().get("_add_loose_source_folder_for_alignment"),
@@ -284,15 +299,21 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
         parts_layout=locals().get("parts_layout"),
         parts_page=locals().get("parts_page"),
         parts_tab=locals().get("parts_tab"),
+        placement_note=locals().get("placement_note"),
         selection_context_label=locals().get("selection_context_label"),
+        setup_advanced_layout=locals().get("setup_advanced_layout"),
         setup_layout=locals().get("setup_layout"),
         setup_page=locals().get("setup_page"),
+        setup_summary_layout=locals().get("setup_summary_layout"),
         setup_tab=locals().get("setup_tab"),
+        static_replacement_workflow_mode=locals().get("static_replacement_workflow_mode"),
+        advanced_setup_section=locals().get("advanced_setup_section"),
         source_mix_control_text=locals().get("source_mix_control_text"),
         source_mix_hint=locals().get("source_mix_hint"),
         source_mix_layout=locals().get("source_mix_layout"),
         source_mix_status_label=locals().get("source_mix_status_label"),
         source_mix_tray=locals().get("source_mix_tray"),
+        summary_section=locals().get("summary_section"),
         textures_layout=locals().get("textures_layout"),
         textures_page=locals().get("textures_page"),
         textures_tab=locals().get("textures_tab"),

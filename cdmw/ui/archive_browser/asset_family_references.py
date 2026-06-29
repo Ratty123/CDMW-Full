@@ -7,9 +7,8 @@ from pathlib import PurePosixPath
 from typing import List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QLabel, QMenu, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout
+from PySide6.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QLabel, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout
 
-from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
 from cdmw.core.archive import _strip_archive_model_family_variant_suffix, derive_texture_group_key
 from cdmw.core.material_sidecar_editor import is_material_sidecar_entry
 from cdmw.core.upscale_profiles import normalize_texture_reference_for_sidecar_lookup
@@ -549,118 +548,5 @@ class ArchiveAssetFamilyReferenceMixin:
             entries,
             title=f"Export Asset Family - {source_label}",
         )
-
-    def _scope_current_archive_used_by_entries(self) -> None:
-        entries = self._resolved_archive_reference_entries(self.current_archive_used_by_references)
-        if not entries:
-            self.set_status_message("No indexed Used By files are available for the current selection.", error=True)
-            return
-        current_entry = self._current_archive_entry()
-        source_label = current_entry.basename if isinstance(current_entry, ArchiveEntry) else "current asset"
-        self._scope_archive_reference_entries(entries, scope_label=f"Used by {source_label}")
-
-    def _scope_current_archive_role_references(self, role: str, *, scope_label: str) -> None:
-        normalized_role = str(role or "").casefold()
-        references = list(self.current_archive_model_texture_references)
-        references.extend(self.current_archive_used_by_references)
-        entries = [
-            entry
-            for entry in self._resolved_archive_reference_entries(references)
-            if normalized_role in self._archive_entry_role_label(entry).casefold()
-        ]
-        if not entries:
-            self.set_status_message(f"No resolved {role.lower()} references are available.", error=True)
-            return
-        self._scope_archive_reference_entries(entries, scope_label=scope_label)
-
-    def _show_archive_smart_actions_menu(self) -> None:
-        current_entry = self._current_archive_entry()
-        if not isinstance(current_entry, ArchiveEntry):
-            self.set_status_message("Select one archive file first.", error=True)
-            return
-        role = self._archive_entry_role_label(current_entry)
-        menu = QMenu(self)
-        if hasattr(menu, "setToolTipsVisible"):
-            menu.setToolTipsVisible(True)
-        preview_action = menu.addAction("Open Preview")
-        preview_action.triggered.connect(lambda _checked=False, entry=current_entry: self._render_archive_preview(entry))
-        show_only_action = menu.addAction("Show Only This File")
-        show_only_action.triggered.connect(lambda _checked=False: self._scope_current_archive_entry_only())
-
-        if role == "Mesh":
-            export_mesh_action = menu.addAction("Export Mesh...")
-            export_mesh_action.triggered.connect(lambda _checked=False: self._export_current_archive_model())
-            modify_original_action = menu.addAction("Modify Original...")
-            modify_original_action.triggered.connect(
-                lambda _checked=False, entry=current_entry: self._mesh_editor_modify_original_requested(entry)
-            )
-            import_mesh_preview_action = menu.addAction("Import Mesh Preview...")
-            import_mesh_preview_action.triggered.connect(lambda _checked=False: self._preview_current_archive_mesh_import())
-            show_hkx_action = menu.addAction("Show Related HKX/Physics")
-            show_hkx_action.triggered.connect(
-                lambda _checked=False, label=current_entry.basename: self._scope_current_archive_role_references(
-                    "Physics",
-                    scope_label=f"Related physics for {label}",
-                )
-            )
-        elif role == "Texture":
-            texture_editor_action = menu.addAction("Open Texture Editor...")
-            texture_editor_action.triggered.connect(
-                lambda _checked=False, entry=current_entry: self._open_archive_entry_in_texture_editor(entry)
-            )
-            used_by_action = menu.addAction("Show Materials Using This")
-            used_by_action.triggered.connect(lambda _checked=False: self._scope_current_archive_used_by_entries())
-        elif role in {"Physics", "HKX"}:
-            edit_hkx_action = menu.addAction("Edit HKX...")
-            edit_hkx_action.triggered.connect(lambda _checked=False: self._edit_current_archive_hkx())
-            export_xml_action = menu.addAction("Export HKX XML...")
-            export_xml_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_xml())
-            show_models_action = menu.addAction("Show Linked Models")
-            show_models_action.triggered.connect(
-                lambda _checked=False, label=current_entry.basename: self._scope_current_archive_role_references(
-                    "Mesh",
-                    scope_label=f"Linked models for {label}",
-                )
-            )
-        elif role == "Material":
-            edit_material_action = menu.addAction("Edit Material Values...")
-            edit_material_action.triggered.connect(lambda _checked=False: self._edit_current_archive_material_sidecar())
-            show_textures_action = menu.addAction("Show Used Textures")
-            show_textures_action.triggered.connect(
-                lambda _checked=False, label=current_entry.basename: self._scope_current_archive_role_references(
-                    "Texture",
-                    scope_label=f"Textures used by {label}",
-                )
-            )
-        elif role in {"Prefab", "Metadata"}:
-            related_action = menu.addAction("Show Related Files")
-            related_action.triggered.connect(lambda _checked=False: self._scope_current_archive_asset_set(include_used_by=True))
-
-        if not menu.isEmpty():
-            menu.addSeparator()
-        if hasattr(menu, "setToolTipsVisible"):
-            menu.setToolTipsVisible(True)
-        show_asset_set_action = menu.addAction("Filter to Family")
-        show_asset_set_action.setToolTip("Filter Archive Files to the required/recommended files in this Asset Family.")
-        show_asset_set_action.triggered.connect(lambda _checked=False: self._scope_current_archive_asset_set(include_used_by=False))
-        if any(str(getattr(row, "include_policy", "") or "").casefold() == "manual" for row in self.current_archive_family_member_rows):
-            show_asset_set_hints_action = menu.addAction("Show Family + Hints")
-            show_asset_set_hints_action.triggered.connect(
-                lambda _checked=False: self._scope_current_archive_asset_set(include_hints=True)
-            )
-        if self.current_archive_used_by_references:
-            show_asset_set_used_by_action = menu.addAction("Show Family + Used By")
-            show_asset_set_used_by_action.triggered.connect(
-                lambda _checked=False: self._scope_current_archive_asset_set(include_used_by=True)
-            )
-        export_asset_set_action = menu.addAction("Export Family...")
-        export_asset_set_action.triggered.connect(lambda _checked=False: self._export_current_archive_asset_set())
-        if current_entry.extension not in ARCHIVE_MESH_EXTENSIONS:
-            source_mix_action = menu.addAction("Build Loose Package From Sources...")
-            source_mix_action.triggered.connect(
-                lambda _checked=False, entry=current_entry: self._open_archive_source_mix_package_dialog(entry)
-            )
-        self.archive_texture_smart_actions_button.setMenu(menu)
-        menu.exec(self.archive_texture_smart_actions_button.mapToGlobal(self.archive_texture_smart_actions_button.rect().bottomLeft()))
 
 __all__ = ["ArchiveAssetFamilyReferenceMixin"]

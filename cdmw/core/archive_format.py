@@ -77,6 +77,7 @@ _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS: Tuple[str, ...] = (
     ".pabgh",
     ".pabc",
     ".pabv",
+    ".papr",
     ".paccd",
     ".pamhc",
     ".pappt",
@@ -85,6 +86,7 @@ _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS: Tuple[str, ...] = (
     ".pampg",
     ".palevel",
     ".paseq",
+    ".paseqc",
     ".paschedule",
     ".paschedulepath",
     ".pastage",
@@ -97,7 +99,7 @@ _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS: Tuple[str, ...] = (
     ".seqmt",
     ".wem",
 )
-_ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS = {".paseq", ".paschedule", ".paschedulepath", ".pastage"}
+_ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS = {".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}
 
 CHACHA20_HASH_INITVAL = 0x000C5EDE
 CHACHA20_IV_XOR = 0x60616263
@@ -979,7 +981,7 @@ def archive_entry_role(entry: ArchiveEntry) -> str:
         return "animation"
     if extension in ARCHIVE_MODEL_EXTENSIONS:
         return "model"
-    if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".papr", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".papr", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
         return "animation"
     if extension in {".meshinfo", ".prefab", ".pamhc", ".pappt", ".paccd", ".pabgb", ".pabgh", ".pabc", ".pabv", ".levelinfo", ".palevel", ".roadsector", ".road", ".nav", ".seqmt", ".uianiminit"}:
         return "metadata"

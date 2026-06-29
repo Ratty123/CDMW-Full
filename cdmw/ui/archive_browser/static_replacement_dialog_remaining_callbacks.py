@@ -1081,6 +1081,7 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
     _current_dialog_mappings_for_preview = context.get('_current_dialog_mappings_for_preview')
     _current_material_authority_preview_profile = context.get('_current_material_authority_preview_profile')
     _current_static_placement_snapshot = context.get('_current_static_placement_snapshot')
+    _modify_original_texture_tuning_enabled = context.get('_modify_original_texture_tuning_enabled')
     _direct_source_preview_indices_helper = context.get('_direct_source_preview_indices_helper')
     _ensure_original_reference_texture_preview_ready = context.get('_ensure_original_reference_texture_preview_ready')
     _infer_model_preview_normal_strength = context.get('_infer_model_preview_normal_strength')
@@ -1128,6 +1129,11 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
         if not callable(_complete_external_swap_enabled):
             return False
         return bool(_complete_external_swap_enabled())
+
+    def _modify_original_tuning_enabled_value() -> bool:
+        if not callable(_modify_original_texture_tuning_enabled):
+            return False
+        return bool(_modify_original_texture_tuning_enabled())
 
     def _complete_swap_material_profile_token_value() -> str:
         if not callable(_current_complete_swap_material_profile_token):
@@ -1376,7 +1382,29 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
                         placement_snapshot = _current_static_placement_snapshot(current_mappings, include_preview_only_independent_parts=True)
                         independent_preview_parts = list(placement_snapshot.get('independent_output_parts', []) or [])
                         geometry_started = time.perf_counter()
-                        preview_mesh = build_static_replacement_preview_mesh(original_mesh_for_mapping, preview_replacement_mesh, _static_options_from_placement_snapshot(placement_snapshot, complete_external_swap=_complete_external_swap_enabled_value(), complete_external_material_reset=_complete_external_swap_enabled_value(), complete_swap_material_profile=_complete_swap_material_profile_token_value(), global_gloss_reduction=float(global_gloss_reduction_spin.value()), edge_relief_strength=float(edge_relief_spin.value()), edge_relief_source=str(edge_relief_source_combo.currentData() or 'hybrid'), accent_glow_strength=float(accent_glow_spin.value()), auto_brightness_balance=float(auto_brightness_spin.value()), dark_detail_lift=float(source_brightness_spin.value()), tone_contrast=float(tone_contrast_spin.value())), max_source_faces_per_submesh=_alignment_preview_source_face_limit())
+                        modify_original_tuning_enabled = _modify_original_tuning_enabled_value()
+                        preview_mesh = build_static_replacement_preview_mesh(
+                            original_mesh_for_mapping,
+                            preview_replacement_mesh,
+                            _static_options_from_placement_snapshot(
+                                placement_snapshot,
+                                complete_external_swap=False if modify_original_clone_mode else _complete_external_swap_enabled_value(),
+                                complete_external_material_reset=(
+                                    modify_original_tuning_enabled
+                                    if modify_original_clone_mode
+                                    else _complete_external_swap_enabled_value()
+                                ),
+                                complete_swap_material_profile=_complete_swap_material_profile_token_value(),
+                                global_gloss_reduction=0.0 if modify_original_clone_mode else float(global_gloss_reduction_spin.value()),
+                                edge_relief_strength=0.0 if modify_original_clone_mode else float(edge_relief_spin.value()),
+                                edge_relief_source="hybrid" if modify_original_clone_mode else str(edge_relief_source_combo.currentData() or 'hybrid'),
+                                accent_glow_strength=0.0 if modify_original_clone_mode else float(accent_glow_spin.value()),
+                                auto_brightness_balance=0.0 if modify_original_clone_mode else float(auto_brightness_spin.value()),
+                                dark_detail_lift=0.0 if modify_original_clone_mode else float(source_brightness_spin.value()),
+                                tone_contrast=0.0 if modify_original_clone_mode else float(tone_contrast_spin.value()),
+                            ),
+                            max_source_faces_per_submesh=_alignment_preview_source_face_limit(),
+                        )
                         geometry_elapsed_ms += (time.perf_counter() - geometry_started) * 1000.0
                         source_overlay_preview_index_map.clear()
                         preview_submesh_index_map.clear()
@@ -1934,7 +1962,9 @@ def create_alignment_manual_profile_control_callbacks(context: dict[str, object]
     Sequence = context.get('Sequence')
     _current_manual_material_profile_values = context.get('_current_manual_material_profile_values')
     _make_int_spin_helper = context.get('_make_int_spin_helper')
+    _modify_original_texture_tuning_enabled = context.get('_modify_original_texture_tuning_enabled')
     _queue_material_authority_adjustment_preview_refresh = context.get('_queue_material_authority_adjustment_preview_refresh')
+    _queue_texture_preview_refresh = context.get('_queue_texture_preview_refresh')
     _refresh_manual_profile_control_effects = context.get('_refresh_manual_profile_control_effects')
     _refresh_output_impact_review = context.get('_refresh_output_impact_review')
     _save_complete_swap_material_profile = context.get('_save_complete_swap_material_profile')
@@ -1960,6 +1990,7 @@ def create_alignment_manual_profile_control_callbacks(context: dict[str, object]
     manual_profile_ready = context.get('manual_profile_ready')
     manual_profile_saved_values = context.get('manual_profile_saved_values')
     manual_profile_settings_key = context.get('manual_profile_settings_key')
+    modify_original_clone_mode = bool(context.get('modify_original_clone_mode'))
     maximum = context.get('maximum')
     minimum = context.get('minimum')
     raw = context.get('raw')
@@ -1979,6 +2010,11 @@ def create_alignment_manual_profile_control_callbacks(context: dict[str, object]
     value = context.get('value')
     values = context.get('values')
 
+    def _modify_original_tuning_enabled_value() -> bool:
+        if not callable(_modify_original_texture_tuning_enabled):
+            return False
+        return bool(_modify_original_texture_tuning_enabled())
+
     def _manual_profile_mark_changed() -> None:
         if not manual_profile_ready.get('ready'):
             return
@@ -1987,7 +2023,10 @@ def create_alignment_manual_profile_control_callbacks(context: dict[str, object]
         _save_complete_swap_material_profile()
         _refresh_manual_profile_control_effects(values)
         _set_manual_profile_dirty(True)
-        if str(complete_swap_material_profile_combo.currentData() or '') == 'material_authority_manual':
+        if modify_original_clone_mode and _modify_original_tuning_enabled_value():
+            _refresh_output_impact_review()
+            _queue_texture_preview_refresh()
+        elif str(complete_swap_material_profile_combo.currentData() or '') == 'material_authority_manual':
             try:
                 _refresh_output_impact_review()
                 _queue_material_authority_adjustment_preview_refresh()

@@ -1284,6 +1284,9 @@ class HkxPhysicsOverlayData:
     anchors: Tuple[HkxPhysicsOverlayAnchor, ...] = ()
     constraints: Tuple[HkxPhysicsOverlayConstraint, ...] = ()
     bones: Tuple[HkxPhysicsOverlayBone, ...] = ()
+    skeleton_pose_enabled: bool = False
+    skeleton_selected_bone_index: int = -1
+    skeleton_pose_rotations: Tuple[Tuple[int, Tuple[float, float, float]], ...] = ()
     body_count: int = 0
     constraint_count: int = 0
     limitations: Tuple[str, ...] = ()

@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.ui.archive_browser.actions import archive_context_menu_icons
 from cdmw.constants import DEFAULT_UI_PREVIEW_COLOR_SCHEME
 from cdmw.core.archive import (
     build_archive_asset_family_graph,
@@ -453,88 +454,11 @@ class ArchiveReferencePreviewMixin:
             )
 
     def _update_archive_texture_reference_action_controls(self) -> None:
-        selected_references = self._selected_archive_texture_references()
-        selected_entries = self._resolved_archive_reference_entries(selected_references)
-        all_entries = self._current_archive_asset_set_entries(include_hints=False)
-        single_selected_entry = selected_entries[0] if len(selected_entries) == 1 else None
         controls_enabled = self.worker_thread is None
-        can_open = controls_enabled and isinstance(single_selected_entry, ArchiveEntry)
-        busy_reason = "wait for the current background task to finish"
-        selected_reason = (
-            busy_reason
-            if not controls_enabled
-            else "select one or more resolved rows in Asset Family first"
-        )
-        single_row_reason = (
-            busy_reason
-            if not controls_enabled
-            else "select one resolved row in Asset Family first"
-        )
-        hkx_reason = (
-            busy_reason
-            if not controls_enabled
-            else "select exactly one .hkx or .hkt row in Asset Family first"
-        )
-        material_reason = (
-            busy_reason
-            if not controls_enabled
-            else "select exactly one material sidecar row in Asset Family first"
-        )
         family_reason = (
-            busy_reason
+            "wait for the current background task to finish"
             if not controls_enabled
             else "open a file with recovered Asset Family relationships first"
-        )
-        self._set_action_button_state(
-            self.archive_texture_open_button,
-            can_open,
-            "Open the selected Asset Family row in a referenced-file preview window.",
-            single_row_reason,
-        )
-        self._set_action_button_state(
-            self.archive_texture_edit_hkx_button,
-            controls_enabled
-            and isinstance(single_selected_entry, ArchiveEntry)
-            and str(single_selected_entry.extension or "").lower() in {".hkx", ".hkt"},
-            "Edit the selected Asset Family row as an HKX/HKT physics file.",
-            hkx_reason,
-        )
-        self._set_action_button_state(
-            self.archive_texture_scope_selected_button,
-            controls_enabled and bool(selected_entries),
-            "Filter Archive Files to the selected resolved Asset Family rows.",
-            selected_reason,
-        )
-        self._set_action_button_state(
-            self.archive_texture_scope_all_button,
-            controls_enabled and bool(all_entries),
-            "Filter Archive Files to the required/recommended files in this Asset Family.",
-            family_reason,
-        )
-        self._set_action_button_state(
-            self.archive_texture_export_button,
-            controls_enabled and bool(selected_entries),
-            "Export the selected resolved Asset Family rows to a folder.",
-            selected_reason,
-        )
-        self._set_action_button_state(
-            self.archive_texture_export_all_button,
-            controls_enabled and bool(all_entries),
-            "Export every resolved raw referenced-file row. Use Export Family for the curated Asset Family package.",
-            family_reason,
-        )
-        current_entry = self._current_archive_entry()
-        self._set_action_button_state(
-            self.archive_texture_export_asset_set_button,
-            controls_enabled and isinstance(current_entry, ArchiveEntry),
-            "Choose which required/recommended Asset Family files to export, with optional hints.",
-            family_reason,
-        )
-        self._set_action_button_state(
-            self.archive_texture_smart_actions_button,
-            controls_enabled and isinstance(current_entry, ArchiveEntry),
-            "Open role-aware actions for the current archive file and its Asset Family.",
-            family_reason,
         )
         has_family = self._archive_has_asset_family_workspace()
         self.archive_asset_family_button.setVisible(has_family)
@@ -543,12 +467,6 @@ class ArchiveReferencePreviewMixin:
             controls_enabled and has_family,
             "Open the recovered file family for this selection: model, material, textures, HKX, meshinfo, prefab, rig, and animation links.",
             family_reason,
-        )
-        self._set_action_button_state(
-            self.archive_texture_edit_material_button,
-            controls_enabled and isinstance(single_selected_entry, ArchiveEntry) and is_material_sidecar_entry(single_selected_entry),
-            "Edit the selected Asset Family row as a material sidecar.",
-            material_reason,
         )
 
     def _show_archive_texture_reference_context_menu(self, position) -> None:
@@ -570,41 +488,99 @@ class ArchiveReferencePreviewMixin:
         menu = QMenu(self)
         if hasattr(menu, "setToolTipsVisible"):
             menu.setToolTipsVisible(True)
+        menu_icons = archive_context_menu_icons()
+
+        def _add_section(kind: str, label: str) -> None:
+            menu.addSection(menu_icons[kind], label)
+
+        def _add_action(kind: str, label: str, callback, tooltip: str = ""):
+            action = menu.addAction(menu_icons[kind], label)
+            if tooltip:
+                action.setToolTip(tooltip)
+                action.setStatusTip(tooltip)
+            action.triggered.connect(callback)
+            return action
+
         if isinstance(single_selected_entry, ArchiveEntry):
-            open_action = menu.addAction("Open Preview")
-            open_action.triggered.connect(lambda _checked=False: self._open_selected_archive_texture_reference())
+            _add_section("view", "View + Inspect")
+            _add_action(
+                "view",
+                "Open Preview",
+                lambda _checked=False: self._open_selected_archive_texture_reference(),
+                "Open the selected Asset Family row in a referenced-file preview window.",
+            )
             if str(single_selected_entry.extension or "").lower() in {".hkx", ".hkt"}:
-                edit_hkx_action = menu.addAction("Edit HKX...")
-                edit_hkx_action.triggered.connect(lambda _checked=False: self._edit_selected_archive_hkx_reference())
+                _add_section("physics", "Physics / HKX")
+                _add_action(
+                    "physics",
+                    "Edit HKX...",
+                    lambda _checked=False: self._edit_selected_archive_hkx_reference(),
+                    "Edit the selected Asset Family row as an HKX/HKT physics file.",
+                )
             if str(single_selected_entry.extension or "").lower() == ".dds":
-                texture_editor_action = menu.addAction("Open In Texture Editor...")
-                texture_editor_action.triggered.connect(
-                    lambda _checked=False, current_entry=single_selected_entry: self._open_archive_entry_in_texture_editor(current_entry)
+                _add_section("texture", "Texture")
+                _add_action(
+                    "texture",
+                    "Open In Texture Editor...",
+                    lambda _checked=False, current_entry=single_selected_entry: self._open_archive_entry_in_texture_editor(current_entry),
+                    "Open the selected DDS row in Texture Editor.",
                 )
             if is_material_sidecar_entry(single_selected_entry):
-                edit_material_action = menu.addAction("Edit Material Values...")
-                edit_material_action.triggered.connect(
-                    lambda _checked=False: self._edit_selected_archive_material_sidecar_reference()
+                _add_section("texture", "Material")
+                _add_action(
+                    "texture",
+                    "Edit Material Values...",
+                    lambda _checked=False: self._edit_selected_archive_material_sidecar_reference(),
+                    "Edit the selected Asset Family row as a material sidecar.",
                 )
         if selected_entries:
-            if not menu.isEmpty():
-                menu.addSeparator()
-            scope_selected_action = menu.addAction("Show Selected In Browser")
-            scope_selected_action.triggered.connect(lambda _checked=False: self._scope_selected_archive_texture_references())
-            export_action = menu.addAction("Export Selected...")
-            export_action.triggered.connect(lambda _checked=False: self._export_selected_archive_texture_reference())
+            _add_section("file", "Selection")
+            _add_action(
+                "file",
+                "Show Selected In Browser",
+                lambda _checked=False: self._scope_selected_archive_texture_references(),
+                "Filter Archive Files to the selected resolved Asset Family rows.",
+            )
+            _add_action(
+                "file",
+                "Export Selected...",
+                lambda _checked=False: self._export_selected_archive_texture_reference(),
+                "Export the selected resolved Asset Family rows to a folder.",
+            )
         all_entries = self._current_archive_asset_set_entries(include_hints=False)
         if all_entries:
-            if not menu.isEmpty():
-                menu.addSeparator()
-            scope_all_action = menu.addAction("Filter to Family")
-            scope_all_action.setToolTip("Filter Archive Files to the required/recommended files in this Asset Family.")
-            scope_all_action.triggered.connect(lambda _checked=False: self._scope_current_archive_asset_set(include_hints=False))
+            _add_section("family", "Asset Family")
+            _add_action(
+                "family",
+                "Filter to Family",
+                lambda _checked=False: self._scope_current_archive_asset_set(include_hints=False),
+                "Filter Archive Files to the required/recommended files in this Asset Family.",
+            )
             if any(str(getattr(row, "include_policy", "") or "").casefold() == "manual" for row in self.current_archive_family_member_rows):
-                scope_hints_action = menu.addAction("Show Family + Hints")
-                scope_hints_action.triggered.connect(lambda _checked=False: self._scope_current_archive_asset_set(include_hints=True))
-            export_all_action = menu.addAction("Export Raw References...")
-            export_all_action.triggered.connect(lambda _checked=False: self._export_all_archive_texture_references())
+                _add_action(
+                    "family",
+                    "Show Family + Hints",
+                    lambda _checked=False: self._scope_current_archive_asset_set(include_hints=True),
+                )
+            if self.current_archive_used_by_references:
+                _add_action(
+                    "family",
+                    "Show Family + Used By",
+                    lambda _checked=False: self._scope_current_archive_asset_set(include_used_by=True),
+                )
+            _add_action(
+                "family",
+                "Export Family...",
+                lambda _checked=False: self._export_current_archive_asset_set(),
+                "Choose which required/recommended Asset Family files to export, with optional hints.",
+            )
+            _add_section("file", "Export")
+            _add_action(
+                "file",
+                "Export Raw References...",
+                lambda _checked=False: self._export_all_archive_texture_references(),
+                "Export every resolved raw referenced-file row. Use Export Family for the curated Asset Family package.",
+            )
         if not menu.isEmpty():
             menu.exec(tree.viewport().mapToGlobal(position))
 

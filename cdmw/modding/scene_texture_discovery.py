@@ -41,6 +41,7 @@ SCENE_SIDECAR_SOURCE_EXTENSIONS = {
     ".prefabdata_xml",
 }
 SCENE_COMPANION_SOURCE_EXTENSIONS = {
+    ".pab",
     ".prefab",
     ".meshinfo",
     ".material",

@@ -205,8 +205,8 @@ def _editor_identity_blob(
         identity_blob.extend(_IDENTITY_STRUCT.pack(source_submesh_index, source_vertex_index, source_face_index))
     return {
         "source_submesh_index": source_submesh_index,
-        "source_vertex_count": len(raw_source_vertices),
-        "source_face_count": len(raw_source_faces),
+        "source_vertex_count": (max(raw_source_vertices) + 1) if raw_source_vertices else 0,
+        "source_face_count": (max(raw_source_faces) + 1) if raw_source_faces else 0,
         "identity_stride_bytes": _IDENTITY_STRUCT.size,
         "identity_file": "",
         "identity_offset": 0,
@@ -390,6 +390,7 @@ def _cloth_runtime_debug_metadata(
 def _skeleton_overlay_metadata(model: object) -> Dict[str, object]:
     overlay = getattr(model, "physics_overlay", None)
     bones = tuple(getattr(overlay, "bones", ()) or ())
+    pose_rotations = _skeleton_pose_rotations_metadata(getattr(overlay, "skeleton_pose_rotations", ()) if overlay is not None else ())
     bone_payload = []
     for bone in bones[:4096]:
         bone_payload.append(
@@ -408,9 +409,31 @@ def _skeleton_overlay_metadata(model: object) -> Dict[str, object]:
         "status": "ok" if bone_payload else "not_found",
         "read_only": True,
         "bone_count": len(bone_payload),
+        "pose_enabled": bool(getattr(overlay, "skeleton_pose_enabled", False)) and bool(bone_payload),
+        "selected_bone_index": _safe_int(getattr(overlay, "skeleton_selected_bone_index", -1), -1),
+        "posed_bone_count": len(pose_rotations),
+        "pose_rotations": pose_rotations,
         "bones": bone_payload,
         "diagnostics": [] if bone_payload else ["related skeleton/HKX/HKT data was not resolved for this preview"],
     }
+
+
+def _skeleton_pose_rotations_metadata(value: object) -> list[Dict[str, object]]:
+    records: list[Dict[str, object]] = []
+    try:
+        items = tuple(value or ())  # type: ignore[arg-type]
+    except TypeError:
+        return records
+    for raw_item in items[:4096]:
+        try:
+            bone_index, raw_rotation = raw_item  # type: ignore[misc]
+        except (TypeError, ValueError):
+            continue
+        rotation = _tuple3(raw_rotation)
+        if not rotation or not any(abs(component) > 1e-6 for component in rotation):
+            continue
+        records.append({"bone_index": _safe_int(bone_index, -1), "rotation_degrees": list(rotation)})
+    return [record for record in records if int(record["bone_index"]) >= 0]
 
 
 def _editable_value_groups_metadata(model: object, *, cloth_batch_count: int) -> list[Dict[str, object]]:

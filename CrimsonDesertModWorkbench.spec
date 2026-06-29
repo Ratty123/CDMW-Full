@@ -127,12 +127,14 @@ _add_native_binary("native/cd_texture_dx/build/Release/cd-texture-dx.exe", "nati
 _add_native_binary("native/cdmw_preview_core/build/Release/cdmw-preview-core.exe", "native", required_release=True)
 _add_native_binary("native/cdmw_d3d11_preview/build/Release/cdmw-d3d11-preview.exe", "native", required_release=True)
 _add_native_binary("native/cdmw_archive_accelerator/build/Release/cdmw-archive-accelerator.exe", "native")
+_add_native_binary("native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe", "native")
 _add_native_binary("native/cd_hkx/target/release/cd-hkx.exe", "native")
 if PROFILE != "release":
     _add_native_binary("native/cd_texture_dx/build/Debug/cd-texture-dx.exe", "native")
     _add_native_binary("native/cdmw_preview_core/build/Debug/cdmw-preview-core.exe", "native")
     _add_native_binary("native/cdmw_d3d11_preview/build/Debug/cdmw-d3d11-preview.exe", "native")
     _add_native_binary("native/cdmw_archive_accelerator/build/Debug/cdmw-archive-accelerator.exe", "native")
+    _add_native_binary("native/cdmw_mesh_core/build/Debug/cdmw-mesh-core.exe", "native")
 
 vgmstream_dir = ROOT / ".tools" / "vgmstream"
 if vgmstream_dir.exists():

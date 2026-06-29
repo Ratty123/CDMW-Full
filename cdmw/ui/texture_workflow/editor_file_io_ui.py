@@ -1,18 +1,28 @@
 from __future__ import annotations
-
 """File, project, export, and handoff UI coordination for the Texture Editor."""
 
 import dataclasses
 from pathlib import Path
 from typing import Callable, Optional
-
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QFileDialog, QMessageBox
-
 from cdmw.constants import APP_TITLE
+from cdmw.domain.textures.editor_presets import (
+    texture_editor_dds_format_label,
+    texture_editor_dds_preset,
+)
 from cdmw.models import TextureEditorSourceBinding
+from cdmw.services.texture_editor_service import (
+    TextureEditorNativeDdsOptions,
+    TextureEditorNativeDdsResult,
+    native_texture_editor_backend_status_text,
+)
 from cdmw.ui.texture_workflow.editor_action_state import texture_editor_atlas_action_state
 from cdmw.ui.texture_workflow.editor_export_state import (
+    texture_editor_compressed_preview_dds_path,
+    texture_editor_compressed_preview_status_text,
+    texture_editor_compressed_preview_task_label,
+    texture_editor_dds_default_path,
     texture_editor_document_with_last_flattened_output,
     texture_editor_existing_project_status_text,
     texture_editor_flattened_png_default_path,
@@ -23,6 +33,8 @@ from cdmw.ui.texture_workflow.editor_export_state import (
     texture_editor_handoff_delivery_state,
     texture_editor_handoff_export_suffix,
     texture_editor_handoff_source_binding,
+    texture_editor_native_dds_status_text,
+    texture_editor_native_dds_task_label,
     texture_editor_open_project_history_label,
     texture_editor_open_project_status_text,
     texture_editor_open_project_task_label,
@@ -40,9 +52,11 @@ from cdmw.ui.texture_workflow.editor_export_tasks import (
     create_texture_editor_source_document_task,
     export_texture_editor_flattened_png_task,
     export_texture_editor_grid_slices_task,
+    export_texture_editor_native_dds_task,
     export_texture_editor_region_png_task,
     export_texture_editor_workspace_png_task,
     load_texture_editor_project_task,
+    preview_texture_editor_native_dds_task,
     save_texture_editor_project_task,
 )
 from cdmw.ui.texture_workflow.editor_floating_state import texture_editor_snapshot_floating_pixels
@@ -61,8 +75,35 @@ from cdmw.ui.texture_workflow.editor_source_binding import (
     texture_editor_open_source_task_label,
 )
 
-
 class TextureEditorFileIoUiMixin:
+    def _selected_native_dds_preset_key(self) -> str:
+        return str(self.native_dds_preset_combo.currentData() or "base_color")
+
+    def _refresh_native_dds_format_options(self) -> None:
+        current = str(self.native_dds_format_combo.currentData() or "")
+        preset = texture_editor_dds_preset(self._selected_native_dds_preset_key())
+        self.native_dds_format_combo.blockSignals(True)
+        self.native_dds_format_combo.clear()
+        for dds_format in preset.allowed_formats:
+            self.native_dds_format_combo.addItem(texture_editor_dds_format_label(dds_format), dds_format)
+        index = self.native_dds_format_combo.findData(current)
+        if index < 0:
+            index = self.native_dds_format_combo.findData(preset.default_format)
+        self.native_dds_format_combo.setCurrentIndex(max(0, index))
+        self.native_dds_format_combo.blockSignals(False)
+        self.native_dds_status_label.setText(native_texture_editor_backend_status_text())
+    def _handle_native_dds_preset_changed(self, *_args: object) -> None:
+        self._refresh_native_dds_format_options()
+    def _native_dds_options(self, output_path: Path, *, overwrite: bool = True) -> TextureEditorNativeDdsOptions:
+        return TextureEditorNativeDdsOptions(
+            output_path=output_path,
+            preset_key=self._selected_native_dds_preset_key(),
+            dds_format=str(self.native_dds_format_combo.currentData() or ""),
+            mip_mode=str(self.native_dds_mip_combo.currentData() or ""),
+            overwrite=overwrite,
+            preview_max_dimension=max(1024, int(max(getattr(self.document, "width", 1), getattr(self.document, "height", 1)))),
+            temp_root=Path(self.workspace_root) / "native_temp",
+        )
     def _refresh_atlas_action_state(self, *, has_doc: bool, busy: bool) -> None:
         atlas_actions = texture_editor_atlas_action_state(
             self.document,
@@ -76,7 +117,6 @@ class TextureEditorFileIoUiMixin:
         self.atlas_export_selection_button.setEnabled(atlas_actions.export_selection_enabled)
         self.atlas_export_grid_button.setEnabled(atlas_actions.export_grid_enabled)
         self.history_list.setEnabled(atlas_actions.history_list_enabled)
-
     def export_selection_region(self) -> None:
         if self.document is None:
             return
@@ -98,7 +138,6 @@ class TextureEditorFileIoUiMixin:
         layer_pixels = copy_texture_editor_layer_pixels(self.layer_pixels)
         padding = int(self.atlas_padding_spin.value())
         trim_transparent = bool(self.atlas_trim_checkbox.isChecked())
-
         def _task() -> object:
             return export_texture_editor_region_png_task(
                 document,
@@ -108,10 +147,8 @@ class TextureEditorFileIoUiMixin:
                 padding=padding,
                 trim_transparent=trim_transparent,
             )
-
         def _on_success(result: object) -> None:
             self._set_status(texture_editor_selection_region_status_text(Path(str(result))), False)
-
         self._run_async_task(
             label=texture_editor_selection_region_task_label(),
             task=_task,
@@ -347,6 +384,79 @@ class TextureEditorFileIoUiMixin:
             self._refresh_ui()
 
         self._run_async_task(label=texture_editor_flattened_png_task_label(Path(file_path)), task=_task, on_success=_handle_save_png)
+
+    def export_dds_dialog(self) -> None:
+        if self.document is None:
+            return
+        initial = texture_editor_dds_default_path(self.document, self._last_save_dir)
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export DDS",
+            str(initial),
+            "DDS files (*.dds)",
+        )
+        if not file_path:
+            return
+        output_path = Path(file_path).expanduser().resolve()
+        self._last_save_dir = str(output_path.parent)
+        document = dataclasses.replace(self.document)
+        layer_pixels = copy_texture_editor_layer_pixels(self.layer_pixels)
+        options = self._native_dds_options(output_path)
+
+        def _task() -> object:
+            return export_texture_editor_native_dds_task(document, layer_pixels, options)
+
+        def _handle_export(result: object) -> None:
+            native_result = result if isinstance(result, TextureEditorNativeDdsResult) else None
+            if native_result is None:
+                return
+            self.native_dds_status_label.setText(native_texture_editor_backend_status_text())
+            self._set_status(texture_editor_native_dds_status_text(native_result.dds_path, native_result.report), False)
+            if self.document is not None:
+                self.native_dds_ready.emit(str(native_result.dds_path), texture_editor_handoff_source_binding(self.document))
+            self._refresh_ui()
+
+        self._run_async_task(
+            label=texture_editor_native_dds_task_label(output_path),
+            task=_task,
+            on_success=_handle_export,
+        )
+
+    def preview_compressed_dds(self) -> None:
+        if self.document is None:
+            return
+        preset_key = self._selected_native_dds_preset_key()
+        output_path = texture_editor_compressed_preview_dds_path(self.document, self.workspace_root, preset_key)
+        document = dataclasses.replace(self.document)
+        layer_pixels = copy_texture_editor_layer_pixels(self.layer_pixels)
+        options = self._native_dds_options(output_path)
+
+        def _task() -> object:
+            return preview_texture_editor_native_dds_task(document, layer_pixels, options)
+
+        def _handle_preview(result: object) -> None:
+            native_result = result if isinstance(result, TextureEditorNativeDdsResult) else None
+            if native_result is None:
+                return
+            if 0 <= int(self._active_session_index) < len(self._sessions) and native_result.preview_rgba is not None:
+                self._sessions[int(self._active_session_index)].compressed_preview_flattened = native_result.preview_rgba.copy()
+                split_index = self.view_mode_combo.findData("split")
+                if split_index >= 0:
+                    self.view_mode_combo.setCurrentIndex(split_index)
+            self.native_dds_status_label.setText(native_texture_editor_backend_status_text())
+            self._set_status(
+                texture_editor_compressed_preview_status_text(native_result.preview_path or native_result.dds_path, native_result.report),
+                False,
+            )
+            if self.document is not None:
+                self.native_dds_ready.emit(str(native_result.dds_path), texture_editor_handoff_source_binding(self.document))
+            self._refresh_ui()
+
+        self._run_async_task(
+            label=texture_editor_compressed_preview_task_label(),
+            task=_task,
+            on_success=_handle_preview,
+        )
 
     def _complete_handoff_target(
         self,

@@ -124,7 +124,7 @@ class ArchiveBrowserRowPayloadMixin:
             return "HKX"
         if ext == ".paa_metabin":
             return "Animation Metadata"
-        if ext in {".paa", ".motionblending", ".pae", ".paem", ".papr", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+        if ext in {".paa", ".motionblending", ".pae", ".paem", ".papr", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
             return "Animation"
         if ext == ".pab":
             return "Skeleton / Rig"

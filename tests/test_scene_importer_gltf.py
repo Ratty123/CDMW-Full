@@ -1575,16 +1575,19 @@ class GltfSceneImporterTests(unittest.TestCase):
             material_path = root / "cd_test_sword.material"
             prefab_path = prefab_root / "cd_test_sword.prefab"
             animation_meta = root / "cd_test_sword.paa_metabin"
-            for path in (meshinfo_path, material_path, prefab_path, animation_meta):
+            skeleton_path = root / "cd_test_sword.pab"
+            for path in (meshinfo_path, material_path, prefab_path, animation_meta, skeleton_path):
                 path.write_bytes(b"\x04\x00\x00\x00test")
 
             discovered = discover_local_mesh_supplemental_files(mesh_path)
 
+            self.assertIn(".pab", SCENE_COMPANION_SOURCE_EXTENSIONS)
             self.assertIn(".prefab", SCENE_COMPANION_SOURCE_EXTENSIONS)
             self.assertIn(meshinfo_path.resolve(), discovered)
             self.assertIn(material_path.resolve(), discovered)
             self.assertIn(prefab_path.resolve(), discovered)
             self.assertIn(animation_meta.resolve(), discovered)
+            self.assertIn(skeleton_path.resolve(), discovered)
 
 
 if __name__ == "__main__":

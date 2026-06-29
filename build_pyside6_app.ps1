@@ -278,7 +278,8 @@ function Test-NativeOutputsPresent {
         "native\cd_texture_dx\build\$Configuration\cd-texture-dx.exe",
         "native\cdmw_preview_core\build\$Configuration\cdmw-preview-core.exe",
         "native\cdmw_d3d11_preview\build\$Configuration\cdmw-d3d11-preview.exe",
-        "native\cdmw_archive_accelerator\build\$Configuration\cdmw-archive-accelerator.exe"
+        "native\cdmw_archive_accelerator\build\$Configuration\cdmw-archive-accelerator.exe",
+        "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.exe"
     )
 
     foreach ($relativePath in $required) {
@@ -389,7 +390,7 @@ if (-not $SkipNativeBuild) {
         Write-Host "Skipping native helper build for fast profile; existing $nativeConfig binaries found."
     } else {
         Write-BuildProgress -Percent 12 -Stage "Building native helpers"
-        Write-Host "Building native texture and D3D11 preview helpers ($nativeConfig)..."
+        Write-Host "Building native helpers ($nativeConfig)..."
         $nativeBuildArgs = @{ Configuration = $nativeConfig }
         if ($BuildProfile -ne "fast") {
             $nativeBuildArgs.Clean = $true

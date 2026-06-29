@@ -149,15 +149,6 @@ class ResponsivenessControllerMixin:
         pairs = (
             ("archive_model_preview_settings_button", "Preview Settings", "Preview Settings"),
             ("archive_asset_family_button", "Asset", "Asset Family"),
-            ("archive_texture_open_button", "Preview Row", "Preview Row"),
-            ("archive_texture_edit_hkx_button", "Edit HKX", "Edit Row HKX..."),
-            ("archive_texture_edit_material_button", "Edit Material", "Edit Row Material..."),
-            ("archive_texture_scope_selected_button", "Show Rows", "Show Selected Rows"),
-            ("archive_texture_scope_all_button", "Filter Family", "Filter to Family"),
-            ("archive_texture_export_button", "Export Rows", "Export Selected Rows..."),
-            ("archive_texture_export_asset_set_button", "Export Family", "Export Family..."),
-            ("archive_texture_smart_actions_button", "Family Actions", "Family Actions"),
-            ("archive_texture_export_all_button", "Export Raw", "Export Raw References..."),
         )
         for object_name, compact_text, normal_text in pairs:
             widget = getattr(self, object_name, None)

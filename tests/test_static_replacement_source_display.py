@@ -1070,6 +1070,54 @@ def test_selection_highlight_sets_state_aggregates_preview_and_d3d11_routes() ->
     assert inactive_state["d3d11_highlighted_indices"] == ()
 
 
+def test_selection_highlight_sets_state_adds_part_pick_hover_without_selection() -> None:
+    state = selection_highlight_sets_state(
+        selected_source_highlights=(),
+        selected_target_source_highlights=(),
+        selected_original_highlights=(),
+        selected_target_original_highlights=(),
+        d3d11_active=True,
+        geometry_active=False,
+        texture_tab_active=False,
+        mesh_edit_raw_active=False,
+        preview_gizmo_checked=False,
+        selected_source_overlay_ids=(),
+        selected_source_editor_ids=(),
+        selected_target_source_editor_ids=(),
+        disabled_source_editor_ids=(),
+        default_d3d11_editor_ids=(7,),
+        hovered_source_highlights=(4,),
+        hovered_source_editor_ids=(40,),
+        part_pick_checked=True,
+    )
+
+    assert state["highlighted_source_indices"] == (4,)
+    assert state["d3d11_highlighted_indices"] == (40,)
+    assert state["d3d11_selected_indices"] == ()
+
+    disabled_state = selection_highlight_sets_state(
+        selected_source_highlights=(),
+        selected_target_source_highlights=(),
+        selected_original_highlights=(),
+        selected_target_original_highlights=(),
+        d3d11_active=True,
+        geometry_active=False,
+        texture_tab_active=False,
+        mesh_edit_raw_active=False,
+        preview_gizmo_checked=False,
+        selected_source_overlay_ids=(),
+        selected_source_editor_ids=(),
+        selected_target_source_editor_ids=(),
+        disabled_source_editor_ids=(),
+        default_d3d11_editor_ids=(7,),
+        hovered_source_highlights=(4,),
+        hovered_source_editor_ids=(40,),
+        part_pick_checked=False,
+    )
+    assert disabled_state["highlighted_source_indices"] == ()
+    assert disabled_state["d3d11_highlighted_indices"] == ()
+
+
 def test_parts_outliner_target_selection_state_owns_highlights_and_payload() -> None:
     assert parts_outliner_target_selection_state(
         row_kind="target",

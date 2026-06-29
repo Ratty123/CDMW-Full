@@ -520,6 +520,7 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li><b>Output root</b> is the normal DDS result folder for Texture Workflow.</li>
                   <li><b>Mod-ready export</b> writes a package-prefixed loose tree with <code>manifest.json</code> and optional manager metadata when that export mode is enabled.</li>
+                  <li><b>Target Mod Managers</b> can write DMM, CDUMM, JMM JSON, Crimson Sharp / Crimson Browser, and Field-JSON v3.1 shapes. CDUMM uses <code>manifest.json</code>, <code>modinfo.json</code>, <code>.no_encrypt</code>, and a <code>files/</code> wrapper; DMM texture folders use <code>modinfo.json</code>, while DMM mesh folders keep <code>manifest.json</code> plus <code>modinfo.json</code>.</li>
                   <li><b>Texture Replacer</b> is usually the cleanest path for one-off mod-ready texture output because it starts from the edited file and its matched original.</li>
                   <li><b>Archive Browser</b> patch workflows are explicit, confirmed operations with backup/restore support where implemented. They are not part of ordinary browsing.</li>
                 </ul>
@@ -534,7 +535,9 @@ class AboutDocumentationEnglishMixin:
                 "html": """
                 <p><b>Profile &gt; Export Profile</b> writes both the workflow configuration and a full settings snapshot. Current profiles include paths, workflow rules/profiles, mod-package metadata, current Archive Browser controls, appearance, language, startup restore, performance, archive cache/indexing preferences, 3D preview graphics controls, Texture Replacer options, Texture Editor brush/tool preferences, safety prompts, and saved window geometry.</p>
                 <ul>
+                  <li>An app profile is one app-wide snapshot, not a separate profile per tab. It includes per-tool preferences and detached window layout inside that one profile file.</li>
                   <li><b>Import Profile</b> restores the workflow config first, then reloads the saved app settings into the live Settings, Texture Replacer, and Texture Editor controls.</li>
+                  <li>Profiles do not save open archives, active documents, or per-tab project sessions.</li>
                   <li><b>Export Diagnostics</b> includes the same profile payload plus logs, cache summaries, chain analysis, crash context when available, a paste-ready issue summary, README, license, and third-party notices. Reports stay local until you export and share them.</li>
                   <li><b>Settings / Startup</b> controls archive auto-load, cache preference, and last-tab restore. Archive filters start neutral after launch.</li>
                   <li><b>Settings / Performance</b> controls workload presets, archive-list batching/native helper use, optional DDS related-file indexing, preview caches, and D3D11 preview package caching.</li>

@@ -67,6 +67,23 @@ def texture_editor_flattened_png_default_path(
     return Path(last_save_dir) / f"{document.title}.png"
 
 
+def texture_editor_dds_default_path(
+    document: TextureEditorDocument,
+    last_save_dir: str,
+) -> Path:
+    return Path(last_save_dir) / f"{document.title}.dds"
+
+
+def texture_editor_compressed_preview_dds_path(
+    document: TextureEditorDocument,
+    fallback_workspace_root: Path,
+    preset_key: str,
+) -> Path:
+    safe_preset = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in str(preset_key or "preset"))
+    safe_title = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in str(document.title or "texture_editor"))
+    return texture_editor_workspace_exports_root(document, fallback_workspace_root) / "native_previews" / f"{safe_title}_{safe_preset}.dds"
+
+
 def texture_editor_workspace_exports_root(
     document: TextureEditorDocument,
     fallback_workspace_root: Path,
@@ -142,6 +159,30 @@ def texture_editor_flattened_png_status_text(output_path: Path) -> str:
 
 def texture_editor_flattened_png_task_label(output_path: Path) -> str:
     return f"Saving flattened PNG to {Path(output_path).name}..."
+
+
+def texture_editor_native_dds_status_text(output_path: Path, report: object) -> str:
+    report_map = report if isinstance(report, dict) else {}
+    fmt = str(report_map.get("format") or report_map.get("actual_dxgi_format") or "DDS")
+    mip_count = int(report_map.get("mip_count") or 0)
+    size = int(report_map.get("output_byte_size") or 0)
+    size_text = f", {size:,} bytes" if size > 0 else ""
+    mip_text = f", {mip_count} mip(s)" if mip_count > 0 else ""
+    return f"Exported native DDS {Path(output_path).name}: {fmt}{mip_text}{size_text}."
+
+
+def texture_editor_native_dds_task_label(output_path: Path) -> str:
+    return f"Exporting native DDS to {Path(output_path).name}..."
+
+
+def texture_editor_compressed_preview_status_text(preview_path: Path, report: object) -> str:
+    report_map = report if isinstance(report, dict) else {}
+    fmt = str(report_map.get("format") or report_map.get("actual_dxgi_format") or "DDS")
+    return f"Compressed preview ready: {fmt} from {Path(preview_path).name}."
+
+
+def texture_editor_compressed_preview_task_label() -> str:
+    return "Previewing compressed DDS..."
 
 
 def texture_editor_workspace_export_task_label(suffix: str) -> str:

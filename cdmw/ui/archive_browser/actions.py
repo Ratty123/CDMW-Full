@@ -251,7 +251,9 @@ class ArchiveBrowserActionMixin:
             ".paa_metabin",
             ".pae",
             ".paem",
+            ".papr",
             ".paseq",
+            ".paseqc",
             ".paschedule",
             ".paschedulepath",
             ".pastage",
@@ -460,7 +462,7 @@ class ArchiveBrowserActionMixin:
             export_havok_view_action = menu.addAction(menu_icons["physics"], "Export Havok XML View...")
             export_havok_view_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_havok_xml_view())
 
-        if entry.extension in {".meshinfo", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
+        if entry.extension in {".meshinfo", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".papr", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
             _add_menu_section("data", "Structured Data")
             inspect_sidecar_action = menu.addAction(menu_icons["data"], "Inspect Structured Data...")
             inspect_sidecar_action.triggered.connect(lambda _checked=False: self._inspect_current_archive_binary_sidecar())

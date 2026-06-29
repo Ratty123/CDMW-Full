@@ -762,8 +762,8 @@ def _score_model_related_entry_candidate(source_entry: ArchiveEntry, candidate: 
             extension_priority = 5
         elif candidate_extension in _ARCHIVE_XML_LIKE_EXTENSIONS:
             extension_priority = 4
-    elif source_extension in {".paa", ".paa_metabin", ".motionblending", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage", ".seqmt"}:
-        if candidate_extension in {".hkx", ".hkt", ".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paschedule", ".paschedulepath", ".pastage", ".seqmt"}:
+    elif source_extension in {".paa", ".paa_metabin", ".motionblending", ".pae", ".paem", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage", ".seqmt"}:
+        if candidate_extension in {".hkx", ".hkt", ".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage", ".seqmt"}:
             extension_priority = 6
         elif candidate_extension in _ARCHIVE_XML_LIKE_EXTENSIONS:
             extension_priority = 5
@@ -860,6 +860,7 @@ def _extend_archive_related_target_basenames(
     add_target(f"{stem}.paem")
     add_target(f"{stem}.motionblending")
     add_target(f"{stem}.paseq")
+    add_target(f"{stem}.paseqc")
     add_target(f"{stem}.paschedule")
     add_target(f"{stem}.paschedulepath")
     add_target(f"{stem}.pastage")
@@ -941,14 +942,15 @@ def _extend_archive_related_target_basenames(
             ".hkx",
             ".hkt",
             ".paseq",
+            ".paseqc",
             ".paschedule",
             ".paschedulepath",
             ".pastage",
             ".seqmt",
         ):
             add_target(f"{stem}{related_extension}")
-    elif source_extension in {".paa", ".paa_metabin", ".motionblending", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
-        for related_extension in (".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".hkx", ".hkt", ".paseq", ".paschedule", ".paschedulepath", ".pastage", ".seqmt"):
+    elif source_extension in {".paa", ".paa_metabin", ".motionblending", ".pae", ".paem", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
+        for related_extension in (".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".hkx", ".hkt", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage", ".seqmt"):
             add_target(f"{stem}{related_extension}")
     elif source_extension in {".hkx", ".hkt"}:
         add_target(f"{stem}.pam")
@@ -1238,7 +1240,7 @@ def _relation_kind_for_entry(candidate_entry: Optional[ArchiveEntry], reference_
         if any(token in reference_path_lower for token in ("meshphysics", "havokphysics", "ragdoll", "physics")):
             return "physics"
         return RelationKind.ANIMATION.value
-    if extension in {".motionblending", ".papr", ".paa", ".paa_metabin", ".pae", ".paem", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    if extension in {".motionblending", ".papr", ".paa", ".paa_metabin", ".pae", ".paem", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
         return RelationKind.ANIMATION.value
     return RelationKind.METADATA.value
 

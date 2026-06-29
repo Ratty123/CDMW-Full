@@ -90,6 +90,7 @@ ARCHIVE_ASSET_CATALOG_SCOPE = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_
 ARCHIVE_ASSET_FAMILY_LAYOUT = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_family_layout.py"
 ARCHIVE_ASSET_FAMILY_PANEL = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_family_panel.py"
 ARCHIVE_ASSET_FAMILY_REFERENCES = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_family_references.py"
+ARCHIVE_REFERENCE_PREVIEW = ROOT / "cdmw" / "ui" / "archive_browser" / "reference_preview.py"
 ARCHIVE_ICON_PIPELINE = ROOT / "cdmw" / "ui" / "archive_browser" / "icon_pipeline.py"
 ARCHIVE_MATERIAL_FINDER = ROOT / "cdmw" / "ui" / "archive_browser" / "material_finder.py"
 ARCHIVE_PREVIEW_RESULT = ROOT / "cdmw" / "ui" / "archive_browser" / "preview_result.py"
@@ -837,6 +838,7 @@ class CrashReportingGuardTests(unittest.TestCase):
                 ARCHIVE_ASSET_CATALOG_DIALOG.read_text(encoding="utf-8"),
                 ARCHIVE_ASSET_CATALOG_SCOPE.read_text(encoding="utf-8"),
                 ARCHIVE_ASSET_FAMILY_REFERENCES.read_text(encoding="utf-8"),
+                ARCHIVE_REFERENCE_PREVIEW.read_text(encoding="utf-8"),
                 ARCHIVE_ICON_PIPELINE.read_text(encoding="utf-8"),
                 ARCHIVE_MATERIAL_FINDER.read_text(encoding="utf-8"),
                 ARCHIVE_UI_FORMATTING.read_text(encoding="utf-8"),
@@ -893,7 +895,8 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _archive_asset_catalog_group_choices(self, category: str = \"\") -> Tuple[str, ...]:", source)
         self.assertIn("no full archive scan", source)
         self.assertIn("Item Finder scoped Archive Browser to:", source)
-        self.assertIn('self.archive_texture_scope_all_button = QPushButton("Filter to Family")', source)
+        self.assertNotIn('self.archive_texture_scope_all_button = QPushButton("Filter to Family")', source)
+        self.assertIn('_add_section("family", "Asset Family")', source)
         self.assertIn("def _scope_all_archive_texture_references(self) -> None:", source)
         self.assertIn("Referenced file set scoped Archive Browser to:", source)
 

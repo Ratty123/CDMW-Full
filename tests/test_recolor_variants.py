@@ -359,6 +359,8 @@ class RecolorVariantTests(unittest.TestCase):
         self.assertIn("open_recolor_target_in_editor_requested.connect", main_source)
         self.assertIn("def _open_recolor_variant_target_in_texture_editor", main_source)
         self.assertIn('self.targets_tree.setObjectName("RecolorVariantTargetsTree")', tab_source)
+        self.assertIn("controls_layout.addWidget(self.summary_label)", tab_source)
+        self.assertNotIn("main_layout.addWidget(self.summary_label)", tab_source)
         self.assertIn('self.preview_summary_label.setObjectName("RecolorVariantPreviewSummary")', tab_source)
         self.assertIn('self.outputs_tree.setObjectName("RecolorVariantOutputsTree")', tab_source)
         self.assertIn('self.preview_source_image_label.setObjectName("RecolorVariantBeforePreview")', tab_source)

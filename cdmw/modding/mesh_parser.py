@@ -85,6 +85,7 @@ class SubMesh:
     vertices: list[tuple[float, float, float]] = field(default_factory=list)
     uvs: list[tuple[float, float]] = field(default_factory=list)
     normals: list[tuple[float, float, float]] = field(default_factory=list)
+    tangents: list[tuple[float, float, float]] = field(default_factory=list)
     faces: list[tuple[int, int, int]] = field(default_factory=list)
     bone_indices: list[tuple[int, ...]] = field(default_factory=list)
     bone_weights: list[tuple[float, ...]] = field(default_factory=list)

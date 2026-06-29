@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "full")]
+    [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "full")]
     [string]$Area = "smoke"
 )
 
@@ -34,6 +34,17 @@ $TestsByArea = @{
         "tests/test_texture_domain_profiles.py",
         "tests/test_texture_workflow_unavailable_editor.py",
         "tests/test_static_texture_replacement.py"
+    )
+    mesh = @(
+        "tests/test_mesh_service_editing.py",
+        "tests/test_mesh_editor_controller.py",
+        "tests/test_mesh_editor_dev_harness.py",
+        "tests/test_mesh_editor_actions.py",
+        "tests/test_mesh_editor_action_bar.py",
+        "tests/test_mesh_deformer.py",
+        "tests/test_mesh_selection_tools.py",
+        "tests/test_archive_structured_asset_preview.py",
+        "tests/test_rigging_binary_parsers.py"
     )
 }
 

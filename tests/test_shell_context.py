@@ -75,6 +75,33 @@ class ShellContextTests(unittest.TestCase):
         self.assertEqual(workers[0][0], "text_search_tab.scan")
         self.assertTrue(owner.text_search_tab.shutdown_requested)
 
+    def test_close_controller_default_tracks_mesh_editor_tab_shutdown(self) -> None:
+        class WorkerTab:
+            def __init__(self) -> None:
+                self.shutdown_requested = False
+
+            def iter_shutdown_workers(self) -> tuple[tuple[str, object, object], ...]:
+                return (
+                    ("standalone_file_load", object(), object()),
+                    ("standalone_native_package", object(), object()),
+                )
+
+            def request_shutdown(self) -> None:
+                self.shutdown_requested = True
+
+        class Owner:
+            mesh_editor_tab = WorkerTab()
+
+        owner = Owner()
+
+        workers = list(iter_tab_shutdown_workers(owner))
+        request_tab_shutdowns(owner)
+        worker_names = [name for name, _thread, _worker in workers]
+
+        self.assertIn("mesh_editor_tab.standalone_file_load", worker_names)
+        self.assertIn("mesh_editor_tab.standalone_native_package", worker_names)
+        self.assertTrue(owner.mesh_editor_tab.shutdown_requested)
+
 
 if __name__ == "__main__":
     unittest.main()

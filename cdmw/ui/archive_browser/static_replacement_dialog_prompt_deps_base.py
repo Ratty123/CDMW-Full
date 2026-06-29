@@ -142,6 +142,7 @@ from cdmw.modding.mesh_deformer import (
     recompute_mesh_normals,
     shrink_vertex_selection,
     smooth_vertex_selection,
+    split_faces_to_submesh,
     subdivide_faces_touching_vertices,
 )
 from cdmw.modding.mesh_morph_sliders import (

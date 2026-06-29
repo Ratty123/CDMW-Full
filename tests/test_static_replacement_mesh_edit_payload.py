@@ -62,6 +62,8 @@ from cdmw.ui.archive_browser.static_replacement_mesh_edit_state import (
     mesh_edit_source_indices,
     mesh_edit_source_to_preview_point,
     mesh_edit_should_restore_deleted_output,
+    mesh_edit_split_selection_status,
+    mesh_edit_split_text,
     mesh_edit_subdivide_text,
     mesh_edit_subdivided_selection_status,
     mesh_edit_topology_changed_status,
@@ -100,6 +102,7 @@ def test_mesh_edit_action_control_text_preserves_copy() -> None:
     assert text["shrink_selection"] == "Shrink Selection"
     assert text["smooth_selection"] == "Smooth / Feather Selection"
     assert text["subdivide_selection"] == "Subdivide Selection"
+    assert text["split_selection"] == "Split Selection To Part"
     assert text["delete_faces"] == "Delete Selected Faces"
     assert text["undo"] == "Undo"
     assert text["redo"] == "Redo"
@@ -112,6 +115,7 @@ def test_mesh_edit_action_control_text_preserves_copy() -> None:
     assert "editable Mesh Editing scope" in text["select_part_tooltip"]
     assert "editable Mesh Editing scope" in text["invert_selection_tooltip"]
     assert "triangle density" in text["subdivide_selection_tooltip"]
+    assert "new replacement source part" in text["split_selection_tooltip"]
     assert "Cut boundaries" in text["delete_faces_tooltip"]
 
 
@@ -134,11 +138,20 @@ def test_mesh_edit_prompt_and_status_text_preserves_copy() -> None:
     assert subdivide_text["select_vertices"] == "Select vertices before subdividing mesh detail."
     assert subdivide_text["no_selected_vertices"] == "No faces touched the selected Mesh Editing vertices."
     assert mesh_edit_subdivided_selection_status(9) == "Subdivided 9 new face(s) for Mesh Editing detail."
+    split_text = mesh_edit_split_text()
+    assert split_text["morph_blocker"] == "Bake or reset Morph Sliders before splitting mesh faces."
+    assert split_text["select_faces"] == "Select faces or vertices before splitting mesh faces."
+    assert split_text["no_selected_faces"] == "No faces are selected for splitting."
+    assert "one source part" in split_text["multiple_parts"]
+    assert mesh_edit_split_selection_status(4) == "Split 4 face(s) into a new replacement source part."
     assert mesh_edit_topology_changed_status("remove_faces") == (
         "Remove Faces changed topology. Use Reset Scope to restore Morph Slider compatibility."
     )
     assert mesh_edit_topology_changed_status("subdivide_selection") == (
         "Subdivide Selection changed topology. Use Reset Scope to restore Morph Slider compatibility."
+    )
+    assert mesh_edit_topology_changed_status("split_selection") == (
+        "Split Selection changed topology. Use Reset Scope to restore Morph Slider compatibility."
     )
     assert mesh_edit_topology_changed_status("unknown") == ""
 

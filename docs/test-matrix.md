@@ -1,6 +1,6 @@
 # Test Matrix
 
-Last reviewed: 2026-06-21
+Last reviewed: 2026-06-29
 
 Use the project virtualenv:
 
@@ -39,10 +39,22 @@ Use `%TEMP%` for pytest temp dirs when `.pytest-tmp` is locked.
 .\scripts\codex_check.ps1 -Area archive
 ```
 
+## Mesh Editor Suite
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_dev_harness.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario full-suite-smoke --output "$env:TEMP\cdmw-mesh-editor-harness"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-rigging-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-rigging"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-animation-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-animation"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-sequence-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-sequence"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-app-workflow-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-app-workflow"
+.\scripts\codex_check.ps1 -Area mesh
+```
+
 ## Texture Workflow
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_texture_workflow_ui_source_guards.py tests/test_texture_domain_profiles.py tests/test_texture_workflow_unavailable_editor.py tests/test_texture_editor_workers.py tests/test_texture_editor_ui_helpers.py tests/test_static_texture_replacement.py
+.\.venv\Scripts\python.exe -m pytest tests/test_texture_workflow_ui_source_guards.py tests/test_texture_domain_profiles.py tests/test_texture_workflow_unavailable_editor.py tests/test_texture_editor_workers.py tests/test_texture_editor_ui_helpers.py tests/test_texture_editor_native_service.py tests/test_texture_editor_dev_harness.py tests/test_static_texture_replacement.py
 .\scripts\codex_check.ps1 -Area texture
 ```
 

@@ -36,13 +36,82 @@ class MeshSubdivisionResult:
     added_face_count: int = 0
 
 
+@dataclass(frozen=True)
+class MeshPartSplitResult:
+    source_submesh_index: int = -1
+    new_submesh_index: int = -1
+    moved_face_count: int = 0
+    moved_vertex_count: int = 0
+
+
+_EXTRA_SUBMESH_ATTRS = (
+    "texture_slots",
+    "preview_color",
+    "preview_vertex_color_mean",
+    "preview_vertex_alpha_mean",
+    "preview_vertex_alpha_min",
+    "preview_vertex_color_count",
+    "preview_normal_texture_path",
+    "preview_normal_texture_name",
+    "preview_normal_texture_strength",
+    "preview_material_texture_path",
+    "preview_material_texture_name",
+    "preview_material_texture_type",
+    "preview_material_texture_subtype",
+    "preview_material_texture_packed_channels",
+    "preview_material_texture_inputs",
+    "preview_material_parameters",
+    "preview_native_material_overrides",
+    "preview_height_texture_path",
+    "preview_height_texture_name",
+    "preview_sidecar_shader_family",
+    "cdmw_material_authority_profile",
+    "cdmw_material_authority_contract",
+    "cdmw_source_material_name",
+    "cdmw_target_material_name",
+    "cdmw_target_material_slot_index",
+    "cdmw_material_slot_kind",
+    "cdmw_source_texture_set_key",
+    "cdmw_material_route_status",
+    "cdmw_material_route_reason",
+)
+
+
+def _copy_extra_submesh_attrs(source: SubMesh, target: SubMesh) -> None:
+    for attr_name in _EXTRA_SUBMESH_ATTRS:
+        if hasattr(source, attr_name):
+            value = getattr(source, attr_name)
+            if isinstance(value, dict):
+                value = dict(value)
+            elif isinstance(value, list):
+                value = list(value)
+            elif isinstance(value, set):
+                value = set(value)
+            setattr(target, attr_name, value)
+
+
 def mesh_topology_signature(mesh: ParsedMesh) -> MeshTopologySignature:
     return MeshTopologySignature(
         submesh_count=len(mesh.submeshes),
         vertex_counts=tuple(len(submesh.vertices) for submesh in mesh.submeshes),
         face_counts=tuple(len(submesh.faces) for submesh in mesh.submeshes),
-        faces=tuple(tuple(tuple(int(index) for index in face[:3]) for face in submesh.faces) for submesh in mesh.submeshes),
+        faces=tuple(_topology_face_triples(submesh) for submesh in mesh.submeshes),
     )
+
+
+def _topology_face_triples(submesh: SubMesh) -> tuple[tuple[int, int, int], ...]:
+    vertex_count = len(submesh.vertices or ())
+    triples: list[tuple[int, int, int]] = []
+    for face in tuple(submesh.faces or ()):
+        if len(face) < 3:
+            continue
+        try:
+            a, b, c = (int(face[0]), int(face[1]), int(face[2]))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if 0 <= a < vertex_count and 0 <= b < vertex_count and 0 <= c < vertex_count:
+            triples.append((a, b, c))
+    return tuple(triples)
 
 
 def assert_mesh_topology_unchanged(before: MeshTopologySignature, mesh: ParsedMesh) -> None:
@@ -52,28 +121,6 @@ def assert_mesh_topology_unchanged(before: MeshTopologySignature, mesh: ParsedMe
 
 
 def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
-    extra_submesh_attrs = (
-        "texture_slots",
-        "preview_color",
-        "preview_vertex_color_mean",
-        "preview_vertex_alpha_mean",
-        "preview_vertex_alpha_min",
-        "preview_vertex_color_count",
-        "preview_normal_texture_path",
-        "preview_normal_texture_name",
-        "preview_normal_texture_strength",
-        "preview_material_texture_path",
-        "preview_material_texture_name",
-        "preview_material_texture_type",
-        "preview_material_texture_subtype",
-        "preview_material_texture_packed_channels",
-        "preview_material_texture_inputs",
-        "preview_material_parameters",
-        "preview_height_texture_path",
-        "preview_height_texture_name",
-        "preview_sidecar_shader_family",
-    )
-
     def clone_submesh(submesh: SubMesh) -> SubMesh:
         cloned = SubMesh(
             name=str(submesh.name or ""),
@@ -82,6 +129,7 @@ def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
             vertices=list(submesh.vertices or []),
             uvs=list(submesh.uvs or []),
             normals=list(submesh.normals or []),
+            tangents=list(submesh.tangents or []),
             faces=list(submesh.faces or []),
             bone_indices=list(submesh.bone_indices or []),
             bone_weights=list(submesh.bone_weights or []),
@@ -97,9 +145,7 @@ def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
             source_bbox_extent=tuple(submesh.source_bbox_extent or (0.0, 0.0, 0.0)),
             source_lod_count=int(submesh.source_lod_count or 0),
         )
-        for attr_name in extra_submesh_attrs:
-            if hasattr(submesh, attr_name):
-                setattr(cloned, attr_name, getattr(submesh, attr_name))
+        _copy_extra_submesh_attrs(submesh, cloned)
         return cloned
 
     return ParsedMesh(
@@ -142,7 +188,7 @@ def _valid_vertex_index_set(vertex_indices: Iterable[int], vertex_count: int) ->
     for raw_index in vertex_indices:
         try:
             index = int(raw_index)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if 0 <= index < vertex_count:
             selected.add(index)
@@ -155,7 +201,7 @@ def _average_tuple(values: Sequence[object], a: int, b: int, old_vertex_count: i
     try:
         left = tuple(float(component) for component in values[a])  # type: ignore[arg-type]
         right = tuple(float(component) for component in values[b])  # type: ignore[arg-type]
-    except (TypeError, ValueError, IndexError):
+    except (TypeError, ValueError, OverflowError, IndexError):
         return None
     length = min(len(left), len(right))
     if length <= 0:
@@ -177,7 +223,7 @@ def _blend_bone_assignment(
         right_indices = tuple(int(value) for value in bone_indices[b])  # type: ignore[arg-type]
         left_weights = tuple(float(value) for value in bone_weights[a])  # type: ignore[arg-type]
         right_weights = tuple(float(value) for value in bone_weights[b])  # type: ignore[arg-type]
-    except (TypeError, ValueError, IndexError):
+    except (TypeError, ValueError, OverflowError, IndexError):
         return None
     weight_by_bone: dict[int, float] = {}
     for bone, weight in zip(left_indices, left_weights):
@@ -216,7 +262,7 @@ def _delete_faces_touching_submesh_vertices(
             continue
         try:
             a, b, c = (int(face[0]), int(face[1]), int(face[2]))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if a in selected or b in selected or c in selected:
             removed_faces += 1
@@ -265,7 +311,7 @@ def _delete_submesh_faces_by_indices(
     for raw_index in face_indices:
         try:
             face_index = int(raw_index)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if 0 <= face_index < old_face_count:
             selected_faces.add(face_index)
@@ -279,7 +325,7 @@ def _delete_submesh_faces_by_indices(
             continue
         try:
             a, b, c = (int(face[0]), int(face[1]), int(face[2]))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if face_index in selected_faces:
             removed_faces += 1
@@ -332,7 +378,7 @@ def _compact_orphan_vertices_for_submesh(
             continue
         try:
             a, b, c = (int(face[0]), int(face[1]), int(face[2]))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if 0 <= a < old_vertex_count and 0 <= b < old_vertex_count and 0 <= c < old_vertex_count:
             valid_faces.append((a, b, c))
@@ -384,7 +430,7 @@ def compact_orphan_vertices(
         for raw_index in submesh_indices:
             try:
                 submesh_index = int(raw_index)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 continue
             if 0 <= submesh_index < len(mesh.submeshes):
                 target_indices.append(submesh_index)
@@ -451,7 +497,7 @@ def delete_faces_touching_vertices(
     for raw_submesh_index, raw_vertex_indices in selected_vertices_by_submesh.items():
         try:
             submesh_index = int(raw_submesh_index)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if submesh_index < 0 or submesh_index >= len(mesh.submeshes):
             continue
@@ -519,7 +565,7 @@ def delete_faces_by_indices(
     for raw_submesh_index, raw_face_indices in selected_faces_by_submesh.items():
         try:
             submesh_index = int(raw_submesh_index)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if submesh_index < 0 or submesh_index >= len(mesh.submeshes):
             continue
@@ -549,10 +595,162 @@ def delete_faces_by_indices(
     )
 
 
+def _valid_face_index_set(face_indices: Iterable[int], face_count: int) -> set[int]:
+    selected: set[int] = set()
+    for raw_index in face_indices:
+        try:
+            index = int(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if 0 <= index < face_count:
+            selected.add(index)
+    return selected
+
+
+def _face_indices_touching_vertices(submesh: SubMesh, vertex_indices: Iterable[int]) -> set[int]:
+    selected_vertices = _valid_vertex_index_set(vertex_indices, len(submesh.vertices))
+    if not selected_vertices:
+        return set()
+    selected_faces: set[int] = set()
+    for face_index, face in enumerate(tuple(submesh.faces or ())):
+        if len(face) < 3:
+            continue
+        try:
+            a, b, c = (int(face[0]), int(face[1]), int(face[2]))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if a in selected_vertices or b in selected_vertices or c in selected_vertices:
+            selected_faces.add(face_index)
+    return selected_faces
+
+
+def _compact_submesh_faces(submesh: SubMesh, kept_faces: Sequence[tuple[int, int, int]]) -> int:
+    old_vertex_count = len(submesh.vertices)
+    used_vertex_indices = sorted({index for face in kept_faces for index in face})
+    index_map = {old_index: new_index for new_index, old_index in enumerate(used_vertex_indices)}
+    submesh.vertices = [submesh.vertices[old_index] for old_index in used_vertex_indices]
+    submesh.uvs = _remap_vertex_aligned_list(submesh.uvs, index_map, old_vertex_count)  # type: ignore[assignment]
+    submesh.normals = _remap_vertex_aligned_list(submesh.normals, index_map, old_vertex_count)  # type: ignore[assignment]
+    submesh.bone_indices = _remap_vertex_aligned_list(submesh.bone_indices, index_map, old_vertex_count)  # type: ignore[assignment]
+    submesh.bone_weights = _remap_vertex_aligned_list(submesh.bone_weights, index_map, old_vertex_count)  # type: ignore[assignment]
+    submesh.source_vertex_map = _remap_vertex_aligned_list(submesh.source_vertex_map, index_map, old_vertex_count)  # type: ignore[assignment]
+    submesh.source_vertex_offsets = _remap_vertex_aligned_list(submesh.source_vertex_offsets, index_map, old_vertex_count)  # type: ignore[assignment]
+    submesh.faces = [
+        (index_map[a], index_map[b], index_map[c])
+        for a, b, c in kept_faces
+        if a in index_map and b in index_map and c in index_map
+    ]
+    submesh.vertex_count = len(submesh.vertices)
+    submesh.face_count = len(submesh.faces)
+    return old_vertex_count - len(submesh.vertices)
+
+
+def split_faces_to_submesh(
+    mesh: ParsedMesh,
+    *,
+    selected_faces_by_submesh: Mapping[int, Iterable[int]] | None = None,
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]] | None = None,
+    name_suffix: str = " split",
+    recompute_normals: bool = True,
+) -> MeshPartSplitResult:
+    face_groups: dict[int, set[int]] = {}
+    for raw_submesh_index, raw_faces in dict(selected_faces_by_submesh or {}).items():
+        try:
+            submesh_index = int(raw_submesh_index)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if 0 <= submesh_index < len(mesh.submeshes):
+            faces = _valid_face_index_set(raw_faces, len(mesh.submeshes[submesh_index].faces))
+            if faces:
+                face_groups[submesh_index] = faces
+    if not face_groups:
+        for raw_submesh_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
+            try:
+                submesh_index = int(raw_submesh_index)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if 0 <= submesh_index < len(mesh.submeshes):
+                faces = _face_indices_touching_vertices(mesh.submeshes[submesh_index], raw_vertices)
+                if faces:
+                    face_groups[submesh_index] = faces
+    if not face_groups:
+        return MeshPartSplitResult()
+    if len(face_groups) != 1:
+        raise ValueError("Select faces from one part before splitting.")
+
+    source_submesh_index, selected_faces = next(iter(face_groups.items()))
+    source = mesh.submeshes[source_submesh_index]
+    old_vertex_count = len(source.vertices)
+    moved_faces: list[tuple[int, int, int]] = []
+    kept_faces: list[tuple[int, int, int]] = []
+    for face_index, face in enumerate(tuple(source.faces or ())):
+        if len(face) < 3:
+            continue
+        try:
+            normalized_face = (int(face[0]), int(face[1]), int(face[2]))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if any(index < 0 or index >= old_vertex_count for index in normalized_face):
+            continue
+        if face_index in selected_faces:
+            moved_faces.append(normalized_face)
+        else:
+            kept_faces.append(normalized_face)
+    if not moved_faces:
+        return MeshPartSplitResult(source_submesh_index=source_submesh_index)
+
+    moved_vertex_indices = sorted({index for face in moved_faces for index in face})
+    moved_index_map = {old_index: new_index for new_index, old_index in enumerate(moved_vertex_indices)}
+    new_name_base = str(source.name or source.material or f"part {source_submesh_index}").strip()
+    new_submesh = SubMesh(
+        name=f"{new_name_base}{name_suffix}",
+        material=str(source.material or ""),
+        texture=str(source.texture or ""),
+        vertices=[source.vertices[old_index] for old_index in moved_vertex_indices],
+        uvs=_remap_vertex_aligned_list(source.uvs, moved_index_map, old_vertex_count),  # type: ignore[arg-type]
+        normals=_remap_vertex_aligned_list(source.normals, moved_index_map, old_vertex_count),  # type: ignore[arg-type]
+        faces=[
+            (moved_index_map[a], moved_index_map[b], moved_index_map[c])
+            for a, b, c in moved_faces
+        ],
+        bone_indices=_remap_vertex_aligned_list(source.bone_indices, moved_index_map, old_vertex_count),  # type: ignore[arg-type]
+        bone_weights=_remap_vertex_aligned_list(source.bone_weights, moved_index_map, old_vertex_count),  # type: ignore[arg-type]
+        source_vertex_map=_remap_vertex_aligned_list(source.source_vertex_map, moved_index_map, old_vertex_count),  # type: ignore[arg-type]
+        source_vertex_offsets=_remap_vertex_aligned_list(source.source_vertex_offsets, moved_index_map, old_vertex_count),  # type: ignore[arg-type]
+        source_index_offset=-1,
+        source_index_count=0,
+        source_vertex_stride=int(source.source_vertex_stride or 0),
+        source_descriptor_offset=-1,
+        source_bbox_min=tuple(source.source_bbox_min or (0.0, 0.0, 0.0)),
+        source_bbox_extent=tuple(source.source_bbox_extent or (0.0, 0.0, 0.0)),
+        source_lod_count=int(source.source_lod_count or 0),
+    )
+    new_submesh.vertex_count = len(new_submesh.vertices)
+    new_submesh.face_count = len(new_submesh.faces)
+    _copy_extra_submesh_attrs(source, new_submesh)
+    removed_vertices = _compact_submesh_faces(source, kept_faces)
+    if recompute_normals:
+        if source.faces:
+            recompute_submesh_normals(source)
+        recompute_submesh_normals(new_submesh)
+    mesh.submeshes.append(new_submesh)
+    mesh.total_vertices = sum(len(submesh.vertices) for submesh in mesh.submeshes)
+    mesh.total_faces = sum(len(submesh.faces) for submesh in mesh.submeshes)
+    mesh.has_uvs = any(bool(submesh.uvs) for submesh in mesh.submeshes)
+    mesh.has_bones = any(bool(submesh.bone_indices) or bool(submesh.bone_weights) for submesh in mesh.submeshes)
+    return MeshPartSplitResult(
+        source_submesh_index=source_submesh_index,
+        new_submesh_index=len(mesh.submeshes) - 1,
+        moved_face_count=len(moved_faces),
+        moved_vertex_count=len(moved_vertex_indices),
+    )
+
+
 def subdivide_faces_touching_vertices(
     mesh: ParsedMesh,
-    selected_vertices_by_submesh: Mapping[int, Iterable[int]],
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]] | None = None,
     *,
+    selected_faces_by_submesh: Mapping[int, Iterable[int]] | None = None,
     max_faces_per_submesh: int = 256,
     recompute_normals: bool = True,
 ) -> MeshSubdivisionResult:
@@ -560,33 +758,50 @@ def subdivide_faces_touching_vertices(
     changed_vertices: dict[int, set[int]] = {}
     added_vertex_count = 0
     added_face_count = 0
-    face_limit = max(1, int(max_faces_per_submesh or 1))
-
-    for raw_submesh_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
+    face_limit = max(1, _int_value(max_faces_per_submesh, 1))
+    face_groups: dict[int, set[int]] = {}
+    for raw_submesh_index, raw_faces in dict(selected_faces_by_submesh or {}).items():
         try:
             submesh_index = int(raw_submesh_index)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if submesh_index < 0 or submesh_index >= len(mesh.submeshes):
+            continue
+        faces = _valid_face_index_set(raw_faces, len(mesh.submeshes[submesh_index].faces))
+        if faces:
+            face_groups[submesh_index] = set(sorted(faces)[:face_limit])
+
+    selection_items = face_groups.items() if face_groups else dict(selected_vertices_by_submesh or {}).items()
+    for raw_submesh_index, raw_selection in selection_items:
+        try:
+            submesh_index = int(raw_submesh_index)
+        except (TypeError, ValueError, OverflowError):
             continue
         if submesh_index < 0 or submesh_index >= len(mesh.submeshes):
             continue
         submesh = mesh.submeshes[submesh_index]
         old_vertex_count = len(submesh.vertices)
-        selected = _valid_vertex_index_set(raw_vertices, old_vertex_count)
-        if not selected or not submesh.faces:
+        if not submesh.faces:
             continue
 
-        split_face_indices: set[int] = set()
-        for face_index, face in enumerate(tuple(submesh.faces or ())):
-            if len(face) < 3:
+        if face_groups:
+            split_face_indices = set(raw_selection)
+        else:
+            selected = _valid_vertex_index_set(raw_selection, old_vertex_count)
+            if not selected:
                 continue
-            try:
-                a, b, c = (int(face[0]), int(face[1]), int(face[2]))
-            except (TypeError, ValueError):
-                continue
-            if a in selected or b in selected or c in selected:
-                split_face_indices.add(face_index)
-                if len(split_face_indices) >= face_limit:
-                    break
+            split_face_indices: set[int] = set()
+            for face_index, face in enumerate(tuple(submesh.faces or ())):
+                if len(face) < 3:
+                    continue
+                try:
+                    a, b, c = (int(face[0]), int(face[1]), int(face[2]))
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                if a in selected or b in selected or c in selected:
+                    split_face_indices.add(face_index)
+                    if len(split_face_indices) >= face_limit:
+                        break
         if not split_face_indices:
             continue
 
@@ -654,7 +869,7 @@ def subdivide_faces_touching_vertices(
                 continue
             try:
                 a, b, c = (int(face[0]), int(face[1]), int(face[2]))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 continue
             if not (0 <= a < old_vertex_count and 0 <= b < old_vertex_count and 0 <= c < old_vertex_count):
                 continue
@@ -712,7 +927,23 @@ def _vec3(value: Sequence[object], fallback: Vec3 = (0.0, 0.0, 0.0)) -> Vec3:
     if len(value) < 3:
         return fallback
     try:
-        return (float(value[0]), float(value[1]), float(value[2]))
+        parsed = (float(value[0]), float(value[1]), float(value[2]))
+    except (TypeError, ValueError, OverflowError):
+        return fallback
+    return parsed if all(math.isfinite(component) for component in parsed) else fallback
+
+
+def _finite_float(value: object, fallback: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return fallback
+    return parsed if math.isfinite(parsed) else fallback
+
+
+def _int_value(value: object, fallback: int = 1) -> int:
+    try:
+        return int(value)  # type: ignore[arg-type]
     except (TypeError, ValueError, OverflowError):
         return fallback
 
@@ -733,6 +964,10 @@ def _length(a: Vec3) -> float:
     return math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
 
 
+def _same_vec3(a: Vec3, b: Vec3) -> bool:
+    return abs(a[0] - b[0]) <= 1e-8 and abs(a[1] - b[1]) <= 1e-8 and abs(a[2] - b[2]) <= 1e-8
+
+
 def _normalize(a: Vec3, fallback: Vec3 = (0.0, 1.0, 0.0)) -> Vec3:
     length = _length(a)
     if length <= 1e-8:
@@ -741,10 +976,7 @@ def _normalize(a: Vec3, fallback: Vec3 = (0.0, 1.0, 0.0)) -> Vec3:
 
 
 def brush_falloff_weight(distance: float, radius: float, falloff: str = "smooth") -> float:
-    try:
-        normalized = max(0.0, min(1.0, float(distance) / max(float(radius), 1e-8)))
-    except (TypeError, ValueError, OverflowError):
-        return 0.0
+    normalized = max(0.0, min(1.0, _finite_float(distance) / max(_finite_float(radius), 1e-8)))
     if normalized >= 1.0:
         return 0.0
     mode = str(falloff or "smooth").strip().lower()
@@ -763,7 +995,10 @@ def build_vertex_adjacency(submesh: SubMesh) -> list[set[int]]:
     for face in submesh.faces:
         if len(face) < 3:
             continue
-        a, b, c = (int(face[0]), int(face[1]), int(face[2]))
+        try:
+            a, b, c = (int(face[0]), int(face[1]), int(face[2]))
+        except (TypeError, ValueError, OverflowError):
+            continue
         if 0 <= a < len(adjacency) and 0 <= b < len(adjacency) and 0 <= c < len(adjacency):
             adjacency[a].update((b, c))
             adjacency[b].update((a, c))
@@ -781,7 +1016,7 @@ def _normalized_selection_by_submesh(
     for raw_submesh_index, raw_vertices in selected_vertices_by_submesh.items():
         try:
             submesh_index = int(raw_submesh_index)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if not (0 <= submesh_index < len(mesh.submeshes)):
             continue
@@ -790,7 +1025,7 @@ def _normalized_selection_by_submesh(
         for raw_vertex in tuple(raw_vertices or ()):
             try:
                 vertex_index = int(raw_vertex)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 continue
             if 0 <= vertex_index < vertex_count:
                 selected.add(vertex_index)
@@ -806,7 +1041,7 @@ def grow_vertex_selection(
     steps: int = 1,
 ) -> dict[int, set[int]]:
     selection = _normalized_selection_by_submesh(mesh, selected_vertices_by_submesh)
-    for _step in range(max(0, int(steps or 0))):
+    for _step in range(max(0, _int_value(steps, 0))):
         next_selection: dict[int, set[int]] = {index: set(vertices) for index, vertices in selection.items()}
         for submesh_index, selected in selection.items():
             adjacency = build_vertex_adjacency(mesh.submeshes[submesh_index])
@@ -825,7 +1060,7 @@ def shrink_vertex_selection(
     steps: int = 1,
 ) -> dict[int, set[int]]:
     selection = _normalized_selection_by_submesh(mesh, selected_vertices_by_submesh)
-    for _step in range(max(0, int(steps or 0))):
+    for _step in range(max(0, _int_value(steps, 0))):
         next_selection: dict[int, set[int]] = {}
         for submesh_index, selected in selection.items():
             adjacency = build_vertex_adjacency(mesh.submeshes[submesh_index])
@@ -849,7 +1084,7 @@ def smooth_vertex_selection(
     iterations: int = 1,
 ) -> dict[int, set[int]]:
     selection = _normalized_selection_by_submesh(mesh, selected_vertices_by_submesh)
-    for _iteration in range(max(0, int(iterations or 0))):
+    for _iteration in range(max(0, _int_value(iterations, 0))):
         next_selection: dict[int, set[int]] = {}
         for submesh_index, submesh in enumerate(mesh.submeshes):
             selected = selection.get(submesh_index, set())
@@ -913,7 +1148,7 @@ def _affected_vertex_weights(
         for raw_index in vertex_indices:
             try:
                 index = int(raw_index)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 continue
             if 0 <= index < len(submesh.vertices):
                 allowed.add(index)
@@ -928,9 +1163,9 @@ def _affected_vertex_weights(
             try:
                 raw_index, raw_weight = item  # type: ignore[misc]
                 index = int(raw_index)
-                weight = max(0.0, min(1.0, float(raw_weight)))
             except (TypeError, ValueError, OverflowError):
                 continue
+            weight = max(0.0, min(1.0, _finite_float(raw_weight)))
             if 0 <= index < len(submesh.vertices) and (allowed is None or index in allowed) and weight > 0.0:
                 explicit_weights[index] = max(explicit_weights.get(index, 0.0), weight)
         return explicit_weights
@@ -955,17 +1190,25 @@ def _with_mirror_weights(
     mirror_x: bool,
     mirror_pairs: Mapping[int, int] | None = None,
 ) -> dict[int, tuple[float, bool]]:
-    result: dict[int, tuple[float, bool]] = {int(index): (float(weight), False) for index, weight in weights.items()}
+    result: dict[int, tuple[float, bool]] = {}
+    for raw_index, raw_weight in weights.items():
+        try:
+            index = int(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        weight = _finite_float(raw_weight)
+        if weight > 0.0:
+            result[index] = (weight, False)
     if not mirror_x:
         return result
     pairs = dict(mirror_pairs or build_x_mirror_pairs(submesh.vertices))
-    for index, weight in weights.items():
-        mirror_index = pairs.get(int(index))
+    for index, (weight, _mirrored) in tuple(result.items()):
+        mirror_index = pairs.get(index)
         if mirror_index is None:
             continue
         previous = result.get(mirror_index)
-        if previous is None or float(weight) > previous[0]:
-            result[mirror_index] = (float(weight), True)
+        if previous is None or weight > previous[0]:
+            result[mirror_index] = (weight, True)
     return result
 
 
@@ -983,7 +1226,7 @@ def apply_vertex_delta(
     for raw_index in vertex_indices:
         try:
             index = int(raw_index)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if 0 <= index < len(submesh.vertices):
             direct_weights[index] = 1.0
@@ -999,8 +1242,13 @@ def apply_vertex_delta(
     changed: list[int] = []
     for index, (_weight, mirrored) in weighted_indices.items():
         applied_delta = (-delta_vec[0], delta_vec[1], delta_vec[2]) if mirrored else delta_vec
-        vertices[index] = _add(_vec3(vertices[index]), applied_delta)
-        changed.append(index)
+        current = _vec3(vertices[index])
+        moved = _add(current, applied_delta)
+        if not _same_vec3(current, moved):
+            vertices[index] = moved
+            changed.append(index)
+    if not changed:
+        return []
     submesh.vertices = vertices
     submesh.vertex_count = len(vertices)
     if recompute_normals:
@@ -1031,8 +1279,8 @@ def apply_brush_deformation(
         return []
     tool_key = str(tool or "grab").strip().lower()
     center_vec = _vec3(center)
-    radius_value = max(float(radius), 1e-8)
-    strength_value = max(0.0, min(1.0, float(strength)))
+    radius_value = max(_finite_float(radius), 1e-8)
+    strength_value = max(0.0, min(1.0, _finite_float(strength)))
     delta_vec = _vec3(drag_delta)
     direct_weights = _affected_vertex_weights(
         submesh,
@@ -1060,8 +1308,8 @@ def apply_brush_deformation(
             else _compute_smooth_normals(vertices, submesh.faces)
         )
     adjacency_map = list(adjacency or build_vertex_adjacency(submesh)) if tool_key == "smooth" else []
-    iteration_count = max(1, min(12, int(iterations or 1)))
-    amount_value = float(amount)
+    iteration_count = max(1, min(12, _int_value(iterations, 1)))
+    amount_value = _finite_float(amount)
     if abs(amount_value) <= 1e-8:
         amount_value = _length(delta_vec)
     amount_value *= strength_value
@@ -1112,8 +1360,11 @@ def apply_brush_deformation(
         else:
             new_vertices[index] = _add(vertex, _mul(applied_delta, float(weight) * strength_value))
 
+    changed = sorted(index for index in weighted_indices if not _same_vec3(vertices[index], new_vertices[index]))
+    if not changed:
+        return []
     submesh.vertices = new_vertices
     submesh.vertex_count = len(new_vertices)
     if recompute_normals:
         recompute_submesh_normals(submesh)
-    return sorted(weighted_indices)
+    return changed

@@ -102,7 +102,7 @@ def _asset_family_group_for_entry(
         return "Prefab / Metadata"
     if extension in {".pab", ".pabc", ".pabv", ".pabgb", ".pabgh", ".papr"} or "skeleton" in lowered or "rig" in lowered:
         return "Skeleton / Rig"
-    if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
         return "Animation / Motion"
     if extension in {".pac", ".pam", ".pamlod"}:
         return "Selected Model"
@@ -134,7 +134,7 @@ def _asset_family_role_for_entry(entry: Optional[ArchiveEntry], *, relation_kind
         return "Prefab / Metadata"
     if extension in {".pab", ".pabc", ".pabv", ".pabgb", ".pabgh", ".papr"} or kind == RelationKind.SKELETON.value:
         return "Skeleton / Rig"
-    if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paschedule", ".paschedulepath", ".pastage"} or kind == RelationKind.ANIMATION.value:
+    if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"} or kind == RelationKind.ANIMATION.value:
         return "Animation / Motion"
     return "Related File"
 

@@ -13,6 +13,7 @@ from cdmw.core.archive import (
     build_simplified_text_asset_summary,
     build_structured_asset_preview,
 )
+from cdmw.core.archive_format import crypt_chacha20_filename, lz4_block, try_decrypt_archive_entry_data
 from cdmw.models import ArchiveEntry
 
 
@@ -88,12 +89,19 @@ def _paseq_sample() -> bytes:
     data.extend(_decl("_effectFileName", "staticstringA", bytes.fromhex("01 00 01 00 40 00 00 00")))
     data.extend(_decl("_startFrame", "uint32", bytes.fromhex("00 00 04 00 20 00 00 00")))
     data.extend(_decl("_endFrame", "uint32", bytes.fromhex("00 00 04 00 20 00 00 00")))
+    data.extend(_decl("_framesPerSecond", "int32", bytes.fromhex("00 00 04 00 60 00 00 00")))
+    data.extend(_decl("_framesPerSecond", "int32", bytes.fromhex("00 00 04 00 60 00 00 00")))
+    data.extend(_decl("_startBlendingTime", "float", bytes.fromhex("00 00 04 00 20 00 00 00")))
+    data.extend(_decl("_endBlendingTime", "float", bytes.fromhex("00 00 04 00 20 00 00 00")))
     data.extend(_decl("_eventTriggerNames", "staticstringA", bytes.fromhex("0A 00 01 00 20 10 00 00")))
     data.extend(b"StartEvent_PlayerAttack\x00LoopPhase_Main\x00EndEvent_Recover\x00")
     data.extend(b"actionchart/bin__/animation/test_combo_attack.paa\x00")
     data.extend(b"character/bin__/animation/test_combo.hkx\x00")
     data.extend(b"effect/bin__/test_combo_hit.paem\x00")
     data.extend(b"character/model/test_actor.pac\x00")
+    data.extend(struct.pack("<I", 30) + b"LengthPrefixedFpsLikeString_30")
+    while len(data) % 4:
+        data.append(0)
     data.extend(struct.pack("<IIff", 0, 90, 1.25, 30.0))
     return bytes(data)
 
@@ -307,67 +315,395 @@ class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
             self.assertFalse(document["editing"]["supported"])
 
     def test_paseq_preview_recovers_timeline_lanes_and_playback_gaps(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            source = _entry("actionchart/bin__/sequence/test_combo.paseq", root)
-            paa = _entry("actionchart/bin__/animation/test_combo_attack.paa", root)
-            hkx = _entry("character/bin__/animation/test_combo.hkx", root)
-            effect = _entry("effect/bin__/test_combo_hit.paem", root)
-            model = _entry("character/model/test_actor.pac", root)
-            path_index, basename_index = _indexes((source, paa, hkx, effect, model))
+        for extension in (".paseq", ".paseqc"):
+            with self.subTest(extension=extension), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                source = _entry(f"actionchart/bin__/sequence/test_combo{extension}", root)
+                paa = _entry("actionchart/bin__/animation/test_combo_attack.paa", root)
+                hkx = _entry("character/bin__/animation/test_combo.hkx", root)
+                effect = _entry("effect/bin__/test_combo_hit.paem", root)
+                model = _entry("character/model/test_actor.pac", root)
+                path_index, basename_index = _indexes((source, paa, hkx, effect, model))
 
-            preview = build_par_structured_preview(
-                _paseq_sample(),
-                source.path,
-                extension=".paseq",
-                source_entry=source,
-                archive_entries_by_normalized_path=path_index,
-                archive_entries_by_basename=basename_index,
-            )
-            document = json.loads(
-                build_binary_sidecar_analysis_json(
+                preview = build_par_structured_preview(
                     _paseq_sample(),
                     source.path,
-                    extension=".paseq",
+                    extension=extension,
                     source_entry=source,
                     archive_entries_by_normalized_path=path_index,
                     archive_entries_by_basename=basename_index,
                 )
+                document = json.loads(
+                    build_binary_sidecar_analysis_json(
+                        _paseq_sample(),
+                        source.path,
+                        extension=extension,
+                        source_entry=source,
+                        archive_entries_by_normalized_path=path_index,
+                        archive_entries_by_basename=basename_index,
+                    )
+                )
+
+                resolved_paths = {reference.resolved_archive_path for reference in preview.related_references}
+                timeline = document["paseq"]["timeline"]
+                playback = document["paseq"]["playback_readiness"]
+                timing_evidence = timeline["timing_evidence"]
+
+                self.assertIn("Animation schedule inspector", preview.preview_text)
+                self.assertIn("Recovered timeline lanes", preview.preview_text)
+                self.assertIn("Timeline field evidence", preview.preview_text)
+                self.assertIn("FPS timing evidence", preview.preview_text)
+                self.assertIn("source_paseq_fps_field_declared_value_offset_unmapped", preview.preview_text)
+                self.assertIn("candidate float32_fps_candidate", preview.preview_text)
+                self.assertIn("Blend window evidence", preview.preview_text)
+                self.assertIn("candidate float32_blend_candidate", preview.preview_text)
+                self.assertIn("blend_fields_declared_value_offsets_unmapped", preview.preview_text)
+                self.assertIn("Playback readiness", preview.preview_text)
+                self.assertIn(paa.path, resolved_paths)
+                self.assertIn(hkx.path, resolved_paths)
+                self.assertIn(effect.path, resolved_paths)
+                self.assertEqual("Animation Schedule", document["source"]["kind"])
+                self.assertGreaterEqual(timeline["lane_kind_counts"]["animation"], 2)
+                self.assertGreaterEqual(timeline["lane_kind_counts"]["effect"], 1)
+                self.assertGreaterEqual(timeline["lane_kind_counts"]["context"], 1)
+                self.assertGreaterEqual(timeline["timeline_field_count"], 4)
+                self.assertGreaterEqual(timeline["event_marker_count"], 2)
+                self.assertFalse(playback["ready_for_3d_playback"])
+                self.assertFalse(playback["game_accurate_timing"])
+                self.assertEqual("unknown", playback["timing_confidence"])
+                self.assertEqual("declared_timing_fields_unbound", playback["timing_status"])
+                self.assertEqual(2, timing_evidence["fps_field_declaration_count"])
+                self.assertTrue(all(row["confidence"] == "proven" for row in timing_evidence["fps_field_declarations"]))
+                self.assertTrue(all(row["value_confidence"] == "unknown" for row in timing_evidence["fps_field_declarations"]))
+                self.assertEqual("source_paseq_fps_field_declared_value_offset_unmapped", timing_evidence["fps_binding_status"])
+                self.assertEqual("unknown", timing_evidence["fps_binding_confidence"])
+                self.assertEqual("aligned_4_byte_little_endian", timing_evidence["fps_candidate_value_scan"])
+                self.assertGreaterEqual(timing_evidence["fps_candidate_value_counts"]["float32"]["30"], 1)
+                fps_candidate_rows = timing_evidence["fps_candidate_value_rows"]
+                self.assertTrue(
+                    any(
+                        row["kind"] == "u32_fps_candidate"
+                        and row["value"] == 30
+                        and row["status"] == "not_bound_length_prefixed_string_context"
+                        and row["value_confidence"] == "blocked"
+                        for row in fps_candidate_rows
+                    )
+                )
+                self.assertTrue(
+                    any(
+                        row["kind"] == "float32_fps_candidate"
+                        and row["value"] == 30
+                        and row["confidence"] == "after_recovered_declaration_region"
+                        and row["status"] == "unbound_binary_scalar_candidate"
+                        and row["value_confidence"] == "unknown"
+                        for row in fps_candidate_rows
+                    )
+                )
+                self.assertEqual(2, timing_evidence["blend_field_declaration_count"])
+                self.assertEqual("blend_fields_declared_value_offsets_unmapped", timing_evidence["blend_binding_status"])
+                self.assertEqual("unknown", timing_evidence["blend_binding_confidence"])
+                self.assertEqual({"_endBlendingTime", "_startBlendingTime"}, {row["name"] for row in timing_evidence["blend_field_declarations"]})
+                self.assertTrue(all(row["value_confidence"] == "unknown" for row in timing_evidence["blend_field_declarations"]))
+                blend_candidate_rows = timing_evidence["blend_candidate_value_rows"]
+                self.assertTrue(
+                    any(
+                        row["kind"] == "float32_blend_candidate"
+                        and row["value"] == 1.25
+                        and row["confidence"] == "after_recovered_declaration_region"
+                        and row["status"] == "unbound_binary_scalar_candidate"
+                        and row["value_confidence"] == "unknown"
+                        for row in blend_candidate_rows
+                    )
+                )
+                self.assertTrue(any("Runtime binding" in gap for gap in playback["blocking_gaps"]))
+                self.assertFalse(document["editing"]["supported"])
+
+    def test_encrypted_compressed_papr_validates_as_structured_par_payload(self) -> None:
+        if lz4_block is None:
+            self.skipTest("lz4 is not installed")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            gap = struct.pack("<I", 0) + struct.pack("<f", 0.5) + struct.pack("<I", 24) + struct.pack("<I", 1)
+            plain = (
+                b"PAR "
+                + bytes(range(1, 80))
+                + _decl("_constraintBoneName", "staticstringA", bytes.fromhex("01 00 01 00 20 00 00 00"))
+                + b"Bip01 Head\x00" + gap + b"P_Bip01 Head\x00" + gap + b"Bip01 Head_Dummy\x00"
             )
+            plain += (b"\x00" * (((len(plain) + 3) & ~3) - len(plain))) + struct.pack("<f", 3.0) + struct.pack("<f", 30.5) + gap
+            plain += b"Local_Euler_Z*3+30.5\x00" + gap + b"amin(Local_Euler_Z*5+9.8) -1\x00"
+            compressed = lz4_block.compress(plain, store_size=False)
+            encrypted = crypt_chacha20_filename(compressed, "body.papr")
+            entry = _entry("character/model/body.papr", root)
+            entry.comp_size = len(compressed)
+            entry.orig_size = len(plain)
+            entry.flags = 0x32
 
-            resolved_paths = {reference.resolved_archive_path for reference in preview.related_references}
-            timeline = document["paseq"]["timeline"]
-            playback = document["paseq"]["playback_readiness"]
+            decrypted, note = try_decrypt_archive_entry_data(entry, encrypted)
+            preview = build_par_structured_preview(plain, entry.path, extension=".papr")
+            document = json.loads(build_binary_sidecar_analysis_json(plain, entry.path, extension=".papr"))
 
-            self.assertIn("Animation schedule inspector", preview.preview_text)
-            self.assertIn("Recovered timeline lanes", preview.preview_text)
-            self.assertIn("Timeline field evidence", preview.preview_text)
-            self.assertIn("Playback readiness", preview.preview_text)
-            self.assertIn(paa.path, resolved_paths)
-            self.assertIn(hkx.path, resolved_paths)
-            self.assertIn(effect.path, resolved_paths)
-            self.assertGreaterEqual(timeline["lane_kind_counts"]["animation"], 2)
-            self.assertGreaterEqual(timeline["lane_kind_counts"]["effect"], 1)
-            self.assertGreaterEqual(timeline["lane_kind_counts"]["context"], 1)
-            self.assertGreaterEqual(timeline["timeline_field_count"], 4)
-            self.assertGreaterEqual(timeline["event_marker_count"], 2)
-            self.assertFalse(playback["ready_for_3d_playback"])
-            self.assertTrue(any("Runtime binding" in gap for gap in playback["blocking_gaps"]))
+            self.assertEqual("ChaCha20", note)
+            self.assertEqual(plain, lz4_block.decompress(decrypted, uncompressed_size=len(plain)))
+            self.assertIn("Animation constraint inspector", preview.preview_text)
+            self.assertIn("Constraint string evidence", preview.preview_text)
+            self.assertIn("Constraint expression evidence", preview.preview_text)
+            self.assertIn("Constraint field offset evidence", preview.preview_text)
+            self.assertIn("Constraint record candidates", preview.preview_text)
+            self.assertIn("linear_channel_transform_candidate", preview.preview_text)
+            self.assertIn("channel_coefficient", preview.preview_text)
+            self.assertIn("gaps=binary_like_interfield_gap_bytes_unbound", preview.preview_text)
+            self.assertIn("scalars=unbound_interfield_scalar_candidates", preview.preview_text)
+            self.assertIn("numeric_matches=unbound_scalar_numeric_constant_matches", preview.preview_text)
+            self.assertIn("order=parent>helper>target>expression", preview.preview_text)
+            self.assertIn("Constraint solving and editing remain disabled", " ".join(preview.detail_lines))
+            self.assertEqual("Animation Constraint", preview.metadata_label)
+            self.assertEqual("Animation Constraint", document["source"]["kind"])
+            self.assertTrue(document["papr"]["recognized"])
+            self.assertFalse(document["papr"]["constraint_solving_supported"])
+            self.assertEqual("read_only_constraint_string_evidence", document["papr"]["status"])
+            self.assertGreaterEqual(document["papr"]["string_evidence_count"], 5)
+            self.assertGreaterEqual(document["papr"]["role_counts"]["bone_reference"], 1)
+            self.assertGreaterEqual(document["papr"]["role_counts"]["parent_bone_reference"], 1)
+            self.assertGreaterEqual(document["papr"]["role_counts"]["helper_bone_reference"], 1)
+            self.assertGreaterEqual(document["papr"]["role_counts"]["driver_expression"], 1)
+            self.assertGreaterEqual(document["papr"]["role_counts"]["limit_expression"], 1)
+            self.assertGreaterEqual(document["papr"]["record_candidate_count"], 2)
+            self.assertGreaterEqual(document["papr"]["expression_evidence"]["channel_counts"]["Local_Euler_Z"], 2)
+            self.assertGreaterEqual(document["papr"]["expression_evidence"]["limit_operator_counts"]["amin"], 1)
+            self.assertGreaterEqual(document["papr"]["expression_evidence"]["shape_counts"]["linear_channel_transform_candidate"], 1)
+            self.assertGreaterEqual(document["papr"]["expression_evidence"]["shape_counts"]["limit_linear_channel_transform_candidate"], 1)
+            self.assertGreaterEqual(sum(document["papr"]["expression_evidence"]["syntax_signature_counts"].values()), 1)
+            self.assertTrue(
+                any(
+                    "shape=linear_channel_transform_candidate" in signature
+                    for signature in document["papr"]["expression_evidence"]["syntax_signature_counts"]
+                )
+            )
+            self.assertGreaterEqual(document["papr"]["expression_evidence"]["numeric_role_counts"]["channel_coefficient"], 2)
+            self.assertGreaterEqual(document["papr"]["expression_evidence"]["numeric_role_counts"]["additive_offset"], 2)
+            self.assertGreaterEqual(document["papr"]["expression_evidence"]["numeric_role_counts"]["limit_argument"], 1)
+            self.assertEqual("unknown", document["papr"]["expression_evidence"]["semantics_confidence"])
+            self.assertGreaterEqual(document["papr"]["offset_evidence"]["target_offset_count"], 1)
+            self.assertEqual("proven", document["papr"]["offset_evidence"]["offset_confidence"])
+            self.assertIn("Local_Euler_Z", document["papr"]["record_candidates"][0]["expression_channels"])
+            self.assertGreater(document["papr"]["record_candidates"][0]["target_bone_offset"], 0)
+            self.assertGreater(document["papr"]["record_candidates"][0]["target_bone_delta"], 0)
+            self.assertEqual("proven_decoded_string_offsets", document["papr"]["record_candidates"][0]["field_offset_confidence"])
+            self.assertEqual("linear_channel_transform_candidate", document["papr"]["record_candidates"][0]["expression_shape"])
+            self.assertIn(
+                "shape=linear_channel_transform_candidate",
+                document["papr"]["record_candidates"][0]["expression_syntax_signature"],
+            )
+            self.assertEqual(
+                ["channel_coefficient", "additive_offset"],
+                document["papr"]["record_candidates"][0]["expression_numeric_roles"],
+            )
+            self.assertEqual(
+                "inferred_readable_expression_syntax",
+                document["papr"]["record_candidates"][0]["expression_shape_confidence"],
+            )
+            self.assertEqual(
+                ["parent", "helper", "target", "expression"],
+                document["papr"]["record_candidates"][0]["record_field_sequence"],
+            )
+            self.assertEqual(
+                "proven_decoded_string_offset_order",
+                document["papr"]["record_layout_evidence"]["field_sequence_confidence"],
+            )
+            self.assertGreaterEqual(
+                document["papr"]["record_layout_evidence"]["gap_status_counts"]["binary_like_interfield_gap_bytes_unbound"],
+                1,
+            )
+            self.assertGreaterEqual(sum(document["papr"]["record_layout_evidence"]["gap_class_counts"].values()), 1)
+            self.assertGreaterEqual(document["papr"]["record_layout_evidence"]["gap_pair_count"], 1)
+            self.assertGreater(document["papr"]["record_layout_evidence"]["max_gap_size"], 0)
+            self.assertGreaterEqual(
+                document["papr"]["record_layout_evidence"]["gap_scalar_status_counts"]["unbound_interfield_scalar_candidates"],
+                1,
+            )
+            self.assertGreaterEqual(document["papr"]["record_layout_evidence"]["gap_scalar_kind_counts"]["f32_unit_candidate"], 1)
+            self.assertGreaterEqual(document["papr"]["record_layout_evidence"]["gap_aligned_word_count"], 1)
+            self.assertGreaterEqual(document["papr"]["record_layout_evidence"]["gap_scalar_candidate_count"], 1)
+            self.assertGreaterEqual(
+                document["papr"]["record_layout_evidence"]["gap_numeric_match_status_counts"]["unbound_scalar_numeric_constant_matches"],
+                1,
+            )
+            self.assertGreaterEqual(document["papr"]["record_layout_evidence"]["gap_numeric_match_role_counts"]["channel_coefficient"], 1)
+            self.assertGreaterEqual(document["papr"]["record_layout_evidence"]["gap_numeric_match_role_counts"]["additive_offset"], 1)
+            self.assertGreaterEqual(document["papr"]["record_layout_evidence"]["gap_numeric_match_pair_counts"]["target>expression"], 1)
+            self.assertGreaterEqual(
+                sum(document["papr"]["record_layout_evidence"]["gap_numeric_match_value_confidence_counts"].values()),
+                1,
+            )
+            self.assertGreaterEqual(
+                document["papr"]["record_layout_evidence"]["gap_numeric_match_value_confidence_counts"][
+                    "exact_float32_numeric_value_match_layout_unproven"
+                ],
+                1,
+            )
+            self.assertGreaterEqual(document["papr"]["record_layout_evidence"]["gap_numeric_match_family_counts"]["driver_expression_candidate"], 1)
+            self.assertGreaterEqual(document["papr"]["record_layout_evidence"]["gap_numeric_match_family_row_counts"]["driver_expression_candidate"], 1)
+            self.assertGreaterEqual(
+                document["papr"]["record_layout_evidence"]["gap_numeric_match_family_role_counts"][
+                    "driver_expression_candidate"
+                ]["channel_coefficient"],
+                1,
+            )
+            self.assertGreaterEqual(
+                document["papr"]["record_layout_evidence"]["gap_numeric_match_family_pair_counts"][
+                    "driver_expression_candidate"
+                ]["target>expression"],
+                1,
+            )
+            self.assertGreaterEqual(
+                document["papr"]["record_layout_evidence"]["gap_numeric_match_family_value_confidence_counts"][
+                    "driver_expression_candidate"
+                ]["exact_float32_numeric_value_match_layout_unproven"],
+                1,
+            )
+            self.assertGreaterEqual(
+                sum(document["papr"]["record_layout_evidence"]["gap_numeric_match_signature_counts"].values()),
+                1,
+            )
+            self.assertGreaterEqual(
+                sum(document["papr"]["record_layout_evidence"]["gap_numeric_match_candidate_relative_signature_counts"].values()),
+                1,
+            )
+            self.assertTrue(
+                any(
+                    "family=driver_expression_candidate" in signature
+                    and "role=channel_coefficient" in signature
+                    for signature in document["papr"]["record_layout_evidence"]["gap_numeric_match_signature_counts"]
+                )
+            )
+            self.assertTrue(
+                any(
+                    "family=driver_expression_candidate" in signature
+                    and "rel=" in signature
+                    for signature in document["papr"]["record_layout_evidence"][
+                        "gap_numeric_match_candidate_relative_signature_counts"
+                    ]
+                )
+            )
+            self.assertGreaterEqual(sum(document["papr"]["record_layout_evidence"]["gap_numeric_match_previous_delta_counts"].values()), 1)
+            self.assertGreaterEqual(sum(document["papr"]["record_layout_evidence"]["gap_numeric_match_next_delta_counts"].values()), 1)
+            self.assertGreaterEqual(
+                sum(document["papr"]["record_layout_evidence"]["gap_numeric_match_candidate_relative_offset_counts"].values()),
+                1,
+            )
+            self.assertGreaterEqual(
+                document["papr"]["record_layout_evidence"]["max_gap_numeric_match_previous_delta"],
+                document["papr"]["record_layout_evidence"]["min_gap_numeric_match_previous_delta"],
+            )
+            self.assertGreaterEqual(
+                document["papr"]["record_layout_evidence"]["max_gap_numeric_match_candidate_relative_offset"],
+                document["papr"]["record_layout_evidence"]["min_gap_numeric_match_candidate_relative_offset"],
+            )
+            self.assertEqual(
+                "observed_relative_to_decoded_string_gap_boundaries_value_layout_unproven",
+                document["papr"]["record_layout_evidence"]["gap_numeric_match_offset_confidence"],
+            )
+            self.assertEqual(
+                "observed_relative_to_inferred_candidate_offset_value_layout_unproven",
+                document["papr"]["record_layout_evidence"]["gap_numeric_match_candidate_relative_offset_confidence"],
+            )
+            self.assertGreaterEqual(document["papr"]["record_layout_evidence"]["gap_numeric_match_count"], 1)
+            layout_match_rows = document["papr"]["record_layout_evidence"]["gap_numeric_match_rows"]
+            self.assertGreaterEqual(len(layout_match_rows), 1)
+            self.assertEqual(document["papr"]["record_candidates"][0]["offset"], layout_match_rows[0]["candidate_offset"])
+            self.assertEqual(
+                layout_match_rows[0]["match_offset"] - layout_match_rows[0]["candidate_offset"],
+                layout_match_rows[0]["candidate_relative_offset"],
+            )
+            self.assertEqual("driver_expression_candidate", layout_match_rows[0]["constraint_type"])
+            self.assertEqual("target>expression", layout_match_rows[0]["between_fields"])
+            self.assertIn(layout_match_rows[0]["numeric_role"], {"channel_coefficient", "additive_offset"})
+            self.assertIn("previous_field_end_delta", layout_match_rows[0])
+            self.assertIn("next_field_start_delta", layout_match_rows[0])
+            self.assertIn("candidate_relative_match_signature", layout_match_rows[0])
+            self.assertIn(
+                layout_match_rows[0]["value_confidence"],
+                {
+                    "exact_u32_numeric_value_match_layout_unproven",
+                    "exact_float32_numeric_value_match_layout_unproven",
+                    "approx_float32_numeric_value_match_layout_unproven",
+                },
+            )
+            self.assertEqual(
+                "binary_like_interfield_gap_bytes_unbound",
+                document["papr"]["record_candidates"][0]["record_gap_status"],
+            )
+            self.assertEqual(
+                "unbound_interfield_scalar_candidates",
+                document["papr"]["record_candidates"][0]["record_gap_scalar_status"],
+            )
+            self.assertEqual(
+                "unbound_scalar_numeric_constant_matches",
+                document["papr"]["record_candidates"][0]["record_gap_numeric_match_status"],
+            )
+            self.assertGreaterEqual(document["papr"]["record_candidates"][0]["record_gap_numeric_match_role_counts"]["channel_coefficient"], 1)
+            self.assertGreaterEqual(document["papr"]["record_candidates"][0]["record_gap_numeric_match_role_counts"]["additive_offset"], 1)
+            self.assertGreaterEqual(document["papr"]["record_candidates"][0]["record_gap_numeric_match_pair_counts"]["target>expression"], 1)
+            self.assertGreaterEqual(
+                document["papr"]["record_candidates"][0]["record_gap_numeric_match_value_confidence_counts"][
+                    "exact_float32_numeric_value_match_layout_unproven"
+                ],
+                1,
+            )
+            self.assertGreaterEqual(
+                sum(document["papr"]["record_candidates"][0]["record_gap_numeric_match_signature_counts"].values()),
+                1,
+            )
+            self.assertGreaterEqual(
+                sum(document["papr"]["record_candidates"][0]["record_gap_numeric_match_candidate_relative_signature_counts"].values()),
+                1,
+            )
+            self.assertGreaterEqual(document["papr"]["record_candidates"][0]["record_gap_numeric_match_count"], 1)
+            self.assertGreaterEqual(
+                sum(document["papr"]["record_candidates"][0]["record_gap_numeric_match_previous_delta_counts"].values()),
+                1,
+            )
+            self.assertGreaterEqual(
+                sum(document["papr"]["record_candidates"][0]["record_gap_numeric_match_next_delta_counts"].values()),
+                1,
+            )
+            self.assertGreaterEqual(
+                sum(document["papr"]["record_candidates"][0]["record_gap_numeric_match_candidate_relative_offset_counts"].values()),
+                1,
+            )
+            self.assertIn("previous_field_end_delta", document["papr"]["record_candidates"][0]["record_gap_numeric_match_rows"][0])
+            self.assertIn("next_field_start_delta", document["papr"]["record_candidates"][0]["record_gap_numeric_match_rows"][0])
+            self.assertIn("candidate_relative_offset", document["papr"]["record_candidates"][0]["record_gap_numeric_match_rows"][0])
+            self.assertIn("match_signature", document["papr"]["record_candidates"][0]["record_gap_numeric_match_rows"][0])
+            self.assertIn(
+                "candidate_relative_match_signature",
+                document["papr"]["record_candidates"][0]["record_gap_numeric_match_rows"][0],
+            )
+            self.assertEqual("proven", document["papr"]["record_candidates"][0]["expression_channel_confidence"])
+            self.assertEqual("unknown", document["papr"]["record_candidates"][0]["expression_semantics_confidence"])
+            self.assertTrue(all(row["solver_status"] == "blocked_record_layout_unproven" for row in document["papr"]["record_candidates"]))
             self.assertFalse(document["editing"]["supported"])
 
     def test_binary_sidecar_corpus_report_summarizes_paseq_timeline_lanes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             paseq = root / "test_combo.paseq"
+            paseqc = root / "test_combo.paseqc"
             paseq.write_bytes(_paseq_sample())
+            paseqc.write_bytes(_paseq_sample())
 
             report = build_binary_sidecar_corpus_report((root,), discovery_limit=10, detail_scan_limit=10)
             paseq_report = report["by_extension"][".paseq"]
+            paseqc_report = report["by_extension"][".paseqc"]
 
             self.assertEqual(report["summary"]["paseq_files_scanned"], 1)
+            self.assertEqual(report["summary"]["paseqc_files_scanned"], 1)
             self.assertEqual(paseq_report["files_scanned"], 1)
+            self.assertEqual(paseqc_report["files_scanned"], 1)
             self.assertGreaterEqual(paseq_report["paseq"]["timeline_lane_buckets"][0]["lane_count"], 4)
             self.assertGreaterEqual(paseq_report["paseq"]["animation_lane_buckets"][0]["lane_count"], 2)
+            self.assertGreaterEqual(paseqc_report["paseq"]["animation_lane_buckets"][0]["lane_count"], 2)
             self.assertFalse(report["editing"]["supported"])
 
     def test_binary_sidecar_corpus_report_ranks_layouts_and_stable_fields(self) -> None:
@@ -705,6 +1041,7 @@ class ArchiveStructuredAssetPreviewTests(unittest.TestCase):
             self.assertEqual("metadata", archive_entry_role(_entry("gamedata/binary__/client/bin/iteminfo.pabgb", root)))
             self.assertEqual("animation", archive_entry_role(_entry("actionchart/bin__/animmeta/test.paa_metabin", root)))
             self.assertEqual("animation", archive_entry_role(_entry("actionchart/bin__/schedule/test.paschedule", root)))
+            self.assertEqual("animation", archive_entry_role(_entry("sequencer/binary__/stage/test.paseqc", root)))
             self.assertEqual("physics", archive_entry_role(_entry("character/bin__/meshphysics/body.hkx", root)))
             self.assertEqual("animation", archive_entry_role(_entry("character/bin__/animation/body.hkx", root)))
 

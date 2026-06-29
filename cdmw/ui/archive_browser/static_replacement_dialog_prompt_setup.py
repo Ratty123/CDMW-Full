@@ -34,6 +34,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
     scene_import_result = context['scene_import_result']
     self = context['self']
     setup_layout = context['setup_layout']
+    setup_summary_layout = context.get('setup_summary_layout') or setup_layout
     static_dialog_preview = context['static_dialog_preview']
     supplemental_files = context.get('supplemental_files', ())
     _set_replacement_mesh_base_for_mapping = context['_set_replacement_mesh_base_for_mapping']
@@ -102,7 +103,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         )
         replacement_export_allowed["allowed"] = bool(asset_profile.export_supported)
         replacement_export_allowed["reason"] = "\n".join(asset_profile.errors)
-        self._add_replacement_asset_profile_summary(setup_layout, asset_profile)
+        self._add_replacement_asset_profile_summary(setup_summary_layout, asset_profile)
         _alignment_startup_step(alignment_startup_text["replacement_mesh"])
         replacement_mesh_base_for_mapping = (
             scene_import_result.mesh
@@ -225,7 +226,6 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         mapping_hint.setTextFormat(Qt.RichText)
         mapping_hint.setObjectName("HintLabel")
         mapping_hint.setToolTip(mapping_table_action_control_text["routing_hint_tooltip"])
-        mapping_layout.addWidget(mapping_hint)
 
         alignment_source_parts_outliner_section = create_alignment_source_parts_outliner_section({**context, **globals(), **locals(), '_queue_part_transform_preview_update': (lambda *args, **kwargs: context['_queue_part_transform_preview_update'](*args, **kwargs))})
         _add_dialog_supplemental_file = alignment_source_parts_outliner_section._add_dialog_supplemental_file
@@ -483,6 +483,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         mesh_edit_smooth_selection_button = alignment_mesh_geometry_preview_section.mesh_edit_smooth_selection_button
         mesh_edit_status_label = alignment_mesh_geometry_preview_section.mesh_edit_status_label
         mesh_edit_strength_spin = alignment_mesh_geometry_preview_section.mesh_edit_strength_spin
+        mesh_edit_split_selection_button = alignment_mesh_geometry_preview_section.mesh_edit_split_selection_button
         mesh_edit_subdivide_selection_button = alignment_mesh_geometry_preview_section.mesh_edit_subdivide_selection_button
         mesh_edit_supported = alignment_mesh_geometry_preview_section.mesh_edit_supported
         mesh_edit_tool_buttons = alignment_mesh_geometry_preview_section.mesh_edit_tool_buttons

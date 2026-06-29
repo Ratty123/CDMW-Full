@@ -75,6 +75,22 @@ def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> Non
     assert german.translate("Stowed / on body") == "Verstaut / am Koerper"
     assert spanish.translate("Held / in hand") == "Sostenido / en mano"
     assert german.translate("Held / in hand") == "Gehalten / in der Hand"
+    assert spanish.translate("Retrofit/Repackage Mods") == "Adaptar/reempaquetar mods"
+    assert german.translate("Retrofit/Repackage Mods") == "Mods anpassen/neu paketieren"
+    assert spanish.translate("Mod Manager") == "Gestor de mods"
+    assert german.translate("Mod Manager") == "Mod-Manager"
+    assert spanish.translate("files/ wrapper") == "Contenedor files/"
+    assert german.translate("files/ wrapper") == "files/-Wrapper"
+    assert spanish.translate("Field-JSON v3.1 assets") == "Recursos Field-JSON v3.1"
+    assert german.translate("Field-JSON v3.1 assets") == "Field-JSON-v3.1-Assets"
+    assert spanish.translate("Retrofit/Repackage plan for selected packages").startswith("Plan de adaptacion")
+    assert german.translate("Retrofit/Repackage plan for selected packages").startswith("Anpassungs")
+    assert spanish.translate("Scan a source folder to find packaged mods.") == (
+        "Escanea una carpeta de origen para encontrar mods empaquetados."
+    )
+    assert german.translate("Scan a source folder to find packaged mods.") == (
+        "Quellordner scannen, um paketierte Mods zu finden."
+    )
     assert spanish.translate("Open DirectXTex / texconv Page") == "Abrir pagina de DirectXTex / texconv"
     assert german.translate("Open DirectXTex / texconv Page") == "DirectXTex-/texconv-Seite oeffnen"
     assert spanish.translate(
@@ -153,9 +169,28 @@ def test_profile_window_and_documentation_cover_current_settings_scope() -> None
         "appearance, startup, preview, window/layout, Texture Replacer, and Texture Editor preferences"
         in main_window_source
     )
+    assert "one app-wide snapshot, not a separate profile per tab" in main_window_source
+    assert "Profiles do not save open archives, active documents, or per-tab project sessions." in main_window_source
+    assert "no perfiles separados por pestana" in main_window_source
+    assert "keine getrennten Profile pro Tab" in main_window_source
     assert "Profile &gt; Export Profile" in main_window_source
     assert "Window &amp; Layout" in main_window_source
     assert "window/detached/&lt;tool&gt;/geometry" in main_window_source
+
+
+def test_mod_packaging_documentation_covers_supported_manager_formats() -> None:
+    main_window_source = _about_documentation_source()
+    retrofit_source = Path("cdmw/ui/tools/mod_package_retrofit.py").read_text(encoding="utf-8")
+
+    assert "DMM, CDUMM, JMM JSON, Crimson Sharp / Crimson Browser, and Field-JSON v3.1" in main_window_source
+    assert "CDUMM uses <code>manifest.json</code>, <code>modinfo.json</code>, <code>.no_encrypt</code>, and a <code>files/</code> wrapper" in main_window_source
+    assert "DMM texture folders use <code>modinfo.json</code>" in main_window_source
+    assert "DMM mesh folders keep <code>manifest.json</code> plus <code>modinfo.json</code>" in main_window_source
+
+    assert "def _apply_widget_localization(widget: QWidget) -> None:" in retrofit_source
+    assert "_apply_widget_localization(parent)" in retrofit_source
+    assert "_apply_widget_localization(manager_combo)" in retrofit_source
+    assert "_apply_widget_localization(structure_combo)" in retrofit_source
 
 
 def test_documentation_and_readme_cover_current_mesh_and_dds_workflows() -> None:

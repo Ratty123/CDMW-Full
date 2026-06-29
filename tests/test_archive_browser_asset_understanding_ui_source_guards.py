@@ -174,6 +174,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             + ARCHIVE_ASSET_FAMILY_REFERENCES.read_text(encoding="utf-8")
             + "\n"
             + ARCHIVE_ASSET_FAMILY_PANEL.read_text(encoding="utf-8")
+            + "\n"
+            + ARCHIVE_REFERENCE_PREVIEW.read_text(encoding="utf-8")
         )
 
         self.assertIn("def _scope_current_archive_entry_only(self) -> None:", source)
@@ -185,24 +187,26 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("build_archive_item_icon_references_from_catalog(", source)
         self.assertIn('"Item Icons"', source)
         self.assertIn('reference_kind == "item_icon"', source)
-        self.assertIn("def _show_archive_smart_actions_menu(self) -> None:", source)
         self.assertIn("self._apply_archive_direct_scope(", source)
         self.assertIn("Single-file scoped Archive Browser to:", source)
         self.assertIn("no full archive scan", source)
-        self.assertIn('self.archive_texture_smart_actions_button = QPushButton("Family Actions")', source)
+        self.assertNotIn('self.archive_texture_smart_actions_button = QPushButton("Family Actions")', source)
         self.assertNotIn('self.archive_open_mesh_editor_button = QPushButton("Open in Mesh Editor...")', source)
         self.assertNotIn('self.archive_open_mesh_editor_button.setObjectName("ArchiveOpenMeshEditorButton")', source)
         self.assertNotIn("self.archive_open_mesh_editor_button.clicked.connect", source)
         self.assertNotIn("self._set_action_button_state(\n                self.archive_open_mesh_editor_button", source)
         self.assertIn("def _prepare_mesh_editor_archive_launch(self, entry: ArchiveEntry) -> bool:", source)
         self.assertIn("def _launch_archive_mesh_editor_for_entry(self, entry: ArchiveEntry) -> None:", source)
-        self.assertIn('self.archive_texture_scope_all_button = QPushButton("Filter to Family")', source)
-        self.assertIn('self.archive_texture_export_asset_set_button = QPushButton("Export Family...")', source)
+        self.assertNotIn('self.archive_texture_scope_all_button = QPushButton("Filter to Family")', source)
+        self.assertNotIn('self.archive_texture_export_asset_set_button = QPushButton("Export Family...")', source)
         self.assertIn("def _set_action_button_state(", source)
         self.assertIn("Unavailable:", source)
         self.assertIn("setToolTipsVisible", source)
         self.assertIn('"Export every resolved raw referenced-file row. Use Export Family for the curated Asset Family package."', source)
-        self.assertIn('show_asset_set_hints_action = menu.addAction("Show Family + Hints")', source)
+        self.assertIn('archive_context_menu_icons()', source)
+        self.assertIn('_add_section("family", "Asset Family")', source)
+        self.assertIn('"Show Family + Hints"', source)
+        self.assertIn('"Export Family..."', source)
 
     def test_archive_file_context_menu_exposes_role_aware_actions(self) -> None:
         source = (
@@ -278,7 +282,6 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             '("Preview", self.archive_action_preview_button)',
             '("Open Preview Window", self.archive_action_open_preview_window_button)',
             '("Copy Filename", self.archive_action_copy_filename_button)',
-            '("Show Only This File", self.archive_action_show_only_file_button)',
             '("Asset Family", self.archive_action_asset_family_button)',
             '("Filter to Family", self.archive_action_filter_to_family_button)',
             '("Build Loose Package From Sources", self.archive_action_source_mix_button)',
@@ -286,6 +289,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             '("Edit Material Values", self.archive_material_values_button)',
         ):
             self.assertIn(token, source)
+        self.assertNotIn('("Show Only This File", self.archive_action_show_only_file_button)', source)
 
     def test_material_values_preview_uses_embedded_d3d11_renderer(self) -> None:
         source = (

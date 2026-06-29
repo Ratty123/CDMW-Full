@@ -471,6 +471,9 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
                             source_path="body.hkx",
                         ),
                     ),
+                    skeleton_pose_enabled=True,
+                    skeleton_selected_bone_index=4,
+                    skeleton_pose_rotations=((4, (0.0, 12.5, 0.0)),),
                 ),
             )
 
@@ -486,6 +489,10 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
         self.assertEqual("ok", skeleton["status"])
         self.assertTrue(skeleton["read_only"])
         self.assertEqual(1, skeleton["bone_count"])
+        self.assertTrue(skeleton["pose_enabled"])
+        self.assertEqual(4, skeleton["selected_bone_index"])
+        self.assertEqual(1, skeleton["posed_bone_count"])
+        self.assertEqual([0.0, 12.5, 0.0], skeleton["pose_rotations"][0]["rotation_degrees"])
         self.assertEqual("Spine", skeleton["bones"][0]["name"])
         self.assertEqual("hkx_physics", manifest["editable_value_groups"][0]["kind"])
         self.assertTrue(manifest["editable_value_groups"][0]["read_only"])
@@ -3169,7 +3176,9 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("material_contract_schema", source)
         self.assertIn("material_channel_contract_schema", source)
         self.assertIn("physics_overlay_enabled", source)
+        self.assertIn('json_object_field(manifest, "skeleton_overlay")', source)
         self.assertIn("skeleton_bone_count", source)
+        self.assertIn("skeleton_pose_enabled", source)
         self.assertIn("semantic_writes_enabled", source)
         self.assertIn("batches_.clear()", source)
         self.assertIn("Native D3D11 preview cleared", source)

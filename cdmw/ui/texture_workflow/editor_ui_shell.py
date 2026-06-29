@@ -67,6 +67,8 @@ class TextureEditorUiShellMixin:
             self.open_project_button,
             self.save_project_button,
             self.save_png_button,
+            self.export_dds_button,
+            self.preview_compressed_button,
             self.send_replace_button,
             self.send_workflow_button,
             self.send_item_icons_button,
@@ -148,6 +150,8 @@ class TextureEditorUiShellMixin:
         self.open_project_button.clicked.connect(self.open_project_dialog)
         self.save_project_button.clicked.connect(self.save_project_dialog)
         self.save_png_button.clicked.connect(self.save_flattened_png_dialog)
+        self.export_dds_button.clicked.connect(self.export_dds_dialog)
+        self.preview_compressed_button.clicked.connect(self.preview_compressed_dds)
         self.send_replace_button.clicked.connect(self.send_to_replace_assistant)
         self.send_workflow_button.clicked.connect(self.send_to_texture_workflow)
         self.send_item_icons_button.clicked.connect(self.send_to_item_icons)
@@ -156,9 +160,12 @@ class TextureEditorUiShellMixin:
         self.action_open_project.triggered.connect(self.open_project_dialog)
         self.action_save_project.triggered.connect(self.save_project_dialog)
         self.action_export_png.triggered.connect(self.save_flattened_png_dialog)
+        self.action_export_dds.triggered.connect(self.export_dds_dialog)
+        self.action_preview_compressed.triggered.connect(self.preview_compressed_dds)
         self.action_send_replace.triggered.connect(self.send_to_replace_assistant)
         self.action_send_workflow.triggered.connect(self.send_to_texture_workflow)
         self.action_send_item_icons.triggered.connect(self.send_to_item_icons)
+        self.native_dds_preset_combo.currentIndexChanged.connect(self._handle_native_dds_preset_changed)
         self.undo_button.clicked.connect(self.undo)
         self.redo_button.clicked.connect(self.redo)
         self.shortcuts_button.clicked.connect(self.open_shortcuts_dialog)

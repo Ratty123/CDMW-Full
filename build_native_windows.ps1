@@ -108,6 +108,10 @@ Invoke-NativeBuild `
     -ProjectDir (Join-Path $scriptDir "native\cdmw_archive_accelerator") `
     -ExeRelativePath ("build\$Configuration\cdmw-archive-accelerator.exe")
 
+Invoke-NativeBuild `
+    -ProjectDir (Join-Path $scriptDir "native\cdmw_mesh_core") `
+    -ExeRelativePath ("build\$Configuration\cdmw-mesh-core.exe")
+
 $cargo = Get-Command cargo -ErrorAction SilentlyContinue
 if ($cargo) {
     Push-Location (Join-Path $scriptDir "native\cd_hkx")

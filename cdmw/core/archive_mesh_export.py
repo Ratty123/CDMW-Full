@@ -502,6 +502,10 @@ def export_archive_mesh(
                 f"Skeleton confidence: {skeleton_resolve_report.confidence}"
                 + (f" ({skeleton_resolve_report.reason})" if skeleton_resolve_report.reason else "")
             )
+            if skeleton_resolve_report.descriptor_path:
+                summary_lines.append(f"Skeleton descriptor: {skeleton_resolve_report.descriptor_path}")
+            if skeleton_resolve_report.skeleton_variation_path:
+                summary_lines.append(f"Skeleton variation: {skeleton_resolve_report.skeleton_variation_path}")
     elif export_kind == "fbx" and entry.extension == ".pac":
         summary_lines.append("Skeleton: mesh-only export")
         if skeleton_resolution_warning:

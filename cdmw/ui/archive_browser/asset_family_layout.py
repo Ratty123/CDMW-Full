@@ -5,11 +5,9 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QGridLayout,
     QGroupBox,
     QHeaderView,
     QLabel,
-    QPushButton,
     QSizePolicy,
     QTabWidget,
     QTreeWidget,
@@ -146,62 +144,6 @@ class ArchiveAssetFamilyLayoutMixin:
         self.archive_asset_map_tabs.addTab(self.archive_asset_placement_tree, "Placement")
         self.archive_asset_map_tabs.addTab(self.archive_texture_refs_tree, "Raw Table")
         archive_texture_refs_layout.addWidget(self.archive_asset_map_tabs)
-        archive_texture_actions_layout = QVBoxLayout()
-        archive_texture_actions_layout.setSpacing(6)
-        archive_texture_actions_grid = QGridLayout()
-        archive_texture_actions_grid.setHorizontalSpacing(8)
-        archive_texture_actions_grid.setVerticalSpacing(6)
-        self.archive_texture_open_button = QPushButton("Preview Row")
-        self.archive_texture_open_button.setToolTip("Open the selected Asset Family row in a referenced-file preview window.")
-        self.archive_texture_edit_hkx_button = QPushButton("Edit Row HKX...")
-        self.archive_texture_edit_hkx_button.setToolTip("Edit the selected Asset Family row when it is an HKX/HKT physics file.")
-        self.archive_texture_scope_selected_button = QPushButton("Show Selected Rows")
-        self.archive_texture_scope_selected_button.setToolTip("Filter Archive Files to the selected resolved Asset Family rows.")
-        self.archive_texture_scope_all_button = QPushButton("Filter to Family")
-        self.archive_texture_scope_all_button.setToolTip("Filter Archive Files to the required/recommended files in this Asset Family.")
-        self.archive_texture_export_button = QPushButton("Export Selected Rows...")
-        self.archive_texture_export_button.setToolTip("Export the selected resolved Asset Family rows to a folder.")
-        self.archive_texture_export_all_button = QPushButton("Export Raw References...")
-        self.archive_texture_export_all_button.setToolTip(
-            "Export every resolved raw referenced-file row. Use Export Family for the curated Asset Family package."
-        )
-        self.archive_texture_export_asset_set_button = QPushButton("Export Family...")
-        self.archive_texture_export_asset_set_button.setToolTip(
-            "Choose which required/recommended Asset Family files to export, with optional hints."
-        )
-        self.archive_texture_smart_actions_button = QPushButton("Family Actions")
-        self.archive_texture_smart_actions_button.setToolTip("Open role-aware actions for the current archive file and its Asset Family.")
-        self.archive_texture_edit_material_button = QPushButton("Edit Row Material...")
-        self.archive_texture_edit_material_button.setToolTip(
-            "Edit the selected Asset Family row when it is a material sidecar."
-        )
-        for button in (
-            self.archive_texture_open_button,
-            self.archive_texture_edit_hkx_button,
-            self.archive_texture_scope_selected_button,
-            self.archive_texture_scope_all_button,
-            self.archive_texture_export_button,
-            self.archive_texture_export_all_button,
-            self.archive_texture_export_asset_set_button,
-            self.archive_texture_smart_actions_button,
-            self.archive_texture_edit_material_button,
-        ):
-            button.setEnabled(False)
-            button.setMinimumWidth(0)
-            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        archive_texture_actions_grid.addWidget(self.archive_texture_open_button, 0, 0)
-        archive_texture_actions_grid.addWidget(self.archive_texture_edit_hkx_button, 0, 1)
-        archive_texture_actions_grid.addWidget(self.archive_texture_edit_material_button, 1, 0)
-        archive_texture_actions_grid.addWidget(self.archive_texture_export_button, 1, 1)
-        archive_texture_actions_grid.addWidget(self.archive_texture_scope_selected_button, 2, 0)
-        archive_texture_actions_grid.addWidget(self.archive_texture_scope_all_button, 2, 1)
-        archive_texture_actions_grid.addWidget(self.archive_texture_smart_actions_button, 3, 0)
-        archive_texture_actions_grid.addWidget(self.archive_texture_export_asset_set_button, 3, 1)
-        archive_texture_actions_grid.addWidget(self.archive_texture_export_all_button, 4, 0, 1, 2)
-        archive_texture_actions_grid.setColumnStretch(0, 1)
-        archive_texture_actions_grid.setColumnStretch(1, 1)
-        archive_texture_actions_layout.addLayout(archive_texture_actions_grid)
-        archive_texture_refs_layout.addLayout(archive_texture_actions_layout)
 
     def _install_tree_horizontal_wheel_guard(self, tree: QTreeWidget) -> None:
         tree.setProperty("cdmw_disable_auto_column_fill", True)

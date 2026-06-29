@@ -21,6 +21,7 @@ class _TextureEditorSession:
     history_snapshots: List[Dict[str, object]]
     history_index: int
     original_flattened: Optional[np.ndarray] = None
+    compressed_preview_flattened: Optional[np.ndarray] = None
     layer_property_dirty: bool = False
     floating_pixels: Optional[np.ndarray] = None
     floating_mask: Optional[np.ndarray] = None
@@ -85,6 +86,17 @@ def texture_editor_active_session_original_flattened(
     return None
 
 
+def texture_editor_active_session_compare_flattened(
+    sessions: Iterable[_TextureEditorSession],
+    active_index: int,
+) -> Optional[np.ndarray]:
+    session_list = tuple(sessions)
+    if 0 <= int(active_index) < len(session_list):
+        session = session_list[int(active_index)]
+        return session.compressed_preview_flattened if session.compressed_preview_flattened is not None else session.original_flattened
+    return None
+
+
 def texture_editor_active_session_label_update_state(
     sessions: Iterable[_TextureEditorSession],
     active_index: int,
@@ -142,6 +154,7 @@ def create_texture_editor_session(
         history_snapshots=[],
         history_index=-1,
         original_flattened=flatten_texture_editor_layers(document, layer_pixels),
+        compressed_preview_flattened=None,
         layer_property_dirty=False,
         floating_pixels=None,
         floating_mask=None,
@@ -212,6 +225,7 @@ __all__ = [
     "TextureEditorSessionTabState",
     "_TextureEditorSession",
     "create_texture_editor_session",
+    "texture_editor_active_session_compare_flattened",
     "texture_editor_active_session_label_update_state",
     "texture_editor_active_session_original_flattened",
     "texture_editor_document_composite_revision",

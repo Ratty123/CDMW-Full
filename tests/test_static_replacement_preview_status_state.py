@@ -48,17 +48,17 @@ def test_alignment_preview_control_text_preserves_header_and_control_copy() -> N
     assert "without changing routing" in text["clear_selection_tooltip"]
     assert text["renderer_label"] == "Renderer"
     assert "Archive Browser renderer" in text["renderer_tooltip"]
-    assert text["renderer_scope"] == (
-        "Mesh Replacement Alignment renderer and texture controls are available from Lighting / Texture Settings."
-    )
+    assert text["renderer_scope"] == "Mesh Replacement Alignment renderer and texture controls are available from Preview Settings."
     assert text["preview_mode_label"] == "Preview mode"
     assert "Replacement only gives more room" in text["preview_mode_tooltip"]
     assert text["overlay_original_locked"] == "Original locked"
     assert "keep the original reference fixed" in text["overlay_original_locked_tooltip"]
     assert text["gizmo"] == "Gizmo"
     assert "move/rotate axis handles" in text["gizmo_tooltip"]
+    assert text["part_pick"] == "Part Pick"
+    assert "hover highlights source parts" in text["part_pick_tooltip"]
     assert text["d3d11_view_label"] == "D3D11 view"
-    assert text["settings_button"] == "Lighting / Texture Settings..."
+    assert text["settings_button"] == "Preview Settings..."
     assert text["use_global"] == "Use Global"
     assert text["camera_label"] == "Camera"
 

@@ -31,7 +31,7 @@ from cdmw.ui.texture_workflow.editor_layer_state import (
     texture_editor_layer_refresh_selection_id,
 )
 from cdmw.ui.texture_workflow.editor_session import (
-    texture_editor_active_session_original_flattened,
+    texture_editor_active_session_compare_flattened,
     texture_editor_document_composite_revision,
 )
 from cdmw.ui.texture_workflow.editor_source_binding import texture_editor_metadata_display_state
@@ -87,7 +87,7 @@ class TextureEditorRefreshUiMixin:
             self._refresh_navigation_overlays()
             return
         flattened = self._current_composite_rgba()
-        original_flattened = texture_editor_active_session_original_flattened(
+        original_flattened = texture_editor_active_session_compare_flattened(
             self._sessions,
             self._active_session_index,
         )
@@ -303,6 +303,8 @@ class TextureEditorRefreshUiMixin:
             self.open_project_button,
             self.save_project_button,
             self.save_png_button,
+            self.export_dds_button,
+            self.preview_compressed_button,
             self.send_replace_button,
             self.send_workflow_button,
             self.send_item_icons_button,
@@ -334,11 +336,16 @@ class TextureEditorRefreshUiMixin:
             (self.open_project_button, self.action_open_project),
             (self.save_project_button, self.action_save_project),
             (self.save_png_button, self.action_export_png),
+            (self.export_dds_button, self.action_export_dds),
+            (self.preview_compressed_button, self.action_preview_compressed),
             (self.send_replace_button, self.action_send_replace),
             (self.send_workflow_button, self.action_send_workflow),
             (self.send_item_icons_button, self.action_send_item_icons),
         ):
             action.setEnabled(button.isEnabled())
+        self.native_dds_preset_combo.setEnabled(main_actions.open_enabled)
+        self.native_dds_format_combo.setEnabled(main_actions.document_action_enabled)
+        self.native_dds_mip_combo.setEnabled(main_actions.document_action_enabled)
         image_actions = texture_editor_image_action_state(
             self.document,
             busy=busy,

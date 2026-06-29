@@ -1380,7 +1380,9 @@ def _binary_sidecar_container_summary(data: bytes, extension: str) -> Dict[str, 
     elif normalized_extension == ".paccd":
         container["recognized_family"] = "PACCD_CUSTOMIZATION"
         container["note"] = "Character customization byte table. Current decode exposes compact/extended slot rows as read-only slider/palette evidence."
-    elif normalized_extension in {".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    elif normalized_extension == ".papr":
+        container["note"] = "Animation constraint metadata. Current decode is read-only and schema-recovery oriented."
+    elif normalized_extension in _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS:
         container["note"] = "Animation schedule/sequence metadata. Current decode is read-only and relationship/schema-recovery oriented."
     elif normalized_extension == ".seqmt":
         if head4 == b"DDS!":
@@ -1407,7 +1409,9 @@ def _binary_sidecar_kind_label(extension: str) -> str:
         return "Model Property Header"
     if normalized_extension == ".paccd":
         return "Character Customization Data"
-    if normalized_extension in {".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+    if normalized_extension == ".papr":
+        return "Animation Constraint"
+    if normalized_extension in _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS:
         return "Animation Schedule"
     if normalized_extension == ".seqmt":
         return "SEQMT Sequence Texture Metadata"
@@ -1537,10 +1541,10 @@ def _paseq_timeline_field_rows(
     schema_member_rows: Sequence[Mapping[str, object]],
     string_records: Sequence[_BinarySidecarStringRecord],
     *,
-    max_rows: int = 96,
+    max_rows: int = 512,
 ) -> List[Dict[str, object]]:
     rows: List[Dict[str, object]] = []
-    seen: set[Tuple[str, str]] = set()
+    seen: set[tuple[object, ...]] = set()
 
     def add_row(
         *,
@@ -1549,6 +1553,7 @@ def _paseq_timeline_field_rows(
         offset: int,
         declared_type: str = "",
         descriptor_hex: str = "",
+        descriptor_offset: int = 0,
         confidence: str = "",
     ) -> None:
         clean_name = str(name or "").strip()
@@ -1557,7 +1562,11 @@ def _paseq_timeline_field_rows(
         normalized = clean_name.lstrip("_").lower()
         if not any(token in normalized for token in (*_PASEQ_TIMELINE_FIELD_TOKENS, *_PASEQ_EFFECT_FIELD_TOKENS, *_PASEQ_SCENE_FIELD_TOKENS)):
             return
-        key = (source, clean_name.lower())
+        key: tuple[object, ...]
+        if source == "schema_declaration":
+            key = (source, clean_name.lower(), int(offset), declared_type)
+        else:
+            key = (source, clean_name.lower())
         if key in seen:
             return
         seen.add(key)
@@ -1569,6 +1578,7 @@ def _paseq_timeline_field_rows(
                 "offset": int(offset),
                 "declared_type": declared_type,
                 "descriptor_hex": descriptor_hex,
+                "descriptor_offset": int(descriptor_offset),
                 "confidence": confidence or source,
             }
         )
@@ -1582,6 +1592,7 @@ def _paseq_timeline_field_rows(
             offset=int(row.get("name_offset") or row.get("declaration_offset") or 0),
             declared_type=str(row.get("declared_type") or ""),
             descriptor_hex=str(row.get("descriptor_hex") or ""),
+            descriptor_offset=int(row.get("descriptor_offset") or 0),
             confidence=str(row.get("confidence") or "length_prefixed_declaration"),
         )
         if len(rows) >= max_rows:
@@ -1685,6 +1696,250 @@ def _paseq_timing_candidate_rows(
     return rows
 
 
+def _paseq_fps_candidate_value_rows(
+    data: bytes,
+    *,
+    scan_start: int = 0,
+    sample_limit: int = 262_144,
+    max_rows: int = 32,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    scan_offset = max(0, (int(scan_start) + 3) & ~3)
+    scan_limit = min(len(data), sample_limit)
+    if scan_offset + 4 > scan_limit:
+        return rows
+
+    integer_values = {15, 24, 30, 60}
+    float_values = {15.0, 24.0, 30.0, 60.0}
+    scan_confidence = "after_recovered_declaration_region" if scan_start > 0 else "aligned_4_byte_little_endian"
+    for offset in range(scan_offset, scan_limit - 3, 4):
+        word = struct.unpack_from("<I", data, offset)[0]
+        if word in integer_values:
+            context = _paseq_fps_candidate_context(data, offset, "u32_fps_candidate")
+            rows.append(
+                {
+                    "offset": int(offset),
+                    "kind": "u32_fps_candidate",
+                    "value": int(word),
+                    "confidence": scan_confidence,
+                    "value_confidence": context["value_confidence"],
+                    "status": context["status"],
+                    "context": context["context"],
+                    "context_text": context["context_text"],
+                }
+            )
+        try:
+            value = struct.unpack_from("<f", data, offset)[0]
+        except struct.error:
+            value = 0.0
+        if value in float_values:
+            context = _paseq_fps_candidate_context(data, offset, "float32_fps_candidate")
+            rows.append(
+                {
+                    "offset": int(offset),
+                    "kind": "float32_fps_candidate",
+                    "value": int(value),
+                    "confidence": scan_confidence,
+                    "value_confidence": context["value_confidence"],
+                    "status": context["status"],
+                    "context": context["context"],
+                    "context_text": context["context_text"],
+                }
+            )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _paseq_fps_candidate_context(data: bytes, offset: int, kind: str) -> Dict[str, str]:
+    if kind == "u32_fps_candidate":
+        text = _paseq_length_prefixed_ascii(data, offset) or _paseq_length_prefixed_ascii(data, offset + 4)
+        if text:
+            return {
+                "context": "length_prefixed_string_context",
+                "context_text": text,
+                "status": "not_bound_length_prefixed_string_context",
+                "value_confidence": "blocked",
+            }
+    return {
+        "context": "binary_scalar_context",
+        "context_text": "",
+        "status": "unbound_binary_scalar_candidate",
+        "value_confidence": "unknown",
+    }
+
+
+def _paseq_blend_candidate_value_rows(
+    data: bytes,
+    *,
+    scan_start: int = 0,
+    sample_limit: int = 262_144,
+    max_rows: int = 32,
+) -> List[Dict[str, object]]:
+    rows: List[Dict[str, object]] = []
+    scan_offset = max(0, (int(scan_start) + 3) & ~3)
+    scan_limit = min(len(data), sample_limit)
+    if scan_offset + 4 > scan_limit:
+        return rows
+    scan_confidence = "after_recovered_declaration_region" if scan_start > 0 else "aligned_4_byte_little_endian"
+    for offset in range(scan_offset, scan_limit - 3, 4):
+        try:
+            value = struct.unpack_from("<f", data, offset)[0]
+        except struct.error:
+            continue
+        if not math.isfinite(value) or abs(value) < 1.0e-5 or abs(value) > 10.0:
+            continue
+        rows.append(
+            {
+                "offset": int(offset),
+                "kind": "float32_blend_candidate",
+                "value": round(float(value), 6),
+                "confidence": scan_confidence,
+                "value_confidence": "unknown",
+                "status": "unbound_binary_scalar_candidate",
+                "context": "binary_scalar_context",
+                "context_text": "",
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _paseq_length_prefixed_ascii(data: bytes, offset: int) -> str:
+    if offset < 0 or offset + 4 > len(data):
+        return ""
+    length = int(struct.unpack_from("<I", data, offset)[0])
+    if length <= 3 or length > 128 or offset + 4 + length > len(data):
+        return ""
+    raw = data[offset + 4 : offset + 4 + length]
+    if any(value < 0x20 or value >= 0x7F for value in raw):
+        return ""
+    text = raw.decode("ascii", "ignore")
+    return text if any(char.isalpha() for char in text) else ""
+
+
+def _paseq_timing_evidence(
+    data: bytes,
+    timeline_fields: Sequence[Mapping[str, object]],
+    *,
+    sample_limit: int = 262_144,
+) -> Dict[str, object]:
+    fps_declarations: List[Dict[str, object]] = []
+    blend_declarations: List[Dict[str, object]] = []
+    declaration_region_end = 0
+    for row in timeline_fields:
+        if not isinstance(row, Mapping):
+            continue
+        descriptor_offset = int(row.get("descriptor_offset") or 0)
+        if descriptor_offset > 0:
+            declaration_region_end = max(declaration_region_end, descriptor_offset + 8)
+        field_name = str(row.get("name") or "").strip()
+        declared_type = str(row.get("declared_type") or "")
+        if not declared_type:
+            continue
+        normalized_name = field_name.lstrip("_").lower()
+        if normalized_name == "framespersecond":
+            fps_declarations.append(
+                {
+                    "name": field_name,
+                    "declared_type": declared_type,
+                    "offset": int(row.get("offset") or 0),
+                    "confidence": "proven",
+                    "value_confidence": "unknown",
+                }
+            )
+        if "blend" in normalized_name:
+            blend_declarations.append(
+                {
+                    "name": field_name,
+                    "declared_type": declared_type,
+                    "offset": int(row.get("offset") or 0),
+                    "kind": _paseq_blend_field_kind(field_name),
+                    "confidence": "proven",
+                    "value_confidence": "unknown",
+                }
+            )
+
+    scan_limit = min(len(data), sample_limit)
+    candidate_value_rows = _paseq_fps_candidate_value_rows(
+        data,
+        scan_start=declaration_region_end,
+        sample_limit=sample_limit,
+    )
+    blend_candidate_value_rows = _paseq_blend_candidate_value_rows(
+        data,
+        scan_start=declaration_region_end,
+        sample_limit=sample_limit,
+    )
+    integer_counts: Dict[str, int] = {str(value): 0 for value in (15, 24, 30, 60)}
+    float_counts: Dict[str, int] = {str(value): 0 for value in (15, 24, 30, 60)}
+    integer_values = {15, 24, 30, 60}
+    float_values = {15.0, 24.0, 30.0, 60.0}
+    for offset in range(0, scan_limit - 3, 4):
+        word = struct.unpack_from("<I", data, offset)[0]
+        if word in integer_values:
+            integer_counts[str(word)] += 1
+        try:
+            value = struct.unpack_from("<f", data, offset)[0]
+        except struct.error:
+            continue
+        if value in float_values:
+            float_counts[str(int(value))] += 1
+    candidate_total = sum(integer_counts.values()) + sum(float_counts.values())
+    if fps_declarations:
+        status = "source_paseq_fps_field_declared_value_offset_unmapped"
+        confidence = "unknown"
+        gap = "Field declaration is recovered, but current PAR schema recovery does not bind that declaration to a concrete value offset."
+    else:
+        status = "no_source_paseq_fps_field_declaration"
+        confidence = "blocked"
+        gap = "No _framesPerSecond declaration was recovered from this sequence payload."
+    if blend_declarations:
+        blend_status = "blend_fields_declared_value_offsets_unmapped"
+        blend_confidence = "unknown"
+        blend_gap = "Blend-related field declarations are recovered, but current PAR schema recovery does not bind them to concrete value offsets."
+    else:
+        blend_status = "no_blend_field_declaration"
+        blend_confidence = "blocked"
+        blend_gap = "No blend-related timeline field declaration was recovered from this sequence payload."
+    return {
+        "fps_field_declaration_count": len(fps_declarations),
+        "fps_field_declarations": fps_declarations,
+        "fps_candidate_value_counts": {
+            "u32": integer_counts,
+            "float32": float_counts,
+        },
+        "fps_candidate_value_scan": "aligned_4_byte_little_endian",
+        "fps_candidate_value_region_start": int(declaration_region_end),
+        "fps_candidate_value_rows": candidate_value_rows,
+        "fps_candidate_value_count": int(candidate_total),
+        "fps_binding_confidence": confidence,
+        "fps_binding_status": status,
+        "proof_gap": gap,
+        "blend_field_declaration_count": len(blend_declarations),
+        "blend_field_declarations": blend_declarations,
+        "blend_candidate_value_scan": "aligned_4_byte_little_endian_nonzero_float32",
+        "blend_candidate_value_region_start": int(declaration_region_end),
+        "blend_candidate_value_rows": blend_candidate_value_rows,
+        "blend_candidate_value_count": len(blend_candidate_value_rows),
+        "blend_binding_confidence": blend_confidence,
+        "blend_binding_status": blend_status,
+        "blend_proof_gap": blend_gap,
+    }
+
+
+def _paseq_blend_field_kind(name: str) -> str:
+    normalized = str(name or "").strip().lstrip("_").lower()
+    if not normalized:
+        return "blend_field"
+    if "blendingtime" in normalized or ("blend" in normalized and any(token in normalized for token in ("start", "end", "time"))):
+        return "blend_window"
+    if "mask" in normalized:
+        return "blend_mask_or_part"
+    return "blend_parameter"
+
+
 def _paseq_timeline_lane_rows(
     asset_reference_rows: Sequence[Mapping[str, object]],
     *,
@@ -1741,9 +1996,13 @@ def _paseq_playback_readiness(lanes: Sequence[Mapping[str, object]], timeline_fi
         blockers.append("No declared timing field was recovered; timeline timing remains candidate-only.")
     blockers.append("Runtime binding from PASEQ lanes to the 3D model preview is not implemented yet.")
     blockers.append("Exact sequence record semantics and no-edit rebuilds are not proven.")
+    timing_confidence = "unknown" if timing_field_count > 0 else "blocked"
     return {
         "status": "dependency_timeline_recovered_read_only" if lanes or timeline_fields else "no_timeline_evidence_recovered",
         "ready_for_3d_playback": False,
+        "game_accurate_timing": False,
+        "timing_confidence": timing_confidence,
+        "timing_status": "declared_timing_fields_unbound" if timing_field_count > 0 else "no_declared_timing_field",
         "animation_lane_count": int(animation_lane_count),
         "effect_lane_count": int(effect_lane_count),
         "context_lane_count": int(context_lane_count),
@@ -1764,6 +2023,7 @@ def _paseq_analysis_document(
     timeline_fields = _paseq_timeline_field_rows(schema_member_rows, string_records)
     event_markers = _paseq_event_marker_rows(string_records)
     timing_candidates = _paseq_timing_candidate_rows(data)
+    timing_evidence = _paseq_timing_evidence(data, timeline_fields)
     lanes = _paseq_timeline_lane_rows(asset_reference_rows)
     playback_readiness = _paseq_playback_readiness(lanes, timeline_fields)
     lane_kind_counts = Counter(str(row.get("kind") or "asset") for row in lanes)
@@ -1784,6 +2044,7 @@ def _paseq_analysis_document(
             "timeline_fields": timeline_fields,
             "event_markers": event_markers,
             "timing_candidates": timing_candidates,
+            "timing_evidence": timing_evidence,
         },
         "playback_readiness": playback_readiness,
         "editing_supported": False,
@@ -1793,6 +2054,971 @@ def _paseq_analysis_document(
             "3D playback remains disabled until sequence timing, clip binding, and skeleton/model application are validated.",
         ],
     }
+
+
+def _papr_constraint_string_role(text: str) -> str:
+    value = str(text or "").strip()
+    if not value:
+        return ""
+    normalized = value.lower()
+    if "local_euler" in normalized or "local_quat" in normalized or "local_position" in normalized:
+        if normalized.startswith(("amin", "amax")) or "amin(" in normalized or "amax(" in normalized:
+            return "limit_expression"
+        return "driver_expression"
+    if normalized.startswith(("amin", "amax")):
+        return "limit_expression"
+    if value.startswith("P_") or normalized.startswith("p_bip"):
+        return "parent_bone_reference"
+    if (
+        "bip01" in normalized
+        or normalized.startswith("b_")
+        or normalized.startswith("bone")
+        or normalized.endswith("_dummy")
+        or "_dummy" in normalized
+        or normalized.endswith("_sub")
+    ):
+        if "_dummy" in normalized or normalized.endswith("_sub"):
+            return "helper_bone_reference"
+        return "bone_reference"
+    return ""
+
+
+_PAPR_EXPRESSION_CHANNEL_RE = re.compile(r"\bLocal_(?:Euler|Quat|Position)_[XYZW]\b", re.IGNORECASE)
+_PAPR_LIMIT_OPERATOR_RE = re.compile(r"\b(?:amin|amax)\b", re.IGNORECASE)
+_PAPR_EXPRESSION_NUMBER_RE = re.compile(r"(?<![A-Za-z0-9_.])-?\d+(?:\.\d+)?")
+_PAPR_ABS_OPERATOR_RE = re.compile(r"\babs\b", re.IGNORECASE)
+
+
+def _papr_constraint_expression_evidence(expression: str) -> Dict[str, object]:
+    text = str(expression or "")
+    channels = tuple(match.group(0) for match in _PAPR_EXPRESSION_CHANNEL_RE.finditer(text))
+    limit_operators = tuple(match.group(0).lower() for match in _PAPR_LIMIT_OPERATOR_RE.finditer(text))
+    numeric_values = tuple(match.group(0) for match in _PAPR_EXPRESSION_NUMBER_RE.finditer(text))
+    numeric_roles = _papr_constraint_expression_numeric_roles(text)
+    shape = _papr_constraint_expression_shape(
+        text,
+        channels=channels,
+        limit_operators=limit_operators,
+        numeric_values=numeric_values,
+    )
+    syntax_signature = _papr_constraint_expression_syntax_signature(
+        shape=shape,
+        channels=channels,
+        limit_operators=limit_operators,
+        numeric_roles=numeric_roles,
+    )
+    return {
+        "expression_channels": channels,
+        "expression_channel_confidence": "proven" if channels else "unknown",
+        "limit_operators": limit_operators,
+        "limit_operator_confidence": "proven" if limit_operators else "unknown",
+        "expression_numeric_values": numeric_values,
+        "expression_numeric_value_confidence": "proven" if numeric_values else "unknown",
+        "expression_numeric_roles": numeric_roles,
+        "expression_numeric_role_confidence": "inferred_readable_expression_syntax" if numeric_roles else "unknown",
+        "expression_shape": shape,
+        "expression_syntax_signature": syntax_signature,
+        "expression_shape_confidence": "inferred_readable_expression_syntax",
+        "expression_shape_status": "solver_semantics_unknown",
+        "expression_semantics_confidence": "unknown",
+    }
+
+
+def _papr_constraint_expression_syntax_signature(
+    *,
+    shape: str,
+    channels: Sequence[str],
+    limit_operators: Sequence[str],
+    numeric_roles: Sequence[str],
+) -> str:
+    channel_text = ">".join(str(value) for value in channels if str(value)) or "none"
+    limit_text = ">".join(str(value) for value in limit_operators if str(value)) or "none"
+    numeric_role_text = ">".join(str(value) for value in numeric_roles if str(value)) or "none"
+    return (
+        f"shape={shape or 'unknown'}|channels={channel_text}|"
+        f"limits={limit_text}|numeric_roles={numeric_role_text}"
+    )
+
+
+def _papr_constraint_expression_shape(
+    expression: str,
+    *,
+    channels: Sequence[str],
+    limit_operators: Sequence[str],
+    numeric_values: Sequence[str],
+) -> str:
+    text = str(expression or "")
+    has_channel = bool(channels)
+    has_limit = bool(limit_operators)
+    has_number = bool(numeric_values)
+    has_abs = bool(_PAPR_ABS_OPERATOR_RE.search(text))
+    has_arithmetic = any(operator in text for operator in ("*", "+", "-", "/"))
+    if has_limit:
+        if has_abs and has_channel:
+            return "limit_absolute_channel_transform_candidate"
+        if has_channel and has_number:
+            return "limit_linear_channel_transform_candidate"
+        if has_channel:
+            return "limit_channel_expression_candidate"
+        return "limit_expression_candidate"
+    if has_abs and has_channel:
+        return "absolute_channel_transform_candidate"
+    if has_channel and has_number and has_arithmetic:
+        return "linear_channel_transform_candidate"
+    if has_channel:
+        return "channel_reference_expression_candidate"
+    return "opaque_expression_candidate"
+
+
+def _papr_constraint_expression_numeric_roles(expression: str) -> Tuple[str, ...]:
+    text = str(expression or "")
+    limit_tail_start = _papr_limit_tail_start(text)
+    roles: List[str] = []
+    for match in _PAPR_EXPRESSION_NUMBER_RE.finditer(text):
+        previous = _previous_non_space(text, match.start())
+        if limit_tail_start > 0 and match.start() >= limit_tail_start:
+            role = "limit_argument"
+        elif previous == "*":
+            role = "channel_coefficient"
+        elif previous == "/":
+            role = "channel_divisor"
+        elif previous in {"+", "-"}:
+            role = "additive_offset"
+        else:
+            role = "numeric_constant"
+        roles.append(role)
+    return tuple(roles)
+
+
+def _papr_limit_tail_start(expression: str) -> int:
+    match = _PAPR_LIMIT_OPERATOR_RE.search(expression)
+    if match is None:
+        return 0
+    open_index = expression.find("(", match.end())
+    if open_index < 0:
+        return 0
+    depth = 0
+    for index in range(open_index, len(expression)):
+        char = expression[index]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return 0
+
+
+def _previous_non_space(text: str, offset: int) -> str:
+    for index in range(max(0, offset) - 1, -1, -1):
+        char = text[index]
+        if not char.isspace():
+            return char
+    return ""
+
+
+def _papr_constraint_expression_summary(candidates: Sequence[Mapping[str, object]]) -> Dict[str, object]:
+    if not candidates:
+        return {}
+    role_counts: Counter[str] = Counter()
+    shape_counts: Counter[str] = Counter()
+    channel_counts: Counter[str] = Counter()
+    limit_operator_counts: Counter[str] = Counter()
+    numeric_role_counts: Counter[str] = Counter()
+    syntax_signature_counts: Counter[str] = Counter()
+    numeric_value_count = 0
+    numeric_value_row_count = 0
+    for row in candidates:
+        role = str(row.get("expression_role") or "")
+        if role:
+            role_counts[role] += 1
+        shape = str(row.get("expression_shape") or "")
+        if shape:
+            shape_counts[shape] += 1
+        for channel in row.get("expression_channels") or ():
+            channel_counts[str(channel)] += 1
+        for operator in row.get("limit_operators") or ():
+            limit_operator_counts[str(operator)] += 1
+        for numeric_role in row.get("expression_numeric_roles") or ():
+            numeric_role_counts[str(numeric_role)] += 1
+        syntax_signature = str(row.get("expression_syntax_signature") or "")
+        if syntax_signature:
+            signature_role = role or "expression"
+            syntax_signature_counts[f"role={signature_role}|{syntax_signature}"] += 1
+        numeric_values = row.get("expression_numeric_values") or ()
+        if numeric_values:
+            numeric_value_row_count += 1
+            numeric_value_count += len(tuple(numeric_values))
+    return {
+        "status": "readable_expression_tokens_solver_semantics_unknown",
+        "token_confidence": "proven",
+        "shape_confidence": "inferred_readable_expression_syntax",
+        "semantics_confidence": "unknown",
+        "expression_role_counts": dict(sorted(role_counts.items())),
+        "shape_counts": dict(sorted(shape_counts.items())),
+        "channel_counts": dict(sorted(channel_counts.items())),
+        "limit_operator_counts": dict(sorted(limit_operator_counts.items())),
+        "numeric_role_counts": dict(sorted(numeric_role_counts.items())),
+        "syntax_signature_counts": dict(sorted(syntax_signature_counts.items())),
+        "numeric_value_row_count": numeric_value_row_count,
+        "numeric_value_count": numeric_value_count,
+    }
+
+
+def _papr_constraint_offset_summary(candidates: Sequence[Mapping[str, object]]) -> Dict[str, object]:
+    if not candidates:
+        return {}
+    return {
+        "status": "readable_string_offsets_candidate_record_map",
+        "offset_confidence": "proven",
+        "record_confidence": "inferred_nearby_string_order",
+        "candidate_count": len(candidates),
+        "target_offset_count": sum(1 for row in candidates if int(row.get("target_bone_offset") or 0) > 0),
+        "helper_offset_count": sum(1 for row in candidates if int(row.get("helper_bone_offset") or 0) > 0),
+        "parent_offset_count": sum(1 for row in candidates if int(row.get("parent_bone_offset") or 0) > 0),
+    }
+
+
+def _papr_constraint_record_layout_summary(candidates: Sequence[Mapping[str, object]]) -> Dict[str, object]:
+    if not candidates:
+        return {}
+    layout_counts: Counter[str] = Counter()
+    field_sequence_counts: Counter[str] = Counter()
+    gap_status_counts: Counter[str] = Counter()
+    gap_class_counts: Counter[str] = Counter()
+    gap_scalar_status_counts: Counter[str] = Counter()
+    gap_scalar_kind_counts: Counter[str] = Counter()
+    gap_numeric_match_status_counts: Counter[str] = Counter()
+    gap_numeric_match_role_counts: Counter[str] = Counter()
+    gap_numeric_match_scalar_kind_counts: Counter[str] = Counter()
+    gap_numeric_match_storage_counts: Counter[str] = Counter()
+    gap_numeric_match_pair_counts: Counter[str] = Counter()
+    gap_numeric_match_value_confidence_counts: Counter[str] = Counter()
+    gap_numeric_match_family_counts: Counter[str] = Counter()
+    gap_numeric_match_family_row_counts: Counter[str] = Counter()
+    gap_numeric_match_family_role_counts: Dict[str, Counter[str]] = defaultdict(Counter)
+    gap_numeric_match_family_pair_counts: Dict[str, Counter[str]] = defaultdict(Counter)
+    gap_numeric_match_family_value_confidence_counts: Dict[str, Counter[str]] = defaultdict(Counter)
+    gap_numeric_match_signature_counts: Counter[str] = Counter()
+    gap_numeric_match_candidate_relative_signature_counts: Counter[str] = Counter()
+    gap_numeric_match_previous_delta_counts: Counter[str] = Counter()
+    gap_numeric_match_next_delta_counts: Counter[str] = Counter()
+    gap_numeric_match_candidate_relative_offset_counts: Counter[str] = Counter()
+    gap_numeric_match_previous_deltas: List[int] = []
+    gap_numeric_match_next_deltas: List[int] = []
+    gap_numeric_match_candidate_relative_offsets: List[int] = []
+    gap_numeric_match_rows: List[Dict[str, object]] = []
+    span_sizes: List[int] = []
+    gap_pair_count = 0
+    max_gap_size = 0
+    gap_aligned_word_count = 0
+    gap_scalar_candidate_count = 0
+    max_gap_scalar_candidate_count = 0
+    gap_numeric_match_count = 0
+    max_gap_numeric_match_count = 0
+    for row in candidates:
+        layout_status = str(row.get("record_layout_status") or "unknown")
+        layout_counts[layout_status] += 1
+        field_sequence = tuple(str(value) for value in row.get("record_field_sequence") or () if str(value))
+        if field_sequence:
+            field_sequence_counts[">".join(field_sequence)] += 1
+        gap_status = str(row.get("record_gap_status") or "")
+        if gap_status:
+            gap_status_counts[gap_status] += 1
+        for gap_class in row.get("record_gap_classes") or ():
+            gap_class_counts[str(gap_class)] += 1
+        gap_pair_count += int(row.get("record_gap_count") or 0)
+        max_gap_size = max(max_gap_size, int(row.get("record_gap_max_size") or 0))
+        gap_scalar_status = str(row.get("record_gap_scalar_status") or "")
+        if gap_scalar_status:
+            gap_scalar_status_counts[gap_scalar_status] += 1
+        scalar_kind_counts = row.get("record_gap_scalar_kind_counts")
+        if isinstance(scalar_kind_counts, Mapping):
+            for scalar_kind, count in scalar_kind_counts.items():
+                gap_scalar_kind_counts[str(scalar_kind)] += int(count or 0)
+        gap_aligned_word_count += int(row.get("record_gap_aligned_word_count") or 0)
+        candidate_scalar_count = int(row.get("record_gap_scalar_candidate_count") or 0)
+        gap_scalar_candidate_count += candidate_scalar_count
+        max_gap_scalar_candidate_count = max(max_gap_scalar_candidate_count, candidate_scalar_count)
+        match_status = str(row.get("record_gap_numeric_match_status") or "")
+        if match_status:
+            gap_numeric_match_status_counts[match_status] += 1
+        match_role_counts = row.get("record_gap_numeric_match_role_counts")
+        if isinstance(match_role_counts, Mapping):
+            for role, count in match_role_counts.items():
+                gap_numeric_match_role_counts[str(role)] += int(count or 0)
+        match_scalar_kind_counts = row.get("record_gap_numeric_match_scalar_kind_counts")
+        if isinstance(match_scalar_kind_counts, Mapping):
+            for scalar_kind, count in match_scalar_kind_counts.items():
+                gap_numeric_match_scalar_kind_counts[str(scalar_kind)] += int(count or 0)
+        match_storage_counts = row.get("record_gap_numeric_match_storage_counts")
+        if isinstance(match_storage_counts, Mapping):
+            for storage, count in match_storage_counts.items():
+                gap_numeric_match_storage_counts[str(storage)] += int(count or 0)
+        match_pair_counts = row.get("record_gap_numeric_match_pair_counts")
+        if isinstance(match_pair_counts, Mapping):
+            for pair, count in match_pair_counts.items():
+                gap_numeric_match_pair_counts[str(pair)] += int(count or 0)
+        match_value_confidence_counts = row.get("record_gap_numeric_match_value_confidence_counts")
+        if isinstance(match_value_confidence_counts, Mapping):
+            for confidence, count in match_value_confidence_counts.items():
+                gap_numeric_match_value_confidence_counts[str(confidence)] += int(count or 0)
+        match_previous_delta_counts = row.get("record_gap_numeric_match_previous_delta_counts")
+        if isinstance(match_previous_delta_counts, Mapping):
+            for delta, count in match_previous_delta_counts.items():
+                gap_numeric_match_previous_delta_counts[str(delta)] += int(count or 0)
+        match_next_delta_counts = row.get("record_gap_numeric_match_next_delta_counts")
+        if isinstance(match_next_delta_counts, Mapping):
+            for delta, count in match_next_delta_counts.items():
+                gap_numeric_match_next_delta_counts[str(delta)] += int(count or 0)
+        match_candidate_relative_offset_counts = row.get(
+            "record_gap_numeric_match_candidate_relative_offset_counts"
+        )
+        if isinstance(match_candidate_relative_offset_counts, Mapping):
+            for offset, count in match_candidate_relative_offset_counts.items():
+                gap_numeric_match_candidate_relative_offset_counts[str(offset)] += int(count or 0)
+        candidate_match_count = int(row.get("record_gap_numeric_match_count") or 0)
+        gap_numeric_match_count += candidate_match_count
+        max_gap_numeric_match_count = max(max_gap_numeric_match_count, candidate_match_count)
+        if candidate_match_count > 0:
+            family = str(row.get("constraint_type") or "constraint_candidate")
+            gap_numeric_match_family_counts[family] += candidate_match_count
+            gap_numeric_match_family_row_counts[family] += 1
+            if isinstance(match_role_counts, Mapping):
+                for role, count in match_role_counts.items():
+                    gap_numeric_match_family_role_counts[family][str(role)] += int(count or 0)
+            if isinstance(match_pair_counts, Mapping):
+                for pair, count in match_pair_counts.items():
+                    gap_numeric_match_family_pair_counts[family][str(pair)] += int(count or 0)
+            if isinstance(match_value_confidence_counts, Mapping):
+                for confidence, count in match_value_confidence_counts.items():
+                    gap_numeric_match_family_value_confidence_counts[family][str(confidence)] += int(count or 0)
+            match_signature_counts = row.get("record_gap_numeric_match_signature_counts")
+            if isinstance(match_signature_counts, Mapping):
+                for signature, count in match_signature_counts.items():
+                    gap_numeric_match_signature_counts[f"family={family}|{signature}"] += int(count or 0)
+            match_candidate_relative_signature_counts = row.get(
+                "record_gap_numeric_match_candidate_relative_signature_counts"
+            )
+            if isinstance(match_candidate_relative_signature_counts, Mapping):
+                for signature, count in match_candidate_relative_signature_counts.items():
+                    gap_numeric_match_candidate_relative_signature_counts[
+                        f"family={family}|{signature}"
+                    ] += int(count or 0)
+            match_rows = row.get("record_gap_numeric_match_rows")
+            if isinstance(match_rows, tuple | list):
+                for match_row in match_rows:
+                    if len(gap_numeric_match_rows) >= 16:
+                        break
+                    if not isinstance(match_row, Mapping):
+                        continue
+                    candidate_offset = int(row.get("offset") or 0)
+                    match_offset = int(match_row.get("offset") or 0)
+                    candidate_relative_offset = match_row.get("candidate_relative_offset")
+                    if candidate_relative_offset is None and candidate_offset > 0 and match_offset > 0:
+                        candidate_relative_offset = match_offset - candidate_offset
+                    gap_numeric_match_rows.append(
+                        {
+                            "candidate_offset": candidate_offset,
+                            "constraint_type": family,
+                            "expression": str(row.get("expression") or ""),
+                            "match_offset": match_offset,
+                            "candidate_relative_offset": int(candidate_relative_offset or 0),
+                            "between_fields": str(match_row.get("between_fields") or ""),
+                            "numeric_value": str(match_row.get("numeric_value") or ""),
+                            "numeric_role": str(match_row.get("numeric_role") or ""),
+                            "storage": str(match_row.get("storage") or ""),
+                            "scalar_kind": str(match_row.get("scalar_kind") or ""),
+                            "scalar_value": match_row.get("scalar_value"),
+                            "previous_field_end_delta": int(match_row.get("previous_field_end_delta") or 0),
+                            "next_field_start_delta": int(match_row.get("next_field_start_delta") or 0),
+                            "value_confidence": str(match_row.get("value_confidence") or ""),
+                            "match_signature": f"family={family}|{str(match_row.get('match_signature') or '')}",
+                            "candidate_relative_match_signature": (
+                                f"family={family}|{str(match_row.get('candidate_relative_match_signature') or '')}"
+                                if match_row.get("candidate_relative_match_signature")
+                                else ""
+                            ),
+                        }
+                    )
+            try:
+                gap_numeric_match_previous_deltas.append(int(row.get("record_gap_numeric_match_min_previous_delta") or 0))
+                gap_numeric_match_previous_deltas.append(int(row.get("record_gap_numeric_match_max_previous_delta") or 0))
+                gap_numeric_match_next_deltas.append(int(row.get("record_gap_numeric_match_min_next_delta") or 0))
+                gap_numeric_match_next_deltas.append(int(row.get("record_gap_numeric_match_max_next_delta") or 0))
+                gap_numeric_match_candidate_relative_offsets.append(
+                    int(row.get("record_gap_numeric_match_min_candidate_relative_offset") or 0)
+                )
+                gap_numeric_match_candidate_relative_offsets.append(
+                    int(row.get("record_gap_numeric_match_max_candidate_relative_offset") or 0)
+                )
+            except (TypeError, ValueError):
+                pass
+        span_size = int(row.get("record_span_size") or 0)
+        if span_size > 0:
+            span_sizes.append(span_size)
+    return {
+        "status": "nearby_string_span_layout_evidence",
+        "confidence": "inferred_nearby_string_order",
+        "field_sequence_confidence": "proven_decoded_string_offset_order",
+        "field_sequence_counts": dict(sorted(field_sequence_counts.items())),
+        "layout_status_counts": dict(sorted(layout_counts.items())),
+        "gap_status_counts": dict(sorted(gap_status_counts.items())),
+        "gap_class_counts": dict(sorted(gap_class_counts.items())),
+        "gap_scalar_status_counts": dict(sorted(gap_scalar_status_counts.items())),
+        "gap_scalar_kind_counts": dict(sorted(gap_scalar_kind_counts.items())),
+        "gap_numeric_match_status_counts": dict(sorted(gap_numeric_match_status_counts.items())),
+        "gap_numeric_match_role_counts": dict(sorted(gap_numeric_match_role_counts.items())),
+        "gap_numeric_match_scalar_kind_counts": dict(sorted(gap_numeric_match_scalar_kind_counts.items())),
+        "gap_numeric_match_storage_counts": dict(sorted(gap_numeric_match_storage_counts.items())),
+        "gap_numeric_match_pair_counts": dict(sorted(gap_numeric_match_pair_counts.items())),
+        "gap_numeric_match_value_confidence_counts": dict(sorted(gap_numeric_match_value_confidence_counts.items())),
+        "gap_numeric_match_family_counts": dict(sorted(gap_numeric_match_family_counts.items())),
+        "gap_numeric_match_family_row_counts": dict(sorted(gap_numeric_match_family_row_counts.items())),
+        "gap_numeric_match_family_role_counts": {
+            family: dict(sorted(counts.items()))
+            for family, counts in sorted(gap_numeric_match_family_role_counts.items())
+        },
+        "gap_numeric_match_family_pair_counts": {
+            family: dict(sorted(counts.items()))
+            for family, counts in sorted(gap_numeric_match_family_pair_counts.items())
+        },
+        "gap_numeric_match_family_value_confidence_counts": {
+            family: dict(sorted(counts.items()))
+            for family, counts in sorted(gap_numeric_match_family_value_confidence_counts.items())
+        },
+        "gap_numeric_match_signature_counts": dict(sorted(gap_numeric_match_signature_counts.items())),
+        "gap_numeric_match_candidate_relative_signature_counts": dict(
+            sorted(gap_numeric_match_candidate_relative_signature_counts.items())
+        ),
+        "gap_numeric_match_previous_delta_counts": dict(sorted(gap_numeric_match_previous_delta_counts.items())),
+        "gap_numeric_match_next_delta_counts": dict(sorted(gap_numeric_match_next_delta_counts.items())),
+        "gap_numeric_match_candidate_relative_offset_counts": dict(
+            sorted(gap_numeric_match_candidate_relative_offset_counts.items())
+        ),
+        "gap_numeric_match_offset_confidence": (
+            "observed_relative_to_decoded_string_gap_boundaries_value_layout_unproven"
+            if gap_numeric_match_count
+            else ""
+        ),
+        "gap_numeric_match_candidate_relative_offset_confidence": (
+            "observed_relative_to_inferred_candidate_offset_value_layout_unproven"
+            if gap_numeric_match_candidate_relative_offset_counts
+            else ""
+        ),
+        "gap_pair_count": int(gap_pair_count),
+        "max_gap_size": int(max_gap_size),
+        "gap_aligned_word_count": int(gap_aligned_word_count),
+        "gap_scalar_candidate_count": int(gap_scalar_candidate_count),
+        "max_gap_scalar_candidate_count": int(max_gap_scalar_candidate_count),
+        "gap_numeric_match_count": int(gap_numeric_match_count),
+        "max_gap_numeric_match_count": int(max_gap_numeric_match_count),
+        "gap_numeric_match_rows": tuple(gap_numeric_match_rows),
+        "min_gap_numeric_match_previous_delta": min(gap_numeric_match_previous_deltas) if gap_numeric_match_previous_deltas else 0,
+        "max_gap_numeric_match_previous_delta": max(gap_numeric_match_previous_deltas) if gap_numeric_match_previous_deltas else 0,
+        "min_gap_numeric_match_next_delta": min(gap_numeric_match_next_deltas) if gap_numeric_match_next_deltas else 0,
+        "max_gap_numeric_match_next_delta": max(gap_numeric_match_next_deltas) if gap_numeric_match_next_deltas else 0,
+        "min_gap_numeric_match_candidate_relative_offset": (
+            min(gap_numeric_match_candidate_relative_offsets) if gap_numeric_match_candidate_relative_offsets else 0
+        ),
+        "max_gap_numeric_match_candidate_relative_offset": (
+            max(gap_numeric_match_candidate_relative_offsets) if gap_numeric_match_candidate_relative_offsets else 0
+        ),
+        "candidate_count": len(candidates),
+        "min_span_size": min(span_sizes) if span_sizes else 0,
+        "max_span_size": max(span_sizes) if span_sizes else 0,
+    }
+
+
+def _papr_constraint_analysis_document(
+    data: bytes,
+    string_records: Sequence[_BinarySidecarStringRecord],
+    related_references: Sequence[object],
+    *,
+    max_rows: int = 96,
+) -> Dict[str, object]:
+    role_counts: Counter[str] = Counter()
+    all_evidence_rows: List[Dict[str, object]] = []
+    evidence_rows: List[Dict[str, object]] = []
+    for record in string_records:
+        role = _papr_constraint_string_role(record.text)
+        if not role:
+            continue
+        role_counts[role] += 1
+        row = {
+            "offset": int(record.offset),
+            "text": record.text,
+            "role": role,
+            "field_confidence": "proven_readable_string",
+            "role_confidence": "inferred",
+        }
+        all_evidence_rows.append(row)
+        if len(evidence_rows) >= max_rows:
+            continue
+        evidence_rows.append(row)
+    all_record_candidates = _papr_constraint_record_candidates(all_evidence_rows, data=data, max_rows=None)
+    record_candidates = all_record_candidates[:128]
+
+    physics_rows: List[Dict[str, object]] = []
+    for reference in related_references:
+        reference_kind = str(getattr(reference, "reference_kind", "") or "")
+        resolved_path = str(getattr(reference, "resolved_archive_path", "") or "")
+        reference_name = str(getattr(reference, "reference_name", "") or "")
+        if reference_kind != "physics" and not resolved_path.lower().endswith((".hkx", ".hkt")):
+            continue
+        physics_rows.append(
+            {
+                "reference_name": reference_name,
+                "resolved_archive_path": resolved_path,
+                "relation_confidence": str(getattr(reference, "relation_confidence", "") or "unknown"),
+                "relation_reason": str(getattr(reference, "relation_reason", "") or ""),
+            }
+        )
+
+    return {
+        "recognized": bool(evidence_rows or physics_rows),
+        "status": "read_only_constraint_string_evidence" if evidence_rows or physics_rows else "no_constraint_evidence_recovered",
+        "constraint_solving_supported": False,
+        "string_evidence_count": int(sum(role_counts.values())),
+        "role_counts": dict(sorted(role_counts.items())),
+        "evidence_rows": evidence_rows,
+        "record_candidate_count": len(all_record_candidates),
+        "record_candidates": record_candidates,
+        "expression_evidence": _papr_constraint_expression_summary(all_record_candidates),
+        "offset_evidence": _papr_constraint_offset_summary(all_record_candidates),
+        "record_layout_evidence": _papr_constraint_record_layout_summary(all_record_candidates),
+        "related_physics_rows": physics_rows,
+        "proof_gap": (
+            "PAPR readable strings expose bone names and expression text, and nearby strings can form inferred record candidates, but current recovery does not bind records, value offsets, or solver semantics."
+            if evidence_rows or physics_rows
+            else "No PAPR constraint strings or physics references were recovered from this payload."
+        ),
+    }
+
+
+def _papr_constraint_record_candidates(
+    evidence_rows: Sequence[Mapping[str, object]],
+    *,
+    data: bytes = b"",
+    max_rows: int | None = 64,
+) -> List[Dict[str, object]]:
+    candidates: List[Dict[str, object]] = []
+    last_parent: Mapping[str, object] | None = None
+    last_bone: Mapping[str, object] | None = None
+    last_helper: Mapping[str, object] | None = None
+    for row in evidence_rows:
+        role = str(row.get("role") or "")
+        offset = int(row.get("offset") or 0)
+        if role == "parent_bone_reference":
+            last_parent = row
+            continue
+        if role == "helper_bone_reference":
+            last_helper = row
+            last_bone = row
+            continue
+        if role == "bone_reference":
+            last_bone = row
+            continue
+        if role not in {"driver_expression", "limit_expression"}:
+            continue
+        target = last_bone if last_bone is not None and offset - int(last_bone.get("offset") or 0) <= 192 else None
+        helper = last_helper if last_helper is not None and offset - int(last_helper.get("offset") or 0) <= 192 else None
+        parent = last_parent if last_parent is not None and offset - int(last_parent.get("offset") or 0) <= 768 else None
+        if target is None and parent is None:
+            continue
+        expression = str(row.get("text") or "")
+        expression_evidence = _papr_constraint_expression_evidence(expression)
+        target_offset = int(target.get("offset") or 0) if target is not None else 0
+        helper_offset = int(helper.get("offset") or 0) if helper is not None else 0
+        parent_offset = int(parent.get("offset") or 0) if parent is not None else 0
+        span_start, span_end, span_field_count = _papr_candidate_span(row, target, helper, parent)
+        field_sequence = _papr_candidate_field_sequence(
+            ("parent", parent),
+            ("helper", helper),
+            ("target", target),
+            ("expression", row),
+        )
+        gap_evidence = _papr_candidate_gap_evidence(
+            data,
+            ("parent", parent),
+            ("helper", helper),
+            ("target", target),
+            ("expression", row),
+            candidate_offset=offset,
+            expression_numeric_values=expression_evidence.get("expression_numeric_values") or (),
+            expression_numeric_roles=expression_evidence.get("expression_numeric_roles") or (),
+        )
+        candidates.append(
+            {
+                "offset": offset,
+                "expression_offset": offset,
+                "constraint_type": "local_transform_limit_candidate" if role == "limit_expression" else "driver_expression_candidate",
+                "expression": expression,
+                "expression_role": role,
+                "target_bone": str(target.get("text") or "") if target is not None else "",
+                "target_bone_offset": target_offset,
+                "target_bone_delta": offset - target_offset if target_offset > 0 else 0,
+                "parent_bone": str(parent.get("text") or "") if parent is not None else "",
+                "parent_bone_offset": parent_offset,
+                "parent_bone_delta": offset - parent_offset if parent_offset > 0 else 0,
+                "helper_bone": str(helper.get("text") or "") if helper is not None else "",
+                "helper_bone_offset": helper_offset,
+                "helper_bone_delta": offset - helper_offset if helper_offset > 0 else 0,
+                "field_confidence": "proven_readable_strings",
+                "field_offset_confidence": "proven_decoded_string_offsets",
+                "record_confidence": "inferred_nearby_string_order",
+                "record_span_start": span_start,
+                "record_span_end": span_end,
+                "record_span_size": max(0, span_end - span_start),
+                "record_span_field_count": span_field_count,
+                "record_field_sequence": field_sequence,
+                "record_field_sequence_confidence": "proven_decoded_string_offset_order",
+                **gap_evidence,
+                "record_layout_status": "nearby_string_span_only_value_layout_unproven",
+                "solver_status": "blocked_record_layout_unproven",
+                **expression_evidence,
+            }
+        )
+        if max_rows is not None and len(candidates) >= max_rows:
+            break
+    return candidates
+
+
+def _papr_candidate_span(*rows: Mapping[str, object] | None) -> Tuple[int, int, int]:
+    spans: List[Tuple[int, int]] = []
+    for row in rows:
+        if row is None:
+            continue
+        offset = int(row.get("offset") or 0)
+        text = str(row.get("text") or "")
+        if offset <= 0 or not text:
+            continue
+        spans.append((offset, offset + len(text.encode("ascii", errors="ignore")) + 1))
+    if not spans:
+        return 0, 0, 0
+    return min(start for start, _end in spans), max(end for _start, end in spans), len(spans)
+
+
+def _papr_candidate_field_sequence(*fields: Tuple[str, Mapping[str, object] | None]) -> Tuple[str, ...]:
+    ordered: List[Tuple[int, int, str]] = []
+    for index, (label, row) in enumerate(fields):
+        if row is None:
+            continue
+        offset = int(row.get("offset") or 0)
+        text = str(row.get("text") or "")
+        if offset <= 0 or not text:
+            continue
+        ordered.append((offset, index, label))
+    ordered.sort()
+    return tuple(label for _offset, _index, label in ordered)
+
+
+def _papr_candidate_gap_evidence(
+    data: bytes,
+    *fields: Tuple[str, Mapping[str, object] | None],
+    candidate_offset: int = 0,
+    expression_numeric_values: Sequence[object] = (),
+    expression_numeric_roles: Sequence[object] = (),
+) -> Dict[str, object]:
+    ordered: List[Tuple[int, int, str, str]] = []
+    for index, (label, row) in enumerate(fields):
+        if row is None:
+            continue
+        offset = int(row.get("offset") or 0)
+        text = str(row.get("text") or "")
+        if offset <= 0 or not text:
+            continue
+        ordered.append((offset, index, label, text))
+    ordered.sort()
+    gap_classes: List[str] = []
+    gap_sizes: List[int] = []
+    scalar_kind_counts: Counter[str] = Counter()
+    numeric_match_role_counts: Counter[str] = Counter()
+    numeric_match_scalar_kind_counts: Counter[str] = Counter()
+    numeric_match_storage_counts: Counter[str] = Counter()
+    numeric_match_pair_counts: Counter[str] = Counter()
+    numeric_match_value_confidence_counts: Counter[str] = Counter()
+    numeric_match_signature_counts: Counter[str] = Counter()
+    numeric_match_candidate_relative_signature_counts: Counter[str] = Counter()
+    numeric_match_previous_delta_counts: Counter[str] = Counter()
+    numeric_match_next_delta_counts: Counter[str] = Counter()
+    numeric_match_candidate_relative_offset_counts: Counter[str] = Counter()
+    numeric_match_previous_deltas: List[int] = []
+    numeric_match_next_deltas: List[int] = []
+    numeric_match_candidate_relative_offsets: List[int] = []
+    numeric_match_rows: List[Dict[str, object]] = []
+    numeric_entries = _papr_expression_numeric_entries(expression_numeric_values, expression_numeric_roles)
+    aligned_word_count = 0
+    scalar_candidate_count = 0
+    for current, following in zip(ordered, ordered[1:]):
+        offset, _index, label, text = current
+        next_offset, _next_index, next_label, _next_text = following
+        end = offset + len(text.encode("ascii", errors="ignore")) + 1
+        raw_gap_size = next_offset - end
+        if raw_gap_size < 0:
+            gap_class = "overlap_or_shared_string"
+            gap_size = 0
+        elif raw_gap_size == 0:
+            gap_class = "contiguous_strings"
+            gap_size = 0
+        else:
+            chunk = data[end:next_offset] if data else b""
+            gap_class = _papr_gap_class(chunk)
+            gap_size = raw_gap_size
+            aligned_offset = (end + 3) & ~3
+            while aligned_offset + 4 <= next_offset and aligned_offset + 4 <= len(data):
+                word = struct.unpack_from("<I", data, aligned_offset)[0]
+                float_value = struct.unpack_from("<f", data, aligned_offset)[0]
+                scalar_kind = _papr_gap_scalar_kind(word, float_value)
+                aligned_word_count += 1
+                if scalar_kind != "opaque_word":
+                    scalar_kind_counts[scalar_kind] += 1
+                    scalar_candidate_count += 1
+                    for numeric_match in _papr_gap_numeric_matches(
+                        word,
+                        float_value,
+                        numeric_entries,
+                        scalar_kind=scalar_kind,
+                    ):
+                        pair = f"{label}>{next_label}"
+                        previous_delta = int(aligned_offset - end)
+                        next_delta = int(next_offset - (aligned_offset + 4))
+                        candidate_relative_offset = int(aligned_offset - candidate_offset) if candidate_offset > 0 else 0
+                        numeric_role = str(numeric_match["numeric_role"])
+                        value_confidence = str(
+                            numeric_match.get("value_confidence")
+                            or "numeric_match_value_layout_unproven"
+                        )
+                        match_signature = _papr_gap_numeric_match_signature(
+                            numeric_role=numeric_role,
+                            pair=pair,
+                            storage=str(numeric_match["storage"]),
+                            scalar_kind=scalar_kind,
+                            value_confidence=value_confidence,
+                            previous_delta=previous_delta,
+                            next_delta=next_delta,
+                        )
+                        candidate_relative_match_signature = (
+                            f"{match_signature}|rel={candidate_relative_offset}"
+                            if candidate_offset > 0
+                            else ""
+                        )
+                        numeric_match_role_counts[numeric_role] += 1
+                        numeric_match_scalar_kind_counts[scalar_kind] += 1
+                        numeric_match_storage_counts[str(numeric_match["storage"])] += 1
+                        numeric_match_pair_counts[pair] += 1
+                        numeric_match_value_confidence_counts[value_confidence] += 1
+                        numeric_match_signature_counts[match_signature] += 1
+                        if candidate_relative_match_signature:
+                            numeric_match_candidate_relative_signature_counts[
+                                candidate_relative_match_signature
+                            ] += 1
+                        numeric_match_previous_delta_counts[str(previous_delta)] += 1
+                        numeric_match_next_delta_counts[str(next_delta)] += 1
+                        if candidate_offset > 0:
+                            numeric_match_candidate_relative_offset_counts[str(candidate_relative_offset)] += 1
+                            numeric_match_candidate_relative_offsets.append(candidate_relative_offset)
+                        numeric_match_previous_deltas.append(previous_delta)
+                        numeric_match_next_deltas.append(next_delta)
+                        if len(numeric_match_rows) < 8:
+                            numeric_match_rows.append(
+                                {
+                                    "offset": int(aligned_offset),
+                                    "between_fields": pair,
+                                    "previous_field_end_delta": previous_delta,
+                                    "next_field_start_delta": next_delta,
+                                    "candidate_relative_offset": candidate_relative_offset,
+                                    **numeric_match,
+                                    "value_confidence": value_confidence,
+                                    "match_signature": match_signature,
+                                    "candidate_relative_match_signature": candidate_relative_match_signature,
+                                }
+                            )
+                aligned_offset += 4
+        gap_classes.append(gap_class)
+        gap_sizes.append(gap_size)
+    gap_class_counts = dict(sorted(Counter(gap_classes).items()))
+    numeric_match_count = int(sum(numeric_match_role_counts.values()))
+    return {
+        "record_gap_status": _papr_gap_status(gap_classes),
+        "record_gap_classes": tuple(gap_classes),
+        "record_gap_class_counts": gap_class_counts,
+        "record_gap_count": len(gap_classes),
+        "record_gap_total_size": int(sum(gap_sizes)),
+        "record_gap_max_size": max(gap_sizes) if gap_sizes else 0,
+        "record_gap_confidence": "observed_between_decoded_string_offsets" if gap_classes else "",
+        "record_gap_scalar_status": "unbound_interfield_scalar_candidates" if scalar_candidate_count else "no_interfield_scalar_candidates",
+        "record_gap_scalar_kind_counts": dict(sorted(scalar_kind_counts.items())),
+        "record_gap_aligned_word_count": int(aligned_word_count),
+        "record_gap_scalar_candidate_count": int(scalar_candidate_count),
+        "record_gap_scalar_confidence": "unbound_aligned_interfield_gap_scan" if aligned_word_count else "",
+        "record_gap_numeric_match_status": "unbound_scalar_numeric_constant_matches" if numeric_match_count else "no_scalar_numeric_constant_matches",
+        "record_gap_numeric_match_role_counts": dict(sorted(numeric_match_role_counts.items())),
+        "record_gap_numeric_match_scalar_kind_counts": dict(sorted(numeric_match_scalar_kind_counts.items())),
+        "record_gap_numeric_match_storage_counts": dict(sorted(numeric_match_storage_counts.items())),
+        "record_gap_numeric_match_pair_counts": dict(sorted(numeric_match_pair_counts.items())),
+        "record_gap_numeric_match_value_confidence_counts": dict(sorted(numeric_match_value_confidence_counts.items())),
+        "record_gap_numeric_match_signature_counts": dict(sorted(numeric_match_signature_counts.items())),
+        "record_gap_numeric_match_candidate_relative_signature_counts": dict(
+            sorted(numeric_match_candidate_relative_signature_counts.items())
+        ),
+        "record_gap_numeric_match_previous_delta_counts": dict(sorted(numeric_match_previous_delta_counts.items())),
+        "record_gap_numeric_match_next_delta_counts": dict(sorted(numeric_match_next_delta_counts.items())),
+        "record_gap_numeric_match_candidate_relative_offset_counts": dict(
+            sorted(numeric_match_candidate_relative_offset_counts.items())
+        ),
+        "record_gap_numeric_match_count": numeric_match_count,
+        "record_gap_numeric_match_rows": tuple(numeric_match_rows),
+        "record_gap_numeric_match_min_previous_delta": min(numeric_match_previous_deltas) if numeric_match_previous_deltas else 0,
+        "record_gap_numeric_match_max_previous_delta": max(numeric_match_previous_deltas) if numeric_match_previous_deltas else 0,
+        "record_gap_numeric_match_min_next_delta": min(numeric_match_next_deltas) if numeric_match_next_deltas else 0,
+        "record_gap_numeric_match_max_next_delta": max(numeric_match_next_deltas) if numeric_match_next_deltas else 0,
+        "record_gap_numeric_match_min_candidate_relative_offset": (
+            min(numeric_match_candidate_relative_offsets) if numeric_match_candidate_relative_offsets else 0
+        ),
+        "record_gap_numeric_match_max_candidate_relative_offset": (
+            max(numeric_match_candidate_relative_offsets) if numeric_match_candidate_relative_offsets else 0
+        ),
+        "record_gap_numeric_match_offset_confidence": (
+            "observed_relative_to_decoded_string_gap_boundaries_value_layout_unproven"
+            if numeric_match_count
+            else ""
+        ),
+        "record_gap_numeric_match_candidate_relative_offset_confidence": (
+            "observed_relative_to_inferred_candidate_offset_value_layout_unproven"
+            if numeric_match_count and candidate_offset > 0
+            else ""
+        ),
+        "record_gap_numeric_match_confidence": "exact_numeric_text_vs_interfield_scalar_match_value_layout_unproven" if numeric_match_count else "",
+    }
+
+
+def _papr_gap_numeric_match_signature(
+    *,
+    numeric_role: str,
+    pair: str,
+    storage: str,
+    scalar_kind: str,
+    value_confidence: str,
+    previous_delta: int,
+    next_delta: int,
+) -> str:
+    return (
+        f"role={numeric_role}|pair={pair}|storage={storage}|scalar={scalar_kind}|"
+        f"value={value_confidence}|prev={previous_delta}|next={next_delta}"
+    )
+
+
+def _papr_expression_numeric_entries(
+    numeric_values: Sequence[object],
+    numeric_roles: Sequence[object],
+) -> Tuple[Tuple[str, str, float, int | None], ...]:
+    roles = tuple(str(role) for role in numeric_roles or ())
+    entries: List[Tuple[str, str, float, int | None]] = []
+    for index, value in enumerate(numeric_values or ()):
+        text = str(value)
+        try:
+            float_value = float(text)
+        except ValueError:
+            continue
+        role = roles[index] if index < len(roles) and roles[index] else "numeric_constant"
+        integer_value: int | None = None
+        lowered = text.lower()
+        if "." not in lowered and "e" not in lowered:
+            try:
+                integer_value = int(text, 10)
+            except ValueError:
+                integer_value = None
+        entries.append((text, role, float_value, integer_value))
+    return tuple(entries)
+
+
+def _papr_gap_numeric_matches(
+    word: int,
+    float_value: float,
+    numeric_entries: Sequence[Tuple[str, str, float, int | None]],
+    *,
+    scalar_kind: str,
+) -> Tuple[Dict[str, object], ...]:
+    if not numeric_entries:
+        return ()
+    matches: List[Dict[str, object]] = []
+    for numeric_text, numeric_role, numeric_value, integer_value in numeric_entries:
+        if integer_value is not None and 0 <= integer_value <= 0xFFFFFFFF and word == integer_value:
+            matches.append(
+                {
+                    "numeric_value": numeric_text,
+                    "numeric_role": numeric_role,
+                    "storage": "u32",
+                    "scalar_kind": scalar_kind,
+                    "scalar_value": int(word),
+                    "value_confidence": "exact_u32_numeric_value_match_layout_unproven",
+                }
+            )
+            continue
+        if math.isfinite(float_value) and math.isclose(float_value, numeric_value, rel_tol=1.0e-6, abs_tol=1.0e-6):
+            value_confidence = (
+                "exact_float32_numeric_value_match_layout_unproven"
+                if float_value == numeric_value
+                else "approx_float32_numeric_value_match_layout_unproven"
+            )
+            matches.append(
+                {
+                    "numeric_value": numeric_text,
+                    "numeric_role": numeric_role,
+                    "storage": "f32",
+                    "scalar_kind": scalar_kind,
+                    "scalar_value": float(float_value),
+                    "value_confidence": value_confidence,
+                }
+            )
+    return tuple(matches)
+
+
+def _papr_gap_class(chunk: bytes) -> str:
+    if not chunk:
+        return "contiguous_strings"
+    if all(value == 0 for value in chunk):
+        return "zero_padding"
+    printable = sum(1 for value in chunk if value in (9, 10, 13) or 32 <= value <= 126)
+    if printable / max(len(chunk), 1) >= 0.85:
+        return "printable_ascii_gap"
+    if chunk.count(0) / max(len(chunk), 1) >= 0.5:
+        return "mixed_null_binary_gap"
+    return "binary_gap"
+
+
+def _papr_gap_status(gap_classes: Sequence[str]) -> str:
+    classes = set(gap_classes)
+    if not classes:
+        return ""
+    if {"binary_gap", "mixed_null_binary_gap"} & classes:
+        return "binary_like_interfield_gap_bytes_unbound"
+    if "printable_ascii_gap" in classes:
+        return "printable_interfield_gap_bytes_unbound"
+    if "zero_padding" in classes:
+        return "zero_padding_interfield_gap_bytes_unbound"
+    return "no_interfield_gap_payload"
+
+
+def _papr_gap_scalar_kind(word: int, float_value: float) -> str:
+    if word == 0:
+        return "zero_word"
+    if word == 1:
+        return "u32_bool_candidate"
+    if 2 <= word <= 255:
+        return "u32_u8_candidate"
+    if 256 <= word <= 65535:
+        return "u32_u16_candidate"
+    if math.isfinite(float_value):
+        absolute = abs(float_value)
+        if 1.0e-6 <= absolute <= 1.0:
+            return "f32_unit_candidate"
+        if 1.0 < absolute <= 10.0:
+            return "f32_small_candidate"
+        if 10.0 < absolute <= 360.0:
+            return "f32_angle_candidate"
+    return "opaque_word"
 
 
 def build_binary_sidecar_analysis_document(
@@ -1871,6 +3097,11 @@ def build_binary_sidecar_analysis_document(
             schema_member_rows=schema_member_rows,
         )
         if normalized_extension in _ARCHIVE_ANIMATION_SEQUENCE_EXTENSIONS
+        else {}
+    )
+    papr_metadata = (
+        _papr_constraint_analysis_document(data, string_records, related_references)
+        if normalized_extension == ".papr"
         else {}
     )
     field_group_func = _binary_sidecar_group_func_for_extension(normalized_extension)
@@ -1976,6 +3207,12 @@ def build_binary_sidecar_analysis_document(
             "paseq_timing_candidates": int(((paseq_metadata.get("timeline") or {}).get("timing_candidate_count") or 0))
             if isinstance(paseq_metadata.get("timeline"), Mapping)
             else 0,
+            "papr_constraint_string_evidence": int(papr_metadata.get("string_evidence_count") or 0)
+            if isinstance(papr_metadata, Mapping)
+            else 0,
+            "papr_constraint_related_physics": len(papr_metadata.get("related_physics_rows") or ())
+            if isinstance(papr_metadata, Mapping)
+            else 0,
         },
         "container": _binary_sidecar_container_summary(data, normalized_extension),
         "header_words_le": _binary_sidecar_header_words(data),
@@ -1992,6 +3229,7 @@ def build_binary_sidecar_analysis_document(
             "editing_supported": False,
             "note": ".paa animation clip rows are exposed as read-only recovery evidence. Channel ownership and write rules are not proven.",
         } if normalized_extension == ".paa" else {},
+        "papr": papr_metadata,
         "paseq": paseq_metadata,
         "seqmt": seqmt_metadata,
         "paccd": paccd_metadata,
@@ -2020,7 +3258,7 @@ def build_binary_sidecar_analysis_document(
             "supported": False,
             "policy": "read_only_until_schema_and_no_edit_roundtrip_are_proven",
             "reason": (
-                ".meshinfo, .motionblending, .paa, .paa_metabin, .paseq/.paschedule/.pastage, .prefab, .pappt, .pamhc, .paccd, and .seqmt layout/count semantics are not proven yet. "
+                ".meshinfo, .motionblending, .paa, .paa_metabin, .papr, .paseq/.paseqc/.paschedule/.pastage, .prefab, .pappt, .pamhc, .paccd, and .seqmt layout/count semantics are not proven yet. "
                 "The app can export decoded declarations and recovery evidence, but it will not write edited values "
                 "until exact value offsets, fixed-size fields, array counts, offsets, and no-edit binary rebuilds "
                 "are validated."
@@ -2060,7 +3298,9 @@ _BINARY_SIDECAR_CORPUS_EXTENSIONS = (
     ".meshinfo",
     ".motionblending",
     ".paa_metabin",
+    ".papr",
     ".paseq",
+    ".paseqc",
     ".paschedule",
     ".paschedulepath",
     ".pastage",
@@ -2653,7 +3893,9 @@ def build_binary_sidecar_corpus_report(
             "meshinfo_files_scanned": len(by_extension_paths.get(".meshinfo", [])),
             "motionblending_files_scanned": len(by_extension_paths.get(".motionblending", [])),
             "paa_metabin_files_scanned": len(by_extension_paths.get(".paa_metabin", [])),
+            "papr_files_scanned": len(by_extension_paths.get(".papr", [])),
             "paseq_files_scanned": len(by_extension_paths.get(".paseq", [])),
+            "paseqc_files_scanned": len(by_extension_paths.get(".paseqc", [])),
             "paschedule_files_scanned": len(by_extension_paths.get(".paschedule", [])),
             "paschedulepath_files_scanned": len(by_extension_paths.get(".paschedulepath", [])),
             "pastage_files_scanned": len(by_extension_paths.get(".pastage", [])),

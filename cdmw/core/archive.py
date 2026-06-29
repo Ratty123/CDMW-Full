@@ -746,7 +746,7 @@ _ATTACHMENT_WEAPON_SOCKET_PRIORITY: Tuple[str, ...] = (
 _ATTACHMENT_ASSET_REFERENCE_RE = re.compile(
     r"([A-Za-z0-9_./\\-]+?\.(?:"
     r"prefabdata_xml|prefabdata\.xml|pamlod_xml|pac_xml|pam_xml|sockets\.xml|"
-    r"paa_metabin|motionblending|paschedulepath|paschedule|paseq|pastage|"
+    r"paa_metabin|motionblending|paschedulepath|paschedule|paseqc|paseq|pastage|"
     r"pamlod|meshinfo|prefab|pappt|pamhc|hkx|hkt|pac|pam|pabgb|pabgh|pabc|pabv|papr|pab|paa|pae|paem|seqmt|xml"
     r"))",
     re.IGNORECASE,

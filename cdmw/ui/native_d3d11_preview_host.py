@@ -35,6 +35,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
     alignment_rotation_finished = Signal(float, float, float)
     source_part_hovered = Signal(int)
     source_part_selected = Signal(int)
+    source_part_context_requested = Signal(int, int, int)
     mesh_edit_stroke_started = Signal(object)
     mesh_edit_stroke_previewed = Signal(object)
     mesh_edit_stroke_finished = Signal(object)
@@ -375,6 +376,14 @@ class NativeD3D11PreviewHostFrame(QFrame):
             }
         )
 
+    def set_source_part_picking(self, enabled: bool) -> bool:
+        return self._send_host_json_command(
+            {
+                "command": "set_source_part_picking",
+                "enabled": bool(enabled),
+            }
+        )
+
     def set_material_overrides(
         self,
         *,
@@ -590,8 +599,8 @@ class NativeD3D11PreviewHostFrame(QFrame):
             }
         )
 
-    def replace_mesh_edit_triangles(self, groups: Sequence[Mapping[str, object]]) -> bool:
-        payload = {"command": "replace_mesh_edit_triangles", "groups": list(groups or ())}
+    def replace_mesh_edit_triangles(self, groups: Sequence[Mapping[str, object]], *, replace_all: bool = False) -> bool:
+        payload = {"command": "replace_mesh_edit_triangles", "groups": list(groups or ()), "replace_all": bool(replace_all)}
         try:
             encoded = json.dumps(payload, separators=(",", ":"))
         except (TypeError, ValueError):
@@ -632,6 +641,14 @@ class NativeD3D11PreviewHostFrame(QFrame):
 
     def select_mesh_edit_brush_vertices(self) -> bool:
         return self._send_host_json_command({"command": "select_mesh_edit_brush"})
+
+    def set_mesh_edit_selection_groups(self, groups: Sequence[Mapping[str, object]]) -> bool:
+        return self._send_host_json_command(
+            {
+                "command": "set_mesh_edit_selection",
+                "groups": [dict(group) for group in tuple(groups or ()) if isinstance(group, Mapping)],
+            }
+        )
 
     def set_mesh_edit_vertex_selection(self, selected_vertices_by_submesh: Mapping[int, Iterable[int]]) -> bool:
         groups = []
@@ -760,6 +777,12 @@ class NativeD3D11PreviewHostFrame(QFrame):
                 self.source_part_hovered.emit(int_payload_field("source_submesh_index", -1))
             elif event == "source_part_selected":
                 self.source_part_selected.emit(int_payload_field("source_submesh_index", -1))
+            elif event == "source_part_context_requested":
+                self.source_part_context_requested.emit(
+                    int_payload_field("source_submesh_index", -1),
+                    int_payload_field("x", 0),
+                    int_payload_field("y", 0),
+                )
             elif event == "mesh_edit_stroke_started":
                 self.mesh_edit_stroke_started.emit(payload.get("payload", {}))
             elif event == "mesh_edit_stroke_previewed":

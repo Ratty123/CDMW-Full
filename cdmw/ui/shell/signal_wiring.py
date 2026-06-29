@@ -151,17 +151,6 @@ class ShellSignalWiringMixin:
                 self._show_archive_texture_reference_context_menu
             )
         self.archive_preview_content_splitter.splitterMoved.connect(self._handle_archive_preview_content_splitter_moved)
-        self.archive_texture_open_button.clicked.connect(self._open_selected_archive_texture_reference)
-        self.archive_texture_edit_hkx_button.clicked.connect(self._edit_selected_archive_hkx_reference)
-        self.archive_texture_scope_selected_button.clicked.connect(self._scope_selected_archive_texture_references)
-        self.archive_texture_scope_all_button.clicked.connect(
-            lambda _checked=False: self._scope_current_archive_asset_set(include_hints=False)
-        )
-        self.archive_texture_export_button.clicked.connect(self._export_selected_archive_texture_reference)
-        self.archive_texture_export_all_button.clicked.connect(self._export_all_archive_texture_references)
-        self.archive_texture_export_asset_set_button.clicked.connect(self._export_current_archive_asset_set)
-        self.archive_texture_smart_actions_button.clicked.connect(self._show_archive_smart_actions_menu)
-        self.archive_texture_edit_material_button.clicked.connect(self._edit_selected_archive_material_sidecar_reference)
         self.archive_preview_loose_toggle_button.clicked.connect(self._toggle_archive_loose_preview)
         self.compare_previous_button.clicked.connect(lambda: self._select_compare_offset(-1))
         self.compare_next_button.clicked.connect(lambda: self._select_compare_offset(1))

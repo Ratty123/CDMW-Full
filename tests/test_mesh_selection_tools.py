@@ -8,6 +8,7 @@ from cdmw.modding.mesh_deformer import (
     grow_vertex_selection,
     shrink_vertex_selection,
     smooth_vertex_selection,
+    split_faces_to_submesh,
     subdivide_faces_touching_vertices,
 )
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
@@ -106,6 +107,49 @@ class MeshSelectionToolTests(unittest.TestCase):
         self.assertEqual(7, len(mesh.submeshes[0].vertices))
         self.assertEqual(5, len(mesh.submeshes[0].faces))
         self.assertIn(4, (result.changed_vertices_by_submesh or {})[0])
+
+    def test_split_faces_to_submesh_moves_selected_faces_and_preserves_vertex_data(self) -> None:
+        mesh = _quad_mesh()
+        source = mesh.submeshes[0]
+        source.texture = "body.dds"
+        source.uvs = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]
+        source.normals = [(0.0, 0.0, 1.0)] * 4
+        source.bone_indices = [(0,), (1,), (2,), (3,)]
+        source.bone_weights = [(1.0,), (1.0,), (1.0,), (1.0,)]
+        source.source_vertex_map = [10, 11, 12, 13]
+        source.source_vertex_offsets = [100, 110, 120, 130]
+
+        result = split_faces_to_submesh(mesh, selected_faces_by_submesh={0: {0}}, recompute_normals=False)
+
+        self.assertEqual(0, result.source_submesh_index)
+        self.assertEqual(1, result.new_submesh_index)
+        self.assertEqual(1, result.moved_face_count)
+        self.assertEqual(3, result.moved_vertex_count)
+        self.assertEqual([(0, 2, 1)], mesh.submeshes[0].faces)
+        self.assertEqual(1, mesh.submeshes[0].face_count)
+        self.assertEqual("quad", mesh.submeshes[1].material)
+        self.assertEqual("body.dds", mesh.submeshes[1].texture)
+        self.assertEqual([(0, 1, 2)], mesh.submeshes[1].faces)
+        self.assertEqual([(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], mesh.submeshes[1].uvs)
+        self.assertEqual([(0.0, 0.0, 1.0)] * 3, mesh.submeshes[1].normals)
+        self.assertEqual([(0,), (1,), (2,)], mesh.submeshes[1].bone_indices)
+        self.assertEqual([10, 11, 12], mesh.submeshes[1].source_vertex_map)
+        self.assertEqual([100, 110, 120], mesh.submeshes[1].source_vertex_offsets)
+        self.assertEqual(6, mesh.total_vertices)
+        self.assertEqual(2, mesh.total_faces)
+
+    def test_split_faces_to_submesh_uses_vertex_selection_and_rejects_multiple_parts(self) -> None:
+        mesh = _quad_mesh()
+        result = split_faces_to_submesh(mesh, selected_vertices_by_submesh={0: {3}}, recompute_normals=False)
+
+        self.assertEqual(1, result.new_submesh_index)
+        self.assertEqual([(0, 1, 2)], mesh.submeshes[0].faces)
+        self.assertEqual([(0, 2, 1)], mesh.submeshes[1].faces)
+
+        mesh = _quad_mesh()
+        mesh.submeshes.append(_quad_mesh().submeshes[0])
+        with self.assertRaisesRegex(ValueError, "one part"):
+            split_faces_to_submesh(mesh, selected_faces_by_submesh={0: {0}, 1: {0}}, recompute_normals=False)
 
 
 if __name__ == "__main__":

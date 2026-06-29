@@ -514,7 +514,7 @@ def build_archive_preview_result(
                 loose_preview_detail_text=loose_preview_detail_text,
             )
 
-        if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paschedule", ".paschedulepath", ".pastage"}:
+        if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
             structured_preview = build_par_structured_preview(
                 data,
                 entry.path,

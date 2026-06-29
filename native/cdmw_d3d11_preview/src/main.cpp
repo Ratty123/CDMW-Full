@@ -243,6 +243,8 @@ struct PreviewBatch {
     int source_submesh_index = -1;
     int source_local_submesh_index = -1;
     int source_component_index = 0;
+    int source_vertex_count = 0;
+    int source_face_count = 0;
     std::wstring identity_file;
     std::uint64_t identity_offset = 0;
     std::uint64_t identity_size = 0;
@@ -293,6 +295,17 @@ struct EditorCandidate {
     float weight = 1.0f;
 };
 
+struct MeshEditEdgeCandidate {
+    int source_submesh_index = -1;
+    int left_vertex_index = -1;
+    int right_vertex_index = -1;
+    float screen_x = 0.0f;
+    float screen_y = 0.0f;
+    float depth_z = 1.0f;
+    float distance = 0.0f;
+    float weight = 1.0f;
+};
+
 struct MeshEditState {
     bool enabled = false;
     std::string scope_mode = "all";
@@ -318,6 +331,8 @@ struct MeshEditState {
     std::vector<EditorCandidate> drag_candidates;
     std::vector<DirectX::XMFLOAT2> selection_lasso_points;
     std::set<std::pair<int, int>> selected_vertices;
+    std::set<std::tuple<int, int, int>> selected_edges;
+    std::set<std::pair<int, int>> selected_faces;
     std::set<int> source_submesh_indices;
     std::chrono::steady_clock::time_point last_preview_event_time{};
     int last_preview_event_x = 0;
@@ -358,6 +373,7 @@ struct AlignmentState {
 };
 
 struct SourcePartInteractionState {
+    bool picking_enabled = false;
     int hovered_source_submesh = -1;
     bool click_pending = false;
     int click_source_submesh = -1;
@@ -507,6 +523,9 @@ struct RendererStats {
     bool cloth_runtime_debug_enabled = false;
     bool skeleton_overlay_enabled = false;
     int skeleton_bone_count = 0;
+    bool skeleton_pose_enabled = false;
+    int skeleton_selected_bone_index = -1;
+    int skeleton_posed_bone_count = 0;
     int editable_value_group_count = 0;
     double manifest_ms = 0.0;
     double geometry_ms = 0.0;
@@ -883,6 +902,57 @@ static std::vector<int> json_int_array_field(const std::string& object, const st
     std::smatch match;
     if (!std::regex_search(object, match, pattern)) return values;
     std::string array_text = match[1].str();
+    std::regex item_pattern("-?\\d+");
+    auto begin = std::sregex_iterator(array_text.begin(), array_text.end(), item_pattern);
+    auto end = std::sregex_iterator();
+    for (auto it = begin; it != end; ++it) {
+        try {
+            values.push_back(std::stoi(it->str()));
+        } catch (...) {
+        }
+    }
+    return values;
+}
+
+static std::vector<int> json_int_values_in_array_field(const std::string& object, const std::string& name) {
+    std::vector<int> values;
+    const std::string marker = "\"" + name + "\"";
+    size_t name_pos = object.find(marker);
+    if (name_pos == std::string::npos) return values;
+    size_t colon = object.find(':', name_pos + marker.size());
+    if (colon == std::string::npos) return values;
+    size_t array_start = object.find('[', colon + 1);
+    if (array_start == std::string::npos) return values;
+    bool in_string = false;
+    bool escaped = false;
+    int depth = 0;
+    size_t array_end = std::string::npos;
+    for (size_t i = array_start; i < object.size(); ++i) {
+        const char ch = object[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (ch == '\\' && in_string) {
+            escaped = true;
+            continue;
+        }
+        if (ch == '"') {
+            in_string = !in_string;
+            continue;
+        }
+        if (in_string) continue;
+        if (ch == '[') ++depth;
+        else if (ch == ']') {
+            --depth;
+            if (depth == 0) {
+                array_end = i;
+                break;
+            }
+        }
+    }
+    if (array_end == std::string::npos || array_end <= array_start) return values;
+    const std::string array_text = object.substr(array_start + 1u, array_end - array_start - 1u);
     std::regex item_pattern("-?\\d+");
     auto begin = std::sregex_iterator(array_text.begin(), array_text.end(), item_pattern);
     auto end = std::sregex_iterator();
@@ -1393,6 +1463,8 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.source_submesh_index = json_int_field(editor_identity, "source_submesh_index", -1);
         batch.source_local_submesh_index = json_int_field(editor_identity, "source_local_submesh_index", batch.source_submesh_index);
         batch.source_component_index = json_int_field(editor_identity, "source_component_index", 0);
+        batch.source_vertex_count = json_int_field(editor_identity, "source_vertex_count", 0);
+        batch.source_face_count = json_int_field(editor_identity, "source_face_count", 0);
         batch.identity_file = absolute_from_manifest_path(package_dir, json_string_field(editor_identity, "identity_file"));
         batch.identity_offset = json_uint64_field(editor_identity, "identity_offset", 0);
         batch.identity_size = json_uint64_field(editor_identity, "identity_size", 0);
@@ -1489,8 +1561,14 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
     if (!cloth_runtime_debug.empty()) {
         stats.cloth_runtime_debug_enabled = json_bool_field(cloth_runtime_debug, "enabled", false);
     }
-    stats.skeleton_bone_count = std::max(0, json_int_field(manifest, "bone_count", 0));
-    stats.skeleton_overlay_enabled = stats.skeleton_bone_count > 0;
+    const std::string skeleton_overlay = json_object_field(manifest, "skeleton_overlay");
+    if (!skeleton_overlay.empty()) {
+        stats.skeleton_bone_count = std::max(0, json_int_field(skeleton_overlay, "bone_count", 0));
+        stats.skeleton_overlay_enabled = json_bool_field(skeleton_overlay, "enabled", false) && stats.skeleton_bone_count > 0;
+        stats.skeleton_pose_enabled = json_bool_field(skeleton_overlay, "pose_enabled", false);
+        stats.skeleton_selected_bone_index = json_int_field(skeleton_overlay, "selected_bone_index", -1);
+        stats.skeleton_posed_bone_count = std::max(0, json_int_field(skeleton_overlay, "posed_bone_count", 0));
+    }
     stats.editable_value_group_count = static_cast<int>(json_object_array_field(manifest, "editable_value_groups").size());
     return batches;
 }
@@ -1734,6 +1812,9 @@ static std::string loaded_payload_for_event(const RendererStats& stats, const st
            << "\"cloth_runtime_debug_enabled\":" << (stats.cloth_runtime_debug_enabled ? "true" : "false") << ","
            << "\"skeleton_overlay_enabled\":" << (stats.skeleton_overlay_enabled ? "true" : "false") << ","
            << "\"skeleton_bone_count\":" << stats.skeleton_bone_count << ","
+           << "\"skeleton_pose_enabled\":" << (stats.skeleton_pose_enabled ? "true" : "false") << ","
+           << "\"skeleton_selected_bone_index\":" << stats.skeleton_selected_bone_index << ","
+           << "\"skeleton_posed_bone_count\":" << stats.skeleton_posed_bone_count << ","
            << "\"editable_value_group_count\":" << stats.editable_value_group_count << ","
            << "\"semantic_writes_enabled\":false,"
            << "\"cloth_batch_count\":" << stats.cloth_batch_count << ","
@@ -3014,9 +3095,25 @@ public:
                 return true;
             }
             begin_source_part_click(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+            if (source_part_.click_pending) {
+                request_render();
+                result = 0;
+                return true;
+            }
             [[fallthrough]];
         case WM_MBUTTONDOWN:
+            begin_mouse_drag(msg, wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+            request_render();
+            result = 0;
+            return true;
         case WM_RBUTTONDOWN:
+            cursor_x_ = GET_X_LPARAM(lparam);
+            cursor_y_ = GET_Y_LPARAM(lparam);
+            if (request_source_part_context(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                request_render();
+                result = 0;
+                return true;
+            }
             begin_mouse_drag(msg, wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             request_render();
             result = 0;
@@ -3618,7 +3715,7 @@ private:
         bool found = false;
         float min_y = 0.0f;
         for (const PreviewBatch& batch : batches_) {
-            if (!batch_visible_in_view(batch, view.role) || batch_is_reference(batch)) continue;
+            if (!batch_visible_in_view(batch, view.role)) continue;
             for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
                 const DirectX::XMFLOAT3 transformed = transformed_batch_position(batch, position);
                 if (!found) {
@@ -4142,6 +4239,40 @@ private:
             && mesh_edit_.selected_vertices.find(key) != mesh_edit_.selected_vertices.end();
     }
 
+    std::pair<int, int> mesh_edit_source_face_key(const PreviewBatch& batch, size_t triangle_index, size_t base_vertex_index) const {
+        int source_submesh = batch.source_submesh_index;
+        int source_face = static_cast<int>(triangle_index);
+        for (size_t corner = 0; corner < 3u; ++corner) {
+            const size_t vertex_index = base_vertex_index + corner;
+            const std::pair<int, int> source_key = mesh_edit_source_key(batch, vertex_index);
+            if (source_submesh < 0 && source_key.first >= 0) {
+                source_submesh = source_key.first;
+            }
+            if (vertex_index < batch.cpu_source_faces.size() && batch.cpu_source_faces[vertex_index] >= 0) {
+                source_face = batch.cpu_source_faces[vertex_index];
+                break;
+            }
+        }
+        return std::pair<int, int>(source_submesh, source_face);
+    }
+
+    bool mesh_edit_source_face_selected(const PreviewBatch& batch, size_t triangle_index, size_t base_vertex_index) const {
+        const std::pair<int, int> key = mesh_edit_source_face_key(batch, triangle_index, base_vertex_index);
+        return key.first >= 0
+            && key.second >= 0
+            && mesh_edit_.selected_faces.find(key) != mesh_edit_.selected_faces.end();
+    }
+
+    bool mesh_edit_source_edge_selected(const std::pair<int, int>& left, const std::pair<int, int>& right) const {
+        return left.first >= 0
+            && right.first >= 0
+            && left.first == right.first
+            && left.second >= 0
+            && right.second >= 0
+            && left.second != right.second
+            && mesh_edit_.selected_edges.find(mesh_edit_edge_key(left.first, left.second, right.second)) != mesh_edit_.selected_edges.end();
+    }
+
     bool project_batch_position_for_view(
         const PreviewBatch& batch,
         const DirectX::XMFLOAT3& position,
@@ -4429,6 +4560,98 @@ private:
         constexpr size_t kMaxBrushCandidates = 3000;
         if (!nearest_only && candidates.size() > kMaxBrushCandidates) {
             candidates.resize(kMaxBrushCandidates);
+        }
+        return candidates;
+    }
+
+    std::vector<MeshEditEdgeCandidate> mesh_edit_edge_candidates_at_in_view(
+        const PreviewRenderView& view,
+        int x,
+        int y,
+        float radius_pixels,
+        bool nearest_only) const {
+        std::vector<MeshEditEdgeCandidate> candidates;
+        if (!mesh_edit_.enabled || width_ <= 0 || height_ <= 0) return candidates;
+        const bool xray_mode = !mesh_edit_depth_filter_enabled();
+        const MeshEditDepthMaskCache* depth_mask = xray_mode ? nullptr : &mesh_edit_depth_mask_for_view(view);
+        const float px = static_cast<float>(x);
+        const float py = static_cast<float>(y);
+        std::set<std::tuple<int, int, int>> emitted;
+        for (const PreviewBatch& batch : batches_) {
+            if (!mesh_edit_batch_editable_in_view(batch, view)) continue;
+            const size_t triangle_count = batch.cpu_positions.size() / 3u;
+            for (size_t triangle_index = 0; triangle_index < triangle_count; ++triangle_index) {
+                const size_t base = triangle_index * 3u;
+                ScreenPoint p[3]{};
+                float depth_z[3]{};
+                int source_submesh = -1;
+                int source_vertices[3]{-1, -1, -1};
+                bool projected = true;
+                for (size_t corner = 0; corner < 3u; ++corner) {
+                    const size_t vertex_index = base + corner;
+                    float screen_x = 0.0f;
+                    float screen_y = 0.0f;
+                    if (!project_batch_position_for_view(batch, batch.cpu_positions[vertex_index], view, screen_x, screen_y, &depth_z[corner])) {
+                        projected = false;
+                        break;
+                    }
+                    p[corner] = ScreenPoint{screen_x, screen_y};
+                    const std::pair<int, int> source_key = mesh_edit_source_key(batch, vertex_index);
+                    if (source_submesh < 0 && source_key.first >= 0) {
+                        source_submesh = source_key.first;
+                    }
+                    source_vertices[corner] = source_key.second;
+                }
+                if (!projected || source_submesh < 0 || !mesh_edit_source_allowed(source_submesh)) continue;
+                const int edge_corners[3][2] = {{0, 1}, {1, 2}, {2, 0}};
+                for (const auto& edge : edge_corners) {
+                    const int left = source_vertices[edge[0]];
+                    const int right = source_vertices[edge[1]];
+                    if (left < 0 || right < 0 || left == right) continue;
+                    if (batch.source_vertex_count > 0 && (left >= batch.source_vertex_count || right >= batch.source_vertex_count)) continue;
+                    const std::tuple<int, int, int> source_edge = mesh_edit_edge_key(source_submesh, left, right);
+                    if (emitted.find(source_edge) != emitted.end()) continue;
+                    const ScreenPoint a = p[edge[0]];
+                    const ScreenPoint b = p[edge[1]];
+                    const float vx = b.x - a.x;
+                    const float vy = b.y - a.y;
+                    const float length_sq = vx * vx + vy * vy;
+                    const float t = length_sq <= 1.0e-6f
+                        ? 0.0f
+                        : std::clamp(((px - a.x) * vx + (py - a.y) * vy) / length_sq, 0.0f, 1.0f);
+                    const float hit_x = a.x + vx * t;
+                    const float hit_y = a.y + vy * t;
+                    const float distance = std::hypot(px - hit_x, py - hit_y);
+                    if (distance > radius_pixels) continue;
+                    const float hit_depth = depth_z[edge[0]] + (depth_z[edge[1]] - depth_z[edge[0]]) * t;
+                    if (depth_mask && !mesh_edit_screen_point_visible_in_depth_mask(hit_x, hit_y, hit_depth, *depth_mask)) {
+                        continue;
+                    }
+                    const float weight = mesh_edit_falloff_weight(distance, std::max(radius_pixels, 1.0f));
+                    if (weight <= 0.0f && distance > 0.001f) continue;
+                    emitted.insert(source_edge);
+                    MeshEditEdgeCandidate candidate;
+                    candidate.source_submesh_index = source_submesh;
+                    candidate.left_vertex_index = std::get<1>(source_edge);
+                    candidate.right_vertex_index = std::get<2>(source_edge);
+                    candidate.screen_x = hit_x;
+                    candidate.screen_y = hit_y;
+                    candidate.depth_z = hit_depth;
+                    candidate.distance = distance;
+                    candidate.weight = std::max(weight, distance <= 0.001f ? 1.0f : 0.0f);
+                    candidates.push_back(candidate);
+                }
+            }
+        }
+        std::sort(candidates.begin(), candidates.end(), [](const MeshEditEdgeCandidate& left, const MeshEditEdgeCandidate& right) {
+            return left.distance < right.distance;
+        });
+        if (nearest_only && candidates.size() > 1) {
+            candidates.resize(1);
+        }
+        constexpr size_t kMaxEdgeBrushCandidates = 3000;
+        if (!nearest_only && candidates.size() > kMaxEdgeBrushCandidates) {
+            candidates.resize(kMaxEdgeBrushCandidates);
         }
         return candidates;
     }
@@ -4731,22 +4954,35 @@ private:
         overlay_vertices = &screen_overlay_vertices;
         if (cursor_in_view) {
             const bool remove_tool = mesh_edit_.tool == "remove";
-            std::vector<EditorCandidate> brush_candidates = (
-                remove_tool && mesh_edit_.delete_mode != "selection"
-            )
-                ? mesh_edit_face_candidates_at_in_view(view, cursor_x_, cursor_y_, std::max(mesh_edit_.radius_pixels, 4.0f), false)
-                : mesh_edit_candidates_at_in_view(
+            if (mesh_edit_.target_mode == "edge" && !remove_tool) {
+                const std::vector<MeshEditEdgeCandidate> edge_candidates = mesh_edit_edge_candidates_at_in_view(
                     view,
                     cursor_x_,
                     cursor_y_,
-                    mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex" ? 12.0f : mesh_edit_.radius_pixels,
-                    mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex");
-            if (brush_candidates.empty() && remove_tool && mesh_edit_.delete_mode != "selection") {
-                brush_candidates = mesh_edit_candidates_at_in_view(view, cursor_x_, cursor_y_, mesh_edit_.radius_pixels, false);
-            }
-            for (const EditorCandidate& candidate : brush_candidates) {
-                if (candidate.source_vertex_index >= 0) {
-                    brush_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_vertex_index));
+                    mesh_edit_.radius_pixels,
+                    false);
+                for (const MeshEditEdgeCandidate& candidate : edge_candidates) {
+                    brush_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.left_vertex_index));
+                    brush_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.right_vertex_index));
+                }
+            } else {
+                std::vector<EditorCandidate> brush_candidates = (
+                    remove_tool && mesh_edit_.delete_mode != "selection"
+                )
+                    ? mesh_edit_face_candidates_at_in_view(view, cursor_x_, cursor_y_, std::max(mesh_edit_.radius_pixels, 4.0f), false)
+                    : mesh_edit_candidates_at_in_view(
+                        view,
+                        cursor_x_,
+                        cursor_y_,
+                        mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex" ? 12.0f : mesh_edit_.radius_pixels,
+                        mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex");
+                if (brush_candidates.empty() && remove_tool && mesh_edit_.delete_mode != "selection") {
+                    brush_candidates = mesh_edit_candidates_at_in_view(view, cursor_x_, cursor_y_, mesh_edit_.radius_pixels, false);
+                }
+                for (const EditorCandidate& candidate : brush_candidates) {
+                    if (candidate.source_vertex_index >= 0) {
+                        brush_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_vertex_index));
+                    }
                 }
             }
             add_ring(ScreenPoint{static_cast<float>(cursor_x_), static_cast<float>(cursor_y_)}, mesh_edit_.radius_pixels + 2.0f, 3.8f, 0.0f, 0.0f, 0.0f);
@@ -4815,14 +5051,45 @@ private:
                     }
                     if (!triangle_visible) continue;
                 }
+                const std::pair<int, int> key0 = mesh_edit_source_key(batch, base);
+                const std::pair<int, int> key1 = mesh_edit_source_key(batch, base + 1u);
+                const std::pair<int, int> key2 = mesh_edit_source_key(batch, base + 2u);
+                const bool selected_face = mesh_edit_source_face_selected(batch, triangle_index, base);
+                const bool selected_edge_01 = mesh_edit_source_edge_selected(key0, key1);
+                const bool selected_edge_12 = mesh_edit_source_edge_selected(key1, key2);
+                const bool selected_edge_20 = mesh_edit_source_edge_selected(key2, key0);
+                const bool selected_edge = selected_edge_01 || selected_edge_12 || selected_edge_20;
+                const bool exact_selection = !mesh_edit_.selected_edges.empty() || !mesh_edit_.selected_faces.empty();
+                const bool selected_vertex_triangle = !exact_selection
+                    && (
+                        mesh_edit_source_vertex_selected(batch, base)
+                        || mesh_edit_source_vertex_selected(batch, base + 1u)
+                        || mesh_edit_source_vertex_selected(batch, base + 2u));
+                const bool brush_triangle =
+                    brush_vertices.find(key0) != brush_vertices.end()
+                    || brush_vertices.find(key1) != brush_vertices.end()
+                    || brush_vertices.find(key2) != brush_vertices.end();
                 const bool selected_triangle =
-                    mesh_edit_source_vertex_selected(batch, base)
-                    || mesh_edit_source_vertex_selected(batch, base + 1u)
-                    || mesh_edit_source_vertex_selected(batch, base + 2u)
-                    || brush_vertices.find(mesh_edit_source_key(batch, base)) != brush_vertices.end()
-                    || brush_vertices.find(mesh_edit_source_key(batch, base + 1u)) != brush_vertices.end()
-                    || brush_vertices.find(mesh_edit_source_key(batch, base + 2u)) != brush_vertices.end();
-                if (selected_triangle) {
+                    selected_face
+                    || selected_edge
+                    || selected_vertex_triangle
+                    || brush_triangle;
+                if (selected_face) {
+                    add_triangle_depth(p[0], depth_z[0], p[1], depth_z[1], p[2], depth_z[2], 0.90f, 0.40f, 0.08f);
+                    add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 4.4f, 0.0f, 0.0f, 0.0f);
+                    add_thick_line_depth(p[1], depth_z[1], p[2], depth_z[2], 4.4f, 0.0f, 0.0f, 0.0f);
+                    add_thick_line_depth(p[2], depth_z[2], p[0], depth_z[0], 4.4f, 0.0f, 0.0f, 0.0f);
+                    add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 2.7f, 1.0f, 0.70f, 0.14f);
+                    add_thick_line_depth(p[1], depth_z[1], p[2], depth_z[2], 2.7f, 1.0f, 0.70f, 0.14f);
+                    add_thick_line_depth(p[2], depth_z[2], p[0], depth_z[0], 2.7f, 1.0f, 0.70f, 0.14f);
+                } else if (selected_edge) {
+                    if (selected_edge_01) add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 5.2f, 0.0f, 0.0f, 0.0f);
+                    if (selected_edge_12) add_thick_line_depth(p[1], depth_z[1], p[2], depth_z[2], 5.2f, 0.0f, 0.0f, 0.0f);
+                    if (selected_edge_20) add_thick_line_depth(p[2], depth_z[2], p[0], depth_z[0], 5.2f, 0.0f, 0.0f, 0.0f);
+                    if (selected_edge_01) add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 3.0f, 1.0f, 0.82f, 0.18f);
+                    if (selected_edge_12) add_thick_line_depth(p[1], depth_z[1], p[2], depth_z[2], 3.0f, 1.0f, 0.82f, 0.18f);
+                    if (selected_edge_20) add_thick_line_depth(p[2], depth_z[2], p[0], depth_z[0], 3.0f, 1.0f, 0.82f, 0.18f);
+                } else if (selected_triangle) {
                     add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 4.0f, 0.0f, 0.0f, 0.0f);
                     add_thick_line_depth(p[1], depth_z[1], p[2], depth_z[2], 4.0f, 0.0f, 0.0f, 0.0f);
                     add_thick_line_depth(p[2], depth_z[2], p[0], depth_z[0], 4.0f, 0.0f, 0.0f, 0.0f);
@@ -5548,10 +5815,21 @@ private:
         send_json_event(out.str());
     }
 
+    void send_source_part_context_event(int source_submesh_index, int x, int y) const {
+        std::ostringstream out;
+        out << "{\"event\":\"source_part_context_requested\""
+            << ",\"source_submesh_index\":" << source_submesh_index
+            << ",\"x\":" << x
+            << ",\"y\":" << y
+            << "}";
+        send_json_event(out.str());
+    }
+
     void update_source_part_hover(int x, int y) {
-        (void)x;
-        (void)y;
-        source_part_.hovered_source_submesh = -1;
+        int source_submesh = source_part_.picking_enabled && !mesh_edit_.enabled ? source_part_at(x, y, 28.0f) : -1;
+        if (source_submesh == source_part_.hovered_source_submesh) return;
+        source_part_.hovered_source_submesh = source_submesh;
+        send_source_part_event("source_part_hovered", source_submesh);
     }
 
     void begin_source_part_click(WPARAM wparam, int x, int y) {
@@ -5581,6 +5859,17 @@ private:
         send_source_part_event("source_part_selected", source_submesh);
     }
 
+    bool request_source_part_context(WPARAM wparam, int x, int y) {
+        bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
+        bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        bool ctrl_down = (wparam & MK_CONTROL) != 0 || (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        if (!source_part_.picking_enabled || mesh_edit_.enabled || alt_down || shift_down || ctrl_down) return false;
+        int source_submesh = source_part_at(x, y, 28.0f);
+        if (source_submesh < 0) return false;
+        send_source_part_context_event(source_submesh, x, y);
+        return true;
+    }
+
     float mesh_edit_falloff_weight(float distance_pixels, float radius_pixels) const {
         float normalized = std::clamp(distance_pixels / std::max(radius_pixels, 1e-6f), 0.0f, 1.0f);
         if (normalized >= 1.0f) return 0.0f;
@@ -5596,6 +5885,13 @@ private:
         view.viewport = replacement_editor_viewport();
         view.role = PreviewViewRole::Replacement;
         return mesh_edit_candidates_at_in_view(view, x, y, radius_pixels, nearest_only);
+    }
+
+    std::vector<MeshEditEdgeCandidate> mesh_edit_edge_candidates_at(int x, int y, float radius_pixels, bool nearest_only) const {
+        PreviewRenderView view;
+        view.viewport = replacement_editor_viewport();
+        view.role = PreviewViewRole::Replacement;
+        return mesh_edit_edge_candidates_at_in_view(view, x, y, radius_pixels, nearest_only);
     }
 
     std::vector<EditorCandidate> mesh_edit_face_candidates_at(int x, int y, float radius_pixels, bool nearest_only) const {
@@ -5780,23 +6076,146 @@ private:
         send_json_event(out.str());
     }
 
+    void add_mesh_edit_face_vertices_to_selection(int source_submesh, const std::set<int>& source_faces) {
+        if (source_submesh < 0 || source_faces.empty()) return;
+        for (const PreviewBatch& batch : batches_) {
+            if (!batch.editor_editable || batch_is_reference(batch) || batch.source_submesh_index != source_submesh) continue;
+            const size_t vertex_limit = std::min(batch.cpu_source_faces.size(), batch.cpu_source_vertices.size());
+            for (size_t vertex_index = 0; vertex_index < vertex_limit; ++vertex_index) {
+                const int source_face = batch.cpu_source_faces[vertex_index];
+                const int source_vertex = batch.cpu_source_vertices[vertex_index];
+                if (source_vertex >= 0 && source_faces.find(source_face) != source_faces.end()) {
+                    mesh_edit_.selected_vertices.insert(std::pair<int, int>(source_submesh, source_vertex));
+                }
+            }
+        }
+    }
+
+    std::set<std::pair<int, int>> mesh_edit_vertices_for_faces(const std::set<std::pair<int, int>>& source_faces) const {
+        std::set<std::pair<int, int>> vertices;
+        if (source_faces.empty()) return vertices;
+        for (const PreviewBatch& batch : batches_) {
+            if (!batch.editor_editable || batch_is_reference(batch) || batch.source_submesh_index < 0) continue;
+            const size_t vertex_limit = std::min(batch.cpu_source_faces.size(), batch.cpu_source_vertices.size());
+            for (size_t vertex_index = 0; vertex_index < vertex_limit; ++vertex_index) {
+                const int source_face = batch.cpu_source_faces[vertex_index];
+                const int source_vertex = batch.cpu_source_vertices[vertex_index];
+                const std::pair<int, int> face_key(batch.source_submesh_index, source_face);
+                if (source_vertex >= 0 && source_faces.find(face_key) != source_faces.end()) {
+                    vertices.insert(std::pair<int, int>(batch.source_submesh_index, source_vertex));
+                }
+            }
+        }
+        return vertices;
+    }
+
+    static std::tuple<int, int, int> mesh_edit_edge_key(int source_submesh, int left, int right) {
+        if (right < left) std::swap(left, right);
+        return std::tuple<int, int, int>(source_submesh, left, right);
+    }
+
+    std::set<std::pair<int, int>> mesh_edit_vertices_for_edges(const std::set<std::tuple<int, int, int>>& source_edges) const {
+        std::set<std::pair<int, int>> vertices;
+        for (const auto& key : source_edges) {
+            const int source_submesh = std::get<0>(key);
+            const int left = std::get<1>(key);
+            const int right = std::get<2>(key);
+            if (source_submesh >= 0 && left >= 0) vertices.insert(std::pair<int, int>(source_submesh, left));
+            if (source_submesh >= 0 && right >= 0) vertices.insert(std::pair<int, int>(source_submesh, right));
+        }
+        return vertices;
+    }
+
+    std::set<std::tuple<int, int, int>> mesh_edit_edges_for_vertices(const std::set<std::pair<int, int>>& source_vertices) const {
+        std::set<std::tuple<int, int, int>> edges;
+        if (source_vertices.empty()) return edges;
+        std::map<std::pair<int, int>, std::vector<int>> face_vertices;
+        for (const PreviewBatch& batch : batches_) {
+            if (!batch.editor_editable || batch_is_reference(batch) || batch.source_submesh_index < 0) continue;
+            const size_t vertex_limit = std::min(batch.cpu_source_faces.size(), batch.cpu_source_vertices.size());
+            for (size_t vertex_index = 0; vertex_index < vertex_limit; ++vertex_index) {
+                const int source_face = batch.cpu_source_faces[vertex_index];
+                const int source_vertex = batch.cpu_source_vertices[vertex_index];
+                if (source_face < 0 || source_vertex < 0) continue;
+                face_vertices[std::pair<int, int>(batch.source_submesh_index, source_face)].push_back(source_vertex);
+            }
+        }
+        for (const auto& item : face_vertices) {
+            const int source_submesh = item.first.first;
+            const std::vector<int>& vertices = item.second;
+            if (vertices.size() < 3u) continue;
+            const int face_edges[3][2] = {
+                {vertices[0], vertices[1]},
+                {vertices[1], vertices[2]},
+                {vertices[2], vertices[0]},
+            };
+            for (const auto& edge : face_edges) {
+                const std::pair<int, int> left_key(source_submesh, edge[0]);
+                const std::pair<int, int> right_key(source_submesh, edge[1]);
+                if (source_vertices.find(left_key) != source_vertices.end()
+                    && source_vertices.find(right_key) != source_vertices.end()) {
+                    edges.insert(mesh_edit_edge_key(source_submesh, edge[0], edge[1]));
+                }
+            }
+        }
+        return edges;
+    }
+
     void send_mesh_edit_selection_event() const {
         std::map<int, std::vector<int>> grouped;
+        std::set<int> source_submeshes;
         for (const auto& key : mesh_edit_.selected_vertices) {
             grouped[key.first].push_back(key.second);
+            source_submeshes.insert(key.first);
+        }
+        std::map<int, std::vector<std::pair<int, int>>> grouped_edges;
+        for (const auto& key : mesh_edit_.selected_edges) {
+            const int source_submesh = std::get<0>(key);
+            grouped_edges[source_submesh].push_back(std::pair<int, int>(std::get<1>(key), std::get<2>(key)));
+            source_submeshes.insert(source_submesh);
+        }
+        std::map<int, std::vector<int>> grouped_faces;
+        for (const auto& key : mesh_edit_.selected_faces) {
+            grouped_faces[key.first].push_back(key.second);
+            source_submeshes.insert(key.first);
         }
         std::ostringstream payload;
-        payload << "{\"selected_vertex_count\":" << mesh_edit_.selected_vertices.size() << ",\"groups\":[";
+        payload << "{\"selected_vertex_count\":" << mesh_edit_.selected_vertices.size()
+            << ",\"selected_edge_count\":" << mesh_edit_.selected_edges.size()
+            << ",\"selected_face_count\":" << mesh_edit_.selected_faces.size()
+            << ",\"groups\":[";
         size_t group_index = 0;
-        for (auto& [source_submesh, vertices] : grouped) {
-            std::sort(vertices.begin(), vertices.end());
+        for (int source_submesh : source_submeshes) {
             if (group_index++) payload << ",";
+            std::vector<int>& vertices = grouped[source_submesh];
+            std::sort(vertices.begin(), vertices.end());
             payload << "{\"source_submesh_index\":" << source_submesh << ",\"source_vertex_indices\":[";
             for (size_t index = 0; index < vertices.size(); ++index) {
                 if (index) payload << ",";
                 payload << vertices[index];
             }
-            payload << "]}";
+            payload << "]";
+            std::vector<std::pair<int, int>>& edges = grouped_edges[source_submesh];
+            if (!edges.empty()) {
+                std::sort(edges.begin(), edges.end());
+                payload << ",\"source_edges\":[";
+                for (size_t index = 0; index < edges.size(); ++index) {
+                    if (index) payload << ",";
+                    payload << "[" << edges[index].first << "," << edges[index].second << "]";
+                }
+                payload << "]";
+            }
+            std::vector<int>& faces = grouped_faces[source_submesh];
+            std::sort(faces.begin(), faces.end());
+            if (!faces.empty()) {
+                payload << ",\"source_face_indices\":[";
+                for (size_t index = 0; index < faces.size(); ++index) {
+                    if (index) payload << ",";
+                    payload << faces[index];
+                }
+                payload << "]";
+            }
+            payload << "}";
         }
         payload << "]}";
         send_mesh_edit_event("mesh_edit_selection_changed", payload.str());
@@ -5805,30 +6224,39 @@ private:
     int update_mesh_edit_vertices_from_payload(const std::string& payload) {
         std::map<std::pair<int, int>, DirectX::XMFLOAT3> updates;
         std::map<std::pair<int, int>, DirectX::XMFLOAT3> normal_updates;
+        std::map<std::pair<int, int>, DirectX::XMFLOAT2> uv_updates;
         for (const std::string& group : json_object_array_field(payload, "groups")) {
             const int source_submesh = static_cast<int>(json_float_field(group, "source_submesh_index", -1.0f));
             if (source_submesh < 0) continue;
             const std::vector<int> source_vertices = json_int_array_field(group, "source_vertex_indices");
             const std::vector<float> positions = json_float_array_field(group, "positions");
             const std::vector<float> normals = json_float_array_field(group, "normals");
-            const size_t count = std::min(source_vertices.size(), positions.size() / 3u);
+            const std::vector<float> uvs = json_float_array_field(group, "uvs");
+            const size_t count = source_vertices.size();
             for (size_t index = 0; index < count; ++index) {
                 const int source_vertex = source_vertices[index];
                 if (source_vertex < 0) continue;
                 const std::pair<int, int> key(source_submesh, source_vertex);
-                updates[key] = DirectX::XMFLOAT3(
-                    positions[index * 3u],
-                    positions[index * 3u + 1u],
-                    positions[index * 3u + 2u]);
+                if (positions.size() >= (index + 1u) * 3u) {
+                    updates[key] = DirectX::XMFLOAT3(
+                        positions[index * 3u],
+                        positions[index * 3u + 1u],
+                        positions[index * 3u + 2u]);
+                }
                 if (normals.size() >= (index + 1u) * 3u) {
                     normal_updates[key] = DirectX::XMFLOAT3(
                         normals[index * 3u],
                         normals[index * 3u + 1u],
                         normals[index * 3u + 2u]);
                 }
+                if (uvs.size() >= (index + 1u) * 2u) {
+                    uv_updates[key] = DirectX::XMFLOAT2(
+                        uvs[index * 2u],
+                        uvs[index * 2u + 1u]);
+                }
             }
         }
-        if (updates.empty() && normal_updates.empty()) return 0;
+        if (updates.empty() && normal_updates.empty() && uv_updates.empty()) return 0;
         int changed_vertices = 0;
         for (PreviewBatch& batch : batches_) {
             if (!batch.editor_editable || batch_is_reference(batch) || !batch.vertex_buffer || batch.cpu_positions.empty()) continue;
@@ -5865,6 +6293,17 @@ private:
                     batch.cpu_vertices[float_offset + 19u] = normal.z;
                     batch_changed = true;
                     mark_changed_vertex(vertex_index);
+                    ++changed_vertices;
+                }
+            };
+            auto apply_uv_update = [&](size_t vertex_index, const DirectX::XMFLOAT2& uv) {
+                const size_t float_offset = vertex_index * (kVertexStrideBytes / sizeof(float));
+                if (float_offset + 10u < batch.cpu_vertices.size()) {
+                    batch.cpu_vertices[float_offset + 9u] = uv.x;
+                    batch.cpu_vertices[float_offset + 10u] = uv.y;
+                    batch_changed = true;
+                    mark_changed_vertex(vertex_index);
+                    ++changed_vertices;
                 }
             };
             for (const auto& [key, position] : updates) {
@@ -5879,6 +6318,13 @@ private:
                 if (lookup == batch.cpu_source_vertex_lookup.end()) continue;
                 for (size_t vertex_index : lookup->second) {
                     apply_normal_update(vertex_index, normal);
+                }
+            }
+            for (const auto& [key, uv] : uv_updates) {
+                auto lookup = batch.cpu_source_vertex_lookup.find(key);
+                if (lookup == batch.cpu_source_vertex_lookup.end()) continue;
+                for (size_t vertex_index : lookup->second) {
+                    apply_uv_update(vertex_index, uv);
                 }
             }
             if (batch_changed && context_) {
@@ -5912,20 +6358,69 @@ private:
         return changed_vertices;
     }
 
-    int replace_mesh_edit_triangles_from_payload(const std::string& payload) {
+    std::pair<int, int> replace_mesh_edit_triangles_from_payload(const std::string& payload) {
         int replaced_batches = 0;
-        for (const std::string& group : json_object_array_field(payload, "groups")) {
+        int removed_batches = 0;
+        const bool replace_all = json_bool_field(payload, "replace_all", false);
+        const std::vector<std::string> groups = json_object_array_field(payload, "groups");
+        std::set<int> requested_source_submeshes;
+        for (const std::string& group : groups) {
+            const int source_submesh = static_cast<int>(json_float_field(group, "source_submesh_index", -1.0f));
+            if (source_submesh >= 0) requested_source_submeshes.insert(source_submesh);
+        }
+        if (replace_all) {
+            const size_t before_count = batches_.size();
+            batches_.erase(
+                std::remove_if(
+                    batches_.begin(),
+                    batches_.end(),
+                    [&](const PreviewBatch& batch) {
+                        return batch.editor_editable
+                            && !batch_is_reference(batch)
+                            && batch.source_submesh_index >= 0
+                            && requested_source_submeshes.find(batch.source_submesh_index) == requested_source_submeshes.end();
+                    }),
+                batches_.end());
+            removed_batches = static_cast<int>(before_count - batches_.size());
+            for (size_t index = 0; index < batches_.size(); ++index) {
+                batches_[index].index = static_cast<int>(index);
+            }
+        }
+        for (const std::string& group : groups) {
             const int source_submesh = static_cast<int>(json_float_field(group, "source_submesh_index", -1.0f));
             if (source_submesh < 0) continue;
             const std::vector<float> positions = json_float_array_field(group, "positions");
             const std::vector<float> normals = json_float_array_field(group, "normals");
+            const std::vector<float> uvs = json_float_array_field(group, "uvs");
             const std::vector<int> source_vertices = json_int_array_field(group, "source_vertex_indices");
             const std::vector<int> source_faces = json_int_array_field(group, "source_face_indices");
             const std::vector<int> indices = json_int_array_field(group, "indices");
             const bool indexed_payload = group.find("\"indices\"") != std::string::npos;
             const size_t source_vertex_count = positions.size() / 3u;
+            bool matched_batch = false;
+            for (const PreviewBatch& batch : batches_) {
+                if (batch.editor_editable && !batch_is_reference(batch) && batch.source_submesh_index == source_submesh) {
+                    matched_batch = true;
+                    break;
+                }
+            }
+            if (!matched_batch && source_vertex_count > 0) {
+                PreviewBatch new_batch;
+                new_batch.index = static_cast<int>(batches_.size());
+                new_batch.source_submesh_index = source_submesh;
+                new_batch.source_local_submesh_index = source_submesh;
+                new_batch.source_vertex_count = static_cast<int>(source_vertex_count);
+                new_batch.source_face_count = static_cast<int>(source_faces.size());
+                new_batch.editor_role = "replacement_preview";
+                new_batch.editor_editable = true;
+                new_batch.part_label = json_string_field(group, "material_name", "mesh_edit_part");
+                new_batch.source_component_label = new_batch.part_label;
+                batches_.push_back(std::move(new_batch));
+            }
             for (PreviewBatch& batch : batches_) {
                 if (!batch.editor_editable || batch_is_reference(batch) || batch.source_submesh_index != source_submesh) continue;
+                batch.source_vertex_count = static_cast<int>(source_vertex_count);
+                batch.source_face_count = static_cast<int>(source_faces.size());
                 batch.cpu_positions.clear();
                 batch.cpu_source_submeshes.clear();
                 batch.cpu_source_vertices.clear();
@@ -5955,6 +6450,12 @@ private:
                             normals[source_slot * 3u + 1u],
                             normals[source_slot * 3u + 2u]);
                     }
+                    DirectX::XMFLOAT2 uv(0.0f, 0.0f);
+                    if (uvs.size() >= (source_slot + 1u) * 2u) {
+                        uv = DirectX::XMFLOAT2(
+                            uvs[source_slot * 2u],
+                            uvs[source_slot * 2u + 1u]);
+                    }
                     batch.cpu_positions.push_back(position);
                     batch.cpu_source_submeshes.push_back(source_submesh);
                     batch.cpu_source_vertices.push_back(source_slot < source_vertices.size() ? source_vertices[source_slot] : static_cast<int>(source_slot));
@@ -5963,7 +6464,7 @@ private:
                         position.x, position.y, position.z,
                         normal.x, normal.y, normal.z,
                         color_r, color_g, color_b,
-                        0.0f, 0.0f,
+                        uv.x, uv.y,
                         1.0f, 0.0f, 0.0f,
                         0.0f, 1.0f, 0.0f,
                         normal.x, normal.y, normal.z,
@@ -6001,10 +6502,10 @@ private:
                 ++replaced_batches;
             }
         }
-        if (replaced_batches > 0) {
+        if (replaced_batches > 0 || removed_batches > 0) {
             invalidate_mesh_edit_caches();
         }
-        return replaced_batches;
+        return std::pair<int, int>(replaced_batches, removed_batches);
     }
 
     static bool point_inside_polygon(float x, float y, const std::vector<DirectX::XMFLOAT2>& points) {
@@ -6021,6 +6522,17 @@ private:
             if (intersects) inside = !inside;
         }
         return inside;
+    }
+
+    bool mesh_edit_screen_point_in_selection_region(float screen_x, float screen_y, int x, int y) const {
+        if (mesh_edit_.selection_mode == "rectangle" || mesh_edit_.selection_lasso_points.size() < 3) {
+            const float min_x = static_cast<float>(std::min(mesh_edit_.start_x, x));
+            const float max_x = static_cast<float>(std::max(mesh_edit_.start_x, x));
+            const float min_y = static_cast<float>(std::min(mesh_edit_.start_y, y));
+            const float max_y = static_cast<float>(std::max(mesh_edit_.start_y, y));
+            return screen_x >= min_x && screen_x <= max_x && screen_y >= min_y && screen_y <= max_y;
+        }
+        return point_inside_polygon(screen_x, screen_y, mesh_edit_.selection_lasso_points);
     }
 
     static std::string mesh_edit_selection_operation_from_modifiers(WPARAM wparam) {
@@ -6052,10 +6564,86 @@ private:
         } else {
             mesh_edit_.selected_vertices = vertices;
         }
+        if (mode == "replace") {
+            mesh_edit_.selected_edges.clear();
+            mesh_edit_.selected_faces.clear();
+        }
+        send_mesh_edit_selection_event();
+    }
+
+    void apply_mesh_edit_edge_selection_delta(const std::set<std::tuple<int, int, int>>& edges, const std::string& operation) {
+        const std::string mode = lower_copy(operation);
+        if (mode == "add") {
+            mesh_edit_.selected_edges.insert(edges.begin(), edges.end());
+        } else if (mode == "subtract") {
+            for (const auto& key : edges) {
+                mesh_edit_.selected_edges.erase(key);
+            }
+        } else if (mode == "toggle") {
+            for (const auto& key : edges) {
+                auto found = mesh_edit_.selected_edges.find(key);
+                if (found == mesh_edit_.selected_edges.end()) {
+                    mesh_edit_.selected_edges.insert(key);
+                } else {
+                    mesh_edit_.selected_edges.erase(found);
+                }
+            }
+        } else {
+            mesh_edit_.selected_edges = edges;
+        }
+        mesh_edit_.selected_faces.clear();
+        mesh_edit_.selected_vertices = mesh_edit_vertices_for_edges(mesh_edit_.selected_edges);
+        send_mesh_edit_selection_event();
+    }
+
+    void apply_mesh_edit_face_selection_delta(const std::set<std::pair<int, int>>& faces, const std::string& operation) {
+        const std::string mode = lower_copy(operation);
+        if (mode == "add") {
+            mesh_edit_.selected_faces.insert(faces.begin(), faces.end());
+        } else if (mode == "subtract") {
+            for (const auto& key : faces) {
+                mesh_edit_.selected_faces.erase(key);
+            }
+        } else if (mode == "toggle") {
+            for (const auto& key : faces) {
+                auto found = mesh_edit_.selected_faces.find(key);
+                if (found == mesh_edit_.selected_faces.end()) {
+                    mesh_edit_.selected_faces.insert(key);
+                } else {
+                    mesh_edit_.selected_faces.erase(found);
+                }
+            }
+        } else {
+            mesh_edit_.selected_faces = faces;
+        }
+        mesh_edit_.selected_edges.clear();
+        mesh_edit_.selected_vertices = mesh_edit_vertices_for_faces(mesh_edit_.selected_faces);
         send_mesh_edit_selection_event();
     }
 
     void apply_mesh_edit_brush_selection(int x, int y) {
+        if (mesh_edit_.target_mode == "face") {
+            const std::vector<EditorCandidate> candidates = mesh_edit_face_candidates_at(x, y, mesh_edit_.radius_pixels, false);
+            std::set<std::pair<int, int>> selected_faces;
+            for (const EditorCandidate& candidate : candidates) {
+                if (candidate.source_submesh_index >= 0 && candidate.source_face_index >= 0) {
+                    selected_faces.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_face_index));
+                }
+            }
+            apply_mesh_edit_face_selection_delta(selected_faces, mesh_edit_.selection_operation);
+            return;
+        }
+        if (mesh_edit_.target_mode == "edge") {
+            const std::vector<MeshEditEdgeCandidate> candidates = mesh_edit_edge_candidates_at(x, y, mesh_edit_.radius_pixels, false);
+            std::set<std::tuple<int, int, int>> selected_edges;
+            for (const MeshEditEdgeCandidate& candidate : candidates) {
+                if (candidate.source_submesh_index >= 0 && candidate.left_vertex_index >= 0 && candidate.right_vertex_index >= 0) {
+                    selected_edges.insert(mesh_edit_edge_key(candidate.source_submesh_index, candidate.left_vertex_index, candidate.right_vertex_index));
+                }
+            }
+            apply_mesh_edit_edge_selection_delta(selected_edges, mesh_edit_.selection_operation);
+            return;
+        }
         const std::vector<EditorCandidate> candidates = mesh_edit_candidates_at(x, y, mesh_edit_.radius_pixels, false);
         std::set<std::pair<int, int>> selected;
         for (const EditorCandidate& candidate : candidates) {
@@ -6080,34 +6668,83 @@ private:
         mesh_edit_.last_preview_event_y = y;
     }
 
-    void finish_mesh_edit_selection_drag(int x, int y) {
+    std::set<std::pair<int, int>> mesh_edit_faces_in_selection_region(
+        const PreviewRenderView& view,
+        int x,
+        int y,
+        const MeshEditDepthMaskCache* depth_mask) const {
+        std::set<std::pair<int, int>> selected_faces;
+        for (const PreviewBatch& batch : batches_) {
+            if (!mesh_edit_batch_editable_in_view(batch, view)) continue;
+            const size_t triangle_count = batch.cpu_positions.size() / 3u;
+            for (size_t triangle_index = 0; triangle_index < triangle_count; ++triangle_index) {
+                const size_t base = triangle_index * 3u;
+                ScreenPoint p[3]{};
+                float depth_z[3]{};
+                int source_submesh = -1;
+                bool projected = true;
+                for (size_t corner = 0; corner < 3u; ++corner) {
+                    const size_t vertex_index = base + corner;
+                    float screen_x = 0.0f;
+                    float screen_y = 0.0f;
+                    if (!project_batch_position_for_view(batch, batch.cpu_positions[vertex_index], view, screen_x, screen_y, &depth_z[corner])) {
+                        projected = false;
+                        break;
+                    }
+                    p[corner] = ScreenPoint{screen_x, screen_y};
+                    const std::pair<int, int> source_key = mesh_edit_source_key(batch, vertex_index);
+                    if (source_submesh < 0 && source_key.first >= 0) {
+                        source_submesh = source_key.first;
+                    }
+                }
+                if (!projected || source_submesh < 0 || !mesh_edit_source_allowed(source_submesh)) continue;
+                const float centroid_x = (p[0].x + p[1].x + p[2].x) / 3.0f;
+                const float centroid_y = (p[0].y + p[1].y + p[2].y) / 3.0f;
+                if (!mesh_edit_screen_point_in_selection_region(centroid_x, centroid_y, x, y)) continue;
+                const float centroid_depth = (depth_z[0] + depth_z[1] + depth_z[2]) / 3.0f;
+                if (depth_mask && !mesh_edit_screen_point_visible_in_depth_mask(centroid_x, centroid_y, centroid_depth, *depth_mask)) {
+                    continue;
+                }
+                int source_face = static_cast<int>(triangle_index);
+                for (size_t corner = 0; corner < 3u; ++corner) {
+                    const size_t face_vertex_index = base + corner;
+                    if (face_vertex_index < batch.cpu_source_faces.size() && batch.cpu_source_faces[face_vertex_index] >= 0) {
+                        source_face = batch.cpu_source_faces[face_vertex_index];
+                        break;
+                    }
+                }
+                if (source_face < 0) continue;
+                if (batch.source_face_count > 0 && source_face >= batch.source_face_count) continue;
+                selected_faces.insert(std::pair<int, int>(source_submesh, source_face));
+            }
+        }
+        return selected_faces;
+    }
+
+    void apply_mesh_edit_region_selection(int x, int y) {
         PreviewRenderView view;
         view.viewport = replacement_editor_viewport();
         view.role = PreviewViewRole::Replacement;
         const std::vector<MeshEditScreenVertex>& screen_vertices = mesh_edit_screen_vertices_for_view(view);
         const MeshEditDepthMaskCache* depth_mask = mesh_edit_depth_filter_enabled() ? &mesh_edit_depth_mask_for_view(view) : nullptr;
         std::set<std::pair<int, int>> selected;
-        if (mesh_edit_.selection_mode == "rectangle" || mesh_edit_.selection_lasso_points.size() < 3) {
-            const float min_x = static_cast<float>(std::min(mesh_edit_.start_x, x));
-            const float max_x = static_cast<float>(std::max(mesh_edit_.start_x, x));
-            const float min_y = static_cast<float>(std::min(mesh_edit_.start_y, y));
-            const float max_y = static_cast<float>(std::max(mesh_edit_.start_y, y));
-            for (const MeshEditScreenVertex& screen_vertex : screen_vertices) {
-                if (depth_mask && !mesh_edit_screen_vertex_visible_in_depth_mask(screen_vertex, *depth_mask)) continue;
-                if (screen_vertex.screen_x >= min_x && screen_vertex.screen_x <= max_x
-                    && screen_vertex.screen_y >= min_y && screen_vertex.screen_y <= max_y) {
-                    selected.insert(std::pair<int, int>(screen_vertex.source_submesh_index, screen_vertex.source_vertex_index));
-                }
-            }
-        } else {
-            for (const MeshEditScreenVertex& screen_vertex : screen_vertices) {
-                if (depth_mask && !mesh_edit_screen_vertex_visible_in_depth_mask(screen_vertex, *depth_mask)) continue;
-                if (point_inside_polygon(screen_vertex.screen_x, screen_vertex.screen_y, mesh_edit_.selection_lasso_points)) {
-                    selected.insert(std::pair<int, int>(screen_vertex.source_submesh_index, screen_vertex.source_vertex_index));
-                }
+        for (const MeshEditScreenVertex& screen_vertex : screen_vertices) {
+            if (depth_mask && !mesh_edit_screen_vertex_visible_in_depth_mask(screen_vertex, *depth_mask)) continue;
+            if (mesh_edit_screen_point_in_selection_region(screen_vertex.screen_x, screen_vertex.screen_y, x, y)) {
+                selected.insert(std::pair<int, int>(screen_vertex.source_submesh_index, screen_vertex.source_vertex_index));
             }
         }
-        apply_mesh_edit_selection_delta(selected, mesh_edit_.selection_operation);
+        if (mesh_edit_.target_mode == "face") {
+            apply_mesh_edit_face_selection_delta(mesh_edit_faces_in_selection_region(view, x, y, depth_mask), mesh_edit_.selection_operation);
+        } else if (mesh_edit_.target_mode == "edge") {
+            apply_mesh_edit_edge_selection_delta(mesh_edit_edges_for_vertices(selected), mesh_edit_.selection_operation);
+        } else {
+            apply_mesh_edit_selection_delta(selected, mesh_edit_.selection_operation);
+        }
+    }
+
+    void finish_mesh_edit_selection_drag(int x, int y) {
+        apply_mesh_edit_region_selection(x, y);
         mesh_edit_.selection_drag_active = false;
         mesh_edit_.selection_lasso_points.clear();
         if (GetCapture() == hwnd_) ReleaseCapture();
@@ -6118,8 +6755,12 @@ private:
         bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
         if (alt_down) return false;
         bool remove_selection_mode = mesh_edit_.tool == "remove" && mesh_edit_.delete_mode == "selection";
-        bool vertex_mode = mesh_edit_.target_mode == "vertex" || mesh_edit_.tool == "vertex" || remove_selection_mode;
-        if (vertex_mode) {
+        bool selection_mode = mesh_edit_.target_mode == "vertex"
+            || mesh_edit_.target_mode == "edge"
+            || mesh_edit_.target_mode == "face"
+            || mesh_edit_.tool == "vertex"
+            || remove_selection_mode;
+        if (selection_mode) {
             mesh_edit_.selection_drag_active = true;
             mesh_edit_.selection_operation = mesh_edit_selection_operation_from_modifiers(wparam);
             mesh_edit_.start_x = x;
@@ -6253,6 +6894,7 @@ private:
     }
 
     void send_json_event(const std::string& payload) const {
+        write_status(args_.status_file, payload);
         HWND parent = reinterpret_cast<HWND>(args_.parent_hwnd);
         if (!parent || !IsWindow(parent)) return;
         COPYDATASTRUCT cds{};
@@ -6516,6 +7158,22 @@ private:
             send_json_event("{\"event\":\"icon_capture_mode\",\"ok\":true}");
             return true;
         }
+        if (command == "set_source_part_picking") {
+            bool previous = source_part_.picking_enabled;
+            source_part_.picking_enabled = json_bool_field(payload, "enabled", source_part_.picking_enabled);
+            if (!source_part_.picking_enabled) {
+                source_part_.click_pending = false;
+                if (source_part_.hovered_source_submesh >= 0) {
+                    source_part_.hovered_source_submesh = -1;
+                    send_source_part_event("source_part_hovered", -1);
+                }
+            } else if (!previous) {
+                source_part_.hovered_source_submesh = -1;
+            }
+            request_render();
+            send_json_event("{\"event\":\"source_part_picking\",\"ok\":true}");
+            return true;
+        }
         if (command == "set_mesh_edit_state") {
             mesh_edit_.enabled = json_bool_field(payload, "enabled", mesh_edit_.enabled);
             mesh_edit_.scope_mode = lower_copy(json_string_field(payload, "scope_mode", mesh_edit_.scope_mode));
@@ -6629,12 +7287,16 @@ private:
         }
         if (command == "clear_mesh_edit_selection") {
             mesh_edit_.selected_vertices.clear();
+            mesh_edit_.selected_edges.clear();
+            mesh_edit_.selected_faces.clear();
             send_mesh_edit_selection_event();
             request_render();
             return true;
         }
         if (command == "set_mesh_edit_selection") {
             mesh_edit_.selected_vertices.clear();
+            mesh_edit_.selected_edges.clear();
+            mesh_edit_.selected_faces.clear();
             for (const std::string& group : json_object_array_field(payload, "groups")) {
                 int source_submesh = static_cast<int>(json_float_field(group, "source_submesh_index", -1.0f));
                 if (source_submesh < 0) continue;
@@ -6643,22 +7305,65 @@ private:
                         mesh_edit_.selected_vertices.insert(std::pair<int, int>(source_submesh, source_vertex));
                     }
                 }
+                const std::vector<int> source_edges = json_int_values_in_array_field(group, "source_edges");
+                for (size_t index = 0; index + 1u < source_edges.size(); index += 2u) {
+                    const int left = source_edges[index];
+                    const int right = source_edges[index + 1u];
+                    if (left >= 0) mesh_edit_.selected_vertices.insert(std::pair<int, int>(source_submesh, left));
+                    if (right >= 0) mesh_edit_.selected_vertices.insert(std::pair<int, int>(source_submesh, right));
+                    if (left >= 0 && right >= 0 && left != right) {
+                        mesh_edit_.selected_edges.insert(mesh_edit_edge_key(source_submesh, left, right));
+                    }
+                }
+                std::set<int> source_faces;
+                for (int source_face : json_int_array_field(group, "source_face_indices")) {
+                    if (source_face >= 0) {
+                        source_faces.insert(source_face);
+                        mesh_edit_.selected_faces.insert(std::pair<int, int>(source_submesh, source_face));
+                    }
+                }
+                add_mesh_edit_face_vertices_to_selection(source_submesh, source_faces);
             }
             send_mesh_edit_selection_event();
             request_render();
             return true;
         }
         if (command == "select_mesh_edit_brush") {
-            std::vector<EditorCandidate> candidates = mesh_edit_candidates_at(
-                last_mouse_x_,
-                last_mouse_y_,
-                mesh_edit_.radius_pixels,
-                false);
-            mesh_edit_.selected_vertices.clear();
-            for (const EditorCandidate& candidate : candidates) {
-                mesh_edit_.selected_vertices.insert(std::pair<int, int>(candidate.source_submesh_index, candidate.source_vertex_index));
+            const int brush_x = json_int_field(payload, "x", last_mouse_x_);
+            const int brush_y = json_int_field(payload, "y", last_mouse_y_);
+            last_mouse_x_ = brush_x;
+            last_mouse_y_ = brush_y;
+            mesh_edit_.selection_operation = lower_copy(json_string_field(payload, "operation", "replace"));
+            apply_mesh_edit_brush_selection(brush_x, brush_y);
+            request_render();
+            return true;
+        }
+        if (command == "select_mesh_edit_region") {
+            const std::string target_mode = lower_copy(json_string_field(payload, "target_mode", mesh_edit_.target_mode));
+            if (target_mode == "vertex" || target_mode == "edge" || target_mode == "face") {
+                mesh_edit_.target_mode = target_mode;
             }
-            send_mesh_edit_selection_event();
+            mesh_edit_.selection_mode = lower_copy(json_string_field(payload, "selection_mode", mesh_edit_.selection_mode));
+            if (mesh_edit_.selection_mode != "rectangle" && mesh_edit_.selection_mode != "lasso") {
+                mesh_edit_.selection_mode = "rectangle";
+            }
+            mesh_edit_.selection_operation = lower_copy(json_string_field(payload, "operation", "replace"));
+            mesh_edit_.selection_depth_mode = lower_copy(json_string_field(payload, "selection_depth_mode", mesh_edit_.selection_depth_mode));
+            if (mesh_edit_.selection_depth_mode != "visible" && mesh_edit_.selection_depth_mode != "xray") {
+                mesh_edit_.selection_depth_mode = "visible";
+            }
+            mesh_edit_.start_x = json_int_field(payload, "start_x", last_mouse_x_);
+            mesh_edit_.start_y = json_int_field(payload, "start_y", last_mouse_y_);
+            const int end_x = json_int_field(payload, "end_x", json_int_field(payload, "x", mesh_edit_.start_x));
+            const int end_y = json_int_field(payload, "end_y", json_int_field(payload, "y", mesh_edit_.start_y));
+            mesh_edit_.last_x = end_x;
+            mesh_edit_.last_y = end_y;
+            mesh_edit_.selection_lasso_points.clear();
+            const std::vector<float> points = json_float_array_field(payload, "points");
+            for (size_t index = 0; index + 1u < points.size(); index += 2u) {
+                mesh_edit_.selection_lasso_points.push_back(DirectX::XMFLOAT2(points[index], points[index + 1u]));
+            }
+            apply_mesh_edit_region_selection(end_x, end_y);
             request_render();
             return true;
         }
@@ -6671,10 +7376,11 @@ private:
             return true;
         }
         if (command == "replace_mesh_edit_triangles") {
-            const int replaced_batches = replace_mesh_edit_triangles_from_payload(payload);
+            const auto [replaced_batches, removed_batches] = replace_mesh_edit_triangles_from_payload(payload);
             request_render();
             std::ostringstream event;
-            event << "{\"event\":\"mesh_edit_triangles_replaced\",\"replaced_batches\":" << replaced_batches << "}";
+            event << "{\"event\":\"mesh_edit_triangles_replaced\",\"replaced_batches\":" << replaced_batches
+                  << ",\"removed_batches\":" << removed_batches << "}";
             send_json_event(event.str());
             return true;
         }
@@ -6682,7 +7388,9 @@ private:
             const fs::path payload_file = utf8_to_wide(json_string_field(payload, "payload_file"));
             const bool delete_after = json_bool_field(payload, "delete_after", true);
             const std::string file_payload = payload_file.empty() ? std::string() : read_text(payload_file);
-            const int replaced_batches = file_payload.empty() ? 0 : replace_mesh_edit_triangles_from_payload(file_payload);
+            const auto [replaced_batches, removed_batches] = file_payload.empty()
+                ? std::pair<int, int>(0, 0)
+                : replace_mesh_edit_triangles_from_payload(file_payload);
             if (delete_after && !payload_file.empty()) {
                 const std::wstring filename = payload_file.filename().wstring();
                 if (filename.rfind(L"cdmw_mesh_edit_triangles_", 0) == 0) {
@@ -6693,6 +7401,7 @@ private:
             request_render();
             std::ostringstream event;
             event << "{\"event\":\"mesh_edit_triangles_replaced\",\"replaced_batches\":" << replaced_batches
+                  << ",\"removed_batches\":" << removed_batches
                   << ",\"payload_file\":true}";
             send_json_event(event.str());
             return true;

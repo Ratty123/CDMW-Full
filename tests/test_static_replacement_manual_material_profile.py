@@ -4,6 +4,7 @@ import json
 from types import SimpleNamespace
 
 from cdmw.ui.archive_browser.static_replacement_manual_material_profile import (
+    MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_KEYS,
     coerce_manual_material_profile_values,
     delete_manual_material_profile_preset,
     load_manual_material_profile_presets,
@@ -20,6 +21,10 @@ from cdmw.ui.archive_browser.static_replacement_manual_material_profile import (
     manual_material_profile_panel_state,
     manual_profile_dirty_initial_state,
     manual_profile_ready_initial_state,
+    modify_original_advanced_texture_tuning_settings_key,
+    modify_original_manual_texture_tuning_presets_key,
+    modify_original_manual_texture_tuning_settings_key,
+    modify_original_manual_texture_tuning_values,
     manual_material_profile_preset_from_fields,
     manual_material_profile_preset_metadata,
     manual_material_profile_preset_names,
@@ -80,6 +85,52 @@ def test_stored_and_loaded_manual_profile_values_merge_known_keys_only() -> None
         stored_values=stored,
         raw_settings="{not-json",
     ) == {"base_binding_mode": "disabled", "roughness_default": 240}
+
+
+def test_modify_original_manual_texture_tuning_values_keep_route_defaults() -> None:
+    defaults = {
+        "base_binding_mode": "overlay_texture",
+        "mask_binding_mode": "detail_mask_material",
+        "support_policy": "source_only",
+        "emissive_mode": "intensity",
+        "authority_contract": "true_source_authority_detail_mask",
+        "source_color_layer_authority": False,
+        "base_color_gamma": 1.0,
+        "roughness_default": 240,
+    }
+
+    values = modify_original_manual_texture_tuning_values(
+        {
+            "base_binding_mode": "disabled",
+            "mask_binding_mode": "disabled",
+            "support_policy": "keep_original_support",
+            "authority_contract": "runtime_xml_preserve",
+            "source_color_layer_authority": True,
+            "base_color_gamma": 0.72,
+            "roughness_default": 180,
+            "unknown": "skip",
+        },
+        defaults=defaults,
+    )
+
+    assert values == {
+        "base_binding_mode": "overlay_texture",
+        "mask_binding_mode": "detail_mask_material",
+        "support_policy": "source_only",
+        "emissive_mode": "intensity",
+        "authority_contract": "true_source_authority_detail_mask",
+        "source_color_layer_authority": False,
+        "base_color_gamma": 0.72,
+        "roughness_default": 180,
+    }
+    assert "base_binding_mode" not in MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_KEYS
+    assert "source_color_layer_authority" not in MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_KEYS
+
+
+def test_modify_original_manual_texture_tuning_uses_separate_settings_keys() -> None:
+    assert modify_original_advanced_texture_tuning_settings_key() == "settings/modify_original_advanced_texture_tuning"
+    assert modify_original_manual_texture_tuning_settings_key() == "settings/modify_original_manual_texture_tuning"
+    assert modify_original_manual_texture_tuning_presets_key() == "settings/modify_original_manual_texture_tuning_presets"
 
 
 def test_manual_profile_preset_helpers_parse_and_serialize_valid_presets() -> None:

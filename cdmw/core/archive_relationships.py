@@ -49,6 +49,7 @@ _ANIMATION_EXTENSIONS = {
     ".pae",
     ".paem",
     ".paseq",
+    ".paseqc",
     ".paschedule",
     ".paschedulepath",
     ".pastage",

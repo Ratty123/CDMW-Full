@@ -28,6 +28,9 @@ stay stable while implementation moves behind compatibility wrappers.
   worker extraction points.
 - `cdmw/core/`, `cdmw/modding/`, `cdmw/rendering/`: low-level archive, texture,
   rendering, import/export, and external tool logic.
+- `native/cdmw_mesh_core/`: bundled C++ mesh-edit helper for geometry-heavy
+  Mesh Editor operations, called from Python service/modding boundaries with
+  Python fallback.
 
 ## Layer Rules
 
