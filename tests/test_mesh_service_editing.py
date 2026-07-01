@@ -53,6 +53,35 @@ def _quad_mesh(*, two_parts: bool = False) -> ParsedMesh:
     return ParsedMesh(path="quad.pac", format="pac", submeshes=submeshes, total_vertices=4 * len(submeshes), total_faces=2 * len(submeshes), has_uvs=True)
 
 
+def _spike_mesh() -> ParsedMesh:
+    return ParsedMesh(
+        path="spike.pac",
+        format="pac",
+        submeshes=[
+            SubMesh(
+                name="spike",
+                material="mat_a",
+                texture="a.dds",
+                vertices=[
+                    (0.0, 0.0, 1.0),
+                    (-1.0, 0.0, 0.0),
+                    (1.0, 0.0, 0.0),
+                    (0.0, -1.0, 0.0),
+                    (0.0, 1.0, 0.0),
+                ],
+                uvs=[(0.5, 0.5), (0.0, 0.5), (1.0, 0.5), (0.5, 0.0), (0.5, 1.0)],
+                normals=[(0.0, 0.0, 1.0)] * 5,
+                faces=[(0, 1, 3), (0, 3, 2), (0, 2, 4), (0, 4, 1)],
+                vertex_count=5,
+                face_count=4,
+            )
+        ],
+        total_vertices=5,
+        total_faces=4,
+        has_uvs=True,
+    )
+
+
 def _bent_two_face_mesh() -> ParsedMesh:
     return ParsedMesh(
         path="bent.pac",
@@ -1691,6 +1720,34 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertEqual(((0, (0,)),), result.changed_vertices_by_submesh)
         self.assertEqual((0.0, 0.0, 0.25), mesh.submeshes[0].vertices[0])
         self.assertEqual((1.0, 0.0, 0.0), mesh.submeshes[0].vertices[1])
+
+    def test_smooth_brush_relaxes_selected_spike_without_topology_change(self) -> None:
+        service = MeshService()
+        view = service.open_edit_session(_spike_mesh(), session_id="smooth-brush-spike", mode="sculpt")
+        selection = MeshEditSelection.from_maps(vertices_by_submesh={0: (0,)})
+
+        result = service.apply_command(
+            view.session_id,
+            MeshEditCommand(
+                "brush",
+                selection=selection,
+                params={
+                    "tool": "smooth",
+                    "center": (0.0, 0.0, 1.0),
+                    "radius": 0.25,
+                    "strength": 0.5,
+                    "iterations": 3,
+                },
+            ),
+        )
+
+        mesh = service.working_mesh(view.session_id)
+        self.assertTrue(result.ok)
+        self.assertFalse(result.topology_changed)
+        self.assertEqual(((0, (0,)),), result.changed_vertices_by_submesh)
+        self.assertAlmostEqual(0.125, mesh.submeshes[0].vertices[0][2], places=6)
+        self.assertEqual(5, mesh.submeshes[0].vertex_count)
+        self.assertEqual(4, mesh.submeshes[0].face_count)
 
     def test_identity_brush_does_not_create_revision(self) -> None:
         service = MeshService()

@@ -44,6 +44,7 @@ _ARCHIVE_SCAN_CACHE_MAGIC = b"CTFARCH1"
 _ARCHIVE_SCAN_CACHE_VERSION = 3
 _ARCHIVE_SCAN_SHARD_CACHE_MAGIC = b"CTFSHSC1"
 _ARCHIVE_SCAN_SHARD_CACHE_VERSION = 1
+_ARCHIVE_SCAN_SHARD_METADATA_VERSION = 1
 _HKX_CONTEXT_MODEL_PREVIEW_CACHE_LIMIT = 16
 _HKX_CONTEXT_MODEL_PREVIEW_CACHE: "OrderedDict[str, ModelPreviewData]" = OrderedDict()
 _ARCHIVE_SCAN_CACHE_LEGACY_DIRNAMES: Tuple[str, ...] = ("cache", "archive_scan_cache")
@@ -116,6 +117,10 @@ def _archive_cache_root_digest(package_root: Path) -> str:
 
 def resolve_archive_scan_shard_cache_dir(package_root: Path, cache_root: Path) -> Path:
     return cache_root / f"archive_scan_shards_{_archive_cache_root_digest(package_root)}"
+
+
+def resolve_archive_scan_shard_metadata_path(package_root: Path, cache_root: Path) -> Path:
+    return resolve_archive_scan_shard_cache_dir(package_root, cache_root) / "_metadata.json"
 
 
 def resolve_archive_basic_index_shard_cache_dir(package_root: Path, cache_root: Path) -> Path:
@@ -610,6 +615,123 @@ def _archive_source_rows_match_files(base_dir: Path, rows: Sequence[Tuple[str, i
         if actual_size != int(expected_size) or actual_mtime_ns != int(expected_mtime_ns):
             return False
     return True
+
+
+def _cache_file_source_rows(cache_dir: Path) -> List[Tuple[str, int, int]]:
+    rows: List[Tuple[str, int, int]] = []
+    if not cache_dir.is_dir():
+        return rows
+    for path in sorted(cache_dir.glob("*.bin"), key=lambda item: item.name.casefold()):
+        try:
+            stat_result = path.stat()
+        except OSError:
+            continue
+        rows.append(
+            (
+                path.name,
+                int(stat_result.st_size),
+                int(getattr(stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000))),
+            )
+        )
+    return rows
+
+
+def _cache_file_source_rows_match(cache_dir: Path, rows: Sequence[Tuple[str, int, int]]) -> bool:
+    return _cache_file_source_rows(cache_dir) == _normalize_archive_source_rows(rows)
+
+
+def _write_archive_scan_shard_metadata(
+    package_root: Path,
+    cache_root: Path,
+    *,
+    entry_count: int,
+    shard_count: int,
+    entry_metadata_signature: str,
+    entry_metadata_sources: Sequence[Tuple[str, int, int]],
+) -> None:
+    metadata_path = resolve_archive_scan_shard_metadata_path(package_root, cache_root)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "version": _ARCHIVE_SCAN_SHARD_METADATA_VERSION,
+        "created_at": time.time(),
+        "package_root": str(package_root),
+        "entry_count": int(entry_count),
+        "shard_count": int(shard_count),
+        "entry_metadata_signature_format": _ARCHIVE_ENTRY_METADATA_SIGNATURE_FORMAT,
+        "entry_metadata_signature": str(entry_metadata_signature or ""),
+        "entry_metadata_sources": [list(row) for row in _normalize_archive_source_rows(entry_metadata_sources)],
+        "shard_cache_sources": [list(row) for row in _cache_file_source_rows(metadata_path.parent)],
+    }
+    metadata_path.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+
+
+def _load_archive_scan_shard_metadata(
+    package_root: Path,
+    cache_root: Path,
+    *,
+    entry_count: int,
+    shard_count: int,
+) -> Optional[Tuple[str, List[Tuple[str, int, int]]]]:
+    metadata_path = resolve_archive_scan_shard_metadata_path(package_root, cache_root)
+    try:
+        data = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, Mapping):
+        return None
+    if int(data.get("version", 0) or 0) != _ARCHIVE_SCAN_SHARD_METADATA_VERSION:
+        return None
+    if int(data.get("entry_count", -1) or -1) != int(entry_count):
+        return None
+    if int(data.get("shard_count", -1) or -1) != int(shard_count):
+        return None
+    signature = _normalize_archive_entry_metadata_signature(data.get("entry_metadata_signature"))
+    sources = _normalize_archive_source_rows(data.get("entry_metadata_sources"))
+    shard_sources = _normalize_archive_source_rows(data.get("shard_cache_sources"))
+    if not signature or sources is None or shard_sources is None:
+        return None
+    base_dir = _archive_base_dir(package_root)
+    if not _archive_source_rows_match_files(base_dir, sources):
+        return None
+    if not _cache_file_source_rows_match(metadata_path.parent, shard_sources):
+        return None
+    return signature, sources
+
+
+def _archive_scan_shard_metadata_or_build(
+    package_root: Path,
+    cache_root: Path,
+    entries: Sequence[ArchiveEntry],
+    *,
+    shard_count: int,
+    timings: Optional[Dict[str, float]] = None,
+) -> Tuple[str, List[Tuple[str, int, int]]]:
+    load_started_at = time.perf_counter()
+    cached = _load_archive_scan_shard_metadata(
+        package_root,
+        cache_root,
+        entry_count=len(entries),
+        shard_count=shard_count,
+    )
+    if cached is not None:
+        _record_timing(timings, "entry_metadata_load_s", load_started_at)
+        if timings is not None:
+            timings.setdefault("entry_metadata_build_s", 0.0)
+        return cached
+    build_started_at = time.perf_counter()
+    entry_metadata_signature, entry_metadata_sources = _archive_entry_metadata_from_entries(package_root, entries)
+    _record_timing(timings, "entry_metadata_build_s", build_started_at)
+    if timings is not None:
+        timings.setdefault("entry_metadata_load_s", 0.0)
+    _write_archive_scan_shard_metadata(
+        package_root,
+        cache_root,
+        entry_count=len(entries),
+        shard_count=shard_count,
+        entry_metadata_signature=entry_metadata_signature,
+        entry_metadata_sources=entry_metadata_sources,
+    )
+    return entry_metadata_signature, entry_metadata_sources
 
 
 def _serialize_cache_payload(payload: dict, *, magic: bytes, compress: Optional[bool] = None) -> bytes:
@@ -1726,7 +1848,13 @@ def load_or_update_archive_scan_shards(
             for pamt_path in pamt_files:
                 relative_pamt_path = _archive_relative_source_path(base_dir, pamt_path)
                 entries.extend(loaded_entries_by_rel.get(relative_pamt_path, ()))
-            entry_metadata_signature, entry_metadata_sources = _archive_entry_metadata_from_entries(package_root, entries)
+            entry_metadata_signature, entry_metadata_sources = _archive_scan_shard_metadata_or_build(
+                package_root,
+                cache_root,
+                entries,
+                shard_count=len(pamt_files),
+                timings=timings,
+            )
             if metadata_out is not None:
                 metadata_out.clear()
                 metadata_out.update(
@@ -1792,7 +1920,13 @@ def load_or_update_archive_scan_shards(
                 relative_pamt_path = _archive_relative_source_path(base_dir, pamt_path)
                 entries.extend(loaded_entries_by_rel.get(relative_pamt_path, ()))
             source = "cache+native_scan" if str(shard_scan_source or "").strip() == "native_scan" else "cache+scan"
-            entry_metadata_signature, entry_metadata_sources = _archive_entry_metadata_from_entries(package_root, entries)
+            entry_metadata_signature, entry_metadata_sources = _archive_scan_shard_metadata_or_build(
+                package_root,
+                cache_root,
+                entries,
+                shard_count=len(pamt_files),
+                timings=timings,
+            )
             if metadata_out is not None:
                 metadata_out.clear()
                 metadata_out.update(
@@ -1852,7 +1986,13 @@ def load_or_update_archive_scan_shards(
         if timings is not None:
             timings.setdefault("cache_write_s", 0.0)
             timings.setdefault("scan_shard_write_s", 0.0)
-    entry_metadata_signature, entry_metadata_sources = _archive_entry_metadata_from_entries(package_root, entries)
+    entry_metadata_signature, entry_metadata_sources = _archive_scan_shard_metadata_or_build(
+        package_root,
+        cache_root,
+        entries,
+        shard_count=len(pamt_files),
+        timings=timings,
+    )
     if metadata_out is not None:
         metadata_out.clear()
         metadata_out.update(

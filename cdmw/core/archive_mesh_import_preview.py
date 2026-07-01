@@ -19,7 +19,6 @@ from cdmw.core.archive_mesh_types import MeshImportPreviewResult, MeshImportSupp
 from cdmw.core.archive_patching import _normalize_virtual_path
 from cdmw.core.mesh_baseline import read_archive_entry_baseline_data
 from cdmw.core.model_preview import _build_lod_summary, _build_model_preview
-from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
 from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.models import (
     ArchiveEntry,
@@ -1422,10 +1421,6 @@ def parsed_mesh_to_preview_model(parsed_mesh: ParsedMesh) -> ModelPreviewData:
     source_submeshes = parsed_mesh.submeshes
     label = "submesh" if parsed_mesh.format != "pac" else "mesh"
     preview_model = _build_model_preview(parsed_mesh.path, parsed_mesh.format, _preview_meshes_from_submeshes(source_submeshes), label)
-    if scene_import_normalizes_texture_v(parsed_mesh.format, parsed_mesh.path):
-        for mesh in getattr(preview_model, "meshes", ()) or ():
-            if getattr(mesh, "preview_texture_flip_vertical", None) is None:
-                mesh.preview_texture_flip_vertical = True
     return preview_model
 
 

@@ -174,7 +174,7 @@ def texture_slot_role_color(row_state: dict[str, object]) -> str:
 def texture_context_chip_cell(label: object, background: str, *, foreground: str = "#0d1117") -> str:
     text = str(label or "").strip() or "Unknown"
     return (
-        "<td style='padding:1px 5px; border-radius:2px; font-size:9px; font-weight:700; "
+        "<td style='padding:1px 5px; border-radius:2px; font-size:0.9em; font-weight:700; "
         f"background:{background}; color:{foreground}; white-space:nowrap;'>{escape(text)}</td>"
     )
 
@@ -279,7 +279,7 @@ def material_contract_block(
     status_text = "blocked" if blocker_count else "ready"
     status_color = "#f85149" if blocker_count else "#3fb950"
     return (
-        "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid "
+        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid "
         f"{status_color}; background:#161b22;'>"
         f"<span style='color:{status_color}; font-weight:700;'>DDS {escape(status_text)}</span>"
         f"<span style='color:#c9d1d9;'> | routes {route_count:,}"
@@ -301,7 +301,7 @@ def material_plan_summary_block(
 ) -> str:
     if empty:
         return (
-            "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid #d29922; background:#2b2416;'>"
+            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #d29922; background:#2b2416;'>"
             "<span style='color:#f2cc60; font-weight:700;'>Textures 0</span>"
             "<span style='color:#c9d1d9;'> | original/none</span>"
             "</div>"
@@ -309,7 +309,7 @@ def material_plan_summary_block(
     profile_count = profile_material_count + profile_shader_count + profile_emissive_count
     color = "#f2cc60" if conflicts else "#79c0ff"
     return (
-        "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid "
+        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid "
         f"{color}; background:#10233a;'>"
         f"<span style='color:{color}; font-weight:700;'>Textures</span>"
         f"<span style='color:#c9d1d9;'> {detected_sets:,} sets | {detected_slots:,} maps"
@@ -504,9 +504,9 @@ def texture_assignment_summary_html(
             f"<tr><td colspan='6' style='padding:7px; color:#8b949e;'>... {len(planned_rows) - 18:,} more row(s)</td></tr>"
         )
     return (
-        "<html><body style='background:#1f1f1f; color:#e6edf3; font-family:Segoe UI, sans-serif; font-size:12px; margin:0;'>"
+        "<html><body style='background:#1f1f1f; color:#e6edf3; font-size:1.2em; margin:0;'>"
         "<div style='padding:10px 12px; line-height:1.35;'>"
-        f"<div style='font-size:17px; font-weight:700; color:#f0f6fc;'>{escape(title)}</div>"
+        f"<div style='font-size:1.7em; font-weight:700; color:#f0f6fc;'>{escape(title)}</div>"
         f"<div style='margin-top:7px; color:#c9d1d9;'>{escape(reason)}</div>"
         "<table width='100%' cellspacing='0' cellpadding='0' style='margin-top:10px; background:#2b2416; border:1px solid #3d2f12;'>"
         "<tr><td width='8' style='background:#d29922;'></td>"

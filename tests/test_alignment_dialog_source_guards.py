@@ -688,8 +688,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("preview_panel.setMinimumWidth(layout_spec.preview_min_width)", source)
         self.assertIn("main_splitter.setStretchFactor(0, layout_spec.main_stretch[0])", source)
         self.assertIn("main_splitter.setStretchFactor(1, layout_spec.main_stretch[1])", source)
-        self.assertIn("control_width = max(360, min(540, int(normalized_width * 0.30)))", layout_state_source)
-        self.assertIn("max(220, normalized_width - control_width)", layout_state_source)
+        self.assertIn("target_control_width = max(420, min(620, int(normalized_width * 0.24)))", layout_state_source)
+        self.assertIn("control_width = min(target_control_width, max(controls_min_width, normalized_width - 360))", layout_state_source)
+        self.assertIn("max(360, normalized_width - control_width)", layout_state_source)
+        self.assertIn("controls_min_width=controls_min_width", layout_state_source)
+        self.assertIn("controls_max_width=16777215", layout_state_source)
         preview_shell_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PREVIEW_SHELL.read_text(encoding="utf-8")
         self.assertLess(
             preview_shell_source.index("main_splitter.addWidget(preview_panel)"),
@@ -1292,6 +1295,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def _geometry_tab_active() -> bool:", source)
         self.assertIn("if callable(_alignment_geometry_tab_active):", source)
         self.assertIn("control_tabs.widget(control_tabs.currentIndex()) is parts_tab", source)
+        self.assertIn('in {"mesh editing", "merged mesh editing"}', source)
         self.assertIn("geometry_tab_active=_geometry_tab_active()", source)
         selected_handler = source[
             source.index("def _d3d11_source_part_selected")
@@ -1316,12 +1320,18 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("alignment_d3d11_preview_host.mesh_edit_stroke_started.connect(_mesh_edit_begin_stroke)", source)
         self.assertNotIn("Mesh Edit uses viewport strokes from Legacy GreenUp edit", source)
         self.assertIn("std::string alignment_axis_at", native_source)
+        axis_hit_start = native_source.index("std::string alignment_axis_at")
+        axis_hit_end = native_source.index("std::string alignment_rotation_handle_at", axis_hit_start)
+        axis_hit_block = native_source[axis_hit_start:axis_hit_end]
+        self.assertIn("float center_distance = std::numeric_limits<float>::infinity();", axis_hit_block)
+        self.assertIn("if (!best_axis.empty() && (center_distance > 12.0f || best_distance + 4.0f < center_distance))", axis_hit_block)
+        self.assertIn('return "screen";', axis_hit_block)
         self.assertIn("draw_alignment_overlay_gdi", native_source)
         self.assertIn("if (source_part_.click_pending)", native_source)
         self.assertIn("PreviewCameraState reference_camera_", native_source)
         self.assertIn("input_view_role_at", native_source)
         self.assertIn("float side_by_side_reference_width() const", native_source)
-        self.assertIn("std::floor(static_cast<float>(width_) * 0.56f)", native_source)
+        self.assertIn("std::floor(static_cast<float>(width_) * std::clamp(side_by_side_split_ratio_", native_source)
         self.assertIn("const float left_width = side_by_side_reference_width();", native_source)
         self.assertIn("static_cast<float>(x) <= left_width", native_source)
         self.assertIn("world_units_per_pixel_for_role", native_source)
@@ -1469,6 +1479,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("dialog.show()", source)
         self.assertIn("dialog.raise_()", source)
         self.assertIn("dialog.activateWindow()", source)
+        self.assertIn("source_skeleton: object | None = None", ARCHIVE_STATIC_REPLACEMENT_DIALOG.read_text(encoding="utf-8"))
+        self.assertIn("source_skeleton: object | None = None", ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT.read_text(encoding="utf-8"))
+        mesh_edit_callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_MESH_EDIT_CALLBACKS.read_text(encoding="utf-8")
+        self.assertIn("source_skeleton = context.get('source_skeleton')", mesh_edit_callback_source)
+        self.assertIn("session.controller.attach_skeleton(", mesh_edit_callback_source)
         alignment_block = source[
             source.index("def _prompt_archive_static_replacement_options"):
             source.index("__all__", source.index("def _prompt_archive_static_replacement_options"))
@@ -1523,6 +1538,20 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertRegex(source, r"static_replacement_options,\n\s+setup\.scene_import_result\.mesh")
         self.assertIn("Mesh archive patch cancelled before writing game files.", source)
         self.assertRegex(source, r"\n\s+return\n\n\s+_start_build_with_static_options\(None\)")
+
+    def test_mesh_editor_import_and_modify_original_paths_share_embedded_builder(self) -> None:
+        launch_source = ARCHIVE_MESH_LAUNCH_FLOW.read_text(encoding="utf-8")
+        patch_source = ARCHIVE_MESH_PATCH_FLOW.read_text(encoding="utf-8")
+        modify_source = ARCHIVE_MESH_MODIFY_ORIGINAL.read_text(encoding="utf-8")
+        embedded_host = 'embedded_host=self.mesh_editor_tab.builder_host() if hasattr(self, "mesh_editor_tab") else None'
+
+        self.assertIn(embedded_host, launch_source)
+        self.assertIn("on_accept=_start_import_preview_with_options", launch_source)
+        self.assertIn(embedded_host, patch_source)
+        self.assertIn("continue_build_callback=_start_build_with_static_options", patch_source)
+        self.assertIn("source_skeleton=source_skeleton", modify_source)
+        self.assertIn("scene_import_result=scene_import_result", modify_source)
+        self.assertIn("self._start_archive_mesh_patch(entry, preset_setup=setup)", modify_source)
 
     def test_mesh_replacement_direct_archive_patch_flow_is_explicit_and_backed_up(self) -> None:
         source = _main_window_source() + "\n" + _archive_mesh_import_sources()
@@ -1654,6 +1683,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("control_tabs.setTabVisible(control_tabs.indexOf(textures_tab), False)", workflow_source)
         self.assertIn('source_mix_tray.setVisible(static_replacement_workflow_mode == "import_mesh")', workflow_source)
         self.assertIn('modify_original_texture_tuning_checkbox = QCheckBox("Advanced Texture Tuning")', ui_source)
+        self.assertIn("part_material_tuning_widgets = (", ui_source)
+        self.assertIn("visible = (not bool(modify_original_clone_mode)) or _modify_original_texture_tuning_enabled()", ui_source)
+        self.assertIn("_refresh_part_material_tuning_visibility()", ui_source)
+        outliner_source = ui_source[ui_source.index("def create_alignment_source_parts_outliner_section"):]
+        self.assertIn("_modify_original_texture_tuning_enabled = context.get('_modify_original_texture_tuning_enabled')", outliner_source)
+        self.assertIn("if not callable(_modify_original_texture_tuning_enabled):\n        _modify_original_texture_tuning_enabled = lambda: False", outliner_source)
         self.assertIn('material_authority_section.setVisible(not modify_original_clone_mode)', ui_source)
         self.assertIn("manual_profile_settings_key = (\n        modify_original_manual_profile_settings_key", ui_source)
         self.assertIn("if not modify_original_clone_mode:\n        _manual_combo(", ui_source)
@@ -1664,8 +1699,15 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("donor_material_plans=[] if modify_original_options_mode else", callbacks_source)
         self.assertIn("allow_unsafe_material_preflight_export=bool(False if modify_original_options_mode else", callbacks_source)
         self.assertIn("additional_supplemental_files=[] if modify_original_options_mode else", callbacks_source)
+        self.assertIn("def _material_authority_preview_route_enabled() -> bool:", callbacks_source)
+        self.assertIn("if bool(modify_original_clone_mode) and callable(_modify_original_texture_tuning_enabled):", callbacks_source)
+        self.assertIn("effective_enabled = bool(enabled) and (", callbacks_source)
+        self.assertIn("if not _modify_original_texture_tuning_enabled():\n                return False", callbacks_source)
+        self.assertIn("complete_enabled=_material_authority_preview_route_enabled()", callbacks_source)
         self.assertIn("auto_brightness_balance=0.0 if modify_original_clone_mode else", callbacks_source)
         self.assertIn("modify_original_tuning_enabled = _modify_original_tuning_enabled_value()", remaining_source)
+        self.assertIn("material_authority_preview_route_enabled = bool(", remaining_source)
+        self.assertIn("complete_external_swap_enabled=material_authority_preview_route_enabled", remaining_source)
         self.assertIn("MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_KEYS", manual_profile_source)
         self.assertIn('"settings/modify_original_manual_texture_tuning"', manual_profile_source)
         self.assertNotIn('"base_binding_mode",\n    "mask_binding_mode",\n    "support_policy"', manual_profile_source)
@@ -2013,6 +2055,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         alignment_setup_source = ARCHIVE_STATIC_REPLACEMENT_ALIGNMENT_SETUP_STATE.read_text(encoding="utf-8")
         self.assertIn('alignment_workflow_control_text["mesh_edit_object"]', source)
         self.assertIn('control_tabs.addTab(mesh_edit_tab, alignment_workflow_control_text["mesh_edit_label"])', source)
+        self.assertIn("control_tabs.setTabVisible(control_tabs.indexOf(mesh_edit_tab), False)", source)
+        self.assertIn("control_tabs.setTabVisible(control_tabs.indexOf(textures_tab), False)", source)
         self.assertIn('"mesh_edit_object": "MeshAlignmentMeshEditingScrollTab"', alignment_setup_source)
         self.assertIn('"mesh_edit_label": "Mesh Editing"', alignment_setup_source)
         self.assertIn("mesh_edit_layout_page.addWidget(mesh_edit_group, 0)", source)
@@ -2054,8 +2098,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("if _source_tree_selection_should_queue_preview():", source_selection_block)
         self.assertIn("_queue_selection_preview_refresh()", source_selection_block)
         self.assertIn("Use Uniform Scale for equal resizing, or Axis Scale for X/Y/Z-only changes.", source_parts_state_source)
-        self.assertIn("QDialog#MeshReplacementAlignmentDialog {\n            font-size: 8px;", prompt_shell_source)
-        self.assertIn("QDialog#MeshReplacementAlignmentDialog QTreeWidget {\n            font-size: 8px;", prompt_shell_source)
+        self.assertIn("font_sizes = _alignment_dialog_font_sizes(context)", prompt_shell_source)
+        self.assertIn("QDialog#MeshReplacementAlignmentDialog {{\n            font-size: {ui_font_size}px;", prompt_shell_source)
+        self.assertIn("QDialog#MeshReplacementAlignmentDialog QTreeWidget {{\n            font-size: {data_font_size}px;", prompt_shell_source)
+        self.assertIn('setattr(dialog, "sync_ui_font", _sync_alignment_dialog_font)', prompt_shell_source)
         self.assertIn(
             "QDialog#MeshReplacementAlignmentDialog QTextBrowser,\n        QDialog#MeshReplacementAlignmentDialog QTextEdit,\n        QDialog#MeshReplacementAlignmentDialog QPlainTextEdit",
             prompt_shell_source,
@@ -2170,11 +2216,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         source = _main_window_source()
         self.assertIn("dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)", source)
         self.assertIn("dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)", source)
-        self.assertIn("alignment_control_min_width = 640", source)
-        self.assertIn("alignment_control_content_min_width = 700", source)
-        self.assertIn("mesh_edit_control_min_width = 460", source)
-        self.assertIn("mesh_edit_control_content_min_width = 420", source)
-        self.assertIn("mesh_edit_control_max_width = 540", source)
+        self.assertIn("alignment_control_min_width = 420 if embedded_alignment_builder else 640", source)
+        self.assertIn("alignment_control_content_min_width = 0 if embedded_alignment_builder else 700", source)
+        self.assertIn("mesh_edit_control_min_width = 300 if embedded_alignment_builder else 300", source)
+        self.assertIn("mesh_edit_control_content_min_width = 0 if embedded_alignment_builder else 300", source)
+        self.assertIn("mesh_edit_control_max_width = 340 if embedded_alignment_builder else 340", source)
         self.assertIn('controls_panel.setObjectName("MeshAlignmentStickyControlPanel")', source)
         self.assertIn('control_tabs.setObjectName("MeshAlignmentStickyWorkflowTabs")', source)
         self.assertIn("control_tabs.setUsesScrollButtons(True)", source)
@@ -2195,6 +2241,24 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("min(int(mesh_edit_control_max_width), int(normalized_width * 0.24))", layout_state_source)
         self.assertIn("main_splitter.setChildrenCollapsible(False)", source)
         self.assertIn("preview_splitter.setChildrenCollapsible(False)", source)
+        self.assertIn("preview_splitter.setStretchFactor(0, 1)", source)
+        self.assertIn("preview_splitter.setStretchFactor(1, 1)", source)
+        self.assertIn("preview_splitter.setSizes([520, 520])", source)
+        routing_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_ROUTING_CALLBACKS.read_text(encoding="utf-8")
+        preview_shell_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PREVIEW_SHELL.read_text(encoding="utf-8")
+        mesh_callbacks_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_MESH_EDIT_CALLBACKS.read_text(encoding="utf-8")
+        self.assertIn("ui/mesh_alignment/{scope}/{mode}/{kind}_splitter_sizes", routing_source)
+        self.assertIn("_saved_splitter_sizes(\"main\", layout_spec.mode, 2) or layout_spec.main_sizes", routing_source)
+        self.assertIn("_saved_splitter_sizes(\"preview\", layout_spec.mode, 2) or layout_spec.preview_sizes", routing_source)
+        self.assertIn("main_splitter.splitterMoved.connect(_save_alignment_dialog_splitter_sizes)", preview_shell_source)
+        self.assertIn("preview_splitter.splitterMoved.connect(_save_alignment_dialog_splitter_sizes)", preview_shell_source)
+        self.assertIn("alignment_d3d11_split_ratio_settings_key", preview_shell_source)
+        self.assertIn("alignment_d3d11_preview_host.native_event_received.connect(_remember_alignment_d3d11_split_ratio)", preview_shell_source)
+        self.assertIn("alignment_d3d11_preview_host.remember_side_by_side_split_ratio", preview_shell_source)
+        mesh_tab_start = mesh_callbacks_source.index("def _mesh_edit_control_tab_changed")
+        mesh_tab_body = mesh_callbacks_source[mesh_tab_start: mesh_callbacks_source.index("def _mesh_edit_enabled_toggled", mesh_tab_start)]
+        self.assertIn("_apply_alignment_dialog_responsive_layout()", mesh_tab_body)
+        self.assertNotIn("_apply_alignment_dialog_responsive_layout(force_sizes=True)", mesh_tab_body)
         self.assertIn("preview_header = QVBoxLayout()", source)
         self.assertIn("preview_action_row = QHBoxLayout()", source)
         self.assertIn("preview_controls_row = QHBoxLayout()", source)
@@ -2335,8 +2399,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('mesh_edit_group = QFrame(mesh_edit_page)', main_source)
         self.assertIn('mesh_edit_group.setObjectName("MeshEditVerticalToolbox")', main_source)
         self.assertIn("mesh_edit_title_label = QLabel(_mesh_edit_dialog_title_helper())", main_source)
-        self.assertIn('mesh_edit_enabled_checkbox = QCheckBox(mesh_edit_action_control_text["edit_mode"])', main_source)
-        self.assertIn('"edit_mode": "Edit Mode"', main_source)
+        self.assertIn('preview_mesh_edit_checkbox = QCheckBox("Edit Mesh")', main_source)
+        self.assertIn("mesh_edit_enabled_checkbox = preview_mesh_edit_checkbox", main_source)
+        self.assertIn('"edit_mode": "Edit Mesh"', main_source)
         self.assertIn('mesh_edit_enabled_checkbox.setObjectName("MeshEditModeCheckbox")', main_source)
         self.assertIn("mesh_edit_scope_combo = QComboBox()", main_source)
         self.assertIn('("All editable parts", "all")', main_source)
@@ -2364,7 +2429,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('mesh_edit_show_vertices_checkbox = QCheckBox(mesh_edit_action_control_text["show_vertices_checkbox"])', main_source)
         self.assertIn('"mirror_checkbox": "Mirror X"', main_source)
         self.assertIn('"show_vertices_checkbox": "Vertex dots"', main_source)
-        self.assertIn("mesh_edit_show_vertices_checkbox.setChecked(True)", main_source)
+        self.assertIn("mesh_edit_show_vertices_checkbox.setChecked(False)", main_source)
         self.assertNotIn('mesh_edit_select_brush_button = QPushButton("Select Brush")', main_source)
         self.assertIn('mesh_edit_clear_selection_button = QPushButton(mesh_edit_action_control_text["clear_selection"])', main_source)
         self.assertIn('mesh_edit_delete_faces_button = QPushButton(mesh_edit_action_control_text["delete_faces"])', main_source)
@@ -2395,9 +2460,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_mesh_edit_allowed_source_indices = lambda", main_source)
         self.assertIn("def _mesh_edit_can_edit_scope", main_source)
         self.assertIn("def _mesh_edit_reset_scope", main_source)
-        self.assertIn("_alignment_mesh_edit_tab_active = lambda", main_source)
+        self.assertIn("def _alignment_mesh_edit_tab_active() -> bool:", main_source)
         self.assertIn("def _mesh_edit_tab_active() -> bool:", main_source)
-        self.assertIn("if not callable(_alignment_mesh_edit_tab_active):", main_source)
+        self.assertIn('_context_or_prompt("mesh_edit_enabled_checkbox")', main_source)
         self.assertIn("def _mesh_edit_control_tab_changed", main_source)
         self.assertIn("control_tabs.currentChanged.connect(_mesh_edit_control_tab_changed)", main_source)
         self.assertIn("and _mesh_edit_tab_active()", main_source)
@@ -2488,7 +2553,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("source_submesh_index", native_source)
         self.assertIn("source_vertex_index", native_source)
         self.assertIn("source_vertex_weights", native_source)
-        self.assertIn("Enable Blender-like Edit Mode for visible replacement source geometry", main_source)
+        self.assertIn("Enable viewport mesh editing for visible replacement source geometry", main_source)
         self.assertIn("vertex_weights=vertex_weights or None", main_source)
 
         self.assertIn("source_submesh_index=submesh_index", archive_source)
@@ -3335,7 +3400,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("_queue_static_preview_rebuild()", setup_block)
 
         fast_flip_start = source.index("_current_global_flip_v_fast_preview_value = lambda")
-        fast_flip_end = source.index("_alignment_geometry_tab_active = lambda", fast_flip_start)
+        fast_flip_end = source.index("def _alignment_geometry_tab_active() -> bool:", fast_flip_start)
         fast_flip_block = source[fast_flip_start:fast_flip_end]
         self.assertIn("def _reapply_global_flip_v_fast_preview(expected_flip_v: bool) -> None:", fast_flip_block)
         self.assertIn("def _reapply_current_global_flip_v_fast_preview() -> None:", fast_flip_block)
@@ -3416,8 +3481,19 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             "if recovery_action.should_stop_process and callable(_alignment_d3d11_stop_process):",
             clear_loading_block,
         )
+        self.assertIn("prompt_shell_context = context.get('prompt_shell_context')", source)
+        self.assertIn("def _stale_reload_rebuild_callback():", source)
+        self.assertIn(
+            "callback = prompt_shell_context.get('_queue_latest_alignment_d3d11_rebuild_for_stale_reload')",
+            source,
+        )
+        self.assertIn("QTimer.singleShot(0, _restart_latest_alignment_d3d11_rebuild)", clear_loading_block)
         self.assertNotIn(
             "if recovery_action.should_stop_process:\n                _alignment_d3d11_stop_process()",
+            clear_loading_block,
+        )
+        self.assertNotIn(
+            "lambda expected_request=watchdog_snapshot.active_request_id: _queue_latest_alignment_d3d11_rebuild_for_stale_reload(expected_request)",
             clear_loading_block,
         )
         self.assertIn("Preview reload restarted.", source)
@@ -3485,6 +3561,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('preview_gizmo_checkbox = QCheckBox(alignment_preview_control_text["gizmo"])', source)
         self.assertIn('"gizmo": "Gizmo"', preview_status_source)
         self.assertIn('preview_part_pick_checkbox = QCheckBox(alignment_preview_control_text["part_pick"])', source)
+        self.assertIn('preview_mesh_edit_checkbox = QCheckBox("Edit Mesh")', source)
+        self.assertIn("mesh_edit_enabled_checkbox = preview_mesh_edit_checkbox", source)
         self.assertIn('"part_pick": "Part Pick"', preview_status_source)
         self.assertIn("preview_gizmo_checkbox.setChecked(False)", source)
         self.assertIn("preview_part_pick_checkbox.setChecked(False)", source)
@@ -3843,7 +3921,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("texture_transform_group.setVisible(bool(has_materials and advanced_materials_checkbox.isChecked()))", source)
         self.assertNotIn('texture_transform_group.setVisible(bool(selected_texture_plan_source.get("material_name")))', source)
         self.assertIn("texture_detail_browser.setMinimumWidth(300)", source)
-        self.assertIn("QTextBrowser { font-size: 8px; line-height: 1.08; }", source)
+        self.assertIn("alignment_font_sizes = _alignment_dialog_font_sizes(context)", source)
+        self.assertIn("QTextBrowser {{ font-size: {alignment_font_sizes['data']}px; line-height: 1.08; }}", source)
         self.assertIn("material_plan_layout.setContentsMargins(5, 3, 5, 3)", source)
         self.assertIn("texture_transform_layout.setContentsMargins(5, 3, 5, 3)", source)
         self.assertIn("texture_workflow_layout.setSpacing(3)", source)
@@ -4956,6 +5035,21 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('delete_source_parts_button.clicked.connect(lambda _checked=False: _delete_selected_source_parts())', source)
         self.assertNotIn('delete_source_parts_button.clicked.connect(_delete_selected_source_parts)', source)
         self.assertIn('apply_source_parts_button.clicked.connect(_apply_source_part_preview_changes)', source)
+        self.assertIn("alignment_source_part_mutation_callbacks = None", dialog_source)
+        self.assertIn("create_alignment_source_part_mutation_callbacks = context.get('create_alignment_source_part_mutation_callbacks')", dialog_source)
+        self.assertIn("if alignment_source_part_mutation_callbacks is None:\n            return", dialog_source)
+        self.assertLess(
+            dialog_source.index("alignment_source_part_mutation_callbacks = None"),
+            dialog_source.index("def _delete_selected_source_parts("),
+        )
+        self.assertLess(
+            dialog_source.index("_mirror_submesh_x = lambda source, plane_x: _mirror_submesh_x_helper("),
+            dialog_source.index("alignment_source_part_mutation_callbacks = create_alignment_source_part_mutation_callbacks"),
+        )
+        self.assertEqual(
+            dialog_source.count("alignment_source_part_mutation_callbacks = create_alignment_source_part_mutation_callbacks"),
+            1,
+        )
         self.assertIn("apply_button_enabled=True", source_parts_state_source)
         self.assertIn("apply_source_parts_button.setEnabled(bool(source_parts_apply_state.get(\"pending\")))", source)
         self.assertIn('"preview_rebuild_pending": False', source_parts_state_source)
@@ -5338,6 +5432,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
     def test_alignment_startup_attaches_scene_preview_textures_before_first_d3d11_request(self) -> None:
         source = _main_window_source()
         startup_state_source = ARCHIVE_STATIC_REPLACEMENT_STARTUP_STATE.read_text(encoding="utf-8")
+        prompt_state = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_STATE_CALLBACKS.read_text(encoding="utf-8")
         start = source.index('_alignment_startup_step(alignment_startup_text["preview_meshes"])')
         end = source.index("original_dialog_preview.set_render_settings(preview_render_settings)", start)
         startup = source[start:end]
@@ -5345,7 +5440,13 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)", startup)
         self.assertIn("if isinstance(scene_import_result, SceneImportResult):", startup)
         self.assertIn("attach_scene_preview_textures(replacement_preview_model, scene_import_result, obj_path)", startup)
-        self.assertIn('"flip_v": True', startup)
+        self.assertIn('"flip_v": False', startup)
+        self.assertNotIn('"flip_v": True', startup)
+        setter_start = prompt_state.index("def _set_replacement_preview_model(value) -> None:")
+        setter_end = prompt_state.index("asset_profile:", setter_start)
+        setter = prompt_state[setter_start:setter_end]
+        self.assertIn("if SceneImportResult is not None and isinstance(scene_import_result, SceneImportResult):", setter)
+        self.assertIn("mesh.preview_texture_flip_vertical = False", setter)
         ui_sections = ARCHIVE_STATIC_REPLACEMENT_DIALOG_UI_SECTIONS.read_text(encoding="utf-8")
         self.assertIn('setup_texture_flip_v_checkbox.setChecked(bool(texture_uv_global_transform_state.get("flip_v")))', ui_sections)
 

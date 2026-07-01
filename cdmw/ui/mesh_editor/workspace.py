@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -81,26 +81,104 @@ class MeshEditorWorkspace(QFrame):
         *,
         theme_key: str = "graphite",
         actions: Sequence[MeshEditorAction] = MESH_EDITOR_ACTIONS,
+        embedded_controls_only: bool = False,
+        object_name: str = "MeshEditorStandaloneWorkspace",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setObjectName("MeshEditorStandaloneWorkspace")
+        self.setObjectName(str(object_name or "MeshEditorStandaloneWorkspace"))
+        self._theme_key = str(theme_key or "graphite")
         self._actions_by_key = {action.key: action for action in actions}
         self._buttons_by_key: dict[str, QToolButton] = {}
+        self._uv_action_buttons: dict[str, QToolButton] = {}
+        self._ui_font_widgets: list[QWidget] = []
         self._updating_state = False
         self._has_editor_target = False
         self._workspace_summary: MeshWorkspaceSummary | None = None
         self._uv_summary: MeshUvSummary | None = None
+        self._embedded_controls_only = bool(embedded_controls_only)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(6, 6, 6, 6)
+        margin = 0 if embedded_controls_only else 6
+        root.setContentsMargins(margin, margin, margin, margin)
         root.setSpacing(4)
         root.addWidget(self._build_top_bar())
-        root.addWidget(self._build_body(theme_key), 1)
+        if embedded_controls_only:
+            root.addWidget(self._build_right_panels(), 1)
+            self.right_panels.setMinimumWidth(0)
+            self.right_panels.setMaximumWidth(16777215)
+            self.right_panels.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        else:
+            root.addWidget(self._build_body(theme_key), 1)
         root.addWidget(self._build_status_strip())
 
     def button_for_key(self, key: str) -> QToolButton | None:
         return self._buttons_by_key.get(str(key or ""))
+
+    def set_theme(self, theme_key: str) -> None:
+        self._theme_key = str(theme_key or self._theme_key)
+        preview = getattr(self, "preview", None)
+        if preview is not None and hasattr(preview, "set_theme"):
+            preview.set_theme(self._theme_key)
+        for button in self.findChildren(QToolButton):
+            icon_key = str(button.property("meshEditorIconKey") or "")
+            if icon_key:
+                button.setIcon(mesh_editor_action_icon(icon_key, self.palette()))
+        self.update()
+
+    def sync_ui_font(self, font: QFont, data_font: QFont | None = None) -> None:
+        ui_font = QFont(font)
+        dense_font = QFont(data_font or ui_font)
+        self._set_widget_font(self, ui_font)
+        for name in (
+            "mode_combo",
+            "selection_combo",
+            "snap_combo",
+            "pivot_combo",
+            "orientation_combo",
+            "left_tool_pages",
+            "right_panels",
+            "native_preview_button",
+            "native_part_pick_status_label",
+            "preview_skeleton_button",
+            "preview_pose_button",
+            "pose_preview_button",
+            "animation_speed_combo",
+            "animation_scrub_slider",
+            "part_selection_summary_label",
+            "open_texture_button",
+            "compare_mode_combo",
+            "status_label",
+            "part_status_label",
+        ):
+            self._set_widget_font(getattr(self, name, None), ui_font)
+        for button in self._buttons_by_key.values():
+            self._set_widget_font(button, ui_font)
+        for widget in self._ui_font_widgets:
+            self._set_widget_font(widget, ui_font)
+        for name in (
+            "outliner",
+            "properties_tree",
+            "validator_tree",
+            "history_list",
+            "uv_tree",
+            "skeleton_tree",
+            "material_tree",
+            "compare_tree",
+            "log_list",
+        ):
+            widget = getattr(self, name, None)
+            self._set_widget_font(widget, dense_font)
+            header = widget.header() if isinstance(widget, QTreeWidget) else None
+            self._set_widget_font(header, dense_font)
+        log_list = getattr(self, "log_list", None)
+        if log_list is not None:
+            log_list.setMaximumHeight(max(54, log_list.fontMetrics().height() * 3 + 12))
+
+    @staticmethod
+    def _set_widget_font(widget: QWidget | None, font: QFont) -> None:
+        if widget is not None and widget.font().toString() != font.toString():
+            widget.setFont(font)
 
     def update_action_state(
         self,
@@ -118,9 +196,6 @@ class MeshEditorWorkspace(QFrame):
         self._sync_combo(self.selection_combo, str(active_selection_mode or "vertex"))
         current_mode = str(mode or "").strip().lower()
         for action in self._actions_by_key.values():
-            button = self.button_for_key(action.key)
-            if button is None:
-                continue
             enabled = bool(has_target)
             if action.mode and action.category != "mode" and action.mode != current_mode:
                 enabled = False
@@ -130,7 +205,13 @@ class MeshEditorWorkspace(QFrame):
                 enabled = False
             if action.command == "redo" and int(redo_count or 0) <= 0:
                 enabled = False
-            button.setEnabled(enabled)
+            for button in (self.button_for_key(action.key), self._uv_action_buttons.get(action.key)):
+                if button is not None:
+                    button.setEnabled(enabled)
+        for name in ("uv_select_all_button", "uv_clear_selection_button"):
+            button = getattr(self, name, None)
+            if button is not None:
+                button.setEnabled(bool(has_target))
         open_texture_button = getattr(self, "open_texture_button", None)
         if open_texture_button is not None:
             self._sync_part_controls()
@@ -226,8 +307,9 @@ class MeshEditorWorkspace(QFrame):
         self._uv_summary = summary
         self.uv_canvas.set_uv_summary(summary)
         self.uv_tree.clear()
+        self._sync_uv_summary_label(summary)
         workspace_summary = self._workspace_summary
-        if workspace_summary is not None:
+        if workspace_summary is not None and not self._embedded_controls_only:
             for part in workspace_summary.parts:
                 self.uv_tree.addTopLevelItem(
                     QTreeWidgetItem(
@@ -247,14 +329,27 @@ class MeshEditorWorkspace(QFrame):
         for island in summary.islands:
             selected = "*" if island.selected else ""
             texture = island.texture or "missing texture"
-            self.uv_tree.addTopLevelItem(
-                QTreeWidgetItem(
-                    (
-                        f"{selected}Island {island.index} | part {island.submesh_index}: {island.part_name}",
-                        f"{island.vertex_count} verts | {island.face_count} faces | {island.bounds_text} | {texture}",
-                    )
+            item = QTreeWidgetItem(
+                (
+                    f"{selected}Island {island.index} | part {island.submesh_index}: {island.part_name}",
+                    f"{island.vertex_count} verts | {island.face_count} faces | {island.bounds_text} | {texture}",
                 )
             )
+            item.setData(0, Qt.ItemDataRole.UserRole, (island.uv_min, island.uv_max))
+            self.uv_tree.addTopLevelItem(item)
+
+    def _sync_uv_summary_label(self, summary: MeshUvSummary | None) -> None:
+        label = getattr(self, "uv_summary_label", None)
+        if label is None:
+            return
+        if summary is None or not summary.islands:
+            label.setText("UV: no islands selected")
+            return
+        textures = sorted({island.texture for island in summary.islands if island.texture})
+        selected = int(summary.selected_island_count or 0)
+        label.setText(
+            f"UV: {summary.island_count} island(s) | {selected} selected | {', '.join(textures[:3]) or 'missing texture'}"
+        )
 
     def update_skeleton_summary(self, summary: MeshSkeletonSummary | None) -> None:
         self.skeleton_tree.clear()
@@ -279,6 +374,9 @@ class MeshEditorWorkspace(QFrame):
                 )
             )
         )
+        if self._embedded_controls_only:
+            self._update_embedded_skeleton_summary(summary)
+            return
         resolver_bits = [
             f"descriptor {summary.skeleton_descriptor_source}" if summary.skeleton_descriptor_source else "",
             f"variation {summary.skeleton_variation_source}" if summary.skeleton_variation_source else "",
@@ -581,6 +679,73 @@ class MeshEditorWorkspace(QFrame):
         if self.skeleton_tree.topLevelItemCount() <= 1 and not any(part.skinned for part in summary.parts):
             self.skeleton_tree.addTopLevelItem(QTreeWidgetItem(("No skinned parts", "")))
 
+    def _update_embedded_skeleton_summary(self, summary: MeshSkeletonSummary) -> None:
+        if summary.skeleton_descriptor_source or summary.skeleton_variation_source or summary.animation_constraint_source:
+            sources = " | ".join(
+                bit
+                for bit in (
+                    f"descriptor {summary.skeleton_descriptor_source}" if summary.skeleton_descriptor_source else "",
+                    f"variation {summary.skeleton_variation_source}" if summary.skeleton_variation_source else "",
+                    f"constraint {summary.animation_constraint_source}" if summary.animation_constraint_source else "",
+                )
+                if bit
+            )
+            self.skeleton_tree.addTopLevelItem(QTreeWidgetItem(("Rig source", sources)))
+        pose = summary.pose
+        if pose.selected_bone_index >= 0:
+            selected = pose.selected_bone_name or "selected bone"
+            self.skeleton_tree.addTopLevelItem(
+                QTreeWidgetItem(("Selected bone", f"{pose.selected_bone_index}: {selected} | rot {pose.rotation_text}"))
+            )
+        if summary.invalid_row_count or summary.unnormalized_vertex_count:
+            self.skeleton_tree.addTopLevelItem(
+                QTreeWidgetItem(
+                    (
+                        "Validation",
+                        f"{summary.invalid_row_count} invalid rows | {summary.unnormalized_vertex_count} unnormalized vertices",
+                    )
+                )
+            )
+        if summary.animation_status:
+            self.skeleton_tree.addTopLevelItem(
+                QTreeWidgetItem(
+                    (
+                        "Animation",
+                        f"{summary.animation_status} | {'ready' if summary.animation_playback_ready else 'not editable here'}",
+                    )
+                )
+            )
+        if summary.bones:
+            parser_note = f" | parser {summary.skeleton_parser_mode}" if summary.skeleton_parser_mode else ""
+            self.skeleton_tree.addTopLevelItem(
+                QTreeWidgetItem(("Bones", f"{len(summary.bones)} bones | {summary.root_bone_count} roots | depth {summary.max_depth}{parser_note}"))
+            )
+            for bone in summary.bones[:_SKELETON_PANEL_BONE_LIMIT]:
+                indent = "  " * min(max(0, int(bone.depth or 0)), 8)
+                selected = "*" if bone.index == summary.pose.selected_bone_index else ""
+                parent = bone.parent_name or "root"
+                position = f" | pos {bone.position_text}" if bone.position_text else ""
+                item = QTreeWidgetItem((f"{indent}{selected}{bone.index}: {bone.name}", f"parent {parent} | children {bone.child_count}{position}"))
+                item.setData(0, Qt.ItemDataRole.UserRole, bone.index)
+                self.skeleton_tree.addTopLevelItem(item)
+            if len(summary.bones) > _SKELETON_PANEL_BONE_LIMIT:
+                self.skeleton_tree.addTopLevelItem(
+                    QTreeWidgetItem(("Truncated", f"showing first {_SKELETON_PANEL_BONE_LIMIT} of {len(summary.bones)} bones"))
+                )
+        skinned_parts = [part for part in summary.parts if part.skinned]
+        if skinned_parts:
+            self.skeleton_tree.addTopLevelItem(
+                QTreeWidgetItem(("Weighted parts", f"{summary.weighted_part_count}/{summary.part_count} parts use skeleton weights"))
+            )
+            for part in skinned_parts[:32]:
+                selected = "*" if part.selected else ""
+                detail = f"{part.weighted_vertex_count}/{part.vertex_count} weighted | {part.bone_count} bones"
+                self.skeleton_tree.addTopLevelItem(QTreeWidgetItem((f"{selected}{part.index}: {part.name}", detail)))
+            if len(skinned_parts) > 32:
+                self.skeleton_tree.addTopLevelItem(QTreeWidgetItem(("Parts truncated", f"showing first 32 of {len(skinned_parts)} skinned parts")))
+        if self.skeleton_tree.topLevelItemCount() <= 1:
+            self.skeleton_tree.addTopLevelItem(QTreeWidgetItem(("No skinned parts", "")))
+
     def append_log(self, message: str) -> None:
         text = str(message or "").strip()
         if text:
@@ -590,7 +755,7 @@ class MeshEditorWorkspace(QFrame):
     def _build_top_bar(self) -> QWidget:
         frame = QFrame(self)
         frame.setObjectName("MeshEditorTopModeBar")
-        layout = QHBoxLayout(frame)
+        layout = QGridLayout(frame) if self._embedded_controls_only else QHBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         self.mode_combo = self._combo("MeshEditorModeCombo", ("Object", "Edit", "Sculpt"))
@@ -598,18 +763,30 @@ class MeshEditorWorkspace(QFrame):
         self.snap_combo = self._combo("MeshEditorSnapModeCombo", ("Off", "Grid", "Vertex", "Pixel"))
         self.pivot_combo = self._combo("MeshEditorPivotCombo", ("Median", "Center", "Cursor", "Individual"))
         self.orientation_combo = self._combo("MeshEditorOrientationCombo", ("Global", "Local", "Normal", "View"))
-        for label_text, widget in (
+        for index, (label_text, widget) in enumerate((
             ("Mode", self.mode_combo),
             ("Select", self.selection_combo),
             ("Snap", self.snap_combo),
             ("Pivot", self.pivot_combo),
             ("Orient", self.orientation_combo),
-        ):
+        )):
             label = QLabel(label_text, frame)
             label.setObjectName(f"{widget.objectName()}Label")
-            layout.addWidget(label)
-            layout.addWidget(widget)
-        layout.addStretch(1)
+            self._ui_font_widgets.append(label)
+            if self._embedded_controls_only:
+                widget.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+                widget.setMinimumContentsLength(6)
+                widget.setMinimumWidth(72)
+                widget.setMaximumWidth(118)
+                row = index // 3
+                column = (index % 3) * 2
+                layout.addWidget(label, row, column)
+                layout.addWidget(widget, row, column + 1)
+            else:
+                layout.addWidget(label)
+                layout.addWidget(widget)
+        if not self._embedded_controls_only:
+            layout.addStretch(1)
         self.mode_combo.currentTextChanged.connect(self._mode_changed)
         self.selection_combo.currentTextChanged.connect(self._selection_changed)
         return frame
@@ -659,6 +836,7 @@ class MeshEditorWorkspace(QFrame):
                 continue
             label = QLabel(_LEFT_CATEGORY_LABELS.get(category, category.title()), page)
             label.setObjectName(f"MeshEditorToolCategory_{category}")
+            self._ui_font_widgets.append(label)
             layout.addWidget(label, row, 0, 1, 3)
             row += 1
             for index, action in enumerate(category_actions):
@@ -678,6 +856,7 @@ class MeshEditorWorkspace(QFrame):
         button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         button.setToolTip(_workspace_action_tooltip(action))
         button.setProperty("meshEditorActionKey", action.key)
+        button.setProperty("meshEditorIconKey", action.icon_key)
         button.setAutoRaise(True)
         button.setFixedSize(42, 36)
         button.clicked.connect(lambda _checked=False, current=action: self.action_requested.emit(current))
@@ -687,6 +866,7 @@ class MeshEditorWorkspace(QFrame):
     def _add_rig_palette_controls(self, parent: QWidget, layout: QGridLayout, row: int) -> int:
         label = QLabel("Character Preview", parent)
         label.setObjectName("MeshEditorToolCategory_rig")
+        self._ui_font_widgets.append(label)
         layout.addWidget(label, row, 0, 1, 3)
         row += 1
         self.rig_skeleton_button = self._rig_palette_button(
@@ -696,7 +876,7 @@ class MeshEditorWorkspace(QFrame):
             "select_edge",
             "Open the Skeleton panel.",
         )
-        self.rig_skeleton_button.clicked.connect(lambda _checked=False: self._focus_right_panel("Skeleton"))
+        self.rig_skeleton_button.clicked.connect(lambda _checked=False: self._focus_right_panel("Rig"))
         layout.addWidget(self.rig_skeleton_button, row, 0)
         self.rig_pose_button = self._rig_palette_button(
             parent,
@@ -750,6 +930,7 @@ class MeshEditorWorkspace(QFrame):
         button.setText(text)
         button.setAccessibleName(text)
         button.setToolTip(tooltip)
+        button.setProperty("meshEditorIconKey", icon_key)
         button.setIcon(mesh_editor_action_icon(icon_key, self.palette()))
         button.setIconSize(QSize(18, 18))
         button.setToolButtonStyle(Qt.ToolButtonIconOnly)
@@ -757,6 +938,7 @@ class MeshEditorWorkspace(QFrame):
         button.setCheckable(checkable)
         button.setEnabled(False)
         button.setFixedSize(42, 36)
+        self._ui_font_widgets.append(button)
         return button
 
     def _build_preview_area(self, theme_key: str) -> QWidget:
@@ -794,6 +976,7 @@ class MeshEditorWorkspace(QFrame):
         self.preview_skeleton_button.setText("Skeleton")
         self.preview_skeleton_button.setAccessibleName("Show skeleton preview")
         self.preview_skeleton_button.setToolTip("Open Skeleton panel and reload native preview with skeleton overlay metadata.")
+        self.preview_skeleton_button.setProperty("meshEditorIconKey", "select_edge")
         self.preview_skeleton_button.setIcon(mesh_editor_action_icon("select_edge", self.palette()))
         self.preview_skeleton_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.preview_skeleton_button.setEnabled(False)
@@ -804,6 +987,7 @@ class MeshEditorWorkspace(QFrame):
         self.preview_pose_button.setText("Pose")
         self.preview_pose_button.setAccessibleName("Toggle pose preview")
         self.preview_pose_button.setToolTip("Toggle skinned pose preview deformation.")
+        self.preview_pose_button.setProperty("meshEditorIconKey", "transform_rotate")
         self.preview_pose_button.setIcon(mesh_editor_action_icon("transform_rotate", self.palette()))
         self.preview_pose_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.preview_pose_button.setCheckable(True)
@@ -819,6 +1003,9 @@ class MeshEditorWorkspace(QFrame):
     def _build_right_panels(self) -> QTabWidget:
         tabs = QTabWidget(self)
         tabs.setObjectName("MeshEditorRightPanels")
+        tabs.setUsesScrollButtons(True)
+        tabs.setElideMode(Qt.ElideRight)
+        tabs.tabBar().setExpanding(False)
         tabs.setMinimumWidth(300)
         tabs.setMaximumWidth(430)
         self.right_panels = tabs
@@ -833,13 +1020,13 @@ class MeshEditorWorkspace(QFrame):
         self.history_list.setObjectName("MeshEditorHistoryPanel")
         skeleton_panel = self._build_skeleton_panel()
         for widget, title in (
-            (self.outliner, "Outliner"),
-            (self.properties_tree, "Properties"),
-            (skeleton_panel, "Skeleton"),
-            (uv_panel, "UV"),
-            (material_panel, "Parts & Routing"),
-            (compare_panel, "Compare"),
-            (self.validator_tree, "Validator"),
+            (self.outliner, "Parts"),
+            (self.properties_tree, "Details"),
+            (skeleton_panel, "Rig"),
+            (uv_panel, "UV Map"),
+            (material_panel, "Part Actions"),
+            (compare_panel, "Review"),
+            (self.validator_tree, "Checks"),
             (self.history_list, "History"),
         ):
             tabs.addTab(widget, title)
@@ -862,7 +1049,7 @@ class MeshEditorWorkspace(QFrame):
                 return
 
     def _request_skeleton_native_preview(self) -> None:
-        self._focus_right_panel("Skeleton")
+        self._focus_right_panel("Rig")
         self.native_preview_requested.emit()
 
     def _build_uv_panel(self) -> QWidget:
@@ -871,13 +1058,108 @@ class MeshEditorWorkspace(QFrame):
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
+        self.uv_summary_label = QLabel("UV: no mesh", frame)
+        self.uv_summary_label.setObjectName("MeshEditorUVSummaryLabel")
+        self.uv_summary_label.setWordWrap(True)
+        self._ui_font_widgets.append(self.uv_summary_label)
+        layout.addWidget(self.uv_summary_label)
+        layout.addWidget(self._build_uv_action_panel(frame))
         self.uv_canvas = MeshUvCanvas(frame)
         self.uv_canvas.region_selected.connect(self.uv_region_selected.emit)
         self.uv_canvas.lasso_selected.connect(self.uv_lasso_selected.emit)
-        layout.addWidget(self.uv_canvas)
+        layout.addWidget(self.uv_canvas, 2)
         self.uv_tree = self._tree(("UV", "Value"), "MeshEditorUVPanel")
+        self.uv_tree.itemClicked.connect(self._uv_tree_item_clicked)
         layout.addWidget(self.uv_tree, 1)
         return frame
+
+    def _build_uv_action_panel(self, parent: QWidget) -> QWidget:
+        frame = QFrame(parent)
+        frame.setObjectName("MeshEditorUVActionPanel")
+        layout = QGridLayout(frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setHorizontalSpacing(4)
+        layout.setVerticalSpacing(4)
+        self.uv_select_all_button = self._uv_command_button(
+            frame,
+            "MeshEditorUVSelectAllButton",
+            "Select All",
+            "select_face",
+            "Select all mesh parts for UV editing.",
+            lambda _checked=False: self.part_selection_requested.emit(-1, "select_all"),
+        )
+        self.uv_clear_selection_button = self._uv_command_button(
+            frame,
+            "MeshEditorUVClearSelectionButton",
+            "Clear",
+            "delete",
+            "Clear UV edit selection.",
+            lambda _checked=False: self.part_selection_requested.emit(-1, "clear"),
+        )
+        buttons = [
+            self.uv_select_all_button,
+            self.uv_clear_selection_button,
+            self._uv_action_button(frame, "uv_flip_u"),
+            self._uv_action_button(frame, "uv_flip_v"),
+            self._uv_action_button(frame, "uv_rotate_90", text="Rotate 90"),
+            self._uv_action_button(frame, "uv_normalize"),
+            self._uv_action_button(frame, "uv_pack"),
+            self._uv_action_button(frame, "uv_align_u"),
+            self._uv_action_button(frame, "uv_align_v"),
+            self._uv_action_button(frame, "uv_planar_project", text="Planar"),
+            self._uv_action_button(frame, "uv_box_project", text="Box"),
+            self._uv_action_button(frame, "uv_cylindrical_project", text="Cylinder"),
+            self._uv_action_button(frame, "uv_snap_grid", text="Snap Grid"),
+            self._uv_action_button(frame, "uv_snap_pixels", text="Snap Pixel"),
+        ]
+        columns = 3 if self._embedded_controls_only else 2
+        for index, button in enumerate(buttons):
+            layout.addWidget(button, index // columns, index % columns)
+        for column in range(columns):
+            layout.setColumnStretch(column, 1)
+        return frame
+
+    def _uv_action_button(self, parent: QWidget, action_key: str, *, text: str = "") -> QToolButton:
+        action = self._actions_by_key[action_key]
+        return self._uv_command_button(
+            parent,
+            f"MeshEditorUVAction_{action.key}",
+            text or action.text,
+            action.icon_key,
+            _workspace_action_tooltip(action),
+            lambda _checked=False, current=action: self.action_requested.emit(current),
+            action_key=action.key,
+        )
+
+    def _uv_command_button(
+        self,
+        parent: QWidget,
+        object_name: str,
+        text: str,
+        icon_key: str,
+        tooltip: str,
+        callback: object,
+        *,
+        action_key: str = "",
+    ) -> QToolButton:
+        button = QToolButton(parent)
+        button.setObjectName(object_name)
+        button.setText(text)
+        button.setAccessibleName(text)
+        button.setToolTip(tooltip)
+        button.setProperty("meshEditorIconKey", icon_key)
+        button.setIcon(mesh_editor_action_icon(icon_key, self.palette()))
+        button.setIconSize(QSize(18, 18))
+        button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        button.setAutoRaise(True)
+        button.setMinimumHeight(28)
+        button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        button.setEnabled(False)
+        button.clicked.connect(callback)  # type: ignore[arg-type]
+        self._ui_font_widgets.append(button)
+        if action_key:
+            self._uv_action_buttons[action_key] = button
+        return button
 
     def _build_skeleton_panel(self) -> QWidget:
         frame = QFrame(self)
@@ -885,14 +1167,36 @@ class MeshEditorWorkspace(QFrame):
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
-        controls = QHBoxLayout()
+        if self._embedded_controls_only:
+            hint = QLabel("Rig view: click a bone row to select/highlight it. Pose and weight authoring stays in the standalone rig tools.", frame)
+            hint.setObjectName("MeshEditorSkeletonReadOnlyLabel")
+            hint.setWordWrap(True)
+            layout.addWidget(hint)
+            self.skeleton_tree = self._tree(("Skeleton", "Value"), "MeshEditorSkeletonPanel")
+            self.skeleton_tree.itemClicked.connect(self._skeleton_tree_item_clicked)
+            layout.addWidget(self.skeleton_tree, 1)
+            return frame
+        controls_frame = QFrame(frame)
+        controls_frame.setObjectName("MeshEditorSkeletonControlsFrame")
+        controls = QGridLayout(controls_frame)
         controls.setContentsMargins(0, 0, 0, 0)
-        controls.setSpacing(4)
+        controls.setHorizontalSpacing(6)
+        controls.setVerticalSpacing(4)
+
+        def add_group_label(row: int, text: str) -> None:
+            label = QLabel(text, controls_frame)
+            label.setObjectName(f"MeshEditorSkeleton{text.replace(' ', '')}Label")
+            self._ui_font_widgets.append(label)
+            controls.addWidget(label, row, 0)
+
+        add_group_label(0, "Preview")
         self.pose_preview_button = self._skeleton_pose_button("MeshEditorPosePreviewButton", "Pose", "toggle", checkable=True)
         self.pose_preview_button.clicked.connect(
             lambda checked=False: self.skeleton_pose_requested.emit("set_pose_preview", bool(checked))
         )
-        controls.addWidget(self.pose_preview_button)
+        controls.addWidget(self.pose_preview_button, 0, 1)
+        add_group_label(1, "Pose")
+        pose_column = 1
         for object_name, attr_name, text, rotation in (
             ("MeshEditorPoseRotateXButton", "pose_rotate_x_button", "Rot X", (15.0, 0.0, 0.0)),
             ("MeshEditorPoseRotateYButton", "pose_rotate_y_button", "Rot Y", (0.0, 15.0, 0.0)),
@@ -903,39 +1207,44 @@ class MeshEditorWorkspace(QFrame):
             button.clicked.connect(
                 lambda _checked=False, current=rotation: self.skeleton_pose_requested.emit("rotate_selected_bone", current)
             )
-            controls.addWidget(button)
+            controls.addWidget(button, 1, pose_column)
+            pose_column += 1
         self.pose_reset_button = self._skeleton_pose_button("MeshEditorPoseResetButton", "Reset", "undo")
         self.pose_reset_button.clicked.connect(lambda _checked=False: self.skeleton_pose_requested.emit("reset_pose", None))
-        controls.addWidget(self.pose_reset_button)
+        controls.addWidget(self.pose_reset_button, 1, pose_column)
+        add_group_label(2, "Animation")
         self.animation_play_button = self._skeleton_pose_button("MeshEditorAnimationPlayButton", "Play", "transform_rotate", checkable=True)
         self.animation_play_button.clicked.connect(
             lambda checked=False: self.skeleton_pose_requested.emit("set_animation_playback", bool(checked))
         )
-        controls.addWidget(self.animation_play_button)
+        controls.addWidget(self.animation_play_button, 2, 1)
         self.animation_step_button = self._skeleton_pose_button("MeshEditorAnimationStepButton", "Step", "redo")
         self.animation_step_button.clicked.connect(lambda _checked=False: self.skeleton_pose_requested.emit("step_animation_frame", 1))
-        controls.addWidget(self.animation_step_button)
+        controls.addWidget(self.animation_step_button, 2, 2)
         self.animation_rewind_button = self._skeleton_pose_button("MeshEditorAnimationRewindButton", "Rewind", "undo")
         self.animation_rewind_button.clicked.connect(lambda _checked=False: self.skeleton_pose_requested.emit("seek_animation", 0.0))
-        controls.addWidget(self.animation_rewind_button)
+        controls.addWidget(self.animation_rewind_button, 2, 3)
         self.animation_loop_button = self._skeleton_pose_button("MeshEditorAnimationLoopButton", "Loop", "toggle", checkable=True)
         self.animation_loop_button.clicked.connect(
             lambda checked=False: self.skeleton_pose_requested.emit("set_animation_loop", bool(checked))
         )
-        controls.addWidget(self.animation_loop_button)
+        controls.addWidget(self.animation_loop_button, 2, 4)
         self.animation_speed_combo = QComboBox(frame)
         self.animation_speed_combo.setObjectName("MeshEditorAnimationSpeedCombo")
         for label, value in (("0.25x", 0.25), ("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0), ("4x", 4.0)):
             self.animation_speed_combo.addItem(label, value)
         self.animation_speed_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.animation_speed_combo.currentIndexChanged.connect(self._animation_speed_changed)
-        controls.addWidget(self.animation_speed_combo)
+        controls.addWidget(self.animation_speed_combo, 2, 5)
         self.animation_scrub_slider = QSlider(Qt.Orientation.Horizontal, frame)
         self.animation_scrub_slider.setObjectName("MeshEditorAnimationScrubSlider")
         self.animation_scrub_slider.setRange(0, 1000)
-        self.animation_scrub_slider.setFixedWidth(120)
+        self.animation_scrub_slider.setMinimumWidth(120)
         self.animation_scrub_slider.valueChanged.connect(self._animation_scrub_changed)
-        controls.addWidget(self.animation_scrub_slider)
+        controls.addWidget(self.animation_scrub_slider, 2, 6)
+        controls.setColumnStretch(6, 1)
+        add_group_label(3, "Weights")
+        weight_column = 1
         for object_name, attr_name, text, command, payload in (
             ("MeshEditorWeightIncreaseButton", "weight_increase_button", "W+", "adjust_selected_vertex_bone_weight", 0.1),
             ("MeshEditorWeightDecreaseButton", "weight_decrease_button", "W-", "adjust_selected_vertex_bone_weight", -0.1),
@@ -950,9 +1259,10 @@ class MeshEditorWorkspace(QFrame):
                     current_payload,
                 )
             )
-            controls.addWidget(button)
-        controls.addStretch(1)
-        layout.addLayout(controls)
+            controls.addWidget(button, 3, weight_column)
+            weight_column += 1
+        controls.setColumnStretch(weight_column, 1)
+        layout.addWidget(controls_frame)
         self.skeleton_tree = self._tree(("Skeleton", "Value"), "MeshEditorSkeletonPanel")
         self.skeleton_tree.itemClicked.connect(self._skeleton_tree_item_clicked)
         layout.addWidget(self.skeleton_tree, 1)
@@ -970,11 +1280,13 @@ class MeshEditorWorkspace(QFrame):
         button.setObjectName(object_name)
         button.setText(text)
         button.setAccessibleName(text)
+        button.setProperty("meshEditorIconKey", icon_key)
         button.setIcon(mesh_editor_action_icon(icon_key, self.palette()))
         button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         button.setAutoRaise(True)
         button.setCheckable(checkable)
         button.setEnabled(False)
+        self._ui_font_widgets.append(button)
         return button
 
     def _build_material_panel(self) -> QWidget:
@@ -1033,7 +1345,7 @@ class MeshEditorWorkspace(QFrame):
         self.part_recalculate_normals_button = self._part_action_button(
             frame,
             "MeshEditorPartRecalculateNormalsButton",
-            "Recalc",
+            "Recalculate Normals",
             "recalculate_normals",
             "Recalculate normals for selected part(s).",
             "recalculate_normals",
@@ -1041,16 +1353,17 @@ class MeshEditorWorkspace(QFrame):
         self.part_flip_normals_button = self._part_action_button(
             frame,
             "MeshEditorPartFlipNormalsButton",
-            "Flip",
+            "Flip Normals",
             "flip_normals",
             "Flip normals for selected part(s).",
             "flip_normals",
         )
         self.open_texture_button = QToolButton(frame)
         self.open_texture_button.setObjectName("MeshEditorOpenTextureButton")
-        self.open_texture_button.setText("Texture")
+        self.open_texture_button.setText("Open Texture")
         self.open_texture_button.setAccessibleName("Open selected texture")
         self.open_texture_button.setToolTip("Open selected material texture in Texture Editor.")
+        self.open_texture_button.setProperty("meshEditorIconKey", "material")
         self.open_texture_button.setIcon(mesh_editor_action_icon("material", self.palette()))
         self.open_texture_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.open_texture_button.setEnabled(False)
@@ -1064,8 +1377,8 @@ class MeshEditorWorkspace(QFrame):
                 self.open_texture_button,
             )
         ):
-            action_grid.addWidget(button, index // 3, index % 3)
-        action_grid.setColumnStretch(2, 1)
+            action_grid.addWidget(button, index // 2, index % 2)
+        action_grid.setColumnStretch(1, 1)
         layout.addLayout(action_grid)
         self.material_tree = self._tree(("Material", "Texture", "Slot"), "MeshEditorMaterialPanel")
         self._configure_part_tree(self.material_tree)
@@ -1086,10 +1399,12 @@ class MeshEditorWorkspace(QFrame):
         button.setText(text)
         button.setAccessibleName(text)
         button.setToolTip(tooltip)
+        button.setProperty("meshEditorIconKey", icon_key)
         button.setIcon(mesh_editor_action_icon(icon_key, self.palette()))
         button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         button.setEnabled(False)
         button.clicked.connect(callback)  # type: ignore[arg-type]
+        self._ui_font_widgets.append(button)
         return button
 
     def _part_action_button(
@@ -1170,7 +1485,10 @@ class MeshEditorWorkspace(QFrame):
         layout.setSpacing(4)
         controls = QHBoxLayout()
         controls.setContentsMargins(0, 0, 0, 0)
-        controls.addWidget(QLabel("View", frame))
+        compare_view_label = QLabel("View", frame)
+        compare_view_label.setObjectName("MeshEditorCompareViewLabel")
+        self._ui_font_widgets.append(compare_view_label)
+        controls.addWidget(compare_view_label)
         self.compare_mode_combo = self._combo("MeshEditorCompareModeCombo", ("Edited", "Source", "Ghost"))
         self.compare_mode_combo.setToolTip("Switch Mesh Editor preview between edited, source, and source ghost overlay modes.")
         self.compare_mode_combo.currentTextChanged.connect(self._compare_view_changed)
@@ -1355,6 +1673,13 @@ class MeshEditorWorkspace(QFrame):
         if mode not in {"edited", "source", "ghost"}:
             mode = "edited"
         self.compare_view_requested.emit(mode)
+
+    def _uv_tree_item_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
+        try:
+            uv_min, uv_max = item.data(0, Qt.ItemDataRole.UserRole)
+        except (TypeError, ValueError):
+            return
+        self.uv_region_selected.emit(tuple(uv_min), tuple(uv_max), "replace")
 
     def _skeleton_tree_item_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
         try:
@@ -1549,8 +1874,8 @@ class MeshUvCanvas(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("MeshEditorUVCanvas")
-        self.setMinimumHeight(150)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setMinimumHeight(220)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._summary: MeshUvSummary | None = None
         self._drag_start_uv: tuple[float, float] | None = None
         self._drag_current_uv: tuple[float, float] | None = None

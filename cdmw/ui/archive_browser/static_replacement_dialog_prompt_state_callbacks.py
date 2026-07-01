@@ -35,6 +35,8 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
     preview_support_maps_checkbox = context['preview_support_maps_checkbox']
     preview_visible_mode_combo = context['preview_visible_mode_combo']
     prompt_shell_context = context['prompt_shell_context']
+    SceneImportResult = context.get('SceneImportResult')
+    scene_import_result = context.get('scene_import_result')
     self = context['self']
 
     def _mesh_edit_raw_preview_active() -> bool:
@@ -106,6 +108,10 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
 
     def _set_replacement_preview_model(value) -> None:
         nonlocal replacement_preview_model
+        if SceneImportResult is not None and isinstance(scene_import_result, SceneImportResult):
+            for mesh in tuple(getattr(value, "meshes", ()) or ()):
+                if hasattr(mesh, "preview_texture_flip_vertical"):
+                    mesh.preview_texture_flip_vertical = False
         replacement_preview_model = value
 
     asset_profile: Optional[ReplacementAssetProfile] = None

@@ -67,9 +67,30 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
     _alignment_d3d11_preview_active = context.get('_alignment_d3d11_preview_active')
     _alignment_d3d11_source_indices_for_editor_id_callback = context.get('_alignment_d3d11_source_indices_for_editor_id')
     _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
+    classic_mesh_edit_action_bar = context.get('classic_mesh_edit_action_bar')
+    classic_mesh_edit_toolbar = context.get('classic_mesh_edit_toolbar')
+    compact_mesh_edit_status_label = context.get('compact_mesh_edit_status_label')
+    compact_mesh_edit_clear_button = context.get('compact_mesh_edit_clear_button')
+    compact_mesh_edit_grow_button = context.get('compact_mesh_edit_grow_button')
+    compact_mesh_edit_shrink_button = context.get('compact_mesh_edit_shrink_button')
+    compact_mesh_edit_feather_button = context.get('compact_mesh_edit_feather_button')
+    compact_mesh_edit_reset_scope_button = context.get('compact_mesh_edit_reset_scope_button')
     prompt_shell_context = context.get('prompt_shell_context')
+    source_skeleton = context.get('source_skeleton')
+
+    def _context_or_prompt(name: str) -> object:
+        value = context.get(name)
+        if value is not None:
+            return value
+        if isinstance(prompt_shell_context, dict):
+            return prompt_shell_context.get(name)
+        return None
 
     def _mesh_edit_tab_active() -> bool:
+        checkbox = _context_or_prompt("mesh_edit_enabled_checkbox")
+        is_checked = getattr(checkbox, "isChecked", None)
+        if callable(is_checked):
+            return bool(is_checked())
         callback = _alignment_mesh_edit_tab_active
         if not callable(callback):
             callback = context.get('_alignment_mesh_edit_tab_active')
@@ -208,10 +229,12 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
     _push_geometry_undo_snapshot = context.get('_push_geometry_undo_snapshot')
     _rebuild_source_part_widgets = context.get('_rebuild_source_part_widgets')
     _queue_static_preview_rebuild = context.get('_queue_static_preview_rebuild')
+    _queue_texture_preview_refresh = context.get('_queue_texture_preview_refresh')
     _record_runtime_event = context.get('_record_runtime_event')
     _refresh_source_assignment_columns = context.get('_refresh_source_assignment_columns')
     _refresh_source_tree_selection_state = context.get('_refresh_source_tree_selection_state')
     _safe_refresh_static_dialog_preview = context.get('_safe_refresh_static_dialog_preview')
+    _delete_selected_source_parts = context.get('_delete_selected_source_parts')
     _source_display_name = context.get('_source_display_name')
     _source_index_is_enabled_renderable = context.get('_source_index_is_enabled_renderable')
     _transformed_replacement_sources = context.get('_transformed_replacement_sources')
@@ -320,14 +343,14 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
     self = context.get('self')
     shrink_vertex_selection = context.get('shrink_vertex_selection')
     smooth_vertex_selection = context.get('smooth_vertex_selection')
-    source_delta_for_transformed_delta = context.get('source_delta_for_transformed_delta')
-    source_distance_for_transformed_distance = context.get('source_distance_for_transformed_distance')
+    source_delta_for_transformed_delta = _context_or_prompt('source_delta_for_transformed_delta')
+    source_distance_for_transformed_distance = _context_or_prompt('source_distance_for_transformed_distance')
     source_items_by_index = context.get('source_items_by_index')
     source_geometry_revision = context.get('source_geometry_revision')
     if source_geometry_revision is None:
         source_geometry_revision = {}
     source_part_adjustments = context.get('source_part_adjustments')
-    source_point_for_transformed_point = context.get('source_point_for_transformed_point')
+    source_point_for_transformed_point = _context_or_prompt('source_point_for_transformed_point')
     source_tree = context.get('source_tree')
     source_tree_item_update_guard = context.get('source_tree_item_update_guard')
     static_dialog_preview = context.get('static_dialog_preview')
@@ -419,24 +442,48 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         except (TypeError, ValueError):
             return -1
 
+    def _mesh_editor_clear_static_replacement_session() -> None:
+        old_session = mesh_editor_static_replacement_session_state.get("session")
+        if isinstance(old_session, StaticReplacementMeshEditSession):
+            old_session.close()
+        mesh_editor_static_replacement_session_state.clear()
+
+    def _mesh_editor_ensure_static_replacement_session(mesh=None):
+        source_mesh = mesh if mesh is not None else _mesh_edit_state.replacement_mesh_for_mapping
+        current_revision = _mesh_editor_current_edit_revision()
+        if source_mesh is None or current_revision < 0:
+            return None
+        session = mesh_editor_static_replacement_session_state.get("session")
+        if (
+            not isinstance(session, StaticReplacementMeshEditSession)
+            or mesh_editor_static_replacement_session_state.get("mesh") is not source_mesh
+            or mesh_editor_static_replacement_session_state.get("revision") != current_revision
+        ):
+            _mesh_editor_clear_static_replacement_session()
+            session = StaticReplacementMeshEditSession(session_id="static-replacement")
+            session.open(source_mesh)
+            if source_skeleton is not None:
+                try:
+                    session.controller.attach_skeleton(
+                        source_skeleton,
+                        source_path=str(getattr(source_skeleton, "path", "") or ""),
+                    )
+                except Exception:
+                    pass
+            mesh_editor_static_replacement_session_state["session"] = session
+            mesh_editor_static_replacement_session_state["mesh"] = source_mesh
+            mesh_editor_static_replacement_session_state["revision"] = current_revision
+        return session
+
     def _mesh_editor_apply_static_replacement_edit(mesh, action: str, **params: object):
         if callable(mesh_editor_apply_static_replacement_edit):
             return mesh_editor_apply_static_replacement_edit(mesh, action, **params)
         current_revision = _mesh_editor_current_edit_revision()
         if current_revision < 0:
             return apply_static_replacement_edit(mesh, action, **params)
-        session = mesh_editor_static_replacement_session_state.get("session")
-        if (
-            not isinstance(session, StaticReplacementMeshEditSession)
-            or mesh_editor_static_replacement_session_state.get("mesh") is not mesh
-            or mesh_editor_static_replacement_session_state.get("revision") != current_revision
-        ):
-            old_session = mesh_editor_static_replacement_session_state.get("session")
-            if isinstance(old_session, StaticReplacementMeshEditSession):
-                old_session.close()
-            session = StaticReplacementMeshEditSession(session_id="static-replacement")
-            session.open(mesh)
-            mesh_editor_static_replacement_session_state["session"] = session
+        session = _mesh_editor_ensure_static_replacement_session(mesh)
+        if session is None:
+            return apply_static_replacement_edit(mesh, action, **params)
         result = session.apply(action, **params)
         changed = bool(
             result.affected_submesh_indices
@@ -1031,23 +1078,34 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         selected_count: int,
         selected_face_count: int,
     ) -> None:
+        active_selection_mode = str(mesh_editor_action_bar_selection_mode.get("value") or "vertex")
+        mode = "sculpt" if editing_active and sculpt_tool else "edit" if editing_active else "object"
+        selection_empty = (int(selected_count or 0) + int(selected_face_count or 0)) <= 0
         mesh_editor_tab = getattr(self, "mesh_editor_tab", None)
         update_action_state = getattr(mesh_editor_tab, "update_editor_action_state", None)
-        if not callable(update_action_state):
-            return
-        active_selection_mode = str(mesh_editor_action_bar_selection_mode.get("value") or "vertex")
-        update_action_state(
-            mode="sculpt" if editing_active and sculpt_tool else "edit" if editing_active else "object",
-            active_selection_mode=active_selection_mode,
-            selection_empty=(int(selected_count or 0) + int(selected_face_count or 0)) <= 0,
-            undo_count=len(mesh_edit_undo_stack),
-            redo_count=len(mesh_edit_redo_stack),
-        )
+        if callable(update_action_state):
+            update_action_state(
+                mode=mode,
+                active_selection_mode=active_selection_mode,
+                selection_empty=selection_empty,
+                undo_count=len(mesh_edit_undo_stack),
+                redo_count=len(mesh_edit_redo_stack),
+            )
+        compact_update = getattr(classic_mesh_edit_action_bar, "update_action_state", None)
+        if callable(compact_update):
+            compact_update(
+                has_target=bool(mesh_edit_supported),
+                selection_empty=selection_empty,
+                mode=mode,
+                active_selection_mode=active_selection_mode,
+                undo_count=len(mesh_edit_undo_stack),
+                redo_count=len(mesh_edit_redo_stack),
+            )
 
     def _show_mesh_edit_tab() -> None:
-        tab_index = control_tabs.indexOf(mesh_edit_tab) if hasattr(control_tabs, "indexOf") else -1
-        if tab_index >= 0 and hasattr(control_tabs, "setCurrentIndex"):
-            control_tabs.setCurrentIndex(tab_index)
+        _refresh_mesh_edit_controls()
+        if callable(_apply_alignment_dialog_responsive_layout):
+            _apply_alignment_dialog_responsive_layout()
 
     def _set_mesh_edit_enabled(checked: bool) -> None:
         if bool(mesh_edit_enabled_checkbox.isChecked()) == bool(checked):
@@ -1157,6 +1215,48 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             or int(getattr(result, "removed_vertex_count", 0) or 0) > 0
         )
 
+    def _mesh_editor_action_result_within_allowed_scope(result: object) -> bool:
+        allowed_indices = set(int(index) for index in _mesh_edit_allowed_source_indices(require_enabled=False))
+        if not allowed_indices:
+            return True
+        touched_indices: set[int] = set()
+        for raw_index in tuple(getattr(result, "affected_submesh_indices", ()) or ()):
+            try:
+                touched_indices.add(int(raw_index))
+            except (TypeError, ValueError):
+                continue
+        for attr_name in (
+            "changed_vertices_by_submesh",
+            "changed_normals_by_submesh",
+            "changed_faces_by_submesh",
+        ):
+            changed = getattr(result, attr_name, None)
+            keys = getattr(changed, "keys", None)
+            if not callable(keys):
+                continue
+            for raw_index in tuple(keys() or ()):
+                try:
+                    touched_indices.add(int(raw_index))
+                except (TypeError, ValueError):
+                    continue
+        for attr_name in ("source_submesh_index", "target_submesh_index"):
+            try:
+                raw_index = int(getattr(result, attr_name, -1) or -1)
+            except (TypeError, ValueError):
+                raw_index = -1
+            if raw_index >= 0:
+                touched_indices.add(raw_index)
+        try:
+            new_submesh_index = int(getattr(result, "new_submesh_index", -1) or -1)
+        except (TypeError, ValueError):
+            new_submesh_index = -1
+        unsafe_indices = {
+            index
+            for index in touched_indices
+            if index >= 0 and index not in allowed_indices and index != new_submesh_index
+        }
+        return not unsafe_indices
+
     def _mesh_editor_sync_new_source_part(result: object) -> None:
         new_source_index = int(getattr(result, "new_submesh_index", -1) or -1)
         source_index = int(getattr(result, "source_submesh_index", -1) or -1)
@@ -1185,6 +1285,15 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             _refresh_mesh_edit_controls()
             self.set_status_message(f"Mesh Editor action made no changes: {action_text}.")
             return True
+        if not _mesh_editor_action_result_within_allowed_scope(result):
+            _mesh_edit_pop_undo_snapshot()
+            _pop_geometry_undo_snapshot()
+            _refresh_mesh_edit_controls()
+            self.set_status_message(
+                f"Mesh Editor action blocked outside selected scope: {action_text}.",
+                error=True,
+            )
+            return True
         _mesh_edit_state.replacement_mesh_for_mapping = result.mesh
         edit_result = getattr(result, "edit_result", None)
         actual_topology_action = bool(topology_action or getattr(edit_result, "topology_changed", False))
@@ -1210,6 +1319,61 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             _queue_static_preview_rebuild()
         self.set_status_message(f"Mesh Editor action applied: {action_text}.")
         return True
+
+    def _mesh_editor_embedded_controller():
+        session = _mesh_editor_ensure_static_replacement_session()
+        return session.controller if isinstance(session, StaticReplacementMeshEditSession) else None
+
+    def _mesh_editor_embedded_apply_native_update(native_update: object) -> bool:
+        return _mesh_editor_apply_native_update(native_update)
+
+    def _mesh_editor_embedded_set_skeleton_bone(bone_index: object) -> bool:
+        setter = getattr(alignment_d3d11_preview_host, "set_skeleton_selected_bone", None)
+        if not callable(setter):
+            return False
+        try:
+            return bool(setter(int(bone_index)))
+        except (TypeError, ValueError, RuntimeError):
+            return False
+
+    def _mesh_editor_embedded_run_part_action(action_key: str, source_indices: object) -> bool:
+        normalized = str(action_key or "").strip().lower()
+        try:
+            selected_sources = tuple(sorted({int(index) for index in tuple(source_indices or ()) if int(index) >= 0}))
+        except (TypeError, ValueError):
+            selected_sources = ()
+        if not selected_sources:
+            self.set_status_message("Select one or more mesh parts first.", error=True)
+            return False
+        if normalized == "delete" and callable(_delete_selected_source_parts):
+            _delete_selected_source_parts(selected_sources)
+            _mesh_editor_clear_static_replacement_session()
+            return True
+        if normalized not in {"delete", "duplicate", "recalculate_normals", "flip_normals"}:
+            return False
+        if _mesh_edit_state.replacement_mesh_for_mapping is None:
+            return False
+        action_text = {
+            "delete": "Delete Part",
+            "duplicate": "Clone Part",
+            "recalculate_normals": "Recalculate Normals",
+            "flip_normals": "Flip Normals",
+        }.get(normalized, normalized)
+        _mesh_edit_record_snapshot()
+        params = {"delete_parts": True} if normalized == "delete" else {}
+        result = _mesh_editor_apply_static_replacement_edit(
+            _mesh_edit_state.replacement_mesh_for_mapping,
+            normalized,
+            source_indices=selected_sources,
+            recompute_normals=True,
+            **params,
+        )
+        return _mesh_editor_commit_action_bar_service_result(
+            result,
+            action_key=normalized,
+            action_text=action_text,
+            topology_action=normalized in {"delete", "duplicate"},
+        )
 
     def _mesh_editor_apply_action_bar_service_action(
         action: str,
@@ -1523,6 +1687,9 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         mesh_edit_selected_vertices_by_submesh.update(pruned_selected_vertices)
         can_edit, reason = _mesh_edit_can_edit_scope()
         mesh_edit_group.setEnabled(mesh_edit_supported)
+        set_toolbar_visible = getattr(classic_mesh_edit_toolbar, "setVisible", None)
+        if callable(set_toolbar_visible):
+            set_toolbar_visible(bool(mesh_edit_supported and mesh_edit_enabled_checkbox.isChecked()))
         mesh_edit_enabled_checkbox.setEnabled(mesh_edit_supported)
         if not mesh_edit_supported:
             mesh_edit_enabled_checkbox.blockSignals(True)
@@ -1631,6 +1798,20 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 editing_active=editing_active,
             )
         )
+        compact_status_set_text = getattr(compact_mesh_edit_status_label, "setText", None)
+        if callable(compact_status_set_text):
+            compact_status_set_text(mesh_edit_status_label.text())
+        for compact_button, source_button in (
+            (compact_mesh_edit_clear_button, mesh_edit_clear_selection_button),
+            (compact_mesh_edit_grow_button, mesh_edit_grow_selection_button),
+            (compact_mesh_edit_shrink_button, mesh_edit_shrink_selection_button),
+            (compact_mesh_edit_feather_button, mesh_edit_smooth_selection_button),
+            (compact_mesh_edit_reset_scope_button, mesh_edit_reset_part_button),
+        ):
+            set_enabled = getattr(compact_button, "setEnabled", None)
+            is_enabled = getattr(source_button, "isEnabled", None)
+            if callable(set_enabled) and callable(is_enabled):
+                set_enabled(bool(editing_requested and is_enabled()))
         _sync_mesh_editor_tab_action_state(
             editing_active=editing_active,
             sculpt_tool=sculpt_tool,
@@ -1907,6 +2088,18 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             return {}
         if original_mesh_for_mapping is None:
             return _mesh_edit_adjusted_sources_for_live_preview(requested)
+        if not all(
+            callable(callback)
+            for callback in (
+                _transformed_replacement_sources,
+                _current_dialog_mappings_for_preview,
+                _current_static_alignment_transform,
+                _current_source_part_adjustments,
+                _current_texture_uv_transforms,
+                _mapped_source_indices,
+            )
+        ):
+            return _mesh_edit_adjusted_sources_for_live_preview(requested)
         try:
             current_mappings = _current_dialog_mappings_for_preview()
             transformed_sources = _transformed_replacement_sources(
@@ -2134,6 +2327,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         )
 
     def _mesh_edit_inverse_failure(kind: str, source_index: int, exc: object) -> None:
+        mesh_edit_active_stroke["inverse_failed"] = True
         stroke_id = int(mesh_edit_active_stroke.get("id", 0) or 0)
         warning_key = (stroke_id, str(kind), int(source_index))
         if warning_key in mesh_edit_inverse_fallback_warnings:
@@ -2418,11 +2612,14 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             source_indices_for_editor_id=_alignment_d3d11_source_indices_for_editor_id,
         )
         for source_submesh_index, vertex_indices, vertex_weights in vertex_groups:
+            mesh_edit_active_stroke.pop("inverse_failed", None)
             source_delta = _mesh_edit_preview_delta_to_source_delta(source_submesh_index, delta)
             source_step_delta = _mesh_edit_preview_delta_to_source_delta(source_submesh_index, step_delta)
             source_center = _mesh_edit_preview_point_to_source_point(source_submesh_index, center)
             source_radius = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, radius)
             source_amount = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, amount)
+            if mesh_edit_active_stroke.pop("inverse_failed", False):
+                continue
             mirror_pairs = (
                 mirror_pairs_by_submesh.get(source_submesh_index)
                 if isinstance(mirror_pairs_by_submesh, Mapping)
@@ -2947,21 +3144,39 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             )
         _refresh_mesh_edit_controls()
 
+    def _mesh_edit_surface_tab_active(index: int | None = None) -> bool:
+        try:
+            tab_index = control_tabs.currentIndex() if index is None else int(index)
+            if control_tabs.widget(tab_index) is mesh_edit_tab:
+                return True
+            return control_tabs.tabText(tab_index).strip().lower() in {
+                "mesh editing",
+                "classic mesh editing",
+                "merged mesh editing",
+            }
+        except Exception:
+            return False
+
+    mesh_edit_surface_tab_state = {"active": _mesh_edit_surface_tab_active()}
+
+    def _restore_textured_preview_after_mesh_edit_surface_exit() -> None:
+        if callable(_queue_texture_preview_refresh):
+            _queue_texture_preview_refresh()
+            if QTimer is not None:
+                QTimer.singleShot(180, _queue_texture_preview_refresh)
+        elif callable(_queue_static_preview_rebuild):
+            _queue_static_preview_rebuild()
+
     def _mesh_edit_control_tab_changed(index: int) -> None:
-        if control_tabs.widget(index) is not mesh_edit_tab and mesh_edit_enabled_checkbox.isChecked():
-            mesh_edit_enabled_checkbox.blockSignals(True)
-            mesh_edit_enabled_checkbox.setChecked(False)
-            mesh_edit_enabled_checkbox.blockSignals(False)
-            _refresh_mesh_edit_controls()
-            _mesh_edit_apply_preview_mode_transition("left_mesh_edit_tab")
-        elif control_tabs.widget(index) is mesh_edit_tab:
-            _refresh_mesh_edit_controls()
-            _mesh_edit_apply_preview_mode_transition("entered_mesh_edit_tab")
-        _apply_alignment_dialog_responsive_layout(force_sizes=True)
+        mesh_edit_surface_tab_state["active"] = _mesh_edit_surface_tab_active(index)
+        _refresh_mesh_edit_controls()
+        _apply_alignment_dialog_responsive_layout()
 
     def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:
         _refresh_mesh_edit_controls()
         _mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")
+        if not bool(_checked):
+            _restore_textured_preview_after_mesh_edit_surface_exit()
 
     mesh_edit_enabled_checkbox.toggled.connect(_mesh_edit_enabled_toggled)
     for widget in (
@@ -3011,6 +3226,10 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         _mesh_edit_all_vertices_in_scope=_mesh_edit_all_vertices_in_scope,
         _mesh_edit_allowed_source_indices=_mesh_edit_allowed_source_indices,
         _mesh_editor_action_bar_action_requested=_mesh_editor_action_bar_action_requested,
+        _mesh_editor_embedded_apply_native_update=_mesh_editor_embedded_apply_native_update,
+        _mesh_editor_embedded_controller=_mesh_editor_embedded_controller,
+        _mesh_editor_embedded_run_part_action=_mesh_editor_embedded_run_part_action,
+        _mesh_editor_embedded_set_skeleton_bone=_mesh_editor_embedded_set_skeleton_bone,
         _mesh_edit_apply_preview_payload=_mesh_edit_apply_preview_payload,
         _mesh_edit_base_source_index_is_editable=_mesh_edit_base_source_index_is_editable,
         _mesh_edit_begin_stroke=_mesh_edit_begin_stroke,

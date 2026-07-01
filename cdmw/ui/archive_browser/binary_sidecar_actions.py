@@ -10,7 +10,6 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -37,6 +36,7 @@ from cdmw.core.structured_binary_editor import (
     rebuild_pabgh_table,
 )
 from cdmw.models import ArchiveEntry
+from cdmw.ui.shell.theme_controller import build_monospace_font
 
 
 class ArchiveBinarySidecarActionsMixin:
@@ -179,7 +179,7 @@ class ArchiveBinarySidecarActionsMixin:
         editor.setReadOnly(True)
         editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         editor.setPlainText(document_text)
-        editor.setFont(QFont("Consolas", 9))
+        editor.setFont(build_monospace_font(self.settings))
         layout.addWidget(editor, stretch=1)
 
         button_row = QHBoxLayout()

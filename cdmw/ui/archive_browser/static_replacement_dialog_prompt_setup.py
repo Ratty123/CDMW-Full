@@ -144,7 +144,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
                         "source_material_name": "__global__",
                         "rotate_degrees": 0,
                         "flip_u": False,
-                        "flip_v": True,
+                        "flip_v": False,
                         "offset_u": 0.0,
                         "offset_v": 0.0,
                         "scale_u": 1.0,

@@ -38,7 +38,7 @@ class NativePreviewBatchPayload:
     material_texture_packed_channels: Tuple[str, ...] = ()
     material_texture_slots: Tuple[str, ...] = ()
     material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
-    texture_flip_vertical: bool = True
+    texture_flip_vertical: bool = False
     has_texture_coordinates: bool = False
     tangents_usable: bool = False
 
@@ -422,14 +422,13 @@ def build_native_preview_payloads(
         if vertex_count <= 0 or not vertex_blob:
             continue
         bounds_min, bounds_max = _payload_bounds(vertex_blob, vertex_count)
-        flip_value = getattr(batch, "preview_texture_flip_vertical", True)
-        if flip_value is None:
-            flip_value = resolve_preview_texture_flip_vertical(
-                None,
-                source_path=str(getattr(prepared, "source_path", "") or ""),
-                source_format=str(getattr(prepared, "format", "") or ""),
-                flip_texture_v=bool(getattr(settings, "flip_texture_v", False)),
-            )
+        flip_value = resolve_preview_texture_flip_vertical(
+            getattr(batch, "preview_texture_flip_vertical", None),
+            source_path=str(getattr(prepared, "source_path", "") or ""),
+            source_format=str(getattr(prepared, "format", "") or ""),
+            default=False,
+            flip_texture_v=bool(getattr(settings, "flip_texture_v", False)),
+        )
         material_channels = tuple(getattr(batch, "preview_material_texture_packed_channels", ()) or ())
         normal_texture_allowed = _batch_normal_texture_binding_allowed(batch)
         payloads.append(

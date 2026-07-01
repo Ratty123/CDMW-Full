@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -214,6 +215,8 @@ def build_controls_panel(tab: object) -> QWidget:
     layout.addWidget(actions_group)
 
     selection_group = QGroupBox("Selection")
+    selection_group.setObjectName("ModelLibrarySelectionGroup")
+    selection_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     selection_layout = QVBoxLayout(selection_group)
     selection_layout.setContentsMargins(8, 8, 8, 8)
     selection_layout.setSpacing(6)
@@ -221,15 +224,15 @@ def build_controls_panel(tab: object) -> QWidget:
     tab.details_edit.setReadOnly(True)
     tab.details_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     selection_layout.addWidget(tab.details_edit)
-    tab.details_text = QLabel("")
-    tab.details_text.setObjectName("HintLabel")
-    tab.details_text.setWordWrap(True)
-    tab.details_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    tab.details_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    selection_layout.addWidget(tab.details_text)
-    layout.addWidget(selection_group)
-
-    layout.addStretch(1)
+    tab.details_text = QPlainTextEdit()
+    tab.details_text.setObjectName("ModelLibraryDetailsText")
+    tab.details_text.setReadOnly(True)
+    tab.details_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+    tab.details_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    tab.details_text.setMinimumHeight(180)
+    tab.details_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    selection_layout.addWidget(tab.details_text, stretch=1)
+    layout.addWidget(selection_group, stretch=1)
 
     tab.browse_local_button.clicked.connect(tab.browse_local_folder)
     tab.add_local_root_button.clicked.connect(tab.add_local_root)
@@ -265,9 +268,10 @@ def build_controls_panel(tab: object) -> QWidget:
     tab.delete_no_texture_downloads_button.triggered.connect(tab.delete_no_texture_downloads)
 
     scroll = QScrollArea()
+    scroll.setObjectName("ModelLibraryControlsScroll")
     scroll.setWidgetResizable(True)
     scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     scroll.setWidget(panel)
     return scroll
 

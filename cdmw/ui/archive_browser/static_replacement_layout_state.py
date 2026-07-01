@@ -80,15 +80,25 @@ def alignment_dialog_responsive_layout(
             state,
             force_sizes=force_sizes,
         )
-        control_width = max(360, min(540, int(normalized_width * 0.30)))
+        if bool(mesh_edit_tools_active):
+            target_control_width = max(
+                int(mesh_edit_control_min_width),
+                min(int(mesh_edit_control_max_width), int(normalized_width * 0.18)),
+            )
+            controls_min_width = int(mesh_edit_control_min_width)
+        else:
+            target_control_width = max(420, min(620, int(normalized_width * 0.24)))
+            controls_min_width = 420
+        control_width = min(target_control_width, max(controls_min_width, normalized_width - 360))
         main_sizes = (
-            max(220, normalized_width - control_width),
+            max(360, normalized_width - control_width),
             control_width,
         ) if resize_needed else None
         preview_width = max(1, normalized_width - control_width)
+        preview_left_width = max(220, preview_width // 2)
         preview_sizes = (
-            max(220, int(preview_width * 0.52)),
-            max(220, int(preview_width * 0.44)),
+            preview_left_width,
+            max(preview_left_width, preview_width - preview_left_width),
         ) if resize_needed else None
         alignment_dialog_layout_set_mode(state, "embedded")
         return AlignmentDialogResponsiveLayout(
@@ -98,9 +108,9 @@ def alignment_dialog_responsive_layout(
             main_handle_width=8,
             controls_policy="preferred",
             content_policy="preferred",
-            controls_min_width=260,
+            controls_min_width=controls_min_width,
             content_min_width=0,
-            controls_max_width=620,
+            controls_max_width=16777215,
             content_max_width=16777215,
             preview_min_width=220,
             main_stretch=(1, 0),
@@ -130,8 +140,8 @@ def alignment_dialog_responsive_layout(
                 max(280, int(normalized_height * 0.36)),
             ) if should_resize else None,
             preview_sizes=(
-                max(260, int(normalized_width * 0.52)),
-                max(260, int(normalized_width * 0.42)),
+                max(260, normalized_width // 2),
+                max(260, normalized_width - (normalized_width // 2)),
             ) if should_resize else None,
         )
     active_control_min_width = (
@@ -152,6 +162,7 @@ def alignment_dialog_responsive_layout(
     else:
         control_width = max(760, min(1120, int(normalized_width * 0.48)))
     preview_width = max(1, normalized_width - control_width)
+    preview_left_width = max(360, preview_width // 2)
     return AlignmentDialogResponsiveLayout(
         mode="wide",
         main_orientation="horizontal",
@@ -167,8 +178,8 @@ def alignment_dialog_responsive_layout(
         main_stretch=(1, 0),
         main_sizes=(max(760, normalized_width - control_width), control_width) if should_resize else None,
         preview_sizes=(
-            max(360, int(preview_width * 0.52)),
-            max(360, int(preview_width * 0.44)),
+            preview_left_width,
+            max(preview_left_width, preview_width - preview_left_width),
         ) if should_resize else None,
     )
 

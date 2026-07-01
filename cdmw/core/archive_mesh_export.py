@@ -207,6 +207,36 @@ def _parse_archive_mesh(entry: ArchiveEntry) -> ParsedMesh:
     return parse_mesh(data, entry.path)
 
 
+def _archive_family_graph_payload(family_graph: object) -> Dict[str, object]:
+    if family_graph is None:
+        return {}
+    return {
+        "root_path": getattr(family_graph, "root_path", ""),
+        "family_key": getattr(family_graph, "family_key", ""),
+        "members": list(getattr(family_graph, "members", ()) or ()),
+        "grouped_paths": {
+            key: list(value)
+            for key, value in getattr(family_graph, "grouped_paths", {}).items()
+        },
+        "relations": [
+            {
+                "source_path": getattr(relation, "source_path", ""),
+                "target_path": getattr(relation, "target_path", ""),
+                "relation_kind": getattr(relation, "relation_kind", ""),
+                "confidence": getattr(relation, "confidence", ""),
+                "role_label": getattr(relation, "role_label", ""),
+                "reason": getattr(relation, "reason", ""),
+                "semantic_label": getattr(relation, "semantic_label", ""),
+                "semantic_hint": getattr(relation, "semantic_hint", ""),
+                "sidecar_parameter_name": getattr(relation, "sidecar_parameter_name", ""),
+                "material_name": getattr(relation, "material_name", ""),
+                "package_label": getattr(relation, "package_label", ""),
+            }
+            for relation in getattr(family_graph, "relations", ()) or ()
+        ],
+    }
+
+
 def _find_matching_skeleton_entry(
     entry: ArchiveEntry,
     *,
@@ -257,6 +287,9 @@ def export_archive_mesh(
     related_entries: Sequence[ArchiveEntry] = (),
     allow_missing_skeleton: bool = False,
     resolve_skeleton_for_obj: bool = True,
+    model_texture_references: Optional[Sequence[ArchiveModelTextureReference]] = None,
+    asset_family_graph: object = None,
+    build_preview_context: bool = True,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> MeshExportResult:
     export_kind = export_format.strip().lower()
@@ -349,20 +382,26 @@ def export_archive_mesh(
     )
     if manifest_target_path is not None:
         try:
-            from cdmw.core.archive import build_archive_preview_result
+            manifest_texture_references = tuple(model_texture_references or ())
+            manifest_family_graph = asset_family_graph
+            if build_preview_context and not manifest_texture_references and manifest_family_graph is None:
+                from cdmw.core.archive import build_archive_preview_result
 
-            preview_result = build_archive_preview_result(
-                None,
-                entry,
-                (),
-                texture_entries_by_normalized_path=(
-                    dict(archive_entries_by_normalized_path) if archive_entries_by_normalized_path is not None else None
-                ),
-                texture_entries_by_basename=(
-                    dict(archive_entries_by_basename) if archive_entries_by_basename is not None else None
-                ),
-            )
-            model_texture_references = tuple(getattr(preview_result, "model_texture_references", ()) or ())
+                preview_result = build_archive_preview_result(
+                    None,
+                    entry,
+                    (),
+                    texture_entries_by_normalized_path=(
+                        dict(archive_entries_by_normalized_path) if archive_entries_by_normalized_path is not None else None
+                    ),
+                    texture_entries_by_basename=(
+                        dict(archive_entries_by_basename) if archive_entries_by_basename is not None else None
+                    ),
+                )
+                manifest_texture_references = tuple(getattr(preview_result, "model_texture_references", ()) or ())
+                manifest_family_graph = getattr(preview_result, "asset_family_graph", None)
+            elif not build_preview_context and not manifest_texture_references:
+                _safe_log(on_log, "Skipped archive preview metadata rebuild for internal Modify Original clone.")
             paired_lod_target = ""
             if entry.extension == ".pam" and archive_entries_by_normalized_path is not None:
                 paired_candidates = archive_entries_by_normalized_path.get(
@@ -378,7 +417,7 @@ def export_archive_mesh(
                     companion_path = str(companion_candidate)
                     rewritten_mtl_rows = _rewrite_export_mtl_map_kd(
                         companion_candidate,
-                        _build_export_mtl_texture_overrides(parsed_mesh, model_texture_references),
+                        _build_export_mtl_texture_overrides(parsed_mesh, manifest_texture_references),
                         output_dir,
                     )
                     if rewritten_mtl_rows:
@@ -405,34 +444,7 @@ def export_archive_mesh(
                     )
                     if copied_sidecar_path.is_file():
                         sidecar_hashes[normalized_related_path] = _sha256_file(copied_sidecar_path)
-            family_graph_payload = {}
-            if getattr(preview_result, "asset_family_graph", None) is not None:
-                family_graph = preview_result.asset_family_graph
-                family_graph_payload = {
-                    "root_path": family_graph.root_path,
-                    "family_key": family_graph.family_key,
-                    "members": list(family_graph.members),
-                    "grouped_paths": {
-                        key: list(value)
-                        for key, value in getattr(family_graph, "grouped_paths", {}).items()
-                    },
-                    "relations": [
-                        {
-                            "source_path": relation.source_path,
-                            "target_path": relation.target_path,
-                            "relation_kind": relation.relation_kind,
-                            "confidence": relation.confidence,
-                            "role_label": relation.role_label,
-                            "reason": relation.reason,
-                            "semantic_label": relation.semantic_label,
-                            "semantic_hint": relation.semantic_hint,
-                            "sidecar_parameter_name": relation.sidecar_parameter_name,
-                            "material_name": relation.material_name,
-                            "package_label": relation.package_label,
-                        }
-                        for relation in getattr(family_graph, "relations", ())
-                    ],
-                }
+            family_graph_payload = _archive_family_graph_payload(manifest_family_graph)
             texture_binding_rows = [
                 {
                     "reference_name": reference.reference_name,
@@ -443,7 +455,7 @@ def export_archive_mesh(
                     "material_name": reference.material_name,
                     "relation_group": reference.relation_group,
                 }
-                for reference in model_texture_references
+                for reference in manifest_texture_references
                 if str(getattr(reference, "relation_group", "") or "").strip() == "Textures"
             ]
             skeleton_resolver_payload = (
@@ -461,24 +473,30 @@ def export_archive_mesh(
                 if skeleton is not None and getattr(skeleton, "bones", None)
                 else {}
             )
+            extra_payload = {
+                "source_archive_path": entry.path,
+                "source_archive_format": entry.extension.lstrip(".").lower(),
+                "export_format": manifest_target_path.suffix.lstrip(".").lower(),
+                "selected_companion_files": selected_companion_files,
+                "texture_bindings": texture_binding_rows,
+                "texture_semantics": texture_binding_rows,
+                "sidecar_hashes": sidecar_hashes,
+            }
+            if family_graph_payload:
+                extra_payload["family_graph"] = family_graph_payload
+            if paired_lod_target:
+                extra_payload["paired_pamlod_target"] = paired_lod_target
+            if skeleton_entry is not None:
+                extra_payload["skeleton_identity"] = skeleton_entry.path
+            if skeleton_resolver_payload:
+                extra_payload["skeleton_resolver"] = skeleton_resolver_payload
+            if skin_binding_payload:
+                extra_payload["skin_binding_map"] = skin_binding_payload
             manifest_path = write_roundtrip_manifest(
                 parsed_mesh,
                 manifest_target_path,
                 companion_path=companion_path,
-                extra_payload={
-                    "source_archive_path": entry.path,
-                    "source_archive_format": entry.extension.lstrip(".").lower(),
-                    "export_format": manifest_target_path.suffix.lstrip(".").lower(),
-                    "selected_companion_files": selected_companion_files,
-                    "family_graph": family_graph_payload,
-                    "texture_bindings": texture_binding_rows,
-                    "texture_semantics": texture_binding_rows,
-                    "sidecar_hashes": sidecar_hashes,
-                    "paired_pamlod_target": paired_lod_target,
-                    "skeleton_identity": skeleton_entry.path if skeleton_entry is not None else "",
-                    "skeleton_resolver": skeleton_resolver_payload,
-                    "skin_binding_map": skin_binding_payload,
-                },
+                extra_payload=extra_payload,
             )
             if manifest_path not in output_paths:
                 output_paths.append(manifest_path)

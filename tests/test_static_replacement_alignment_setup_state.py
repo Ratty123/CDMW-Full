@@ -32,8 +32,7 @@ def test_alignment_builder_window_title_preserves_default_title() -> None:
         "Mesh Replacement Builder closed. Choose a workflow to reopen the live D3D11 preview."
     )
     assert alignment_builder_archive_preview_pause_message() == (
-        "Archive Preview auto-refresh paused while Mesh Replacement Builder is open. "
-        "Press Refresh to update anyway."
+        "Preview is paused while Mesh Replacement is open. Refresh to update anyway."
     )
     assert alignment_preview_build_failed_status("boom") == "Mesh replacement preview build failed: boom"
 
@@ -113,7 +112,7 @@ def test_alignment_import_diagnostic_rows_splits_labels_and_limits_rows() -> Non
 def test_alignment_import_diagnostics_html_preserves_table_format_and_escapes() -> None:
     html = alignment_import_diagnostics_html((("File", "<source.obj>"), ("Note", "safe")))
 
-    assert "font-size:8px" in html
+    assert "font-size:0.8em" in html
     assert "<table cellspacing='0' cellpadding='0' style='width:100%;'>" in html
     assert "File" in html
     assert "&lt;source.obj&gt;" in html

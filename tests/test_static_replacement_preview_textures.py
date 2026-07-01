@@ -302,10 +302,10 @@ def test_static_preview_refresh_route_state_tracks_direct_source_and_original_re
         original_mesh_available=True,
     )
 
-    assert mesh_edit_route.mesh_edit_direct_source_preview is True
+    assert mesh_edit_route.mesh_edit_direct_source_preview is False
     assert mesh_edit_route.replacement_only_direct_source_preview is False
     assert mesh_edit_route.source_owned_direct_source_preview is False
-    assert mesh_edit_route.require_original_reference is False
+    assert mesh_edit_route.require_original_reference is True
     assert mesh_edit_route.can_build_source_geometry is False
 
 

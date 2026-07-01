@@ -1,9 +1,12 @@
 import unittest
 import tempfile
+import json
 from pathlib import Path
+from unittest.mock import patch
 
 from cdmw.core.archive_modding import (
     _build_export_mtl_texture_overrides,
+    export_archive_mesh,
     _mesh_export_basename,
     _rewrite_export_mtl_map_kd,
 )
@@ -122,6 +125,57 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
                 "map_Kd referenced_files/character/texture/cd_texturelayer_003_0006.dds",
                 mtl_path.read_text(encoding="utf-8"),
             )
+
+    def test_internal_modify_original_export_skips_preview_context_rebuild(self) -> None:
+        entry = ArchiveEntry(
+            path="character/model/body.pac",
+            pamt_path=Path("0009/0.pamt"),
+            paz_file=Path("0009/0.paz"),
+            offset=0,
+            comp_size=1,
+            orig_size=1,
+            flags=0,
+            paz_index=0,
+        )
+        parsed_mesh = ParsedMesh(
+            path=entry.path,
+            format="pac",
+            submeshes=[
+                SubMesh(
+                    name="Body",
+                    material="BodyMat",
+                    texture="BodyTex",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                    normals=[(0.0, 0.0, 1.0)] * 3,
+                    faces=[(0, 1, 2)],
+                )
+            ],
+            total_vertices=3,
+            total_faces=1,
+            has_uvs=True,
+        )
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            with patch("cdmw.core.archive_mesh_export._parse_archive_mesh", return_value=parsed_mesh), patch(
+                "cdmw.core.archive.build_archive_preview_result",
+                side_effect=AssertionError("preview context rebuild should be skipped"),
+            ):
+                result = export_archive_mesh(
+                    entry,
+                    root,
+                    "obj",
+                    resolve_skeleton_for_obj=False,
+                    build_preview_context=False,
+                )
+
+            sidecar_path = next(path for path in result.output_paths if path.name.endswith(".obj.meta.json"))
+            payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
+
+        self.assertEqual("mesh_roundtrip_manifest_v2", payload["format"])
+        self.assertEqual("character/model/body.pac", payload["source_archive_path"])
+        self.assertNotIn("family_graph", payload)
 
 
 if __name__ == "__main__":

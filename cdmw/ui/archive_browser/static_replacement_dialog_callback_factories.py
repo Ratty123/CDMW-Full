@@ -495,6 +495,7 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
     _refresh_part_glow_color_controls_enabled = context.get('_refresh_part_glow_color_controls_enabled')
     _selected_part_glow_rgb_from_controls = context.get('_selected_part_glow_rgb_from_controls')
     _set_int_slider_spin_value_silently_helper = context.get('_set_int_slider_spin_value_silently_helper')
+    _modify_original_texture_tuning_enabled = context.get('_modify_original_texture_tuning_enabled')
     accent_glow_slider = context.get('accent_glow_slider')
     accent_glow_spin = context.get('accent_glow_spin')
     alignment_d3d11_preview_host = context.get('alignment_d3d11_preview_host')
@@ -563,6 +564,11 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
     def _basic_controls_profile_enabled() -> bool:
         profile_name = str(complete_swap_material_profile_combo.currentData() or "")
         return _material_authority_basic_controls_profile_enabled_helper(profile_name)
+
+    def _material_authority_preview_route_enabled() -> bool:
+        if bool(modify_original_clone_mode) and callable(_modify_original_texture_tuning_enabled):
+            return bool(_modify_original_texture_tuning_enabled())
+        return bool(_complete_external_swap_enabled())
 
     def _current_material_authority_preview_profile() -> object:
         return apply_true_source_basic_controls_to_profile(
@@ -658,7 +664,7 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
             pass
         current_texture_sets = _current_texture_sets_for_material_authority()
         return _material_authority_preview_inactive_reason_helper(
-            complete_enabled=_complete_external_swap_enabled(),
+            complete_enabled=_material_authority_preview_route_enabled(),
             basic_profile_enabled=_basic_controls_profile_enabled(),
             has_texture_sets=bool(current_texture_sets) or _replacement_preview_has_material_inputs(),
             original_material_preview_active=original_material_preview_active,
@@ -677,7 +683,7 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
             return False
         override_values = _material_authority_preview_native_override_values_helper(
             _current_material_authority_preview_profile(),
-            enabled=_complete_external_swap_enabled() and _basic_controls_profile_enabled(),
+            enabled=_material_authority_preview_route_enabled() and _basic_controls_profile_enabled(),
             base_brightness=1.0,
         )
         if not override_values:
@@ -1217,6 +1223,7 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
     _set_source_parts_apply_pending = context.get('_set_source_parts_apply_pending')
     _set_source_parts_preview_rebuild_pending = context.get('_set_source_parts_preview_rebuild_pending')
     _set_source_role_override_value = context.get('_set_source_role_override_value')
+    _modify_original_texture_tuning_enabled = context.get('_modify_original_texture_tuning_enabled')
     _source_part_control_load_state_helper = context.get('_source_part_control_load_state_helper')
     _source_part_control_state_helper = context.get('_source_part_control_state_helper')
     _source_part_copied_texture_action_state_helper = context.get('_source_part_copied_texture_action_state_helper')
@@ -1253,6 +1260,7 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
     mapping_items_by_target = context.get('mapping_items_by_target')
     mapping_tree = context.get('mapping_tree')
     mirror_duplicate_part_button = context.get('mirror_duplicate_part_button')
+    modify_original_clone_mode = context.get('modify_original_clone_mode')
     part_add_target_button = context.get('part_add_target_button')
     part_controls = context.get('part_controls')
     part_copied_texture_status_label = context.get('part_copied_texture_status_label')
@@ -1344,9 +1352,14 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
         return normalized[0], normalized[1], normalized[2]
 
     def _set_part_material_controls_enabled(enabled: bool) -> None:
+        effective_enabled = bool(enabled) and (
+            not bool(modify_original_clone_mode)
+            or not callable(_modify_original_texture_tuning_enabled)
+            or bool(_modify_original_texture_tuning_enabled())
+        )
         for spin in tuple(part_material_controls or ()):
             if hasattr(spin, "setEnabled"):
-                spin.setEnabled(bool(enabled))
+                spin.setEnabled(effective_enabled)
 
     def _set_part_material_controls(adjustment: object | None, *, enabled: bool) -> None:
         _set_part_material_controls_enabled(enabled)
@@ -1401,6 +1414,9 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
     def _update_selected_part_material_adjustment(_signal_value: object = None, *, push_undo: bool = True) -> bool:
         if part_inspector_loading["active"]:
             return False
+        if bool(modify_original_clone_mode) and callable(_modify_original_texture_tuning_enabled):
+            if not _modify_original_texture_tuning_enabled():
+                return False
         source_index = int(selected_source_part.get("index", -1))
         material_state = _source_part_material_adjustment_state_helper(
             source_part_adjustments,
@@ -2496,6 +2512,7 @@ def create_alignment_source_tree_selection_callbacks(context: dict[str, object])
     _update_selection_context = context.get('_update_selection_context')
     alignment_d3d11_preview_host = context.get('alignment_d3d11_preview_host')
     control_tabs = context.get('control_tabs')
+    dialog = context.get('dialog')
     hovered_source_part = context.get('hovered_source_part')
     if hovered_source_part is None:
         hovered_source_part = {}
@@ -2646,6 +2663,7 @@ def create_alignment_source_tree_selection_callbacks(context: dict[str, object])
         *,
         refresh_filter: bool = True,
         refresh_preview: bool = True,
+        preserve_existing_selection_if_selected: bool = False,
     ) -> bool:
         try:
             source_index = int(source_index)
@@ -2656,9 +2674,16 @@ def create_alignment_source_tree_selection_callbacks(context: dict[str, object])
             return False
         if _part_pick_checked():
             hovered_source_part["index"] = source_index
+        preserve_existing_selection = False
+        if bool(preserve_existing_selection_if_selected):
+            try:
+                preserve_existing_selection = bool(source_item.isSelected())
+            except RuntimeError:
+                preserve_existing_selection = False
         blocked = source_tree.blockSignals(True)
         try:
-            source_tree.clearSelection()
+            if not preserve_existing_selection:
+                source_tree.clearSelection()
             source_item.setSelected(True)
             source_tree.setCurrentItem(source_item)
         finally:
@@ -2710,10 +2735,12 @@ def create_alignment_source_tree_selection_callbacks(context: dict[str, object])
         )
         if not route_state["should_select"]:
             return
-        _select_source_part_from_viewport(
-            int(route_state["selected_source_index"]),
-            refresh_preview=False,
-        )
+        selected_source_index = int(route_state["selected_source_index"])
+        _select_source_part_from_viewport(selected_source_index, refresh_preview=False)
+        merged_visible = getattr(dialog, "_mesh_editor_embedded_merged_visible", None)
+        embedded_select = getattr(dialog, "_mesh_editor_embedded_native_part_selected", None)
+        if callable(merged_visible) and bool(merged_visible()) and callable(embedded_select):
+            embedded_select(selected_source_index)
 
     def _d3d11_source_part_hovered(editor_id: int) -> None:
         next_source_index = -1
@@ -2734,13 +2761,12 @@ def create_alignment_source_tree_selection_callbacks(context: dict[str, object])
         if not _alignment_d3d11_preview_active() or not _part_pick_checked():
             return
         source_indices = _alignment_d3d11_source_indices_for_editor_id(int(editor_id))
-        if not source_indices:
-            return
-        source_index = int(source_indices[0])
+        source_index = int(source_indices[0]) if source_indices else int(editor_id)
         if not _select_source_part_from_viewport(
             source_index,
             refresh_filter=False,
             refresh_preview=False,
+            preserve_existing_selection_if_selected=True,
         ):
             return
         if (
@@ -2758,6 +2784,11 @@ def create_alignment_source_tree_selection_callbacks(context: dict[str, object])
                 global_pos = None
         if global_pos is None:
             global_pos = alignment_d3d11_preview_host.mapToGlobal(QPoint(int(x), int(y)))
+        merged_visible = getattr(dialog, "_mesh_editor_embedded_merged_visible", None)
+        embedded_menu = getattr(dialog, "_mesh_editor_embedded_show_part_context_menu", None)
+        if callable(merged_visible) and bool(merged_visible()) and callable(embedded_menu):
+            if embedded_menu(source_index, global_pos):
+                return
         open_context_menu = lambda: _show_replacement_sources_context_menu_for_viewport(source_index, global_pos)
         if QTimer is not None:
             QTimer.singleShot(0, open_context_menu)
@@ -6484,10 +6515,20 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
     self = context.get('self')
     static_dialog_preview = context.get('static_dialog_preview')
     time = context.get('time')
+    prompt_shell_context = context.get('prompt_shell_context')
 
     def _set_preview_performance_status_if_ready(summary: str, *, details: str = "") -> None:
         if callable(_set_preview_performance_status):
             _set_preview_performance_status(summary, details=details)
+
+    def _stale_reload_rebuild_callback():
+        if callable(_queue_latest_alignment_d3d11_rebuild_for_stale_reload):
+            return _queue_latest_alignment_d3d11_rebuild_for_stale_reload
+        if isinstance(prompt_shell_context, dict):
+            callback = prompt_shell_context.get('_queue_latest_alignment_d3d11_rebuild_for_stale_reload')
+            if callable(callback):
+                return callback
+        return None
 
     def _current_alignment_preview_render_settings_value():
         if callable(_current_alignment_preview_render_settings):
@@ -6855,10 +6896,13 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
             )
             if recovery_action.should_stop_process and callable(_alignment_d3d11_stop_process):
                 _alignment_d3d11_stop_process()
-            QTimer.singleShot(
-                0,
-                lambda expected_request=watchdog_snapshot.active_request_id: _queue_latest_alignment_d3d11_rebuild_for_stale_reload(expected_request),
-            )
+
+            def _restart_latest_alignment_d3d11_rebuild(expected_request=watchdog_snapshot.active_request_id) -> None:
+                callback = _stale_reload_rebuild_callback()
+                if callable(callback):
+                    callback(expected_request)
+
+            QTimer.singleShot(0, _restart_latest_alignment_d3d11_rebuild)
             return
         _set_alignment_d3d11_loading(
             False,
@@ -7845,6 +7889,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
     json = context.get('json')
     entry = context.get('entry')
     material_authority_preview_signature_state = context.get('material_authority_preview_signature_state')
+    mesh_edit_enabled_checkbox = context.get('mesh_edit_enabled_checkbox')
     mesh_edit_tab = context.get('mesh_edit_tab')
     modify_original_clone_mode = context.get('modify_original_clone_mode')
     original_reference_preview_model = context.get('original_reference_preview_model')
@@ -7973,9 +8018,22 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             return True
         return False
 
-    _alignment_geometry_tab_active = lambda: _active_tab_is_helper(control_tabs, parts_tab)
+    def _alignment_geometry_tab_active() -> bool:
+        if _active_tab_is_helper(control_tabs, parts_tab):
+            return True
+        try:
+            return control_tabs.tabText(control_tabs.currentIndex()).strip().lower() in {"mesh editing", "merged mesh editing"}
+        except Exception:
+            return False
 
-    _alignment_mesh_edit_tab_active = lambda: _active_tab_is_helper(control_tabs, mesh_edit_tab)
+    def _alignment_mesh_edit_tab_active() -> bool:
+        is_checked = getattr(mesh_edit_enabled_checkbox, "isChecked", None)
+        if not callable(is_checked):
+            return False
+        try:
+            return bool(is_checked())
+        except RuntimeError:
+            return False
 
     _alignment_d3d11_editor_ids_for_source_indices = lambda source_indices, *, selection_overlay=False: _alignment_d3d11_editor_ids_for_source_indices_helper(
             source_indices,
@@ -9257,6 +9315,17 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             read_error_route = _alignment_d3d11_status_read_error_route_helper(exc)
             _set_alignment_d3d11_loading(False, read_error_route.message)
             return
+        if not payload_text.strip():
+            empty_route = _alignment_d3d11_unavailable_status_route_helper(
+                preview_loaded=bool(alignment_d3d11_state.get("preview_loaded")),
+                loading_stuck=_alignment_d3d11_loading_stuck(),
+                reason="empty status file",
+            )
+            if empty_route.action == "ready":
+                _set_alignment_d3d11_progress(100, empty_route.message, active=False)
+            elif empty_route.action == "clear_stuck":
+                _clear_stuck_alignment_d3d11_loading(empty_route.message)
+            return
         if not _alignment_d3d11_record_status_payload_helper(
             alignment_d3d11_state,
             signature=signature,
@@ -9275,8 +9344,15 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         try:
             payload = json.loads(payload_text)
         except Exception as exc:
-            parse_error_route = _alignment_d3d11_status_read_error_route_helper(exc)
-            _set_alignment_d3d11_loading(False, parse_error_route.message)
+            partial_route = _alignment_d3d11_unavailable_status_route_helper(
+                preview_loaded=bool(alignment_d3d11_state.get("preview_loaded")),
+                loading_stuck=_alignment_d3d11_loading_stuck(),
+                reason=f"partial status file: {exc}",
+            )
+            if partial_route.action == "ready":
+                _set_alignment_d3d11_progress(100, partial_route.message, active=False)
+            elif partial_route.action == "clear_stuck":
+                _clear_stuck_alignment_d3d11_loading(partial_route.message)
             return
         if not isinstance(payload, Mapping):
             _alignment_d3d11_invalid_status_payload_route_helper()

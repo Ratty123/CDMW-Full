@@ -187,7 +187,7 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertEqual(result.mesh.total_vertices, 3)
             self.assertEqual(result.mesh.total_faces, 1)
             self.assertTrue(result.mesh.has_uvs)
-            self.assertIs(True, preview_model.meshes[0].preview_texture_flip_vertical)
+            self.assertIsNone(preview_model.meshes[0].preview_texture_flip_vertical)
 
     def test_zip_containing_gltf_imports_via_safe_extract_cache(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -244,7 +244,7 @@ class GltfSceneImporterTests(unittest.TestCase):
             discovered = discover_scene_texture_files(path, result.mesh)
 
             self.assertEqual(result.mesh.format, "gltf")
-            self.assertIs(True, preview_model.meshes[0].preview_texture_flip_vertical)
+            self.assertIsNone(preview_model.meshes[0].preview_texture_flip_vertical)
             self.assertIn((root / "body_base.png").resolve(), result.discovered_texture_files)
             self.assertIn((root / "body_normal.png").resolve(), result.discovered_texture_files)
             self.assertIn((root / "body_metallic_roughness.png").resolve(), result.discovered_texture_files)
@@ -756,7 +756,7 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertEqual(1.0, mesh.preview_native_material_overrides["emissive_intensity"])
             self.assertEqual("#331a00", mesh.preview_native_material_overrides["emissive_color"])
 
-    def test_obj_scene_preview_defaults_to_flipped_texture_v(self) -> None:
+    def test_obj_scene_preview_defaults_to_unflipped_texture_v(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "body.png").write_bytes(b"png")
@@ -788,7 +788,7 @@ class GltfSceneImporterTests(unittest.TestCase):
 
             self.assertEqual("obj", result.mesh.format)
             self.assertTrue(result.mesh.has_uvs)
-            self.assertIs(True, preview_model.meshes[0].preview_texture_flip_vertical)
+            self.assertIsNone(preview_model.meshes[0].preview_texture_flip_vertical)
 
     def test_obj_mtl_common_maps_become_preview_material_slots(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

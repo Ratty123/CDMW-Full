@@ -10,6 +10,8 @@ import unittest
 from PySide6.QtCore import QUrl
 
 from cdmw.models import (
+    HkxPhysicsOverlayBone,
+    HkxPhysicsOverlayData,
     ModelPreviewData,
     ModelPreviewMesh,
     ModelPreviewRenderSettings,
@@ -26,6 +28,7 @@ from cdmw.rendering.material_combiner import (
 )
 from cdmw.rendering.native_preview_package import (
     _input_texture_kind,
+    _skeleton_overlay_metadata,
     build_native_preview_payloads,
     write_isolated_d3d11_preview_package,
 )
@@ -74,6 +77,32 @@ def _vertex(
 
 
 class NativePreviewPayloadTests(unittest.TestCase):
+    def test_skeleton_overlay_manifest_includes_bone_positions(self) -> None:
+        model = ModelPreviewData(
+            path="body.pac",
+            physics_overlay=HkxPhysicsOverlayData(
+                bones=(
+                    HkxPhysicsOverlayBone(index=0, name="Root", position=(0.0, 0.0, 0.0)),
+                    HkxPhysicsOverlayBone(
+                        index=1,
+                        name="Spine",
+                        parent_index=0,
+                        parent_name="Root",
+                        position=(0.0, 1.0, 0.0),
+                        parent_position=(0.0, 0.0, 0.0),
+                    ),
+                ),
+                skeleton_selected_bone_index=1,
+            ),
+        )
+
+        metadata = _skeleton_overlay_metadata(model)
+
+        self.assertTrue(metadata["enabled"])
+        self.assertEqual([0.0, 1.0, 0.0], metadata["bones"][1]["position"])
+        self.assertEqual([0.0, 0.0, 0.0], metadata["bones"][1]["parent_position"])
+        self.assertEqual(1, metadata["selected_bone_index"])
+
     def test_legacy_material_combiner_cache_key_includes_synthesized_texture_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -505,9 +534,9 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertEqual(1, len(payloads))
         self.assertEqual("", payloads[0].texture_source)
         self.assertEqual((), payloads[0].material_texture_slots)
-        self.assertTrue(payloads[0].texture_flip_vertical)
+        self.assertFalse(payloads[0].texture_flip_vertical)
 
-    def test_scene_format_payload_defaults_to_flipped_texture_v_and_flip_override_toggles(self) -> None:
+    def test_scene_format_payload_defaults_to_unflipped_texture_v_and_flip_override_toggles(self) -> None:
         blob = b"".join(
             (
                 _vertex(0.0, 0.0, 0.0),
@@ -534,8 +563,8 @@ class NativePreviewPayloadTests(unittest.TestCase):
             render_settings=ModelPreviewRenderSettings(flip_texture_v=True),
         )
 
-        self.assertTrue(payloads[0].texture_flip_vertical)
-        self.assertFalse(flipped_payloads[0].texture_flip_vertical)
+        self.assertFalse(payloads[0].texture_flip_vertical)
+        self.assertTrue(flipped_payloads[0].texture_flip_vertical)
 
     def test_material_mask_slots_avoid_opacity_and_generic_blackout_sources(self) -> None:
         blob = b"".join(
@@ -2044,7 +2073,7 @@ class NativePreviewWidgetRuntimeTests(unittest.TestCase):
             details = widget.debug_details_text()
             self.assertIn("Native D3D11 preview data ready", details)
             payload = build_native_preview_payloads(prepared)[0]
-            self.assertTrue(payload.texture_flip_vertical)
+            self.assertFalse(payload.texture_flip_vertical)
             prepared_path = Path(QUrl(payload.texture_source).toLocalFile())
             self.assertTrue(prepared_path.is_file())
             prepared_image = QImage(str(prepared_path))

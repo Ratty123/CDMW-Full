@@ -9,7 +9,8 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QPlainTextEdit, QScrollArea, QSizePolicy
 
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.model_library import ModelLibraryTab
@@ -26,6 +27,36 @@ class _QtPreviewModelLibraryTab(ModelLibraryTab):
 
 
 class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
+    def test_controls_panel_uses_width_and_bottom_space(self) -> None:
+        app = _app()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            settings = create_settings(settings_file_path=root / "settings.ini")
+            tab = _QtPreviewModelLibraryTab(settings=settings, base_dir=root)
+            try:
+                tab.resize(1200, 760)
+                tab.show()
+                app.processEvents()
+
+                controls_scroll = tab.findChild(QScrollArea, "ModelLibraryControlsScroll")
+                self.assertIsNotNone(controls_scroll)
+                assert controls_scroll is not None
+                self.assertGreaterEqual(controls_scroll.minimumWidth(), 430)
+                self.assertEqual(
+                    controls_scroll.horizontalScrollBarPolicy(),
+                    Qt.ScrollBarPolicy.ScrollBarAsNeeded,
+                )
+                self.assertIsInstance(tab.details_text, QPlainTextEdit)
+                self.assertEqual(tab.details_text.lineWrapMode(), QPlainTextEdit.LineWrapMode.WidgetWidth)
+                self.assertGreaterEqual(tab.details_text.minimumHeight(), 180)
+                self.assertEqual(tab.details_text.sizePolicy().verticalPolicy(), QSizePolicy.Policy.Expanding)
+                tab._show_details(None)
+                self.assertIn("Select a local file", tab.details_text.toPlainText())
+            finally:
+                tab.close()
+                tab.deleteLater()
+                app.processEvents()
+
     def test_task_completion_handler_runs_on_ui_thread(self) -> None:
         app = _app()
         main_thread_id = threading.get_ident()

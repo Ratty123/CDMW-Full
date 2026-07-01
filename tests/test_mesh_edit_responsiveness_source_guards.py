@@ -155,6 +155,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('command == "replace_mesh_edit_triangles"', source)
         self.assertIn("update_mesh_edit_vertices_from_payload", source)
         self.assertIn("replace_mesh_edit_triangles_from_payload", source)
+        self.assertIn("if (!delivered) {", source)
         self.assertIn("write_status(args_.status_file, payload);", source)
         self.assertIn("const bool xray_mode = !mesh_edit_depth_filter_enabled();", source)
         self.assertIn("draw_colored_triangles(vertices, identity, xray_mode);", source)
@@ -174,7 +175,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
         dbl_click_start = source.index("case WM_LBUTTONDBLCLK:")
         dbl_click_body = source[dbl_click_start: source.index("case WM_LBUTTONDOWN:", dbl_click_start)]
-        self.assertIn("if (mesh_edit_.enabled)", dbl_click_body)
+        self.assertIn("if (mesh_edit_.enabled || source_part_.picking_enabled)", dbl_click_body)
         self.assertIn("return true;", dbl_click_body)
 
     def test_rectangle_and_lasso_selection_use_visible_depth_filter(self) -> None:
@@ -319,6 +320,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("source_indices_for_editor_id(editor_submesh_index)", payload_source)
         self.assertIn("for source_submesh_index in source_indices:", payload_source)
         self.assertIn("if source_submesh_index not in allowed_indices:", payload_source)
+        self.assertIn("def _mesh_editor_action_result_within_allowed_scope(result: object) -> bool:", source)
+        self.assertIn("_mesh_edit_allowed_source_indices(require_enabled=False)", source)
+        self.assertIn("Mesh Editor action blocked outside selected scope", source)
 
     def test_mesh_edit_loading_watchdog_clears_stale_d3d11_state(self) -> None:
         source = _mesh_edit_source()
@@ -385,6 +389,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _mesh_edit_apply_preview_mode_transition(reason: str) -> None:", source)
         self.assertIn('"mesh_edit_preview_mode_transition"', source)
         self.assertIn('_alignment_d3d11_invalidate_package_cache("mesh_edit_mode")', source)
+        toggle_start = source.index("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:")
+        toggle_body = source[toggle_start:source.index("mesh_edit_enabled_checkbox.toggled.connect", toggle_start)]
+        self.assertIn('_mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")', toggle_body)
+        self.assertIn("if not bool(_checked):", toggle_body)
+        self.assertIn("_restore_textured_preview_after_mesh_edit_surface_exit()", toggle_body)
         self.assertIn("def alignment_d3d11_raw_package_active_or_pending(state: Mapping[str, object]) -> bool:", source)
         self.assertIn('_alignment_d3d11_raw_package_active_or_pending_helper(alignment_d3d11_state)', source)
         self.assertIn('"request_package_qualities": {},', source)
@@ -392,7 +401,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('state["package_quality"] = str(package_quality or "normal")', d3d11_cache_source)
         self.assertIn('state["package_quality"] = "normal"', d3d11_cache_source)
         self.assertIn("_queue_texture_preview_refresh()", source)
-        self.assertIn('_mesh_edit_apply_preview_mode_transition("left_mesh_edit_tab")', source)
+        self.assertNotIn('_mesh_edit_apply_preview_mode_transition("left_mesh_edit_tab")', source)
+        self.assertIn('mesh_edit_surface_tab_state["active"] = _mesh_edit_surface_tab_active(index)', source)
+        self.assertIn("def _mesh_edit_surface_tab_active(index: int | None = None) -> bool:", source)
+        self.assertIn('"classic mesh editing"', source)
+        self.assertIn('"merged mesh editing"', source)
+        self.assertIn('mesh_edit_surface_tab_state = {"active": _mesh_edit_surface_tab_active()}', source)
+        self.assertNotIn("previous_surface = bool(mesh_edit_surface_tab_state.get(\"active\"))", source)
+        self.assertIn("_restore_textured_preview_after_mesh_edit_surface_exit()", source)
+        self.assertIn("if callable(_queue_texture_preview_refresh):", source)
         self.assertNotIn('return _alignment_d3d11_fast_render_settings(settings), False, False, "fast_geometry"', source)
         self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"', d3d11_presentation_source)
         self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "mesh_edit_raw"', d3d11_presentation_source)
@@ -499,11 +516,22 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _mesh_edit_preview_delta_to_source_delta(", source)
         self.assertIn("def _mesh_edit_preview_point_to_source_point(", source)
         self.assertIn("def _mesh_edit_preview_distance_to_source_distance(", source)
+        self.assertIn("source_delta_for_transformed_delta = _context_or_prompt('source_delta_for_transformed_delta')", source)
+        self.assertIn("source_point_for_transformed_point = _context_or_prompt('source_point_for_transformed_point')", source)
+        self.assertIn(
+            "source_distance_for_transformed_distance = _context_or_prompt('source_distance_for_transformed_distance')",
+            source,
+        )
         self.assertIn("source_delta = _mesh_edit_preview_delta_to_source_delta(source_submesh_index, delta)", apply_body)
         self.assertIn("source_step_delta = _mesh_edit_preview_delta_to_source_delta(source_submesh_index, step_delta)", apply_body)
         self.assertIn("source_center = _mesh_edit_preview_point_to_source_point(source_submesh_index, center)", apply_body)
         self.assertIn("source_radius = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, radius)", apply_body)
         self.assertIn("source_amount = _mesh_edit_preview_distance_to_source_distance(source_submesh_index, amount)", apply_body)
+        self.assertIn('if mesh_edit_active_stroke.pop("inverse_failed", False):', apply_body)
+        self.assertLess(
+            apply_body.index('if mesh_edit_active_stroke.pop("inverse_failed", False):'),
+            apply_body.index('_mesh_editor_apply_static_replacement_edit('),
+        )
         self.assertNotIn("_mesh_edit_abort_inverse_stroke()", source)
         delta_start = source.index("def _mesh_edit_preview_delta_to_source_delta(")
         delta_body = source[delta_start: source.index("def _mesh_edit_preview_point_to_source_point(", delta_start)]
@@ -584,13 +612,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             update_body.index("_safe_refresh_static_dialog_preview(live_mesh_edit=True)"),
         )
 
-    def test_mesh_edit_inverse_transform_failures_fallback_without_aborting_drag(self) -> None:
+    def test_mesh_edit_inverse_transform_failures_skip_unsafe_payload_without_aborting_drag(self) -> None:
         source = _mesh_edit_source()
 
         self.assertIn("mesh_edit_inverse_fallback_warnings", source)
         self.assertIn('f"mesh_edit_{kind}_inverse_fallback"', source)
         self.assertNotIn('f"mesh_edit_{kind}_inverse_error"', source)
         self.assertIn("mesh_edit_inverse_fallback_warnings.clear()", source)
+        self.assertIn('mesh_edit_active_stroke["inverse_failed"] = True', source)
 
         delta_start = source.index("def _mesh_edit_preview_delta_to_source_delta")
         delta_body = source[delta_start: source.index("def _mesh_edit_preview_point_to_source_point", delta_start)]
@@ -606,6 +635,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         distance_body = source[distance_start: source.index("_mesh_edit_vertices_from_payload", distance_start)]
         self.assertIn("return abs(distance)", distance_body)
         self.assertNotIn("return None", distance_body)
+
+        apply_start = source.index("def _mesh_edit_apply_preview_payload(payload: object) -> None:")
+        apply_body = source[apply_start: source.index("def _mesh_edit_finish_stroke", apply_start)]
+        self.assertIn('mesh_edit_active_stroke.pop("inverse_failed", None)', apply_body)
+        self.assertIn('if mesh_edit_active_stroke.pop("inverse_failed", False):\n                continue', apply_body)
 
     def test_mesh_edit_disables_native_alignment_transform(self) -> None:
         source = _mesh_edit_source()

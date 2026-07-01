@@ -1345,6 +1345,7 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
         source_selection_overlay_preview_index_map.clear()
         source_selection_overlay_editor_id_map.clear()
         preview_submesh_index_map.clear()
+        modify_original_tuning_enabled = _modify_original_tuning_enabled_value()
 
         def _empty_direct_source_preview_model() -> ModelPreviewData:
             reference_model = state.original_reference_preview_model or state.replacement_preview_model
@@ -1382,7 +1383,6 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
                         placement_snapshot = _current_static_placement_snapshot(current_mappings, include_preview_only_independent_parts=True)
                         independent_preview_parts = list(placement_snapshot.get('independent_output_parts', []) or [])
                         geometry_started = time.perf_counter()
-                        modify_original_tuning_enabled = _modify_original_tuning_enabled_value()
                         preview_mesh = build_static_replacement_preview_mesh(
                             original_mesh_for_mapping,
                             preview_replacement_mesh,
@@ -1438,15 +1438,20 @@ def create_alignment_static_preview_refresh_callbacks(context: dict[str, object]
         except Exception:
             preview_material_authority_profile = None
         preview_accent_glow_intensity = _accent_glow_preview_intensity_helper(preview_material_authority_profile) if preview_material_authority_profile is not None else 1.0
-        preview_material_authority_parameters = _material_authority_preview_parameters_helper(preview_material_authority_profile, enabled=True) if preview_material_authority_profile is not None and _complete_external_swap_enabled_value() and _basic_controls_profile_enabled_value() else ()
-        use_original_material_preview = _original_texture_preview_material_preview_enabled_helper(modify_original_clone_mode, original_texture_preview_state)
+        material_authority_preview_route_enabled = bool(
+            modify_original_tuning_enabled
+            if modify_original_clone_mode
+            else _complete_external_swap_enabled_value()
+        )
         material_authority_preview_active = (
             preview_material_authority_profile is not None
-            and _complete_external_swap_enabled_value()
+            and material_authority_preview_route_enabled
             and _basic_controls_profile_enabled_value()
         )
+        preview_material_authority_parameters = _material_authority_preview_parameters_helper(preview_material_authority_profile, enabled=True) if material_authority_preview_active else ()
+        use_original_material_preview = _original_texture_preview_material_preview_enabled_helper(modify_original_clone_mode, original_texture_preview_state)
         if (state.texture_sets or material_authority_preview_active) and (not use_original_material_preview) and (not mesh_edit_direct_source_preview):
-            _apply_source_material_preview_for_model_helper(preview_model, use_direct_source_preview=use_direct_source_preview, direct_source_preview_index_map=direct_source_preview_index_map, mapped_preview=mapped_preview, source_overlay_preview_index_map=source_overlay_preview_index_map, current_mappings=current_mappings, texture_sets=state.texture_sets, material_authority_profile=preview_material_authority_profile, complete_external_swap_enabled=_complete_external_swap_enabled_value(), basic_controls_profile_enabled=_basic_controls_profile_enabled_value(), texture_set_for_source_index=_texture_set_for_source_index, texture_set_for_mapping=lambda mapping: _texture_set_for_mapping_helper(mapping, texture_sets=state.texture_sets, replacement_mesh=state.replacement_mesh_for_mapping, texture_set_for_source_index=_texture_set_for_source_index), source_display_name=_source_display_name, preview_target_mesh_indices=_preview_target_mesh_indices, texture_set_factor_parameters=_texture_set_factor_parameters, material_authority_preview_texture_slots=material_authority_preview_texture_slots, replacement_texture_slot_preview_semantics=replacement_texture_slot_preview_semantics, resolve_model_texture_semantic_details=_resolve_model_texture_semantic_details, is_gltf_metallic_roughness_path=_is_gltf_metallic_roughness_path, infer_model_preview_normal_strength=_infer_model_preview_normal_strength, accent_glow_preview_intensity=preview_accent_glow_intensity)
+            _apply_source_material_preview_for_model_helper(preview_model, use_direct_source_preview=use_direct_source_preview, direct_source_preview_index_map=direct_source_preview_index_map, mapped_preview=mapped_preview, source_overlay_preview_index_map=source_overlay_preview_index_map, current_mappings=current_mappings, texture_sets=state.texture_sets, material_authority_profile=preview_material_authority_profile, complete_external_swap_enabled=material_authority_preview_route_enabled, basic_controls_profile_enabled=_basic_controls_profile_enabled_value(), texture_set_for_source_index=_texture_set_for_source_index, texture_set_for_mapping=lambda mapping: _texture_set_for_mapping_helper(mapping, texture_sets=state.texture_sets, replacement_mesh=state.replacement_mesh_for_mapping, texture_set_for_source_index=_texture_set_for_source_index), source_display_name=_source_display_name, preview_target_mesh_indices=_preview_target_mesh_indices, texture_set_factor_parameters=_texture_set_factor_parameters, material_authority_preview_texture_slots=material_authority_preview_texture_slots, replacement_texture_slot_preview_semantics=replacement_texture_slot_preview_semantics, resolve_model_texture_semantic_details=_resolve_model_texture_semantic_details, is_gltf_metallic_roughness_path=_is_gltf_metallic_roughness_path, infer_model_preview_normal_strength=_infer_model_preview_normal_strength, accent_glow_preview_intensity=preview_accent_glow_intensity)
         source_role_profile = preview_material_authority_profile if preview_material_authority_profile is not None else object()
         _apply_source_role_emissive_preview_for_model_helper(preview_model, use_direct_source_preview=use_direct_source_preview, direct_source_preview_index_map=direct_source_preview_index_map, mapped_preview=mapped_preview, source_overlay_preview_index_map=source_overlay_preview_index_map, current_mappings=current_mappings, texture_sets=state.texture_sets, source_part_adjustments=source_part_adjustments, profile=source_role_profile, texture_set_for_source_index=_texture_set_for_source_index, source_display_name=_source_display_name, preview_target_mesh_indices=_preview_target_mesh_indices)
         if _alignment_d3d11_preview_active():

@@ -453,7 +453,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("def _start_archive_modify_original_workspace(self, entry: ArchiveEntry) -> None:", source)
         self.assertIn('export_archive_mesh(', source)
         self.assertIn("class ModifyOriginalWorkflowSelection:", mesh_session_source)
-        self.assertIn('QRadioButton("Edit inside Mesh Replacement (no workspace export)")', source)
+        self.assertIn('QRadioButton("Edit inside Mesh Replacement (internal safe clone)")', source)
         self.assertIn('QRadioButton("Create editable workspace folder")', source)
         self.assertIn('"format": "cdmw_modify_original_workspace_v1"', source)
         self.assertIn('"workspace_mode": "user_workspace" if create_workspace else "internal_app_session"', source)
@@ -463,6 +463,9 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("selection = self._prompt_archive_modify_original_workspace_options(entry)", source)
         self.assertIn("create_workspace = bool(selection.create_workspace)", source)
         self.assertIn("resolve_skeleton_for_obj=create_workspace", source)
+        self.assertIn("model_texture_references=cached_texture_references", source)
+        self.assertIn("build_preview_context=create_workspace", source)
+        self.assertIn("task_accepts_progress=True", source)
         self.assertIn("session_root = workspace_paths(self.settings_file_path.parent)[\"modify_original_sessions_root\"]", source)
         self.assertIn("def _cleanup_stale_modify_original_sessions(", source)
         self.assertNotIn("modify_original_auto", source)
@@ -484,6 +487,10 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("resolve_skeleton_for_obj: bool = True", archive_modding_source)
         self.assertIn('export_kind == "fbx" or bool(resolve_skeleton_for_obj)', archive_modding_source)
         self.assertIn("resolve_skeleton_for_obj=create_workspace", main_window_source)
+        self.assertIn("resolve_skeleton_for_model(", main_window_source)
+        self.assertIn("source_skeleton = None", main_window_source)
+        self.assertIn("parse_pab(skeleton_data, skeleton_entry.path)", main_window_source)
+        self.assertIn("source_skeleton=source_skeleton", main_window_source)
 
     def test_modify_original_preserves_selected_archive_entry_as_export_target(self) -> None:
         source = (

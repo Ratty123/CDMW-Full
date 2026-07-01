@@ -429,7 +429,80 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("bool request_source_part_context(WPARAM wparam, int x, int y)", d3d11_text)
         self.assertIn("if (request_source_part_context(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))", d3d11_text)
         self.assertIn("if (source_part_.click_pending)", d3d11_text)
+        dblclk_start = d3d11_text.index("case WM_LBUTTONDBLCLK:")
+        dblclk_body = d3d11_text[dblclk_start:d3d11_text.index("case WM_LBUTTONDOWN:", dblclk_start)]
+        self.assertIn("mesh_edit_.enabled || source_part_.picking_enabled", dblclk_body)
+        self.assertIn("source_part_.click_pending = false;", dblclk_body)
+        self.assertLess(
+            dblclk_body.index("mesh_edit_.enabled || source_part_.picking_enabled"),
+            dblclk_body.index("reset_camera_for_role(reset_role);"),
+        )
+        self.assertLess(
+            d3d11_text.index("if (begin_alignment_drag(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))"),
+            d3d11_text.index("begin_source_part_click(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));"),
+        )
+        self.assertLess(
+            d3d11_text.index("begin_source_part_click(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));"),
+            d3d11_text.index("if (begin_mesh_edit_drag(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)))"),
+        )
+        self.assertNotIn("source_part_.picking_enabled && !mesh_edit_.enabled", d3d11_text)
+        self.assertNotIn("!source_part_.picking_enabled || mesh_edit_.enabled", d3d11_text)
         self.assertIn('if (command == "set_source_part_picking")', d3d11_text)
+
+    def test_d3d11_preview_draws_skeleton_overlay_and_accepts_bone_selection(self) -> None:
+        d3d11_text = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        host_text = Path("cdmw/ui/native_d3d11_preview_host.py").read_text(encoding="utf-8")
+
+        self.assertIn("struct SkeletonOverlayBoneState", d3d11_text)
+        self.assertIn("static SkeletonOverlayState parse_skeleton_overlay_state", d3d11_text)
+        self.assertIn('json_object_array_field(skeleton_overlay, "bones")', d3d11_text)
+        self.assertIn("void draw_skeleton_overlay", d3d11_text)
+        self.assertIn("draw_skeleton_overlay(view, world_view_projection);", d3d11_text)
+        self.assertIn('if (command == "set_skeleton_overlay")', d3d11_text)
+        self.assertIn("skeleton_overlay_.selected_bone_index", d3d11_text)
+        self.assertIn("def set_skeleton_selected_bone(self, bone_index: int) -> bool:", host_text)
+        self.assertIn('"command": "set_skeleton_overlay"', host_text)
+
+    def test_d3d11_side_by_side_preview_split_is_draggable(self) -> None:
+        d3d11_text = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        host_text = Path("cdmw/ui/native_d3d11_preview_host.py").read_text(encoding="utf-8")
+
+        self.assertIn("float side_by_side_split_ratio_ = 0.5f;", d3d11_text)
+        self.assertIn("begin_side_by_side_split_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))", d3d11_text)
+        self.assertIn("update_side_by_side_split_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))", d3d11_text)
+        self.assertIn("finish_side_by_side_split_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))", d3d11_text)
+        self.assertIn("draw_side_by_side_splitter_overlay();", d3d11_text)
+        load_start = d3d11_text.index('if (command == "load_package")')
+        load_body = d3d11_text[load_start:d3d11_text.index('if (command == "clear_preview")', load_start)]
+        self.assertIn('json_has_field(payload, "side_by_side_split_ratio")', load_body)
+        self.assertIn(
+            "set_side_by_side_split_ratio(json_float_field(payload, \"side_by_side_split_ratio\", side_by_side_split_ratio_))",
+            load_body,
+        )
+        self.assertIn('if (command == "set_side_by_side_split")', d3d11_text)
+        self.assertIn('json_has_field(payload, "side_by_side_split_ratio")', d3d11_text)
+        self.assertIn('send_side_by_side_split_event("drag");', d3d11_text)
+        self.assertIn("SetCursor(LoadCursor(nullptr, IDC_SIZEWE));", d3d11_text)
+        self.assertNotIn("static_cast<float>(width_) * 0.56f", d3d11_text)
+        self.assertIn("def remember_side_by_side_split_ratio(self, ratio: float) -> float:", host_text)
+        self.assertIn("def set_side_by_side_split_ratio(self, ratio: float) -> bool:", host_text)
+        load_start = host_text.index("def load_package(")
+        load_body = host_text[load_start:host_text.index("def view_state_snapshot", load_start)]
+        self.assertIn('"side_by_side_split_ratio": float(self._side_by_side_split_ratio)', load_body)
+        set_ratio_start = host_text.index("def set_side_by_side_split_ratio(")
+        set_ratio_body = host_text[set_ratio_start:host_text.index("def set_render_tuning", set_ratio_start)]
+        self.assertIn("self.remember_side_by_side_split_ratio(ratio)", set_ratio_body)
+        self.assertIn('"side_by_side_split_ratio": float(self._side_by_side_split_ratio)', host_text)
+
+    def test_d3d11_embedded_events_do_not_overwrite_status_file(self) -> None:
+        d3d11_text = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        start = d3d11_text.index("void send_json_event")
+        end = d3d11_text.index("void send_view_event", start)
+        event_source = d3d11_text[start:end]
+
+        self.assertIn("delivered = SendMessageW", event_source)
+        self.assertIn("if (!delivered) {", event_source)
+        self.assertIn("write_status(args_.status_file, payload);", event_source)
 
     def test_d3d11_preview_uses_screen_space_highlight_bounds(self) -> None:
         d3d11_text = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")

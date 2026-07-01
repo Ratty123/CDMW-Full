@@ -143,6 +143,8 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     _record_open_step("show_before")
     dialog.show()
     _record_open_step("show_after")
+    if embedded_alignment_builder:
+        QTimer.singleShot(0, lambda: _apply_alignment_dialog_responsive_layout(force_sizes=True))
     if not embedded_alignment_builder:
         _record_open_step("raise_before")
         dialog.raise_()

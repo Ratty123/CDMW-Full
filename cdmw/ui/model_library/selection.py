@@ -76,7 +76,7 @@ class ModelLibrarySelectionMixin:
     def _show_details(self, payload: Optional[dict[str, object]]) -> None:
         if not payload:
             self.details_edit.clear()
-            self.details_text.setText("Select a local file or mirror result.")
+            self.details_text.setPlainText("Select a local file or mirror result.")
             return
         name = str(payload.get("name", "") or "Untitled model")
         self.details_edit.setText(name)
@@ -112,7 +112,7 @@ class ModelLibrarySelectionMixin:
             if description:
                 lines.append("")
                 lines.append(description[:1600])
-            self.details_text.setText("\n".join(lines))
+            self.details_text.setPlainText("\n".join(lines))
             return
         path = Path(str(payload.get("path", "") or ""))
         lines = [
@@ -197,7 +197,7 @@ class ModelLibrarySelectionMixin:
         archive_path = str(payload.get("archive_path", "") or "")
         if archive_path:
             lines.append(f"Archive: {archive_path}")
-        self.details_text.setText("\n".join(lines))
+        self.details_text.setPlainText("\n".join(lines))
 
 
 __all__ = ["ModelLibrarySelectionMixin"]

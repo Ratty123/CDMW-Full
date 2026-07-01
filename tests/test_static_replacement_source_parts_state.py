@@ -1178,7 +1178,7 @@ def test_source_part_inspector_control_text_preserves_labels_and_tooltips() -> N
     assert "Axis Scale for X/Y/Z-only changes" in text["workflow_hint_tooltip"]
     assert text["source_select_label"] == "Select part"
     assert "inspect, remove, resize, or route" in text["source_combo_tooltip"]
-    assert text["name_placeholder"] == "Select a replacement source part."
+    assert text["name_placeholder"] == "No part selected."
     assert text["target_placeholder"] == "-"
     assert text["include_in_output"] == "Include in output"
     assert text["no_target_selected"] == "No target selected"
@@ -1358,9 +1358,11 @@ def test_source_part_properties_inspector_state_builds_target_source_material_an
 
 def test_source_part_selection_context_presentation_preserves_copy() -> None:
     assert source_part_selection_context_label_text("Geometry", "src", "target", "texture.dds") == (
-        "Geometry | S: src | T: target | Tex: texture.dds"
+        "Geometry | Source: src | Target: target | Texture: texture.dds"
     )
-    assert source_part_selection_context_label_text("", "", "", "") == "Setup | S: none | T: none | Tex: none"
+    assert source_part_selection_context_label_text("", "", "", "") == (
+        "Setup | Source: none | Target: none | Texture: none"
+    )
     assert source_part_selection_context_tooltip("src", "target", "texture.dds") == (
         "Source: src\nTarget: target\nTexture: texture.dds"
     )
@@ -1430,7 +1432,7 @@ def test_source_part_selection_context_state_uses_selection_fallbacks_and_compac
     assert state.target_index == 5
     assert state.source_text == "source 1"
     assert state.target_text == "target 5"
-    assert state.label_text.startswith("Materials | S: source 1 | T: target 5 | Tex: texture_")
+    assert state.label_text.startswith("Materials | Source: source 1 | Target: target 5 | Texture: texture_")
     assert state.label_text.endswith("...")
     assert state.tooltip_text.startswith("Source: source 1\nTarget: target 5\nTexture: texture_")
 
@@ -1444,7 +1446,7 @@ def test_source_part_selection_context_state_uses_selection_fallbacks_and_compac
         source_display_name=lambda index: f"source {index}",
         target_display_name=lambda index: f"target {index}",
     )
-    assert empty.label_text == "Setup | S: none | T: none | Tex: none"
+    assert empty.label_text == "Setup | Source: none | Target: none | Texture: none"
     assert empty.tooltip_text == "Source: none\nTarget: none\nTexture: none"
 
 

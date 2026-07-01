@@ -393,12 +393,16 @@ def _skeleton_overlay_metadata(model: object) -> Dict[str, object]:
     pose_rotations = _skeleton_pose_rotations_metadata(getattr(overlay, "skeleton_pose_rotations", ()) if overlay is not None else ())
     bone_payload = []
     for bone in bones[:4096]:
+        position = _tuple3(getattr(bone, "position", ()) or ())
+        parent_position = _tuple3(getattr(bone, "parent_position", ()) or ())
         bone_payload.append(
             {
                 "name": str(getattr(bone, "name", "") or ""),
                 "index": _safe_int(getattr(bone, "index", -1), -1),
                 "parent_index": _safe_int(getattr(bone, "parent_index", -1), -1),
                 "parent_name": str(getattr(bone, "parent_name", "") or ""),
+                "position": list(position),
+                "parent_position": list(parent_position),
                 "source_path": str(getattr(bone, "source_path", "") or ""),
                 "confidence": str(getattr(bone, "confidence", "") or "skeleton_context"),
             }
@@ -774,6 +778,7 @@ def write_isolated_d3d11_preview_package(
             getattr(batch, "preview_texture_flip_vertical", None),
             source_format=getattr(prepared_preview, "format", "") or getattr(model, "format", ""),
             source_path=getattr(prepared_preview, "source_path", "") or getattr(model, "path", ""),
+            default=False,
         )
         if "texture_flip_vertical" in combiner_metadata:
             texture_flip_vertical = bool(combiner_metadata.get("texture_flip_vertical", texture_flip_vertical))

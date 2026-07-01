@@ -8,16 +8,33 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
-if (-not (Test-Path -LiteralPath $vswhere)) {
-    throw "vswhere.exe was not found. Install Visual Studio Build Tools 2022 with MSVC and CMake components."
+
+function Resolve-VisualStudioRoot {
+    $roots = New-Object System.Collections.Generic.List[string]
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path -LiteralPath $vswhere) {
+        $vswhereRoot = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
+        if ($vswhereRoot) {
+            $roots.Add($vswhereRoot)
+        }
+    }
+
+    $vs2022Root = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\2022"
+    foreach ($edition in @("BuildTools", "Community", "Professional", "Enterprise")) {
+        $roots.Add((Join-Path $vs2022Root $edition))
+    }
+
+    foreach ($root in $roots) {
+        $vcvarsPath = Join-Path $root "VC\Auxiliary\Build\vcvars64.bat"
+        if (Test-Path -LiteralPath $vcvarsPath) {
+            return $root
+        }
+    }
+
+    throw "Visual Studio 2022 with MSVC x64 tools was not found. Install Visual Studio Build Tools 2022 with MSVC and CMake components."
 }
 
-$vsRoot = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
-if (-not $vsRoot) {
-    throw "Visual Studio Build Tools with MSVC x64 tools were not found."
-}
-
+$vsRoot = Resolve-VisualStudioRoot
 $vcvars = Join-Path $vsRoot "VC\Auxiliary\Build\vcvars64.bat"
 if (-not (Test-Path -LiteralPath $vcvars)) {
     throw "vcvars64.bat was not found under '$vsRoot'."
@@ -116,9 +133,11 @@ $cargo = Get-Command cargo -ErrorAction SilentlyContinue
 if ($cargo) {
     Push-Location (Join-Path $scriptDir "native\cd_hkx")
     try {
-        & $cargo.Source build --release
-        if ($LASTEXITCODE -ne 0) {
-            throw "Rust HKX native build failed with exit code $LASTEXITCODE."
+        $cargoCommand = "`"$($cargo.Source)`" build --release 2>&1"
+        cmd.exe /d /s /c $cargoCommand
+        $cargoExitCode = $LASTEXITCODE
+        if ($cargoExitCode -ne 0) {
+            throw "Rust HKX native build failed with exit code $cargoExitCode."
         }
     } finally {
         Pop-Location

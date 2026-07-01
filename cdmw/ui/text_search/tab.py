@@ -343,9 +343,8 @@ class TextSearchTab(TextSearchSettingsMixin, TextSearchControllerMixin, TextSear
         self._column_autofit_timer.start()
 
         self.log_highlighter = LogHighlighter(self.log_view.document(), theme_key)
-        log_font = QFont("Consolas")
-        if not log_font.exactMatch():
-            log_font = QFont("Courier New")
+        log_font = QFont(self.font())
+        log_font.setStyleHint(QFont.StyleHint.Monospace)
         inherited_size = self.font().pointSize()
         if inherited_size > 0:
             log_font.setPointSize(inherited_size)

@@ -213,7 +213,7 @@ class ResponsivenessControllerMixin:
         if abs(screen_scale - float(getattr(self, "_current_responsive_control_scale", 0.0))) < 0.001:
             return
         self._current_responsive_control_scale = screen_scale
-        from cdmw.ui.shell.theme_controller import apply_app_theme, apply_window_data_fonts
+        from cdmw.ui.shell.theme_controller import apply_app_fonts, apply_app_theme, apply_window_data_fonts
 
         self.current_theme_key = apply_app_theme(
             app,
@@ -222,9 +222,19 @@ class ResponsivenessControllerMixin:
             screen_width=screen_width,
             screen_height=screen_height,
         )
+        ui_font, data_font = apply_app_fonts(
+            app,
+            self.settings,
+            screen_width=screen_width,
+            screen_height=screen_height,
+        )
+        if hasattr(self, "_apply_data_widget_fonts"):
+            self._apply_data_widget_fonts(data_font)
         apply_window_data_fonts(self)
         if hasattr(self, "texture_editor_tab"):
-            self.texture_editor_tab.sync_ui_font(app.font())
+            self.texture_editor_tab.sync_ui_font(ui_font)
+        if hasattr(self, "mesh_editor_tab"):
+            self.mesh_editor_tab.sync_ui_font(ui_font, data_font)
         if hasattr(self, "settings_tab"):
             self.settings_tab.sync_appearance_controls(self.current_theme_key)
 

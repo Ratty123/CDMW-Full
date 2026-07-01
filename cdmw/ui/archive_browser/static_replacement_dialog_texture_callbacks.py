@@ -1622,7 +1622,7 @@ def create_alignment_texture_table_callbacks(context: dict[str, object]) -> Simp
         _sync_texture_selection_highlight(row_state)
         if row_state is None:
             texture_detail_browser.setHtml(
-                "<html><body style='color:#8b949e; background:#1f1f1f; font-family:Segoe UI, sans-serif; font-size:8px;'>"
+                "<html><body style='color:#8b949e; background:#1f1f1f; font-size:0.8em;'>"
                 "Select a texture role to inspect parameter, source, original DDS, final behavior, and warnings."
                 "</body></html>"
             )

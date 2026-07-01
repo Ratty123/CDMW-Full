@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from cdmw.ui.archive_browser.static_replacement_dialog_callback_factories import (
+    create_alignment_d3d11_package_lifecycle_callbacks,
     create_alignment_mesh_diagnostics_callbacks,
 )
 from cdmw.ui.archive_browser.static_replacement_diagnostics import (
@@ -103,6 +104,34 @@ class _FakeProcess:
 
     def arguments(self) -> list[str]:
         return ["--preview-package", "old-package"]
+
+
+class _FakeQObject:
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
+
+def _fake_slot(*_args: object, **_kwargs: object) -> object:
+    def _decorator(func: object) -> object:
+        return func
+
+    return _decorator
+
+
+def test_alignment_d3d11_mesh_edit_tab_active_reads_context_checkbox() -> None:
+    checkbox = _FakeValueWidget(False)
+    callbacks = create_alignment_d3d11_package_lifecycle_callbacks(
+        {
+            "QObject": _FakeQObject,
+            "Slot": _fake_slot,
+            "dialog": object(),
+            "mesh_edit_enabled_checkbox": checkbox,
+        }
+    )
+
+    assert callbacks._alignment_mesh_edit_tab_active() is False
+    checkbox.value = True
+    assert callbacks._alignment_mesh_edit_tab_active() is True
 
 
 def test_mesh_editor_diagnostics_uses_late_prompt_context_values() -> None:

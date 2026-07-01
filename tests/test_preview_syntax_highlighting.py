@@ -2,7 +2,37 @@ import unittest
 
 from PySide6.QtGui import QTextDocument
 
-from cdmw.ui.widgets import PreviewSyntaxHighlighter
+from cdmw.ui.widgets import ArchiveDetailsHighlighter, LogHighlighter, PreviewSyntaxHighlighter
+
+
+class CountingPreviewSyntaxHighlighter(PreviewSyntaxHighlighter):
+    def __init__(self, *args, **kwargs) -> None:
+        self.rehighlight_count = 0
+        super().__init__(*args, **kwargs)
+
+    def rehighlight(self) -> None:  # type: ignore[override]
+        self.rehighlight_count += 1
+        super().rehighlight()
+
+
+class CountingLogHighlighter(LogHighlighter):
+    def __init__(self, *args, **kwargs) -> None:
+        self.rehighlight_count = 0
+        super().__init__(*args, **kwargs)
+
+    def rehighlight(self) -> None:  # type: ignore[override]
+        self.rehighlight_count += 1
+        super().rehighlight()
+
+
+class CountingArchiveDetailsHighlighter(ArchiveDetailsHighlighter):
+    def __init__(self, *args, **kwargs) -> None:
+        self.rehighlight_count = 0
+        super().__init__(*args, **kwargs)
+
+    def rehighlight(self) -> None:  # type: ignore[override]
+        self.rehighlight_count += 1
+        super().rehighlight()
 
 
 def _formatted_fragments(text: str, extension: str) -> list[str]:
@@ -23,6 +53,41 @@ def _formatted_fragments(text: str, extension: str) -> list[str]:
 
 
 class PreviewSyntaxHighlightingTests(unittest.TestCase):
+    def test_unchanged_preview_highlighter_preferences_do_not_rehighlight(self) -> None:
+        document = QTextDocument()
+        highlighter = CountingPreviewSyntaxHighlighter(document, "graphite")
+        highlighter.rehighlight_count = 0
+
+        highlighter.set_theme("graphite")
+        highlighter.set_highlight_style("rich")
+        highlighter.set_color_scheme("theme")
+        highlighter.set_language_for_extension(".unknown")
+
+        self.assertEqual(0, highlighter.rehighlight_count)
+
+    def test_unchanged_log_highlighter_preferences_do_not_rehighlight(self) -> None:
+        document = QTextDocument()
+        highlighter = CountingLogHighlighter(document, "graphite")
+        highlighter.rehighlight_count = 0
+
+        highlighter.set_theme("graphite")
+        highlighter.set_bold_enabled(True)
+        highlighter.set_highlight_style("rich")
+        highlighter.set_color_scheme("theme")
+
+        self.assertEqual(0, highlighter.rehighlight_count)
+
+    def test_unchanged_archive_details_highlighter_preferences_do_not_rehighlight(self) -> None:
+        document = QTextDocument()
+        highlighter = CountingArchiveDetailsHighlighter(document, "graphite")
+        highlighter.rehighlight_count = 0
+
+        highlighter.set_theme("graphite")
+        highlighter.set_highlight_style("rich")
+        highlighter.set_color_scheme("theme")
+
+        self.assertEqual(0, highlighter.rehighlight_count)
+
     def test_plain_hkx_preview_summary_gets_generic_coloring(self) -> None:
         fragments = _formatted_fragments(
             "\n".join(

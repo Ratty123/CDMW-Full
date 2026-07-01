@@ -269,7 +269,7 @@ class ArchiveMeshSetupHelperMixin:
 
         def _section_label(title: str, body_html: str, *, accent: str = "#8b949e") -> QLabel:
             label = QLabel(
-                "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid "
+                "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid "
                 f"{accent}; background:#24292f;'>"
                 "<div style='margin-bottom:1px;'>"
                 f"<span style='color:{accent}; font-weight:700;'>{escape(title)}</span>"
@@ -299,7 +299,7 @@ class ArchiveMeshSetupHelperMixin:
                 "border-radius: 3px;"
                 "padding: 1px 4px;"
                 f"color: {color or theme['text']};"
-                "font-size: 8px;"
+                "font-size: 0.8em;"
                 "font-weight: 600;"
                 "}"
             )
@@ -436,7 +436,7 @@ class ArchiveMeshSetupHelperMixin:
                 "<span style='color:#f0f6fc;'>Mesh/material only; head or hair visibility follows the original helmet rules.</span>"
             )
         compact_label = QLabel(
-            "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid #d29922; background:#2b2416;'>"
+            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #d29922; background:#2b2416;'>"
             "<span style='color:#f2cc60; font-weight:700;'>Compatibility</span>"
             f"<span style='color:#c9d1d9;'> {' | '.join(escape(bit) for bit in compact_bits)}</span>"
             "</div>"

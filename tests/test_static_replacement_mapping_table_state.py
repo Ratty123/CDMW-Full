@@ -142,7 +142,7 @@ def test_mapping_edit_and_status_summary_helpers_preserve_presentation_copy() ->
 
     html = mapping_status_summary_html(("<span>Source A</span>", "<span>DDS B</span>"))
 
-    assert "font-size:8px" in html
+    assert "font-size:0.8em" in html
     assert "background:#0d1117" in html
     assert "<span>Source A</span><span>DDS B</span>" in html
     badge = mapping_status_summary_badge("DDS", "Review", "#d29922")

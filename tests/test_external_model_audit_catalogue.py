@@ -3,7 +3,9 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import subprocess
 import struct
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -409,7 +411,8 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertEqual(1, check_diagnostics["source_base_texture_bound_as_emissive"])
         self.assertEqual(2, check["counts"]["source_texture_route_mismatches"])
         self.assertIn("source_texture_route_mismatch", check["risk_flags"])
-        self.assertIn("source_texture_route_mismatch", check["review_risk_flags"])
+        self.assertIn("source_texture_route_mismatch", check["allowed_risk_flags"])
+        self.assertNotIn("source_texture_route_mismatch", check["review_risk_flags"])
 
     def test_catalogue_treats_pbr_scalars_as_roughness_metalness_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1249,7 +1252,8 @@ Connections:  {
         self.assertEqual(1, report["summary"]["missing_texture_refs"])
         self.assertEqual(1, report["summary"]["unresolved_texture_candidates"])
         self.assertEqual(1, check["counts"]["unresolved_texture_candidates"])
-        self.assertIn("unresolved_texture_candidates", check["review_risk_flags"])
+        self.assertIn("unresolved_texture_candidates", check["allowed_risk_flags"])
+        self.assertNotIn("unresolved_texture_candidates", check["review_risk_flags"])
         self.assertTrue(any("nearby texture candidate" in warning for warning in check["warnings"]))
         self.assertEqual(1, len(candidates))
         self.assertIn("Missing Textures/red_gem.jpg", candidates[0]["missing_texture_ref"].replace("\\", "/"))
@@ -1423,8 +1427,8 @@ Connections:  {
             ],
         }
 
-        failed = check_external_model_audit_report(report)
-        warn_only = check_external_model_audit_report(report, fail_on_risk_flags=())
+        failed = check_external_model_audit_report(report, allowed_risk_flags=())
+        warn_only = check_external_model_audit_report(report, fail_on_risk_flags=(), allowed_risk_flags=())
 
         self.assertEqual("failed", failed["status"])
         self.assertIn("audited_model_without_material_inventory", failed["blocking_risk_flags"])
@@ -1465,6 +1469,31 @@ Connections:  {
         self.assertEqual("Misrouted", examples["source_texture_route_mismatch"][0]["material_name"])
         self.assertEqual("shared_base.png", examples["source_texture_route_mismatch"][0]["texture_path"])
 
+    def test_external_model_audit_checker_does_not_block_non_importable_fbx_metadata_without_inventory(self) -> None:
+        report = {
+            "schema_version": 1,
+            "tool": "external_model_audit_catalogue",
+            "roots": ["models"],
+            "audit_zip_contents": True,
+            "models": [
+                {
+                    "path": "source/Hammer.FBX.fbx",
+                    "audit_status": "archive_audited",
+                    "import_supported": False,
+                    "material_inventory": (),
+                    "warnings": (
+                        "FBX is browsable but not material-audited without an importer; export OBJ, DAE, GLB, or glTF.",
+                    ),
+                }
+            ],
+        }
+
+        result = check_external_model_audit_report(report)
+
+        self.assertEqual("passed", result["status"])
+        self.assertEqual([], result["blocking_risk_flags"])
+        self.assertEqual(0, result["counts"]["audited_model_without_material_inventory"])
+
     def test_external_model_audit_checker_cli_writes_result_json(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1484,6 +1513,35 @@ Connections:  {
         self.assertEqual("passed", payload["status"])
         self.assertEqual("passed", printed["status"])
         self.assertEqual(1, payload["counts"]["material_inventory_rows"])
+
+    def test_external_model_audit_checker_cli_runs_by_script_path_outside_repo(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as cwd_dir:
+            root = Path(temp_dir)
+            _write_triangle_gltf(root / "gold_sword.gltf")
+            report_path = root / "external_model_material_audit.json"
+            out_json = root / "check.json"
+            write_external_model_audit_catalogue(build_external_model_audit_catalogue([root]), report_path)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(repo_root / "tools" / "check_external_model_audit.py"),
+                    str(report_path),
+                    "--out-json",
+                    str(out_json),
+                ],
+                cwd=cwd_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            payload = json.loads(out_json.read_text(encoding="utf-8"))
+            printed = json.loads(result.stdout)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("passed", payload["status"])
+        self.assertEqual("passed", printed["status"])
 
 
 if __name__ == "__main__":

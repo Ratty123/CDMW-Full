@@ -270,7 +270,6 @@ class TextureEditorFileIoUiMixin:
             document, layer_pixels = result  # type: ignore[misc]
             self._create_session(document, layer_pixels, label=document.title)
             self._push_history(texture_editor_open_source_history_label())
-            self._refresh_ui()
             self._set_status(texture_editor_open_source_status_text(resolved_source), False)
 
         self._run_async_task(label=texture_editor_open_source_task_label(resolved_source), task=_task, on_success=_handle_open)

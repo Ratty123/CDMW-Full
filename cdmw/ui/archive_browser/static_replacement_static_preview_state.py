@@ -54,7 +54,7 @@ def static_preview_refresh_route_state(
     original_mesh_available: bool,
 ) -> StaticPreviewRefreshRouteState:
     normalized_mode = str(active_preview_mode or "side_by_side")
-    mesh_edit_direct_source_preview = bool(mesh_edit_enabled and mesh_edit_tab_active)
+    mesh_edit_direct_source_preview = False
     replacement_available = bool(replacement_mesh_available)
     direct_preview_allowed = replacement_available and not bool(interactive_preview)
     replacement_only_direct_source_preview = bool(

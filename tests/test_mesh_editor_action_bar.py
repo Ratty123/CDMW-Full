@@ -14,8 +14,23 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtGui import QKeySequence
-from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QLabel, QSlider, QTabWidget, QToolButton, QTreeWidget
+from PySide6.QtGui import QFont, QKeySequence
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QComboBox,
+    QFrame,
+    QHeaderView,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
+    QTabWidget,
+    QToolButton,
+    QTreeWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cdmw.domain.mesh import (
     MeshAnimationClip,
@@ -120,6 +135,41 @@ class _FlakyStandaloneNativePickHost(_StandaloneNativePickHost):
         if enabled and self.failures > 0:
             self.failures -= 1
             return False
+        return True
+
+
+class _EmbeddedMeshBuilder(QFrame):
+    def __init__(self) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        self.tabs = QTabWidget(self)
+        self.tabs.setObjectName("MeshAlignmentStickyWorkflowTabs")
+        for title in ("Setup", "Parts & Routing", "Mesh Editing", "Diagnostics"):
+            self.tabs.addTab(QFrame(self.tabs), title)
+        layout.addWidget(self.tabs)
+        self.controller = MeshEditorController()
+        self.controller.open_mesh(_build_two_part_synthetic_mesh(), session_id="embedded-builder", mode="edit")
+        self.part_actions: list[tuple[str, tuple[int, ...]]] = []
+        self.skeleton_bones: list[int] = []
+        self.synced_data_font: QFont | None = None
+
+    def _mesh_editor_embedded_controller(self) -> MeshEditorController:
+        return self.controller
+
+    def sync_ui_font(self, font: QFont, data_font: QFont | None = None) -> None:
+        self.setFont(font)
+        self.tabs.setFont(font)
+        self.synced_data_font = QFont(data_font or font)
+
+    def _mesh_editor_embedded_apply_native_update(self, _native_update: object) -> bool:
+        return True
+
+    def _mesh_editor_embedded_run_part_action(self, action_key: str, source_indices: tuple[int, ...]) -> bool:
+        self.part_actions.append((str(action_key), tuple(int(index) for index in source_indices)))
+        return True
+
+    def _mesh_editor_embedded_set_skeleton_bone(self, bone_index: object) -> bool:
+        self.skeleton_bones.append(int(bone_index))
         return True
 
 
@@ -237,7 +287,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(action_bar.button_for_key("mode_edit").isChecked())
         self.assertTrue(action_bar.button_for_key("select_face").isChecked())
         self.assertTrue(action_bar.button_for_key("mode_sculpt").isEnabled())
-        self.assertFalse(action_bar.button_for_key("brush_grab").isEnabled())
+        self.assertTrue(action_bar.button_for_key("brush_grab").isEnabled())
         self.assertFalse(action_bar.button_for_key("recalculate_normals").isEnabled())
         self.assertFalse(action_bar.button_for_key("extrude").isEnabled())
         self.assertFalse(action_bar.button_for_key("material_assign").isEnabled())
@@ -306,6 +356,236 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    def test_mesh_editor_embedded_builder_keeps_classic_primary_with_advanced_restore(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedMerged"))
+        builder = _EmbeddedMeshBuilder()
+
+        tab.mount_embedded_builder(builder)
+
+        self.assertEqual(
+            ["Setup", "Parts & Routing", "Mesh Editing", "Diagnostics", "Advanced Mesh Data"],
+            [builder.tabs.tabText(index) for index in range(builder.tabs.count())],
+        )
+        self.assertEqual("Setup", builder.tabs.tabText(builder.tabs.currentIndex()))
+        self.assertFalse(builder.tabs.isTabVisible(2))
+        self.assertFalse(builder.tabs.isTabVisible(4))
+        restore = builder.tabs.findChild(QPushButton, "MeshEditorAdvancedMeshDataRestoreButton")
+        assert restore is not None
+        legacy_restore = builder.tabs.findChild(QPushButton, "MeshEditorLegacyMeshControlsRestoreButton")
+        assert legacy_restore is not None
+        restore.click()
+        self.assertTrue(builder.tabs.isTabVisible(4))
+        self.assertEqual("Advanced Mesh Data", builder.tabs.tabText(builder.tabs.currentIndex()))
+        workspace = builder.tabs.findChild(QFrame, "MeshEditorEmbeddedMergedWorkspace")
+        self.assertIsNotNone(workspace)
+        outliner = workspace.findChild(QTreeWidget, "MeshEditorOutlinerPanel")
+        material = workspace.findChild(QTreeWidget, "MeshEditorMaterialPanel")
+        panels = workspace.findChild(QTabWidget, "MeshEditorRightPanels")
+        mode_combo = workspace.findChild(QComboBox, "MeshEditorModeCombo")
+        assert outliner is not None
+        assert material is not None
+        assert panels is not None
+        assert mode_combo is not None
+        self.assertEqual(0, panels.minimumWidth())
+        self.assertEqual(QSizePolicy.Policy.Ignored, panels.sizePolicy().horizontalPolicy())
+        self.assertTrue(panels.usesScrollButtons())
+        self.assertFalse(panels.tabBar().expanding())
+        self.assertLessEqual(mode_combo.maximumWidth(), 118)
+        self.assertEqual("0: harness_quad", outliner.topLevelItem(0).text(0))
+        self.assertIn("harness.dds", material.topLevelItem(0).text(1))
+        status_label = workspace.findChild(QLabel, "MeshEditorStandaloneStatus")
+        assert status_label is not None
+        self.assertIn("Mesh editing ready", status_label.text())
+        self.assertNotIn("Editable session:", status_label.text())
+        self.assertIn("Review", [panels.tabText(index) for index in range(panels.count())])
+        self.assertIn("Checks", [panels.tabText(index) for index in range(panels.count())])
+
+        legacy_restore.click()
+        self.assertTrue(builder.tabs.isTabVisible(2))
+        self.assertEqual("Mesh Editing", builder.tabs.tabText(builder.tabs.currentIndex()))
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_syncs_global_theme_and_font(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorGlobalAppearance"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        font = QFont(app.font())
+        font.setPointSize(14)
+        data_font = QFont(font)
+        data_font.setPointSize(11)
+
+        tab.set_theme("light")
+        tab.sync_ui_font(font, data_font)
+
+        self.assertEqual("light", tab.theme_key)
+        self.assertEqual("light", tab.standalone_preview._theme_key)
+        self.assertEqual(14, tab.action_bar.button_for_key("mode_object").font().pointSize())
+        self.assertEqual(11, tab.standalone_workspace.log_list.font().pointSize())
+        self.assertEqual(11, tab.standalone_workspace.outliner.font().pointSize())
+        self.assertEqual(14, tab.empty_status_label.font().pointSize())
+        for object_name in (
+            "MeshEditorModeComboLabel",
+            "MeshEditorToolCategory_selection",
+            "MeshEditorToolCategory_rig",
+            "MeshEditorCompareViewLabel",
+        ):
+            label = tab.standalone_workspace.findChild(QLabel, object_name)
+            self.assertIsNotNone(label, object_name)
+            self.assertEqual(14, label.font().pointSize(), object_name)
+        for object_name in (
+            "MeshEditorPosePreviewButton",
+            "MeshEditorPartCloneButton",
+            "MeshEditorRigSkeletonButton",
+        ):
+            button = tab.standalone_workspace.findChild(QToolButton, object_name)
+            self.assertIsNotNone(button, object_name)
+            self.assertEqual(14, button.font().pointSize(), object_name)
+        self.assertIsNotNone(tab.embedded_workspace)
+        self.assertEqual(11, tab.embedded_workspace.log_list.font().pointSize())
+        embedded_label = tab.embedded_workspace.findChild(QLabel, "MeshEditorModeComboLabel")
+        self.assertIsNotNone(embedded_label)
+        self.assertEqual(14, embedded_label.font().pointSize())
+        for widget in tab.findChildren(QWidget):
+            if isinstance(widget, (QAbstractItemView, QHeaderView)):
+                continue
+            if isinstance(widget, (QLabel, QPushButton, QToolButton, QComboBox, QTabWidget)):
+                name = widget.objectName() or widget.metaObject().className()
+                self.assertEqual(14, widget.font().pointSize(), name)
+        for widget in tab.findChildren(QAbstractItemView):
+            if widget.objectName():
+                self.assertEqual(11, widget.font().pointSize(), widget.objectName())
+        for header in tab.findChildren(QHeaderView):
+            self.assertEqual(11, header.font().pointSize(), header.objectName() or "QHeaderView")
+        self.assertEqual(14, builder.font().pointSize())
+        self.assertIsNotNone(builder.synced_data_font)
+        self.assertEqual(11, builder.synced_data_font.pointSize())
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_embedded_merged_part_selection_and_actions_route_to_builder(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedParts"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        workspace = builder.tabs.findChild(QFrame, "MeshEditorEmbeddedMergedWorkspace")
+        assert workspace is not None
+        outliner = workspace.findChild(QTreeWidget, "MeshEditorOutlinerPanel")
+        clone = workspace.findChild(QToolButton, "MeshEditorPartCloneButton")
+        assert outliner is not None
+        assert clone is not None
+
+        outliner.itemClicked.emit(outliner.topLevelItem(0), 0)
+        outliner.itemClicked.emit(outliner.topLevelItem(1), 0)
+
+        self.assertEqual((0, 1), builder.controller.session_view().selection.source_indices)
+        self.assertEqual("*0: harness_quad", outliner.topLevelItem(0).text(0))
+        self.assertEqual("*1: harness_quad_b", outliner.topLevelItem(1).text(0))
+
+        clone.click()
+        self.assertEqual([("duplicate", (0, 1))], builder.part_actions)
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_embedded_context_actions_keep_or_replace_selection(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedContext"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+
+        self.assertTrue(tab._handle_embedded_part_selection(0, "replace"))
+        self.assertTrue(tab._handle_embedded_part_selection(1, "add"))
+        self.assertEqual((0, 1), builder.controller.session_view().selection.source_indices)
+
+        self.assertTrue(tab._handle_embedded_part_context_action("recalculate_normals", 1))
+        self.assertEqual((0, 1), builder.controller.session_view().selection.source_indices)
+        self.assertEqual(("recalculate_normals", (0, 1)), builder.part_actions[-1])
+
+        self.assertTrue(tab._handle_embedded_part_selection(0, "replace"))
+        self.assertTrue(tab._handle_embedded_part_context_action("delete", 1))
+        self.assertEqual((1,), builder.controller.session_view().selection.source_indices)
+        self.assertEqual(("delete", (1,)), builder.part_actions[-1])
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_embedded_native_part_click_routes_to_same_selection(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedNativePick"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        picker = getattr(builder, "_mesh_editor_embedded_native_part_selected")
+
+        self.assertTrue(picker(0))
+        self.assertEqual((0,), builder.controller.session_view().selection.source_indices)
+        self.assertTrue(picker(1))
+        self.assertEqual((0, 1), builder.controller.session_view().selection.source_indices)
+        self.assertTrue(picker(0))
+        self.assertEqual((1,), builder.controller.session_view().selection.source_indices)
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_embedded_uv_panel_exposes_action_workflow(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedUvActions"))
+        builder = _EmbeddedMeshBuilder()
+        emitted: list[object] = []
+        tab.mesh_action_requested.connect(emitted.append)
+        tab.mount_embedded_builder(builder)
+        workspace = tab.embedded_workspace
+        assert workspace is not None
+        select_all = workspace.findChild(QToolButton, "MeshEditorUVSelectAllButton")
+        flip_u = workspace.findChild(QToolButton, "MeshEditorUVAction_uv_flip_u")
+        summary = workspace.findChild(QLabel, "MeshEditorUVSummaryLabel")
+        assert select_all is not None
+        assert flip_u is not None
+        assert summary is not None
+
+        self.assertIn("UV:", summary.text())
+        self.assertFalse(flip_u.isEnabled())
+        select_all.click()
+
+        self.assertEqual((0, 1), builder.controller.session_view().selection.source_indices)
+        self.assertTrue(flip_u.isEnabled())
+        flip_u.click()
+        self.assertEqual(["uv_flip_u"], [getattr(action, "key", "") for action in emitted])
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_embedded_rig_is_readable_and_selects_bones(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedRig"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        builder.controller.attach_skeleton(
+            Skeleton(
+                path="character/model/body.pab",
+                bones=[
+                    Bone(index=0, name="Root", parent_index=-1, position=(0.0, 0.0, 0.0)),
+                    Bone(index=1, name="Spine", parent_index=0, position=(0.0, 1.0, 0.0)),
+                ],
+                bone_count=2,
+            )
+        )
+        tab._refresh_embedded_workspace_from_builder()
+        workspace = tab.embedded_workspace
+        assert workspace is not None
+
+        self.assertIsNotNone(workspace.findChild(QLabel, "MeshEditorSkeletonReadOnlyLabel"))
+        self.assertIsNone(workspace.findChild(QToolButton, "MeshEditorPosePreviewButton"))
+        skeleton = workspace.findChild(QTreeWidget, "MeshEditorSkeletonPanel")
+        assert skeleton is not None
+        rows = [skeleton.topLevelItem(index) for index in range(skeleton.topLevelItemCount())]
+        spine = next(item for item in rows if item.text(0).strip() == "1: Spine")
+
+        skeleton.itemClicked.emit(spine, 0)
+
+        self.assertEqual(1, builder.controller.skeleton_summary().pose.selected_bone_index)
+        self.assertEqual([1], builder.skeleton_bones)
+        app.processEvents()
+        tab.deleteLater()
+
     def test_mesh_editor_standalone_workspace_exposes_blender_style_regions(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorWorkspace"))
@@ -325,7 +605,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         panels = workspace.findChild(QTabWidget, "MeshEditorRightPanels")
         assert panels is not None
         self.assertEqual(
-            ["Outliner", "Properties", "Skeleton", "UV", "Parts & Routing", "Compare", "Validator", "History"],
+            ["Parts", "Details", "Rig", "UV Map", "Part Actions", "Review", "Checks", "History"],
             [panels.tabText(index) for index in range(panels.count())],
         )
         left_pages = workspace.findChild(QTabWidget, "MeshEditorLeftToolPages")
@@ -669,6 +949,43 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    def test_mesh_editor_workspace_uv_panel_exposes_actions_and_selects_island_rows(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorUvPanelActions"))
+
+        tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-uv-panel-actions", mode="edit")
+
+        workspace = tab.standalone_workspace
+        summary = workspace.findChild(QLabel, "MeshEditorUVSummaryLabel")
+        select_all = workspace.findChild(QToolButton, "MeshEditorUVSelectAllButton")
+        flip_u = workspace.findChild(QToolButton, "MeshEditorUVAction_uv_flip_u")
+        pack = workspace.findChild(QToolButton, "MeshEditorUVAction_uv_pack")
+        uv_tree = workspace.findChild(QTreeWidget, "MeshEditorUVPanel")
+        assert summary is not None
+        assert select_all is not None
+        assert flip_u is not None
+        assert pack is not None
+        assert uv_tree is not None
+        self.assertIn("UV:", summary.text())
+        self.assertFalse(flip_u.isEnabled())
+        self.assertFalse(pack.isEnabled())
+
+        island = next(
+            uv_tree.topLevelItem(index)
+            for index in range(uv_tree.topLevelItemCount())
+            if "Island" in uv_tree.topLevelItem(index).text(0)
+        )
+        uv_tree.itemClicked.emit(island, 0)
+
+        assert tab.standalone_controller is not None
+        self.assertFalse(tab.standalone_controller.session_view().selection.is_empty())
+        self.assertTrue(flip_u.isEnabled())
+        previous_revision = tab.standalone_controller.session_view().revision
+        flip_u.click()
+        self.assertGreater(tab.standalone_controller.session_view().revision, previous_revision)
+        app.processEvents()
+        tab.deleteLater()
+
     def test_mesh_editor_workspace_right_panels_render_part_material_summary(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPartSummary"))
@@ -937,7 +1254,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         with patch.object(tab, "start_standalone_native_preview_async", return_value=True) as refresh:
             preview_skeleton_button.click()
         refresh.assert_called_once()
-        self.assertEqual("Skeleton", panels.tabText(panels.currentIndex()))
+        self.assertEqual("Rig", panels.tabText(panels.currentIndex()))
         preview_pose_button.click()
         self.assertTrue(tab.standalone_controller.skeleton_summary().pose.enabled)
         self.assertTrue(pose_button.isChecked())
@@ -1669,7 +1986,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         self.assertTrue(tab.action_bar.button_for_key("select_vertex").isChecked())
         self.assertTrue(tab.action_bar.button_for_key("extrude").isEnabled())
-        self.assertFalse(tab.action_bar.button_for_key("brush_grab").isEnabled())
+        self.assertTrue(tab.action_bar.button_for_key("brush_grab").isEnabled())
 
         controller.apply_editor_action("transform_move", translate=(0.0, 0.0, 0.25))
         tab.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)

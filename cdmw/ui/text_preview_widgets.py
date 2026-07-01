@@ -157,6 +157,10 @@ class PreviewSyntaxHighlighter(QSyntaxHighlighter):
         self.set_theme(theme_key)
 
     def set_theme(self, theme_key: str) -> None:
+        theme_key = str(theme_key or "graphite")
+        format_state = (theme_key, self.highlight_style, self.color_scheme)
+        if getattr(self, "_format_state", None) == format_state:
+            return
         self.current_theme_key = theme_key
         light = _theme_is_light(theme_key)
         theme = get_theme(theme_key)
@@ -242,6 +246,7 @@ class PreviewSyntaxHighlighter(QSyntaxHighlighter):
             self.success_format = make(active_scheme.get("success", "#098658" if light else "#6a9955"), bold=True)
             self.warning_format = make(active_scheme.get("warning", theme["warning_text"]), bold=True)
             self.error_format = make(active_scheme.get("error", theme["error"]), bold=True)
+        self._format_state = format_state
         self.rehighlight()
 
     def set_highlight_style(self, style: str) -> None:
@@ -260,6 +265,7 @@ class PreviewSyntaxHighlighter(QSyntaxHighlighter):
 
     def set_language_for_extension(self, extension: str) -> None:
         suffix = (extension or "").lower()
+        previous_language = self.language
         if suffix in self.CSS_TEXT_EXTENSIONS:
             self.language = "css"
         elif suffix in self.XML_TEXT_EXTENSIONS:
@@ -272,6 +278,8 @@ class PreviewSyntaxHighlighter(QSyntaxHighlighter):
             self.language = "lua"
         else:
             self.language = "plain"
+        if self.language == previous_language:
+            return
         self.rehighlight()
 
     def highlightBlock(self, text: str) -> None:  # type: ignore[override]
@@ -463,9 +471,8 @@ class CodePreviewEditor(QPlainTextEdit):
         )
         self.setReadOnly(True)
         self.setLineWrapMode(QPlainTextEdit.NoWrap)
-        font = QFont("Consolas")
-        if not font.exactMatch():
-            font = QFont("Courier New")
+        font = QFont(self.font())
+        font.setStyleHint(QFont.StyleHint.Monospace)
         font.setPointSize(self._editor_font_size)
         self._apply_editor_font(font)
         self.blockCountChanged.connect(self.update_line_number_area_width)
@@ -583,6 +590,9 @@ class CodePreviewEditor(QPlainTextEdit):
         self.line_number_area.update()
 
     def set_theme(self, theme_key: str) -> None:
+        theme_key = str(theme_key or "graphite")
+        if getattr(self, "_theme_style_applied", False) and self.theme_key == theme_key:
+            return
         self.theme_key = theme_key
         theme = get_theme(theme_key)
         self._gutter_background = QColor(theme["surface_alt"])
@@ -600,14 +610,21 @@ class CodePreviewEditor(QPlainTextEdit):
         self.viewport().update()
         self.line_number_area.update()
         self._apply_combined_selections()
+        self._theme_style_applied = True
 
     def set_highlight_style(self, style: str) -> None:
-        self._highlight_style = _normalize_text_highlight_style(style)
+        normalized = _normalize_text_highlight_style(style)
+        if normalized == self._highlight_style:
+            return
+        self._highlight_style = normalized
         if hasattr(self.syntax_highlighter, "set_highlight_style"):
             self.syntax_highlighter.set_highlight_style(self._highlight_style)
 
     def set_color_scheme(self, scheme: str) -> None:
-        self._color_scheme = _normalize_text_color_scheme(scheme)
+        normalized = _normalize_text_color_scheme(scheme)
+        if normalized == self._color_scheme:
+            return
+        self._color_scheme = normalized
         if hasattr(self.syntax_highlighter, "set_color_scheme"):
             self.syntax_highlighter.set_color_scheme(self._color_scheme)
         else:
@@ -708,7 +725,11 @@ class CodePreviewEditor(QPlainTextEdit):
         if preserve_size:
             updated_font.setPointSize(self._editor_font_size)
         else:
+            updated_font.setPointSize(max(8, min(22, updated_font.pointSize())))
+        if self.font().toString() == updated_font.toString():
             self._editor_font_size = max(8, min(22, updated_font.pointSize()))
+            return
+        self._editor_font_size = max(8, min(22, updated_font.pointSize()))
         self._apply_editor_font(updated_font)
 
     def center_on_span(self, start: int, end: int) -> None:
@@ -782,6 +803,10 @@ class LogHighlighter(QSyntaxHighlighter):
         self.set_theme(theme_key)
 
     def set_theme(self, theme_key: str) -> None:
+        theme_key = str(theme_key or "graphite")
+        format_state = (theme_key, self.highlight_style, self.color_scheme, self._bold_enabled)
+        if getattr(self, "_format_state", None) == format_state:
+            return
         self.current_theme_key = theme_key
         theme = get_theme(theme_key)
         light = _theme_is_light(theme_key)
@@ -844,18 +869,28 @@ class LogHighlighter(QSyntaxHighlighter):
             texture_type: make_format(color, bold=True)
             for texture_type, color in texture_palette.items()
         }
+        self._format_state = format_state
         self.rehighlight()
 
     def set_bold_enabled(self, enabled: bool) -> None:
-        self._bold_enabled = bool(enabled)
+        enabled = bool(enabled)
+        if self._bold_enabled == enabled:
+            return
+        self._bold_enabled = enabled
         self.set_theme(self.current_theme_key)
 
     def set_highlight_style(self, style: str) -> None:
-        self.highlight_style = _normalize_text_highlight_style(style)
+        normalized = _normalize_text_highlight_style(style)
+        if self.highlight_style == normalized:
+            return
+        self.highlight_style = normalized
         self.set_theme(self.current_theme_key)
 
     def set_color_scheme(self, scheme: str) -> None:
-        self.color_scheme = _normalize_text_color_scheme(scheme)
+        normalized = _normalize_text_color_scheme(scheme)
+        if self.color_scheme == normalized:
+            return
+        self.color_scheme = normalized
         self.set_theme(self.current_theme_key)
 
     def highlightBlock(self, text: str) -> None:  # type: ignore[override]
@@ -955,6 +990,10 @@ class ArchiveDetailsHighlighter(QSyntaxHighlighter):
         self.set_theme(theme_key)
 
     def set_theme(self, theme_key: str) -> None:
+        theme_key = str(theme_key or "graphite")
+        format_state = (theme_key, self.highlight_style, self.color_scheme)
+        if getattr(self, "_format_state", None) == format_state:
+            return
         self.current_theme_key = theme_key
         theme = get_theme(theme_key)
         light = _theme_is_light(theme_key)
@@ -982,14 +1021,21 @@ class ArchiveDetailsHighlighter(QSyntaxHighlighter):
         self.hex_offset_format = make_format((scheme or {}).get("tag", "#0451a5" if light else "#569cd6"), bold=True)
         self.hex_byte_format = make_format((scheme or {}).get("string", "#ce9178" if light else "#d7ba7d"))
         self.muted_format = make_format(theme["text_muted"], italic=True)
+        self._format_state = format_state
         self.rehighlight()
 
     def set_highlight_style(self, style: str) -> None:
-        self.highlight_style = _normalize_text_highlight_style(style)
+        normalized = _normalize_text_highlight_style(style)
+        if self.highlight_style == normalized:
+            return
+        self.highlight_style = normalized
         self.set_theme(self.current_theme_key)
 
     def set_color_scheme(self, scheme: str) -> None:
-        self.color_scheme = _normalize_text_color_scheme(scheme)
+        normalized = _normalize_text_color_scheme(scheme)
+        if self.color_scheme == normalized:
+            return
+        self.color_scheme = normalized
         self.set_theme(self.current_theme_key)
 
     def highlightBlock(self, text: str) -> None:  # type: ignore[override]

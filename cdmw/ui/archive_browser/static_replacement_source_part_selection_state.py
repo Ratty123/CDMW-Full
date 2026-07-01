@@ -64,8 +64,8 @@ def source_part_selection_context_label_text(
     texture_summary: str,
 ) -> str:
     return (
-        f"{str(selected_tab or 'Setup')} | S: {str(source_summary or 'none')} | "
-        f"T: {str(target_summary or 'none')} | Tex: {str(texture_summary or 'none')}"
+        f"{str(selected_tab or 'Setup')} | Source: {str(source_summary or 'none')} | "
+        f"Target: {str(target_summary or 'none')} | Texture: {str(texture_summary or 'none')}"
     )
 
 

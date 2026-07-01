@@ -42,6 +42,7 @@ def create_alignment_dialog_layout_callbacks(context: dict[str, object]) -> Simp
     mesh_edit_control_content_min_width = context.get('mesh_edit_control_content_min_width')
     mesh_edit_control_max_width = context.get('mesh_edit_control_max_width')
     mesh_edit_control_min_width = context.get('mesh_edit_control_min_width')
+    mesh_edit_enabled_checkbox = context.get('mesh_edit_enabled_checkbox')
     mesh_edit_tab = context.get('mesh_edit_tab')
     mesh_edit_tools_active = context.get('mesh_edit_tools_active')
     policy_by_name = context.get('policy_by_name')
@@ -51,6 +52,7 @@ def create_alignment_dialog_layout_callbacks(context: dict[str, object]) -> Simp
     preview_performance_label = context.get('preview_performance_label')
     preview_splitter = context.get('preview_splitter')
     previous_dialog_resize_event = context.get('previous_dialog_resize_event')
+    self = context.get('self')
     static_preview_batch_state = context.get('static_preview_batch_state')
     summary = context.get('summary')
     wants_rebuild = context.get('wants_rebuild')
@@ -68,15 +70,53 @@ def create_alignment_dialog_layout_callbacks(context: dict[str, object]) -> Simp
         except NameError:
             pass
 
+    def _layout_settings_key(kind: str, mode: str) -> str:
+        scope = "embedded" if bool(embedded_alignment_builder) else "dialog"
+        return f"ui/mesh_alignment/{scope}/{mode}/{kind}_splitter_sizes"
+
+    def _saved_splitter_sizes(kind: str, mode: str, count: int) -> tuple[int, ...] | None:
+        settings = getattr(self, "settings", None)
+        if settings is None:
+            return None
+        try:
+            raw = settings.value(_layout_settings_key(kind, mode), "")
+        except Exception:
+            return None
+        values = raw if isinstance(raw, (list, tuple)) else str(raw or "").replace(";", ",").split(",")
+        try:
+            sizes = tuple(max(0, int(value)) for value in tuple(values)[:count])
+        except (TypeError, ValueError):
+            return None
+        if len(sizes) != count or sum(sizes) <= 0:
+            return None
+        return sizes
+
+    def _save_splitter_sizes(kind: str, mode: str, sizes: object) -> None:
+        settings = getattr(self, "settings", None)
+        if settings is None or not mode:
+            return
+        try:
+            values = tuple(max(0, int(value)) for value in tuple(sizes or ()))
+        except (TypeError, ValueError):
+            return
+        if len(values) != 2 or sum(values) <= 0:
+            return
+        settings.setValue(_layout_settings_key(kind, mode), ",".join(str(value) for value in values))
+
+    def _save_alignment_dialog_splitter_sizes(*_args: object) -> None:
+        mode = str(alignment_dialog_layout_state.get("mode") or "")
+        if not mode:
+            return
+        _save_splitter_sizes("main", mode, main_splitter.sizes())
+        _save_splitter_sizes("preview", mode, preview_splitter.sizes())
+
     def _apply_alignment_dialog_responsive_layout(*, force_sizes: bool = False) -> None:
         if not _alignment_dialog_widgets_live() or not _qt_object_is_valid(main_splitter):
             return
         width = max(1, int(dialog.width()))
         height = max(1, int(dialog.height()))
-        try:
-            mesh_edit_tools_active = control_tabs.widget(control_tabs.currentIndex()) is mesh_edit_tab
-        except Exception:
-            mesh_edit_tools_active = False
+        is_mesh_edit_checked = getattr(mesh_edit_enabled_checkbox, "isChecked", None)
+        mesh_edit_tools_active = bool(is_mesh_edit_checked()) if callable(is_mesh_edit_checked) else False
         layout_spec = _alignment_dialog_responsive_layout_helper(
             alignment_dialog_layout_state,
             width=width,
@@ -116,9 +156,9 @@ def create_alignment_dialog_layout_callbacks(context: dict[str, object]) -> Simp
         content_container.setMaximumWidth(layout_spec.content_max_width)
         preview_panel.setMinimumWidth(layout_spec.preview_min_width)
         if layout_spec.main_sizes is not None:
-            main_splitter.setSizes(list(layout_spec.main_sizes))
+            main_splitter.setSizes(list(_saved_splitter_sizes("main", layout_spec.mode, 2) or layout_spec.main_sizes))
         if layout_spec.preview_sizes is not None:
-            preview_splitter.setSizes(list(layout_spec.preview_sizes))
+            preview_splitter.setSizes(list(_saved_splitter_sizes("preview", layout_spec.mode, 2) or layout_spec.preview_sizes))
 
     def _responsive_dialog_resize_event(event: object) -> None:
         if not _alignment_dialog_widgets_live():
@@ -152,6 +192,7 @@ def create_alignment_dialog_layout_callbacks(context: dict[str, object]) -> Simp
         _set_preview_performance_status=_set_preview_performance_status,
         _apply_alignment_dialog_responsive_layout=_apply_alignment_dialog_responsive_layout,
         _responsive_dialog_resize_event=_responsive_dialog_resize_event,
+        _save_alignment_dialog_splitter_sizes=_save_alignment_dialog_splitter_sizes,
         _run_static_preview_batch=_run_static_preview_batch,
     )
 

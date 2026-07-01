@@ -84,7 +84,7 @@ def source_material_route_item(
     item.setData(
         0,
         Qt.UserRole + 3,
-        "<div style='font-size:8px; line-height:1.15;'>"
+        "<div style='font-size:0.8em; line-height:1.15;'>"
         f"<b>Target:</b> {escape(str(getattr(route, 'target_material_name', '') or '-'))}<br>"
         f"<b>Replacement source:</b> {escape(source_material_name or '-')}<br>"
         f"<b>Source parts:</b> {escape(source_parts)}<br>"
@@ -128,7 +128,7 @@ def replacement_texture_plan_item(
     item.setData(
         0,
         Qt.UserRole + 3,
-        "<div style='font-size:8px; line-height:1.15;'>"
+        "<div style='font-size:0.8em; line-height:1.15;'>"
         f"<b>Target material:</b> {escape(target_name or '-')}<br>"
         f"<b>Replacement source:</b> {escape(str(getattr(plan_row, 'source', '') or '-'))}<br>"
         f"<b>Final output DDS:</b> {escape(str(getattr(plan_row, 'final_path', '') or '-'))}<br>"
@@ -167,7 +167,7 @@ def final_material_status_item(
     item.setData(
         0,
         Qt.UserRole + 3,
-        "<div style='font-size:8px; line-height:1.15;'>"
+        "<div style='font-size:0.8em; line-height:1.15;'>"
         f"<b>Target material:</b> {escape(material_name or '-')}<br>"
         f"<b>Replacement source:</b> {escape(source_parts)}<br>"
         f"<b>Final status:</b> {escape(status_label)}<br>"
@@ -213,7 +213,7 @@ def final_binding_row_item(
     item.setData(
         0,
         Qt.UserRole + 3,
-        "<div style='font-size:8px; line-height:1.15;'>"
+        "<div style='font-size:0.8em; line-height:1.15;'>"
         f"<b>Target material:</b> {escape(material_name or '-')}<br>"
         f"<b>Target part:</b> {escape(part_name or '-')}<br>"
         f"<b>Original DDS / requested:</b> {escape(requested_path or '-')}<br>"

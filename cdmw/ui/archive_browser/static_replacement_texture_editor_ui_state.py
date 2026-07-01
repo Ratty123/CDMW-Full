@@ -110,7 +110,7 @@ def texture_filter_refresh_initial_state() -> dict[str, object]:
 
 def final_dds_contract_summary_html(row_count: int) -> str:
     return (
-        "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid #f2cc60; background:#211b12;'>"
+        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #f2cc60; background:#211b12;'>"
         "<span style='color:#f2cc60; font-weight:700;'>Final DDS</span>"
         f"<span style='color:#c9d1d9;'> | rows {int(row_count):,}</span>"
         "</div>"

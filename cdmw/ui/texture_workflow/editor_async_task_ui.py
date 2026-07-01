@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtCore import QThread, Slot
+from PySide6.QtCore import QThread, Qt, Slot
 from PySide6.QtWidgets import QMessageBox
 
 from cdmw.constants import APP_TITLE
@@ -32,10 +32,12 @@ class TextureEditorAsyncTaskUiMixin:
         thread = QThread(self)
         worker = TextureEditorTaskWorker(task)
         worker.moveToThread(thread)
-        worker.completed.connect(self._handle_async_task_completed)
-        worker.error.connect(self._handle_async_task_error)
+        worker.completed.connect(self._task_completed_on_ui, Qt.ConnectionType.QueuedConnection)
+        worker.error.connect(self._task_error_on_ui, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(self._task_finished_on_ui, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(thread.quit)
-        thread.finished.connect(self._handle_async_task_finished)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
         thread.started.connect(worker.run)
         self._task_thread = thread
         self._task_worker = worker
@@ -56,14 +58,8 @@ class TextureEditorAsyncTaskUiMixin:
 
     @Slot()
     def _handle_async_task_finished(self) -> None:
-        thread = self._task_thread
-        worker = self._task_worker
         self._task_thread = None
         self._task_worker = None
         self._task_success_callback = None
         self._busy_task_label = ""
-        if worker is not None:
-            worker.deleteLater()
-        if thread is not None:
-            thread.deleteLater()
         self._refresh_ui()

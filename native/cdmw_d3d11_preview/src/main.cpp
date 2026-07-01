@@ -381,6 +381,22 @@ struct SourcePartInteractionState {
     int start_y = 0;
 };
 
+struct SkeletonOverlayBoneState {
+    int index = -1;
+    int parent_index = -1;
+    DirectX::XMFLOAT3 position{0.0f, 0.0f, 0.0f};
+    DirectX::XMFLOAT3 parent_position{0.0f, 0.0f, 0.0f};
+    bool has_position = false;
+    bool has_parent_position = false;
+};
+
+struct SkeletonOverlayState {
+    bool enabled = false;
+    bool pose_enabled = false;
+    int selected_bone_index = -1;
+    std::vector<SkeletonOverlayBoneState> bones;
+};
+
 struct ScreenPoint {
     float x = 0.0f;
     float y = 0.0f;
@@ -984,10 +1000,43 @@ static std::vector<float> json_float_array_field(const std::string& object, cons
 }
 
 static std::string json_object_field(const std::string& object, const std::string& name) {
-    std::regex pattern("\"" + name + "\"\\s*:\\s*\\{([^{}]*)\\}");
-    std::smatch match;
-    if (!std::regex_search(object, match, pattern)) return "";
-    return match[1].str();
+    const std::string marker = "\"" + name + "\"";
+    size_t name_pos = object.find(marker);
+    if (name_pos == std::string::npos) return "";
+    size_t colon = object.find(':', name_pos + marker.size());
+    if (colon == std::string::npos) return "";
+    size_t object_start = object.find('{', colon + 1);
+    if (object_start == std::string::npos) return "";
+    bool in_string = false;
+    bool escaped = false;
+    int depth = 0;
+    for (size_t i = object_start; i < object.size(); ++i) {
+        const char ch = object[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (ch == '\\' && in_string) {
+            escaped = true;
+            continue;
+        }
+        if (ch == '"') {
+            in_string = !in_string;
+            continue;
+        }
+        if (in_string) continue;
+        if (ch == '{') {
+            ++depth;
+            continue;
+        }
+        if (ch == '}') {
+            --depth;
+            if (depth == 0) {
+                return object.substr(object_start + 1, i - object_start - 1);
+            }
+        }
+    }
+    return "";
 }
 
 static std::vector<std::string> json_object_array_field(const std::string& object, const std::string& name) {
@@ -1571,6 +1620,57 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
     }
     stats.editable_value_group_count = static_cast<int>(json_object_array_field(manifest, "editable_value_groups").size());
     return batches;
+}
+
+static bool json_vec3_field(const std::string& object, const std::string& name, DirectX::XMFLOAT3& output) {
+    const std::vector<float> values = json_float_array_field(object, name);
+    if (values.size() < 3) return false;
+    if (!std::isfinite(values[0]) || !std::isfinite(values[1]) || !std::isfinite(values[2])) return false;
+    output = DirectX::XMFLOAT3(values[0], values[1], values[2]);
+    return true;
+}
+
+static SkeletonOverlayState parse_skeleton_overlay_state(const std::string& manifest, RendererStats& stats) {
+    SkeletonOverlayState state;
+    const std::string skeleton_overlay = json_object_field(manifest, "skeleton_overlay");
+    if (skeleton_overlay.empty()) return state;
+    stats.skeleton_bone_count = std::max(0, json_int_field(skeleton_overlay, "bone_count", 0));
+    stats.skeleton_overlay_enabled = json_bool_field(skeleton_overlay, "enabled", false) && stats.skeleton_bone_count > 0;
+    stats.skeleton_pose_enabled = json_bool_field(skeleton_overlay, "pose_enabled", false);
+    stats.skeleton_selected_bone_index = json_int_field(skeleton_overlay, "selected_bone_index", -1);
+    stats.skeleton_posed_bone_count = std::max(0, json_int_field(skeleton_overlay, "posed_bone_count", 0));
+    state.enabled = stats.skeleton_overlay_enabled;
+    state.pose_enabled = stats.skeleton_pose_enabled;
+    state.selected_bone_index = stats.skeleton_selected_bone_index;
+    std::map<int, DirectX::XMFLOAT3> positions_by_index;
+    for (const std::string& object : json_object_array_field(skeleton_overlay, "bones")) {
+        SkeletonOverlayBoneState bone;
+        bone.index = json_int_field(object, "index", -1);
+        bone.parent_index = json_int_field(object, "parent_index", -1);
+        bone.has_position = json_vec3_field(object, "position", bone.position);
+        bone.has_parent_position = json_vec3_field(object, "parent_position", bone.parent_position);
+        if (bone.index >= 0 && bone.has_position) {
+            positions_by_index[bone.index] = bone.position;
+        }
+        if (bone.index >= 0) {
+            state.bones.push_back(bone);
+        }
+        if (state.bones.size() >= 4096u) break;
+    }
+    for (SkeletonOverlayBoneState& bone : state.bones) {
+        if (!bone.has_parent_position && bone.parent_index >= 0) {
+            auto parent = positions_by_index.find(bone.parent_index);
+            if (parent != positions_by_index.end()) {
+                bone.parent_position = parent->second;
+                bone.has_parent_position = true;
+            }
+        }
+    }
+    if (state.bones.empty()) {
+        state.enabled = false;
+        stats.skeleton_overlay_enabled = false;
+    }
+    return state;
 }
 
 static ViewSettings parse_view_settings(const std::string& manifest) {
@@ -2594,6 +2694,7 @@ public:
         const Args& args,
         std::vector<PreviewBatch> batches,
         std::vector<ClothCollider> cloth_colliders,
+        SkeletonOverlayState skeleton_overlay,
         RendererStats& stats,
         ViewSettings view_settings,
         RenderTuning render_tuning,
@@ -2602,6 +2703,7 @@ public:
           args_(args),
           batches_(std::move(batches)),
           cloth_colliders_(std::move(cloth_colliders)),
+          skeleton_overlay_(std::move(skeleton_overlay)),
           stats_(stats),
           view_settings_(view_settings),
           render_tuning_(render_tuning),
@@ -2845,12 +2947,14 @@ public:
         RendererStats next_stats;
         std::vector<PreviewBatch> next_batches;
         std::vector<ClothCollider> next_cloth_colliders;
+        SkeletonOverlayState next_skeleton_overlay;
         ViewSettings next_view_settings;
         RenderTuning next_render_tuning;
         std::string next_display_mode;
         try {
             manifest = read_text(args_.preview_package / L"manifest.json");
             next_batches = parse_manifest_batches(args_.preview_package, manifest, next_stats);
+            next_skeleton_overlay = parse_skeleton_overlay_state(manifest, next_stats);
             next_cloth_colliders = parse_cloth_colliders(args_.preview_package, manifest);
             next_stats.cloth_collider_count = static_cast<int>(next_cloth_colliders.size());
             next_view_settings = parse_view_settings(manifest);
@@ -2929,6 +3033,7 @@ public:
         release_model_resources("reload");
         batches_ = std::move(next_batches);
         cloth_colliders_ = std::move(next_cloth_colliders);
+        skeleton_overlay_ = std::move(next_skeleton_overlay);
         hidden_source_submeshes_.clear();
         stats_ = next_stats;
         if (!view_settings_overridden_) {
@@ -2988,6 +3093,7 @@ public:
             args_.status_file = status_file;
         }
         release_model_resources("clear");
+        skeleton_overlay_ = SkeletonOverlayState{};
         pending_package_dir_.clear();
         pending_status_file_.clear();
         pending_reset_view_ = false;
@@ -3070,7 +3176,8 @@ public:
             return true;
         case WM_LBUTTONDBLCLK:
         {
-            if (mesh_edit_.enabled) {
+            if (mesh_edit_.enabled || source_part_.picking_enabled) {
+                source_part_.click_pending = false;
                 result = 0;
                 return true;
             }
@@ -3084,7 +3191,7 @@ public:
         case WM_LBUTTONDOWN:
             cursor_x_ = GET_X_LPARAM(lparam);
             cursor_y_ = GET_Y_LPARAM(lparam);
-            if (begin_mesh_edit_drag(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+            if (begin_side_by_side_split_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
                 request_render();
                 result = 0;
                 return true;
@@ -3096,6 +3203,11 @@ public:
             }
             begin_source_part_click(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
             if (source_part_.click_pending) {
+                request_render();
+                result = 0;
+                return true;
+            }
+            if (begin_mesh_edit_drag(wparam, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
                 request_render();
                 result = 0;
                 return true;
@@ -3121,6 +3233,11 @@ public:
         case WM_MOUSEMOVE:
             cursor_x_ = GET_X_LPARAM(lparam);
             cursor_y_ = GET_Y_LPARAM(lparam);
+            if (update_side_by_side_split_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                request_render();
+                result = 0;
+                return true;
+            }
             if (update_mesh_edit_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
                 request_render();
                 result = 0;
@@ -3138,6 +3255,11 @@ public:
             result = 0;
             return drag_mode_ != 0;
         case WM_LBUTTONUP:
+            if (finish_side_by_side_split_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
+                request_render();
+                result = 0;
+                return true;
+            }
             if (finish_mesh_edit_drag(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
                 request_render();
                 result = 0;
@@ -3206,6 +3328,7 @@ public:
         for (const PreviewRenderView& view : active_render_views()) {
             draw_render_view(view);
         }
+        draw_side_by_side_splitter_overlay();
         std::string capture_event;
         if (!pending_capture_path_.empty()) {
             fs::path capture_path = pending_capture_path_;
@@ -3292,7 +3415,7 @@ private:
     }
 
     float side_by_side_reference_width() const {
-        return std::floor(static_cast<float>(width_) * 0.56f);
+        return std::floor(static_cast<float>(width_) * std::clamp(side_by_side_split_ratio_, 0.18f, 0.82f));
     }
 
     D3D11_VIEWPORT replacement_editor_viewport() const {
@@ -3351,6 +3474,20 @@ private:
 
     bool side_by_side_workspace_active() const {
         return display_mode_ == "side_by_side" && has_reference_batches() && width_ > 4;
+    }
+
+    bool side_by_side_splitter_hit_test(int x, int /*y*/) const {
+        return side_by_side_workspace_active()
+            && std::abs(static_cast<float>(x) - side_by_side_reference_width()) <= 10.0f;
+    }
+
+    void set_side_by_side_split_from_x(int x) {
+        if (width_ <= 4) return;
+        side_by_side_split_ratio_ = std::clamp(static_cast<float>(x) / static_cast<float>(width_), 0.18f, 0.82f);
+    }
+
+    void set_side_by_side_split_ratio(float ratio) {
+        side_by_side_split_ratio_ = std::clamp(ratio, 0.18f, 0.82f);
     }
 
     PreviewViewRole input_view_role_at(int x, int /*y*/) const {
@@ -3992,6 +4129,30 @@ private:
                     append_debug_cross(vertices, point, 0.010f + pin * 0.020f, 1.0f, 0.42f, 0.86f);
                 }
             }
+        }
+        draw_colored_lines(vertices, world_view_projection, true);
+    }
+
+    void draw_skeleton_overlay(const PreviewRenderView& view, const DirectX::XMMATRIX& world_view_projection) {
+        if (icon_capture_mode_ || !skeleton_overlay_.enabled || skeleton_overlay_.bones.empty()) return;
+        if (view.role == PreviewViewRole::Reference) return;
+        std::vector<float> vertices;
+        vertices.reserve(23u * skeleton_overlay_.bones.size() * 8u);
+        for (const SkeletonOverlayBoneState& bone : skeleton_overlay_.bones) {
+            if (!bone.has_position) continue;
+            const bool selected = bone.index == skeleton_overlay_.selected_bone_index;
+            const float line_r = selected ? 1.0f : 0.25f;
+            const float line_g = selected ? 0.68f : 0.78f;
+            const float line_b = selected ? 0.18f : 1.0f;
+            if (bone.has_parent_position) {
+                const float dx = bone.position.x - bone.parent_position.x;
+                const float dy = bone.position.y - bone.parent_position.y;
+                const float dz = bone.position.z - bone.parent_position.z;
+                if ((dx * dx + dy * dy + dz * dz) > 0.000001f) {
+                    append_debug_line(vertices, bone.parent_position, bone.position, line_r, line_g, line_b);
+                }
+            }
+            append_debug_cross(vertices, bone.position, selected ? 0.032f : 0.018f, selected ? 1.0f : 0.88f, selected ? 0.78f : 0.95f, selected ? 0.16f : 1.0f);
         }
         draw_colored_lines(vertices, world_view_projection, true);
     }
@@ -5249,10 +5410,56 @@ private:
         }
         draw_highlight_bounds_overlay(view);
         draw_cloth_debug_overlays(view, world_view_projection);
+        draw_skeleton_overlay(view, world_view_projection);
         draw_mesh_edit_overlay(view);
         if (!icon_capture_mode_) {
             draw_alignment_axes(view, world_view_projection);
         }
+    }
+
+    void draw_side_by_side_splitter_overlay() {
+        if (icon_capture_mode_ || !side_by_side_workspace_active()) return;
+        D3D11_VIEWPORT viewport = full_viewport();
+        context_->RSSetViewports(1, &viewport);
+        std::vector<float> vertices;
+        vertices.reserve(23u * 18u);
+        const float split_x = side_by_side_reference_width();
+        const float view_width = static_cast<float>(std::max<LONG>(1, width_));
+        const float view_height = static_cast<float>(std::max<LONG>(1, height_));
+        auto append_screen_vertex = [&](float x, float y, float r, float g, float b) {
+            const float clip_x = (x / view_width) * 2.0f - 1.0f;
+            const float clip_y = 1.0f - (y / view_height) * 2.0f;
+            append_line_vertex(vertices, clip_x, clip_y, 0.0f, r, g, b);
+        };
+        auto add_rect = [&](float left, float top, float right, float bottom, float r, float g, float b) {
+            append_screen_vertex(left, top, r, g, b);
+            append_screen_vertex(right, top, r, g, b);
+            append_screen_vertex(right, bottom, r, g, b);
+            append_screen_vertex(left, top, r, g, b);
+            append_screen_vertex(right, bottom, r, g, b);
+            append_screen_vertex(left, bottom, r, g, b);
+        };
+        add_rect(split_x - 3.0f, 0.0f, split_x + 3.0f, view_height, 0.06f, 0.08f, 0.10f);
+        const bool active = side_by_side_split_drag_active_ || side_by_side_split_hover_;
+        add_rect(
+            split_x - 1.0f,
+            0.0f,
+            split_x + 1.0f,
+            view_height,
+            active ? 1.0f : 0.38f,
+            active ? 0.48f : 0.52f,
+            active ? 0.16f : 0.64f);
+        const float handle_top = std::max(14.0f, view_height * 0.5f - 34.0f);
+        const float handle_bottom = std::min(view_height - 14.0f, view_height * 0.5f + 34.0f);
+        add_rect(
+            split_x - 5.0f,
+            handle_top,
+            split_x + 5.0f,
+            handle_bottom,
+            active ? 0.95f : 0.22f,
+            active ? 0.48f : 0.30f,
+            active ? 0.16f : 0.38f);
+        draw_colored_triangles(vertices, DirectX::XMMatrixIdentity(), true);
     }
 
     void update_runtime_stats(RendererStats& stats) {
@@ -5446,12 +5653,13 @@ private:
 
     std::string alignment_axis_at(int x, int y) const {
         if (!alignment_.enabled) return "";
+        float center_distance = std::numeric_limits<float>::infinity();
         DirectX::XMFLOAT3 origin{};
         if (alignment_handle_origin(origin)) {
             float origin_x = 0.0f;
             float origin_y = 0.0f;
-            if (project_position(origin, origin_x, origin_y) && std::hypot(static_cast<float>(x) - origin_x, static_cast<float>(y) - origin_y) <= 26.0f) {
-                return "screen";
+            if (project_position(origin, origin_x, origin_y)) {
+                center_distance = std::hypot(static_cast<float>(x) - origin_x, static_cast<float>(y) - origin_y);
             }
         }
         std::string best_axis;
@@ -5462,6 +5670,12 @@ private:
                 best_axis = axis;
                 best_distance = distance;
             }
+        }
+        if (!best_axis.empty() && (center_distance > 12.0f || best_distance + 4.0f < center_distance)) {
+            return best_axis;
+        }
+        if (center_distance <= 26.0f) {
+            return "screen";
         }
         return best_axis;
     }
@@ -5826,7 +6040,7 @@ private:
     }
 
     void update_source_part_hover(int x, int y) {
-        int source_submesh = source_part_.picking_enabled && !mesh_edit_.enabled ? source_part_at(x, y, 28.0f) : -1;
+        int source_submesh = source_part_.picking_enabled ? source_part_at(x, y, 28.0f) : -1;
         if (source_submesh == source_part_.hovered_source_submesh) return;
         source_part_.hovered_source_submesh = source_submesh;
         send_source_part_event("source_part_hovered", source_submesh);
@@ -5838,7 +6052,7 @@ private:
         bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
         bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
         bool ctrl_down = (wparam & MK_CONTROL) != 0 || (GetKeyState(VK_CONTROL) & 0x8000) != 0;
-        if (mesh_edit_.enabled || alt_down || shift_down || ctrl_down) return;
+        if (!source_part_.picking_enabled || alt_down || shift_down || ctrl_down) return;
         int source_submesh = source_part_at(x, y, 28.0f);
         if (source_submesh < 0) return;
         source_part_.click_pending = true;
@@ -5863,7 +6077,7 @@ private:
         bool alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
         bool shift_down = (wparam & MK_SHIFT) != 0 || (GetKeyState(VK_SHIFT) & 0x8000) != 0;
         bool ctrl_down = (wparam & MK_CONTROL) != 0 || (GetKeyState(VK_CONTROL) & 0x8000) != 0;
-        if (!source_part_.picking_enabled || mesh_edit_.enabled || alt_down || shift_down || ctrl_down) return false;
+        if (!source_part_.picking_enabled || alt_down || shift_down || ctrl_down) return false;
         int source_submesh = source_part_at(x, y, 28.0f);
         if (source_submesh < 0) return false;
         send_source_part_context_event(source_submesh, x, y);
@@ -6894,14 +7108,18 @@ private:
     }
 
     void send_json_event(const std::string& payload) const {
-        write_status(args_.status_file, payload);
         HWND parent = reinterpret_cast<HWND>(args_.parent_hwnd);
-        if (!parent || !IsWindow(parent)) return;
-        COPYDATASTRUCT cds{};
-        cds.dwData = kCdmwEventCopyData;
-        cds.cbData = static_cast<DWORD>(payload.size() + 1);
-        cds.lpData = const_cast<char*>(payload.c_str());
-        SendMessageW(parent, WM_COPYDATA, reinterpret_cast<WPARAM>(hwnd_), reinterpret_cast<LPARAM>(&cds));
+        LRESULT delivered = 0;
+        if (parent && IsWindow(parent)) {
+            COPYDATASTRUCT cds{};
+            cds.dwData = kCdmwEventCopyData;
+            cds.cbData = static_cast<DWORD>(payload.size() + 1);
+            cds.lpData = const_cast<char*>(payload.c_str());
+            delivered = SendMessageW(parent, WM_COPYDATA, reinterpret_cast<WPARAM>(hwnd_), reinterpret_cast<LPARAM>(&cds));
+        }
+        if (!delivered) {
+            write_status(args_.status_file, payload);
+        }
     }
 
     void send_view_event(const char* reason, PreviewViewRole role = PreviewViewRole::Replacement) const {
@@ -6918,6 +7136,15 @@ private:
         send_json_event(out.str());
     }
 
+    void send_side_by_side_split_event(const char* reason) const {
+        std::ostringstream out;
+        out << "{\"event\":\"side_by_side_split\""
+            << ",\"reason\":\"" << json_escape(reason ? reason : "") << "\""
+            << ",\"ratio\":" << side_by_side_split_ratio_
+            << "}";
+        send_json_event(out.str());
+    }
+
     bool handle_copy_data(const COPYDATASTRUCT* cds) {
         if (!cds || cds->dwData != kCdmwCommandCopyData || !cds->lpData || cds->cbData == 0) return false;
         const char* data = reinterpret_cast<const char*>(cds->lpData);
@@ -6929,6 +7156,9 @@ private:
             pending_package_dir_ = utf8_to_wide(json_string_field(payload, "package_dir"));
             pending_status_file_ = utf8_to_wide(json_string_field(payload, "status_file"));
             pending_reset_view_ = json_bool_field(payload, "reset_view", false);
+            if (json_has_field(payload, "side_by_side_split_ratio")) {
+                set_side_by_side_split_ratio(json_float_field(payload, "side_by_side_split_ratio", side_by_side_split_ratio_));
+            }
             request_render();
             cdmw_native_diag::event("command_load_package", {{"package_dir", cdmw_native_diag::path_to_utf8(fs::path(pending_package_dir_))}, {"status_file", cdmw_native_diag::path_to_utf8(fs::path(pending_status_file_))}});
             send_json_event("{\"event\":\"command_result\",\"command\":\"load_package\",\"ok\":true,\"queued\":true}");
@@ -6943,12 +7173,24 @@ private:
         }
         if (command == "set_display_mode") {
             std::string mode = normalize_display_mode(json_string_field(payload, "mode", display_mode_), display_mode_);
+            if (json_has_field(payload, "side_by_side_split_ratio")) {
+                set_side_by_side_split_ratio(json_float_field(payload, "side_by_side_split_ratio", side_by_side_split_ratio_));
+            }
             display_mode_ = mode;
             request_render();
             cdmw_native_diag::event("command_set_display_mode", {{"mode", display_mode_}});
             std::ostringstream event;
             event << "{\"event\":\"display_mode\",\"mode\":\"" << json_escape(display_mode_) << "\"}";
             send_json_event(event.str());
+            if (hwnd_) {
+                InvalidateRect(hwnd_, nullptr, FALSE);
+            }
+            return true;
+        }
+        if (command == "set_side_by_side_split") {
+            set_side_by_side_split_ratio(json_float_field(payload, "ratio", side_by_side_split_ratio_));
+            request_render();
+            send_side_by_side_split_event("command");
             if (hwnd_) {
                 InvalidateRect(hwnd_, nullptr, FALSE);
             }
@@ -7172,6 +7414,18 @@ private:
             }
             request_render();
             send_json_event("{\"event\":\"source_part_picking\",\"ok\":true}");
+            return true;
+        }
+        if (command == "set_skeleton_overlay") {
+            skeleton_overlay_.selected_bone_index = json_int_field(payload, "selected_bone_index", skeleton_overlay_.selected_bone_index);
+            stats_.skeleton_selected_bone_index = skeleton_overlay_.selected_bone_index;
+            request_render();
+            if (hwnd_) {
+                InvalidateRect(hwnd_, nullptr, FALSE);
+            }
+            std::ostringstream event;
+            event << "{\"event\":\"skeleton_overlay\",\"selected_bone_index\":" << skeleton_overlay_.selected_bone_index << "}";
+            send_json_event(event.str());
             return true;
         }
         if (command == "set_mesh_edit_state") {
@@ -7478,6 +7732,8 @@ private:
     void cancel_mouse_interaction(bool release_capture = true) {
         cancel_mesh_edit_drag();
         cancel_alignment_drag();
+        side_by_side_split_drag_active_ = false;
+        side_by_side_split_hover_ = false;
         source_part_.click_pending = false;
         drag_mode_ = 0;
         drag_button_ = 0;
@@ -7518,6 +7774,31 @@ private:
         if (drag_mode_ != 0) SetCapture(hwnd_);
     }
 
+    bool begin_side_by_side_split_drag(int x, int y) {
+        if (!side_by_side_splitter_hit_test(x, y)) return false;
+        side_by_side_split_drag_active_ = true;
+        side_by_side_split_hover_ = true;
+        set_side_by_side_split_from_x(x);
+        SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+        if (GetCapture() != hwnd_) SetCapture(hwnd_);
+        return true;
+    }
+
+    bool update_side_by_side_split_drag(int x, int y) {
+        if (side_by_side_split_drag_active_) {
+            set_side_by_side_split_from_x(x);
+            SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+            return true;
+        }
+        const bool hovered = side_by_side_splitter_hit_test(x, y);
+        if (hovered != side_by_side_split_hover_) {
+            side_by_side_split_hover_ = hovered;
+            request_render();
+        }
+        if (hovered) SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+        return false;
+    }
+
     void update_mouse_drag(int x, int y) {
         if (drag_mode_ == 0) return;
         int delta_x = x - last_mouse_x_;
@@ -7556,6 +7837,17 @@ private:
         drag_view_role_ = PreviewViewRole::All;
         if (GetCapture() == hwnd_) ReleaseCapture();
         send_view_event("drag", completed_role);
+    }
+
+    bool finish_side_by_side_split_drag(int x, int y) {
+        if (!side_by_side_split_drag_active_) return false;
+        set_side_by_side_split_from_x(x);
+        side_by_side_split_drag_active_ = false;
+        side_by_side_split_hover_ = side_by_side_splitter_hit_test(x, y);
+        if (GetCapture() == hwnd_) ReleaseCapture();
+        if (side_by_side_split_hover_) SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+        send_side_by_side_split_event("drag");
+        return true;
     }
 
     void apply_wheel_delta(int wheel_delta, int x, int y) {
@@ -8394,6 +8686,7 @@ private:
     std::vector<PreviewBatch> batches_;
     std::vector<ClothCollider> cloth_colliders_;
     ClothPreviewState cloth_state_;
+    SkeletonOverlayState skeleton_overlay_;
     RendererStats& stats_;
     ViewSettings view_settings_;
     RenderTuning render_tuning_;
@@ -8411,6 +8704,9 @@ private:
     float pan_z_ = 0.0f;
     PreviewCameraState reference_camera_;
     std::string display_mode_ = "replacement_only";
+    float side_by_side_split_ratio_ = 0.5f;
+    bool side_by_side_split_drag_active_ = false;
+    bool side_by_side_split_hover_ = false;
     std::set<int> hidden_source_submeshes_;
     bool icon_capture_mode_ = false;
     AlignmentState alignment_;
@@ -8503,6 +8799,7 @@ static int run_host(const Args& args) {
     std::string manifest = read_text(args.preview_package / L"manifest.json");
     RendererStats stats;
     std::vector<PreviewBatch> batches = parse_manifest_batches(args.preview_package, manifest, stats);
+    SkeletonOverlayState skeleton_overlay = parse_skeleton_overlay_state(manifest, stats);
     std::vector<ClothCollider> cloth_colliders = parse_cloth_colliders(args.preview_package, manifest);
     stats.cloth_collider_count = static_cast<int>(cloth_colliders.size());
     ViewSettings view_settings = parse_view_settings(manifest);
@@ -8556,7 +8853,16 @@ static int run_host(const Args& args) {
     }
 
     write_status(args.status_file, "{\"event\":\"loading\",\"backend\":\"D3D11\",\"stage\":\"upload\",\"percent\":90,\"current\":90,\"total\":100,\"message\":\"Uploading D3D11 geometry and DDS textures...\"}");
-    Renderer renderer(hwnd, args, std::move(batches), std::move(cloth_colliders), stats, view_settings, render_tuning, display_mode);
+    Renderer renderer(
+        hwnd,
+        args,
+        std::move(batches),
+        std::move(cloth_colliders),
+        std::move(skeleton_overlay),
+        stats,
+        view_settings,
+        render_tuning,
+        display_mode);
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&renderer));
     if (!renderer.initialize()) {
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);

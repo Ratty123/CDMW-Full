@@ -6,7 +6,7 @@ from typing import Callable, Dict, Optional
 
 from PySide6.QtCore import QRectF, QSettings, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import QApplication, QFrame, QWidget
+from PySide6.QtWidgets import QApplication, QAbstractItemView, QFrame, QHeaderView, QWidget
 
 from cdmw.constants import (
     DEFAULT_UI_DATA_FONT_SIZE,
@@ -38,15 +38,29 @@ from cdmw.ui.themes import UI_THEME_SCHEMES, build_app_palette, build_app_styles
 from cdmw.ui.widgets import available_layout_size_for, available_screen_size_for
 
 
-def apply_app_theme(
+def _same_font(left: QFont, right: QFont) -> bool:
+    return QFont(left).toString() == QFont(right).toString()
+
+
+_UI_FONT_CLASS_NAMES = ("QWidget",)
+_DATA_FONT_CLASS_NAMES = (
+    "QListView",
+    "QListWidget",
+    "QTreeView",
+    "QTreeWidget",
+    "QTableView",
+    "QTableWidget",
+    "QHeaderView",
+)
+
+
+def _resolved_app_fonts(
     app: QApplication,
     settings: QSettings,
-    theme_key: str,
     *,
     screen_width: Optional[int] = None,
     screen_height: Optional[int] = None,
-) -> str:
-    resolved_theme = theme_key if theme_key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
+) -> tuple[QFont, QFont, str, float]:
     ui_font_family = str(settings.value("appearance/ui_font_family", DEFAULT_UI_FONT_FAMILY) or DEFAULT_UI_FONT_FAMILY)
     configured_base_font_size = max(
         UI_FONT_SIZE_MIN,
@@ -67,13 +81,54 @@ def apply_app_theme(
     app_font = QFont(app.font())
     app_font.setFamily(ui_font_family)
     app_font.setPointSize(base_font_size)
-    app.setFont(app_font)
+    data_font = QFont(app_font)
+    data_font.setPointSize(data_font_size)
+    return app_font, data_font, effective_density_key, screen_scale
+
+
+def apply_app_fonts(
+    app: QApplication,
+    settings: QSettings,
+    *,
+    screen_width: Optional[int] = None,
+    screen_height: Optional[int] = None,
+) -> tuple[QFont, QFont]:
+    app_font, data_font, _density_key, _screen_scale = _resolved_app_fonts(
+        app,
+        settings,
+        screen_width=screen_width,
+        screen_height=screen_height,
+    )
+    if not _same_font(app.font(), app_font):
+        app.setFont(app_font)
+    for class_name in _UI_FONT_CLASS_NAMES:
+        app.setFont(app_font, class_name)
+    for class_name in _DATA_FONT_CLASS_NAMES:
+        app.setFont(data_font, class_name)
+    return app_font, data_font
+
+
+def apply_app_theme(
+    app: QApplication,
+    settings: QSettings,
+    theme_key: str,
+    *,
+    screen_width: Optional[int] = None,
+    screen_height: Optional[int] = None,
+) -> str:
+    resolved_theme = theme_key if theme_key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
+    app_font, _data_font, effective_density_key, screen_scale = _resolved_app_fonts(
+        app,
+        settings,
+        screen_width=screen_width,
+        screen_height=screen_height,
+    )
+    if not _same_font(app.font(), app_font):
+        app.setFont(app_font)
     app.setPalette(build_app_palette(resolved_theme))
     app.setStyleSheet(
         build_app_stylesheet(
             resolved_theme,
-            base_font_size=base_font_size,
-            data_font_size=data_font_size,
             density_key=effective_density_key,
             layout_scale=screen_scale,
         )
@@ -179,8 +234,9 @@ class ThemeControllerMixin:
             "theme_key": resolved_theme_key,
             "changed": ("theme",),
             "requires_theme_apply": True,
-            "requires_data_fonts": True,
-            "requires_text_colors": True,
+            "requires_ui_fonts": True,
+            "requires_data_fonts": False,
+            "requires_text_colors": False,
             "title": f"Applying {UI_THEME_SCHEMES.get(resolved_theme_key, UI_THEME_SCHEMES[DEFAULT_UI_THEME]).get('label', 'Theme')} theme",
             "detail": "Updating app colors and preview panes...",
         }
@@ -204,17 +260,26 @@ class ThemeControllerMixin:
         data["theme_key"] = theme_key
         data["changed"] = changed
         data["requires_theme_apply"] = bool(data.get("requires_theme_apply", False))
+        data["requires_ui_fonts"] = bool(data.get("requires_ui_fonts", False))
         data["requires_data_fonts"] = bool(data.get("requires_data_fonts", False))
         data["requires_text_colors"] = bool(data.get("requires_text_colors", False))
         if not str(data.get("title") or "").strip():
             theme_label = UI_THEME_SCHEMES.get(theme_key, UI_THEME_SCHEMES[DEFAULT_UI_THEME]).get("label", "Theme")
-            data["title"] = f"Applying {theme_label} theme" if data["requires_theme_apply"] else "Applying text colors"
+            if data["requires_theme_apply"]:
+                data["title"] = f"Applying {theme_label} theme"
+            elif data["requires_ui_fonts"]:
+                data["title"] = "Applying UI font"
+            elif data["requires_data_fonts"]:
+                data["title"] = "Applying text appearance"
+            else:
+                data["title"] = "Applying text colors"
         if not str(data.get("detail") or "").strip():
-            data["detail"] = (
-                "Updating app colors and preview panes..."
-                if data["requires_theme_apply"]
-                else "Updating logs and preview text..."
-            )
+            if data["requires_theme_apply"]:
+                data["detail"] = "Updating app colors and preview panes..."
+            elif data["requires_ui_fonts"]:
+                data["detail"] = "Updating app fonts and dense views..."
+            else:
+                data["detail"] = "Updating logs and preview text..."
         return data
 
     def _show_appearance_change_overlay(self, payload: object) -> None:
@@ -254,8 +319,9 @@ class ThemeControllerMixin:
                     "theme_key": resolved_theme_key,
                     "changed": ("theme",),
                     "requires_theme_apply": True,
-                    "requires_data_fonts": True,
-                    "requires_text_colors": True,
+                    "requires_ui_fonts": True,
+                    "requires_data_fonts": False,
+                    "requires_text_colors": False,
                 }
             )
         else:
@@ -311,8 +377,11 @@ class ThemeControllerMixin:
                     app,
                 ),
             )
-            self._queue_data_font_apply_steps(schedule_column_autofit=False)
-            self._queue_text_highlight_apply_steps()
+            self._queue_ui_font_apply_steps(app, schedule_column_autofit=False)
+            if data["requires_data_fonts"]:
+                self._queue_data_font_apply_steps(schedule_column_autofit=False)
+            if data["requires_text_colors"]:
+                self._queue_text_highlight_apply_steps()
             self._queue_appearance_apply_step("Updating log themes", lambda: self.log_highlighter.set_theme(self.current_theme_key))
             self._queue_appearance_apply_step("Updating archive log theme", lambda: self.archive_log_highlighter.set_theme(self.current_theme_key))
             self._queue_appearance_apply_step("Updating model preview theme", lambda: self.archive_model_preview.set_theme(self.current_theme_key))
@@ -322,16 +391,17 @@ class ThemeControllerMixin:
             self._queue_appearance_apply_step("Updating archive details preview", lambda: self.archive_preview_details_edit.set_theme(self.current_theme_key))
             self._queue_appearance_apply_step("Updating text search theme", lambda: self.text_search_tab.set_theme(self.current_theme_key))
             self._queue_appearance_apply_step("Updating research theme", lambda: self.research_tab.set_theme(self.current_theme_key))
-            self._queue_appearance_apply_step("Updating texture editor font", lambda app=app: self.texture_editor_tab.sync_ui_font(app.font()))
+            self._queue_appearance_apply_step("Updating mesh editor theme", self._sync_mesh_editor_theme)
             self._queue_appearance_apply_step("Syncing settings controls", lambda: self.settings_tab.sync_appearance_controls(self.current_theme_key))
             self._queue_appearance_apply_step("Updating responsive controls", self._apply_responsive_control_minimums)
             self._queue_appearance_apply_step("Scheduling column sizing", self._schedule_column_autofit)
-            self._queue_appearance_apply_step("Saving theme setting", self.schedule_settings_save)
+            self._queue_appearance_apply_step("Saving theme setting", self._save_current_theme_setting)
             return
+        if data["requires_ui_fonts"]:
+            self._queue_ui_font_apply_steps(app, schedule_column_autofit=True)
         if data["requires_data_fonts"]:
             self._queue_data_font_apply_steps(schedule_column_autofit=True)
-            self._queue_text_highlight_apply_steps()
-        elif data["requires_text_colors"]:
+        if data["requires_text_colors"]:
             self._queue_text_highlight_apply_steps()
         self._queue_appearance_apply_step("Syncing settings controls", lambda: self.settings_tab.sync_appearance_controls(self.current_theme_key))
 
@@ -373,6 +443,64 @@ class ThemeControllerMixin:
             screen_height=screen_height,
         )
         self._apply_theme_window_icon(self.current_theme_key)
+
+    def _queue_ui_font_apply_steps(self, app: QApplication, *, schedule_column_autofit: bool) -> None:
+        self._queue_appearance_apply_step("Updating app UI fonts", lambda app=app: self._apply_application_ui_fonts(app))
+        self._queue_appearance_apply_step("Updating texture editor font", lambda app=app: self.texture_editor_tab.sync_ui_font(app.font()))
+        self._queue_appearance_apply_step("Updating mesh editor font", lambda app=app: self._sync_mesh_editor_font(app))
+        self._queue_appearance_apply_step("Updating responsive controls", self._apply_responsive_control_minimums)
+        if schedule_column_autofit:
+            self._queue_appearance_apply_step("Scheduling column sizing", self._schedule_column_autofit)
+
+    def _apply_application_ui_fonts(self, app: QApplication) -> None:
+        screen_width, screen_height = available_layout_size_for(self)
+        self._current_responsive_control_scale = 0.0
+        _ui_font, data_font = apply_app_fonts(
+            app,
+            self.settings,
+            screen_width=screen_width,
+            screen_height=screen_height,
+        )
+        self._apply_data_widget_fonts(data_font)
+
+    def _apply_data_widget_fonts(self, data_font: QFont) -> None:
+        for widget in self.findChildren(QAbstractItemView):
+            if not _same_font(widget.font(), data_font):
+                widget.setFont(data_font)
+        for header in self.findChildren(QHeaderView):
+            if not _same_font(header.font(), data_font):
+                header.setFont(data_font)
+
+    def _sync_mesh_editor_appearance(self, app: QApplication) -> None:
+        self._sync_mesh_editor_theme()
+        self._sync_mesh_editor_font(app)
+
+    def _sync_mesh_editor_theme(self) -> None:
+        mesh_editor_tab = getattr(self, "mesh_editor_tab", None)
+        if mesh_editor_tab is None:
+            return
+        if hasattr(mesh_editor_tab, "set_theme"):
+            mesh_editor_tab.set_theme(self.current_theme_key)
+
+    def _sync_mesh_editor_font(self, app: QApplication) -> None:
+        mesh_editor_tab = getattr(self, "mesh_editor_tab", None)
+        if mesh_editor_tab is None:
+            return
+        screen_width, screen_height = available_layout_size_for(self)
+        _ui_font, data_font = apply_app_fonts(
+            app,
+            self.settings,
+            screen_width=screen_width,
+            screen_height=screen_height,
+        )
+        if hasattr(mesh_editor_tab, "sync_ui_font"):
+            mesh_editor_tab.sync_ui_font(app.font(), data_font)
+
+    def _save_current_theme_setting(self) -> None:
+        if not getattr(self, "_settings_ready", False):
+            return
+        self.settings.setValue("appearance/theme", self.current_theme_key)
+        QTimer.singleShot(650, self.settings.sync)
 
     def _apply_theme_window_icon(self, theme_key: str) -> None:
         app_icon, _icon_path = load_app_icon(theme_key)
@@ -622,6 +750,7 @@ __all__ = [
     "ThemeController",
     "ThemeControllerMixin",
     "apply_app_theme",
+    "apply_app_fonts",
     "apply_window_data_fonts",
     "apply_window_text_highlight_style",
     "build_monospace_font",

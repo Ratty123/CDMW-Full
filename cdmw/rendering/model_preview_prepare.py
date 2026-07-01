@@ -103,7 +103,7 @@ class ModelPreviewDrawBatch:
     support_maps_disabled: bool = False
     has_texture_coordinates: bool = False
     texture_wrap_repeat: bool = False
-    texture_flip_vertical: bool = True
+    texture_flip_vertical: bool = False
     base_texture_quality: str = ""
     texture_brightness: float = 1.0
     texture_tint: Tuple[float, float, float] = ()
@@ -209,7 +209,7 @@ class BatchRenderDiagnostic:
     bitangent_finite_ratio: float = 1.0
     uv_finite_ratio: float = 1.0
     smooth_normal_ratio: float = 0.0
-    texture_flip_vertical: bool = True
+    texture_flip_vertical: bool = False
     texture_wrap_repeat: bool = False
     texture_brightness: float = 1.0
     texture_tint: Tuple[float, float, float] = ()
@@ -818,6 +818,7 @@ def _build_vertex_blob_impl(model: object, *, flip_texture_v: bool = False, use_
             getattr(mesh, "preview_texture_flip_vertical", None),
             source_format=getattr(model, "format", ""),
             source_path=getattr(model, "path", ""),
+            default=False,
             flip_texture_v=bool(flip_texture_v),
         )
         if bool(getattr(mesh, "preview_debug_flip_base_v", False)):

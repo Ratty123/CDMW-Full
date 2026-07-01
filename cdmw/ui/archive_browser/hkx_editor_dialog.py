@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QBrush, QColor, QFont, QTextCursor
+from PySide6.QtGui import QBrush, QColor, QTextCursor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -101,6 +101,7 @@ from cdmw.ui.archive_browser.hkx_related_models import (
     hkx_related_model_candidate_rows as _rank_hkx_related_model_candidate_rows,
 )
 from cdmw.ui.archive_browser.hkx_xml_highlighter import HkxXmlHighlighter
+from cdmw.ui.shell.theme_controller import build_monospace_font
 from cdmw.ui.widgets import NativePreviewPanel
 
 
@@ -438,7 +439,7 @@ class ArchiveHkxEditorDialogMixin:
         overview_report_toggle.setVisible(False)
         overview_text = QPlainTextEdit()
         overview_text.setReadOnly(True)
-        overview_text.setFont(QFont("Consolas", 9))
+        overview_text.setFont(build_monospace_font(self.settings))
         overview_report_layout.addWidget(overview_text, stretch=1)
         overview_workspace_tabs.addTab(overview_report_page, "Technical Details")
         overview_filler = QWidget()
@@ -1177,12 +1178,12 @@ class ArchiveHkxEditorDialogMixin:
         line_numbers.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         line_numbers.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         line_numbers.setFixedWidth(58)
-        line_numbers.setFont(QFont("Consolas", 9))
+        line_numbers.setFont(build_monospace_font(self.settings))
         line_numbers.setStyleSheet("QPlainTextEdit { color: #7f8c98; background: rgba(127, 140, 152, 0.08); }")
         editor = QPlainTextEdit()
         editor.setPlainText(document_text)
         editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        editor.setFont(QFont("Consolas", 9))
+        editor.setFont(build_monospace_font(self.settings))
         _xml_highlighter = HkxXmlHighlighter(editor.document())
         editor._hkx_xml_highlighter = _xml_highlighter
         editor_row.addWidget(line_numbers)
@@ -1495,7 +1496,7 @@ class ArchiveHkxEditorDialogMixin:
             guidance_columns: Sequence[int] = (),
             patchable_value_column: int = -1,
         ) -> None:
-            mono_font = QFont("Consolas", 9)
+            mono_font = build_monospace_font(self.settings)
             for item in _iter_tree_items(tree):
                 patchable = _hkx_item_is_patchable(item, guidance_columns)
                 for column in offset_columns:
@@ -7477,7 +7478,7 @@ class ArchiveHkxEditorDialogMixin:
             preview_text = QPlainTextEdit()
             preview_text.setReadOnly(True)
             preview_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-            preview_text.setFont(QFont("Consolas", 9))
+            preview_text.setFont(build_monospace_font(self.settings))
             preview_text.setPlainText(_hkx_mod_package_preview_text())
             preview_layout.addWidget(preview_text)
             close_preview_button = QPushButton("Close")

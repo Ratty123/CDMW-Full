@@ -21,6 +21,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     QCheckBox = context.get('QCheckBox')
     QComboBox = context.get('QComboBox')
     QDoubleSpinBox = context.get('QDoubleSpinBox')
+    QFrame = context.get('QFrame')
     QHBoxLayout = context.get('QHBoxLayout')
     QLabel = context.get('QLabel')
     QPushButton = context.get('QPushButton')
@@ -57,6 +58,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     create_alignment_mesh_diagnostics_callbacks = context.get('create_alignment_mesh_diagnostics_callbacks')
     defer_original_texture_preview = context.get('defer_original_texture_preview')
     dialog = context.get('dialog')
+    embedded_alignment_builder = bool(context.get('embedded_alignment_builder'))
     find_native_d3d11_host = context.get('find_native_d3d11_host')
     float = context.get('float')
     globals = context.get('globals')
@@ -71,11 +73,11 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     value = context.get('value')
 
     root_layout = QVBoxLayout(dialog)
-    alignment_control_min_width = 640
-    alignment_control_content_min_width = 700
-    mesh_edit_control_min_width = 460
-    mesh_edit_control_content_min_width = 420
-    mesh_edit_control_max_width = 540
+    alignment_control_min_width = 420 if embedded_alignment_builder else 640
+    alignment_control_content_min_width = 0 if embedded_alignment_builder else 700
+    mesh_edit_control_min_width = 300 if embedded_alignment_builder else 300
+    mesh_edit_control_content_min_width = 0 if embedded_alignment_builder else 300
+    mesh_edit_control_max_width = 340 if embedded_alignment_builder else 340
     alignment_preview_min_width = 420
     main_splitter = QSplitter(Qt.Horizontal, dialog)
     main_splitter.setChildrenCollapsible(False)
@@ -157,6 +159,12 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_part_pick_checkbox.setChecked(False)
     preview_part_pick_checkbox.setToolTip(alignment_preview_control_text["part_pick_tooltip"])
     preview_controls_row.addWidget(preview_part_pick_checkbox)
+    preview_mesh_edit_checkbox = QCheckBox("Edit Mesh")
+    preview_mesh_edit_checkbox.setObjectName("MeshEditModeCheckbox")
+    preview_mesh_edit_checkbox.setChecked(False)
+    preview_mesh_edit_checkbox.setToolTip("Enable viewport mesh editing tools for the current replacement preview.")
+    preview_controls_row.addWidget(preview_mesh_edit_checkbox)
+    mesh_edit_enabled_checkbox = preview_mesh_edit_checkbox
     hovered_source_part = {"index": -1}
     alignment_d3d11_view_mode_combo = QComboBox()
     _populate_combo_options_helper(
@@ -308,6 +316,14 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_render_controls.addWidget(QLabel(alignment_preview_render_control_text["rough_label"]))
     preview_render_controls.addWidget(preview_rough_spin)
     preview_panel_layout.addWidget(preview_render_controls_widget)
+    classic_mesh_edit_toolbar = QFrame(preview_panel)
+    classic_mesh_edit_toolbar.setObjectName("ClassicMeshEditPreviewToolbar")
+    classic_mesh_edit_toolbar.setVisible(False)
+    classic_mesh_edit_toolbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+    classic_mesh_edit_toolbar_layout = QVBoxLayout(classic_mesh_edit_toolbar)
+    classic_mesh_edit_toolbar_layout.setContentsMargins(4, 3, 4, 3)
+    classic_mesh_edit_toolbar_layout.setSpacing(3)
+    preview_panel_layout.addWidget(classic_mesh_edit_toolbar)
     preview_splitter = QSplitter(Qt.Horizontal, preview_panel)
     original_preview_container = QWidget(preview_splitter)
     original_preview_layout = QVBoxLayout(original_preview_container)
@@ -343,9 +359,9 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_splitter.setChildrenCollapsible(False)
     preview_splitter.setCollapsible(0, False)
     preview_splitter.setCollapsible(1, False)
-    preview_splitter.setStretchFactor(0, 5)
-    preview_splitter.setStretchFactor(1, 4)
-    preview_splitter.setSizes([560, 520])
+    preview_splitter.setStretchFactor(0, 1)
+    preview_splitter.setStretchFactor(1, 1)
+    preview_splitter.setSizes([520, 520])
     overlay_dialog_preview = NativePreviewPanel("Overlay preview.", theme_key=self.current_theme_key)
     overlay_dialog_preview.setMinimumSize(300, 280)
     overlay_dialog_preview.set_render_settings(preview_render_settings)
@@ -378,6 +394,24 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     # native child creation can hard-crash when the alignment dialog is shown.
     alignment_d3d11_preview_host.setMinimumSize(300, 280)
     alignment_d3d11_preview_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    alignment_d3d11_split_ratio_settings_key = "ui/mesh_alignment/d3d11_side_by_side_split_ratio"
+    try:
+        alignment_d3d11_preview_host.set_side_by_side_split_ratio(
+            float(self.settings.value(alignment_d3d11_split_ratio_settings_key, 0.5) or 0.5)
+        )
+    except (TypeError, ValueError, AttributeError):
+        alignment_d3d11_preview_host.set_side_by_side_split_ratio(0.5)
+
+    def _remember_alignment_d3d11_split_ratio(payload: object) -> None:
+        if not isinstance(payload, dict) or str(payload.get("event", "") or "") != "side_by_side_split":
+            return
+        try:
+            ratio = alignment_d3d11_preview_host.remember_side_by_side_split_ratio(float(payload.get("ratio", 0.5) or 0.5))
+            self.settings.setValue(alignment_d3d11_split_ratio_settings_key, ratio)
+        except (TypeError, ValueError, AttributeError):
+            pass
+
+    alignment_d3d11_preview_host.native_event_received.connect(_remember_alignment_d3d11_split_ratio)
     alignment_d3d11_preview_legend_label = QLabel(alignment_preview_control_text["d3d11_legend"])
     alignment_d3d11_preview_legend_label.setObjectName("HintLabel")
     alignment_d3d11_preview_legend_label.setWordWrap(False)
@@ -552,14 +586,17 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     _set_preview_performance_status = alignment_dialog_layout_callbacks._set_preview_performance_status
     _apply_alignment_dialog_responsive_layout = alignment_dialog_layout_callbacks._apply_alignment_dialog_responsive_layout
     _responsive_dialog_resize_event = alignment_dialog_layout_callbacks._responsive_dialog_resize_event
+    _save_alignment_dialog_splitter_sizes = alignment_dialog_layout_callbacks._save_alignment_dialog_splitter_sizes
     _run_static_preview_batch = alignment_dialog_layout_callbacks._run_static_preview_batch
+    main_splitter.splitterMoved.connect(_save_alignment_dialog_splitter_sizes)
+    preview_splitter.splitterMoved.connect(_save_alignment_dialog_splitter_sizes)
     preview_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     main_splitter.addWidget(preview_panel)
     main_splitter.addWidget(controls_panel)
     main_splitter.setCollapsible(0, False)
     main_splitter.setCollapsible(1, False)
-    main_splitter.setStretchFactor(0, 1)
-    main_splitter.setStretchFactor(1, 0)
+    main_splitter.setStretchFactor(0, 3)
+    main_splitter.setStretchFactor(1, 1)
     root_layout.addWidget(main_splitter, 1)
 
     dialog.resizeEvent = _responsive_dialog_resize_event  # type: ignore[method-assign]
@@ -612,6 +649,8 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         alignment_preview_view_sync=locals().get('alignment_preview_view_sync'),
         alignment_use_global_preview_button=locals().get('alignment_use_global_preview_button'),
         clear_alignment_selection_button=locals().get('clear_alignment_selection_button'),
+        classic_mesh_edit_toolbar=locals().get('classic_mesh_edit_toolbar'),
+        classic_mesh_edit_toolbar_layout=locals().get('classic_mesh_edit_toolbar_layout'),
         content_container=locals().get('content_container'),
         controls_panel=locals().get('controls_panel'),
         custom_icon_control_text=locals().get('custom_icon_control_text'),
@@ -632,6 +671,8 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         preview_disable_tint_checkbox=locals().get('preview_disable_tint_checkbox'),
         preview_disable_uv_scale_checkbox=locals().get('preview_disable_uv_scale_checkbox'),
         preview_gizmo_checkbox=locals().get('preview_gizmo_checkbox'),
+        preview_mesh_edit_checkbox=locals().get('preview_mesh_edit_checkbox'),
+        mesh_edit_enabled_checkbox=locals().get('mesh_edit_enabled_checkbox'),
         preview_part_pick_checkbox=locals().get('preview_part_pick_checkbox'),
         preview_help=locals().get('preview_help'),
         hovered_source_part=locals().get('hovered_source_part'),

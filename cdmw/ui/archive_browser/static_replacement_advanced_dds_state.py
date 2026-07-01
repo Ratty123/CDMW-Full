@@ -53,7 +53,7 @@ def advanced_dds_control_text() -> dict[str, object]:
         ),
         "hint_label": "Manual DDS slot repair.",
         "hint_html": (
-            "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid #8b949e; background:#24292f;'>"
+            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #8b949e; background:#24292f;'>"
             "<span style='color:#d2a8ff; font-weight:700;'>Advanced DDS Overrides</span>"
             "<span style='color:#c9d1d9;'> | Use route source | Keep original | Choose file | Do not emit</span>"
             "</div>"

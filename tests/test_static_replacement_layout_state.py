@@ -53,11 +53,11 @@ def test_alignment_dialog_responsive_layout_builds_embedded_splitter_sizes_once(
     assert layout.mode == "embedded"
     assert layout.main_orientation == "horizontal"
     assert layout.controls_policy == "preferred"
-    assert layout.controls_min_width == 260
+    assert layout.controls_min_width == 420
     assert layout.preview_min_width == 220
     assert layout.main_stretch == (1, 0)
-    assert layout.main_sizes == (840, 360)
-    assert layout.preview_sizes == (436, 369)
+    assert layout.main_sizes == (780, 420)
+    assert layout.preview_sizes == (390, 390)
     assert alignment_dialog_responsive_layout(
         state,
         width=1200,
@@ -95,7 +95,7 @@ def test_alignment_dialog_responsive_layout_covers_compact_and_wide_mesh_edit_mo
     assert compact.main_orientation == "vertical"
     assert compact.controls_min_width == 0
     assert compact.main_sizes == (504, 324)
-    assert compact.preview_sizes == (780, 630)
+    assert compact.preview_sizes == (750, 750)
 
     wide_mesh = alignment_dialog_responsive_layout(
         state,
@@ -118,7 +118,7 @@ def test_alignment_dialog_responsive_layout_covers_compact_and_wide_mesh_edit_mo
     assert wide_mesh.controls_max_width == 620
     assert wide_mesh.preview_min_width == 620
     assert wide_mesh.main_sizes == (1520, 480)
-    assert wide_mesh.preview_sizes == (790, 668)
+    assert wide_mesh.preview_sizes == (760, 760)
 
 
 def test_alignment_dialog_fit_size_and_frame_origin_clamp_to_available_screen() -> None:

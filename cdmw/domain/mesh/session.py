@@ -30,6 +30,7 @@ class MeshImportSetupSelection:
     source_texture_evidence: Tuple[Mapping[str, object], ...] = ()
     defer_original_texture_preview: bool = False
     runtime_target_entry: Optional[ArchiveEntry] = None
+    source_skeleton: object | None = None
     preferred_complete_source_swap: bool = False
     full_import_model_replacement: bool = False
 

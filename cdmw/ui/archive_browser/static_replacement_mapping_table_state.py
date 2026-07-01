@@ -141,7 +141,7 @@ def mapping_table_action_control_text() -> dict[str, str]:
     return {
         "headers": ["Target", "Role", "Index", "Source", "State", "DDS", "Physics"],
         "routing_hint_html": (
-            "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid #d2a8ff; background:#20252d;'>"
+            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #d2a8ff; background:#20252d;'>"
             "<span style='color:#d2a8ff; font-weight:700;'>Routing</span>"
             "<span style='color:#c9d1d9;'> | target -> source -> DDS</span>"
             "</div>"
@@ -151,7 +151,7 @@ def mapping_table_action_control_text() -> dict[str, str]:
             "or leave it empty to remove the original slot and prune its DDS sidecar references when material sidecar patching is enabled."
         ),
         "target_slots_html": (
-            "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid #79c0ff; background:#10233a;'>"
+            "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #79c0ff; background:#10233a;'>"
             "<span style='color:#79c0ff; font-weight:700;'>Targets</span>"
             "<span style='color:#c9d1d9;'> | source | state | DDS | physics</span>"
             "</div>"
@@ -457,7 +457,7 @@ def source_assignment_state_tooltip(source_state: str) -> str:
 
 def mapping_status_summary_html(badges: Sequence[str]) -> str:
     return (
-        "<div style='font-size:8px; line-height:1.2; padding:4px 5px; border:1px solid #30363d; border-radius:4px; background:#0d1117;'>"
+        "<div style='font-size:0.8em; line-height:1.2; padding:4px 5px; border:1px solid #30363d; border-radius:4px; background:#0d1117;'>"
         + "".join(str(badge) for badge in tuple(badges or ()))
         + "</div>"
     )
@@ -624,7 +624,7 @@ def geometry_mapping_summary_html(
         else ""
     )
     return (
-        "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid #2f81f7; background:#10233a;'>"
+        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #2f81f7; background:#10233a;'>"
         "<span style='color:#79c0ff; font-weight:700;'>Replacement parts</span>"
         f"<span style='color:#f0f6fc;'> {int(replacement_part_count):,}</span>"
         "<span style='color:#8b949e;'> | </span>"
@@ -680,7 +680,7 @@ def output_impact_review_presentation(
         )
     )
     html = (
-        "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid #f2cc60; background:#211b12;'>"
+        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #f2cc60; background:#211b12;'>"
         "<span style='color:#f2cc60; font-weight:700;'>Output</span>"
         f"<span style='color:#c9d1d9;'> | remove {removed_target_count:,}"
         f" | source {int(used_source_count):,}"

@@ -101,11 +101,12 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     control_tabs.addTab(diagnostics_tab, alignment_workflow_control_text["diagnostics_label"])
     for tab_index, tab_label in enumerate(_alignment_workflow_tab_labels_helper()):
         control_tabs.setTabToolTip(tab_index, tab_label)
-    if full_import_model_replacement and hasattr(control_tabs, "setTabVisible"):
-        for advanced_tab in (parts_tab, mesh_edit_tab, textures_tab):
-            control_tabs.setTabVisible(control_tabs.indexOf(advanced_tab), False)
-    elif static_replacement_workflow_mode == "modify_original" and hasattr(control_tabs, "setTabVisible"):
+    if hasattr(control_tabs, "setTabVisible"):
+        control_tabs.setTabVisible(control_tabs.indexOf(mesh_edit_tab), False)
         control_tabs.setTabVisible(control_tabs.indexOf(textures_tab), False)
+    if full_import_model_replacement and hasattr(control_tabs, "setTabVisible"):
+        for advanced_tab in (parts_tab,):
+            control_tabs.setTabVisible(control_tabs.indexOf(advanced_tab), False)
     diagnostics_page.setMinimumWidth(0 if embedded_alignment_builder else alignment_control_content_min_width)
     diagnostics_toolbar = QHBoxLayout()
     diagnostics_toolbar.setContentsMargins(5, 3, 5, 3)

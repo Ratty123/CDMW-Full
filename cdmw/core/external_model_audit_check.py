@@ -15,6 +15,19 @@ DEFAULT_BLOCKING_RISK_FLAGS = (
     "audited_model_without_material_inventory",
 )
 
+SOURCE_DATA_RISK_FLAGS = (
+    "metadata_only_inventory",
+    "missing_pbr_workflow",
+    "missing_texture_slot_facts",
+    "texture_missing_resolution",
+    "texture_missing_channel_stats",
+    "missing_texture_refs",
+    "ambiguous_texture_refs",
+    "unresolved_texture_candidates",
+    "source_texture_route_mismatch",
+)
+DEFAULT_ALLOWED_RISK_FLAGS = SOURCE_DATA_RISK_FLAGS
+
 REVIEW_RISK_FLAGS = (
     "archive_content_not_audited",
     "zip_audit_limit_skipped",
@@ -73,6 +86,7 @@ def check_external_model_audit_report(
     report: Mapping[str, object],
     *,
     fail_on_risk_flags: Sequence[str] = DEFAULT_BLOCKING_RISK_FLAGS,
+    allowed_risk_flags: Sequence[str] = DEFAULT_ALLOWED_RISK_FLAGS,
 ) -> dict[str, object]:
     source_risk_flags = tuple(str(flag) for flag in tuple(report.get("risk_flags", ()) or ()) if str(flag).strip())
     derived_risk_flags: list[str] = []
@@ -181,7 +195,8 @@ def check_external_model_audit_report(
             )
 
         inventory = tuple(material for material in tuple(model.get("material_inventory", ()) or ()) if isinstance(material, Mapping))
-        if status in _AUDITED_STATUSES and not inventory:
+        import_supported = bool(model.get("import_supported", True))
+        if status in _AUDITED_STATUSES and import_supported and not inventory:
             audited_model_without_material_inventory += 1
             _append_example(examples, "audited_model_without_material_inventory", _model_example(model))
         if inventory and (status in _METADATA_ONLY_STATUSES or (status == "archive_audited" and not bool(model.get("import_supported")))):
@@ -189,7 +204,7 @@ def check_external_model_audit_report(
             for material in inventory:
                 _append_example(examples, "metadata_only_inventory", _material_example(model, material))
 
-        geometry_required = status in _AUDITED_STATUSES and bool(model.get("import_supported", True))
+        geometry_required = status in _AUDITED_STATUSES and import_supported
         for material in inventory:
             material_inventory_rows += 1
             workflow = str(material.get("pbr_workflow", "") or "").strip()
@@ -463,14 +478,16 @@ def check_external_model_audit_report(
     )
 
     all_risk_flags = tuple(_dedupe_text((*source_risk_flags, *derived_risk_flags)))
-    blocking_flags = tuple(flag for flag in all_risk_flags if flag in set(fail_on_risk_flags))
+    allowed_flags = set(_dedupe_text(allowed_risk_flags))
+    blocking_flags = tuple(flag for flag in all_risk_flags if flag in set(fail_on_risk_flags) and flag not in allowed_flags)
     if blocking_flags:
         errors.append("Blocking external model audit risk flag(s): " + ", ".join(blocking_flags))
-    review_flags = tuple(flag for flag in all_risk_flags if flag in set(REVIEW_RISK_FLAGS) and flag not in blocking_flags)
+    review_flags = tuple(flag for flag in all_risk_flags if flag in set(REVIEW_RISK_FLAGS) and flag not in blocking_flags and flag not in allowed_flags)
     for flag in review_flags:
         warnings.append(f"Review external model audit risk flag: {flag}.")
+    allowed_present = tuple(flag for flag in all_risk_flags if flag in allowed_flags)
 
-    status = "failed" if errors else "needs_review" if warnings else "passed"
+    status = "failed" if errors else "needs_review" if review_flags else "passed"
     return {
         "schema": EXTERNAL_MODEL_AUDIT_CHECK_SCHEMA,
         "status": status,
@@ -481,6 +498,7 @@ def check_external_model_audit_report(
         "risk_flags": list(all_risk_flags),
         "source_risk_flags": list(source_risk_flags),
         "derived_risk_flags": _dedupe_text(derived_risk_flags),
+        "allowed_risk_flags": list(allowed_present),
         "blocking_risk_flags": list(blocking_flags),
         "review_risk_flags": list(review_flags),
         "counts": {
@@ -541,8 +559,13 @@ def check_external_model_audit_report_path(
     path: str | Path,
     *,
     fail_on_risk_flags: Sequence[str] = DEFAULT_BLOCKING_RISK_FLAGS,
+    allowed_risk_flags: Sequence[str] = DEFAULT_ALLOWED_RISK_FLAGS,
 ) -> dict[str, object]:
-    return check_external_model_audit_report(load_external_model_audit_report(path), fail_on_risk_flags=fail_on_risk_flags)
+    return check_external_model_audit_report(
+        load_external_model_audit_report(path),
+        fail_on_risk_flags=fail_on_risk_flags,
+        allowed_risk_flags=allowed_risk_flags,
+    )
 
 
 def _append_example(examples: dict[str, list[dict[str, object]]], key: str, payload: Mapping[str, object]) -> None:
@@ -836,10 +859,12 @@ def _dedupe_text(values: Iterable[str]) -> list[str]:
 
 
 __all__ = [
+    "DEFAULT_ALLOWED_RISK_FLAGS",
     "DEFAULT_BLOCKING_RISK_FLAGS",
     "EXTERNAL_MODEL_AUDIT_CHECK_SCHEMA",
     "EXTERNAL_MODEL_AUDIT_REPORT_FILENAME",
     "REVIEW_RISK_FLAGS",
+    "SOURCE_DATA_RISK_FLAGS",
     "check_external_model_audit_report",
     "check_external_model_audit_report_path",
     "load_external_model_audit_report",

@@ -179,7 +179,7 @@ class ArchiveBrowserActionControlsMixin:
         self._set_action_button_state(
             self.archive_model_modify_original_button,
             controls_enabled and can_mesh_actions,
-            "Create an editable clone workspace from the selected archive mesh, then re-import it through Mesh Replacement Geometry.",
+            "Create a temporary editable clone from the selected archive mesh, then re-import it through Mesh Replacement Geometry.",
             mesh_reason,
         )
         self._set_action_button_state(

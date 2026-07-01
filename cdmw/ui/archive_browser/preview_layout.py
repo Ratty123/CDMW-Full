@@ -224,7 +224,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_import_patch_button.setEnabled(False)
         self.archive_model_modify_original_button = QPushButton("Modify Original...")
         self.archive_model_modify_original_button.setToolTip(
-            "Create an editable clone workspace from the selected archive mesh, then import the edited OBJ clone through Mesh Replacement Geometry."
+            "Create a temporary editable clone from the selected archive mesh, then import the edited OBJ clone through Mesh Replacement Geometry."
         )
         self.archive_model_modify_original_button.setEnabled(False)
         self.archive_model_swap_in_game_button = QPushButton("Swap With In-Game Mesh...")

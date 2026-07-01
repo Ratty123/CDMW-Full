@@ -72,6 +72,7 @@ class ArchiveMeshPatchFlowMixin:
             entry,
             mode=mesh_editor_mode,
             source_path=scene_path_obj,
+            source_skeleton=setup.source_skeleton,
             supplemental_files=setup.supplemental_files,
             scene_import_result=setup.scene_import_result,
             activate=True,
@@ -748,6 +749,7 @@ class ArchiveMeshPatchFlowMixin:
                     tuple(setup.preflight.detail_lines[:6]) if setup.preflight is not None else ()
                 ),
                 scene_import_result=setup.scene_import_result,
+                source_skeleton=setup.source_skeleton,
                 original_mesh=setup.original_mesh,
                 preferred_rebuild_material_sidecar=setup.preferred_rebuild_material_sidecar,
                 preferred_complete_source_swap=bool(setup.preferred_complete_source_swap),

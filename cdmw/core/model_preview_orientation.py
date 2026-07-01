@@ -28,7 +28,7 @@ def resolve_preview_texture_flip_vertical(
     *,
     source_format: object = "",
     source_path: object = "",
-    default: bool = True,
+    default: bool = False,
     flip_texture_v: bool = False,
 ) -> bool:
     if value is None:

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Callable, Mapping, Optional, Sequence
 
 from PySide6.QtCore import QPoint, QProcess, QSettings, QThread, Qt, QTimer, Signal
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QStackedWidget,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -95,6 +97,7 @@ class MeshEditorTab(QWidget):
         self.standalone_texture_source_worker: MeshTextureSourceResolveWorker | None = None
         self.standalone_texture_source_request_id = 0
         self.standalone_texture_source_target: object | None = None
+        self.standalone_texture_source_controller: MeshEditorController | None = None
         self.get_archive_texture_entries_by_normalized_path = get_archive_texture_entries_by_normalized_path
         self.get_archive_texture_entries_by_basename = get_archive_texture_entries_by_basename
         self.standalone_native_host: object | None = None
@@ -114,6 +117,9 @@ class MeshEditorTab(QWidget):
         self.standalone_native_last_status_payload: dict[str, object] = {}
         self.standalone_native_part_picking_wanted = False
         self.standalone_native_part_picking_enabled = False
+        self.embedded_workspace: MeshEditorWorkspace | None = None
+        self._embedded_control_tabs: QTabWidget | None = None
+        self._embedded_classic_builder: QWidget | None = None
         self.standalone_native_status_timer = QTimer(self)
         self.standalone_native_status_timer.setInterval(250)
         self.standalone_native_status_timer.timeout.connect(self._poll_standalone_native_preview_status)
@@ -238,6 +244,50 @@ class MeshEditorTab(QWidget):
         self.standalone_status_label = page.status_label
         return page
 
+    def set_theme(self, theme_key: str) -> None:
+        self.theme_key = str(theme_key or self.theme_key)
+        for widget in (
+            self.action_bar,
+            self.standalone_workspace,
+            self.embedded_workspace,
+            self.active_builder(),
+        ):
+            if widget is not None and hasattr(widget, "set_theme"):
+                widget.set_theme(self.theme_key)
+        self.update()
+
+    def sync_ui_font(self, font: QFont, data_font: QFont | None = None) -> None:
+        applied_font = QFont(font)
+        dense_font = QFont(data_font or applied_font)
+        for widget in (
+            self,
+            self.empty_state,
+            self.target_label,
+            self.session_label,
+            self.empty_status_label,
+            self.open_archive_button,
+            self.modify_original_button,
+            self.import_replacement_button,
+            self.import_preview_button,
+            self.in_game_swap_button,
+        ):
+            if widget.font().toString() != applied_font.toString():
+                widget.setFont(applied_font)
+        if hasattr(self.action_bar, "sync_ui_font"):
+            self.action_bar.sync_ui_font(applied_font, dense_font)
+        if hasattr(self.standalone_workspace, "sync_ui_font"):
+            self.standalone_workspace.sync_ui_font(applied_font, dense_font)
+        if self.embedded_workspace is not None and hasattr(self.embedded_workspace, "sync_ui_font"):
+            self.embedded_workspace.sync_ui_font(applied_font, dense_font)
+        builder = self.active_builder()
+        if builder is not None:
+            sync = getattr(builder, "sync_ui_font", None)
+            if callable(sync):
+                try:
+                    sync(applied_font, dense_font)
+                except TypeError:
+                    sync(applied_font)
+
     def builder_host(self) -> QWidget:
         return self.embedded_builder_host
 
@@ -271,10 +321,14 @@ class MeshEditorTab(QWidget):
                 widget.deleteLater()
         self.embedded_builder_host_layout.addWidget(builder)
         self.workspace_stack.setCurrentWidget(self.embedded_builder_host)
+        self._install_embedded_merged_mesh_editing(builder)
         self._sync_state()
 
     def show_empty_state(self, message: str = "") -> None:
         self.close_standalone_session()
+        self.embedded_workspace = None
+        self._embedded_control_tabs = None
+        self._embedded_classic_builder = None
         while self.embedded_builder_host_layout.count():
             item = self.embedded_builder_host_layout.takeAt(0)
             widget = item.widget()
@@ -284,6 +338,111 @@ class MeshEditorTab(QWidget):
             self.empty_status_label.setText(message)
         self.workspace_stack.setCurrentWidget(self.empty_state)
         self.update_editor_session_state(None)
+
+    def _install_embedded_merged_mesh_editing(self, builder: QWidget) -> None:
+        control_tabs = builder.findChild(QTabWidget, "MeshAlignmentStickyWorkflowTabs")
+        if control_tabs is None or bool(control_tabs.property("meshEditorMergedTabInstalled")):
+            return
+        classic_index = _mesh_editor_tab_index(control_tabs, "Mesh Editing")
+        if classic_index < 0:
+            return
+        workspace = MeshEditorWorkspace(
+            theme_key=self.theme_key,
+            embedded_controls_only=True,
+            object_name="MeshEditorEmbeddedMergedWorkspace",
+            parent=control_tabs,
+        )
+        workspace.action_requested.connect(self._handle_action_requested)
+        workspace.texture_edit_requested.connect(self._handle_embedded_open_texture)
+        workspace.compare_view_requested.connect(self._handle_embedded_compare_mode)
+        workspace.skeleton_pose_requested.connect(self._handle_embedded_skeleton_pose_request)
+        workspace.part_selection_requested.connect(self._handle_embedded_part_selection)
+        workspace.part_context_action_requested.connect(self._handle_embedded_part_context_action)
+        workspace.uv_region_selected.connect(self._handle_embedded_uv_region_selection)
+        workspace.uv_lasso_selected.connect(self._handle_embedded_uv_lasso_selection)
+        advanced_index = control_tabs.addTab(workspace, "Advanced Mesh Data")
+        if hasattr(control_tabs, "setTabVisible"):
+            control_tabs.setTabVisible(classic_index, False)
+            control_tabs.setTabVisible(advanced_index, False)
+        control_tabs.setProperty("meshEditorMergedTabInstalled", True)
+        self.embedded_workspace = workspace
+        self._embedded_control_tabs = control_tabs
+        self._embedded_classic_builder = builder
+        setattr(builder, "_mesh_editor_embedded_merged_visible", lambda widget=workspace: control_tabs.currentWidget() is widget)
+        setattr(
+            builder,
+            "_mesh_editor_embedded_show_advanced_mesh_data",
+            lambda tabs=control_tabs, index=advanced_index: self._show_embedded_advanced_mesh_data(tabs, index),
+        )
+        setattr(builder, "_mesh_editor_embedded_native_part_selected", self._handle_embedded_native_part_selected)
+        setattr(builder, "_mesh_editor_embedded_show_part_context_menu", self._show_embedded_part_context_menu)
+        self._install_embedded_advanced_restore_button(control_tabs, builder, advanced_index, classic_index)
+        control_tabs.currentChanged.connect(lambda _index: self._refresh_embedded_workspace_from_builder())
+        if control_tabs.currentIndex() == classic_index:
+            for index in range(control_tabs.count()):
+                is_visible = getattr(control_tabs, "isTabVisible", lambda _index: True)
+                if index != classic_index and index != advanced_index and bool(is_visible(index)):
+                    control_tabs.setCurrentIndex(index)
+                    break
+        self._refresh_embedded_workspace_from_builder()
+
+    def _show_embedded_advanced_mesh_data(self, control_tabs: QTabWidget, advanced_index: int) -> None:
+        if advanced_index < 0:
+            return
+        if hasattr(control_tabs, "setTabVisible"):
+            control_tabs.setTabVisible(advanced_index, True)
+        control_tabs.setCurrentIndex(advanced_index)
+        self._refresh_embedded_workspace_from_builder()
+
+    def _show_embedded_legacy_mesh_controls(self, control_tabs: QTabWidget, classic_index: int) -> None:
+        if classic_index < 0:
+            return
+        if hasattr(control_tabs, "setTabVisible"):
+            control_tabs.setTabVisible(classic_index, True)
+        control_tabs.setCurrentIndex(classic_index)
+        self._refresh_embedded_workspace_from_builder()
+
+    def _install_embedded_advanced_restore_button(
+        self,
+        control_tabs: QTabWidget,
+        builder: QWidget,
+        advanced_index: int,
+        classic_index: int,
+    ) -> None:
+        diagnostics_index = _mesh_editor_tab_index(control_tabs, "Diagnostics")
+        if diagnostics_index < 0:
+            return
+        diagnostics_widget = control_tabs.widget(diagnostics_index)
+        if diagnostics_widget is None or diagnostics_widget.findChild(QPushButton, "MeshEditorAdvancedMeshDataRestoreButton"):
+            return
+        content = diagnostics_widget.widget() if hasattr(diagnostics_widget, "widget") else diagnostics_widget
+        layout = content.layout() if content is not None else None
+        if layout is None and content is not None:
+            layout = QVBoxLayout(content)
+            layout.setContentsMargins(4, 4, 4, 4)
+            layout.setSpacing(4)
+        if layout is None:
+            return
+        restore_button = QPushButton("Advanced Mesh Data / Restore", diagnostics_widget)
+        restore_button.setObjectName("MeshEditorAdvancedMeshDataRestoreButton")
+        restore_button.setToolTip("Open the previous advanced mesh data workspace for diagnostics and rollback.")
+        restore_button.clicked.connect(
+            lambda _checked=False, tabs=control_tabs, index=advanced_index: self._show_embedded_advanced_mesh_data(
+                tabs,
+                index,
+            )
+        )
+        layout.insertWidget(0, restore_button)
+        legacy_button = QPushButton("Legacy Mesh Controls", diagnostics_widget)
+        legacy_button.setObjectName("MeshEditorLegacyMeshControlsRestoreButton")
+        legacy_button.setToolTip("Open the previous full mesh controls tab for fallback editing.")
+        legacy_button.clicked.connect(
+            lambda _checked=False, tabs=control_tabs, index=classic_index: self._show_embedded_legacy_mesh_controls(
+                tabs,
+                index,
+            )
+        )
+        layout.insertWidget(1, legacy_button)
 
     def set_native_preview_host(self, host: object | None) -> None:
         self.standalone_native_host = host if host is not None else getattr(self, "standalone_native_host_frame", None)
@@ -870,7 +1029,12 @@ class MeshEditorTab(QWidget):
             basename_index = {}
         return path_index or {}, basename_index or {}
 
-    def _start_archive_texture_source_resolution(self, target: object) -> bool:
+    def _start_archive_texture_source_resolution(
+        self,
+        target: object,
+        *,
+        controller: MeshEditorController | None = None,
+    ) -> bool:
         if self.standalone_texture_source_thread is not None:
             self.status_message_requested.emit("Mesh Editor texture source is already resolving.", False)
             return True
@@ -901,6 +1065,7 @@ class MeshEditorTab(QWidget):
         self.standalone_texture_source_thread = thread
         self.standalone_texture_source_worker = worker
         self.standalone_texture_source_target = target
+        self.standalone_texture_source_controller = controller
         thread.start(QThread.LowPriority)
         self.status_message_requested.emit(f"Resolving Mesh Editor archive texture: {getattr(target, 'display_name', '') or getattr(target, 'texture', '')}", False)
         return True
@@ -913,7 +1078,12 @@ class MeshEditorTab(QWidget):
         if target is None or source_path is None:
             self.status_message_requested.emit("Mesh Editor archive texture source resolved without a usable path.", True)
             return
-        self._open_texture_target_source(target, Path(source_path), archive_path=str(getattr(result, "archive_path", "") or ""))
+        self._open_texture_target_source(
+            target,
+            Path(source_path),
+            archive_path=str(getattr(result, "archive_path", "") or ""),
+            controller=self.standalone_texture_source_controller,
+        )
         message = str(getattr(result, "message", "") or "")
         self.status_message_requested.emit(message or f"Mesh Editor archive texture source ready: {Path(source_path).name}", False)
 
@@ -932,6 +1102,7 @@ class MeshEditorTab(QWidget):
         if self.standalone_texture_source_worker is worker:
             self.standalone_texture_source_worker = None
             self.standalone_texture_source_target = None
+            self.standalone_texture_source_controller = None
 
     def _cancel_standalone_texture_source_resolution(self) -> None:
         worker = self.standalone_texture_source_worker
@@ -1185,6 +1356,232 @@ class MeshEditorTab(QWidget):
             self._run_standalone_action(action)
             return
         self.mesh_action_requested.emit(action)
+
+    def _embedded_builder_controller(self) -> MeshEditorController | None:
+        builder = self.active_builder()
+        getter = getattr(builder, "_mesh_editor_embedded_controller", None) if builder is not None else None
+        if not callable(getter):
+            return None
+        try:
+            controller = getter()
+        except Exception:
+            return None
+        return controller if isinstance(controller, MeshEditorController) else None
+
+    def _refresh_embedded_workspace_from_builder(self) -> None:
+        workspace = self.embedded_workspace
+        if workspace is None:
+            return
+        controller = self._embedded_builder_controller()
+        view: MeshEditSessionView | None = None
+        if controller is not None:
+            try:
+                view = controller.session_view()
+            except Exception:
+                view = None
+        if controller is None or view is None:
+            if hasattr(workspace, "status_label"):
+                workspace.status_label.setText("No active edit session.")
+            workspace.update_session_summary(None)
+            workspace.update_workspace_summary(None)
+            workspace.update_uv_summary(None)
+            workspace.update_skeleton_summary(None)
+            workspace.update_compare_summary(None)
+            workspace.update_export_validation(None)
+            workspace.update_action_state(has_target=False)
+            return
+        if hasattr(workspace, "status_label"):
+            workspace.status_label.setText(
+                f"Mesh editing ready | Mode: {str(view.mode or 'edit').title()} | "
+                f"Revision {view.revision} | Undo {view.undo_count} | Redo {view.redo_count}"
+            )
+        workspace.update_session_summary(view, mesh_label=self._entry_label(self._current_target_entry()))
+        for method_name, updater_name in (
+            ("workspace_summary", "update_workspace_summary"),
+            ("uv_summary", "update_uv_summary"),
+            ("skeleton_summary", "update_skeleton_summary"),
+            ("compare_summary", "update_compare_summary"),
+            ("export_validation_report", "update_export_validation"),
+        ):
+            updater = getattr(workspace, updater_name, None)
+            method = getattr(controller, method_name, None)
+            if callable(updater) and callable(method):
+                try:
+                    updater(method())
+                except Exception:
+                    updater(None)
+        workspace.update_action_state(
+            has_target=True,
+            selection_empty=bool(view.selection.is_empty()),
+            mode=str(view.mode or "edit"),
+            active_selection_mode=str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "vertex"),
+            undo_count=int(view.undo_count or 0),
+            redo_count=int(view.redo_count or 0),
+        )
+
+    def _apply_embedded_native_update(self, update: MeshEditorNativeUpdate) -> bool:
+        builder = self.active_builder()
+        sender = getattr(builder, "_mesh_editor_embedded_apply_native_update", None) if builder is not None else None
+        if callable(sender):
+            try:
+                return bool(sender(update))
+            except Exception:
+                return False
+        return False
+
+    def _handle_embedded_part_selection(self, part_index: int, operation: str = "toggle") -> bool:
+        controller = self._embedded_builder_controller()
+        if controller is None:
+            self.status_message_requested.emit("Embedded Mesh Editor part tools are not ready yet.", True)
+            return False
+        normalized_operation = str(operation or "toggle").strip().lower()
+        try:
+            if normalized_operation == "clear":
+                result = controller.select(source_indices=(), operation="replace")
+            elif normalized_operation == "select_all":
+                summary = controller.workspace_summary()
+                result = controller.select(source_indices=tuple(part.index for part in summary.parts), operation="replace")
+            elif normalized_operation == "invert":
+                summary = controller.workspace_summary()
+                selected_sources = set(controller.session_view().selection.source_indices)
+                result = controller.select(
+                    source_indices=tuple(part.index for part in summary.parts if part.index not in selected_sources),
+                    operation="replace",
+                )
+            else:
+                result = controller.select(source_indices=(int(part_index),), operation=normalized_operation)
+            update = controller.native_update_for_result(result)
+        except Exception as exc:
+            self.status_message_requested.emit(f"Embedded Mesh Editor part selection failed: {exc}", True)
+            return False
+        self._apply_embedded_native_update(update)
+        self._refresh_embedded_workspace_from_builder()
+        selected_names = ", ".join(part.name for part in controller.workspace_summary().parts if part.selected)
+        self.status_message_requested.emit(
+            f"Embedded Mesh Editor selected {len(controller.session_view().selection.source_indices)} part(s){': ' + selected_names if selected_names else ''}.",
+            False,
+        )
+        return True
+
+    def _embedded_selection_for_part_context(
+        self,
+        controller: MeshEditorController,
+        part_index: int,
+    ) -> MeshEditSelection | None:
+        try:
+            clicked_index = int(part_index)
+        except (TypeError, ValueError):
+            clicked_index = -1
+        if clicked_index < 0:
+            return None
+        selected_sources = set(controller.session_view().selection.source_indices)
+        if clicked_index not in selected_sources:
+            result = controller.select(source_indices=(clicked_index,), operation="replace")
+            self._apply_embedded_native_update(controller.native_update_for_result(result))
+            selected_sources = {clicked_index}
+            self._refresh_embedded_workspace_from_builder()
+        return MeshEditSelection.from_maps(source_indices=selected_sources)
+
+    def _handle_embedded_part_context_action(self, action_key: str, part_index: int) -> bool:
+        normalized = str(action_key or "").strip().lower()
+        if normalized == "select_only":
+            return self._handle_embedded_part_selection(part_index, "replace")
+        if normalized == "toggle_selection":
+            return self._handle_embedded_part_selection(part_index, "toggle")
+        controller = self._embedded_builder_controller()
+        if controller is None:
+            self.status_message_requested.emit("Embedded Mesh Editor part tools are not ready yet.", True)
+            return False
+        selection = self._embedded_selection_for_part_context(controller, part_index)
+        if selection is None:
+            return False
+        if normalized == "open_texture":
+            return self._open_selected_texture_in_editor_for_controller(controller)
+        runner = getattr(self.active_builder(), "_mesh_editor_embedded_run_part_action", None)
+        if not callable(runner):
+            self.status_message_requested.emit(f"Embedded Mesh Editor part action is unavailable: {normalized}.", True)
+            return False
+        try:
+            ok = bool(runner(normalized, tuple(selection.source_indices)))
+        except Exception as exc:
+            self.status_message_requested.emit(f"Embedded Mesh Editor part action failed: {normalized}: {exc}", True)
+            return False
+        self._refresh_embedded_workspace_from_builder()
+        return ok
+
+    def _handle_embedded_open_texture(self) -> bool:
+        controller = self._embedded_builder_controller()
+        if controller is None:
+            self.status_message_requested.emit("Embedded Mesh Editor part tools are not ready yet.", True)
+            return False
+        return self._open_selected_texture_in_editor_for_controller(controller)
+
+    def _handle_embedded_compare_mode(self, mode: str) -> None:
+        self.status_message_requested.emit(f"Embedded Mesh Editor compare mode selected: {str(mode or 'edited')}.", False)
+
+    def _handle_embedded_skeleton_pose_request(self, command: str, payload: object) -> bool:
+        normalized = str(command or "").strip().lower()
+        if normalized != "select_bone":
+            self.status_message_requested.emit("Embedded rig view supports bone selection; pose and weight authoring stay standalone.", False)
+            return False
+        controller = self._embedded_builder_controller()
+        if controller is None:
+            self.status_message_requested.emit("Embedded Mesh Editor rig tools are not ready yet.", True)
+            return False
+        try:
+            summary = controller.select_bone(int(payload))  # type: ignore[arg-type]
+        except Exception as exc:
+            self.status_message_requested.emit(f"Embedded Mesh Editor bone selection failed: {exc}", True)
+            return False
+        setter = getattr(self.active_builder(), "_mesh_editor_embedded_set_skeleton_bone", None)
+        if callable(setter):
+            try:
+                setter(summary.pose.selected_bone_index)
+            except Exception:
+                pass
+        self._refresh_embedded_workspace_from_builder()
+        selected = summary.pose.selected_bone_name or "bone"
+        self.status_message_requested.emit(f"Embedded Mesh Editor selected bone {summary.pose.selected_bone_index}: {selected}.", False)
+        return True
+
+    def _handle_embedded_uv_region_selection(self, uv_min: tuple, uv_max: tuple, operation: str) -> bool:
+        controller = self._embedded_builder_controller()
+        if controller is None:
+            return False
+        try:
+            result = controller.select_uv_region(uv_min, uv_max, operation=operation)
+        except Exception as exc:
+            self.status_message_requested.emit(f"Embedded Mesh Editor UV selection failed: {exc}", True)
+            return False
+        self._apply_embedded_native_update(controller.native_update_for_result(result))
+        self._refresh_embedded_workspace_from_builder()
+        return True
+
+    def _handle_embedded_uv_lasso_selection(self, points: tuple, operation: str) -> bool:
+        controller = self._embedded_builder_controller()
+        if controller is None:
+            return False
+        try:
+            result = controller.select_uv_lasso(points, operation=operation)
+        except Exception as exc:
+            self.status_message_requested.emit(f"Embedded Mesh Editor UV lasso failed: {exc}", True)
+            return False
+        self._apply_embedded_native_update(controller.native_update_for_result(result))
+        self._refresh_embedded_workspace_from_builder()
+        return True
+
+    def _handle_embedded_native_part_selected(self, part_index: int) -> bool:
+        return self._handle_embedded_part_selection(part_index, "toggle")
+
+    def _show_embedded_part_context_menu(self, part_index: int, global_pos: object | None = None) -> bool:
+        controller = self._embedded_builder_controller()
+        workspace = self.embedded_workspace
+        if controller is None or workspace is None:
+            return False
+        if self._embedded_selection_for_part_context(controller, part_index) is None:
+            return False
+        QTimer.singleShot(0, lambda index=int(part_index), position=global_pos: workspace.show_part_context_menu_for_part(index, position))
+        return True
 
     def _handle_skeleton_pose_request(self, command: str, payload: object) -> bool:
         controller = self.standalone_controller
@@ -1543,9 +1940,19 @@ class MeshEditorTab(QWidget):
             combo.blockSignals(previous)
 
     def open_selected_texture_in_editor(self) -> bool:
-        controller = self.standalone_controller
+        return self._open_selected_texture_in_editor_for_controller(
+            self.standalone_controller,
+            missing_controller_message="Open a standalone Mesh Editor session before opening a texture.",
+        )
+
+    def _open_selected_texture_in_editor_for_controller(
+        self,
+        controller: MeshEditorController | None,
+        *,
+        missing_controller_message: str = "Open a Mesh Editor session before opening a texture.",
+    ) -> bool:
         if controller is None:
-            self.status_message_requested.emit("Open a standalone Mesh Editor session before opening a texture.", True)
+            self.status_message_requested.emit(missing_controller_message, True)
             return False
         target = controller.texture_edit_target()
         if target is None:
@@ -1553,15 +1960,22 @@ class MeshEditorTab(QWidget):
             return False
         source_path = Path(target.texture).expanduser()
         if not source_path.exists():
-            if self._start_archive_texture_source_resolution(target):
+            if self._start_archive_texture_source_resolution(target, controller=controller):
                 return True
             self.status_message_requested.emit(f"Selected Mesh Editor texture is not a local file yet: {target.texture}", True)
             return False
-        self._open_texture_target_source(target, source_path.resolve())
+        self._open_texture_target_source(target, source_path.resolve(), controller=controller)
         return True
 
-    def _open_texture_target_source(self, target: object, source_path: Path, *, archive_path: str = "") -> None:
-        controller = self.standalone_controller
+    def _open_texture_target_source(
+        self,
+        target: object,
+        source_path: Path,
+        *,
+        archive_path: str = "",
+        controller: MeshEditorController | None = None,
+    ) -> None:
+        controller = controller or self.standalone_controller
         if controller is None:
             return
         resolved = Path(source_path).expanduser().resolve()
@@ -1631,3 +2045,11 @@ def _mesh_editor_texture_binding_target(value: object) -> tuple[str, int]:
     except (TypeError, ValueError):
         submesh_index = -1
     return str(parts[0] or ""), submesh_index
+
+
+def _mesh_editor_tab_index(tabs: QTabWidget, title: str) -> int:
+    normalized = str(title or "").strip().lower()
+    for index in range(tabs.count()):
+        if tabs.tabText(index).strip().lower() == normalized:
+            return index
+    return -1

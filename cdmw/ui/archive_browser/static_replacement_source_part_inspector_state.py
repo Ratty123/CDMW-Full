@@ -34,7 +34,7 @@ def source_part_inspector_control_text() -> dict[str, str]:
         ),
         "source_select_label": "Select part",
         "source_combo_tooltip": "Choose the imported/original-clone part to inspect, remove, resize, or route.",
-        "name_placeholder": "Select a replacement source part.",
+        "name_placeholder": "No part selected.",
         "target_placeholder": "-",
         "include_in_output": "Include in output",
         "no_target_selected": "No target selected",

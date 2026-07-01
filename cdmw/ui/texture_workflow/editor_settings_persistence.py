@@ -2,12 +2,45 @@ from __future__ import annotations
 
 """Settings load/save coordination for the standalone Texture Editor tab."""
 
+from typing import Sequence
+
 from PySide6.QtGui import QColor
 
 from cdmw.ui.texture_workflow.editor_view_state import texture_editor_grid_color_hex, texture_editor_view_mode_key
 
 
 class TextureEditorSettingsPersistenceMixin:
+    def _saved_texture_editor_splitter_sizes(self) -> list[int]:
+        raw_sizes = self.settings.value("texture_editor/main_splitter_sizes", "")
+        if isinstance(raw_sizes, str):
+            pieces: Sequence[object] = [piece.strip() for piece in raw_sizes.split(",")]
+        elif isinstance(raw_sizes, Sequence):
+            pieces = raw_sizes
+        else:
+            return []
+        parsed: list[int] = []
+        for piece in pieces:
+            if len(parsed) >= 3:
+                break
+            try:
+                value = int(piece)
+            except (TypeError, ValueError):
+                return []
+            if value < 0:
+                return []
+            parsed.append(value)
+        if len(parsed) != 3 or parsed[0] <= 0 or parsed[1] <= 0:
+            return []
+        return parsed
+
+    def _save_texture_editor_splitter_sizes(self) -> None:
+        if not self._settings_ready or self._texture_editor_splitter_restoring:
+            return
+        sizes = [max(0, int(size)) for size in self.main_splitter.sizes()]
+        if len(sizes) != 3 or sizes[0] <= 0 or sizes[1] <= 0:
+            return
+        self.settings.setValue("texture_editor/main_splitter_sizes", ",".join(str(size) for size in sizes))
+
     def _load_settings(self) -> None:
         self.paint_color_edit.setText(str(self.settings.value("texture_editor/paint_color", "#C85A30")))
         self.secondary_color_edit.setText(str(self.settings.value("texture_editor/secondary_color", "#FFFFFF")))
@@ -154,6 +187,7 @@ class TextureEditorSettingsPersistenceMixin:
         self.settings.setValue("texture_editor/grid_opacity", self.grid_opacity_spin.value())
         self.settings.setValue("texture_editor/last_open_dir", self._last_open_dir)
         self.settings.setValue("texture_editor/last_save_dir", self._last_save_dir)
+        self._save_texture_editor_splitter_sizes()
 
     def flush_settings_save(self) -> None:
         self._store_active_session()

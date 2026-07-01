@@ -155,11 +155,11 @@ class TextureEditorRefreshUiMixin:
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.completed.connect(self._handle_ui_constraint_ready)
+        worker.completed.connect(self._ui_constraint_ready_on_ui, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_ui_constraint_refs)
+        worker.finished.connect(self._ui_constraint_finished_on_ui, Qt.ConnectionType.QueuedConnection)
         self._ui_constraint_worker = worker
         self._ui_constraint_thread = thread
         self._pending_ui_constraint_key = start_state.cache_key

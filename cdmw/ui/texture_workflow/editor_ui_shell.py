@@ -5,23 +5,83 @@ from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.texture_workflow.editor_images import _create_tool_icon
-from cdmw.ui.widgets import build_responsive_splitter_sizes, responsive_sidebar_bounds
+from cdmw.ui.widgets import build_responsive_splitter_sizes, clamp_splitter_sizes, responsive_sidebar_bounds
 
 
 class TextureEditorUiShellMixin:
     """Owns Texture Editor tab UI shell sizing, font sync, and signal wiring."""
 
-    def _apply_responsive_splitter_defaults(self) -> None:
-        editor_tool_min, _editor_tool_pref, _editor_tool_max = responsive_sidebar_bounds(self, role="tool")
+    def _texture_editor_tool_sidebar_bounds(self) -> tuple[int, int, int]:
+        minimum, preferred, maximum = responsive_sidebar_bounds(self, role="tool")
+        return (max(220, minimum), max(286, preferred), max(374, maximum))
+
+    def _texture_editor_splitter_total_width(self, has_doc: bool) -> int:
+        editor_tool_min, _editor_tool_pref, _editor_tool_max = self._texture_editor_tool_sidebar_bounds()
+        if not has_doc:
+            return max(self.width() - 32, editor_tool_min + 520)
         editor_inspector_min, _editor_inspector_pref, _editor_inspector_max = responsive_sidebar_bounds(self, role="narrow")
-        total_width = max(self.width() - 32, sum([editor_tool_min, 520, editor_inspector_min]))
-        if self.document is None:
-            left_width = editor_tool_min
-            self.main_splitter.setSizes([left_width, max(520, total_width - left_width), 0])
-            return
-        self.main_splitter.setSizes(
-            build_responsive_splitter_sizes(total_width, [12, 70, 18], [editor_tool_min, 520, editor_inspector_min])
+        return max(self.width() - 32, editor_tool_min + 520 + editor_inspector_min)
+
+    def _set_texture_editor_splitter_sizes(self, sizes: list[int]) -> None:
+        self._texture_editor_splitter_restoring = True
+        try:
+            self.main_splitter.setSizes(sizes)
+        finally:
+            self._texture_editor_splitter_restoring = False
+
+    def _texture_editor_default_splitter_sizes(self, *, has_doc: bool) -> list[int]:
+        editor_tool_min, _editor_tool_pref, _editor_tool_max = self._texture_editor_tool_sidebar_bounds()
+        total_width = self._texture_editor_splitter_total_width(has_doc)
+        if not has_doc:
+            return [editor_tool_min, max(520, total_width - editor_tool_min), 0]
+        editor_inspector_min, _editor_inspector_pref, _editor_inspector_max = responsive_sidebar_bounds(self, role="narrow")
+        return build_responsive_splitter_sizes(total_width, [12, 70, 18], [editor_tool_min, 520, editor_inspector_min])
+
+    def _texture_editor_document_splitter_sizes(self) -> list[int]:
+        editor_tool_min, _editor_tool_pref, _editor_tool_max = self._texture_editor_tool_sidebar_bounds()
+        editor_inspector_min, _editor_inspector_pref, _editor_inspector_max = responsive_sidebar_bounds(self, role="narrow")
+        total_width = self._texture_editor_splitter_total_width(True)
+        current_sizes = list(self.main_splitter.sizes())
+        if len(current_sizes) < 3 or sum(max(0, int(size)) for size in current_sizes) <= 0:
+            current_sizes = self._saved_texture_editor_splitter_sizes()
+        if len(current_sizes) < 3:
+            return self._texture_editor_default_splitter_sizes(has_doc=True)
+        left_width = max(editor_tool_min, int(current_sizes[0]))
+        right_width = max(editor_inspector_min, int(current_sizes[2]) if int(current_sizes[2]) > 0 else editor_inspector_min)
+        center_width = max(520, total_width - left_width - right_width)
+        return clamp_splitter_sizes(
+            total_width,
+            [left_width, center_width, right_width],
+            [editor_tool_min, 520, editor_inspector_min],
+            fallback_weights=[12, 70, 18],
         )
+
+    def _apply_saved_texture_editor_splitter_sizes(self, *, has_doc: bool) -> bool:
+        saved_sizes = self._saved_texture_editor_splitter_sizes()
+        if len(saved_sizes) < 3:
+            return False
+        editor_tool_min, _editor_tool_pref, _editor_tool_max = self._texture_editor_tool_sidebar_bounds()
+        if not has_doc:
+            total_width = self._texture_editor_splitter_total_width(False)
+            left_width = max(editor_tool_min, int(saved_sizes[0]))
+            self._set_texture_editor_splitter_sizes([left_width, max(520, total_width - left_width), 0])
+            return True
+        editor_inspector_min, _editor_inspector_pref, _editor_inspector_max = responsive_sidebar_bounds(self, role="narrow")
+        right_width = int(saved_sizes[2]) if int(saved_sizes[2]) > 0 else editor_inspector_min
+        restored = clamp_splitter_sizes(
+            self._texture_editor_splitter_total_width(True),
+            [max(editor_tool_min, int(saved_sizes[0])), max(1, int(saved_sizes[1])), max(editor_inspector_min, right_width)],
+            [editor_tool_min, 520, editor_inspector_min],
+            fallback_weights=[12, 70, 18],
+        )
+        self._set_texture_editor_splitter_sizes(restored)
+        return True
+
+    def _apply_responsive_splitter_defaults(self) -> None:
+        has_doc = self.document is not None
+        if self._apply_saved_texture_editor_splitter_sizes(has_doc=has_doc):
+            return
+        self._set_texture_editor_splitter_sizes(self._texture_editor_default_splitter_sizes(has_doc=has_doc))
 
     def _apply_document_tab_bar_style(self, font: QFont) -> None:
         metrics = QFontMetrics(font)
@@ -134,14 +194,21 @@ class TextureEditorUiShellMixin:
             self.right_scroll.setMaximumWidth(0)
             right_handle.setVisible(False)
             right_handle.setEnabled(False)
-            editor_tool_min, _editor_tool_pref, _editor_tool_max = responsive_sidebar_bounds(self, role="tool")
-            total_width = max(self.width() - 32, editor_tool_min + 520)
-            left_width = editor_tool_min
-            self.main_splitter.setSizes([left_width, max(520, total_width - left_width), 0])
+            editor_tool_min, _editor_tool_pref, _editor_tool_max = self._texture_editor_tool_sidebar_bounds()
+            total_width = self._texture_editor_splitter_total_width(False)
+            current_sizes = list(self.main_splitter.sizes())
+            left_width = max(editor_tool_min, int(current_sizes[0]) if current_sizes else editor_tool_min)
+            self._set_texture_editor_splitter_sizes([left_width, max(520, total_width - left_width), 0])
         if has_doc and not right_sidebar_was_visible:
-            QTimer.singleShot(0, self._apply_responsive_splitter_defaults)
+            QTimer.singleShot(0, lambda: self._set_texture_editor_splitter_sizes(self._texture_editor_document_splitter_sizes()))
+
+    def _handle_main_splitter_moved(self, *_args: object) -> None:
+        if self._texture_editor_splitter_restoring:
+            return
+        self._save_texture_editor_splitter_sizes()
 
     def _connect_signals(self) -> None:
+        self.main_splitter.splitterMoved.connect(self._handle_main_splitter_moved)
         self.document_tab_bar.currentChanged.connect(self._handle_document_tab_changed)
         self.document_tab_bar.tabCloseRequested.connect(self._close_document_tab)
         self.open_file_button.clicked.connect(self.open_file_dialog)

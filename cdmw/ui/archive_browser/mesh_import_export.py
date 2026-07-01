@@ -60,6 +60,7 @@ class ArchiveMeshImportExportMixin:
         *,
         title: str,
         scene_import_result: Optional[SceneImportResult] = None,
+        source_skeleton: object | None = None,
         original_mesh: Optional[ParsedMesh] = None,
         source_label: str = "",
         force_static_replacement: bool = False,
@@ -142,7 +143,6 @@ class ArchiveMeshImportExportMixin:
             }
             QDialog#MeshImportSetupDialog QLabel#CompactPathValue {
                 color: #dbeafe;
-                font-family: Consolas, "Cascadia Mono", monospace;
             }
             QDialog#MeshImportSetupDialog QLabel#MetricChip {
                 border-radius: 4px;
@@ -644,6 +644,7 @@ class ArchiveMeshImportExportMixin:
             import_mode=import_mode,
             supplemental_files=tuple(supplemental_files),
             scene_import_result=scene_import_result,
+            source_skeleton=source_skeleton,
             original_mesh=original_mesh_for_setup,
             preflight=preflight,
             source_label=source_display_label,

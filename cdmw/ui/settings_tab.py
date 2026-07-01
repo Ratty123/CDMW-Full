@@ -95,6 +95,10 @@ class SettingsTab(QWidget):
         self._appearance_apply_timer.setSingleShot(True)
         self._appearance_apply_timer.setInterval(140)
         self._appearance_apply_timer.timeout.connect(self._apply_pending_appearance_change)
+        self._appearance_sync_timer = QTimer(self)
+        self._appearance_sync_timer.setSingleShot(True)
+        self._appearance_sync_timer.setInterval(650)
+        self._appearance_sync_timer.timeout.connect(self._sync_appearance_settings)
         self._last_applied_appearance_state: Dict[str, object] = {}
 
         root_layout = QVBoxLayout(self)
@@ -1312,23 +1316,22 @@ class SettingsTab(QWidget):
         current: Dict[str, object],
     ) -> Dict[str, object]:
         changed = tuple(key for key, value in current.items() if previous.get(key) != value)
-        full_theme_keys = {
-            "theme",
-            "ui_font_family",
-            "ui_density",
-            "ui_font_size",
-            "data_font_size",
-        }
+        full_theme_keys = {"theme", "ui_density"}
+        ui_font_keys = {"ui_font_family", "ui_font_size", "data_font_size"}
         data_font_keys = {"log_font_family", "log_font_size", "log_font_bold"}
         text_color_keys = {"log_text_style", "log_color_scheme", "preview_color_scheme"}
         requires_theme_apply = any(key in full_theme_keys for key in changed)
+        requires_ui_fonts = any(key in ui_font_keys for key in changed)
         requires_data_fonts = any(key in data_font_keys for key in changed)
         requires_text_colors = any(key in text_color_keys for key in changed)
         theme_key = str(current.get("theme") or DEFAULT_UI_THEME)
         theme = UI_THEME_SCHEMES.get(theme_key, UI_THEME_SCHEMES[DEFAULT_UI_THEME])
         if requires_theme_apply:
             title = f"Applying {theme.get('label', 'Theme')} theme"
-            detail = "Updating app colors, fonts, and panes..."
+            detail = "Updating app colors and panes..."
+        elif requires_ui_fonts:
+            title = "Applying UI font"
+            detail = "Updating app fonts and dense views..."
         elif requires_data_fonts:
             title = "Applying text appearance"
             detail = "Updating logs and preview text..."
@@ -1339,6 +1342,7 @@ class SettingsTab(QWidget):
             "theme_key": theme_key,
             "changed": changed,
             "requires_theme_apply": requires_theme_apply,
+            "requires_ui_fonts": requires_ui_fonts,
             "requires_data_fonts": requires_data_fonts,
             "requires_text_colors": requires_text_colors,
             "title": title,
@@ -1359,6 +1363,10 @@ class SettingsTab(QWidget):
         self.settings.setValue("appearance/log_color_scheme", self.current_log_color_scheme())
         self.settings.setValue("appearance/preview_color_scheme", self.current_preview_color_scheme())
         if sync:
+            self.settings.sync()
+
+    def _sync_appearance_settings(self) -> None:
+        if self._settings_ready:
             self.settings.sync()
 
     def _save_settings(self) -> None:
@@ -1489,7 +1497,13 @@ class SettingsTab(QWidget):
         if self._appearance_apply_timer.isActive():
             self._appearance_apply_timer.stop()
             self._apply_pending_appearance_change()
+            if self._appearance_sync_timer.isActive():
+                self._appearance_sync_timer.stop()
+                self._sync_appearance_settings()
             return
+        if self._appearance_sync_timer.isActive():
+            self._appearance_sync_timer.stop()
+            self._sync_appearance_settings()
         if self._settings_save_timer.isActive():
             self._settings_save_timer.stop()
         self._save_settings()
@@ -1518,7 +1532,8 @@ class SettingsTab(QWidget):
         previous = self._last_applied_appearance_state or {}
         current = self._appearance_state()
         payload = self._appearance_change_payload(previous, current)
-        self._save_appearance_settings()
+        self._save_appearance_settings(sync=False)
+        self._appearance_sync_timer.start()
         self._apply_section_nav_style()
         self._last_applied_appearance_state = dict(current)
         if payload["changed"]:

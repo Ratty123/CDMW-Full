@@ -33,10 +33,7 @@ def alignment_builder_closed_empty_state_message() -> str:
 
 
 def alignment_builder_archive_preview_pause_message() -> str:
-    return (
-        "Archive Preview auto-refresh paused while Mesh Replacement Builder is open. "
-        "Press Refresh to update anyway."
-    )
+    return "Preview is paused while Mesh Replacement is open. Refresh to update anyway."
 
 
 def alignment_preview_build_failed_status(message: object) -> str:
@@ -45,7 +42,7 @@ def alignment_preview_build_failed_status(message: object) -> str:
 
 def alignment_setup_intro_html() -> str:
     return (
-        "<div style='font-size:8px; line-height:1.08; padding:2px 5px; border-left:3px solid #2f81f7; background:#10233a;'>"
+        "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #2f81f7; background:#10233a;'>"
         "<span style='color:#79c0ff; font-weight:700;'>Setup</span>"
         "<span style='color:#c9d1d9;'> Alignment behavior, safety options, and export values.</span>"
         "</div>"
@@ -54,7 +51,7 @@ def alignment_setup_intro_html() -> str:
 
 def alignment_placement_review_html() -> str:
     return (
-        "<div style='font-size:8px; line-height:1.08; padding:3px 5px; border-left:3px solid #f59e0b; background:#2a2112;'>"
+        "<div style='font-size:0.8em; line-height:1.08; padding:3px 5px; border-left:3px solid #f59e0b; background:#2a2112;'>"
         "<span style='color:#fbbf24; font-weight:700;'>Placement review required</span>"
         "<span style='color:#e5e7eb;'> Session-only clone; final output is written through loose-mod save.</span>"
         "</div>"
@@ -128,7 +125,7 @@ def alignment_import_diagnostics_html(rows: Sequence[tuple[str, str]]) -> str:
         for label_text, value_text in tuple(rows or ())
     )
     return (
-        "<div style='font-size:8px; line-height:1.08;'>"
+        "<div style='font-size:0.8em; line-height:1.08;'>"
         "<table cellspacing='0' cellpadding='0' style='width:100%;'>"
         f"{import_html_rows}"
         "</table>"

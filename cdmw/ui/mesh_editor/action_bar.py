@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QKeySequence
+from PySide6.QtGui import QFont, QKeySequence
 from PySide6.QtWidgets import QButtonGroup, QFrame, QGridLayout, QHBoxLayout, QToolButton, QWidget
 
 from cdmw.ui.mesh_editor.actions import MESH_EDITOR_ACTIONS, MeshEditorAction
@@ -40,6 +40,21 @@ class MeshEditorActionBar(QFrame):
     def button_for_key(self, key: str) -> QToolButton | None:
         return self.buttons_by_key.get(str(key or ""))
 
+    def set_theme(self, _theme_key: str) -> None:
+        for action in self._actions_by_key.values():
+            button = self.button_for_key(action.key)
+            if button is not None:
+                button.setIcon(mesh_editor_action_icon(action.icon_key, self.palette()))
+
+    def sync_ui_font(self, font: QFont, data_font: QFont | None = None) -> None:
+        _ = data_font
+        applied_font = QFont(font)
+        if self.font().toString() != applied_font.toString():
+            self.setFont(applied_font)
+        for button in self.buttons_by_key.values():
+            if button.font().toString() != applied_font.toString():
+                button.setFont(applied_font)
+
     def set_active_action(self, key: str) -> None:
         button = self.button_for_key(key)
         if button is not None and button.isCheckable():
@@ -62,7 +77,10 @@ class MeshEditorActionBar(QFrame):
             if button is None:
                 continue
             enabled = bool(has_target)
-            if not _action_mode_enabled(action, current_mode):
+            if action.command in {"brush", "select"}:
+                if current_mode not in {"edit", "sculpt"}:
+                    enabled = False
+            elif not _action_mode_enabled(action, current_mode):
                 enabled = False
             if action.requires_selection and selection_empty:
                 enabled = False

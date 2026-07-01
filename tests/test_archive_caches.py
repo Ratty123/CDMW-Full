@@ -354,6 +354,33 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertEqual([entry.path for entry in second_entries], ["character/model/a.pac", "character/model/b_changed.pac"])
             self.assertTrue(any("Archive cache shard stale: 0001/0.pamt source stamps changed" in line for line in logs))
 
+    def test_scan_shard_cache_reuses_metadata_sidecar_on_warm_load(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            first_metadata: dict[str, object] = {}
+            load_or_update_archive_scan_shards(root, cache_root, shard_scan_func=lambda _path: entries, metadata_out=first_metadata)
+            second_metadata: dict[str, object] = {}
+
+            with mock.patch(
+                "cdmw.core.archive_scan_cache._archive_entry_metadata_from_entries",
+                side_effect=AssertionError("warm shard cache should use metadata sidecar"),
+            ):
+                second_entries, source, _cache_dir = load_or_update_archive_scan_shards(
+                    root,
+                    cache_root,
+                    shard_scan_func=lambda _path: (_ for _ in ()).throw(AssertionError("warm cache should not rescan")),
+                    metadata_out=second_metadata,
+                )
+
+            self.assertEqual("cache", source)
+            self.assertEqual([entry.path for entry in second_entries], ["character/model/a.pac"])
+            self.assertEqual(first_metadata.get("entry_metadata_signature"), second_metadata.get("entry_metadata_signature"))
+            self.assertEqual(first_metadata.get("entry_metadata_sources"), second_metadata.get("entry_metadata_sources"))
+
     def test_scan_shard_cache_health_reports_missing_healthy_and_stale(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -32,7 +32,7 @@ def texture_target_diagnostics_html(
 ) -> str:
     if not rows:
         return (
-            "<html><body style='color:#8b949e; background:#1f1f1f; font-family:Segoe UI, sans-serif; font-size:9px;'>"
+            "<html><body style='color:#8b949e; background:#1f1f1f; font-size:0.9em;'>"
             "<p style='margin:5px;'>No sidecar texture rows were found for this target.</p>"
             "</body></html>"
         )
@@ -65,11 +65,11 @@ def texture_target_diagnostics_html(
             warnings.append(f"{role}: shared/detail layer is intentionally not auto-enabled.")
 
     html_parts: list[str] = [
-        "<html><body style='color:#e6edf3; background:#1f1f1f; font-family:Segoe UI, sans-serif; font-size:8px; margin:0;'>",
+        "<html><body style='color:#e6edf3; background:#1f1f1f; font-size:0.8em; margin:0;'>",
         "<div style='padding:4px 5px; line-height:1.08;'>",
         "<table width='100%' cellspacing='0' cellpadding='0' style='background:#161b22; border:1px solid #30363d;'>",
         "<tr><td style='padding:4px 5px;'>",
-        f"<div style='font-size:10px; font-weight:700; color:#f0f6fc;'>{escape(short_target)} "
+        f"<div style='font-size:1em; font-weight:700; color:#f0f6fc;'>{escape(short_target)} "
         f"<span style='color:#8b949e;'>- {assigned_count}/{target_row_count} slot(s) assigned</span></div>",
         f"<div title='{escape(full_target)}' style='color:#8b949e; margin-top:1px; word-break:break-all;'>Original: {escape(short_target)}</div>",
         (

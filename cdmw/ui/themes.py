@@ -571,9 +571,6 @@ def build_app_stylesheet(
     layout_scale: float = 1.0,
 ) -> str:
     theme = get_theme(theme_key)
-    base_size = _clamp_font_size(base_font_size, DEFAULT_UI_FONT_SIZE)
-    table_size = _clamp_font_size(data_font_size, base_size)
-    hint_size = max(9, base_size - 1)
     metrics = _scale_density_metrics(_density_metrics(density_key), layout_scale)
     role_text = {
         "identity": "#b45309" if theme_key == "crimson_desert" else "#0369a1" if theme_key == "light" else "#7dd3fc",
@@ -583,7 +580,6 @@ def build_app_stylesheet(
     }
     return f"""
     QWidget {{
-        font-size: {base_size}px;
         color: {theme["text"]};
     }}
     QMainWindow, QWidget#AppRoot {{
@@ -888,7 +884,6 @@ def build_app_stylesheet(
         selection-color: {theme["text_strong"]};
     }}
     QListWidget, QTreeWidget {{
-        font-size: {table_size}px;
         background: {theme["field"]};
         border: 1px solid {theme["border_strong"]};
         border-radius: 4px;
@@ -922,7 +917,6 @@ def build_app_stylesheet(
         border: 1px solid {theme["accent"]};
     }}
     QHeaderView::section {{
-        font-size: {table_size}px;
         background: {theme["surface_alt"]};
         color: {theme["text_muted"]};
         border: none;
@@ -1012,7 +1006,6 @@ def build_app_stylesheet(
         background: {theme["accent"]};
     }}
     QLabel#HintLabel {{
-        font-size: {hint_size}px;
         color: {theme["text_muted"]};
         background: transparent;
     }}
@@ -1030,12 +1023,10 @@ def build_app_stylesheet(
         font-weight: 600;
     }}
     QLabel#SettingsPerformanceNote {{
-        font-size: {hint_size}px;
         color: {theme["text"]};
         background: transparent;
     }}
     QLabel#ArchivePreviewHealthLabel {{
-        font-size: {hint_size}px;
         color: {theme["text_muted"]};
         background: transparent;
     }}

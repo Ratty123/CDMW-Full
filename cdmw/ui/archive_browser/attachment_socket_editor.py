@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor, QFont
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -38,6 +38,7 @@ from cdmw.core.archive_modding import (
 )
 from cdmw.core.xml_text import decode_xml_text_payload, encode_xml_text_like_source
 from cdmw.models import ArchiveEntry, AttachmentSocketInfo
+from cdmw.ui.shell.theme_controller import build_monospace_font
 from cdmw.ui.widgets import PreviewSyntaxHighlighter
 
 
@@ -178,7 +179,7 @@ class ArchiveAttachmentSocketEditorMixin:
         preview_editor = QPlainTextEdit()
         preview_editor.setReadOnly(True)
         preview_editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        preview_editor.setFont(QFont("Consolas", 9))
+        preview_editor.setFont(build_monospace_font(self.settings))
         preview_highlighter = PreviewSyntaxHighlighter(preview_editor.document(), self.current_theme_key)
         preview_highlighter.set_language_for_extension(".xml")
         xml_layout.addWidget(preview_label)

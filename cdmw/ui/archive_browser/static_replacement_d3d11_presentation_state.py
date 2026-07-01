@@ -109,7 +109,7 @@ def alignment_d3d11_loading_spinner_frames() -> tuple[str, ...]:
 
 def alignment_d3d11_loading_spinner_html(frame: str) -> str:
     return (
-        "<span style='font-size:24px; line-height:28px; color:#79c0ff; font-weight:700;'>"
+        "<span style='font-size:2.4em; line-height:1.17; color:#79c0ff; font-weight:700;'>"
         f"{str(frame or '')}"
         "</span>"
     )

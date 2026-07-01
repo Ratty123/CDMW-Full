@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unittest
 
 
@@ -696,6 +697,9 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("appearance_change_started = Signal(object)", settings_source)
         self.assertIn("appearance_changed = Signal(object)", settings_source)
         self.assertIn("def _appearance_change_payload(", settings_source)
+        self.assertIn('full_theme_keys = {"theme", "ui_density"}', settings_source)
+        self.assertIn('ui_font_keys = {"ui_font_family", "ui_font_size", "data_font_size"}', settings_source)
+        self.assertIn('"requires_ui_fonts": requires_ui_fonts', settings_source)
         self.assertIn('"requires_text_colors": requires_text_colors', settings_source)
         self.assertIn("def _save_appearance_settings(self, *, sync: bool = True) -> None:", settings_source)
 
@@ -703,7 +707,8 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         settings_apply_body = settings_source[
             settings_apply_start: settings_source.index("    def _handle_model_preview_changed", settings_apply_start)
         ]
-        self.assertIn("self._save_appearance_settings()", settings_apply_body)
+        self.assertIn("self._save_appearance_settings(sync=False)", settings_apply_body)
+        self.assertIn("self._appearance_sync_timer.start()", settings_apply_body)
         self.assertIn("self.appearance_changed.emit(payload)", settings_apply_body)
         self.assertNotIn("self._save_settings()", settings_apply_body)
 
@@ -717,11 +722,17 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         prepare_start = shell_source.index("def _prepare_appearance_apply_steps(")
         prepare_body = shell_source[prepare_start: shell_source.index("def _run_next_appearance_apply_step", prepare_start)]
         self.assertIn('if data["requires_theme_apply"]:', prepare_body)
-        self.assertIn("self._queue_data_font_apply_steps(schedule_column_autofit=False)", prepare_body)
-        self.assertIn("self._queue_text_highlight_apply_steps()", prepare_body)
-        self.assertIn('elif data["requires_text_colors"]:', prepare_body)
+        self.assertIn("self._queue_ui_font_apply_steps(app, schedule_column_autofit=False)", prepare_body)
+        self.assertIn('if data["requires_data_fonts"]:', prepare_body)
+        self.assertIn('if data["requires_text_colors"]:', prepare_body)
+        self.assertIn("self._sync_mesh_editor_theme", prepare_body)
+        self.assertIn("self._save_current_theme_setting", prepare_body)
+        self.assertIn('if data["requires_ui_fonts"]:', prepare_body)
+        self.assertIn("self._queue_ui_font_apply_steps(app, schedule_column_autofit=True)", prepare_body)
+        self.assertIn('if data["requires_text_colors"]:', prepare_body)
         self.assertNotIn("apply_app_theme(", prepare_body)
         self.assertNotIn("apply_window_text_highlight_style(self)", prepare_body)
+        self.assertNotIn("self.schedule_settings_save", prepare_body)
 
         text_queue_start = shell_source.index("def _queue_text_highlight_apply_steps(self) -> None:")
         text_queue_body = shell_source[text_queue_start: shell_source.index("def _apply_single_highlighter_style", text_queue_start)]
@@ -732,6 +743,40 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         highlight_start = theme_source.index('def apply_window_text_highlight_style(window: "MainWindow") -> None:')
         highlight_body = theme_source[highlight_start: theme_source.index("def apply_window_data_fonts", highlight_start)]
         self.assertIn("research_tab._apply_archive_picker_preview_text_style()", highlight_body)
+
+        self.assertNotIn("font-size:", _read("cdmw/ui/themes.py"))
+        mesh_font_source = _read("cdmw/ui/mesh_editor/tab.py") + "\n" + _read("cdmw/ui/mesh_editor/workspace.py")
+        self.assertNotIn("findChildren(QWidget)", mesh_font_source)
+
+    def test_read_only_code_views_use_configured_monospace_font(self) -> None:
+        source = "\n".join(
+            (
+                _read("cdmw/ui/archive_browser/attachment_socket_editor.py"),
+                _read("cdmw/ui/archive_browser/binary_sidecar_actions.py"),
+                _read("cdmw/ui/archive_browser/hkx_editor_dialog.py"),
+            )
+        )
+        self.assertIn("from cdmw.ui.shell.theme_controller import build_monospace_font", source)
+        self.assertIn("preview_editor.setFont(build_monospace_font(self.settings))", source)
+        self.assertIn("editor.setFont(build_monospace_font(self.settings))", source)
+        self.assertIn("preview_text.setFont(build_monospace_font(self.settings))", source)
+        self.assertNotIn('QFont("Consolas", 9)', source)
+
+    def test_static_replacement_rich_text_uses_relative_font_sizes(self) -> None:
+        files = sorted((REPO_ROOT / "cdmw" / "ui" / "archive_browser").glob("static_replacement*.py"))
+        files.append(REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "mesh_setup_helpers.py")
+        source = "\n".join(path.read_text(encoding="utf-8") for path in files)
+        self.assertNotRegex(source, re.compile(r"font-size:\s*(?:8|9|10|12|17|24)px"))
+        self.assertNotRegex(source, re.compile(r"line-height:\s*\d+px"))
+        self.assertNotIn("font-family:Segoe UI", source)
+        self.assertIn("font-size:0.8em", source)
+        self.assertIn("font-size:2.4em", source)
+
+    def test_ui_sources_do_not_hardcode_font_families(self) -> None:
+        source = "\n".join(path.read_text(encoding="utf-8") for path in (REPO_ROOT / "cdmw" / "ui").rglob("*.py"))
+        self.assertNotIn('QFont("', source)
+        self.assertNotIn("font-family:", source)
+        self.assertIn("font.setStyleHint(QFont.StyleHint.Monospace)", source)
 
     def test_archive_search_preserves_left_controls_scroll_position(self) -> None:
         source = (

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
     install_static_replacement_prompt_dependencies,
 )
+from cdmw.ui.archive_browser.static_replacement_dialog_ui_sections import _alignment_dialog_font_sizes
 
 install_static_replacement_prompt_dependencies(globals())
 
@@ -213,111 +214,138 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         )
         return path_index, basename_index
 
-    dialog.setStyleSheet(
-        dialog.styleSheet()
-        + """
-        QDialog#MeshReplacementAlignmentDialog {
-            font-size: 8px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QLabel {
-            font-size: 8px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QLabel#HintLabel {
+    alignment_dialog_base_stylesheet = dialog.styleSheet()
+
+    def _alignment_dialog_font_stylesheet() -> str:
+        font_sizes = _alignment_dialog_font_sizes(context)
+        ui_font_size = int(font_sizes["ui"])
+        data_font_size = int(font_sizes["data"])
+        hint_font_size = int(font_sizes["hint"])
+        button_min_height = max(14, ui_font_size + 6)
+        field_min_height = max(15, data_font_size + 7)
+        help_button_size = max(16, ui_font_size + 8)
+        return f"""
+        QDialog#MeshReplacementAlignmentDialog {{
+            font-size: {ui_font_size}px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QLabel {{
+            font-size: {ui_font_size}px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QLabel#HintLabel {{
             color: #9aa4b2;
-            font-size: 8px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QGroupBox {
-            font-size: 8px;
+            font-size: {hint_font_size}px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QGroupBox {{
+            font-size: {ui_font_size}px;
             font-weight: 600;
             margin-top: 5px;
             padding-top: 5px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QGroupBox::title {
+        }}
+        QDialog#MeshReplacementAlignmentDialog QGroupBox::title {{
             subcontrol-origin: margin;
             left: 5px;
             padding: 0 2px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QTabBar::tab {
-            font-size: 8px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QTabBar::tab {{
+            font-size: {ui_font_size}px;
             padding: 2px 7px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QCheckBox {
-            font-size: 8px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QCheckBox {{
+            font-size: {ui_font_size}px;
             spacing: 3px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QPushButton {
-            font-size: 8px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QPushButton {{
+            font-size: {ui_font_size}px;
             padding: 1px 5px;
-            min-height: 14px;
-        }
+            min-height: {button_min_height}px;
+        }}
         QDialog#MeshReplacementAlignmentDialog QComboBox,
         QDialog#MeshReplacementAlignmentDialog QLineEdit,
         QDialog#MeshReplacementAlignmentDialog QSpinBox,
-        QDialog#MeshReplacementAlignmentDialog QDoubleSpinBox {
-            font-size: 8px;
-            min-height: 15px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QTreeWidget {
-            font-size: 8px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QTreeWidget::item {
+        QDialog#MeshReplacementAlignmentDialog QDoubleSpinBox {{
+            font-size: {data_font_size}px;
+            min-height: {field_min_height}px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QTreeWidget {{
+            font-size: {data_font_size}px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QTreeWidget::item {{
             padding: 0 2px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QHeaderView::section {
-            font-size: 8px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QHeaderView::section {{
+            font-size: {data_font_size}px;
             padding: 0 3px;
-        }
+        }}
         QDialog#MeshReplacementAlignmentDialog QTextBrowser,
         QDialog#MeshReplacementAlignmentDialog QTextEdit,
-        QDialog#MeshReplacementAlignmentDialog QPlainTextEdit {
-            font-size: 8px;
+        QDialog#MeshReplacementAlignmentDialog QPlainTextEdit {{
+            font-size: {data_font_size}px;
             line-height: 1.08;
-        }
-        QDialog#MeshReplacementAlignmentDialog QProgressBar {
-            font-size: 8px;
-            min-height: 14px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QFrame#SelectionContextFrame {
+        }}
+        QDialog#MeshReplacementAlignmentDialog QProgressBar {{
+            font-size: {ui_font_size}px;
+            min-height: {button_min_height}px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QFrame#SelectionContextFrame {{
             background: #111820;
             border: 1px solid #30363d;
             border-radius: 4px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QLabel#SelectionContextLabel {
+        }}
+        QDialog#MeshReplacementAlignmentDialog QLabel#SelectionContextLabel {{
             color: #c9d1d9;
-            font-size: 8px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QPushButton#InlineHelpButton {
+            font-size: {hint_font_size}px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QPushButton#InlineHelpButton {{
             color: #79c0ff;
             font-weight: 700;
-            min-width: 16px;
-            max-width: 16px;
-            min-height: 16px;
-            max-height: 16px;
+            min-width: {help_button_size}px;
+            max-width: {help_button_size}px;
+            min-height: {help_button_size}px;
+            max-height: {help_button_size}px;
             padding: 0;
-            border-radius: 8px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette {
+            border-radius: {help_button_size // 2}px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette {{
             background: #0d1117;
             border: 1px solid #30363d;
             border-radius: 4px;
             padding: 2px;
-        }
-        QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette QToolButton {
-            font-size: 8px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette QToolButton {{
+            font-size: {ui_font_size}px;
             text-align: left;
             padding: 2px 6px;
             border: 1px solid #30363d;
             border-radius: 3px;
             background: #161b22;
-        }
-        QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette QToolButton:checked {
+        }}
+        QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette QToolButton:checked {{
             color: #0d1117;
             background: #f78166;
             border-color: #ffab70;
             font-weight: 700;
-        }
+        }}
+        QDialog#MeshReplacementAlignmentDialog QFrame#ClassicMeshEditPreviewToolbar {{
+            background: #111820;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QFrame#ClassicMeshEditPreviewActionBar QToolButton {{
+            font-size: {hint_font_size}px;
+            padding: 1px 3px;
+            min-width: 40px;
+        }}
+        QDialog#MeshReplacementAlignmentDialog QWidget#ClassicMeshEditPreviewOptions QLabel,
+        QDialog#MeshReplacementAlignmentDialog QWidget#ClassicMeshEditPreviewOptions QCheckBox {{
+            font-size: {hint_font_size}px;
+        }}
         """
-    )
+
+    def _sync_alignment_dialog_font(_font: object = None) -> None:
+        dialog.setStyleSheet(alignment_dialog_base_stylesheet + _alignment_dialog_font_stylesheet())
+
+    _sync_alignment_dialog_font()
+    setattr(dialog, "sync_ui_font", _sync_alignment_dialog_font)
 
     return SimpleNamespace(
         alignment_dialog_key_hash=alignment_dialog_key_hash,

@@ -63,6 +63,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
             "all": {**dict(self._view_state), "role": "all"},
         }
         self._last_event_payload: Dict[str, object] = {}
+        self._side_by_side_split_ratio = 0.5
 
     def _host_hwnd(self) -> int:
         try:
@@ -160,6 +161,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
                 "package_dir": str(Path(package_dir)),
                 "status_file": str(Path(status_file)),
                 "reset_view": bool(reset_view),
+                "side_by_side_split_ratio": float(self._side_by_side_split_ratio),
             }
         )
 
@@ -269,6 +271,20 @@ class NativeD3D11PreviewHostFrame(QFrame):
             {
                 "command": "set_display_mode",
                 "mode": normalized,
+                "side_by_side_split_ratio": float(self._side_by_side_split_ratio),
+            }
+        )
+
+    def remember_side_by_side_split_ratio(self, ratio: float) -> float:
+        self._side_by_side_split_ratio = max(0.18, min(0.82, float(ratio)))
+        return float(self._side_by_side_split_ratio)
+
+    def set_side_by_side_split_ratio(self, ratio: float) -> bool:
+        self.remember_side_by_side_split_ratio(ratio)
+        return self._send_host_json_command(
+            {
+                "command": "set_side_by_side_split",
+                "ratio": float(self._side_by_side_split_ratio),
             }
         )
 
@@ -381,6 +397,18 @@ class NativeD3D11PreviewHostFrame(QFrame):
             {
                 "command": "set_source_part_picking",
                 "enabled": bool(enabled),
+            }
+        )
+
+    def set_skeleton_selected_bone(self, bone_index: int) -> bool:
+        try:
+            normalized = int(bone_index)
+        except (TypeError, ValueError):
+            normalized = -1
+        return self._send_host_json_command(
+            {
+                "command": "set_skeleton_overlay",
+                "selected_bone_index": normalized,
             }
         )
 

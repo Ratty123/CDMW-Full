@@ -50,11 +50,11 @@ def mesh_edit_selection_depth_mode(raw_mode: object) -> str:
 
 def mesh_edit_action_control_text() -> dict[str, str]:
     return {
-        "edit_mode": "Edit Mode",
-        "edit_mode_tooltip": "Enable Blender-like Edit Mode for visible replacement source geometry. Remove Faces can cut triangles; other tools keep topology fixed.",
+        "edit_mode": "Edit Mesh",
+        "edit_mode_tooltip": "Enable viewport mesh editing for visible replacement source geometry. Delete Faces can cut triangles; sculpt tools keep topology fixed.",
         "scope_combo_tooltip": "Choose whether brush edits affect every visible editable source part or only the part below.",
         "part_combo_tooltip": "Used only when Scope is set to Selected part only.",
-        "initial_status": "Enable Edit Mode to edit visible replacement source geometry.",
+        "initial_status": "Enable Edit Mesh to edit visible replacement source geometry.",
         "no_editable_parts": "No editable parts",
         "scope_label": "Scope",
         "part_label": "Part",

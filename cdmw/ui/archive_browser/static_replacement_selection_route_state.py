@@ -47,12 +47,13 @@ def d3d11_source_part_selection_route(
     except (TypeError, ValueError):
         normalized_source_index = -1
     selected_source_index = d3d11_source_selection_index(current_source_index, editor_source_indices)
+    if selected_source_index < 0 and normalized_source_index >= 0:
+        selected_source_index = normalized_source_index
     return {
         "source_index": normalized_source_index,
         "selected_source_index": selected_source_index,
         "should_select": bool(
             preview_active
-            and geometry_tab_active
             and normalized_source_index >= 0
             and selected_source_index >= 0
         ),

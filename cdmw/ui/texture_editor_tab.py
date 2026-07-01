@@ -165,6 +165,11 @@ class TextureEditorTab(
     native_dds_ready = Signal(str, object)
     browse_archive_requested = Signal(str)
     open_in_compare_requested = Signal(str, object)
+    _task_completed_on_ui = Signal(object)
+    _task_error_on_ui = Signal(str)
+    _task_finished_on_ui = Signal()
+    _ui_constraint_ready_on_ui = Signal(str, str)
+    _ui_constraint_finished_on_ui = Signal()
 
     def __init__(
         self,
@@ -237,6 +242,7 @@ class TextureEditorTab(
         self._custom_brush_presets: Dict[str, Dict[str, object]] = normalize_texture_editor_custom_brush_presets(raw_custom_brush_presets)
         self.current_tool_settings = TextureEditorToolSettings()
         self._settings_ready = False
+        self._texture_editor_splitter_restoring = False
         self._last_open_dir = str(base_dir)
         self._last_save_dir = str(base_dir)
         self._grid_color = QColor("#74C1FF")
@@ -385,7 +391,7 @@ class TextureEditorTab(
 
         self.tool_panel = QWidget()
         self.tool_panel.setObjectName("EditorLeftSidebar")
-        editor_tool_min, _editor_tool_pref, editor_tool_max = responsive_sidebar_bounds(self, role="tool")
+        editor_tool_min, _editor_tool_pref, editor_tool_max = self._texture_editor_tool_sidebar_bounds()
         self.tool_panel.setMinimumWidth(editor_tool_min)
         self.tool_panel.setMaximumWidth(editor_tool_max)
         tool_layout = QVBoxLayout(self.tool_panel)
@@ -450,11 +456,11 @@ class TextureEditorTab(
         native_export_label.setObjectName("HintLabel")
         native_export_layout.addWidget(native_export_label, 0, 0, 1, 2)
         native_export_layout.addWidget(self.native_dds_preset_combo, 1, 0, 1, 2)
-        native_export_layout.addWidget(self.native_dds_format_combo, 2, 0)
-        native_export_layout.addWidget(self.native_dds_mip_combo, 2, 1)
-        native_export_layout.addWidget(self.export_dds_button, 3, 0)
-        native_export_layout.addWidget(self.preview_compressed_button, 3, 1)
-        native_export_layout.addWidget(self.native_dds_status_label, 4, 0, 1, 2)
+        native_export_layout.addWidget(self.native_dds_format_combo, 2, 0, 1, 2)
+        native_export_layout.addWidget(self.native_dds_mip_combo, 3, 0, 1, 2)
+        native_export_layout.addWidget(self.export_dds_button, 4, 0, 1, 2)
+        native_export_layout.addWidget(self.preview_compressed_button, 5, 0, 1, 2)
+        native_export_layout.addWidget(self.native_dds_status_label, 6, 0, 1, 2)
         left_actions_layout.addLayout(native_export_layout)
         left_actions_layout.addWidget(self.warning_label)
         left_actions_layout.addWidget(self.status_label)
@@ -1456,6 +1462,11 @@ class TextureEditorTab(
         self.main_splitter.setSizes(
             build_responsive_splitter_sizes(2040, [12, 70, 18], [editor_tool_min, 520, editor_inspector_min])
         )
+        self._task_completed_on_ui.connect(self._handle_async_task_completed)
+        self._task_error_on_ui.connect(self._handle_async_task_error)
+        self._task_finished_on_ui.connect(self._handle_async_task_finished)
+        self._ui_constraint_ready_on_ui.connect(self._handle_ui_constraint_ready)
+        self._ui_constraint_finished_on_ui.connect(self._cleanup_ui_constraint_refs)
 
         self._connect_signals()
         self._refresh_native_dds_format_options()

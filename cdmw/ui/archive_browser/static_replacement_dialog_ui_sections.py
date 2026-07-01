@@ -5,6 +5,10 @@ from __future__ import annotations
 import builtins as _builtins
 from types import SimpleNamespace
 
+from cdmw.constants import DEFAULT_UI_DATA_FONT_SIZE, DEFAULT_UI_FONT_SIZE, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN
+from cdmw.ui.mesh_editor.action_bar import MeshEditorActionBar
+from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
+
 
 class _LateLocalProxy:
     def __init__(self, getter: object, name: str) -> None:
@@ -26,6 +30,22 @@ class _LateLocalProxy:
 def _context_builtin(context: dict[str, object], name: str) -> object:
     value = context.get(name)
     return value if callable(value) else getattr(_builtins, name)
+
+def _alignment_dialog_font_sizes(context: dict[str, object]) -> dict[str, int]:
+    settings = context.get("settings")
+    if settings is None:
+        settings = getattr(context.get("self"), "settings", None)
+
+    def _read_size(key: str, default: int) -> int:
+        try:
+            value = int(settings.value(key, default))  # type: ignore[attr-defined]
+        except (AttributeError, TypeError, ValueError):
+            value = int(default)
+        return max(UI_FONT_SIZE_MIN, min(UI_FONT_SIZE_MAX, value))
+
+    ui_size = _read_size("appearance/ui_font_size", DEFAULT_UI_FONT_SIZE)
+    data_size = _read_size("appearance/data_font_size", DEFAULT_UI_DATA_FONT_SIZE)
+    return {"ui": ui_size, "data": data_size, "hint": max(UI_FONT_SIZE_MIN, ui_size - 1)}
 
 
 def create_alignment_setup_options_transform_section(context: dict[str, object]) -> SimpleNamespace:
@@ -964,6 +984,7 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
         lambda checked: (
             self.settings.setValue(modify_original_texture_tuning_enabled_key, bool(checked)),
             _refresh_manual_material_profile_panel(),
+            _refresh_part_material_tuning_visibility(),
             _save_complete_swap_material_profile(),
             _refresh_output_impact_review(),
             _queue_texture_preview_refresh(),
@@ -1199,8 +1220,6 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     _commit_alignment_preview_translation = alignment_transform_drag_callbacks._commit_alignment_preview_translation
     _commit_alignment_preview_rotation = alignment_transform_drag_callbacks._commit_alignment_preview_rotation
 
-    alignment_source_part_mutation_callbacks = create_alignment_source_part_mutation_callbacks({**context, **globals(), **locals()})
-
     reset_buttons_by_key["location"].clicked.connect(_reset_location_values)
     reset_buttons_by_key["rotation"].clicked.connect(_reset_rotation_values)
     reset_buttons_by_key["scale"].clicked.connect(_reset_scale_values)
@@ -1363,6 +1382,7 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
     )
 
 def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -> SimpleNamespace:
+    CollapsibleSection = context.get('CollapsibleSection')
     Dict = context.get('Dict')
     MESH_EDIT_DELETE_MODE_OPTIONS = context.get('MESH_EDIT_DELETE_MODE_OPTIONS')
     MESH_EDIT_FALLOFF_OPTIONS = context.get('MESH_EDIT_FALLOFF_OPTIONS')
@@ -1405,6 +1425,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     _material_authority_preview_signature = context.get('_material_authority_preview_signature')
     _mesh_edit_action_control_text_helper = context.get('_mesh_edit_action_control_text_helper')
     _mesh_edit_dialog_title_helper = context.get('_mesh_edit_dialog_title_helper')
+    preview_mesh_edit_checkbox = context.get('preview_mesh_edit_checkbox')
     _morph_slider_add_target_action_text_helper = context.get('_morph_slider_add_target_action_text_helper')
     _morph_slider_bake_action_text_helper = context.get('_morph_slider_bake_action_text_helper')
     _morph_slider_bake_action_tooltip_helper = context.get('_morph_slider_bake_action_tooltip_helper')
@@ -1437,6 +1458,8 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     any = _context_builtin(context, 'any')
     args = context.get('args')
     bool = _context_builtin(context, 'bool')
+    classic_mesh_edit_toolbar = context.get('classic_mesh_edit_toolbar')
+    classic_mesh_edit_toolbar_layout = context.get('classic_mesh_edit_toolbar_layout')
     control_tabs = context.get('control_tabs')
     create_alignment_mesh_edit_callbacks = context.get('create_alignment_mesh_edit_callbacks')
     create_alignment_original_texture_worker_callbacks = context.get('create_alignment_original_texture_worker_callbacks')
@@ -1502,7 +1525,12 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     mesh_edit_action_control_text = _mesh_edit_action_control_text_helper()
     mesh_edit_title_label = QLabel(_mesh_edit_dialog_title_helper())
     mesh_edit_title_label.setObjectName("SectionLabel")
-    mesh_edit_enabled_checkbox = QCheckBox(mesh_edit_action_control_text["edit_mode"])
+    mesh_edit_enabled_checkbox = (
+        preview_mesh_edit_checkbox
+        if preview_mesh_edit_checkbox is not None
+        else QCheckBox(mesh_edit_action_control_text["edit_mode"])
+    )
+    mesh_edit_enabled_checkbox.setText(mesh_edit_action_control_text["edit_mode"])
     mesh_edit_enabled_checkbox.setObjectName("MeshEditModeCheckbox")
     mesh_edit_enabled_checkbox.setToolTip(mesh_edit_action_control_text["edit_mode_tooltip"])
     mesh_edit_scope_combo = QComboBox()
@@ -1555,7 +1583,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     mesh_edit_selection_depth_combo.setToolTip(mesh_edit_action_control_text["selection_depth_tooltip"])
     mesh_edit_mirror_checkbox = QCheckBox(mesh_edit_action_control_text["mirror_checkbox"])
     mesh_edit_show_vertices_checkbox = QCheckBox(mesh_edit_action_control_text["show_vertices_checkbox"])
-    mesh_edit_show_vertices_checkbox.setChecked(True)
+    mesh_edit_show_vertices_checkbox.setChecked(False)
     mesh_edit_clear_selection_button = QPushButton(mesh_edit_action_control_text["clear_selection"])
     mesh_edit_select_part_button = QPushButton(mesh_edit_action_control_text["select_part"])
     mesh_edit_invert_selection_button = QPushButton(mesh_edit_action_control_text["invert_selection"])
@@ -1660,7 +1688,9 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         mesh_edit_field_rows[str(row_key)] = (label, widget)
 
     mesh_edit_layout.addWidget(mesh_edit_title_label)
-    mesh_edit_layout.addWidget(mesh_edit_enabled_checkbox)
+    checkbox_parent = getattr(mesh_edit_enabled_checkbox, "parent", lambda: None)
+    if callable(checkbox_parent) and checkbox_parent() is mesh_edit_group:
+        mesh_edit_layout.addWidget(mesh_edit_enabled_checkbox)
     _mesh_edit_field("scope", mesh_edit_action_control_text["scope_label"], mesh_edit_scope_combo)
     _mesh_edit_field("part", mesh_edit_action_control_text["part_label"], mesh_edit_part_combo)
     mesh_edit_layout.addWidget(QLabel(mesh_edit_action_control_text["tool_label"]))
@@ -1702,12 +1732,138 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     mesh_edit_button_row.setSpacing(3)
     mesh_edit_button_row.addWidget(mesh_edit_undo_button)
     mesh_edit_button_row.addWidget(mesh_edit_redo_button)
-    alignment_mesh_edit_callbacks = create_alignment_mesh_edit_callbacks({**context, **globals(), **locals()})
+    classic_mesh_edit_action_bar = None
+    compact_mesh_edit_options_widget = None
+    compact_mesh_edit_status_label = None
+    compact_mesh_edit_clear_button = None
+    compact_mesh_edit_grow_button = None
+    compact_mesh_edit_shrink_button = None
+    compact_mesh_edit_feather_button = None
+    compact_mesh_edit_reset_scope_button = None
+    if classic_mesh_edit_toolbar is not None and classic_mesh_edit_toolbar_layout is not None:
+        compact_actions_by_key = mesh_editor_actions_by_key()
+        compact_action_keys = (
+            "select_vertex",
+            "select_edge",
+            "select_face",
+            "transform_move",
+            "brush_grab",
+            "brush_smooth",
+            "brush_inflate",
+            "brush_pinch",
+            "delete",
+            "subdivide",
+            "split",
+            "recalculate_normals",
+            "flip_normals",
+            "undo",
+            "redo",
+        )
+        classic_mesh_edit_action_bar = MeshEditorActionBar(
+            tuple(compact_actions_by_key[key] for key in compact_action_keys if key in compact_actions_by_key),
+            parent=classic_mesh_edit_toolbar,
+        )
+        classic_mesh_edit_action_bar.setObjectName("ClassicMeshEditPreviewActionBar")
+        classic_mesh_edit_toolbar_layout.addWidget(classic_mesh_edit_action_bar)
+        compact_mesh_edit_options_widget = QWidget(classic_mesh_edit_toolbar)
+        compact_mesh_edit_options_widget.setObjectName("ClassicMeshEditPreviewOptions")
+        compact_options_row = QHBoxLayout(compact_mesh_edit_options_widget)
+        compact_options_row.setContentsMargins(0, 0, 0, 0)
+        compact_options_row.setSpacing(4)
+        compact_radius_spin = _make_double_spin_helper(24.0, 2.0, 256.0, 0, 2.0, " px")
+        compact_strength_spin = _make_double_spin_helper(50.0, 0.0, 100.0, 0, 5.0, "%")
+        compact_falloff_combo = QComboBox(compact_mesh_edit_options_widget)
+        _populate_combo_options_helper(compact_falloff_combo, MESH_EDIT_FALLOFF_OPTIONS)
+        compact_mirror_checkbox = QCheckBox("Mirror X", compact_mesh_edit_options_widget)
+        compact_vertices_checkbox = QCheckBox("Dots", compact_mesh_edit_options_widget)
+        for compact_spin in (compact_radius_spin, compact_strength_spin):
+            compact_spin.setMaximumWidth(76)
+        compact_falloff_combo.setMaximumWidth(132)
+        compact_options_row.addWidget(QLabel("Radius"))
+        compact_options_row.addWidget(compact_radius_spin)
+        compact_options_row.addWidget(QLabel("Strength"))
+        compact_options_row.addWidget(compact_strength_spin)
+        compact_options_row.addWidget(QLabel("Falloff"))
+        compact_options_row.addWidget(compact_falloff_combo)
+        compact_options_row.addWidget(compact_mirror_checkbox)
+        compact_options_row.addWidget(compact_vertices_checkbox)
+        compact_mesh_edit_clear_button = QPushButton("Clear", compact_mesh_edit_options_widget)
+        compact_mesh_edit_grow_button = QPushButton("Grow", compact_mesh_edit_options_widget)
+        compact_mesh_edit_shrink_button = QPushButton("Shrink", compact_mesh_edit_options_widget)
+        compact_mesh_edit_feather_button = QPushButton("Feather", compact_mesh_edit_options_widget)
+        compact_mesh_edit_reset_scope_button = QPushButton("Reset Scope", compact_mesh_edit_options_widget)
+        for compact_button in (
+            compact_mesh_edit_clear_button,
+            compact_mesh_edit_grow_button,
+            compact_mesh_edit_shrink_button,
+            compact_mesh_edit_feather_button,
+            compact_mesh_edit_reset_scope_button,
+        ):
+            compact_button.setMinimumWidth(0)
+            compact_button.setMaximumWidth(92)
+            compact_options_row.addWidget(compact_button)
+        compact_mesh_edit_status_label = QLabel("", compact_mesh_edit_options_widget)
+        compact_mesh_edit_status_label.setObjectName("ClassicMeshEditPreviewStatus")
+        compact_mesh_edit_status_label.setWordWrap(False)
+        compact_options_row.addWidget(compact_mesh_edit_status_label, 1)
+        compact_options_row.addStretch(1)
+        compact_radius_spin.valueChanged.connect(lambda value: mesh_edit_radius_spin.setValue(float(value)))
+        mesh_edit_radius_spin.valueChanged.connect(lambda value: compact_radius_spin.setValue(float(value)))
+        compact_strength_spin.valueChanged.connect(lambda value: mesh_edit_strength_spin.setValue(float(value)))
+        mesh_edit_strength_spin.valueChanged.connect(lambda value: compact_strength_spin.setValue(float(value)))
+        compact_falloff_combo.currentIndexChanged.connect(
+            lambda _index: mesh_edit_falloff_combo.setCurrentIndex(
+                max(0, mesh_edit_falloff_combo.findData(compact_falloff_combo.currentData()))
+            )
+        )
+        mesh_edit_falloff_combo.currentIndexChanged.connect(
+            lambda _index: compact_falloff_combo.setCurrentIndex(
+                max(0, compact_falloff_combo.findData(mesh_edit_falloff_combo.currentData()))
+            )
+        )
+        compact_mirror_checkbox.toggled.connect(lambda checked: mesh_edit_mirror_checkbox.setChecked(bool(checked)))
+        mesh_edit_mirror_checkbox.toggled.connect(lambda checked: compact_mirror_checkbox.setChecked(bool(checked)))
+        compact_vertices_checkbox.toggled.connect(lambda checked: mesh_edit_show_vertices_checkbox.setChecked(bool(checked)))
+        mesh_edit_show_vertices_checkbox.toggled.connect(lambda checked: compact_vertices_checkbox.setChecked(bool(checked)))
+        compact_vertices_checkbox.setChecked(mesh_edit_show_vertices_checkbox.isChecked())
+        compact_mesh_edit_clear_button.clicked.connect(lambda _checked=False: mesh_edit_clear_selection_button.click())
+        compact_mesh_edit_grow_button.clicked.connect(lambda _checked=False: mesh_edit_grow_selection_button.click())
+        compact_mesh_edit_shrink_button.clicked.connect(lambda _checked=False: mesh_edit_shrink_selection_button.click())
+        compact_mesh_edit_feather_button.clicked.connect(lambda _checked=False: mesh_edit_smooth_selection_button.click())
+        compact_mesh_edit_reset_scope_button.clicked.connect(lambda _checked=False: mesh_edit_reset_part_button.click())
+        classic_mesh_edit_toolbar_layout.addWidget(compact_mesh_edit_options_widget)
+        classic_mesh_edit_toolbar.setVisible(False)
+    alignment_mesh_edit_callbacks = create_alignment_mesh_edit_callbacks({
+        **context,
+        **globals(),
+        **locals(),
+        "_delete_selected_source_parts": lambda *args, **kwargs: _delete_selected_source_parts(*args, **kwargs),
+    })
+    if classic_mesh_edit_action_bar is not None:
+        classic_mesh_edit_action_bar.action_requested.connect(
+            alignment_mesh_edit_callbacks._mesh_editor_action_bar_action_requested
+        )
     if dialog is not None:
         setattr(
             dialog,
             "_mesh_editor_action_bar_action_requested",
             alignment_mesh_edit_callbacks._mesh_editor_action_bar_action_requested,
+        )
+        setattr(dialog, "_mesh_editor_embedded_controller", alignment_mesh_edit_callbacks._mesh_editor_embedded_controller)
+        setattr(
+            dialog,
+            "_mesh_editor_embedded_apply_native_update",
+            alignment_mesh_edit_callbacks._mesh_editor_embedded_apply_native_update,
+        )
+        setattr(
+            dialog,
+            "_mesh_editor_embedded_run_part_action",
+            alignment_mesh_edit_callbacks._mesh_editor_embedded_run_part_action,
+        )
+        setattr(
+            dialog,
+            "_mesh_editor_embedded_set_skeleton_bone",
+            alignment_mesh_edit_callbacks._mesh_editor_embedded_set_skeleton_bone,
         )
     _mesh_edit_adjusted_sources_for_live_preview = alignment_mesh_edit_callbacks._mesh_edit_adjusted_sources_for_live_preview
     _mesh_edit_all_live_vertices_for_sources = alignment_mesh_edit_callbacks._mesh_edit_all_live_vertices_for_sources
@@ -1804,7 +1960,13 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     _refresh_mesh_edit_part_combo = alignment_mesh_edit_callbacks._refresh_mesh_edit_part_combo
     _sync_mesh_edit_preview_settings = alignment_mesh_edit_callbacks._sync_mesh_edit_preview_settings
 
-    mesh_edit_layout_page.addWidget(mesh_edit_group, 0)
+    if CollapsibleSection is not None:
+        legacy_mesh_edit_section = CollapsibleSection("Legacy Mesh Controls", expanded=False)
+        legacy_mesh_edit_section.setObjectName("LegacyMeshEditControlsDrawer")
+        legacy_mesh_edit_section.body_layout.addWidget(mesh_edit_group, 0)
+        mesh_edit_layout_page.addWidget(legacy_mesh_edit_section, 0)
+    else:
+        mesh_edit_layout_page.addWidget(mesh_edit_group, 0)
     mesh_edit_layout_page.addWidget(morph_slider_group, 0)
     mesh_edit_layout_page.addStretch(1)
 
@@ -3124,9 +3286,10 @@ def create_alignment_texture_material_section(context: dict[str, object]) -> Sim
         texture_detail_browser.setMinimumWidth(300)
         texture_detail_browser.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         texture_detail_browser.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        alignment_font_sizes = _alignment_dialog_font_sizes(context)
         texture_detail_browser.setStyleSheet(
             texture_detail_browser.styleSheet()
-            + "QTextBrowser { font-size: 8px; line-height: 1.08; }"
+            + f"QTextBrowser {{ font-size: {alignment_font_sizes['data']}px; line-height: 1.08; }}"
         )
         texture_details_splitter = QSplitter(Qt.Horizontal)
         texture_details_splitter.addWidget(texture_override_tree)
@@ -3754,6 +3917,7 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     create_alignment_source_part_assignment_callbacks = context.get('create_alignment_source_part_assignment_callbacks')
     create_alignment_source_part_geometry_action_callbacks = context.get('create_alignment_source_part_geometry_action_callbacks')
     create_alignment_source_part_glow_callbacks = context.get('create_alignment_source_part_glow_callbacks')
+    create_alignment_source_part_mutation_callbacks = context.get('create_alignment_source_part_mutation_callbacks')
     create_alignment_source_part_transform_control_callbacks = context.get('create_alignment_source_part_transform_control_callbacks')
     create_alignment_source_role_flush_callbacks = context.get('create_alignment_source_role_flush_callbacks')
     create_alignment_source_role_tree_callbacks = context.get('create_alignment_source_role_tree_callbacks')
@@ -3773,6 +3937,9 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     original_mesh_for_mapping = context.get('original_mesh_for_mapping')
     parts_tab = context.get('parts_tab')
     replacement_mesh_for_mapping = context.get('replacement_mesh_for_mapping')
+    _modify_original_texture_tuning_enabled = context.get('_modify_original_texture_tuning_enabled')
+    if not callable(_modify_original_texture_tuning_enabled):
+        _modify_original_texture_tuning_enabled = lambda: False
     selected_added_part_texture_row = context.get('selected_added_part_texture_row')
     selected_original_part = context.get('selected_original_part')
     selected_texture_plan_source = context.get('selected_texture_plan_source')
@@ -4439,18 +4606,28 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
 
     alignment_source_part_mutation_callbacks = None
     def _delete_selected_source_parts(source_indices: Optional[Sequence[int]] = None) -> None:
+        if alignment_source_part_mutation_callbacks is None:
+            return
         alignment_source_part_mutation_callbacks._delete_selected_source_parts(source_indices)
 
     def _apply_source_part_preview_changes() -> None:
+        if alignment_source_part_mutation_callbacks is None:
+            return
         alignment_source_part_mutation_callbacks._apply_source_part_preview_changes()
 
     def _apply_source_material_grouped_routing() -> None:
+        if alignment_source_part_mutation_callbacks is None:
+            return
         alignment_source_part_mutation_callbacks._apply_source_material_grouped_routing()
 
     def _duplicate_selected_part(*, mirrored: bool = False) -> None:
+        if alignment_source_part_mutation_callbacks is None:
+            return
         alignment_source_part_mutation_callbacks._duplicate_selected_part(mirrored=mirrored)
 
     def _append_mesh_part_to_geometry() -> None:
+        if alignment_source_part_mutation_callbacks is None:
+            return
         alignment_source_part_mutation_callbacks._append_mesh_part_to_geometry()
 
 
@@ -4861,56 +5038,66 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
     part_material_tooltip = source_part_inspector_control_text["material_adjustment_tooltip"]
     for spin in part_material_controls:
         spin.setToolTip(part_material_tooltip)
-    part_layout.addWidget(QLabel(source_part_inspector_control_text["material_label"]), 13, 0)
-    part_layout.addWidget(
-        _part_spin_with_slider(
-            part_material_brightness_spin,
-            scale=1.0,
-            slider_minimum=-100.0,
-            slider_maximum=100.0,
-            tooltip=part_material_tooltip,
-        ),
-        13,
-        1,
+    part_material_label = QLabel(source_part_inspector_control_text["material_label"])
+    part_material_brightness_widget = _part_spin_with_slider(
+        part_material_brightness_spin,
+        scale=1.0,
+        slider_minimum=-100.0,
+        slider_maximum=100.0,
+        tooltip=part_material_tooltip,
     )
-    part_layout.addWidget(
-        _part_spin_with_slider(
-            part_material_contrast_spin,
-            scale=1.0,
-            slider_minimum=-100.0,
-            slider_maximum=100.0,
-            tooltip=part_material_tooltip,
-        ),
-        13,
-        2,
+    part_material_contrast_widget = _part_spin_with_slider(
+        part_material_contrast_spin,
+        scale=1.0,
+        slider_minimum=-100.0,
+        slider_maximum=100.0,
+        tooltip=part_material_tooltip,
     )
-    part_layout.addWidget(
-        _part_spin_with_slider(
-            part_material_saturation_spin,
-            scale=1.0,
-            slider_minimum=-100.0,
-            slider_maximum=100.0,
-            tooltip=part_material_tooltip,
-        ),
-        13,
-        3,
+    part_material_saturation_widget = _part_spin_with_slider(
+        part_material_saturation_spin,
+        scale=1.0,
+        slider_minimum=-100.0,
+        slider_maximum=100.0,
+        tooltip=part_material_tooltip,
     )
-    part_layout.addWidget(QLabel(source_part_inspector_control_text["material_gamma_label"]), 14, 0)
-    part_layout.addWidget(
-        _part_spin_with_slider(
-            part_material_gamma_spin,
-            scale=100.0,
-            slider_minimum=0.25,
-            slider_maximum=4.0,
-            tooltip=part_material_tooltip,
-        ),
-        14,
-        1,
+    part_material_gamma_label = QLabel(source_part_inspector_control_text["material_gamma_label"])
+    part_material_gamma_widget = _part_spin_with_slider(
+        part_material_gamma_spin,
+        scale=100.0,
+        slider_minimum=0.25,
+        slider_maximum=4.0,
+        tooltip=part_material_tooltip,
     )
-    part_layout.addWidget(QLabel(source_part_inspector_control_text["material_tint_label"]), 15, 0)
+    part_material_tint_label = QLabel(source_part_inspector_control_text["material_tint_label"])
+    part_layout.addWidget(part_material_label, 13, 0)
+    part_layout.addWidget(part_material_brightness_widget, 13, 1)
+    part_layout.addWidget(part_material_contrast_widget, 13, 2)
+    part_layout.addWidget(part_material_saturation_widget, 13, 3)
+    part_layout.addWidget(part_material_gamma_label, 14, 0)
+    part_layout.addWidget(part_material_gamma_widget, 14, 1)
+    part_layout.addWidget(part_material_tint_label, 15, 0)
     part_layout.addWidget(part_material_tint_r_spin, 15, 1)
     part_layout.addWidget(part_material_tint_g_spin, 15, 2)
     part_layout.addWidget(part_material_tint_b_spin, 15, 3)
+    part_material_tuning_widgets = (
+        part_material_label,
+        part_material_brightness_widget,
+        part_material_contrast_widget,
+        part_material_saturation_widget,
+        part_material_gamma_label,
+        part_material_gamma_widget,
+        part_material_tint_label,
+        part_material_tint_r_spin,
+        part_material_tint_g_spin,
+        part_material_tint_b_spin,
+    )
+
+    def _refresh_part_material_tuning_visibility() -> None:
+        visible = (not bool(modify_original_clone_mode)) or _modify_original_texture_tuning_enabled()
+        for widget in part_material_tuning_widgets:
+            widget.setVisible(bool(visible))
+
+    _refresh_part_material_tuning_visibility()
     part_inspector_loading = _part_inspector_loading_initial_state_helper()
 
     alignment_source_part_glow_callbacks = create_alignment_source_part_glow_callbacks({**context, **globals(), **locals()})
@@ -5014,6 +5201,8 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
         normalize_vector=_normalize,
     )
 
+
+    alignment_source_part_mutation_callbacks = create_alignment_source_part_mutation_callbacks({**context, **globals(), **locals()})
 
 
     for part_spin in part_controls:

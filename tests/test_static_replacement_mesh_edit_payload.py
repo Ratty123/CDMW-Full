@@ -79,11 +79,11 @@ from cdmw.ui.archive_browser.static_replacement_mesh_edit_state import (
 def test_mesh_edit_action_control_text_preserves_copy() -> None:
     text = mesh_edit_action_control_text()
 
-    assert text["edit_mode"] == "Edit Mode"
-    assert "Enable Blender-like Edit Mode" in text["edit_mode_tooltip"]
+    assert text["edit_mode"] == "Edit Mesh"
+    assert "Enable viewport mesh editing" in text["edit_mode_tooltip"]
     assert "brush edits affect" in text["scope_combo_tooltip"]
     assert text["part_combo_tooltip"] == "Used only when Scope is set to Selected part only."
-    assert text["initial_status"] == "Enable Edit Mode to edit visible replacement source geometry."
+    assert text["initial_status"] == "Enable Edit Mesh to edit visible replacement source geometry."
     assert text["no_editable_parts"] == "No editable parts"
     assert text["scope_label"] == "Scope"
     assert text["part_label"] == "Part"

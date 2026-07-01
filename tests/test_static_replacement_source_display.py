@@ -1238,10 +1238,10 @@ def test_d3d11_source_selection_index_prefers_current_member_then_first_source()
     assert d3d11_source_selection_index(1, ("bad", -2)) == -1
 
 
-def test_d3d11_source_part_selection_route_requires_active_geometry_preview() -> None:
+def test_d3d11_source_part_selection_route_requires_active_preview_and_valid_source() -> None:
     route = d3d11_source_part_selection_route(
         preview_active=True,
-        geometry_tab_active=True,
+        geometry_tab_active=False,
         source_index="10",
         current_source_index=4,
         editor_source_indices=(2, 4),
@@ -1257,6 +1257,15 @@ def test_d3d11_source_part_selection_route_requires_active_geometry_preview() ->
     )
     assert inactive["selected_source_index"] == 4
     assert inactive["should_select"] is False
+
+    fallback = d3d11_source_part_selection_route(
+        preview_active=True,
+        geometry_tab_active=True,
+        source_index="3",
+        current_source_index=-1,
+        editor_source_indices=(),
+    )
+    assert fallback == {"source_index": 3, "selected_source_index": 3, "should_select": True}
 
     missing = d3d11_source_part_selection_route(
         preview_active=True,

@@ -427,13 +427,13 @@ class StartupSplashDialog(QDialog):
             }}
             QLabel#StartupSplashTitle {{
                 color: {_splash_theme_value(self._theme_key, "text_strong", "#f1e8de")};
-                font-size: 14px;
+                font-size: 1.4em;
                 font-weight: 500;
             }}
             QLabel#StartupSplashDetail {{
                 color: {_splash_theme_value(self._theme_key, "text_muted", "#9f938c")};
-                font-size: 10px;
-                line-height: 13px;
+                font-size: 1em;
+                line-height: 1.3;
             }}
             """
         )

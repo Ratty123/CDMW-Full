@@ -35,10 +35,12 @@ from cdmw.core.archive_modding import (
     mesh_import_runtime_sibling_mesh_candidates,
 )
 from cdmw.core.mesh_baseline import read_archive_entry_baseline_data
+from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
 from cdmw.domain.mesh.session import MeshImportSetupSelection, ModifyOriginalWorkflowSelection
 from cdmw.models import ArchiveEntry
 from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
 from cdmw.modding.scene_importer import SceneImportResult, import_scene_mesh_with_report
+from cdmw.modding.skeleton_parser import parse_pab
 from cdmw.modding.static_mesh_replacer import StaticMeshReplacementOptions, StaticSubmeshMapping
 from cdmw.services.diagnostics_service import process_is_alive as _process_is_alive
 from cdmw.services.workspace_layout import workspace_paths
@@ -61,7 +63,8 @@ class ArchiveMeshModifyOriginalMixin:
 
         intro = QLabel(
             "Open an editable clone of the selected archive mesh in Mesh Replacement Geometry. "
-            "No workspace export is required; the game archive is not changed here, and edits are written only when you save a loose mod package."
+            "Default mode writes a temporary internal OBJ clone only so Geometry has something safe to edit. "
+            "The game archive is not changed here, and edits are written only when you save a loose mod package."
         )
         intro.setWordWrap(True)
         intro.setObjectName("HintLabel")
@@ -76,10 +79,10 @@ class ArchiveMeshModifyOriginalMixin:
         mode_layout = QVBoxLayout(mode_group)
         mode_layout.setContentsMargins(10, 8, 10, 8)
         mode_layout.setSpacing(6)
-        edit_in_app_radio = QRadioButton("Edit inside Mesh Replacement (no workspace export)")
+        edit_in_app_radio = QRadioButton("Edit inside Mesh Replacement (internal safe clone)")
         edit_in_app_radio.setChecked(True)
         edit_in_app_radio.setToolTip(
-            "Creates the temporary editable clone internally, opens Geometry, and writes output only through the loose-mod save path."
+            "Writes a temporary OBJ clone under app session storage, opens Geometry, and writes final output only through the loose-mod save path."
         )
         create_workspace_radio = QRadioButton("Create editable workspace folder")
         create_workspace_radio.setToolTip(
@@ -371,7 +374,6 @@ class ArchiveMeshModifyOriginalMixin:
         if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
             self.set_status_message("Select a supported archive mesh first.", error=True)
             return
-        self._open_mesh_editor_for_entry(entry, mode="modify_original", activate=True)
         selection = self._prompt_archive_modify_original_workspace_options(entry)
         if selection is None:
             return
@@ -398,8 +400,22 @@ class ArchiveMeshModifyOriginalMixin:
                 related_entries = family_related_entries
             except Exception:
                 related_entries = ()
+        current_preview_entry = self._current_archive_entry() if callable(getattr(self, "_current_archive_entry", None)) else None
+        preview_matches_entry = isinstance(current_preview_entry, ArchiveEntry) and self._same_archive_entry(
+            current_preview_entry,
+            entry,
+        )
+        current_preview_result = getattr(self, "current_archive_preview_result", None) if preview_matches_entry else None
+        cached_texture_references = tuple(
+            getattr(current_preview_result, "model_texture_references", ()) or ()
+        )
+        if not cached_texture_references and preview_matches_entry:
+            cached_texture_references = tuple(getattr(self, "current_archive_model_texture_references", ()) or ())
+        cached_family_graph = getattr(current_preview_result, "asset_family_graph", None) if preview_matches_entry else None
 
-        def _task(log: Callable[[str], None]) -> dict[str, object]:
+        def _task(log: Callable[[str], None], progress: Callable[[int, int, str], None]) -> dict[str, object]:
+            total_steps = 6
+            progress(1, total_steps, "Modify Original: creating safe clone folder...")
             workspace_dir.parent.mkdir(parents=True, exist_ok=True)
             log(
                 f"Creating Modify Original workspace: {workspace_dir}"
@@ -411,6 +427,7 @@ class ArchiveMeshModifyOriginalMixin:
                     "Modify Original in-app session uses the archive material graph directly; "
                     "resolved asset-family file copying is skipped to keep startup responsive."
                 )
+            progress(2, total_steps, "Modify Original: writing editable OBJ clone...")
             result = export_archive_mesh(
                 entry,
                 workspace_dir,
@@ -420,6 +437,9 @@ class ArchiveMeshModifyOriginalMixin:
                 related_entries=related_entries,
                 allow_missing_skeleton=True,
                 resolve_skeleton_for_obj=create_workspace,
+                model_texture_references=cached_texture_references,
+                asset_family_graph=cached_family_graph,
+                build_preview_context=create_workspace,
                 on_log=log,
             )
             obj_paths = [path for path in result.output_paths if path.suffix.lower() == ".obj"]
@@ -427,10 +447,30 @@ class ArchiveMeshModifyOriginalMixin:
                 raise ValueError("OBJ export did not produce an editable clone file.")
             obj_path = obj_paths[0]
             log("Preloading Modify Original clone geometry off the UI thread...")
+            progress(3, total_steps, "Modify Original: loading editable clone geometry...")
             scene_import_result = import_scene_mesh_with_report(obj_path)
             log("Preloading original archive mesh for Geometry alignment...")
+            progress(4, total_steps, "Modify Original: loading original archive mesh...")
             original_data = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data).data
             original_mesh = parse_mesh(original_data, entry.path)
+            source_skeleton = None
+            progress(5, total_steps, "Modify Original: resolving skeleton context...")
+            try:
+                skeleton_entry, _skeleton_report = resolve_skeleton_for_model(
+                    entry,
+                    archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
+                    archive_entries_by_basename=self.archive_entries_by_basename,
+                    pac_data=original_data,
+                    read_entry_data=lambda candidate: read_archive_entry_data(candidate)[0],
+                )
+                if isinstance(skeleton_entry, ArchiveEntry):
+                    skeleton_data, _decompressed, _note = read_archive_entry_data(skeleton_entry)
+                    parsed_skeleton = parse_pab(skeleton_data, skeleton_entry.path)
+                    if getattr(parsed_skeleton, "bones", ()):
+                        source_skeleton = parsed_skeleton
+                        log(f"Resolved Modify Original skeleton context: {skeleton_entry.path}")
+            except Exception as exc:
+                log(f"Modify Original skeleton context unavailable: {exc}")
             supplemental_files = self._modify_original_workspace_supplemental_files(workspace_dir)
             readme_path: Optional[Path] = None
             manifest_path = workspace_dir / "modify_original_workspace.json"
@@ -483,6 +523,7 @@ class ArchiveMeshModifyOriginalMixin:
                 ),
                 encoding="utf-8",
             )
+            progress(6, total_steps, "Modify Original: opening Geometry workspace...")
             return {
                 "workspace_dir": workspace_dir,
                 "obj_path": obj_path,
@@ -494,6 +535,7 @@ class ArchiveMeshModifyOriginalMixin:
                 "related_count": len(related_entries),
                 "supplemental_files": supplemental_files,
                 "scene_import_result": scene_import_result,
+                "source_skeleton": source_skeleton,
                 "original_mesh": original_mesh,
             }
 
@@ -529,6 +571,7 @@ class ArchiveMeshModifyOriginalMixin:
             task=_task,
             on_complete=_handle_complete,
             show_archive_progress=True,
+            task_accepts_progress=True,
         )
 
     def _open_modify_original_mesh_setup(
@@ -546,6 +589,7 @@ class ArchiveMeshModifyOriginalMixin:
         scene_import_result = result.get("scene_import_result")
         if not isinstance(scene_import_result, SceneImportResult):
             scene_import_result = None
+        source_skeleton = result.get("source_skeleton")
         original_mesh = result.get("original_mesh")
         if not isinstance(original_mesh, ParsedMesh):
             original_mesh = None
@@ -559,12 +603,13 @@ class ArchiveMeshModifyOriginalMixin:
                 import_mode="static_replacement",
                 supplemental_files=supplemental_files,
                 scene_import_result=scene_import_result,
+                source_skeleton=source_skeleton,
                 original_mesh=original_mesh,
                 source_label=f"Modify Original in-app clone: {obj_path.name}",
                 placement_review_title="Modify Original Geometry",
                 placement_context_note=(
                     "This is an internal clone of the selected archive mesh. "
-                    "Geometry can resize or move existing parts; no workspace export was required, and output is written only through loose-mod save."
+                    "Geometry can resize or move existing parts; only a temporary session clone was written, and output is written through loose-mod save."
                     f"{runtime_target_note}"
                 ),
                 defer_original_texture_preview=True,
@@ -576,6 +621,7 @@ class ArchiveMeshModifyOriginalMixin:
             obj_path,
             title="Modify Original Mesh Setup",
             scene_import_result=scene_import_result,
+            source_skeleton=source_skeleton,
             original_mesh=original_mesh,
             source_label=f"Modify Original clone: {obj_path}",
             force_static_replacement=True,
@@ -589,6 +635,7 @@ class ArchiveMeshModifyOriginalMixin:
             return
         setup.supplemental_files = supplemental_files
         setup.source_label = setup.source_label or f"Modify Original clone: {obj_path}"
+        setup.source_skeleton = source_skeleton
         setup.defer_original_texture_preview = True
         if runtime_target_note:
             setup.placement_context_note = f"{setup.placement_context_note}{runtime_target_note}"
