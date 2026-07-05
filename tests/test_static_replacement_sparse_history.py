@@ -239,12 +239,49 @@ def test_static_replacement_clone_uses_native_snapshot_before_python(monkeypatch
         mesh,
         "prompt_setup.replacement_base_clone",
         "fallback blocked",
+        allow_python_setup_fallback=True,
     )
 
     assert isinstance(result, ParsedMesh)
     assert result.path == "restored.pam"
     assert disposed == [snapshot]
     assert invalidated == [(result, ())]
+
+
+def test_static_replacement_clone_uses_python_for_native_unsupported_setup_mesh(monkeypatch) -> None:
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+
+    mesh = ParsedMesh(
+        path="clone.obj",
+        format="obj",
+        submeshes=[
+            SubMesh(
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0)],
+                faces=[(0, 1, 2, 3)],  # type: ignore[list-item]
+            )
+        ],
+    )
+    fallback_calls: list[object] = []
+
+    monkeypatch.setattr(
+        "cdmw.modding.mesh_native_core.snapshot_native_mesh_submeshes",
+        lambda _mesh: (_ for _ in ()).throw(AssertionError("native snapshot should not run")),
+    )
+    monkeypatch.setattr(
+        "cdmw.modding.mesh_deformer.clone_mesh_for_editing",
+        lambda candidate: fallback_calls.append(candidate) or ParsedMesh(path="cloned.obj", format="obj"),
+    )
+
+    result = sparse_history.clone_mesh_for_static_replacement_native_first(
+        mesh,
+        "prompt_setup.replacement_base_clone",
+        "fallback blocked",
+        allow_python_setup_fallback=True,
+    )
+
+    assert isinstance(result, ParsedMesh)
+    assert result.path == "cloned.obj"
+    assert fallback_calls == [mesh]
 
 
 def test_static_replacement_clone_uses_custom_fallback_guard(monkeypatch) -> None:

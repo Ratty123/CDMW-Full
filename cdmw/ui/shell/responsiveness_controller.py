@@ -230,6 +230,8 @@ class ResponsivenessControllerMixin:
         )
         if hasattr(self, "_apply_data_widget_fonts"):
             self._apply_data_widget_fonts(data_font)
+        if hasattr(self, "_sync_archive_controls_font"):
+            self._sync_archive_controls_font(ui_font)
         apply_window_data_fonts(self)
         if hasattr(self, "texture_editor_tab"):
             self.texture_editor_tab.sync_ui_font(ui_font)

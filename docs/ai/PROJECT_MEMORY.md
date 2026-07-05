@@ -585,6 +585,12 @@ Last updated: 2026-07-05
   `dist\CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe`,
   112,112,752 bytes, SHA256
   `E65ED0336F132D1E992EADAAB3495EB1283B215AA08917A5AAC32DA7A8A9F58F`.
+- Release PyInstaller packaging now treats `native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe`
+  as required, alongside the D3D11 and texture native helpers. A 2026-07-05
+  `build.bat onefile release` run rebuilt native helpers, validated all 483
+  archive members, startup-smoked the packaged EXE, and archive inspection found
+  `native\cdmw-mesh-core.exe`, `native\cdmw-d3d11-preview.exe`, and the other
+  native helpers embedded in the onefile artifact.
 - Full `tests/test_mesh_service_editing.py` now passes: 350 passed on
   2026-07-05 after updating stale legacy-helper/history-snapshot/result-shape
   expectations to the resident native session contract.

@@ -49,6 +49,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         build_script = _read("build_pyside6_app.ps1")
         build_bat = _read("build.bat")
         build_gui = _read("build_gui.py")
+        spec_source = _read("CrimsonDesertModWorkbench.spec")
 
         self.assertIn('Write-Host "Building native helpers ($nativeConfig)..."', build_script)
         self.assertIn('& (Join-Path $scriptDir "build_native_windows.ps1") @nativeBuildArgs', build_script)
@@ -56,6 +57,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn('$BuildProfile -eq "fast" -and (Test-NativeOutputsPresent', build_script)
         self.assertIn("native helpers still rebuild incrementally", build_bat)
         self.assertIn("native helpers still rebuild", build_gui)
+        self.assertIn(
+            '_add_native_binary("native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe", "native", required_release=True)',
+            spec_source,
+        )
 
     def test_standalone_mesh_file_load_uses_worker_thread(self) -> None:
         tab_source = _read("cdmw/ui/mesh_editor/tab.py")

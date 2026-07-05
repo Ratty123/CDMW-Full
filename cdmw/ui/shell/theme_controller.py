@@ -455,13 +455,24 @@ class ThemeControllerMixin:
     def _apply_application_ui_fonts(self, app: QApplication) -> None:
         screen_width, screen_height = available_layout_size_for(self)
         self._current_responsive_control_scale = 0.0
-        _ui_font, data_font = apply_app_fonts(
+        ui_font, data_font = apply_app_fonts(
             app,
             self.settings,
             screen_width=screen_width,
             screen_height=screen_height,
         )
         self._apply_data_widget_fonts(data_font)
+        self._sync_archive_controls_font(ui_font)
+
+    def _sync_archive_controls_font(self, ui_font: QFont) -> None:
+        archive_controls_group = getattr(self, "archive_controls_group", None)
+        if archive_controls_group is None:
+            return
+        archive_controls_font = QFont(ui_font)
+        if archive_controls_font.pointSize() > 0:
+            archive_controls_font.setPointSize(max(UI_FONT_SIZE_MIN, archive_controls_font.pointSize() - 1))
+        if not _same_font(archive_controls_group.font(), archive_controls_font):
+            archive_controls_group.setFont(archive_controls_font)
 
     def _apply_data_widget_fonts(self, data_font: QFont) -> None:
         for widget in self.findChildren(QAbstractItemView):

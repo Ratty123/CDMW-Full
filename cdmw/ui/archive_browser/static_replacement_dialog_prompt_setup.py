@@ -117,6 +117,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
             replacement_mesh_base_for_mapping,
             "prompt_setup.replacement_base_clone",
             "Python replacement setup base clone fallback blocked while native mesh core is available",
+            allow_python_setup_fallback=True,
         )
         if replacement_mesh_base_for_mapping is None:
             raise RuntimeError("Native replacement setup base clone failed.")
@@ -124,6 +125,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
             replacement_mesh_base_for_mapping,
             "prompt_setup.replacement_working_clone",
             "Python replacement setup working clone fallback blocked while native mesh core is available",
+            allow_python_setup_fallback=True,
         )
         if replacement_mesh_for_mapping is None:
             raise RuntimeError("Native replacement setup working clone failed.")

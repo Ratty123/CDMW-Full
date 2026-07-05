@@ -9,7 +9,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QLabel, QListWidget, QPushButton, QVBoxLayout, QWidget
 
 from cdmw.ui.settings_tab import SettingsTab
-from cdmw.ui.shell.theme_controller import ThemeChangeBusyOverlay, apply_app_fonts
+from cdmw.ui.shell.theme_controller import ThemeChangeBusyOverlay, ThemeControllerMixin, apply_app_fonts
 from cdmw.ui.themes import build_app_stylesheet
 
 
@@ -22,6 +22,38 @@ class _Settings:
 
 
 class ShellThemeControllerTests(unittest.TestCase):
+    def test_application_ui_font_change_refreshes_archive_controls_font(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        previous_font = QFont(app.font())
+
+        class _Window(QWidget, ThemeControllerMixin):
+            def __init__(self) -> None:
+                super().__init__()
+                self.settings = _Settings(
+                    {
+                        "appearance/ui_font_family": previous_font.family(),
+                        "appearance/ui_font_size": 14,
+                        "appearance/data_font_size": 11,
+                        "appearance/ui_density": "compact",
+                    }
+                )
+                self.archive_controls_group = QWidget(self)
+
+        window = _Window()
+        try:
+            stale_font = QFont(previous_font)
+            stale_font.setPointSize(9)
+            window.archive_controls_group.setFont(stale_font)
+
+            ui_font = QFont(previous_font)
+            ui_font.setPointSize(14)
+            window._sync_archive_controls_font(ui_font)
+
+            self.assertEqual(13, window.archive_controls_group.font().pointSize())
+        finally:
+            window.deleteLater()
+            app.setFont(previous_font)
+
     def test_theme_change_busy_overlay_updates_state_and_timers(self) -> None:
         app = QApplication.instance() or QApplication([])
         parent = QWidget()

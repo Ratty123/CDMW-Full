@@ -128,7 +128,14 @@ def clone_mesh_for_static_replacement_native_first(
     reason: str,
     *,
     fallback_allowed: Callable[[object], bool] | None = None,
+    allow_python_setup_fallback: bool = False,
 ) -> object | None:
+    if not _native_submesh_snapshot_supported(mesh):
+        if not allow_python_setup_fallback:
+            return None
+        from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+
+        return clone_mesh_for_editing(mesh)  # type: ignore[arg-type]
     native_snapshot = None
     try:
         from cdmw.modding.mesh_native_core import (
@@ -156,6 +163,10 @@ def clone_mesh_for_static_replacement_native_first(
                 dispose_native_mesh_submesh_snapshot(native_snapshot)  # type: ignore[name-defined]
             except Exception:
                 pass
+    if allow_python_setup_fallback:
+        from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+
+        return clone_mesh_for_editing(mesh)  # type: ignore[arg-type]
     if fallback_allowed is not None:
         allowed = fallback_allowed(mesh)
     else:
@@ -165,6 +176,25 @@ def clone_mesh_for_static_replacement_native_first(
     from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 
     return clone_mesh_for_editing(mesh)  # type: ignore[arg-type]
+
+
+def _native_submesh_snapshot_supported(mesh: object) -> bool:
+    mesh_format = str(getattr(mesh, "format", "") or "").strip().lower()
+    if mesh_format and mesh_format not in {"pam", "pamlod", "pac"}:
+        return False
+    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        vertex_count = len(getattr(submesh, "vertices", ()) or ())
+        for raw_face in tuple(getattr(submesh, "faces", ()) or ()):
+            if len(raw_face) != 3:
+                return False
+            for raw_index in raw_face:
+                try:
+                    vertex_index = int(raw_index)
+                except (TypeError, ValueError, OverflowError):
+                    return False
+                if vertex_index < 0 or vertex_index >= vertex_count:
+                    return False
+    return True
 
 
 def allow_python_mesh_history_snapshot_fallback(mesh: object, operation: str) -> bool:
