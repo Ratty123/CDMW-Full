@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from collections import OrderedDict
+
 from cdmw.models import ModelPreviewRenderSettings
+from cdmw.ui.archive_browser.static_replacement_d3d11_cache import (
+    alignment_d3d11_invalidate_package_cache,
+)
 from cdmw.ui.archive_browser.static_replacement_d3d11_state import (
     ALIGNMENT_D3D11_LOADING_SPINNER_FRAMES,
     alignment_d3d11_active_package_matches,
@@ -145,6 +150,9 @@ from cdmw.ui.archive_browser.static_replacement_d3d11_state import (
     alignment_preview_quality_label,
     live_alignment_preview_status_message,
 )
+from cdmw.ui.archive_browser.static_replacement_raw_preview_state import (
+    mesh_edit_raw_preview_transition_route,
+)
 from cdmw.ui.archive_browser.static_replacement_preview_mode_state import (
     alignment_preview_mode_route,
     alignment_preview_renderer_route,
@@ -162,6 +170,52 @@ def test_alignment_d3d11_loading_state_tracks_spinner_frame_and_active_flag() ->
     assert alignment_d3d11_loading_next_frame(state, 4) == 2
     assert alignment_d3d11_loading_set_active(state, False) is False
     assert state == {"active": False, "frame": 2}
+
+
+def test_alignment_d3d11_mesh_edit_mode_preserves_package_cache(tmp_path) -> None:
+    active_package = tmp_path / "textured"
+    raw_package = tmp_path / "raw"
+    active_package.mkdir()
+    raw_package.mkdir()
+    state: dict[str, object] = {
+        "active_package": active_package,
+        "active_package_cache_key": "textured",
+        "package_cache": OrderedDict(
+            (
+                (
+                    "textured",
+                    {"package_dir": active_package, "package_quality": "archive_parity"},
+                ),
+                (
+                    "raw",
+                    {"package_dir": raw_package, "package_quality": "mesh_edit_raw"},
+                ),
+            )
+        ),
+    }
+    cleaned: list[tuple[object, int]] = []
+
+    alignment_d3d11_invalidate_package_cache(
+        state,
+        "mesh_edit_mode",
+        cleanup_package=lambda package, delay_ms: cleaned.append((package, delay_ms)),
+    )
+
+    assert list(state["package_cache"]) == ["textured", "raw"]
+    assert state["active_package_cache_key"] == "textured"
+    assert state["last_cache_event"] == "mode_dirty"
+    assert state["last_cache_reason"] == "mesh_edit_mode"
+    assert cleaned == []
+
+    alignment_d3d11_invalidate_package_cache(
+        state,
+        "geometry",
+        cleanup_package=lambda package, delay_ms: cleaned.append((package, delay_ms)),
+    )
+
+    assert state["package_cache"] == OrderedDict()
+    assert state["active_package_cache_key"] == ""
+    assert cleaned == [(active_package, 5000), (raw_package, 0)]
 
 
 def test_alignment_d3d11_loading_presentation_prefers_detail_tooltip() -> None:
@@ -1347,6 +1401,51 @@ def test_alignment_d3d11_raw_package_active_or_pending_checks_active_queued_pend
         is True
     )
     assert alignment_d3d11_raw_package_active_or_pending({"request_package_qualities": {2: "normal"}}) is False
+
+
+def test_mesh_edit_raw_preview_transition_routes_texture_restore_and_raw_refresh() -> None:
+    unchanged = mesh_edit_raw_preview_transition_route(
+        False,
+        False,
+        raw_package_active_or_pending=True,
+    )
+    assert unchanged.changed is False
+    assert unchanged.should_queue_static_preview_refresh is False
+    assert unchanged.should_stop_raw_package is False
+    assert unchanged.should_queue_texture_preview_refresh is False
+
+    enabled = mesh_edit_raw_preview_transition_route(
+        False,
+        True,
+        raw_package_active_or_pending=False,
+    )
+    assert enabled.changed is True
+    assert enabled.should_clear_static_preview_caches is True
+    assert enabled.should_invalidate_package_cache is True
+    assert enabled.should_queue_static_preview_refresh is True
+    assert enabled.should_stop_raw_package is False
+    assert enabled.should_queue_texture_preview_refresh is False
+
+    disabled = mesh_edit_raw_preview_transition_route(
+        True,
+        False,
+        raw_package_active_or_pending=True,
+    )
+    assert disabled.changed is True
+    assert disabled.should_clear_static_preview_caches is True
+    assert disabled.should_invalidate_package_cache is True
+    assert disabled.should_queue_static_preview_refresh is True
+    assert disabled.should_stop_raw_package is True
+    assert disabled.should_queue_texture_preview_refresh is True
+
+    disabled_without_raw = mesh_edit_raw_preview_transition_route(
+        True,
+        False,
+        raw_package_active_or_pending=False,
+    )
+    assert disabled_without_raw.should_stop_raw_package is False
+    assert disabled_without_raw.should_queue_static_preview_refresh is True
+    assert disabled_without_raw.should_queue_texture_preview_refresh is True
 
 
 def test_alignment_d3d11_mark_transform_changed_advances_generation_and_clears_pending_work() -> None:

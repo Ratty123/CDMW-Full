@@ -1,7 +1,9 @@
 import copy
+import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from cdmw.modding.mesh_deformer import (
     apply_brush_deformation,
@@ -17,7 +19,7 @@ from cdmw.modding.mesh_deformer import (
     recompute_submesh_normals,
     subdivide_faces_touching_vertices,
 )
-from cdmw.modding.mesh_exporter import export_obj
+from cdmw.modding.mesh_exporter import export_obj, write_roundtrip_manifest
 from cdmw.modding.mesh_importer import import_obj
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
@@ -54,6 +56,21 @@ def _strip_submesh(rows: int = 6) -> SubMesh:
         vertices=vertices,
         faces=faces,
     )
+
+
+def _export_mesh() -> ParsedMesh:
+    vertex_count = 3
+    submesh = SubMesh(
+        name="part",
+        material="part",
+        vertices=[(float(index), 0.0, 0.0) for index in range(vertex_count)],
+        uvs=[(0.0, 0.0)] * vertex_count,
+        normals=[(0.0, 0.0, 1.0)] * vertex_count,
+        faces=[(0, 1, 2)],
+        vertex_count=vertex_count,
+        face_count=1,
+    )
+    return ParsedMesh(path="character/model/part.pac", format="pac", submeshes=[submesh], total_vertices=vertex_count, total_faces=1, has_uvs=True)
 
 
 class MeshDeformerTests(unittest.TestCase):
@@ -403,6 +420,67 @@ class MeshDeformerTests(unittest.TestCase):
         self.assertEqual("textures/cloth.png", imported.submeshes[0].texture)
         for face in imported.submeshes[0].faces:
             self.assertTrue(all(0 <= index < len(imported.submeshes[0].vertices) for index in face))
+
+    def test_export_obj_uses_native_writer_before_python_geometry_loop(self) -> None:
+        mesh = ParsedMesh(path="character/model/native.pac", format="pac", submeshes=[_submesh()], total_vertices=4, total_faces=2)
+
+        def fake_native(_mesh, obj_path, _mtl_path, _base, _scale, *, manifest_path="", **_kwargs):
+            Path(obj_path).write_text("# native obj\n", encoding="utf-8")
+            Path(manifest_path).write_text(
+                json.dumps({"format": "mesh_roundtrip_manifest_v2", "submeshes": []}),
+                encoding="utf-8",
+            )
+            return True
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with mock.patch("cdmw.modding.mesh_exporter._export_obj_native", side_effect=fake_native) as native:
+                exported_paths = export_obj(mesh, temp_dir, "native_route")
+
+            obj_path = Path(exported_paths[0])
+            mtl_path = Path(exported_paths[1])
+            sidecar_path = Path(exported_paths[2])
+
+            self.assertEqual("# native obj\n", obj_path.read_text(encoding="utf-8"))
+            self.assertTrue(mtl_path.is_file())
+            self.assertTrue(sidecar_path.is_file())
+            self.assertEqual("mesh_roundtrip_manifest_v2", json.loads(sidecar_path.read_text(encoding="utf-8"))["format"])
+            native.assert_called_once()
+
+    def test_obj_export_blocks_python_fallback_when_native_available(self) -> None:
+        from cdmw.modding.mesh_native_core import clear_native_mesh_core_fallback_counts, native_mesh_core_fallback_counts
+
+        clear_native_mesh_core_fallback_counts()
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                with (
+                    mock.patch("cdmw.modding.mesh_exporter._export_obj_native", return_value=False),
+                    mock.patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=True),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "Python export fallback was blocked"):
+                        export_obj(_export_mesh(), temp_dir, "native_failed")
+            self.assertEqual(1, native_mesh_core_fallback_counts()["export.obj.blocked"])
+        finally:
+            clear_native_mesh_core_fallback_counts()
+
+    def test_write_roundtrip_manifest_uses_native_writer_before_python_payload_loop(self) -> None:
+        mesh = ParsedMesh(path="character/model/native.pac", format="pac", submeshes=[_submesh()], total_vertices=4, total_faces=2)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            obj_path = Path(temp_dir) / "native_route.obj"
+            sidecar_path = Path(f"{obj_path}.meta.json")
+
+            def fake_native(_mesh, _export_path, **_kwargs):
+                sidecar_path.write_text(json.dumps({"format": "mesh_roundtrip_manifest_v2"}), encoding="utf-8")
+                return True
+
+            with mock.patch("cdmw.modding.mesh_native_core.write_native_obj_roundtrip_manifest", side_effect=fake_native) as native, mock.patch(
+                "cdmw.modding.mesh_exporter._build_roundtrip_manifest_payload",
+                side_effect=AssertionError("Python round-trip manifest payload loop should stay fallback-only"),
+            ):
+                result = write_roundtrip_manifest(mesh, obj_path, companion_path=Path(temp_dir) / "native_route.mtl")
+
+        self.assertEqual(sidecar_path, result)
+        native.assert_called_once()
 
     def test_live_delete_can_defer_orphan_compaction(self) -> None:
         sm = _submesh()

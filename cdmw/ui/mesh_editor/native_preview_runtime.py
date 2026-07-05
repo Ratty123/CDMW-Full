@@ -69,6 +69,33 @@ def mesh_editor_write_native_preview_package(
     )
 
 
+def mesh_editor_write_prepared_native_preview_package(
+    mesh: ParsedMesh,
+    prepared_preview: PreparedModelPreviewData,
+    *,
+    output_root: Optional[Path] = None,
+    render_settings: Optional[ModelPreviewRenderSettings] = None,
+    use_textures: bool = False,
+    high_quality_textures: bool = False,
+    backend: str = "d3d11",
+    display_mode: str = "replacement_only",
+    skeleton_overlay: object | None = None,
+) -> Path:
+    if not isinstance(mesh, ParsedMesh):
+        raise TypeError("mesh must be ParsedMesh")
+    model = ModelPreviewData(path=str(mesh.path or "mesh_editor.pac"), physics_overlay=skeleton_overlay)
+    return write_isolated_d3d11_preview_package(
+        model,
+        prepared_preview,
+        output_root=output_root,
+        render_settings=render_settings,
+        use_textures=bool(use_textures),
+        high_quality_textures=bool(high_quality_textures),
+        backend=str(backend or "d3d11"),
+        display_mode=str(display_mode or "replacement_only"),
+    )
+
+
 def mesh_editor_native_preview_command(
     package_dir: Path,
     status_file: Path,
@@ -124,5 +151,6 @@ def _host_widget_hwnd(host_widget: object | None) -> int:
 __all__ = [
     "mesh_editor_native_preview_data",
     "mesh_editor_native_preview_command",
+    "mesh_editor_write_prepared_native_preview_package",
     "mesh_editor_write_native_preview_package",
 ]

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import math
+import os
+import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 from uuid import uuid4
 
 from cdmw.domain.mesh import (
@@ -16,37 +18,160 @@ from cdmw.domain.mesh import (
     MeshEditSessionView,
     MeshCompareSummary,
     MeshExportValidationReport,
+    MeshPartSummary,
     MeshSkeletonSummary,
     MeshTextureEditTarget,
+    MeshUvIslandSummary,
     MeshUvSummary,
     MeshWorkspaceSummary,
     compare_meshes,
     mesh_pose_deformed_vertices,
     sample_mesh_animation_pose,
-    mesh_uv_lasso_selection,
-    mesh_uv_region_selection,
     selected_mesh_texture_edit_target,
     summarize_mesh_skinning,
     summarize_mesh_uvs,
     summarize_mesh_workspace,
     validate_mesh_export,
 )
+from cdmw.domain.textures.material_authority import complete_swap_material_authority_contract, sanitize_texture_component
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_deformer import recompute_mesh_normals
 from cdmw.modding.mesh_edit_ops import (
     MESH_GEOMETRY_ACTIONS,
     MESH_TOPOLOGY_ACTIONS,
+    NativeLiveHistoryUnavailable,
     apply_mesh_edit_geometry_action,
     refresh_mesh_totals,
 )
+from cdmw.modding.mesh_native_core import (
+    NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR,
+    apply_native_mesh_editor_session,
+    apply_native_mesh_pose_preview,
+    apply_native_mesh_recalculate_normals,
+    apply_native_mesh_selection,
+    apply_native_mesh_sparse_vertex_restore,
+    apply_native_mesh_skin_weights,
+    close_native_mesh_editor_session,
+    dispose_native_mesh_sparse_vertex_snapshot,
+    dispose_native_mesh_submesh_snapshot,
+    export_native_mesh_editor_session_to_mesh,
+    invalidate_native_mesh_session_submeshes,
+    native_mesh_history_delta_positions,
+    native_mesh_core_available,
+    native_mesh_core_fallback_events,
+    native_mesh_editor_session_preview_triangle_groups,
+    native_mesh_editor_session_preview_vertex_update_groups,
+    native_mesh_editor_session_selection_from_report,
+    native_mesh_editor_session_selection_groups_from_report,
+    native_mesh_editor_source_normals_payload,
+    prune_native_mesh_selection,
+    record_native_mesh_core_fallback,
+    restore_native_mesh_submesh_snapshot,
+    open_native_mesh_editor_session,
+    redo_native_mesh_editor_session,
+    select_native_mesh_uv_vertices,
+    select_native_mesh_editor_session,
+    snapshot_native_mesh_submeshes,
+    summarize_native_mesh_editor_session,
+    summarize_native_mesh_uvs,
+    transfer_native_mesh_skin_weights_from_source,
+    undo_native_mesh_editor_session,
+)
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, is_mesh_file, parse_mesh
+from cdmw.models import RunCancelled
+
+_PYTHON_MESH_SELECTION_FALLBACK_VERTEX_LIMIT = 10_000
+_PYTHON_MESH_SELECTION_FALLBACK_FACE_LIMIT = 10_000
+_CHANGED_VERTEX_RESULT_TUPLE_LIMIT = 10_000
+_LEGACY_SCREEN_CAMERA_FIELDS = frozenset(
+    {"camera_world", "yaw_degrees", "pitch_degrees", "distance", "vertical_fov_degrees", "pan"}
+)
+_NATIVE_EDITOR_SCREEN_PAYLOAD_KEYS = frozenset({"screen_drag", "screen_brush", "screen_radius", "screen_region"})
+
+_TANGENT_INVALIDATING_ACTIONS = frozenset(MESH_TOPOLOGY_ACTIONS) | frozenset(
+    {
+        "transform",
+        "brush",
+        "recalculate_normals",
+        "flip_normals",
+        "sharpen_normals",
+        "soften_normals",
+        "weighted_normals",
+        "copy_normals",
+        "uv_transform",
+    }
+)
+
+_LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangulate_display"})
+_NATIVE_EDITOR_SESSION_ACTIONS = frozenset({"select"}) | (
+    frozenset(MESH_GEOMETRY_ACTIONS) - _LEGACY_DISPLAY_CLEANUP_ACTIONS
+)
+
+_NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
+    {
+        "texture_brightness",
+        "roughness",
+        "metalness",
+        "specular",
+        "height_scale",
+        "emissive_intensity",
+        "emissive_color",
+        "contrast",
+        "saturation",
+        "gamma",
+        "tint_color",
+        "native_material_hints",
+        "material_shader_family",
+    }
+)
+
+
+@dataclass(slots=True)
+class _MeshVertexPositionDelta:
+    submesh_index: int
+    vertex_indices: Sequence[int]
+    positions: tuple[tuple[float, float, float], ...]
+    native_sparse_snapshot_id: str = ""
+    before_positions_binary: Mapping[str, object] | None = None
 
 
 @dataclass(slots=True)
 class _MeshHistorySnapshot:
-    mesh: ParsedMesh
+    mesh: ParsedMesh | None
     mode: str
     selection: MeshEditSelection
+    vertex_position_deltas: tuple[_MeshVertexPositionDelta, ...] = ()
+    native_submesh_snapshot: Mapping[str, object] | None = None
+    native_editor_history: bool = False
+    native_editor_stroke_id: str = ""
+
+
+@dataclass(slots=True)
+class _MeshRestoreOutcome:
+    snapshot: _MeshHistorySnapshot
+    changed_vertices_by_submesh: dict[int, Sequence[int] | set[int]] = field(default_factory=dict)
+    native_preview_vertex_update_groups: tuple[Mapping[str, object], ...] = ()
+    native_preview_triangle_groups: tuple[Mapping[str, object], ...] = ()
+    topology_changed: bool = False
+    affected_submesh_indices: set[int] = field(default_factory=set)
+    submesh_count_delta: int = 0
+    submesh_counts: tuple[tuple[int, int], ...] = ()
+    metrics: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class _NativeEditorApplyResult:
+    affected: set[int]
+    changed: dict[int, Sequence[int] | set[int]]
+    metrics: dict[str, float] = field(default_factory=dict)
+    native_preview_vertex_update_groups: tuple[Mapping[str, object], ...] = ()
+    native_preview_triangle_groups: tuple[Mapping[str, object], ...] = ()
+    native_stroke_id: str = ""
+    native_stroke_phase: str = ""
+    native_stroke_cancelled: bool = False
+    topology_changed: bool | None = None
+    submesh_count_delta: int = 0
+    submesh_counts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(slots=True)
@@ -72,6 +197,12 @@ class _MeshEditSession:
     animation_loop: bool = True
     animation_speed: float = 1.0
     revision: int = 0
+    native_editor_session_ready: bool = False
+    native_editor_selection_signature: tuple[object, ...] = ()
+    native_editor_active_stroke_id: str = ""
+    native_editor_mesh_signature: tuple[object, ...] = ()
+    native_editor_mesh_dirty: bool = False
+    native_editor_mesh_dirty_counts: tuple[tuple[int, int], ...] = ()
     undo_stack: list[_MeshHistorySnapshot] = field(default_factory=list)
     redo_stack: list[_MeshHistorySnapshot] = field(default_factory=list)
 
@@ -106,70 +237,143 @@ class MeshService:
             raise TypeError("mesh must be a ParsedMesh")
         mode = _mode(mode)
         session_key = str(session_id or uuid4())
-        working_mesh = clone_mesh_for_editing(mesh)
+        working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)
         refresh_mesh_totals(working_mesh)
         self._sessions[session_key] = _MeshEditSession(
             session_id=session_key,
-            base_mesh=clone_mesh_for_editing(mesh),
+            base_mesh=base_mesh,
             working_mesh=working_mesh,
             mode=mode,
         )
         return self.session_view(session_key)
 
     def close_edit_session(self, session_id: str) -> None:
-        self._sessions.pop(str(session_id), None)
+        session = self._sessions.pop(str(session_id), None)
+        if session is not None:
+            _close_native_editor_session(session)
+            _clear_history_stack(session.undo_stack)
+            _clear_history_stack(session.redo_stack)
 
     def session_view(self, session_id: str) -> MeshEditSessionView:
         session = self._session(session_id)
-        refresh_mesh_totals(session.working_mesh)
-        session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+        if session.native_editor_mesh_dirty:
+            if not session.native_editor_mesh_dirty_counts:
+                raise RuntimeError("native mesh editor session view requires native submesh counts; Python mesh state is stale")
+            _apply_native_editor_dirty_counts(session)
+            submesh_count = len(session.native_editor_mesh_dirty_counts)
+        else:
+            refresh_mesh_totals(session.working_mesh)
+            session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+            submesh_count = len(session.working_mesh.submeshes)
         return MeshEditSessionView(
             session_id=session.session_id,
             mode=session.mode,
             revision=session.revision,
             selection=session.selection,
-            submesh_count=len(session.working_mesh.submeshes),
+            submesh_count=submesh_count,
             vertex_count=int(session.working_mesh.total_vertices or 0),
             face_count=int(session.working_mesh.total_faces or 0),
             undo_count=len(session.undo_stack),
             redo_count=len(session.redo_stack),
         )
 
+    def native_editor_mesh_dirty(self, session_id: str) -> bool:
+        return bool(self._session(session_id).native_editor_mesh_dirty)
+
     def working_mesh(self, session_id: str, *, clone: bool = False) -> ParsedMesh:
-        mesh = self._session(session_id).working_mesh
-        return clone_mesh_for_editing(mesh) if clone else mesh
+        session = self._session(session_id)
+        if session.native_editor_mesh_dirty and not _sync_native_editor_session_to_working_mesh(session):
+            raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
+        mesh = session.working_mesh
+        if not clone:
+            return mesh
+        return _clone_mesh_for_service_native_snapshot(
+            mesh,
+            "session.working_mesh_clone",
+            "Python working mesh clone fallback blocked while native mesh core is available",
+        )
 
     def pose_preview_mesh(self, session_id: str) -> ParsedMesh:
         session = self._session(session_id)
-        mesh = clone_mesh_for_editing(session.working_mesh)
+        if session.native_editor_mesh_dirty:
+            raise RuntimeError("native mesh editor pose preview unavailable; Python mesh state is stale")
         pose_rotations = _effective_pose_rotations(session)
+        mesh = _clone_mesh_for_service_native_snapshot(
+            session.working_mesh,
+            "preview.pose_clone",
+            "Python pose preview mesh clone fallback blocked while native mesh core is available",
+        )
         if not (session.pose_preview_enabled and session.skeleton is not None and pose_rotations):
             return mesh
-        deformed = mesh_pose_deformed_vertices(mesh, session.skeleton, pose_rotations)
+        native_deformed = apply_native_mesh_pose_preview(session.working_mesh, session.skeleton, pose_rotations)
+        if native_deformed is None:
+            if not _allow_python_pose_preview_fallback(session.working_mesh, "preview.pose_deform"):
+                raise RuntimeError("native mesh editor pose preview unavailable; Python pose preview fallback is disabled")
+            deformed = mesh_pose_deformed_vertices(mesh, session.skeleton, pose_rotations)
+        else:
+            deformed = native_deformed
         for submesh_index, vertices in deformed.items():
             if 0 <= submesh_index < len(mesh.submeshes):
                 mesh.submeshes[submesh_index].vertices = list(vertices)
         if deformed:
-            recompute_mesh_normals(mesh)
+            native_normals = apply_native_mesh_recalculate_normals(mesh, deformed.keys())
+            if native_normals is None:
+                if not _allow_python_pose_preview_fallback(mesh, "preview.pose_normals"):
+                    raise RuntimeError("native mesh editor pose preview normals unavailable; Python pose preview fallback is disabled")
+                recompute_mesh_normals(mesh)
             refresh_mesh_totals(mesh)
         return mesh
 
+    def pose_preview_native_context(
+        self,
+        session_id: str,
+    ) -> tuple[ParsedMesh, object, Mapping[int, tuple[float, float, float]]] | None:
+        session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            raise RuntimeError("native mesh editor pose preview unavailable; Python mesh state is stale")
+        pose_rotations = _effective_pose_rotations(session)
+        if not (session.pose_preview_enabled and session.skeleton is not None and pose_rotations):
+            return None
+        return session.working_mesh, session.skeleton, pose_rotations
+
     def base_mesh(self, session_id: str, *, clone: bool = False) -> ParsedMesh:
         mesh = self._session(session_id).base_mesh
-        return clone_mesh_for_editing(mesh) if clone else mesh
+        if not clone:
+            return mesh
+        return _clone_mesh_for_service_native_snapshot(
+            mesh,
+            "session.base_mesh_clone",
+            "Python base mesh clone fallback blocked while native mesh core is available",
+        )
 
     def workspace_summary(self, session_id: str) -> MeshWorkspaceSummary:
         session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            native_summary = _mesh_workspace_summary_from_native(
+                summarize_native_mesh_editor_session(session.session_id),
+                mesh_format=session.working_mesh.format,
+            )
+            if native_summary is None:
+                raise RuntimeError("native mesh editor workspace summary failed; Python mesh state is stale")
+            return native_summary
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
         return summarize_mesh_workspace(session.working_mesh, session.selection)
 
     def compare_summary(self, session_id: str) -> MeshCompareSummary:
         session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            raise RuntimeError("native mesh editor compare summary unavailable; Python mesh state is stale")
         return compare_meshes(session.base_mesh, session.working_mesh)
 
     def uv_summary(self, session_id: str) -> MeshUvSummary:
         session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            raise RuntimeError("native mesh editor UV summary unavailable; Python mesh state is stale")
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+        native_summary = summarize_native_mesh_uvs(session.working_mesh, session.selection)
+        parsed_native_summary = _mesh_uv_summary_from_native(native_summary)
+        if parsed_native_summary is not None:
+            return parsed_native_summary
         return summarize_mesh_uvs(session.working_mesh, session.selection)
 
     def select_uv_region(
@@ -181,13 +385,27 @@ class MeshService:
         operation: str = "replace",
     ) -> MeshEditResult:
         session = self._session(session_id)
-        session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
-        incoming = mesh_uv_region_selection(session.working_mesh, _vec2(uv_min), _vec2(uv_max))
-        session.selection = _prune_selection_to_mesh(
+        fallback_event_start = len(native_mesh_core_fallback_events())
+        native_vertices = select_native_mesh_uv_vertices(
             session.working_mesh,
-            _apply_selection_operation(session.selection, incoming, operation),
+            mode="region",
+            uv_min=_vec2(uv_min),
+            uv_max=_vec2(uv_max),
         )
-        return self._result(session, "select")
+        if native_vertices is None:
+            _record_blocked_python_selection_fallback(
+                session.working_mesh,
+                "uv.region",
+                "Native UV region selection is unavailable; Python selection fallback is blocked",
+            )
+            return self._result(
+                session,
+                "select",
+                status="error",
+                diagnostics=_native_blocked_fallback_diagnostics(fallback_event_start),
+            )
+        incoming = MeshEditSelection.from_maps(vertices_by_submesh=native_vertices)
+        return self._select_native_uv_vertices(session, incoming, operation, fallback_event_start)
 
     def select_uv_lasso(
         self,
@@ -197,13 +415,56 @@ class MeshService:
         operation: str = "replace",
     ) -> MeshEditResult:
         session = self._session(session_id)
-        session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
-        incoming = mesh_uv_lasso_selection(session.working_mesh, tuple(_vec2(point) for point in points))
-        session.selection = _prune_selection_to_mesh(
+        polygon = tuple(_vec2(point) for point in points)
+        fallback_event_start = len(native_mesh_core_fallback_events())
+        native_vertices = select_native_mesh_uv_vertices(
             session.working_mesh,
-            _apply_selection_operation(session.selection, incoming, operation),
+            mode="lasso",
+            points=polygon,
         )
-        return self._result(session, "select")
+        if native_vertices is None:
+            _record_blocked_python_selection_fallback(
+                session.working_mesh,
+                "uv.lasso",
+                "Native UV lasso selection is unavailable; Python selection fallback is blocked",
+            )
+            return self._result(
+                session,
+                "select",
+                status="error",
+                diagnostics=_native_blocked_fallback_diagnostics(fallback_event_start),
+            )
+        incoming = MeshEditSelection.from_maps(vertices_by_submesh=native_vertices)
+        return self._select_native_uv_vertices(session, incoming, operation, fallback_event_start)
+
+    def _select_native_uv_vertices(
+        self,
+        session: _MeshEditSession,
+        selection: MeshEditSelection,
+        operation: object,
+        fallback_event_start: int,
+    ) -> MeshEditResult:
+        selected, native_selection_groups, select_diagnostics, selection_metrics = _apply_native_editor_session_selection_operation(
+            session,
+            selection,
+            operation,
+        )
+        if selected is None:
+            return self._result(
+                session,
+                "select",
+                status="error",
+                diagnostics=_native_blocked_fallback_diagnostics(fallback_event_start) + select_diagnostics,
+                metrics=selection_metrics,
+            )
+        session.selection = selected
+        return self._result(
+            session,
+            "select",
+            diagnostics=_native_blocked_fallback_diagnostics(fallback_event_start) + select_diagnostics,
+            native_selection_groups=native_selection_groups,
+            metrics=selection_metrics,
+        )
 
     def skeleton_summary(
         self,
@@ -218,6 +479,8 @@ class MeshService:
         socket_source: str = "",
     ) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            raise RuntimeError("native mesh editor skeleton summary unavailable; Python mesh state is stale")
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
         return summarize_mesh_skinning(
             session.working_mesh,
@@ -253,6 +516,7 @@ class MeshService:
         socket_source: str = "",
     ) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        _require_clean_python_skeleton_state(session)
         session.skeleton = skeleton
         session.skeleton_source = str(source_path or getattr(skeleton, "path", "") or "")
         session.skeleton_descriptor_source = str(skeleton_descriptor_source or "")
@@ -264,6 +528,7 @@ class MeshService:
 
     def set_pose_preview(self, session_id: str, enabled: bool) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        _require_clean_python_skeleton_state(session)
         session.pose_preview_enabled = bool(enabled)
         return self.skeleton_summary(session_id)
 
@@ -298,6 +563,7 @@ class MeshService:
 
     def reset_pose(self, session_id: str) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        _require_clean_python_skeleton_state(session)
         session.bone_pose_rotations.clear()
         return self.skeleton_summary(session_id)
 
@@ -305,6 +571,7 @@ class MeshService:
         if not isinstance(clip, MeshAnimationClip):
             raise TypeError("animation clip must be a MeshAnimationClip")
         session = self._session(session_id)
+        _require_clean_python_skeleton_state(session)
         session.animation_clip = clip
         session.animation_time_seconds = 0.0
         session.animation_playback_enabled = False
@@ -312,6 +579,7 @@ class MeshService:
 
     def clear_animation_clip(self, session_id: str) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        _require_clean_python_skeleton_state(session)
         session.animation_clip = None
         session.animation_playback_enabled = False
         session.animation_time_seconds = 0.0
@@ -327,16 +595,19 @@ class MeshService:
 
     def set_animation_loop(self, session_id: str, enabled: bool) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        _require_clean_python_skeleton_state(session)
         session.animation_loop = bool(enabled)
         return self.skeleton_summary(session_id)
 
     def set_animation_speed(self, session_id: str, speed: object) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        _require_clean_python_skeleton_state(session)
         session.animation_speed = _coerce_animation_speed(speed)
         return self.skeleton_summary(session_id)
 
     def seek_animation(self, session_id: str, time_seconds: object) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        _require_clean_python_skeleton_state(session)
         session.animation_time_seconds = _coerce_time_seconds(time_seconds)
         if session.animation_clip is not None and self.skeleton_summary(session_id).animation_playback.ready:
             session.animation_playback_enabled = True
@@ -370,6 +641,7 @@ class MeshService:
 
     def _step_animation(self, session_id: str, delta_seconds: object, *, use_speed: bool) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        _require_clean_python_skeleton_state(session)
         delta = _coerce_time_seconds(delta_seconds)
         if use_speed:
             delta *= session.animation_speed
@@ -384,14 +656,39 @@ class MeshService:
 
     def adjust_selected_vertex_bone_weight(self, session_id: str, delta: object) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            raise RuntimeError("native mesh editor skin weight edit unavailable; Python mesh state is stale")
         bone_index = session.selected_bone_index
         amount = _coerce_weight_delta(delta)
         if bone_index < 0 or amount is None:
             return self.skeleton_summary(session_id)
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+        vertex_map = session.selection.vertex_map()
+        if vertex_map:
+            self._push_history(session, prefer_native=True)
+            native_result = apply_native_mesh_skin_weights(
+                session.working_mesh,
+                vertex_map,
+                operation="adjust",
+                bone_index=bone_index,
+                delta=amount,
+            )
+            if native_result is not None:
+                _affected, changed_vertices_by_submesh = native_result
+                if any(changed_vertices_by_submesh.values()):
+                    session.working_mesh.has_bones = True
+                    _clear_history_stack(session.redo_stack)
+                    session.revision += 1
+                    refresh_mesh_totals(session.working_mesh)
+                else:
+                    _discard_history_snapshot(session.undo_stack)
+                return self.skeleton_summary(session_id)
+            _discard_history_snapshot(session.undo_stack)
+            if not _allow_python_skin_weight_fallback(session.working_mesh, vertex_map, (), "skin_weights.adjust"):
+                raise RuntimeError("native mesh editor skin weight edit unavailable; Python skin weight fallback is disabled")
         changed = False
         pushed = False
-        for submesh_index, vertex_indices in session.selection.vertex_map().items():
+        for submesh_index, vertex_indices in vertex_map.items():
             if not 0 <= submesh_index < len(session.working_mesh.submeshes):
                 continue
             submesh = session.working_mesh.submeshes[submesh_index]
@@ -415,19 +712,43 @@ class MeshService:
                 changed = True
         if changed:
             session.working_mesh.has_bones = True
-            session.redo_stack.clear()
+            invalidate_native_mesh_session_submeshes(session.working_mesh, vertex_map.keys())
+            _clear_history_stack(session.redo_stack)
             session.revision += 1
             refresh_mesh_totals(session.working_mesh)
         elif pushed:
-            session.undo_stack.pop()
+            _discard_history_snapshot(session.undo_stack)
         return self.skeleton_summary(session_id)
 
     def normalize_selected_vertex_weights(self, session_id: str) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            raise RuntimeError("native mesh editor skin weight edit unavailable; Python mesh state is stale")
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+        vertex_map = session.selection.vertex_map()
+        if vertex_map:
+            self._push_history(session, prefer_native=True)
+            native_result = apply_native_mesh_skin_weights(
+                session.working_mesh,
+                vertex_map,
+                operation="normalize",
+            )
+            if native_result is not None:
+                _affected, changed_vertices_by_submesh = native_result
+                if any(changed_vertices_by_submesh.values()):
+                    session.working_mesh.has_bones = True
+                    _clear_history_stack(session.redo_stack)
+                    session.revision += 1
+                    refresh_mesh_totals(session.working_mesh)
+                else:
+                    _discard_history_snapshot(session.undo_stack)
+                return self.skeleton_summary(session_id)
+            _discard_history_snapshot(session.undo_stack)
+            if not _allow_python_skin_weight_fallback(session.working_mesh, vertex_map, (), "skin_weights.normalize"):
+                raise RuntimeError("native mesh editor skin weight edit unavailable; Python skin weight fallback is disabled")
         changed = False
         pushed = False
-        for submesh_index, vertex_indices in session.selection.vertex_map().items():
+        for submesh_index, vertex_indices in vertex_map.items():
             if not 0 <= submesh_index < len(session.working_mesh.submeshes):
                 continue
             submesh = session.working_mesh.submeshes[submesh_index]
@@ -451,11 +772,12 @@ class MeshService:
                 changed = True
         if changed:
             session.working_mesh.has_bones = True
-            session.redo_stack.clear()
+            invalidate_native_mesh_session_submeshes(session.working_mesh, vertex_map.keys())
+            _clear_history_stack(session.redo_stack)
             session.revision += 1
             refresh_mesh_totals(session.working_mesh)
         elif pushed:
-            session.undo_stack.pop()
+            _discard_history_snapshot(session.undo_stack)
         return self.skeleton_summary(session_id)
 
     def transfer_selected_vertex_weights_from_source(
@@ -465,11 +787,41 @@ class MeshService:
         source_skeleton: object | None = None,
     ) -> MeshSkeletonSummary:
         session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            raise RuntimeError("native mesh editor skin weight edit unavailable; Python mesh state is stale")
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
         operations_by_submesh: dict[int, list[tuple[int, tuple[int, ...], tuple[float, ...]]]] = {}
         bone_remap = _bone_name_remap(source_skeleton, session.skeleton)
         vertex_map = session.selection.vertex_map()
         selected_submeshes = set(vertex_map) | set(session.selection.source_indices)
+        if selected_submeshes:
+            invalidate_native_mesh_session_submeshes(session.working_mesh, selected_submeshes)
+            self._push_history(session, prefer_native=True)
+            native_result = transfer_native_mesh_skin_weights_from_source(
+                session.working_mesh,
+                session.base_mesh,
+                vertex_map,
+                session.selection.source_indices,
+                bone_remap=bone_remap,
+            )
+            if native_result is not None:
+                _affected, changed_vertices_by_submesh = native_result
+                if any(changed_vertices_by_submesh.values()):
+                    session.working_mesh.has_bones = True
+                    _clear_history_stack(session.redo_stack)
+                    session.revision += 1
+                    refresh_mesh_totals(session.working_mesh)
+                else:
+                    _discard_history_snapshot(session.undo_stack)
+                return self.skeleton_summary(session_id)
+            _discard_history_snapshot(session.undo_stack)
+            if not _allow_python_skin_weight_fallback(
+                session.working_mesh,
+                vertex_map,
+                session.selection.source_indices,
+                "skin_weights.transfer",
+            ):
+                raise RuntimeError("native mesh editor skin weight edit unavailable; Python skin weight fallback is disabled")
         for submesh_index in sorted(selected_submeshes):
             if not 0 <= submesh_index < len(session.working_mesh.submeshes):
                 continue
@@ -477,7 +829,7 @@ class MeshService:
                 continue
             target = session.working_mesh.submeshes[submesh_index]
             source = session.base_mesh.submeshes[submesh_index]
-            source_vertices = tuple(source.vertices or ())
+            source_vertices = source.vertices or ()
             if not source_vertices or not source.bone_indices or not source.bone_weights:
                 continue
             operations: list[tuple[int, tuple[int, ...], tuple[float, ...]]] = []
@@ -508,13 +860,19 @@ class MeshService:
                 target.bone_indices[vertex_index] = next_indices
                 target.bone_weights[vertex_index] = next_weights
         session.working_mesh.has_bones = True
-        session.redo_stack.clear()
+        invalidate_native_mesh_session_submeshes(session.working_mesh, operations_by_submesh.keys())
+        _clear_history_stack(session.redo_stack)
         session.revision += 1
         refresh_mesh_totals(session.working_mesh)
         return self.skeleton_summary(session_id)
 
     def texture_edit_target(self, session_id: str) -> MeshTextureEditTarget | None:
         session = self._session(session_id)
+        if session.native_editor_mesh_dirty:
+            return _mesh_texture_edit_target_from_native_summary(
+                summarize_native_mesh_editor_session(session.session_id),
+                session.selection,
+            )
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
         return selected_mesh_texture_edit_target(session.working_mesh, session.selection)
 
@@ -526,6 +884,8 @@ class MeshService:
         skeleton_bone_count: int | None = None,
     ) -> MeshExportValidationReport:
         session = self._session(session_id)
+        if session.native_editor_mesh_dirty and not _sync_native_editor_session_to_working_mesh(session):
+            raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
         if skeleton_bone_count is None and session.skeleton is not None:
             skeleton_bone_count = len(tuple(getattr(session.skeleton, "bones", ()) or ()))
         return validate_mesh_export(
@@ -545,21 +905,75 @@ class MeshService:
         if action == "set_mode":
             session.mode = _mode(edit_command.mode or edit_command.params.get("mode", session.mode))
             return self._result(session, action)
+        if action in _LEGACY_DISPLAY_CLEANUP_ACTIONS and not _truthy(
+            edit_command.params.get("allow_legacy_display_cleanup")
+        ):
+            raise RuntimeError(
+                f"{action} is legacy display-shape cleanup; pass allow_legacy_display_cleanup=True "
+                "from an explicit legacy/archive path"
+            )
 
-        session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+        require_native_editor_session = action in _NATIVE_EDITOR_SESSION_ACTIONS
+        if session.native_editor_mesh_dirty and action not in _NATIVE_EDITOR_SESSION_ACTIONS:
+            raise RuntimeError(
+                f"{action} cannot run while native mesh state is dirty; export/read the native mesh first"
+            )
+
         selection = _command_selection(edit_command)
         if action == "select":
-            selection = _prune_selection_to_mesh(session.working_mesh, selection or MeshEditSelection())
-            session.selection = _prune_selection_to_mesh(
-                session.working_mesh,
-                _apply_selection_operation(
-                    session.selection,
-                    selection,
-                    edit_command.params.get("operation", edit_command.params.get("selection_operation", "replace")),
-                ),
+            params = dict(edit_command.params or {})
+            selection_metrics: dict[str, float] = {}
+            operation = params.get("operation", params.get("selection_operation", "replace"))
+            stop_event = _stop_event_from_params(params)
+            fallback_event_start = len(native_mesh_core_fallback_events())
+            requires_native_screen_selection = isinstance(params.get("_native_screen_selection_payload"), Mapping)
+            if native_mesh_core_available():
+                native_selection_payload = _native_editor_select_payload_for_params(selection or MeshEditSelection(), params)
+                selected, native_selection_groups, select_diagnostics, selection_metrics = _apply_native_editor_session_selection_operation(
+                    session,
+                    selection or MeshEditSelection(),
+                    operation,
+                    native_selection_payload=native_selection_payload,
+                    stop_event=stop_event,
+                )
+                if selected is None:
+                    return self._result(session, action, status="error", diagnostics=select_diagnostics, metrics=selection_metrics)
+                session.selection = selected
+                return self._result(
+                    session,
+                    action,
+                    diagnostics=_native_blocked_fallback_diagnostics(fallback_event_start) + select_diagnostics,
+                    native_selection_groups=native_selection_groups,
+                    metrics=selection_metrics,
+                )
+            if requires_native_screen_selection:
+                return self._result(
+                    session,
+                    action,
+                    status="error",
+                    diagnostics=("Native screen selection is unavailable; Python selection fallback is blocked.",),
+                    metrics=selection_metrics,
+                )
+            if session.native_editor_mesh_dirty:
+                return self._result(
+                    session,
+                    action,
+                    status="error",
+                    diagnostics=("Native editor selection is unavailable and Python mesh state is stale.",),
+                )
+            return self._result(
+                session,
+                action,
+                status="error",
+                diagnostics=("Native editor selection is unavailable; Python selection fallback is blocked.",),
+                metrics=selection_metrics,
             )
-            return self._result(session, action)
-        selection = selection if selection is not None else session.selection
+        if selection is None:
+            if require_native_editor_session:
+                selection = session.selection
+            else:
+                session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+                selection = session.selection
 
         command_mode = _mode(edit_command.mode) if edit_command.mode is not None else session.mode
         required_mode = _required_mode(action)
@@ -575,63 +989,309 @@ class MeshService:
         if action == "copy_normals" and "source_mesh" not in edit_command.params:
             edit_command = replace(edit_command, params={**dict(edit_command.params or {}), "source_mesh": session.base_mesh})
 
-        topology_before = _mesh_structure_signature(session.working_mesh) if action in MESH_GEOMETRY_ACTIONS else None
+        service_started = time.perf_counter()
+        if require_native_editor_session and not native_mesh_core_available():
+            raise RuntimeError(f"native mesh editor unavailable for {action}; Python mesh-edit fallback is disabled")
+
+        topology_signature_started = time.perf_counter()
+        may_change_topology = _command_may_change_topology(action, edit_command, selection)
+        topology_before = _session_mesh_structure_signature(session) if may_change_topology else None
+        topology_signature_ms = max(0.0, (time.perf_counter() - topology_signature_started) * 1000.0)
+        history_mode = session.mode
+        history_selection = session.selection
         pushed_history = action in MESH_GEOMETRY_ACTIONS and _records_history(edit_command)
-        if pushed_history:
-            self._push_history(session)
+        native_editor_history = pushed_history and require_native_editor_session
+        defer_native_live_history = (
+            pushed_history and not native_editor_history and _can_defer_native_live_history(action, edit_command)
+        )
+        history_pushed = False
+        command_for_apply = edit_command
+        if defer_native_live_history:
+            command_for_apply = replace(
+                edit_command,
+                params={**dict(edit_command.params or {}), "_require_native_history_delta": True},
+            )
+        elif pushed_history and not native_editor_history:
+            self._push_history(session, prefer_native=True)
+            history_pushed = True
         if edit_command.mode is not None:
             session.mode = command_mode
 
+        fallback_event_start = len(native_mesh_core_fallback_events())
+        used_native_editor_session = False
+        native_editor_result: _NativeEditorApplyResult | None = None
+        native_preview_vertex_update_groups: tuple[Mapping[str, object], ...] = ()
+        native_preview_triangle_groups: tuple[Mapping[str, object], ...] = ()
+        native_submesh_counts: tuple[tuple[int, int], ...] = ()
+        result_metrics: dict[str, float] = {}
+        result_metrics["service_prepare_ms"] = max(0.0, (time.perf_counter() - service_started) * 1000.0)
+        result_metrics["service_topology_signature_ms"] = topology_signature_ms
+        dispatch_started = time.perf_counter()
         try:
-            affected, changed = apply_mesh_edit_geometry_action(session.working_mesh, edit_command, selection)
-        except Exception:
-            if pushed_history:
-                session.undo_stack.pop()
-            raise
-
-        topology_changed = topology_before is not None and _mesh_structure_signature(session.working_mesh) != topology_before
-        changed_any = bool(affected) or bool(changed) or topology_changed
-        if pushed_history and not changed_any:
-            session.undo_stack.pop()
-        elif changed_any:
-            session.redo_stack.clear()
-            session.revision += 1
-            refresh_mesh_totals(session.working_mesh)
-            session.selection = (
-                MeshEditSelection()
-                if action == "delete" and _truthy(edit_command.params.get("delete_parts"))
-                else _prune_selection_to_mesh(session.working_mesh, session.selection)
+            native_editor_result = _apply_native_editor_session_geometry_action(session, command_for_apply, selection)
+            if native_editor_result is not None:
+                affected, changed = native_editor_result.affected, native_editor_result.changed
+                native_preview_vertex_update_groups = native_editor_result.native_preview_vertex_update_groups
+                native_preview_triangle_groups = native_editor_result.native_preview_triangle_groups
+                native_submesh_counts = native_editor_result.submesh_counts
+                result_metrics.update(native_editor_result.metrics)
+                used_native_editor_session = True
+            else:
+                if require_native_editor_session:
+                    raise RuntimeError(
+                        f"native mesh editor session failed for {action}; Python mesh-edit fallback is disabled"
+                    )
+                if action not in _LEGACY_DISPLAY_CLEANUP_ACTIONS:
+                    raise RuntimeError(f"unsupported non-native mesh edit action: {action}")
+                affected, changed = apply_mesh_edit_geometry_action(session.working_mesh, command_for_apply, selection)
+        except NativeLiveHistoryUnavailable:
+            if not defer_native_live_history:
+                raise
+            fallback_snapshot = _snapshot(session, prefer_native=True)
+            self._push_history_snapshot(
+                session,
+                _MeshHistorySnapshot(
+                    mesh=fallback_snapshot.mesh,
+                    mode=history_mode,
+                    selection=history_selection,
+                    vertex_position_deltas=fallback_snapshot.vertex_position_deltas,
+                    native_submesh_snapshot=fallback_snapshot.native_submesh_snapshot,
+                ),
             )
+            history_pushed = True
+            try:
+                native_editor_result = _apply_native_editor_session_geometry_action(session, edit_command, selection)
+                if native_editor_result is not None:
+                    affected, changed = native_editor_result.affected, native_editor_result.changed
+                    native_preview_vertex_update_groups = native_editor_result.native_preview_vertex_update_groups
+                    native_preview_triangle_groups = native_editor_result.native_preview_triangle_groups
+                    native_submesh_counts = native_editor_result.submesh_counts
+                    result_metrics.update(native_editor_result.metrics)
+                    used_native_editor_session = True
+                else:
+                    if require_native_editor_session:
+                        raise RuntimeError(
+                            f"native mesh editor session failed for {action}; Python mesh-edit fallback is disabled"
+                        )
+                    if action not in _LEGACY_DISPLAY_CLEANUP_ACTIONS:
+                        raise RuntimeError(f"unsupported non-native mesh edit action: {action}")
+                    affected, changed = apply_mesh_edit_geometry_action(session.working_mesh, edit_command, selection)
+            except Exception:
+                _discard_history_snapshot(session.undo_stack)
+                history_pushed = False
+                raise
+        except Exception:
+            if history_pushed:
+                _discard_history_snapshot(session.undo_stack)
+                history_pushed = False
+            raise
+        result_metrics["service_dispatch_ms"] = max(0.0, (time.perf_counter() - dispatch_started) * 1000.0)
 
-        return self._result(
+        topology_compare_started = time.perf_counter()
+        if native_editor_result is not None and native_editor_result.topology_changed is not None:
+            topology_changed = bool(native_editor_result.topology_changed)
+            submesh_count_delta = int(native_editor_result.submesh_count_delta)
+        elif topology_before is None:
+            topology_changed = False
+            submesh_count_delta = 0
+        else:
+            topology_after = _session_mesh_structure_signature(session)
+            topology_changed = topology_after != topology_before
+            submesh_count_delta = len(topology_after) - len(topology_before)
+        result_metrics["service_topology_compare_ms"] = max(0.0, (time.perf_counter() - topology_compare_started) * 1000.0)
+        changed_any = bool(affected) or bool(changed) or topology_changed
+        diagnostics: tuple[str, ...] = ()
+        finalize_started = time.perf_counter()
+        if history_pushed and not changed_any:
+            _discard_history_snapshot(session.undo_stack)
+            history_pushed = False
+        elif changed_any:
+            if defer_native_live_history and not history_pushed:
+                native_snapshot = _native_live_history_snapshot(
+                    session,
+                    changed,
+                    mode=history_mode,
+                    selection=history_selection,
+                )
+                if native_snapshot is None:
+                    raise RuntimeError("native live edit did not provide undo history delta")
+                self._push_history_snapshot(session, native_snapshot)
+            elif used_native_editor_session and pushed_history and not history_pushed:
+                native_stroke_id = native_editor_result.native_stroke_id if native_editor_result is not None else ""
+                native_stroke_cancelled = (
+                    native_editor_result.native_stroke_cancelled if native_editor_result is not None else False
+                )
+                if native_stroke_cancelled and native_stroke_id:
+                    if (
+                        session.undo_stack
+                        and session.undo_stack[-1].native_editor_history
+                        and session.undo_stack[-1].native_editor_stroke_id == native_stroke_id
+                    ):
+                        _discard_history_snapshot(session.undo_stack)
+                elif (
+                    native_stroke_id
+                    and session.undo_stack
+                    and session.undo_stack[-1].native_editor_history
+                    and session.undo_stack[-1].native_editor_stroke_id == native_stroke_id
+                ):
+                    history_pushed = True
+                else:
+                    self._push_history_snapshot(
+                        session,
+                        _MeshHistorySnapshot(
+                            mesh=None,
+                            mode=history_mode,
+                            selection=history_selection,
+                            native_editor_history=True,
+                            native_editor_stroke_id=native_stroke_id,
+                        ),
+                    )
+                    history_pushed = True
+            if used_native_editor_session and session.native_editor_mesh_dirty:
+                tangent_indices = {int(index) for index in affected if 0 <= int(index) < len(session.working_mesh.submeshes)}
+                tangent_indices.update(
+                    int(index) for index in (changed or {}) if 0 <= int(index) < len(session.working_mesh.submeshes)
+                )
+                if topology_changed and not tangent_indices:
+                    tangent_indices.update(range(len(session.working_mesh.submeshes)))
+                invalidated_tangents = (
+                    tuple(
+                        index
+                        for index in sorted(tangent_indices)
+                        if action in _TANGENT_INVALIDATING_ACTIONS
+                        and getattr(session.working_mesh.submeshes[index], "tangents", None)
+                    )
+                )
+            else:
+                invalidated_tangents = _invalidate_tangents_after_edit(
+                    session.working_mesh,
+                    action,
+                    affected,
+                    changed,
+                    topology_changed=topology_changed,
+                )
+            if invalidated_tangents:
+                diagnostics = (
+                    f"Invalidated tangents for {len(invalidated_tangents)} part(s); run Generate Tangents before export.",
+                )
+            _clear_history_stack(session.redo_stack)
+            session.revision += 1
+            if session.native_editor_mesh_dirty:
+                _apply_native_editor_dirty_counts(session)
+            else:
+                refresh_mesh_totals(session.working_mesh)
+            if not used_native_editor_session:
+                _close_native_editor_session(session)
+            if action == "delete" and _truthy(edit_command.params.get("delete_parts")):
+                session.selection = MeshEditSelection()
+            elif used_native_editor_session and topology_changed and action == "delete":
+                session.selection = MeshEditSelection()
+            elif used_native_editor_session and topology_changed and session.native_editor_mesh_dirty:
+                pass
+            elif action in MESH_TOPOLOGY_ACTIONS or topology_changed:
+                session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+        diagnostics = _append_unique_diagnostics(
+            diagnostics,
+            _native_blocked_fallback_diagnostics(fallback_event_start),
+        )
+        result_metrics["service_finalize_ms"] = max(0.0, (time.perf_counter() - finalize_started) * 1000.0)
+
+        result_build_started = time.perf_counter()
+        result = self._result(
             session,
             action,
             affected=affected,
             changed=changed,
+            native_preview_vertex_update_groups=native_preview_vertex_update_groups,
+            native_preview_triangle_groups=native_preview_triangle_groups,
             topology_changed=topology_changed or (action in MESH_TOPOLOGY_ACTIONS and (bool(affected) or bool(changed))),
+            submesh_count_delta=submesh_count_delta,
+            submesh_counts=native_submesh_counts,
+            diagnostics=diagnostics,
+            metrics=result_metrics,
         )
+        final_metrics = dict(result.metrics)
+        final_metrics["service_result_build_ms"] = max(0.0, (time.perf_counter() - result_build_started) * 1000.0)
+        final_metrics["service_total_ms"] = max(0.0, (time.perf_counter() - service_started) * 1000.0)
+        return replace(result, metrics=final_metrics)
 
     def undo(self, session_id: str) -> MeshEditResult:
+        service_started = time.perf_counter()
         session = self._session(session_id)
         if not session.undo_stack:
             return self._result(session, "undo", status="noop")
-        session.redo_stack.append(_snapshot(session))
-        _restore_snapshot(session, session.undo_stack.pop())
+        if session.native_editor_mesh_dirty and not session.undo_stack[-1].native_editor_history:
+            raise RuntimeError("native mesh editor undo requires native history; Python mesh state is stale")
+        snapshot = session.undo_stack.pop()
+        if snapshot.native_editor_history:
+            outcome = _restore_native_editor_history(session, snapshot, "undo")
+        else:
+            outcome = _restore_snapshot(session, snapshot)
+        _dispose_history_snapshot(snapshot)
+        session.redo_stack.append(outcome.snapshot)
         session.revision += 1
-        refresh_mesh_totals(session.working_mesh)
-        session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
-        return self._result(session, "undo")
+        finalize_started = time.perf_counter()
+        if session.native_editor_mesh_dirty:
+            _apply_native_editor_dirty_counts(session)
+        else:
+            refresh_mesh_totals(session.working_mesh)
+            session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+        metrics = dict(outcome.metrics)
+        metrics["service_finalize_ms"] = max(0.0, (time.perf_counter() - finalize_started) * 1000.0)
+        result = self._result(
+            session,
+            "undo",
+            affected=outcome.affected_submesh_indices,
+            changed=outcome.changed_vertices_by_submesh,
+            native_preview_vertex_update_groups=outcome.native_preview_vertex_update_groups,
+            native_preview_triangle_groups=outcome.native_preview_triangle_groups,
+            topology_changed=outcome.topology_changed,
+            submesh_count_delta=outcome.submesh_count_delta,
+            submesh_counts=outcome.submesh_counts,
+            metrics=metrics,
+        )
+        final_metrics = dict(result.metrics)
+        final_metrics["service_total_ms"] = max(0.0, (time.perf_counter() - service_started) * 1000.0)
+        return replace(result, metrics=final_metrics)
 
     def redo(self, session_id: str) -> MeshEditResult:
+        service_started = time.perf_counter()
         session = self._session(session_id)
         if not session.redo_stack:
             return self._result(session, "redo", status="noop")
-        session.undo_stack.append(_snapshot(session))
-        _restore_snapshot(session, session.redo_stack.pop())
+        if session.native_editor_mesh_dirty and not session.redo_stack[-1].native_editor_history:
+            raise RuntimeError("native mesh editor redo requires native history; Python mesh state is stale")
+        snapshot = session.redo_stack.pop()
+        if snapshot.native_editor_history:
+            outcome = _restore_native_editor_history(session, snapshot, "redo")
+        else:
+            outcome = _restore_snapshot(session, snapshot)
+        _dispose_history_snapshot(snapshot)
+        session.undo_stack.append(outcome.snapshot)
         session.revision += 1
-        refresh_mesh_totals(session.working_mesh)
-        session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
-        return self._result(session, "redo")
+        finalize_started = time.perf_counter()
+        if session.native_editor_mesh_dirty:
+            _apply_native_editor_dirty_counts(session)
+        else:
+            refresh_mesh_totals(session.working_mesh)
+            session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+        metrics = dict(outcome.metrics)
+        metrics["service_finalize_ms"] = max(0.0, (time.perf_counter() - finalize_started) * 1000.0)
+        result = self._result(
+            session,
+            "redo",
+            affected=outcome.affected_submesh_indices,
+            changed=outcome.changed_vertices_by_submesh,
+            native_preview_vertex_update_groups=outcome.native_preview_vertex_update_groups,
+            native_preview_triangle_groups=outcome.native_preview_triangle_groups,
+            topology_changed=outcome.topology_changed,
+            submesh_count_delta=outcome.submesh_count_delta,
+            submesh_counts=outcome.submesh_counts,
+            metrics=metrics,
+        )
+        final_metrics = dict(result.metrics)
+        final_metrics["service_total_ms"] = max(0.0, (time.perf_counter() - service_started) * 1000.0)
+        return replace(result, metrics=final_metrics)
 
     def _session(self, session_id: str) -> _MeshEditSession:
         session = self._sessions.get(str(session_id))
@@ -639,10 +1299,13 @@ class MeshService:
             raise KeyError(f"Unknown mesh edit session: {session_id}")
         return session
 
-    def _push_history(self, session: _MeshEditSession) -> None:
-        session.undo_stack.append(_snapshot(session))
+    def _push_history(self, session: _MeshEditSession, *, prefer_native: bool = False) -> None:
+        self._push_history_snapshot(session, _snapshot(session, prefer_native=prefer_native))
+
+    def _push_history_snapshot(self, session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> None:
+        session.undo_stack.append(snapshot)
         if len(session.undo_stack) > max(1, int(self.max_history or 1)):
-            del session.undo_stack[0]
+            _discard_history_snapshot(session.undo_stack, 0)
 
     def _result(
         self,
@@ -651,23 +1314,39 @@ class MeshService:
         *,
         status: str = "ok",
         affected: set[int] | tuple[int, ...] = (),
-        changed: dict[int, set[int]] | None = None,
+        changed: Mapping[int, object] | None = None,
+        native_selection_groups: Sequence[Mapping[str, object]] = (),
+        native_preview_vertex_update_groups: Sequence[Mapping[str, object]] = (),
+        native_preview_triangle_groups: Sequence[Mapping[str, object]] = (),
         topology_changed: bool = False,
+        submesh_count_delta: int = 0,
+        submesh_counts: Sequence[tuple[int, int]] = (),
         diagnostics: tuple[str, ...] = (),
+        metrics: Mapping[str, object] | None = None,
     ) -> MeshEditResult:
-        changed_items = tuple(
-            (submesh_index, tuple(sorted(indices)))
-            for submesh_index, indices in sorted((changed or {}).items())
-            if indices
-        )
+        changed_items: list[tuple[int, Sequence[int] | set[int]]] = []
+        for raw_submesh_index, indices in sorted((changed or {}).items()):
+            try:
+                submesh_index = int(raw_submesh_index)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            normalized_indices = _changed_vertex_indices_for_result(indices)
+            if normalized_indices:
+                changed_items.append((submesh_index, normalized_indices))
         return MeshEditResult(
             action=action,
             status=status,
             revision=session.revision,
             affected_submesh_indices=tuple(sorted(set(affected))),
-            changed_vertices_by_submesh=changed_items,
+            changed_vertices_by_submesh=tuple(changed_items),
+            native_selection_groups=tuple(dict(group) for group in native_selection_groups),
+            native_preview_vertex_update_groups=tuple(dict(group) for group in native_preview_vertex_update_groups),
+            native_preview_triangle_groups=tuple(dict(group) for group in native_preview_triangle_groups),
             topology_changed=topology_changed,
+            submesh_count_delta=int(submesh_count_delta),
+            submesh_counts=tuple((int(vertices), int(faces)) for vertices, faces in submesh_counts),
             diagnostics=diagnostics,
+            metrics=_coerce_metrics(metrics),
         )
 
 
@@ -677,7 +1356,79 @@ def _coerce_command(command: MeshEditCommand | str) -> MeshEditCommand:
     return MeshEditCommand(action=str(command))
 
 
-def _snapshot(session: _MeshEditSession) -> _MeshHistorySnapshot:
+def _snapshot(session: _MeshEditSession, *, prefer_native: bool = False) -> _MeshHistorySnapshot:
+    if _service_session_native_clone_supported(session.working_mesh):
+        native_snapshot = snapshot_native_mesh_submeshes(session.working_mesh)
+        if native_snapshot is not None:
+            return _MeshHistorySnapshot(
+                mesh=None,
+                mode=session.mode,
+                selection=session.selection,
+                native_submesh_snapshot=native_snapshot,
+            )
+        if not _allow_python_history_snapshot_fallback(session.working_mesh, "history.snapshot"):
+            raise RuntimeError("native mesh history snapshot capture failed and Python fallback was blocked")
+    return _clone_history_snapshot_for_python_fallback(session)
+
+
+def _clone_mesh_pair_for_session_open(mesh: ParsedMesh) -> tuple[ParsedMesh, ParsedMesh]:
+    if not _service_session_native_clone_supported(mesh):
+        return _clone_mesh_pair_for_service_python_fallback(
+            mesh,
+            "session.open_clone_unsupported_topology",
+            "Python edit-session open clone fallback used for unsupported topology",
+            guard_native_supported=False,
+        )
+    native_snapshot: Mapping[str, object] | None = None
+    try:
+        native_snapshot = snapshot_native_mesh_submeshes(mesh)
+        if native_snapshot is not None:
+            working_mesh = ParsedMesh()
+            base_mesh = ParsedMesh()
+            if (
+                restore_native_mesh_submesh_snapshot(working_mesh, native_snapshot)
+                and restore_native_mesh_submesh_snapshot(base_mesh, native_snapshot)
+            ):
+                refresh_mesh_totals(working_mesh)
+                refresh_mesh_totals(base_mesh)
+                return working_mesh, base_mesh
+    except Exception:
+        pass
+    finally:
+        if native_snapshot is not None:
+            dispose_native_mesh_submesh_snapshot(native_snapshot)
+    return _clone_mesh_pair_for_service_python_fallback(
+        mesh,
+        "session.open_clone",
+        "Python edit-session open clone fallback blocked while native mesh core is available",
+    )
+
+
+def _clone_mesh_for_service_native_snapshot(mesh: ParsedMesh, operation: str, reason: str) -> ParsedMesh:
+    if not _service_session_native_clone_supported(mesh):
+        return _clone_mesh_for_service_python_fallback(
+            mesh,
+            f"{operation}.unsupported_topology",
+            reason,
+            guard_native_supported=False,
+        )
+    native_snapshot: Mapping[str, object] | None = None
+    try:
+        native_snapshot = snapshot_native_mesh_submeshes(mesh)
+        if native_snapshot is not None:
+            restored_mesh = ParsedMesh()
+            if restore_native_mesh_submesh_snapshot(restored_mesh, native_snapshot):
+                refresh_mesh_totals(restored_mesh)
+                return restored_mesh
+    except Exception:
+        pass
+    finally:
+        if native_snapshot is not None:
+            dispose_native_mesh_submesh_snapshot(native_snapshot)
+    return _clone_mesh_for_service_python_fallback(mesh, operation, reason)
+
+
+def _clone_history_snapshot_for_python_fallback(session: _MeshEditSession) -> _MeshHistorySnapshot:
     return _MeshHistorySnapshot(
         mesh=clone_mesh_for_editing(session.working_mesh),
         mode=session.mode,
@@ -685,10 +1436,1544 @@ def _snapshot(session: _MeshEditSession) -> _MeshHistorySnapshot:
     )
 
 
-def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> None:
-    session.working_mesh = snapshot.mesh
+def _clone_mesh_pair_for_service_python_fallback(
+    mesh: ParsedMesh,
+    operation: str,
+    reason: str,
+    *,
+    guard_native_supported: bool = True,
+) -> tuple[ParsedMesh, ParsedMesh]:
+    if guard_native_supported and not _allow_python_service_clone_fallback(mesh, operation, reason):
+        raise RuntimeError("native edit-session clone failed and Python fallback was blocked")
+    return clone_mesh_for_editing(mesh), clone_mesh_for_editing(mesh)
+
+
+def _clone_mesh_for_service_python_fallback(
+    mesh: ParsedMesh,
+    operation: str,
+    reason: str,
+    *,
+    guard_native_supported: bool = True,
+) -> ParsedMesh:
+    if guard_native_supported and not _allow_python_service_clone_fallback(mesh, operation, reason):
+        raise RuntimeError("native mesh clone failed and Python fallback was blocked")
+    return clone_mesh_for_editing(mesh)
+
+
+def _service_session_native_clone_supported(mesh: ParsedMesh) -> bool:
+    for submesh in mesh.submeshes or ():
+        vertex_count = len(submesh.vertices or ())
+        for raw_face in submesh.faces or ():
+            if len(raw_face) != 3:
+                return False
+            for raw_index in raw_face:
+                try:
+                    vertex_index = int(raw_index)
+                except (TypeError, ValueError, OverflowError):
+                    return False
+                if vertex_index < 0 or vertex_index >= vertex_count:
+                    return False
+    return True
+
+
+def _dispose_history_snapshot(snapshot: _MeshHistorySnapshot) -> None:
+    if snapshot.native_submesh_snapshot is not None:
+        dispose_native_mesh_submesh_snapshot(snapshot.native_submesh_snapshot)
+    disposed_sparse_ids: set[str] = set()
+    for delta in snapshot.vertex_position_deltas:
+        snapshot_id = str(delta.native_sparse_snapshot_id or "").strip()
+        if snapshot_id and snapshot_id not in disposed_sparse_ids:
+            dispose_native_mesh_sparse_vertex_snapshot(snapshot_id)
+            disposed_sparse_ids.add(snapshot_id)
+
+
+def _discard_history_snapshot(stack: list[_MeshHistorySnapshot], index: int = -1) -> None:
+    snapshot = stack.pop(index)
+    _dispose_history_snapshot(snapshot)
+
+
+def _clear_history_stack(stack: list[_MeshHistorySnapshot]) -> None:
+    while stack:
+        _discard_history_snapshot(stack)
+
+
+def _restore_native_editor_history(
+    session: _MeshEditSession,
+    snapshot: _MeshHistorySnapshot,
+    action: str,
+) -> _MeshRestoreOutcome:
+    if not session.native_editor_session_ready:
+        raise RuntimeError("native mesh editor history is unavailable for this session")
+    current_mode = session.mode
+    current_selection = session.selection
+    dirty_at_start = session.native_editor_mesh_dirty
+    before_signature = (
+        session.native_editor_mesh_dirty_counts
+        if dirty_at_start and session.native_editor_mesh_dirty_counts
+        else _mesh_structure_signature(session.working_mesh)
+    )
+    command = "redo" if action == "redo" else "undo"
+    native_history_started = time.perf_counter()
+    report = (
+        redo_native_mesh_editor_session(session.session_id, timeout_seconds=20.0)
+        if command == "redo"
+        else undo_native_mesh_editor_session(session.session_id, timeout_seconds=20.0)
+    )
+    native_history_roundtrip_ms = max(0.0, (time.perf_counter() - native_history_started) * 1000.0)
+    if report is None:
+        raise RuntimeError(f"native mesh editor {command} failed")
+    native_preview_vertex_update_groups = native_mesh_editor_session_preview_vertex_update_groups(report)
+    native_preview_triangle_groups = native_mesh_editor_session_preview_triangle_groups(report)
+    apply_started = time.perf_counter()
+    current_submesh_count = len(before_signature)
+    dirty_counts = _native_editor_dirty_counts_from_report(
+        report,
+        current_submesh_count=current_submesh_count,
+    )
+    if dirty_counts:
+        session.native_editor_mesh_dirty = True
+        session.native_editor_mesh_dirty_counts = dirty_counts
+        _apply_native_editor_dirty_counts(session)
+        applied = (
+            _native_editor_report_affected_indices(report, len(dirty_counts)),
+            _native_editor_report_changed_vertices(report, dirty_counts),
+        )
+    else:
+        session.native_editor_session_ready = False
+        raise RuntimeError(f"native mesh editor {command} did not return dirty submesh counts")
+    python_apply_ms = max(0.0, (time.perf_counter() - apply_started) * 1000.0)
+    if not session.native_editor_mesh_dirty:
+        session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
+    affected, changed_vertices_by_submesh = applied
     session.mode = snapshot.mode
     session.selection = snapshot.selection
+    after_signature = session.native_editor_mesh_dirty_counts if session.native_editor_mesh_dirty else _mesh_structure_signature(session.working_mesh)
+    topology_changed, topology_affected, submesh_count_delta = _restore_topology_delta(
+        before_signature,
+        after_signature,
+    )
+    metrics = _native_editor_metrics(report)
+    metrics["native_history_roundtrip_ms"] = native_history_roundtrip_ms
+    metrics["native_history_overhead_ms"] = max(
+        0.0,
+        native_history_roundtrip_ms - metrics.get("cpp_ms", 0.0) - metrics.get("io_serialization_ms", 0.0),
+    )
+    metrics["python_apply_ms"] = python_apply_ms
+    metrics["python_apply_deferred"] = 1.0 if session.native_editor_mesh_dirty else 0.0
+    return _MeshRestoreOutcome(
+        snapshot=_MeshHistorySnapshot(
+            mesh=None,
+            mode=current_mode,
+            selection=current_selection,
+            native_editor_history=True,
+            native_editor_stroke_id=snapshot.native_editor_stroke_id,
+        ),
+        changed_vertices_by_submesh=dict(changed_vertices_by_submesh),
+        native_preview_vertex_update_groups=native_preview_vertex_update_groups,
+        native_preview_triangle_groups=native_preview_triangle_groups,
+        topology_changed=topology_changed,
+        affected_submesh_indices=set(affected) | topology_affected,
+        submesh_count_delta=submesh_count_delta,
+        submesh_counts=after_signature,
+        metrics=metrics,
+    )
+
+
+def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> _MeshRestoreOutcome:
+    current_mode = session.mode
+    current_selection = session.selection
+    before_signature = _mesh_structure_signature(session.working_mesh)
+    changed_vertices_by_submesh: dict[int, Sequence[int] | set[int]] = {}
+    if snapshot.mesh is not None:
+        current_snapshot = _snapshot(session)
+        session.working_mesh = snapshot.mesh
+    elif snapshot.native_submesh_snapshot is not None:
+        current_snapshot = _snapshot(session, prefer_native=True)
+        if not restore_native_mesh_submesh_snapshot(session.working_mesh, snapshot.native_submesh_snapshot):
+            raise RuntimeError("native mesh history snapshot restore failed")
+    elif snapshot.vertex_position_deltas:
+        current_deltas = _restore_vertex_position_deltas(session.working_mesh, snapshot.vertex_position_deltas)
+        current_snapshot = _MeshHistorySnapshot(
+            mesh=None,
+            mode=current_mode,
+            selection=current_selection,
+            vertex_position_deltas=current_deltas,
+        )
+        changed_vertices_by_submesh = _changed_vertices_from_deltas(
+            session.working_mesh,
+            current_deltas or snapshot.vertex_position_deltas,
+        )
+    else:
+        current_snapshot = _snapshot(session)
+    session.mode = snapshot.mode
+    session.selection = snapshot.selection
+    after_signature = _mesh_structure_signature(session.working_mesh)
+    topology_changed, affected_submesh_indices, submesh_count_delta = _restore_topology_delta(
+        before_signature,
+        after_signature,
+    )
+    return _MeshRestoreOutcome(
+        snapshot=current_snapshot,
+        changed_vertices_by_submesh=changed_vertices_by_submesh,
+        topology_changed=topology_changed,
+        affected_submesh_indices=affected_submesh_indices,
+        submesh_count_delta=submesh_count_delta,
+        submesh_counts=after_signature,
+    )
+
+
+def _restore_topology_delta(
+    before: tuple[tuple[int, int], ...],
+    after: tuple[tuple[int, int], ...],
+) -> tuple[bool, set[int], int]:
+    if before == after:
+        return False, set(), 0
+    affected = {
+        index
+        for index in range(min(len(before), len(after)))
+        if before[index] != after[index]
+    }
+    affected.update(range(min(len(before), len(after)), max(len(before), len(after))))
+    return True, affected, len(after) - len(before)
+
+
+def _changed_vertices_from_deltas(
+    mesh: ParsedMesh,
+    deltas: tuple[_MeshVertexPositionDelta, ...],
+) -> dict[int, Sequence[int] | set[int]]:
+    changed: dict[int, Sequence[int] | set[int]] = {}
+    for delta in deltas:
+        submesh_index = int(delta.submesh_index)
+        if not 0 <= submesh_index < len(mesh.submeshes):
+            continue
+        vertex_count = len(mesh.submeshes[submesh_index].vertices or ())
+        if (
+            isinstance(delta.vertex_indices, range)
+            and delta.vertex_indices.step == 1
+            and delta.vertex_indices.start >= 0
+            and delta.vertex_indices.stop <= vertex_count
+        ):
+            changed[submesh_index] = delta.vertex_indices
+            continue
+        indices = {
+            int(index)
+            for index in delta.vertex_indices
+            if 0 <= int(index) < vertex_count
+        }
+        if indices:
+            changed[submesh_index] = indices
+    return changed
+
+
+def _changed_vertex_indices_for_result(indices: object) -> Sequence[int] | set[int]:
+    if isinstance(indices, range):
+        if indices.step != 1 or indices.start < 0 or len(indices) <= 0:
+            return ()
+        return indices
+    if isinstance(indices, Mapping):
+        descriptor = _changed_vertex_descriptor_for_result(indices)
+        if descriptor is not None:
+            return descriptor  # type: ignore[return-value]
+        for start_key, count_key in (
+            ("changed_vertex_start", "changed_vertex_count"),
+            ("vertex_index_start", "vertex_index_count"),
+            ("source_vertex_start", "source_vertex_count"),
+        ):
+            try:
+                start = int(indices.get(start_key, -1))
+                count = int(indices.get(count_key, 0))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if start >= 0 and count > 0:
+                return range(start, start + count)
+        return ()
+    if isinstance(indices, set) and len(indices) > _CHANGED_VERTEX_RESULT_TUPLE_LIMIT:
+        return indices
+    normalized: set[int] = set()
+    try:
+        iterator = iter(indices)  # type: ignore[arg-type]
+    except TypeError:
+        return ()
+    for raw_index in iterator:
+        try:
+            index = int(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if index >= 0:
+            normalized.add(index)
+    return tuple(sorted(normalized))
+
+
+def _changed_vertex_descriptor_for_result(indices: Mapping[object, object]) -> dict[str, object] | None:
+    for key in ("changed_vertices_binary", "source_vertex_indices_binary"):
+        descriptor = indices.get(key)
+        if isinstance(descriptor, Mapping) and str(descriptor.get("path") or "").strip():
+            result = {str(item_key): item_value for item_key, item_value in descriptor.items()}
+            result.setdefault("components", 1)
+            result.setdefault("type", "i32")
+            return {key: result}
+    if str(indices.get("path") or "").strip():
+        result = {str(item_key): item_value for item_key, item_value in indices.items()}
+        result.setdefault("components", 1)
+        result.setdefault("type", "i32")
+        return {"changed_vertices_binary": result}
+    return None
+
+
+def _close_native_editor_session(session: _MeshEditSession) -> None:
+    if not session.native_editor_session_ready:
+        return
+    close_native_mesh_editor_session(session.session_id, timeout_seconds=2.0)
+    session.native_editor_session_ready = False
+    session.native_editor_selection_signature = ()
+    session.native_editor_active_stroke_id = ""
+    session.native_editor_mesh_signature = ()
+    session.native_editor_mesh_dirty = False
+    session.native_editor_mesh_dirty_counts = ()
+
+
+def _refresh_native_editor_session_if_mesh_changed(session: _MeshEditSession) -> None:
+    if not session.native_editor_session_ready:
+        return
+    if session.native_editor_mesh_dirty:
+        return
+    current = _native_editor_mesh_storage_signature(session.working_mesh)
+    if current != session.native_editor_mesh_signature:
+        _close_native_editor_session(session)
+
+
+def _native_editor_report_submesh_counts(report: Mapping[str, object], expected_count: int) -> tuple[tuple[int, int], ...]:
+    raw_items = report.get("submeshes")
+    if not isinstance(raw_items, list) or expected_count < 0:
+        return ()
+    counts: list[tuple[int, int] | None] = [None] * expected_count
+    ordered_counts: list[tuple[int, int]] = []
+    for raw_item in raw_items:
+        if not isinstance(raw_item, Mapping):
+            continue
+        index = _coerce_index(raw_item.get("index"))
+        vertex_count = _coerce_index(raw_item.get("vertex_count"))
+        face_count = _coerce_index(raw_item.get("face_count"))
+        if index is None or vertex_count is None or face_count is None:
+            continue
+        if vertex_count < 0 or face_count < 0:
+            continue
+        item_counts = (vertex_count, face_count)
+        ordered_counts.append(item_counts)
+        if 0 <= index < expected_count:
+            counts[index] = item_counts
+    if any(item is None for item in counts):
+        return tuple(ordered_counts) if len(ordered_counts) == expected_count else ()
+    return tuple(item for item in counts if item is not None)
+
+
+def _apply_native_editor_dirty_counts(session: _MeshEditSession) -> None:
+    counts = session.native_editor_mesh_dirty_counts
+    if not counts:
+        return
+    session.working_mesh.total_vertices = sum(vertex_count for vertex_count, _ in counts)
+    session.working_mesh.total_faces = sum(face_count for _, face_count in counts)
+
+
+def _require_clean_python_skeleton_state(session: _MeshEditSession) -> None:
+    if session.native_editor_mesh_dirty:
+        raise RuntimeError("native mesh editor skeleton controls unavailable; Python mesh state is stale")
+
+
+def _sync_native_editor_session_to_working_mesh(session: _MeshEditSession) -> bool:
+    if not session.native_editor_mesh_dirty:
+        return True
+    if not session.native_editor_session_ready:
+        return False
+    if not export_native_mesh_editor_session_to_mesh(session.working_mesh, session.session_id, timeout_seconds=20.0):
+        session.native_editor_session_ready = False
+        session.native_editor_selection_signature = ()
+        session.native_editor_active_stroke_id = ""
+        return False
+    refresh_mesh_totals(session.working_mesh)
+    session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+    session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
+    session.native_editor_mesh_dirty = False
+    session.native_editor_mesh_dirty_counts = ()
+    return True
+
+
+def _native_editor_mesh_storage_signature(mesh: ParsedMesh) -> tuple[object, ...]:
+    signature: list[object] = [len(mesh.submeshes or ())]
+    for submesh in mesh.submeshes or ():
+        for attr_name in (
+            "vertices",
+            "faces",
+            "normals",
+            "uvs",
+            "tangents",
+            "bone_indices",
+            "bone_weights",
+            "source_vertex_map",
+            "source_vertex_offsets",
+        ):
+            values = getattr(submesh, attr_name, ()) or ()
+            signature.extend((len(values), id(values)))
+        signature.extend(
+            (
+                str(getattr(submesh, "name", "") or ""),
+                str(getattr(submesh, "material", "") or ""),
+                str(getattr(submesh, "texture", "") or ""),
+            )
+        )
+    return tuple(signature)
+
+
+def _apply_native_editor_session_selection_operation(
+    session: _MeshEditSession,
+    selection: MeshEditSelection,
+    operation: object,
+    *,
+    native_selection_payload: Mapping[str, object] | None = None,
+    stop_event: object | None = None,
+) -> tuple[MeshEditSelection | None, tuple[Mapping[str, object], ...], tuple[str, ...], dict[str, float]]:
+    metrics: dict[str, float] = {}
+    try:
+        _refresh_native_editor_session_if_mesh_changed(session)
+        if not session.native_editor_session_ready:
+            if session.native_editor_mesh_dirty:
+                return None, (), ("Native editor selection failed; resident C++ mesh is dirty and Python mesh state is stale.",), metrics
+            open_started = time.perf_counter()
+            opened = open_native_mesh_editor_session(
+                session.working_mesh,
+                session.session_id,
+                stop_event=stop_event,  # type: ignore[arg-type]
+                timeout_seconds=10.0,
+            )
+            open_roundtrip_ms = max(0.0, (time.perf_counter() - open_started) * 1000.0)
+            if opened is None:
+                session.native_editor_session_ready = False
+                session.native_editor_selection_signature = ()
+                session.native_editor_active_stroke_id = ""
+                return None, (), ("Native editor selection session failed to open; Python fallback is disabled while native core is available.",), metrics
+            session.native_editor_session_ready = True
+            session.native_editor_selection_signature = ()
+            session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
+            metrics.update(_prefixed_metrics(_native_editor_metrics(opened), "editor_open"))
+            metrics["editor_open_roundtrip_ms"] = open_roundtrip_ms
+        select_started = time.perf_counter()
+        selected = select_native_mesh_editor_session(
+            session.session_id,
+            native_selection_payload if native_selection_payload is not None else _native_editor_selection_payload(selection),
+            operation=operation,
+            iterations=1,
+            stop_event=stop_event,  # type: ignore[arg-type]
+            timeout_seconds=5.0,
+        )
+        select_roundtrip_ms = max(0.0, (time.perf_counter() - select_started) * 1000.0)
+        if selected is None:
+            session.native_editor_session_ready = False
+            session.native_editor_selection_signature = ()
+            session.native_editor_active_stroke_id = ""
+            return None, (), ("Native editor selection command failed; Python fallback is disabled while native core is available.",), metrics
+        selected_payload = native_mesh_editor_session_selection_from_report(selected)
+        if selected_payload is None:
+            session.native_editor_session_ready = False
+            session.native_editor_selection_signature = ()
+            session.native_editor_active_stroke_id = ""
+            return None, (), ("Native editor selection command returned an invalid selection report.",), metrics
+        result = MeshEditSelection.from_maps(
+            vertices_by_submesh=selected_payload.get("vertices_by_submesh"),  # type: ignore[arg-type]
+            edges_by_submesh=selected_payload.get("edges_by_submesh"),  # type: ignore[arg-type]
+            faces_by_submesh=selected_payload.get("faces_by_submesh"),  # type: ignore[arg-type]
+            source_indices=selected_payload.get("source_indices"),  # type: ignore[arg-type]
+        )
+        native_selection_groups = native_mesh_editor_session_selection_groups_from_report(selected)
+        select_metrics = _native_editor_metrics(selected)
+        metrics.update(select_metrics)
+        metrics.update(_prefixed_metrics(select_metrics, "editor_select"))
+        try:
+            source_pick_count = selected.get("source_pick_count") if isinstance(selected, Mapping) else None
+            if source_pick_count is not None:
+                metrics["editor_select_source_pick_count"] = float(source_pick_count)
+        except (TypeError, ValueError):
+            pass
+        metrics["editor_select_roundtrip_ms"] = select_roundtrip_ms
+        metrics["editor_select_resident_operation"] = 1.0
+        session.native_editor_selection_signature = _mesh_edit_selection_signature(result)
+        return result, native_selection_groups, (), metrics
+    except RunCancelled:
+        session.native_editor_session_ready = False
+        raise
+
+
+def _native_editor_report_affected_indices(report: Mapping[str, object], submesh_count: int) -> set[int]:
+    affected: set[int] = set()
+    raw_affected = report.get("affected_submesh_indices")
+    if isinstance(raw_affected, list):
+        for raw_index in raw_affected:
+            index = _coerce_index(raw_index)
+            if index is not None and 0 <= index < submesh_count:
+                affected.add(index)
+    edit_report = report.get("edit_report")
+    raw_items = edit_report.get("submeshes") if isinstance(edit_report, Mapping) else None
+    if isinstance(raw_items, list):
+        for raw_item in raw_items:
+            if not isinstance(raw_item, Mapping):
+                continue
+            index = _coerce_index(raw_item.get("index"))
+            if index is not None and 0 <= index < submesh_count:
+                affected.add(index)
+    return affected
+
+
+def _native_editor_report_changed_vertices(
+    report: Mapping[str, object],
+    submesh_counts: Sequence[tuple[int, int]],
+) -> dict[int, Sequence[int] | set[int]]:
+    edit_report = report.get("edit_report")
+    raw_items = edit_report.get("submeshes") if isinstance(edit_report, Mapping) else None
+    if not isinstance(raw_items, list):
+        return {}
+    changed: dict[int, Sequence[int] | set[int]] = {}
+    for raw_item in raw_items:
+        if not isinstance(raw_item, Mapping):
+            continue
+        submesh_index = _coerce_index(raw_item.get("index"))
+        if submesh_index is None or not 0 <= submesh_index < len(submesh_counts):
+            continue
+        indices = _changed_vertex_indices_for_result(raw_item)
+        if not indices and isinstance(raw_item.get("changed_vertices"), list):
+            indices = _changed_vertex_indices_for_result(raw_item.get("changed_vertices"))
+        if not indices:
+            continue
+        bounded = _bounded_native_editor_changed_vertices(indices, submesh_counts[submesh_index][0])
+        if bounded:
+            changed[submesh_index] = bounded
+    return changed
+
+
+def _bounded_native_editor_changed_vertices(
+    indices: object,
+    vertex_count: int,
+) -> Sequence[int] | set[int]:
+    if isinstance(indices, Mapping):
+        return indices  # type: ignore[return-value]
+    if isinstance(indices, range):
+        if indices.step != 1:
+            return ()
+        start = max(0, int(indices.start))
+        stop = min(max(0, int(vertex_count)), int(indices.stop))
+        return range(start, stop) if start < stop else ()
+    bounded: set[int] = set()
+    try:
+        iterator = iter(indices)  # type: ignore[arg-type]
+    except TypeError:
+        return ()
+    for raw_index in iterator:
+        try:
+            index = int(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if 0 <= index < vertex_count:
+            bounded.add(index)
+    return bounded
+
+
+def _native_editor_dirty_counts_from_report(
+    report: Mapping[str, object],
+    *,
+    current_submesh_count: int,
+) -> tuple[tuple[int, int], ...]:
+    report_submesh_count = _coerce_index(report.get("submesh_count"))
+    if report_submesh_count is None or report_submesh_count < 0:
+        return ()
+    if report_submesh_count != current_submesh_count and not bool(report.get("topology_changed")):
+        return ()
+    counts = _native_editor_report_submesh_counts(report, report_submesh_count)
+    return counts
+
+
+def _apply_native_editor_session_geometry_action(
+    session: _MeshEditSession,
+    command: MeshEditCommand,
+    selection: MeshEditSelection,
+) -> _NativeEditorApplyResult | None:
+    action = command.action.strip().lower()
+    if action not in _NATIVE_EDITOR_SESSION_ACTIONS:
+        return None
+    if not native_mesh_core_available():
+        return None
+    params = dict(command.params or {})
+    stop_event = _stop_event_from_params(params)
+    dirty_at_start = session.native_editor_mesh_dirty
+    if dirty_at_start and (not session.native_editor_session_ready or (action == "delete" and _truthy(params.get("delete_parts")))):
+        return None
+    stroke_phase = _native_editor_stroke_phase(params)
+    stroke_id = _native_editor_stroke_id(params)
+    reuse_selection = (
+        stroke_phase in {"update", "end", "cancel"}
+        and not isinstance(params.get("_native_selection_payload"), Mapping)
+        and bool(stroke_id)
+        and stroke_id == session.native_editor_active_stroke_id
+        and session.native_editor_session_ready
+        and bool(session.native_editor_selection_signature)
+    )
+    if reuse_selection:
+        selection_payload: dict[str, object] = {}
+        selection_signature: tuple[object, ...] = ()
+    elif _can_reuse_native_stroke_begin_mesh_selection(session, params, selection):
+        selection_payload = {}
+        selection_signature = session.native_editor_selection_signature
+        reuse_selection = True
+    else:
+        selection_signature = _native_editor_selection_signature_for_apply(selection, params)
+        reuse_selection = (
+            _can_reuse_native_live_stroke_selection(session, params, selection_signature)
+            or _can_reuse_native_stroke_begin_selection(session, params, selection_signature)
+        )
+        selection_payload = {} if reuse_selection else _native_editor_selection_payload_for_apply(selection, params)
+    try:
+        _refresh_native_editor_session_if_mesh_changed(session)
+        if reuse_selection and not session.native_editor_session_ready:
+            reuse_selection = False
+            selection_payload = _native_editor_selection_payload_for_apply(selection, params)
+            selection_signature = _native_editor_selection_signature_for_apply(selection, params)
+        if not session.native_editor_session_ready:
+            open_started = time.perf_counter()
+            opened = open_native_mesh_editor_session(
+                session.working_mesh,
+                session.session_id,
+                stop_event=stop_event,  # type: ignore[arg-type]
+                timeout_seconds=10.0,
+            )
+            open_roundtrip_ms = max(0.0, (time.perf_counter() - open_started) * 1000.0)
+            if opened is None:
+                return None
+            session.native_editor_session_ready = True
+            session.native_editor_selection_signature = ()
+            session.native_editor_active_stroke_id = ""
+            session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
+        else:
+            open_roundtrip_ms = 0.0
+        select_roundtrip_ms = 0.0
+        selection_inlined = not reuse_selection
+        edit_payload = _native_editor_edit_payload(action, params)
+        if action == "copy_normals":
+            source_mesh = params.get("source_mesh")
+            if isinstance(source_mesh, ParsedMesh):
+                source_normals = native_mesh_editor_source_normals_payload(
+                    source_mesh,
+                    _native_editor_selection_target_indices(selection),
+                )
+                if source_normals:
+                    edit_payload["source_normals_by_submesh"] = source_normals
+        native_before_submesh_count = (
+            len(session.native_editor_mesh_dirty_counts)
+            if dirty_at_start and session.native_editor_mesh_dirty_counts
+            else len(session.working_mesh.submeshes or ())
+        )
+        native_apply_started = time.perf_counter()
+        report = apply_native_mesh_editor_session(
+            session.session_id,
+            edit_payload,
+            selection=selection_payload if selection_inlined else None,
+            include_preview_deltas=bool(params.get("_include_preview_deltas", True)),
+            stroke_phase=stroke_phase,
+            stroke_id=stroke_id,
+            stop_event=stop_event,  # type: ignore[arg-type]
+            timeout_seconds=20.0,
+        )
+        native_apply_roundtrip_ms = max(0.0, (time.perf_counter() - native_apply_started) * 1000.0)
+        if report is None:
+            session.native_editor_session_ready = False
+            return None
+        native_preview_vertex_update_groups = native_mesh_editor_session_preview_vertex_update_groups(report)
+        native_preview_triangle_groups = native_mesh_editor_session_preview_triangle_groups(report)
+        report_submesh_count = _coerce_index(report.get("submesh_count"))
+        native_submesh_counts = (
+            _native_editor_report_submesh_counts(report, report_submesh_count)
+            if report_submesh_count is not None and report_submesh_count >= 0
+            else ()
+        )
+        current_submesh_count = native_before_submesh_count
+        dirty_counts = _native_editor_dirty_counts_from_report(
+            report,
+            current_submesh_count=current_submesh_count,
+        )
+        apply_started = time.perf_counter()
+        if dirty_counts:
+            session.native_editor_mesh_dirty = True
+            session.native_editor_mesh_dirty_counts = dirty_counts
+            _apply_native_editor_dirty_counts(session)
+            applied = (
+                _native_editor_report_affected_indices(report, len(dirty_counts)),
+                _native_editor_report_changed_vertices(report, dirty_counts),
+            )
+        else:
+            session.native_editor_session_ready = False
+            return None
+        python_apply_ms = max(0.0, (time.perf_counter() - apply_started) * 1000.0)
+        if not session.native_editor_mesh_dirty:
+            session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
+    except RunCancelled:
+        session.native_editor_session_ready = False
+        session.native_editor_selection_signature = ()
+        session.native_editor_active_stroke_id = ""
+        session.native_editor_mesh_dirty = False
+        session.native_editor_mesh_dirty_counts = ()
+        raise
+    affected, changed = applied
+    metrics = _native_editor_metrics(report)
+    stroke_metrics, native_stroke_id, native_stroke_phase, native_stroke_cancelled = _native_editor_stroke_metrics(report)
+    metrics.update(stroke_metrics)
+    metrics["python_apply_ms"] = python_apply_ms
+    metrics["python_apply_deferred"] = 1.0 if session.native_editor_mesh_dirty else 0.0
+    metrics["editor_open_roundtrip_ms"] = open_roundtrip_ms
+    metrics["editor_select_roundtrip_ms"] = select_roundtrip_ms
+    metrics["editor_select_reused"] = 1.0 if reuse_selection else 0.0
+    metrics["editor_select_inlined"] = 1.0 if selection_inlined else 0.0
+    metrics["native_apply_roundtrip_ms"] = native_apply_roundtrip_ms
+    metrics["native_apply_overhead_ms"] = max(
+        0.0,
+        native_apply_roundtrip_ms - metrics.get("cpp_ms", 0.0) - metrics.get("io_serialization_ms", 0.0),
+    )
+    if native_stroke_phase == "begin" and native_stroke_id:
+        session.native_editor_active_stroke_id = native_stroke_id
+    elif native_stroke_phase in {"end", "cancel"}:
+        session.native_editor_active_stroke_id = ""
+    elif native_stroke_phase == "update" and native_stroke_id:
+        session.native_editor_active_stroke_id = native_stroke_id
+    report_topology_changed = bool(report.get("topology_changed")) if "topology_changed" in report else None
+    if report_topology_changed:
+        session.native_editor_selection_signature = ()
+    elif selection_inlined:
+        session.native_editor_selection_signature = selection_signature
+    return _NativeEditorApplyResult(
+        set(affected),
+        dict(changed),
+        metrics,
+        native_preview_vertex_update_groups=native_preview_vertex_update_groups,
+        native_preview_triangle_groups=native_preview_triangle_groups,
+        native_stroke_id=native_stroke_id,
+        native_stroke_phase=native_stroke_phase,
+        native_stroke_cancelled=native_stroke_cancelled,
+        topology_changed=report_topology_changed,
+        submesh_count_delta=(
+            int(report_submesh_count) - native_before_submesh_count
+            if report_submesh_count is not None
+            else 0
+        ),
+        submesh_counts=dirty_counts or native_submesh_counts,
+    )
+
+
+def _native_editor_selection_payload(selection: MeshEditSelection) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "vertices_by_submesh": selection.vertex_map(),
+        "edges_by_submesh": selection.edge_map(),
+        "faces_by_submesh": selection.face_map(),
+    }
+    if selection.source_indices:
+        payload["source_indices"] = selection.source_indices
+    return payload
+
+
+def _native_editor_select_payload_for_params(
+    selection: MeshEditSelection,
+    params: Mapping[str, object],
+) -> dict[str, object]:
+    raw_payload = params.get("_native_selection_payload")
+    payload = dict(raw_payload) if isinstance(raw_payload, Mapping) else _native_editor_selection_payload(selection)
+    raw_screen_payload = params.get("_native_screen_selection_payload")
+    if isinstance(raw_screen_payload, Mapping):
+        _add_native_editor_screen_selection_payload(payload, raw_screen_payload)
+    return payload
+
+
+def _add_native_editor_screen_selection_payload(
+    payload: dict[str, object],
+    raw_screen_payload: Mapping[str, object],
+) -> dict[str, object]:
+    raw_screen_brush = raw_screen_payload.get("screen_brush")
+    if isinstance(raw_screen_brush, Mapping):
+        payload["screen_brush"] = _native_editor_screen_payload(raw_screen_brush)
+    raw_screen_region = raw_screen_payload.get("screen_region")
+    if isinstance(raw_screen_region, Mapping):
+        payload["screen_region"] = _native_editor_screen_payload(raw_screen_region)
+    if "falloff" in raw_screen_payload:
+        payload["falloff"] = str(raw_screen_payload.get("falloff") or "smooth")
+    if "target_mode" in raw_screen_payload:
+        payload["target_mode"] = str(raw_screen_payload.get("target_mode") or "vertex")
+    if "selection_depth_mode" in raw_screen_payload:
+        payload["selection_depth_mode"] = str(raw_screen_payload.get("selection_depth_mode") or "visible")
+    return payload
+
+
+def _native_editor_screen_payload(payload: Mapping[object, object]) -> dict[object, object]:
+    return {key: value for key, value in payload.items() if str(key) not in _LEGACY_SCREEN_CAMERA_FIELDS}
+
+
+def _native_editor_selection_target_indices(selection: MeshEditSelection) -> set[int]:
+    result = {_coerce_index(index) for index in selection.source_indices}
+    for mapping in (selection.vertex_map(), selection.edge_map(), selection.face_map()):
+        result.update(_coerce_index(index) for index in mapping)
+    return {index for index in result if index is not None and index >= 0}
+
+
+def _native_editor_edit_payload(action: str, params: Mapping[str, object]) -> dict[str, object]:
+    if action == "transform":
+        return _native_editor_transform_payload(params)
+    payload: dict[str, object] = {
+        "operation": "compact_orphans" if action == "delete_loose_vertices" else action
+    }
+    for key, value in params.items():
+        key_text = str(key)
+        if key in {"stop_event", "source_mesh", "stroke_phase", "stroke_id"} or key_text.startswith("_"):
+            continue
+        json_value = _native_editor_json_value(value)
+        if json_value is not None:
+            if key_text in _NATIVE_EDITOR_SCREEN_PAYLOAD_KEYS and isinstance(json_value, Mapping):
+                payload[key_text] = _native_editor_screen_payload(json_value)
+            else:
+                payload[key_text] = json_value
+    if action == "material_assign":
+        material_extra_attrs = _native_editor_material_extra_attrs(params)
+        if material_extra_attrs:
+            payload["material_extra_attrs"] = material_extra_attrs
+    if action in MESH_TOPOLOGY_ACTIONS:
+        payload["suppress_vertex_remap_report"] = True
+    return payload
+
+
+def _native_editor_material_extra_attrs(params: Mapping[str, object]) -> dict[str, object]:
+    attrs: dict[str, object] = {}
+    profile = _first_param(params, "material_authority_profile", "material_profile", "complete_swap_material_profile")
+    contract = _first_param(params, "authority_contract", "material_authority_contract")
+    if not contract and profile:
+        contract = complete_swap_material_authority_contract(profile)
+    if profile:
+        attrs["cdmw_material_authority_profile"] = str(profile)
+    if contract:
+        attrs["cdmw_material_authority_contract"] = sanitize_texture_component(contract)
+    for param_key, attr_name in (
+        ("source_material_name", "cdmw_source_material_name"),
+        ("target_material_name", "cdmw_target_material_name"),
+        ("slot_kind", "cdmw_material_slot_kind"),
+        ("source_texture_set_key", "cdmw_source_texture_set_key"),
+        ("route_status", "cdmw_material_route_status"),
+        ("route_reason", "cdmw_material_route_reason"),
+    ):
+        if param_key in params:
+            attrs[attr_name] = _material_route_value(params[param_key])
+    slot_index = _first_param(params, "target_material_slot_index", "material_slot_index")
+    if slot_index is not None:
+        attrs["cdmw_target_material_slot_index"] = _optional_int(slot_index)
+    overrides: dict[str, object] = {}
+    raw_overrides = _first_param(params, "preview_native_material_overrides", "native_material_overrides")
+    if isinstance(raw_overrides, Mapping):
+        overrides.update({str(key): value for key, value in raw_overrides.items()})
+    for key in _NATIVE_MATERIAL_OVERRIDE_KEYS:
+        if key in params:
+            overrides[key] = params[key]
+    if overrides:
+        attrs["preview_native_material_overrides"] = overrides
+    result: dict[str, object] = {}
+    for key, value in attrs.items():
+        json_value = _native_editor_json_value(value)
+        if json_value is not None:
+            result[key] = json_value
+    return result
+
+
+def _first_param(params: Mapping[str, object], *keys: str) -> object:
+    for key in keys:
+        if key in params:
+            return params[key]
+    return None
+
+
+def _material_route_value(value: object) -> object:
+    return value.strip() if isinstance(value, str) else value
+
+
+def _optional_int(value: object) -> int:
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return -1
+
+
+def _native_editor_transform_payload(params: Mapping[str, object]) -> dict[str, object]:
+    translate = _native_editor_transform_vec3_payload(
+        params.get("translate", params.get("delta", (0.0, 0.0, 0.0))),
+        fallback=(0.0, 0.0, 0.0),
+    )
+    scale = _native_editor_transform_vec3_payload(
+        params.get("scale", (1.0, 1.0, 1.0)),
+        fallback=(1.0, 1.0, 1.0),
+    )
+    rotate = _native_editor_transform_vec3_payload(
+        params.get("rotate", params.get("rotate_degrees", (0.0, 0.0, 0.0))),
+        fallback=(0.0, 0.0, 0.0),
+    )
+    pivot_value = params.get("pivot")
+    payload: dict[str, object] = {
+        "operation": "transform",
+        "translate": translate,
+        "scale": scale,
+        "rotate": rotate,
+        "pivot": _native_editor_vec3(pivot_value) if pivot_value is not None else (0.0, 0.0, 0.0),
+        "pivot_from_selection": pivot_value is None,
+        "snap": _native_editor_positive_float(params.get("snap", params.get("snap_increment", 0.0))),
+        "mirror_x": bool(params.get("mirror_x", False)) and scale == (1.0, 1.0, 1.0) and rotate == (0.0, 0.0, 0.0),
+        "recompute_normals": bool(params.get("recompute_normals", True)),
+    }
+    axis = str(params.get("axis", params.get("constraint_axis", "")) or "").strip().lower()
+    if axis:
+        payload["axis"] = axis
+    screen_drag = _native_editor_json_value(params.get("screen_drag"))
+    if isinstance(screen_drag, Mapping):
+        payload["screen_drag"] = _native_editor_screen_payload(screen_drag)
+    mirror_pairs = _native_editor_mirror_pairs_by_submesh(params.get("mirror_pairs_by_submesh"))
+    if mirror_pairs:
+        payload["mirror_pairs_by_submesh"] = mirror_pairs
+    return payload
+
+
+def _native_editor_transform_vec3_payload(
+    value: object,
+    *,
+    fallback: tuple[float, float, float],
+) -> object:
+    parsed = _native_editor_json_value(value)
+    if isinstance(parsed, Mapping):
+        return parsed
+    if isinstance(parsed, list) and len(parsed) >= 3:
+        return tuple(parsed[:3])
+    return fallback
+
+
+def _native_editor_stroke_phase(params: Mapping[str, object]) -> str | None:
+    value = params.get("stroke_phase")
+    if value is None:
+        return None
+    text = str(value or "").strip().lower()
+    return text or None
+
+
+def _native_editor_stroke_id(params: Mapping[str, object]) -> str | None:
+    value = params.get("stroke_id")
+    if value is None:
+        return None
+    text = str(value or "").strip()
+    return text or None
+
+
+def _mesh_edit_selection_signature(selection: MeshEditSelection) -> tuple[object, ...]:
+    return (
+        selection.vertices_by_submesh,
+        selection.edges_by_submesh,
+        selection.faces_by_submesh,
+        selection.source_indices,
+    )
+
+
+def _native_editor_selection_payload_for_apply(
+    selection: MeshEditSelection,
+    params: Mapping[str, object],
+) -> dict[str, object]:
+    raw_screen_payload = params.get("_native_screen_selection_payload")
+    if isinstance(raw_screen_payload, Mapping):
+        raw_payload = params.get("_native_selection_payload")
+        payload = dict(raw_payload) if isinstance(raw_payload, Mapping) else {}
+        return _add_native_editor_binary_vertex_selection_payload(
+            _add_native_editor_screen_selection_payload(payload, raw_screen_payload),
+            params,
+        )
+    payload = params.get("_native_selection_payload")
+    if isinstance(payload, Mapping):
+        return _add_native_editor_binary_vertex_selection_payload(dict(payload), params)
+    return _add_native_editor_binary_vertex_selection_payload(_native_editor_selection_payload(selection), params)
+
+
+def _add_native_editor_binary_vertex_selection_payload(
+    payload: dict[str, object],
+    params: Mapping[str, object],
+) -> dict[str, object]:
+    raw = params.get("native_selected_vertices_binary_by_submesh")
+    if not isinstance(raw, Mapping):
+        return payload
+    existing = payload.get("vertices_by_submesh")
+    vertices_by_submesh = dict(existing) if isinstance(existing, Mapping) else {}
+    for raw_submesh_index, raw_descriptor in raw.items():
+        descriptor = _native_editor_json_value(raw_descriptor)
+        if isinstance(descriptor, Mapping):
+            vertices_by_submesh[str(raw_submesh_index)] = {"selected_vertices_binary": dict(descriptor)}
+    if vertices_by_submesh:
+        payload["vertices_by_submesh"] = vertices_by_submesh
+    return payload
+
+
+def _native_editor_selection_signature_for_apply(
+    selection: MeshEditSelection,
+    params: Mapping[str, object],
+) -> tuple[object, ...]:
+    if isinstance(params.get("_native_screen_selection_payload"), Mapping):
+        return ("native-screen", _freeze_native_selection_value(_native_editor_selection_payload_for_apply(selection, params)))
+    payload = params.get("_native_selection_payload")
+    if isinstance(payload, Mapping):
+        return ("native", _freeze_native_selection_value(_add_native_editor_binary_vertex_selection_payload(dict(payload), params)))
+    return ("selection", _freeze_native_selection_value(_native_editor_selection_payload_for_apply(selection, params)))
+
+
+def _freeze_native_selection_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return tuple(sorted((str(key), _freeze_native_selection_value(item)) for key, item in value.items()))
+    if isinstance(value, (str, bytes)):
+        return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+    try:
+        return tuple(_freeze_native_selection_value(item) for item in value)  # type: ignore[arg-type]
+    except TypeError:
+        return value
+
+
+def _can_reuse_native_live_stroke_selection(
+    session: _MeshEditSession,
+    params: Mapping[str, object],
+    selection_signature: tuple[object, ...],
+) -> bool:
+    phase = _native_editor_stroke_phase(params)
+    if phase not in {"update", "end", "cancel"}:
+        return False
+    stroke_id = _native_editor_stroke_id(params)
+    if not stroke_id or stroke_id != session.native_editor_active_stroke_id:
+        return False
+    if phase in {"end", "cancel"} and not isinstance(params.get("_native_selection_payload"), Mapping):
+        return bool(session.native_editor_session_ready and session.native_editor_selection_signature)
+    return bool(
+        session.native_editor_session_ready
+        and session.native_editor_selection_signature
+        and selection_signature == session.native_editor_selection_signature
+    )
+
+
+def _can_reuse_native_stroke_begin_selection(
+    session: _MeshEditSession,
+    params: Mapping[str, object],
+    selection_signature: tuple[object, ...],
+) -> bool:
+    if _native_editor_stroke_phase(params) != "begin":
+        return False
+    if isinstance(params.get("_native_selection_payload"), Mapping):
+        return False
+    if isinstance(params.get("_native_screen_selection_payload"), Mapping):
+        return False
+    return bool(
+        session.native_editor_session_ready
+        and session.native_editor_selection_signature
+        and _native_editor_selection_signature_matches_resident(session.native_editor_selection_signature, selection_signature)
+    )
+
+
+def _can_reuse_native_stroke_begin_mesh_selection(
+    session: _MeshEditSession,
+    params: Mapping[str, object],
+    selection: MeshEditSelection,
+) -> bool:
+    if _native_editor_stroke_phase(params) != "begin":
+        return False
+    if isinstance(params.get("_native_selection_payload"), Mapping):
+        return False
+    if isinstance(params.get("_native_screen_selection_payload"), Mapping):
+        return False
+    if isinstance(params.get("native_selected_vertices_binary_by_submesh"), Mapping):
+        return False
+    return bool(
+        session.native_editor_session_ready
+        and session.native_editor_selection_signature
+        and session.native_editor_selection_signature == _mesh_edit_selection_signature(selection)
+    )
+
+
+def _native_editor_selection_signature_matches_resident(
+    resident_signature: tuple[object, ...],
+    selection_signature: tuple[object, ...],
+) -> bool:
+    if selection_signature == resident_signature:
+        return True
+    return (
+        len(selection_signature) == 2
+        and selection_signature[0] == "selection"
+        and selection_signature[1] == resident_signature
+    )
+
+
+def _native_editor_vec3(value: object, fallback: tuple[float, float, float] = (0.0, 0.0, 0.0)) -> tuple[float, float, float]:
+    if isinstance(value, (str, bytes)):
+        return fallback
+    if isinstance(value, Mapping):
+        items = (value.get("x"), value.get("y"), value.get("z"))
+    else:
+        try:
+            items = tuple(value)  # type: ignore[arg-type]
+        except TypeError:
+            return fallback
+    if len(items) < 3:
+        return fallback
+    result: list[float] = []
+    for item in items[:3]:
+        if isinstance(item, bool):
+            return fallback
+        try:
+            number = float(item)  # type: ignore[arg-type]
+        except (TypeError, ValueError, OverflowError):
+            return fallback
+        if not math.isfinite(number):
+            return fallback
+        result.append(number)
+    return (result[0], result[1], result[2])
+
+
+def _native_editor_positive_float(value: object) -> float:
+    if isinstance(value, bool):
+        return 0.0
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    return number if math.isfinite(number) and number > 0.0 else 0.0
+
+
+def _native_editor_mirror_pairs_by_submesh(value: object) -> dict[str, list[list[int]]]:
+    if not isinstance(value, Mapping):
+        return {}
+    result: dict[str, list[list[int]]] = {}
+    for raw_submesh, raw_pairs in value.items():
+        submesh_index = _coerce_index(raw_submesh)
+        if submesh_index is None or submesh_index < 0 or not isinstance(raw_pairs, Mapping):
+            continue
+        pairs: list[list[int]] = []
+        for raw_left, raw_right in raw_pairs.items():
+            left = _coerce_index(raw_left)
+            right = _coerce_index(raw_right)
+            if left is not None and right is not None and left >= 0 and right >= 0:
+                pairs.append([left, right])
+        if pairs:
+            result[str(submesh_index)] = pairs
+    return result
+
+
+def _native_editor_metrics(report: Mapping[str, object]) -> dict[str, float]:
+    raw_metrics = report.get("metrics")
+    return _coerce_metrics(raw_metrics if isinstance(raw_metrics, Mapping) else None)
+
+
+def _native_editor_stroke_metrics(report: Mapping[str, object]) -> tuple[dict[str, float], str, str, bool]:
+    raw_stroke = report.get("stroke")
+    if not isinstance(raw_stroke, Mapping):
+        return {}, "", "", False
+    stroke_id = str(raw_stroke.get("stroke_id") or "").strip()
+    phase = str(raw_stroke.get("phase") or "").strip().lower()
+    update_count = _coerce_index(raw_stroke.get("update_count"))
+    metrics = {
+        "native_stroke_active": 1.0 if bool(raw_stroke.get("active")) else 0.0,
+        "native_stroke_history_coalesced": 1.0 if bool(raw_stroke.get("history_coalesced")) else 0.0,
+        "native_stroke_history_cancelled": 1.0 if bool(raw_stroke.get("history_cancelled")) else 0.0,
+    }
+    if update_count is not None and update_count >= 0:
+        metrics["native_stroke_update_count"] = float(update_count)
+    return metrics, stroke_id, phase, bool(raw_stroke.get("history_cancelled"))
+
+
+def _prefixed_metrics(metrics: Mapping[str, float], prefix: str) -> dict[str, float]:
+    return {f"{prefix}_{key}": value for key, value in metrics.items()}
+
+
+def _coerce_metrics(metrics: Mapping[str, object] | None) -> dict[str, float]:
+    result: dict[str, float] = {}
+    for key, value in dict(metrics or {}).items():
+        try:
+            parsed = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if math.isfinite(parsed):
+            result[str(key)] = parsed
+    return result
+
+
+def _native_editor_json_value(value: object) -> object | None:
+    if value is None or isinstance(value, (bool, str)):
+        return value
+    if isinstance(value, (int, float)):
+        number = float(value)
+        return value if math.isfinite(number) else None
+    if isinstance(value, Mapping):
+        result: dict[str, object] = {}
+        for key, item in value.items():
+            parsed = _native_editor_json_value(item)
+            if parsed is not None:
+                result[str(key)] = parsed
+        return result
+    if isinstance(value, (tuple, list)):
+        result: list[object] = []
+        for item in value:
+            parsed = _native_editor_json_value(item)
+            if parsed is not None:
+                result.append(parsed)
+        return result
+    return None
+
+
+def _can_defer_native_live_history(action: str, command: MeshEditCommand) -> bool:
+    if action not in {"transform", "brush"}:
+        return False
+    return True
+
+
+def _stop_event_from_params(params: Mapping[str, object]) -> object | None:
+    candidate = params.get("stop_event") if isinstance(params, Mapping) else None
+    return candidate if callable(getattr(candidate, "is_set", None)) else None
+
+
+def _native_live_history_snapshot(
+    session: _MeshEditSession,
+    changed: Mapping[int, object] | None,
+    *,
+    mode: str,
+    selection: MeshEditSelection,
+) -> _MeshHistorySnapshot | None:
+    deltas: list[_MeshVertexPositionDelta] = []
+    for submesh_index in sorted(changed or {}):
+        if not 0 <= int(submesh_index) < len(session.working_mesh.submeshes):
+            continue
+        submesh = session.working_mesh.submeshes[int(submesh_index)]
+        raw_delta = getattr(submesh, NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR, None)
+        if hasattr(submesh, NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR):
+            delattr(submesh, NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR)
+        delta = _coerce_vertex_position_delta(raw_delta, int(submesh_index), len(submesh.vertices or ()))
+        if delta is None:
+            return None
+        deltas.append(delta)
+    if not deltas:
+        return None
+    return _MeshHistorySnapshot(
+        mesh=None,
+        mode=mode,
+        selection=selection,
+        vertex_position_deltas=tuple(deltas),
+    )
+
+
+def _coerce_vertex_position_delta(
+    raw_delta: object,
+    submesh_index: int,
+    vertex_count: int,
+) -> _MeshVertexPositionDelta | None:
+    if not isinstance(raw_delta, Mapping):
+        return None
+    indices = _vertex_indices_from_delta_descriptor(raw_delta, vertex_count)
+    if indices is None:
+        return None
+    native_sparse_snapshot_id = str(raw_delta.get("native_sparse_snapshot_id") or "").strip()
+    raw_positions_binary = raw_delta.get("before_positions_binary")
+    if isinstance(raw_positions_binary, Mapping):
+        raw_path = str(raw_positions_binary.get("path") or "").strip()
+        count = _coerce_index(raw_positions_binary.get("count"))
+        components = _coerce_index(raw_positions_binary.get("components"))
+        kind = str(raw_positions_binary.get("type") or "f64").strip().lower()
+        if not raw_path or count != len(indices) or components not in (None, 3) or kind != "f64":
+            return None
+        return _MeshVertexPositionDelta(
+            submesh_index=submesh_index,
+            vertex_indices=indices,
+            positions=(),
+            native_sparse_snapshot_id=native_sparse_snapshot_id,
+            before_positions_binary={
+                "path": raw_path,
+                "count": len(indices),
+                "components": 3,
+                "type": "f64",
+            },
+        )
+    if native_sparse_snapshot_id and raw_delta.get("before_positions") is None:
+        return _MeshVertexPositionDelta(
+            submesh_index=submesh_index,
+            vertex_indices=indices,
+            positions=(),
+            native_sparse_snapshot_id=native_sparse_snapshot_id,
+        )
+    positions = native_mesh_history_delta_positions(raw_delta)
+    if positions is None or len(positions) != len(indices):
+        return None
+    return _MeshVertexPositionDelta(
+        submesh_index=submesh_index,
+        vertex_indices=indices,
+        positions=tuple(positions),
+        native_sparse_snapshot_id=native_sparse_snapshot_id,
+    )
+
+
+def _vertex_indices_from_delta_descriptor(raw_delta: Mapping[str, object], vertex_count: int) -> Sequence[int] | None:
+    try:
+        if "vertex_index_start" in raw_delta or "vertex_index_count" in raw_delta:
+            raw_start = raw_delta.get("vertex_index_start", -1)
+            raw_count = raw_delta.get("vertex_index_count", 0)
+            start = int(raw_start if raw_start is not None else -1)
+            count = int(raw_count if raw_count is not None else 0)
+            if start < 0 or count <= 0 or start + count > max(0, int(vertex_count)):
+                return None
+            return range(start, start + count)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    raw_indices = raw_delta.get("vertex_indices")
+    if not isinstance(raw_indices, (tuple, list, range)):
+        return None
+    indices: list[int] = []
+    seen: set[int] = set()
+    for raw_index in raw_indices:
+        try:
+            index = int(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if index < 0 or index >= vertex_count or index in seen:
+            return None
+        indices.append(index)
+        seen.add(index)
+    if len(indices) != len(raw_indices):
+        return None
+    return tuple(indices) if not isinstance(raw_indices, range) else raw_indices
+
+
+def _delta_vertex_indices_payload(vertex_indices: Sequence[int]) -> dict[str, object]:
+    if isinstance(vertex_indices, range) and vertex_indices.step == 1 and vertex_indices.start >= 0 and len(vertex_indices) > 0:
+        return {
+            "vertex_index_start": int(vertex_indices.start),
+            "vertex_index_count": len(vertex_indices),
+        }
+    return {"vertex_indices": tuple(int(index) for index in vertex_indices)}
+
+
+def _vertex_position(value: object) -> tuple[float, float, float] | None:
+    try:
+        position = (float(value[0]), float(value[1]), float(value[2]))  # type: ignore[index]
+    except (TypeError, ValueError, OverflowError, IndexError):
+        return None
+    if not all(math.isfinite(component) for component in position):
+        return None
+    return position
+
+
+def _current_vertex_position_deltas(
+    mesh: ParsedMesh,
+    template_deltas: tuple[_MeshVertexPositionDelta, ...],
+) -> tuple[_MeshVertexPositionDelta, ...]:
+    current: list[_MeshVertexPositionDelta] = []
+    for delta in template_deltas:
+        if not 0 <= delta.submesh_index < len(mesh.submeshes):
+            continue
+        submesh = mesh.submeshes[delta.submesh_index]
+        vertices = submesh.vertices or ()
+        positions: list[tuple[float, float, float]] = []
+        for index in delta.vertex_indices:
+            if not 0 <= index < len(vertices):
+                continue
+            position = _vertex_position(vertices[index])
+            if position is not None:
+                positions.append(position)
+        if len(positions) == len(delta.vertex_indices):
+            current.append(
+                _MeshVertexPositionDelta(
+                    submesh_index=delta.submesh_index,
+                    vertex_indices=delta.vertex_indices,
+                    positions=tuple(positions),
+                )
+            )
+    return tuple(current)
+
+
+def _restore_vertex_position_deltas(
+    mesh: ParsedMesh,
+    deltas: tuple[_MeshVertexPositionDelta, ...],
+) -> tuple[_MeshVertexPositionDelta, ...]:
+    restore_positions: dict[int, object] = {}
+    for delta in deltas:
+        if not 0 <= delta.submesh_index < len(mesh.submeshes):
+            continue
+        if delta.native_sparse_snapshot_id or delta.before_positions_binary is not None:
+            group: dict[str, object] = _delta_vertex_indices_payload(delta.vertex_indices)
+            if delta.native_sparse_snapshot_id:
+                group["native_sparse_snapshot_id"] = delta.native_sparse_snapshot_id
+            if delta.before_positions_binary is not None:
+                group["before_positions_binary"] = delta.before_positions_binary
+            restore_positions[int(delta.submesh_index)] = group
+            continue
+        positions_by_vertex: dict[int, tuple[float, float, float]] = {}
+        vertex_count = len(mesh.submeshes[delta.submesh_index].vertices or ())
+        for index, position in zip(delta.vertex_indices, delta.positions):
+            if 0 <= index < vertex_count:
+                positions_by_vertex[int(index)] = position
+        if positions_by_vertex:
+            restore_positions[int(delta.submesh_index)] = positions_by_vertex
+    if not restore_positions:
+        return ()
+
+    affected: set[int] = set()
+    current_deltas: tuple[_MeshVertexPositionDelta, ...] = ()
+    native_restore = apply_native_mesh_sparse_vertex_restore(mesh, restore_positions, history_delta=True)
+    if native_restore is not None:
+        affected = {
+            int(submesh_index)
+            for submesh_index, changed_vertices in (native_restore or {}).items()
+            if changed_vertices
+        }
+        if affected:
+            captured: list[_MeshVertexPositionDelta] = []
+            for submesh_index in sorted(affected):
+                if not 0 <= submesh_index < len(mesh.submeshes):
+                    continue
+                submesh = mesh.submeshes[submesh_index]
+                raw_delta = getattr(submesh, NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR, None)
+                if hasattr(submesh, NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR):
+                    delattr(submesh, NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR)
+                delta = _coerce_vertex_position_delta(raw_delta, submesh_index, len(submesh.vertices or ()))
+                if delta is not None:
+                    captured.append(delta)
+            current_deltas = tuple(captured)
+    if not affected:
+        if not _allow_python_history_restore_fallback(mesh, deltas, "history.sparse_restore"):
+            raise RuntimeError("native sparse history restore failed and Python fallback was blocked")
+        current_deltas = _current_vertex_position_deltas(mesh, deltas)
+        for delta in deltas:
+            submesh_index = int(delta.submesh_index)
+            positions_by_vertex = _delta_positions_by_vertex(delta)
+            if not positions_by_vertex or not 0 <= submesh_index < len(mesh.submeshes):
+                continue
+            submesh = mesh.submeshes[submesh_index]
+            vertices = list(submesh.vertices or ())
+            if not vertices:
+                continue
+            changed = False
+            for index, position in positions_by_vertex.items():
+                vertices[index] = position
+                changed = True
+            if changed:
+                submesh.vertices = vertices
+                submesh.vertex_count = len(vertices)
+                affected.add(submesh_index)
+    if affected:
+        native_normals = apply_native_mesh_recalculate_normals(mesh, affected)
+        if native_normals is None:
+            if not _allow_python_history_restore_fallback(mesh, deltas, "history.restore_normals"):
+                raise RuntimeError("native history normal recompute failed and Python fallback was blocked")
+            for submesh_index in affected:
+                if 0 <= submesh_index < len(mesh.submeshes):
+                    recompute_mesh_normals(mesh)
+                    break
+    return current_deltas
+
+
+def _allow_python_history_restore_fallback(
+    mesh: ParsedMesh,
+    deltas: tuple[_MeshVertexPositionDelta, ...],
+    operation: str,
+) -> bool:
+    if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        return True
+    if not native_mesh_core_available():
+        return True
+    vertex_count = _mesh_count_hint(mesh, "total_vertices")
+    face_count = _mesh_count_hint(mesh, "total_faces")
+    changed_vertex_count = sum(len(delta.vertex_indices or ()) for delta in deltas)
+    record_native_mesh_core_fallback(
+        f"{operation}.blocked",
+        "Python mesh history restore fallback blocked while native mesh core is available",
+        vertex_count=vertex_count,
+        face_count=face_count,
+        changed_vertex_count=changed_vertex_count,
+    )
+    return False
+
+
+def _allow_python_history_snapshot_fallback(mesh: ParsedMesh, operation: str) -> bool:
+    if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        return True
+    if not native_mesh_core_available():
+        return True
+    vertex_count = _mesh_count_hint(mesh, "total_vertices")
+    face_count = _mesh_count_hint(mesh, "total_faces")
+    record_native_mesh_core_fallback(
+        f"{operation}.blocked",
+        "Python mesh history snapshot fallback blocked while native mesh core is available",
+        vertex_count=vertex_count,
+        face_count=face_count,
+    )
+    return False
+
+
+def _allow_python_service_clone_fallback(mesh: ParsedMesh, operation: str, reason: str) -> bool:
+    if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        return True
+    if not native_mesh_core_available():
+        return True
+    vertex_count = _mesh_count_hint(mesh, "total_vertices")
+    face_count = _mesh_count_hint(mesh, "total_faces")
+    record_native_mesh_core_fallback(
+        f"{operation}.blocked",
+        reason,
+        vertex_count=vertex_count,
+        face_count=face_count,
+    )
+    return False
+
+
+def _allow_python_pose_preview_fallback(mesh: ParsedMesh, operation: str) -> bool:
+    vertex_count = _mesh_count_hint(mesh, "total_vertices")
+    face_count = _mesh_count_hint(mesh, "total_faces")
+    record_native_mesh_core_fallback(
+        f"{operation}.blocked",
+        "Python pose preview fallback blocked; native mesh core is required for active Mesh Editor pose preview",
+        vertex_count=vertex_count,
+        face_count=face_count,
+        native_core_available=native_mesh_core_available(),
+        native_core_disabled=bool(os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip()),
+    )
+    return False
+
+
+def _allow_python_skin_weight_fallback(
+    mesh: ParsedMesh,
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]],
+    selected_all_submeshes: Iterable[int],
+    operation: str,
+) -> bool:
+    vertex_count = _mesh_count_hint(mesh, "total_vertices")
+    face_count = _mesh_count_hint(mesh, "total_faces")
+    selected_vertex_count = _selected_skin_weight_vertex_count(mesh, selected_vertices_by_submesh, selected_all_submeshes)
+    record_native_mesh_core_fallback(
+        f"{operation}.blocked",
+        "Python skin weight fallback blocked; native mesh core is required for active Mesh Editor skin-weight edits",
+        vertex_count=vertex_count,
+        face_count=face_count,
+        selected_vertex_count=selected_vertex_count,
+        native_core_available=native_mesh_core_available(),
+        native_core_disabled=bool(os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip()),
+    )
+    return False
+
+
+def _delta_positions_by_vertex(delta: _MeshVertexPositionDelta) -> dict[int, tuple[float, float, float]]:
+    if delta.positions:
+        return {
+            int(index): position
+            for index, position in zip(delta.vertex_indices, delta.positions)
+        }
+    raw_delta = {
+        **_delta_vertex_indices_payload(delta.vertex_indices),
+        "before_positions_binary": delta.before_positions_binary,
+    }
+    positions = native_mesh_history_delta_positions(raw_delta)
+    if positions is None or len(positions) != len(delta.vertex_indices):
+        return {}
+    return {
+        int(index): position
+        for index, position in zip(delta.vertex_indices, positions)
+    }
 
 
 def _effective_pose_rotations(session: _MeshEditSession) -> dict[int, tuple[float, float, float]]:
@@ -711,6 +2996,160 @@ def _effective_pose_rotations(session: _MeshEditSession) -> dict[int, tuple[floa
         base = rotations.get(bone_index, (0.0, 0.0, 0.0))
         rotations[bone_index] = (base[0] + manual[0], base[1] + manual[1], base[2] + manual[2])
     return rotations
+
+
+def _mesh_workspace_summary_from_native(
+    report: Mapping[str, object] | None,
+    *,
+    mesh_format: object,
+) -> MeshWorkspaceSummary | None:
+    if not isinstance(report, Mapping) or str(report.get("command") or "") != "summary":
+        return None
+    raw_parts = report.get("submeshes")
+    if not isinstance(raw_parts, list):
+        return None
+    parts: list[MeshPartSummary] = []
+    for raw_part in raw_parts:
+        if not isinstance(raw_part, Mapping):
+            return None
+        index = _coerce_index(raw_part.get("index"))
+        vertex_count = _coerce_index(raw_part.get("vertex_count"))
+        face_count = _coerce_index(raw_part.get("face_count"))
+        if index is None or vertex_count is None or face_count is None:
+            return None
+        parts.append(
+            MeshPartSummary(
+                index=index,
+                name=str(raw_part.get("name") or f"part_{index}"),
+                material=str(raw_part.get("material") or ""),
+                texture=str(raw_part.get("texture") or ""),
+                vertex_count=max(0, vertex_count),
+                face_count=max(0, face_count),
+                uv_count=max(0, _coerce_index(raw_part.get("uv_count")) or 0),
+                normal_count=max(0, _coerce_index(raw_part.get("normal_count")) or 0),
+                tangent_count=max(0, _coerce_index(raw_part.get("tangent_count")) or 0),
+                selected=bool(raw_part.get("selected")),
+                selected_vertex_count=max(0, _coerce_index(raw_part.get("selected_vertex_count")) or 0),
+                selected_edge_count=max(0, _coerce_index(raw_part.get("selected_edge_count")) or 0),
+                selected_face_count=max(0, _coerce_index(raw_part.get("selected_face_count")) or 0),
+                has_skinning=bool(raw_part.get("has_skinning")),
+            )
+        )
+    return MeshWorkspaceSummary(
+        mesh_format=str(mesh_format or "").strip().lower(),
+        part_count=len(parts),
+        vertex_count=sum(part.vertex_count for part in parts),
+        face_count=sum(part.face_count for part in parts),
+        selected_part_count=sum(1 for part in parts if part.selected),
+        parts=tuple(parts),
+    )
+
+
+def _mesh_texture_edit_target_from_native_summary(
+    report: Mapping[str, object] | None,
+    selection: MeshEditSelection,
+) -> MeshTextureEditTarget | None:
+    if not isinstance(report, Mapping) or str(report.get("command") or "") != "summary":
+        raise RuntimeError("native mesh editor texture target failed; Python mesh state is stale")
+    raw_parts = report.get("submeshes")
+    if not isinstance(raw_parts, list):
+        raise RuntimeError("native mesh editor texture target failed; Python mesh state is stale")
+    parts: dict[int, Mapping[str, object]] = {}
+    ordered_indices: list[int] = []
+    for raw_part in raw_parts:
+        if not isinstance(raw_part, Mapping):
+            raise RuntimeError("native mesh editor texture target failed; Python mesh state is stale")
+        index = _coerce_index(raw_part.get("index"))
+        if index is None or index < 0:
+            raise RuntimeError("native mesh editor texture target failed; Python mesh state is stale")
+        parts[index] = raw_part
+        ordered_indices.append(index)
+    candidates: list[int] = []
+    candidates.extend(int(index) for index in selection.source_indices)
+    candidates.extend(int(index) for index in selection.vertex_map())
+    candidates.extend(int(index) for index in selection.edge_map())
+    candidates.extend(int(index) for index in selection.face_map())
+    if candidates:
+        seen: set[int] = set()
+        ordered: list[int] = []
+        for index in candidates:
+            if index in seen:
+                continue
+            seen.add(index)
+            ordered.append(index)
+        indices = tuple(ordered)
+    else:
+        indices = tuple(ordered_indices)
+    for index in indices:
+        part = parts.get(index)
+        if part is None:
+            continue
+        texture = str(part.get("texture") or "").strip()
+        if not texture:
+            continue
+        extra_attrs = part.get("extra_attrs")
+        source_texture_set_key = (
+            str(extra_attrs.get("cdmw_source_texture_set_key") or "")
+            if isinstance(extra_attrs, Mapping)
+            else ""
+        )
+        return MeshTextureEditTarget(
+            submesh_index=index,
+            part_name=str(part.get("name") or f"part_{index}"),
+            material=str(part.get("material") or ""),
+            texture=texture,
+            source_texture_set_key=source_texture_set_key,
+        )
+    return None
+
+
+def _mesh_uv_summary_from_native(report: Mapping[str, object] | None) -> MeshUvSummary | None:
+    if not isinstance(report, Mapping) or str(report.get("operation") or "") != "uv_summary":
+        return None
+    raw_islands = report.get("islands")
+    if not isinstance(raw_islands, list):
+        return None
+    islands: list[MeshUvIslandSummary] = []
+    for raw_island in raw_islands:
+        if not isinstance(raw_island, Mapping):
+            return None
+        index = _coerce_index(raw_island.get("index"))
+        submesh_index = _coerce_index(raw_island.get("submesh_index"))
+        vertex_count = _coerce_index(raw_island.get("vertex_count"))
+        face_count = _coerce_index(raw_island.get("face_count"))
+        selected_vertex_count = _coerce_index(raw_island.get("selected_vertex_count"))
+        selected_face_count = _coerce_index(raw_island.get("selected_face_count"))
+        if (
+            index is None
+            or submesh_index is None
+            or vertex_count is None
+            or face_count is None
+            or selected_vertex_count is None
+            or selected_face_count is None
+        ):
+            return None
+        islands.append(
+            MeshUvIslandSummary(
+                index=index,
+                submesh_index=submesh_index,
+                part_name=str(raw_island.get("part_name") or f"part_{submesh_index}"),
+                material=str(raw_island.get("material") or ""),
+                texture=str(raw_island.get("texture") or ""),
+                vertex_count=max(0, vertex_count),
+                face_count=max(0, face_count),
+                uv_min=_vec2(raw_island.get("uv_min")),
+                uv_max=_vec2(raw_island.get("uv_max")),
+                selected=bool(raw_island.get("selected")),
+                selected_vertex_count=max(0, selected_vertex_count),
+                selected_face_count=max(0, selected_face_count),
+            )
+        )
+    selected_island_count = _coerce_index(report.get("selected_island_count"))
+    return MeshUvSummary(
+        island_count=len(islands),
+        selected_island_count=sum(1 for island in islands if island.selected) if selected_island_count is None else max(0, selected_island_count),
+        islands=tuple(islands),
+    )
 
 
 def _command_selection(command: MeshEditCommand) -> MeshEditSelection | None:
@@ -746,6 +3185,62 @@ def _apply_selection_operation(current: MeshEditSelection, incoming: MeshEditSel
     )
 
 
+def _apply_selection_operation_to_mesh(
+    mesh: ParsedMesh,
+    current: MeshEditSelection,
+    incoming: MeshEditSelection,
+    operation: object,
+    *,
+    stop_event: object | None = None,
+    metrics_out: dict[str, float] | None = None,
+) -> MeshEditSelection:
+    mode = str(operation or "replace").strip().lower()
+    if mode in {"grow", "shrink", "smooth"}:
+        native_selection = apply_native_mesh_selection(
+            mesh,
+            incoming.vertex_map(),
+            selected_edges_by_submesh=incoming.edge_map(),
+            selected_faces_by_submesh=incoming.face_map(),
+            source_indices=incoming.source_indices,
+            operation=mode,
+            iterations=1,
+            stop_event=stop_event,  # type: ignore[arg-type]
+            metrics_out=metrics_out,
+        )
+        if native_selection is not None:
+            return MeshEditSelection.from_maps(vertices_by_submesh=native_selection)
+        record_native_mesh_core_fallback(
+            f"selection.{mode}.blocked",
+            "Native selection edit failed; Python selection expansion fallback is disabled",
+            vertex_count=sum(len(getattr(submesh, "vertices", ()) or ()) for submesh in getattr(mesh, "submeshes", ()) or ()),
+            face_count=sum(len(getattr(submesh, "faces", ()) or ()) for submesh in getattr(mesh, "submeshes", ()) or ()),
+        )
+        return current
+    native_pruned = prune_native_mesh_selection(
+        mesh,
+        vertices_by_submesh=incoming.vertex_map(),
+        edges_by_submesh=incoming.edge_map(),
+        faces_by_submesh=incoming.face_map(),
+        source_indices=incoming.source_indices,
+        current_vertices_by_submesh=current.vertex_map(),
+        current_edges_by_submesh=current.edge_map(),
+        current_faces_by_submesh=current.face_map(),
+        current_source_indices=current.source_indices,
+        selection_operation=operation,
+        metrics_out=metrics_out,
+    )
+    if native_pruned is not None:
+        return MeshEditSelection.from_maps(
+            vertices_by_submesh=native_pruned.get("vertices_by_submesh"),  # type: ignore[arg-type]
+            edges_by_submesh=native_pruned.get("edges_by_submesh"),  # type: ignore[arg-type]
+            faces_by_submesh=native_pruned.get("faces_by_submesh"),  # type: ignore[arg-type]
+            source_indices=native_pruned.get("source_indices"),  # type: ignore[arg-type]
+        )
+    if not _allow_python_selection_fallback(mesh, "selection.prune"):
+        return _source_only_selection_after_operation(mesh, current, incoming, operation)
+    return _prune_selection_to_mesh(mesh, _apply_selection_operation(current, incoming, operation))
+
+
 def _combine_selection_map(left: dict[int, set[object]], right: dict[int, set[object]], mode: str) -> dict[int, set[object]]:
     result = {submesh: set(values) for submesh, values in left.items()}
     for submesh, values in right.items():
@@ -771,7 +3266,24 @@ def _combine_selection_values(left: set[object], right: set[object], mode: str) 
 
 
 def _prune_selection_to_mesh(mesh: ParsedMesh, selection: MeshEditSelection) -> MeshEditSelection:
-    submeshes = tuple(mesh.submeshes or ())
+    native_pruned = prune_native_mesh_selection(
+        mesh,
+        vertices_by_submesh=selection.vertex_map(),
+        edges_by_submesh=selection.edge_map(),
+        faces_by_submesh=selection.face_map(),
+        source_indices=selection.source_indices,
+    )
+    if native_pruned is not None:
+        return MeshEditSelection.from_maps(
+            vertices_by_submesh=native_pruned.get("vertices_by_submesh"),  # type: ignore[arg-type]
+            edges_by_submesh=native_pruned.get("edges_by_submesh"),  # type: ignore[arg-type]
+            faces_by_submesh=native_pruned.get("faces_by_submesh"),  # type: ignore[arg-type]
+            source_indices=native_pruned.get("source_indices"),  # type: ignore[arg-type]
+        )
+    if not _allow_python_selection_fallback(mesh, "selection.prune"):
+        return _source_only_selection_for_mesh(mesh, selection.source_indices)
+
+    submeshes = mesh.submeshes or ()
     vertices_by_submesh: dict[int, set[int]] = {}
     edges_by_submesh: dict[int, set[tuple[int, int]]] = {}
     faces_by_submesh: dict[int, set[int]] = {}
@@ -817,6 +3329,37 @@ def _prune_selection_to_mesh(mesh: ParsedMesh, selection: MeshEditSelection) -> 
     )
 
 
+def _source_only_selection_after_operation(
+    mesh: ParsedMesh,
+    current: MeshEditSelection,
+    incoming: MeshEditSelection,
+    operation: object,
+) -> MeshEditSelection:
+    mode = str(operation or "replace").strip().lower()
+    if mode == "extend":
+        mode = "add"
+    if mode == "remove":
+        mode = "subtract"
+    if mode not in {"replace", "add", "subtract", "toggle"}:
+        mode = "replace"
+    source_indices = (
+        set(incoming.source_indices)
+        if mode == "replace"
+        else _combine_selection_values(set(current.source_indices), set(incoming.source_indices), mode)
+    )
+    return _source_only_selection_for_mesh(mesh, source_indices)
+
+
+def _source_only_selection_for_mesh(mesh: ParsedMesh, source_indices: Iterable[int]) -> MeshEditSelection:
+    submesh_count = len(mesh.submeshes or ())
+    valid_sources: set[int] = set()
+    for raw_index in source_indices:
+        index = _coerce_index(raw_index)
+        if index is not None and 0 <= index < submesh_count:
+            valid_sources.add(index)
+    return MeshEditSelection.from_maps(source_indices=tuple(sorted(valid_sources)))
+
+
 def _valid_selected_edges_for_submesh(submesh: SubMesh, edges: set[tuple[int, int]]) -> set[tuple[int, int]]:
     vertex_count = len(submesh.vertices or ())
     selected = {
@@ -834,7 +3377,7 @@ def _valid_selected_edges_for_submesh(submesh: SubMesh, edges: set[tuple[int, in
 def _existing_face_edges(submesh: SubMesh) -> set[tuple[int, int]]:
     vertex_count = len(submesh.vertices or ())
     edges: set[tuple[int, int]] = set()
-    for face in tuple(submesh.faces or ()):
+    for face in submesh.faces or ():
         indices = _valid_face_vertices(face, vertex_count)
         if len(indices) == 3:
             a, b, c = indices
@@ -960,9 +3503,9 @@ def _valid_vertex_indices(submesh: SubMesh, vertex_indices: Iterable[int]) -> tu
     return tuple(sorted({int(index) for index in vertex_indices if 0 <= int(index) < vertex_count}))
 
 
-def _transfer_vertex_indices(submesh: SubMesh, selected_vertices: Iterable[int], whole_part: bool) -> tuple[int, ...]:
+def _transfer_vertex_indices(submesh: SubMesh, selected_vertices: Iterable[int], whole_part: bool) -> Sequence[int]:
     if whole_part:
-        return tuple(range(len(submesh.vertices or ())))
+        return range(len(submesh.vertices or ()))
     return _valid_vertex_indices(submesh, selected_vertices)
 
 
@@ -1000,7 +3543,7 @@ def _bone_name(bone: object) -> str:
     return str(getattr(bone, "name", "") or "").strip().lower()
 
 
-def _source_vertex_index_for_transfer(target: SubMesh, vertex_index: int, source_vertices: tuple[object, ...]) -> int:
+def _source_vertex_index_for_transfer(target: SubMesh, vertex_index: int, source_vertices: Sequence[object]) -> int:
     if 0 <= vertex_index < len(target.source_vertex_map or ()):
         mapped = _coerce_index(target.source_vertex_map[vertex_index])
         if mapped is not None and 0 <= mapped < len(source_vertices):
@@ -1128,6 +3671,97 @@ def _records_history(command: MeshEditCommand) -> bool:
     return bool(value)
 
 
+def _append_unique_diagnostics(existing: tuple[str, ...], extra: tuple[str, ...]) -> tuple[str, ...]:
+    if not extra:
+        return existing
+    result: list[str] = []
+    seen: set[str] = set()
+    for message in (*existing, *extra):
+        text = str(message or "").strip()
+        if text and text not in seen:
+            result.append(text)
+            seen.add(text)
+    return tuple(result)
+
+
+def _allow_python_selection_fallback(mesh: ParsedMesh, operation: str) -> bool:
+    if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        return True
+    if not native_mesh_core_available():
+        return True
+    _record_blocked_python_selection_fallback(
+        mesh,
+        operation,
+        "Python mesh selection fallback blocked while native mesh core is available",
+    )
+    return False
+
+
+def _record_blocked_python_selection_fallback(mesh: ParsedMesh, operation: str, reason: str) -> None:
+    vertex_count = _mesh_count_hint(mesh, "total_vertices")
+    face_count = _mesh_count_hint(mesh, "total_faces")
+    record_native_mesh_core_fallback(
+        f"{operation}.blocked",
+        reason,
+        vertex_count=vertex_count,
+        face_count=face_count,
+    )
+
+
+def _selected_skin_weight_vertex_count(
+    mesh: ParsedMesh,
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]],
+    selected_all_submeshes: Iterable[int],
+) -> int:
+    limit = _PYTHON_MESH_SELECTION_FALLBACK_VERTEX_LIMIT
+    selected = 0
+    selected_all = {index for index in (_coerce_index(value) for value in selected_all_submeshes) if index is not None}
+    for submesh_index in selected_all:
+        if 0 <= submesh_index < len(mesh.submeshes or ()):
+            selected += len(mesh.submeshes[submesh_index].vertices or ())
+            if selected > limit:
+                return selected
+    for vertex_indices in selected_vertices_by_submesh.values():
+        try:
+            selected += len(vertex_indices)  # type: ignore[arg-type]
+        except TypeError:
+            return limit + 1
+        if selected > limit:
+            return selected
+    return selected
+
+
+def _mesh_count_hint(mesh: ParsedMesh, attr: str) -> int:
+    count = _diagnostic_count(getattr(mesh, attr, 0))
+    return count if count is not None else 0
+
+
+def _native_blocked_fallback_diagnostics(event_start: int) -> tuple[str, ...]:
+    events = native_mesh_core_fallback_events()
+    recent = events[event_start:] if 0 <= event_start <= len(events) else events
+    messages: list[str] = []
+    for event in recent:
+        operation = str(event.get("operation") or "").strip()
+        if not operation.endswith(".blocked"):
+            continue
+        label = operation[: -len(".blocked")] or "mesh edit"
+        reason = str(event.get("reason") or "").strip()
+        vertex_count = _diagnostic_count(event.get("vertex_count"))
+        face_count = _diagnostic_count(event.get("face_count"))
+        size = f" ({vertex_count:,} vertices, {face_count:,} faces)" if vertex_count is not None and face_count is not None else ""
+        suffix = f" {reason}" if reason else ""
+        messages.append(f"Edit was not applied: native mesh core failed and Python fallback was blocked for {label}{size}.{suffix}")
+    return tuple(messages)
+
+
+def _diagnostic_count(value: object) -> int | None:
+    try:
+        count = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return count if count >= 0 else None
+
+
 def _truthy(value: object) -> bool:
     if isinstance(value, str):
         return value.strip().lower() not in {"", "0", "false", "no", "off"}
@@ -1136,6 +3770,53 @@ def _truthy(value: object) -> bool:
 
 def _mesh_structure_signature(mesh: ParsedMesh) -> tuple[tuple[int, int], ...]:
     return tuple((len(submesh.vertices or ()), len(submesh.faces or ())) for submesh in mesh.submeshes or ())
+
+
+def _session_mesh_structure_signature(session: _MeshEditSession) -> tuple[tuple[int, int], ...]:
+    if session.native_editor_mesh_dirty and session.native_editor_mesh_dirty_counts:
+        return session.native_editor_mesh_dirty_counts
+    return _mesh_structure_signature(session.working_mesh)
+
+
+def _command_may_change_topology(action: str, command: MeshEditCommand, selection: MeshEditSelection) -> bool:
+    if action in MESH_TOPOLOGY_ACTIONS:
+        return True
+    if action == "generate_tangents":
+        return True
+    if action in {"material_assign", "material_copy"}:
+        return bool(selection.face_map())
+    if action == "uv_transform":
+        return _truthy(command.params.get("auto_uv")) and _truthy(
+            command.params.get("allow_topology_change", command.params.get("confirm_topology_change", False))
+        )
+    return False
+
+
+def _invalidate_tangents_after_edit(
+    mesh: ParsedMesh,
+    action: str,
+    affected: set[int] | tuple[int, ...],
+    changed: Mapping[int, object] | None,
+    *,
+    topology_changed: bool,
+) -> tuple[int, ...]:
+    if action not in _TANGENT_INVALIDATING_ACTIONS:
+        return ()
+    indices = {int(index) for index in affected if 0 <= int(index) < len(mesh.submeshes)}
+    indices.update(int(index) for index in (changed or {}) if 0 <= int(index) < len(mesh.submeshes))
+    if topology_changed and not indices:
+        indices.update(range(len(mesh.submeshes)))
+    invalidated: list[int] = []
+    for index in sorted(indices):
+        submesh = mesh.submeshes[index]
+        if getattr(submesh, "tangents", None):
+            submesh.tangents = []
+            if getattr(submesh, "tangent_signs", None):
+                submesh.tangent_signs = []
+            if hasattr(submesh, "tangent_face_corner_report"):
+                delattr(submesh, "tangent_face_corner_report")
+            invalidated.append(index)
+    return tuple(invalidated)
 
 
 def _required_mode(action: str) -> str:
@@ -1147,6 +3828,7 @@ def _required_mode(action: str) -> str:
         "flip_normals",
         "sharpen_normals",
         "soften_normals",
+        "weighted_normals",
         "copy_normals",
         "uv_transform",
         "material_assign",

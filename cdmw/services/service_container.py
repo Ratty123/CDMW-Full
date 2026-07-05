@@ -5,6 +5,7 @@ from typing import Any
 
 from cdmw.services.archive_mutation_service import ArchiveMutationService
 from cdmw.services.archive_service import ArchiveService
+from cdmw.services.asset_authoring_service import AssetAuthoringService
 from cdmw.services.cache_service import CacheService
 from cdmw.services.diagnostics_service import DiagnosticsService
 from cdmw.services.filesystem_service import FilesystemService
@@ -18,6 +19,7 @@ from cdmw.services.texture_workflow_service import TextureWorkflowService
 class ServiceContainer:
     settings: Any | None = None
     archives: ArchiveService | None = None
+    asset_authoring: AssetAuthoringService | None = None
     archive_mutations: ArchiveMutationService | None = None
     textures: TextureWorkflowService | None = None
     meshes: MeshService | None = None
@@ -30,6 +32,7 @@ class ServiceContainer:
         self.settings = settings
         for service in (
             self.archives,
+            self.asset_authoring,
             self.archive_mutations,
             self.textures,
             self.meshes,
@@ -46,6 +49,7 @@ class ServiceContainer:
         return cls(
             settings=settings,
             archives=ArchiveService(settings=settings),
+            asset_authoring=AssetAuthoringService(settings=settings),
             archive_mutations=ArchiveMutationService(settings=settings),
             textures=TextureWorkflowService(settings=settings),
             meshes=MeshService(settings=settings),

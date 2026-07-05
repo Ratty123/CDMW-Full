@@ -20,6 +20,52 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 
+
+def _sorted_nonnegative_indices(raw_values: Iterable[int] | None) -> list[int]:
+    values: set[int] = set()
+    try:
+        iterator = iter(raw_values or ())
+    except TypeError:
+        return []
+    for raw_value in iterator:
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if value >= 0:
+            values.add(value)
+    return sorted(values)
+
+
+def _contiguous_nonnegative_index_range(raw_values: Iterable[int] | None) -> tuple[int, int] | None:
+    if isinstance(raw_values, range):
+        count = len(raw_values)
+        if raw_values.start >= 0 and raw_values.step == 1 and count > 0:
+            return raw_values.start, count
+        return None
+    values = _sorted_nonnegative_indices(raw_values)
+    if not values:
+        return None
+    start = values[0]
+    for offset, value in enumerate(values):
+        if value != start + offset:
+            return None
+    return start, len(values)
+
+
+def _compact_nonnegative_indices(raw_values: Iterable[int] | None) -> tuple[tuple[int, int] | None, list[int]]:
+    if isinstance(raw_values, range):
+        return _contiguous_nonnegative_index_range(raw_values), []
+    values = _sorted_nonnegative_indices(raw_values)
+    if not values:
+        return None, []
+    start = values[0]
+    for offset, value in enumerate(values):
+        if value != start + offset:
+            return None, values
+    return (start, len(values)), []
+
+
 class NativePreviewPanel(QWidget):
     view_state_changed = Signal(float, bool)
     debug_details_changed = Signal(str)
@@ -224,7 +270,7 @@ class NativePreviewPanel(QWidget):
         self._alignment_editable_range = (int(start), int(count))
 
     def set_alignment_editable_mesh_indices(self, indices: Sequence[int] | None) -> None:
-        self._alignment_editable_indices = tuple(int(index) for index in tuple(indices or ()))
+        self._alignment_editable_indices = tuple(int(index) for index in (indices or ()))
 
     def set_mesh_editing_enabled(self, _enabled: bool) -> None:
         return
@@ -252,22 +298,27 @@ class NativePreviewPanel(QWidget):
 
     def set_mesh_edit_vertex_selection(self, selected_vertices_by_submesh: Mapping[int, Iterable[int]]) -> None:
         groups = []
-        for raw_source_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
+        selected_vertex_count = 0
+        for raw_source_index, raw_vertices in (selected_vertices_by_submesh or {}).items():
             try:
                 source_index = int(raw_source_index)
             except (TypeError, ValueError):
                 continue
-            vertices = []
-            for raw_vertex in tuple(raw_vertices or ()):
-                try:
-                    vertex_index = int(raw_vertex)
-                except (TypeError, ValueError):
-                    continue
-                if vertex_index >= 0:
-                    vertices.append(vertex_index)
+            index_range, vertices = _compact_nonnegative_indices(raw_vertices)
+            if index_range is not None:
+                groups.append(
+                    {
+                        "source_submesh_index": source_index,
+                        "source_vertex_start": index_range[0],
+                        "source_vertex_count": index_range[1],
+                    }
+                )
+                selected_vertex_count += index_range[1]
+                continue
             if vertices:
-                groups.append({"source_submesh_index": source_index, "source_vertex_indices": sorted(set(vertices))})
-        self.mesh_edit_selection_changed.emit({"groups": groups, "selected_vertex_count": sum(len(group["source_vertex_indices"]) for group in groups)})
+                groups.append({"source_submesh_index": source_index, "source_vertex_indices": vertices})
+                selected_vertex_count += len(vertices)
+        self.mesh_edit_selection_changed.emit({"groups": groups, "selected_vertex_count": selected_vertex_count})
 
     def set_zoom_factor(self, zoom_factor: float) -> None:
         try:

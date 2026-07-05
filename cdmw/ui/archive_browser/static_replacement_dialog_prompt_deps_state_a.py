@@ -313,6 +313,7 @@ from cdmw.ui.archive_browser.static_replacement_preview_status_state import (
 from cdmw.ui.archive_browser.static_replacement_raw_preview_state import (
     mesh_edit_raw_preview_initial_state as _mesh_edit_raw_preview_initial_state_helper,
     mesh_edit_raw_preview_record_state as _mesh_edit_raw_preview_record_state_helper,
+    mesh_edit_raw_preview_transition_route as _mesh_edit_raw_preview_transition_route_helper,
 )
 from cdmw.ui.archive_browser.static_replacement_source_part_grouping_state import (
     source_part_assign_material_groups_to_targets as _source_part_assign_material_groups_to_targets_helper,

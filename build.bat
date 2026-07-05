@@ -76,7 +76,7 @@ if not defined MODE (
 echo.
 echo Choose a build profile:
 echo   1. Release - clean, windowed, validated; use for publishing.
-echo   2. Fast    - incremental, reuses PyInstaller cache, skips onefile archive validation; use while iterating.
+echo   2. Fast    - incremental PyInstaller build; native helpers still rebuild; skips onefile archive validation.
 echo   3. Debug   - clean, console-enabled, verbose PyInstaller logs; use for troubleshooting.
 echo   Q. Quit
 echo.
@@ -187,7 +187,7 @@ echo   onedir   Builds a folder. Faster to build/start, best for local testing.
 echo.
 echo Build profiles:
 echo   release  Clean, windowed, validates onefile archives. Use for publishing.
-echo   fast     Incremental, reuses PyInstaller cache, skips onefile archive validation.
+echo   fast     Incremental PyInstaller build; native helpers still rebuild incrementally.
 echo   debug    Clean, console-enabled, verbose PyInstaller logs. Use for troubleshooting.
 echo.
 echo Running build.bat without arguments opens the graphical builder.

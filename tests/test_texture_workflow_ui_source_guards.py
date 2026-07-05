@@ -6,9 +6,13 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAIN_WINDOW = REPO_ROOT / "cdmw" / "ui" / "shell" / "app_window.py"
+SETTINGS_AUTOSAVE = REPO_ROOT / "cdmw" / "ui" / "shell" / "settings_autosave.py"
+SETTINGS_PERSISTENCE = REPO_ROOT / "cdmw" / "ui" / "shell" / "settings_persistence.py"
 SHELL_MENUS = REPO_ROOT / "cdmw" / "ui" / "shell" / "menus.py"
 SHELL_TOOL_TABS = REPO_ROOT / "cdmw" / "ui" / "shell" / "tool_tabs.py"
+TEXTURE_WORKFLOW_ASSET_AUTHORING_PANEL = REPO_ROOT / "cdmw" / "ui" / "texture_workflow" / "asset_authoring_panel.py"
 TEXTURE_WORKFLOW_DDS_OUTPUT_PANEL = REPO_ROOT / "cdmw" / "ui" / "texture_workflow" / "dds_output_panel.py"
+TEXTURE_WORKFLOW_SETTINGS_PANEL = REPO_ROOT / "cdmw" / "ui" / "texture_workflow" / "settings_panel.py"
 TEXTURE_WORKFLOW_SHELL_CONTROLS = REPO_ROOT / "cdmw" / "ui" / "texture_workflow" / "shell_controls.py"
 ARCHIVE_CONTROLS_PANEL = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "controls_panel.py"
 DASHBOARD_CONTROLLER = REPO_ROOT / "cdmw" / "ui" / "shell" / "dashboard_controller.py"
@@ -25,6 +29,33 @@ README = REPO_ROOT / "README.md"
 
 
 class TextureWorkflowUiSourceGuards(unittest.TestCase):
+    def test_material_maker_panel_uses_worker_and_existing_preview_refresh(self) -> None:
+        panel_source = TEXTURE_WORKFLOW_ASSET_AUTHORING_PANEL.read_text(encoding="utf-8")
+        settings_panel_source = TEXTURE_WORKFLOW_SETTINGS_PANEL.read_text(encoding="utf-8")
+        workspace_source = SHELL_WORKSPACE_LAYOUT.read_text(encoding="utf-8")
+        autosave_source = SETTINGS_AUTOSAVE.read_text(encoding="utf-8")
+        persistence_source = SETTINGS_PERSISTENCE.read_text(encoding="utf-8")
+
+        self.assertIn("class TextureWorkflowAssetAuthoringPanelMixin", panel_source)
+        self.assertIn("MaterialMakerExportWorker", panel_source)
+        self.assertIn("OpenImageIOTaskWorker", panel_source)
+        self.assertIn("QThread(self)", panel_source)
+        self.assertIn("self.utility_worker = worker", panel_source)
+        self.assertIn("worker.progress_changed.connect(self._handle_material_maker_export_progress)", panel_source)
+        self.assertIn("worker.completed.connect(self._handle_openimageio_task_complete)", panel_source)
+        self.assertIn("thread.finished.connect(self._cleanup_worker_refs)", panel_source)
+        self.assertIn("service.open_material_maker_project", panel_source)
+        self.assertIn("refresh_compare_list(select_current=True)", panel_source)
+        self.assertIn("_force_refresh_current_model_preview_assets", panel_source)
+        self.assertNotIn("subprocess", panel_source)
+        self.assertIn("class TextureWorkflowSettingsPanelMixin(TextureWorkflowAssetAuthoringPanelMixin)", settings_panel_source)
+        self.assertIn("self._build_texture_workflow_asset_authoring_section(left_layout)", workspace_source)
+        self.assertIn("self.material_maker_project_edit", autosave_source)
+        self.assertIn("self.asset_authoring_section.toggled.connect(self.schedule_settings_save)", autosave_source)
+        self.assertIn('"asset_authoring/material_maker_project_path"', persistence_source)
+        self.assertIn('"asset_authoring/oiio_source_path"', persistence_source)
+        self.assertIn('"sections/asset_authoring_expanded"', persistence_source)
+
     def test_dds_output_selectors_have_room_for_default_labels(self) -> None:
         source = TEXTURE_WORKFLOW_DDS_OUTPUT_PANEL.read_text(encoding="utf-8")
 

@@ -1,11 +1,17 @@
 import copy
 import struct
 import unittest
+from array import array
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from cdmw.modding.mesh_deformer import apply_brush_deformation, delete_faces_touching_vertices
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, _parse_par_sections, parse_pac
 from cdmw.modding.static_mesh_replacer import (
     StaticIndependentPart,
+    StaticMaterialAtlasRect,
     StaticMeshReplacementOptions,
     StaticOutputDrawSection,
     StaticReplacementTransform,
@@ -18,8 +24,10 @@ from cdmw.modding.static_mesh_replacer import (
     build_static_mesh_replacement,
     build_static_replacement_preview_mesh,
     plan_static_output_draw_sections,
+    source_affine_for_transformed_preview,
     source_delta_for_transformed_delta,
     source_distance_for_transformed_distance,
+    source_normal_transform_for_transformed_preview,
     source_point_for_transformed_point,
     suggest_static_submesh_mappings,
 )
@@ -43,6 +51,1221 @@ def _large_part(name: str, vertex_count: int) -> SubMesh:
         vertices=[(float(index), float(index % 13), float(index % 7)) for index in range(vertex_count)],
         faces=[(0, 1, 2)] if vertex_count >= 3 else [],
     )
+
+
+def _write_f64_values(path: object, values: list[float]) -> None:
+    data = array("d", values)
+    with Path(str(path)).open("wb") as handle:
+        data.tofile(handle)
+
+
+def _read_f64_values(path: object) -> list[float]:
+    data = array("d")
+    data.frombytes(Path(str(path)).read_bytes())
+    return [float(value) for value in data]
+
+
+def _write_i32_values(path: object, values: list[int]) -> None:
+    data = array("i", values)
+    with Path(str(path)).open("wb") as handle:
+        data.tofile(handle)
+
+
+class _CountingSequence:
+    def __init__(self, values: list[object]) -> None:
+        self._values = list(values)
+        self.iterations = 0
+
+    def __bool__(self) -> bool:
+        return bool(self._values)
+
+    def __iter__(self):
+        self.iterations += 1
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+    def __getitem__(self, index: int) -> object:
+        return self._values[index]
+
+
+def test_native_merge_submeshes_bridge_uses_mesh_core_binary_payloads() -> None:
+    from cdmw.modding.mesh_native_core import merge_native_mesh_submeshes
+
+    source_a = SubMesh(
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        faces=[(0, 1, 2)],
+        uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+    )
+    source_b = SubMesh(
+        vertices=[(2.0, 0.0, 0.0), (3.0, 0.0, 0.0), (2.0, 1.0, 0.0)],
+        faces=[(0, 1, 2)],
+    )
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "merge-submeshes-json"
+        assert isinstance(payload, dict)
+        submesh_payloads = payload["submeshes"]
+        assert len(submesh_payloads) == 2
+        for submesh_payload in submesh_payloads:
+            assert "vertices_binary" in submesh_payload
+            assert "faces_binary" in submesh_payload
+            assert "vertices" not in submesh_payload
+            assert "faces" not in submesh_payload
+        vertices_path = payload["vertices_output_path"]
+        faces_path = payload["faces_output_path"]
+        normals_path = payload["normals_output_path"]
+        uvs_path = payload["uvs_output_path"]
+        _write_f64_values(vertices_path, [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 3.0, 0.0, 0.0, 2.0, 1.0, 0.0])
+        _write_i32_values(faces_path, [0, 1, 2, 3, 4, 5])
+        _write_f64_values(normals_path, [0.0, 0.0, 1.0] * 6)
+        _write_f64_values(uvs_path, [0.0, 0.0] * 6)
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "merge_submeshes",
+            "vertex_count": 6,
+            "face_count": 2,
+            "vertices_binary": {"path": str(vertices_path), "count": 6, "components": 3, "type": "f64"},
+            "faces_binary": {"path": str(faces_path), "count": 2, "components": 3, "type": "i32"},
+            "normals_binary": {"path": str(normals_path), "count": 6, "components": 3, "type": "f64"},
+            "uvs_binary": {"path": str(uvs_path), "count": 6, "components": 2, "type": "f64"},
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        merged = merge_native_mesh_submeshes([source_a, source_b])
+
+    assert merged is not None
+    assert merged.vertices[3] == (2.0, 0.0, 0.0)
+    assert merged.faces == [(0, 1, 2), (3, 4, 5)]
+    assert len(merged.normals) == 6
+    assert len(merged.uvs) == 6
+
+
+def test_native_merge_submeshes_bridge_streams_vertex_sidecars_without_tuple_copy() -> None:
+    from cdmw.modding.mesh_native_core import merge_native_mesh_submeshes
+
+    vertices = _CountingSequence([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)])
+    faces = _CountingSequence([(0, 1, 2)])
+    source = SubMesh(vertices=vertices, faces=faces)  # type: ignore[arg-type]
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "merge-submeshes-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        assert item["vertices_binary"]["count"] == 3
+        assert item["faces_binary"]["count"] == 1
+        vertices_path = payload["vertices_output_path"]
+        faces_path = payload["faces_output_path"]
+        _write_f64_values(vertices_path, [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0])
+        _write_i32_values(faces_path, [0, 1, 2])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "merge_submeshes",
+            "vertex_count": 3,
+            "face_count": 1,
+            "vertices_binary": {"path": str(vertices_path), "count": 3, "components": 3, "type": "f64"},
+            "faces_binary": {"path": str(faces_path), "count": 1, "components": 3, "type": "i32"},
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        merged = merge_native_mesh_submeshes([source])
+
+    assert merged is not None
+    assert vertices.iterations == 1
+    assert faces.iterations == 1
+
+
+def test_native_static_donor_bridge_streams_vertex_sidecars_without_tuple_copy() -> None:
+    from cdmw.modding.mesh_native_core import build_native_static_donor_indices
+
+    original_vertices = _CountingSequence([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)])
+    new_vertices = _CountingSequence([(0.0, 0.0, 0.0), (1.1, 0.0, 0.0)])
+    original = SubMesh(vertices=original_vertices)  # type: ignore[arg-type]
+    new = SubMesh(vertices=new_vertices)  # type: ignore[arg-type]
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "static-donor-indices-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        assert item["original_vertices_binary"]["count"] == 2
+        assert item["new_vertices_binary"]["count"] == 2
+        donor_indices_path = Path(str(item["donor_indices_output_path"]))
+        _write_i32_values(donor_indices_path, [0, 1])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "static_donor_indices",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "new_vertex_count": 2,
+                    "donor_indices_binary": {"path": str(donor_indices_path), "count": 2, "components": 1, "type": "i32"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        donor_indices = build_native_static_donor_indices(original, new)
+
+    assert donor_indices == [0, 1]
+    assert original_vertices.iterations == 1
+    assert new_vertices.iterations == 1
+
+
+def test_native_preview_decimation_bridge_uses_mesh_core_binary_payloads() -> None:
+    from cdmw.modding.mesh_native_core import decimate_native_mesh_preview_submeshes
+
+    submesh = SubMesh(
+        name="dense",
+        material="mat",
+        texture="tex",
+        vertices=[(float(index), 0.0, 0.0) for index in range(12)],
+        uvs=[(float(index) / 10.0, float(index) / 20.0) for index in range(12)],
+        normals=[(0.0, 0.0, 1.0)] * 12,
+        faces=[(0, 1, 2), (3, 4, 5), (6, 7, 8), (9, 10, 11)],
+        bone_indices=[(index,) for index in range(12)],
+        bone_weights=[(1.0,) for _index in range(12)],
+        source_vertex_map=[100 + index for index in range(12)],
+        source_vertex_offsets=[index * 12 for index in range(12)],
+    )
+    submeshes = [submesh]
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "preview-decimate-json"
+        assert isinstance(payload, dict)
+        assert payload["operation"] == "preview_decimate"
+        item = payload["submeshes"][0]
+        assert item["max_faces"] == 2
+        assert "vertices_binary" in item
+        assert "faces_binary" in item
+        assert "uvs_binary" in item
+        assert "normals_binary" in item
+        assert "bone_counts_binary" in item
+        assert item["source_vertex_map_start"] == 100
+        assert item["source_vertex_map_count"] == 12
+        assert "vertices" not in item
+        assert "faces" not in item
+        vertices_path = item["vertices_output_path"]
+        faces_path = item["faces_output_path"]
+        uvs_path = item["uvs_output_path"]
+        normals_path = item["normals_output_path"]
+        bone_counts_path = item["bone_counts_output_path"]
+        bone_indices_path = item["bone_indices_output_path"]
+        bone_weights_path = item["bone_weights_output_path"]
+        source_map_path = item["source_vertex_map_output_path"]
+        _write_f64_values(vertices_path, [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0, 6.0, 0.0, 0.0, 7.0, 0.0, 0.0, 8.0, 0.0, 0.0])
+        _write_i32_values(faces_path, [0, 1, 2, 3, 4, 5])
+        _write_f64_values(uvs_path, [0.0, 0.0, 0.1, 0.05, 0.2, 0.1, 0.6, 0.3, 0.7, 0.35, 0.8, 0.4])
+        _write_f64_values(normals_path, [0.0, 0.0, 1.0] * 6)
+        _write_i32_values(bone_counts_path, [1, 1, 1, 1, 1, 1])
+        _write_i32_values(bone_indices_path, [0, 1, 2, 6, 7, 8])
+        _write_f64_values(bone_weights_path, [1.0] * 6)
+        _write_i32_values(source_map_path, [100, 101, 102, 106, 107, 108])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "preview_decimate",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "vertex_count": 6,
+                    "face_count": 2,
+                    "vertices_binary": {"path": str(vertices_path), "count": 6, "components": 3, "type": "f64"},
+                    "faces_binary": {"path": str(faces_path), "count": 2, "components": 3, "type": "i32"},
+                    "uvs_binary": {"path": str(uvs_path), "count": 6, "components": 2, "type": "f64"},
+                    "normals_binary": {"path": str(normals_path), "count": 6, "components": 3, "type": "f64"},
+                    "bone_counts_binary": {"path": str(bone_counts_path), "count": 6, "components": 1, "type": "i32"},
+                    "bone_indices_binary": {"path": str(bone_indices_path), "count": 6, "components": 1, "type": "i32"},
+                    "bone_weights_binary": {"path": str(bone_weights_path), "count": 6, "components": 1, "type": "f64"},
+                    "source_vertex_map_binary": {"path": str(source_map_path), "count": 6, "components": 1, "type": "i32"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        changed = decimate_native_mesh_preview_submeshes(submeshes, 2)
+
+    assert changed == {0}
+    preview = submeshes[0]
+    assert preview is not submesh
+    assert preview.name == "dense"
+    assert preview.material == "mat"
+    assert preview.texture == "tex"
+    assert preview.vertices == [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0), (6.0, 0.0, 0.0), (7.0, 0.0, 0.0), (8.0, 0.0, 0.0)]
+    assert preview.faces == [(0, 1, 2), (3, 4, 5)]
+    assert preview.uvs == [(0.0, 0.0), (0.1, 0.05), (0.2, 0.1), (0.6, 0.3), (0.7, 0.35), (0.8, 0.4)]
+    assert preview.normals == [(0.0, 0.0, 1.0)] * 6
+    assert preview.bone_indices == [(0,), (1,), (2,), (6,), (7,), (8,)]
+    assert preview.bone_weights == [(1.0,), (1.0,), (1.0,), (1.0,), (1.0,), (1.0,)]
+    assert preview.source_vertex_map == [100, 101, 102, 106, 107, 108]
+    assert preview.source_vertex_offsets == []
+    assert preview.source_index_offset == -1
+    assert preview.source_index_count == 6
+
+
+def test_native_preview_decimation_bridge_streams_vertex_sidecars_without_tuple_copy() -> None:
+    from cdmw.modding.mesh_native_core import decimate_native_mesh_preview_submeshes
+
+    vertices = _CountingSequence([(float(index), 0.0, 0.0) for index in range(6)])
+    faces = _CountingSequence([(0, 1, 2), (3, 4, 5)])
+    submesh = SubMesh(vertices=vertices, faces=faces)  # type: ignore[arg-type]
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "preview-decimate-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        assert item["vertices_binary"]["count"] == 6
+        assert item["faces_binary"]["count"] == 2
+        assert vertices.iterations == 1
+        assert faces.iterations == 1
+        vertices_path = item["vertices_output_path"]
+        faces_path = item["faces_output_path"]
+        _write_f64_values(vertices_path, [0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 5.0, 0.0, 0.0])
+        _write_i32_values(faces_path, [0, 1, 2])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "preview_decimate",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "vertex_count": 3,
+                    "face_count": 1,
+                    "vertices_binary": {"path": str(vertices_path), "count": 3, "components": 3, "type": "f64"},
+                    "faces_binary": {"path": str(faces_path), "count": 1, "components": 3, "type": "i32"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        changed = decimate_native_mesh_preview_submeshes([submesh], 1)
+
+    assert changed == {0}
+    assert vertices.iterations == 2
+    assert faces.iterations == 2
+
+
+def test_native_mesh_metadata_bridge_uses_mesh_core_binary_payloads() -> None:
+    from cdmw.modding.mesh_native_core import summarize_native_mesh_submesh_metadata
+
+    submesh = SubMesh(
+        vertices=[(-1.0, 2.0, 0.5), (4.0, -3.0, 2.0), (0.0, 1.0, -2.0)],
+        faces=[(0, 1, 2)],
+        uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+    )
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "mesh-metadata-json"
+        assert isinstance(payload, dict)
+        assert payload["operation"] == "mesh_metadata"
+        item = payload["submeshes"][0]
+        assert item["vertex_count"] == 3
+        assert item["face_count"] == 1
+        assert item["uv_count"] == 3
+        assert item["has_uvs"] is True
+        assert "vertices_binary" in item
+        assert "vertices" not in item
+        assert "faces" not in item
+        assert "faces_binary" not in item
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "mesh_metadata",
+            "submesh_count": 1,
+            "total_vertices": 3,
+            "total_faces": 1,
+            "has_uvs": True,
+            "has_bounds": True,
+            "bbox_min": [-1.0, -3.0, -2.0],
+            "bbox_max": [4.0, 2.0, 2.0],
+            "submeshes": [
+                {
+                    "index": 0,
+                    "vertex_count": 3,
+                    "face_count": 1,
+                    "has_uvs": True,
+                    "has_bounds": True,
+                    "bbox_min": [-1.0, -3.0, -2.0],
+                    "bbox_max": [4.0, 2.0, 2.0],
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        report = summarize_native_mesh_submesh_metadata([submesh])
+
+    assert report is not None
+    assert report["total_vertices"] == 3
+    assert report["bbox_min"] == [-1.0, -3.0, -2.0]
+
+
+def test_native_mesh_metadata_bridge_streams_vertex_sidecars_without_tuple_copy() -> None:
+    from cdmw.modding.mesh_native_core import summarize_native_mesh_submesh_metadata
+
+    vertices = _CountingSequence([(-1.0, 2.0, 0.5), (4.0, -3.0, 2.0), (0.0, 1.0, -2.0)])
+    submesh = SubMesh(vertices=vertices, faces=[(0, 1, 2)])  # type: ignore[arg-type]
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "mesh-metadata-json"
+        assert isinstance(payload, dict)
+        assert payload["submeshes"][0]["vertices_binary"]["count"] == 3
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "mesh_metadata",
+            "submesh_count": 1,
+            "total_vertices": 3,
+            "total_faces": 1,
+            "has_uvs": False,
+            "has_bounds": True,
+            "bbox_min": [-1.0, -3.0, -2.0],
+            "bbox_max": [4.0, 2.0, 2.0],
+            "submeshes": [],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        report = summarize_native_mesh_submesh_metadata([submesh])
+
+    assert report is not None
+    assert vertices.iterations == 1
+
+
+def test_runtime_mesh_metadata_helper_uses_native_before_python_bbox() -> None:
+    from cdmw.modding.static_mesh_runtime_builder import _mesh_metadata_for_submeshes
+
+    submesh = SubMesh(
+        vertices=[(-1.0, 2.0, 0.5), (4.0, -3.0, 2.0), (0.0, 1.0, -2.0)],
+        faces=[(0, 1, 2)],
+    )
+    native_report = {
+        "status": "ok",
+        "backend": "cdmw_mesh_core_0.1",
+        "operation": "mesh_metadata",
+        "total_vertices": 3,
+        "total_faces": 1,
+        "has_uvs": False,
+        "has_bounds": True,
+        "bbox_min": [-1.0, -3.0, -2.0],
+        "bbox_max": [4.0, 2.0, 2.0],
+    }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.summarize_native_mesh_submesh_metadata", return_value=native_report) as native_summary,
+        patch("cdmw.modding.static_mesh_runtime_builder._bbox", side_effect=AssertionError("python bbox scan")),
+    ):
+        metadata = _mesh_metadata_for_submeshes([submesh])
+
+    native_summary.assert_called_once()
+    assert metadata == ((-1.0, -3.0, -2.0), (4.0, 2.0, 2.0), 3, 1, False)
+
+
+def test_mapped_replacement_uses_native_merge_for_multi_source_runtime_slot() -> None:
+    original = _mesh(
+        "original.pac",
+        [SubMesh(name="target", material="target", vertices=[(0.0, 0.0, 0.0)], faces=[])],
+    )
+    replacement = _mesh(
+        "replacement.pac",
+        [
+            SubMesh(name="a", material="a", vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)], faces=[(0, 1, 2)]),
+            SubMesh(name="b", material="b", vertices=[(2.0, 0.0, 0.0), (3.0, 0.0, 0.0), (2.0, 1.0, 0.0)], faces=[(0, 1, 2)]),
+        ],
+    )
+    mapping = StaticSubmeshMapping(0, "target", [0, 1], 0)
+    native_merged = SubMesh(
+        vertices=[(9.0, 0.0, 0.0), (10.0, 0.0, 0.0), (9.0, 1.0, 0.0)],
+        faces=[(0, 1, 2)],
+        normals=[(0.0, 0.0, 1.0)] * 3,
+        uvs=[(0.0, 0.0)] * 3,
+    )
+
+    with (
+        patch("cdmw.modding.mesh_native_core.merge_native_mesh_submeshes", return_value=native_merged) as native_merge,
+        patch("cdmw.modding.static_mesh_runtime_builder._compute_smooth_normals", side_effect=AssertionError("python normal merge")),
+    ):
+        mapped = _build_mapped_replacement_mesh(original, replacement, [mapping], StaticMeshReplacementOptions())
+
+    native_merge.assert_called_once()
+    assert mapped.submeshes[0].vertices == native_merged.vertices
+    assert mapped.submeshes[0].faces == native_merged.faces
+    assert mapped.submeshes[0].material == "target"
+
+
+def test_native_affine_transform_bridge_uses_mesh_core_binary_payloads() -> None:
+    from cdmw.modding.mesh_native_core import apply_native_mesh_affine_transform_submeshes
+
+    submesh = SubMesh(
+        vertices=[(1.0, 2.0, 3.0), (2.0, 3.0, 4.0)],
+        normals=[(0.0, 0.0, 1.0), (0.0, 1.0, 0.0)],
+    )
+    position_matrix = (1.0, 0.0, 0.0, 5.0, 0.0, 1.0, 0.0, -2.0, 0.0, 0.0, 1.0, 0.5)
+    normal_matrix = (1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0)
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "affine-transform-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        assert item["position_matrix"] == list(position_matrix)
+        assert item["normal_matrix"] == list(normal_matrix)
+        assert "vertices_binary" in item
+        assert "normals_binary" in item
+        assert "vertices" not in item
+        vertices_path = item["vertices_output_path"]
+        normals_path = item["normals_output_path"]
+        _write_f64_values(vertices_path, [6.0, 0.0, 3.5, 7.0, 1.0, 4.5])
+        _write_f64_values(normals_path, [0.0, -1.0, 0.0, 0.0, 0.0, 1.0])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "affine_transform",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "vertex_count": 2,
+                    "vertices_binary": {"path": str(vertices_path), "count": 2, "components": 3, "type": "f64"},
+                    "normals_binary": {"path": str(normals_path), "count": 2, "components": 3, "type": "f64"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        changed = apply_native_mesh_affine_transform_submeshes(
+            [submesh],
+            position_matrices_by_index={0: position_matrix},
+            normal_matrices_by_index={0: normal_matrix},
+        )
+
+    assert changed == {0}
+    assert submesh.vertices == [(6.0, 0.0, 3.5), (7.0, 1.0, 4.5)]
+    assert submesh.normals == [(0.0, -1.0, 0.0), (0.0, 0.0, 1.0)]
+
+
+def test_native_affine_transform_bridge_can_reverse_face_winding() -> None:
+    from cdmw.modding.mesh_native_core import apply_native_mesh_affine_transform_submeshes
+
+    submesh = SubMesh(
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        faces=[(0, 1, 2)],
+    )
+    position_matrix = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "affine-transform-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        assert item["reverse_face_winding"] is True
+        assert "faces_binary" in item
+        assert "faces" not in item
+        vertices_path = item["vertices_output_path"]
+        faces_path = item["faces_output_path"]
+        _write_f64_values(vertices_path, [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0])
+        _write_i32_values(faces_path, [0, 2, 1])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "affine_transform",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "vertex_count": 3,
+                    "face_count": 1,
+                    "vertices_binary": {"path": str(vertices_path), "count": 3, "components": 3, "type": "f64"},
+                    "faces_binary": {"path": str(faces_path), "count": 1, "components": 3, "type": "i32"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        changed = apply_native_mesh_affine_transform_submeshes(
+            [submesh],
+            position_matrices_by_index={0: position_matrix},
+            reverse_face_winding_by_index={0: True},
+        )
+
+    assert changed == {0}
+    assert submesh.faces == [(0, 2, 1)]
+    assert submesh.face_count == 1
+
+
+def test_native_affine_transform_bridge_can_send_source_part_adjustment() -> None:
+    from cdmw.modding.mesh_native_core import apply_native_mesh_affine_transform_submeshes
+
+    submesh = SubMesh(
+        vertices=[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0)],
+        normals=[(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+    )
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "affine-transform-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        assert "position_matrix" not in item
+        assert item["source_part_adjustment"] == {
+            "scale_xyz": [2.0, 1.0, 1.0],
+            "uniform_scale": 1.0,
+            "offset_xyz": [1.0, 0.0, 0.0],
+            "rotate_xyz_degrees": [0.0, 0.0, 0.0],
+        }
+        assert "normals_binary" in item
+        vertices_path = item["vertices_output_path"]
+        normals_path = item["normals_output_path"]
+        _write_f64_values(vertices_path, [0.0, 0.0, 0.0, 4.0, 0.0, 0.0])
+        _write_f64_values(normals_path, [1.0, 0.0, 0.0, 0.0, 1.0, 0.0])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "affine_transform",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "vertex_count": 2,
+                    "vertices_binary": {"path": str(vertices_path), "count": 2, "components": 3, "type": "f64"},
+                    "normals_binary": {"path": str(normals_path), "count": 2, "components": 3, "type": "f64"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        changed = apply_native_mesh_affine_transform_submeshes(
+            [submesh],
+            source_part_adjustments_by_index={
+                0: {
+                    "scale_xyz": (2.0, 1.0, 1.0),
+                    "uniform_scale": 1.0,
+                    "offset_xyz": (1.0, 0.0, 0.0),
+                    "rotate_xyz_degrees": (0.0, 0.0, 0.0),
+                }
+            },
+        )
+
+    assert changed == {0}
+    assert submesh.vertices == [(0.0, 0.0, 0.0), (4.0, 0.0, 0.0)]
+    assert submesh.normals == [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
+
+
+def test_native_affine_clone_can_mirror_source_part_without_python_preclone() -> None:
+    from cdmw.modding.mesh_native_core import clone_native_mesh_affine_transformed_submesh
+
+    submesh = SubMesh(
+        name="source",
+        material="mat",
+        texture="tex",
+        vertices=[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+        normals=[(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+        uvs=[(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)],
+        faces=[(0, 1, 2)],
+    )
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "affine-transform-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        assert item["mirror_x_around_bounds_center"] is True
+        assert "faces_binary" in item
+        vertices_path = item["vertices_output_path"]
+        normals_path = item["normals_output_path"]
+        faces_path = item["faces_output_path"]
+        _write_f64_values(vertices_path, [3.0, 0.0, 0.0, 1.0, 0.0, 0.0, 2.0, 1.0, 0.0])
+        _write_f64_values(normals_path, [-1.0, 0.0, 0.0, -0.0, 1.0, 0.0, -0.0, 0.0, 1.0])
+        _write_i32_values(faces_path, [0, 2, 1])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "affine_transform",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "vertex_count": 3,
+                    "face_count": 1,
+                    "vertices_binary": {"path": str(vertices_path), "count": 3, "components": 3, "type": "f64"},
+                    "normals_binary": {"path": str(normals_path), "count": 3, "components": 3, "type": "f64"},
+                    "faces_binary": {"path": str(faces_path), "count": 1, "components": 3, "type": "i32"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        cloned = clone_native_mesh_affine_transformed_submesh(
+            submesh,
+            source_part_adjustment={
+                "scale_xyz": (1.0, 1.0, 1.0),
+                "uniform_scale": 1.0,
+                "offset_xyz": (1.0, 0.0, 0.0),
+                "rotate_xyz_degrees": (0.0, 0.0, 0.0),
+            },
+            mirror_x_around_bounds_center=True,
+        )
+
+    assert cloned is not None
+    assert cloned is not submesh
+    assert cloned.name == "source"
+    assert cloned.material == "mat"
+    assert cloned.texture == "tex"
+    assert cloned.vertices == [(3.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 1.0, 0.0)]
+    assert cloned.normals == [(-1.0, 0.0, 0.0), (-0.0, 1.0, 0.0), (-0.0, 0.0, 1.0)]
+    assert cloned.faces == [(0, 2, 1)]
+    assert cloned.uvs == submesh.uvs
+
+
+def test_mirror_submesh_x_uses_native_clone_before_python_deepcopy() -> None:
+    from cdmw.ui.archive_browser.static_replacement_geometry_math import mirror_submesh_x
+
+    submesh = SubMesh(
+        name="source",
+        material="mat",
+        texture="tex",
+        vertices=[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+        normals=[(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+        faces=[(0, 1, 2)],
+    )
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "affine-transform-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        assert item["position_matrix"] == [-1.0, 0.0, 0.0, 4.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        assert item["normal_matrix"] == [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+        assert item["reverse_face_winding"] is True
+        assert "source_part_adjustment" not in item
+        vertices_path = item["vertices_output_path"]
+        normals_path = item["normals_output_path"]
+        faces_path = item["faces_output_path"]
+        _write_f64_values(vertices_path, [4.0, 0.0, 0.0, 2.0, 0.0, 0.0, 3.0, 1.0, 0.0])
+        _write_f64_values(normals_path, [-1.0, 0.0, 0.0, -0.0, 1.0, 0.0, -0.0, 0.0, 1.0])
+        _write_i32_values(faces_path, [0, 2, 1])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "affine_transform",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "vertex_count": 3,
+                    "face_count": 1,
+                    "vertices_binary": {"path": str(vertices_path), "count": 3, "components": 3, "type": "f64"},
+                    "normals_binary": {"path": str(normals_path), "count": 3, "components": 3, "type": "f64"},
+                    "faces_binary": {"path": str(faces_path), "count": 1, "components": 3, "type": "i32"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+        patch(
+            "cdmw.ui.archive_browser.static_replacement_geometry_math.copy.deepcopy",
+            side_effect=AssertionError("Python mirror deepcopy should not run"),
+        ),
+    ):
+        mirrored = mirror_submesh_x(submesh, 2.0, normalize_vector=lambda vector: tuple(vector))  # type: ignore[arg-type]
+
+    assert mirrored is not submesh
+    assert mirrored.vertices == [(4.0, 0.0, 0.0), (2.0, 0.0, 0.0), (3.0, 1.0, 0.0)]
+    assert mirrored.faces == [(0, 2, 1)]
+    assert submesh.vertices == [(0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (1.0, 1.0, 0.0)]
+
+
+def test_native_affine_transform_bridge_writes_source_part_pivot_vertices_binary() -> None:
+    from cdmw.modding.mesh_native_core import apply_native_mesh_affine_transform_submeshes
+
+    submesh = SubMesh(vertices=[(10.0, 0.0, 0.0), (12.0, 0.0, 0.0)])
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "affine-transform-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        adjustment = item["source_part_adjustment"]
+        assert "pivot_vertices" not in adjustment
+        pivot_descriptor = adjustment["pivot_vertices_binary"]
+        assert pivot_descriptor["count"] == 2
+        pivot_values = _read_f64_values(Path(pivot_descriptor["path"]))
+        assert pivot_values == [0.0, 0.0, 0.0, 2.0, 0.0, 0.0]
+        vertices_path = item["vertices_output_path"]
+        _write_f64_values(vertices_path, [11.0, 0.0, 0.0, 13.0, 0.0, 0.0])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "affine_transform",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "vertex_count": 2,
+                    "vertices_binary": {"path": str(vertices_path), "count": 2, "components": 3, "type": "f64"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        changed = apply_native_mesh_affine_transform_submeshes(
+            [submesh],
+            source_part_adjustments_by_index={
+                0: {
+                    "scale_xyz": (1.0, 1.0, 1.0),
+                    "uniform_scale": 1.0,
+                    "offset_xyz": (1.0, 0.0, 0.0),
+                    "rotate_xyz_degrees": (0.0, 0.0, 0.0),
+                    "pivot_vertices": ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)),
+                }
+            },
+        )
+
+    assert changed == {0}
+    assert submesh.vertices == [(11.0, 0.0, 0.0), (13.0, 0.0, 0.0)]
+
+
+def test_native_uv_transform_submesh_bridge_uses_selected_all_descriptor() -> None:
+    from cdmw.modding.mesh_native_core import apply_native_mesh_uv_transform_submeshes
+
+    submesh = SubMesh(
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
+        uvs=[(0.0, 0.0), (1.0, 0.0)],
+    )
+    uv_transform = {
+        "offset": (0.25, -0.5),
+        "scale": (2.0, 1.0),
+        "rotate": 0.0,
+        "flip_u": False,
+        "flip_v": True,
+        "pivot": (0.5, 0.5),
+    }
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "uv-transform-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        assert item["selected_all_vertices"] is True
+        assert item["uv_transform"] == {
+            "offset": [0.25, -0.5],
+            "scale": [2.0, 1.0],
+            "rotate": 0.0,
+            "flip_u": False,
+            "flip_v": True,
+            "pivot": [0.5, 0.5],
+        }
+        assert "selected_vertices" not in item
+        assert "selected_vertices_binary" not in item
+        assert "uvs_binary" in item
+        uvs_path = item["uvs_output_path"]
+        changed_path = item["changed_vertices_output_path"]
+        _write_f64_values(uvs_path, [-0.25, 0.0, 1.75, 0.0])
+        _write_i32_values(changed_path, [0, 1])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "uv_transform",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "changed_vertices_binary": {"path": str(changed_path), "count": 2, "components": 1, "type": "i32"},
+                    "uvs_binary": {"path": str(uvs_path), "count": 2, "components": 2, "type": "f64"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        processed = apply_native_mesh_uv_transform_submeshes([submesh], {0: uv_transform})
+
+    assert processed == {0}
+    assert submesh.uvs == [(-0.25, 0.0), (1.75, 0.0)]
+
+
+def test_native_uv_atlas_submesh_bridge_uses_bounds_and_clamp() -> None:
+    from cdmw.modding.mesh_native_core import apply_native_mesh_uv_atlas_submesh
+
+    submesh = SubMesh(
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
+        uvs=[(-0.00005, 0.25), (1.00005, 1.0)],
+    )
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "uv-transform-json"
+        assert isinstance(payload, dict)
+        item = payload["submeshes"][0]
+        assert item["selected_all_vertices"] is True
+        assert item["uv_transform"] == {
+            "offset": [0.25, 0.5],
+            "scale": [0.5, 0.25],
+            "rotate": 0.0,
+            "flip_u": False,
+            "flip_v": False,
+            "pivot": [0.0, 0.0],
+            "input_bounds_min": [-0.0001, -0.0001],
+            "input_bounds_max": [1.0001, 1.0001],
+            "input_clamp_min": [0.0, 0.0],
+            "input_clamp_max": [1.0, 1.0],
+            "clamp_input_uv": True,
+        }
+        uvs_path = item["uvs_output_path"]
+        changed_path = item["changed_vertices_output_path"]
+        _write_f64_values(uvs_path, [0.25, 0.5625, 0.75, 0.75])
+        _write_i32_values(changed_path, [0, 1])
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "uv_transform",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "changed_vertices_binary": {"path": str(changed_path), "count": 2, "components": 1, "type": "i32"},
+                    "uvs_binary": {"path": str(uvs_path), "count": 2, "components": 2, "type": "f64"},
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        processed = apply_native_mesh_uv_atlas_submesh(submesh, offset=(0.25, 0.5), scale=(0.5, 0.25))
+
+    assert processed is True
+    assert submesh.uvs == [(0.25, 0.5625), (0.75, 0.75)]
+
+
+def test_native_uv_atlas_submesh_bridge_surfaces_bounds_error() -> None:
+    from cdmw.modding.mesh_native_core import apply_native_mesh_uv_atlas_submesh
+
+    submesh = SubMesh(
+        vertices=[(0.0, 0.0, 0.0)],
+        uvs=[(1.5, 0.25)],
+    )
+
+    def native_job(_binary: Path, command: str, payload: object, *, timeout_seconds: float) -> dict[str, object]:
+        assert command == "uv-transform-json"
+        return {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "uv_transform",
+            "submeshes": [
+                {
+                    "index": 0,
+                    "status": "uv_out_of_bounds",
+                    "error": "input UV outside allowed bounds",
+                    "invalid_vertex_index": 0,
+                    "invalid_uv": [1.5, 0.25],
+                }
+            ],
+        }
+
+    with (
+        patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+        patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=native_job),
+    ):
+        with pytest.raises(ValueError) as exc:
+            apply_native_mesh_uv_atlas_submesh(submesh, offset=(0.25, 0.5), scale=(0.5, 0.25))
+
+    assert exc.value.args[1] == (1.5, 0.25)
+
+
+def test_material_atlas_uv_rewrite_routes_through_native_first() -> None:
+    from cdmw.modding import static_mesh_runtime_builder as runtime_builder
+
+    submesh = SubMesh(
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
+        uvs=[(0.0, 0.0), (1.0, 1.0)],
+    )
+    rect = StaticMaterialAtlasRect("mat", (0,), x=0.25, y=0.5, width=0.5, height=0.25)
+
+    def native_atlas(target: SubMesh, *, offset, scale, timeout_seconds: float = 5.0) -> bool:
+        assert target is submesh
+        assert offset == (0.25, 0.5)
+        assert scale == (0.5, 0.25)
+        target.uvs = [(9.0, 9.0), (8.0, 8.0)]
+        return True
+
+    with patch("cdmw.modding.mesh_native_core.apply_native_mesh_uv_atlas_submesh", side_effect=native_atlas):
+        runtime_builder._rewrite_submesh_uvs_for_material_atlas(
+            submesh,
+            rect,
+            target_name="target",
+            source_index=0,
+            source_material_name="mat",
+        )
+
+    assert submesh.uvs == [(9.0, 9.0), (8.0, 8.0)]
+
+
+def test_preview_decimation_routes_through_native_first() -> None:
+    from cdmw.modding import static_mesh_runtime_builder as runtime_builder
+
+    original = _mesh(
+        "target.pac",
+        [SubMesh(name="target", material="target", vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)], faces=[(0, 1, 2)])],
+    )
+    replacement = _mesh(
+        "dense.obj",
+        [
+            SubMesh(
+                name="dense",
+                material="dense",
+                vertices=[(float(index), 0.0, 0.0) for index in range(12)],
+                faces=[(0, 1, 2), (3, 4, 5), (6, 7, 8), (9, 10, 11)],
+            )
+        ],
+    )
+    native_vertices = [(9.0, 0.0, 0.0), (10.0, 0.0, 0.0), (9.0, 1.0, 0.0)]
+
+    def native_decimate(sources: list[SubMesh], max_faces: int, *, timeout_seconds: float = 5.0) -> set[int]:
+        assert max_faces == 2
+        sources[0] = SubMesh(
+            name=sources[0].name,
+            material=sources[0].material,
+            vertices=native_vertices,
+            faces=[(0, 1, 2)],
+            vertex_count=3,
+            face_count=1,
+        )
+        return {0}
+
+    with (
+        patch("cdmw.modding.mesh_native_core.decimate_native_mesh_preview_submeshes", side_effect=native_decimate) as native_decimate_call,
+        patch("cdmw.modding.mesh_native_core.apply_native_mesh_affine_transform_submeshes", return_value=set()),
+        patch("cdmw.modding.static_mesh_runtime_builder._decimate_submesh_for_preview", side_effect=AssertionError("python decimation")),
+    ):
+        sources = runtime_builder._transformed_replacement_sources(
+            original,
+            replacement,
+            StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            max_source_faces_per_submesh=2,
+        )
+
+    native_decimate_call.assert_called_once()
+    assert sources[0].vertices == native_vertices
+    assert sources[0].faces == [(0, 1, 2)]
+
+
+def test_transformed_sources_use_native_affine_for_final_global_transform() -> None:
+    from cdmw.modding import static_mesh_runtime_builder as runtime_builder
+
+    original = _mesh(
+        "original.pac",
+        [SubMesh(name="target", material="target", vertices=[(0.0, 0.0, 0.0), (4.0, 0.0, 0.0), (0.0, 4.0, 0.0)], faces=[(0, 1, 2)])],
+    )
+    replacement = _mesh(
+        "replacement.pac",
+        [SubMesh(name="source", material="source", vertices=[(1.0, 2.0, 3.0), (2.0, 3.0, 4.0)], normals=[(0.0, 0.0, 1.0)] * 2)],
+    )
+    transform = StaticReplacementTransform(
+        alignment_mode="manual",
+        scale_xyz=(2.0, 3.0, 4.0),
+        offset_xyz=(10.0, 20.0, 30.0),
+    )
+
+    def native_transform(submeshes, *, position_matrices_by_index, normal_matrices_by_index=None, timeout_seconds=5.0):
+        matrix = position_matrices_by_index[0]
+        submesh = submeshes[0]
+        submesh.vertices = [
+            (
+                matrix[0] * vertex[0] + matrix[1] * vertex[1] + matrix[2] * vertex[2] + matrix[3],
+                matrix[4] * vertex[0] + matrix[5] * vertex[1] + matrix[6] * vertex[2] + matrix[7],
+                matrix[8] * vertex[0] + matrix[9] * vertex[1] + matrix[10] * vertex[2] + matrix[11],
+            )
+            for vertex in submesh.vertices
+        ]
+        return {0}
+
+    with (
+        patch("cdmw.modding.mesh_native_core.apply_native_mesh_affine_transform_submeshes", side_effect=native_transform) as native_affine,
+        patch("cdmw.modding.static_mesh_runtime_builder._apply_transform", wraps=runtime_builder._apply_transform) as apply_transform,
+    ):
+        sources = _transformed_replacement_sources(original, replacement, transform)
+
+    native_affine.assert_called_once()
+    assert apply_transform.call_count == 1
+    assert sources[0].vertices == [(12.0, 26.0, 42.0), (14.0, 29.0, 46.0)]
+
+
+def test_transformed_sources_skip_python_fallback_bbox_when_native_affine_handles_all() -> None:
+    from cdmw.modding import static_mesh_runtime_builder as runtime_builder
+
+    original = _mesh(
+        "original.pac",
+        [SubMesh(name="target", material="target", vertices=[(0.0, 0.0, 0.0), (4.0, 0.0, 0.0), (0.0, 4.0, 0.0)], faces=[(0, 1, 2)])],
+    )
+    replacement = _mesh(
+        "replacement.pac",
+        [SubMesh(name="source", material="source", vertices=[(1.0, 2.0, 3.0), (2.0, 3.0, 4.0)])],
+    )
+    transform = StaticReplacementTransform(
+        alignment_mode="manual",
+        scale_xyz=(2.0, 3.0, 4.0),
+        offset_xyz=(10.0, 20.0, 30.0),
+        fit_to_original_bbox=False,
+    )
+
+    def native_transform(submeshes, *, position_matrices_by_index, normal_matrices_by_index=None, timeout_seconds=5.0):
+        matrix = position_matrices_by_index[0]
+        submesh = submeshes[0]
+        submesh.vertices = [
+            (
+                matrix[0] * vertex[0] + matrix[1] * vertex[1] + matrix[2] * vertex[2] + matrix[3],
+                matrix[4] * vertex[0] + matrix[5] * vertex[1] + matrix[6] * vertex[2] + matrix[7],
+                matrix[8] * vertex[0] + matrix[9] * vertex[1] + matrix[10] * vertex[2] + matrix[11],
+            )
+            for vertex in submesh.vertices
+        ]
+        return {0}
+
+    with (
+        patch("cdmw.modding.mesh_native_core.apply_native_mesh_affine_transform_submeshes", side_effect=native_transform) as native_affine,
+        patch("cdmw.modding.static_mesh_runtime_builder._bbox", side_effect=AssertionError("python fallback bbox")),
+    ):
+        sources = runtime_builder._transformed_replacement_sources(original, replacement, transform)
+
+    native_affine.assert_called_once()
+    assert sources[0].vertices == [(12.0, 26.0, 42.0), (14.0, 29.0, 46.0)]
+
+
+def test_transformed_sources_use_native_uv_for_texture_uv_transform() -> None:
+    original = _mesh(
+        "original.pac",
+        [SubMesh(name="target", material="target", vertices=[(0.0, 0.0, 0.0)], faces=[])],
+    )
+    replacement = _mesh(
+        "replacement.pac",
+        [
+            SubMesh(
+                name="source",
+                material="source",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
+                uvs=[(0.0, 0.0), (1.0, 0.0)],
+            )
+        ],
+    )
+    uv_transform = StaticTextureUvTransform(
+        source_material_name="source",
+        rotate_degrees=90,
+        flip_u=True,
+        offset_uv=(0.1, -0.2),
+    )
+
+    def native_uv_transform(submeshes, transforms_by_index, *, timeout_seconds=5.0):
+        assert transforms_by_index == {
+            0: {
+                "offset": (0.1, -0.2),
+                "scale": (1.0, 1.0),
+                "rotate": 90.0,
+                "flip_u": True,
+                "flip_v": False,
+                "pivot": (0.5, 0.5),
+            }
+        }
+        submeshes[0].uvs = [(1.1, 0.8), (1.1, -0.2)]
+        return {0}
+
+    with (
+        patch("cdmw.modding.mesh_native_core.apply_native_mesh_uv_transform_submeshes", side_effect=native_uv_transform) as native_uv,
+        patch("cdmw.modding.static_mesh_runtime_builder._apply_texture_uv_transform", side_effect=AssertionError("python uv transform")),
+    ):
+        sources = _transformed_replacement_sources(
+            original,
+            replacement,
+            StaticReplacementTransform(),
+            texture_uv_transforms=[uv_transform],
+            global_transform_exempt_indices={0},
+        )
+
+    native_uv.assert_called_once()
+    assert sources[0].uvs == [(1.1, 0.8), (1.1, -0.2)]
+
+
+def test_transformed_sources_use_native_affine_for_source_part_adjustment() -> None:
+    original = _mesh(
+        "original.pac",
+        [SubMesh(name="target", material="target", vertices=[(0.0, 0.0, 0.0)], faces=[])],
+    )
+    replacement = _mesh(
+        "replacement.pac",
+        [
+            SubMesh(
+                name="source",
+                material="source",
+                vertices=[(1.0, 2.0, 0.0), (2.0, 2.0, 0.0)],
+                normals=[(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            )
+        ],
+    )
+    adjustment = StaticSourcePartAdjustment(
+        source_submesh_index=0,
+        scale_xyz=(2.0, 1.0, 1.0),
+        rotate_xyz_degrees=(0.0, 0.0, 90.0),
+        offset_xyz=(10.0, 20.0, 30.0),
+    )
+
+    def native_transform(submeshes, *, source_part_adjustments_by_index=None, timeout_seconds=5.0, **kwargs):
+        assert not kwargs.get("position_matrices_by_index")
+        native_adjustment = dict(source_part_adjustments_by_index or {})[0]
+        assert native_adjustment["scale_xyz"] == (2.0, 1.0, 1.0)
+        assert native_adjustment["offset_xyz"] == (10.0, 20.0, 30.0)
+        assert native_adjustment["rotate_xyz_degrees"] == (0.0, 0.0, 90.0)
+        assert native_adjustment["pivot_vertices"] == ((1.0, 2.0, 0.0), (2.0, 2.0, 0.0))
+        submesh = submeshes[0]
+        submesh.vertices = [(11.5, 21.0, 30.0), (11.5, 23.0, 30.0)]
+        submesh.normals = [(0.0, 1.0, 0.0), (-1.0, 0.0, 0.0)]
+        return {0}
+
+    with (
+        patch("cdmw.modding.mesh_native_core.apply_native_mesh_affine_transform_submeshes", side_effect=native_transform) as native_affine,
+        patch("cdmw.modding.static_mesh_runtime_builder._apply_source_part_adjustment", side_effect=AssertionError("python source part adjustment")),
+    ):
+        sources = _transformed_replacement_sources(
+            original,
+            replacement,
+            StaticReplacementTransform(),
+            source_part_adjustments=[adjustment],
+            global_transform_exempt_indices={0},
+        )
+
+    native_affine.assert_called_once()
+    assert [tuple(round(component, 7) for component in vertex) for vertex in sources[0].vertices] == [
+        (11.5, 21.0, 30.0),
+        (11.5, 23.0, 30.0),
+    ]
+    assert tuple(round(component, 7) for component in sources[0].normals[0]) == (0.0, 1.0, 0.0)
+    assert round(sources[0].normals[1][0], 7) == -1.0
+    assert round(sources[0].normals[1][1], 7) == 0.0
 
 
 def test_transformed_sources_can_freeze_alignment_basis_for_live_mesh_edits() -> None:
@@ -258,6 +1481,184 @@ def test_source_point_for_transformed_point_inverts_live_mesh_edit_transform() -
 
     for axis in range(3):
         assert abs(source_point[axis] - replacement.submeshes[0].vertices[2][axis]) <= 1e-6
+
+
+def test_source_affine_for_transformed_preview_matches_live_preview_transform() -> None:
+    original = _mesh(
+        "original.pac",
+        [
+            SubMesh(
+                name="target",
+                material="target",
+                vertices=[
+                    (0.0, 0.0, 0.0),
+                    (4.0, 0.0, 0.0),
+                    (0.0, 9.0, 0.0),
+                    (0.0, 0.0, 2.0),
+                ],
+                faces=[(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)],
+            )
+        ],
+    )
+    replacement = _mesh(
+        "replacement.pac",
+        [
+            SubMesh(
+                name="source",
+                material="source",
+                vertices=[
+                    (-1.0, -1.5, -2.5),
+                    (1.0, -1.5, -2.5),
+                    (-1.0, 1.5, -2.5),
+                    (-1.0, -1.5, 2.5),
+                ],
+                faces=[(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)],
+            )
+        ],
+    )
+    transform = StaticReplacementTransform(
+        alignment_mode="manual",
+        source_anchor=(0.0, 0.0, 0.0),
+        target_anchor=(0.0, 0.0, 0.0),
+        source_axis=(0.0, 0.0, 1.0),
+        target_axis=(0.0, 0.0, 1.0),
+        rotate_xyz_degrees=(0.0, 0.0, 90.0),
+        scale_xyz=(1.5, 0.75, 2.0),
+        offset_xyz=(5.0, -2.0, 1.0),
+        fit_to_original_bbox=True,
+        preserve_aspect_ratio=False,
+        scale_to_original_length=False,
+    )
+    adjustments = [
+        StaticSourcePartAdjustment(
+            source_submesh_index=0,
+            offset_xyz=(0.25, -0.5, 0.75),
+            rotate_xyz_degrees=(0.0, 35.0, 0.0),
+            scale_xyz=(2.0, 0.5, 1.25),
+            uniform_scale=0.8,
+        )
+    ]
+    center = (1.0, -2.0, 0.5)
+    scale = 3.0
+
+    affine = source_affine_for_transformed_preview(
+        original,
+        replacement,
+        transform,
+        0,
+        normalization_center=center,
+        normalization_scale=scale,
+        source_part_adjustments=adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )
+
+    assert affine is not None
+    source = replacement.submeshes[0].vertices[2]
+    actual = (
+        affine[0] * source[0] + affine[1] * source[1] + affine[2] * source[2] + affine[3],
+        affine[4] * source[0] + affine[5] * source[1] + affine[6] * source[2] + affine[7],
+        affine[8] * source[0] + affine[9] * source[1] + affine[10] * source[2] + affine[11],
+    )
+    displayed = _transformed_replacement_sources(
+        original,
+        replacement,
+        transform,
+        adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )[0].vertices[2]
+    expected = tuple((displayed[axis] - center[axis]) * scale for axis in range(3))
+
+    for axis in range(3):
+        assert abs(actual[axis] - expected[axis]) <= 1e-6
+
+
+def test_source_normal_transform_for_transformed_preview_matches_live_preview_normals() -> None:
+    original = _mesh(
+        "original.pac",
+        [
+            SubMesh(
+                name="target",
+                material="target",
+                vertices=[
+                    (0.0, 0.0, 0.0),
+                    (4.0, 0.0, 0.0),
+                    (0.0, 9.0, 0.0),
+                    (0.0, 0.0, 2.0),
+                ],
+                faces=[(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)],
+            )
+        ],
+    )
+    source_normal = (0.2, 0.6, 0.77)
+    replacement = _mesh(
+        "replacement.pac",
+        [
+            SubMesh(
+                name="source",
+                material="source",
+                vertices=[
+                    (-1.0, -1.5, -2.5),
+                    (1.0, -1.5, -2.5),
+                    (-1.0, 1.5, -2.5),
+                    (-1.0, -1.5, 2.5),
+                ],
+                normals=[source_normal] * 4,
+                faces=[(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)],
+            )
+        ],
+    )
+    transform = StaticReplacementTransform(
+        alignment_mode="manual",
+        source_anchor=(0.0, 0.0, 0.0),
+        target_anchor=(0.0, 0.0, 0.0),
+        source_axis=(0.0, 0.0, 1.0),
+        target_axis=(0.0, 1.0, 0.0),
+        rotate_xyz_degrees=(30.0, -20.0, 70.0),
+        scale_xyz=(5.0, 0.25, 2.0),
+        fit_to_original_bbox=True,
+        preserve_aspect_ratio=False,
+        scale_to_original_length=False,
+    )
+    adjustments = [
+        StaticSourcePartAdjustment(
+            source_submesh_index=0,
+            rotate_xyz_degrees=(15.0, 35.0, -10.0),
+            scale_xyz=(0.2, 4.0, 1.5),
+            uniform_scale=2.0,
+        )
+    ]
+
+    normal_transform = source_normal_transform_for_transformed_preview(
+        original,
+        replacement,
+        transform,
+        0,
+        source_part_adjustments=adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )
+
+    assert normal_transform is not None
+    actual = (
+        normal_transform[0] * source_normal[0] + normal_transform[1] * source_normal[1] + normal_transform[2] * source_normal[2],
+        normal_transform[3] * source_normal[0] + normal_transform[4] * source_normal[1] + normal_transform[5] * source_normal[2],
+        normal_transform[6] * source_normal[0] + normal_transform[7] * source_normal[1] + normal_transform[8] * source_normal[2],
+    )
+    actual_length = sum(component * component for component in actual) ** 0.5
+    actual = tuple(component / actual_length for component in actual)
+    expected = _transformed_replacement_sources(
+        original,
+        replacement,
+        transform,
+        adjustments,
+        global_transform_source_indices={0},
+        alignment_basis_mesh=replacement,
+    )[0].normals[0]
+
+    for axis in range(3):
+        assert abs(actual[axis] - expected[axis]) <= 1e-6
 
 
 def test_source_distance_for_transformed_distance_uses_uniform_live_edit_scale() -> None:

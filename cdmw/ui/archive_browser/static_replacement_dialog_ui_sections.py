@@ -969,6 +969,8 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
         inject_base_color_checkbox.setChecked(True)
         complete_external_swap_checkbox.setChecked(True)
 
+    def _refresh_part_material_tuning_visibility() -> None:
+        return None
 
     complete_swap_material_profile_combo.currentIndexChanged.connect(
         lambda _index: (
@@ -1240,16 +1242,16 @@ def create_alignment_setup_options_transform_section(context: dict[str, object])
         )
         preview_widget.alignment_drag_finished.connect(_commit_alignment_preview_translation)
         preview_widget.alignment_rotation_finished.connect(_commit_alignment_preview_rotation)
-        preview_widget.mesh_edit_stroke_started.connect(_mesh_edit_begin_stroke)
-        preview_widget.mesh_edit_stroke_previewed.connect(_mesh_edit_apply_preview_payload)
-        preview_widget.mesh_edit_stroke_finished.connect(_mesh_edit_finish_stroke)
-        preview_widget.mesh_edit_stroke_cancelled.connect(_mesh_edit_cancel_stroke)
-        preview_widget.mesh_edit_selection_changed.connect(_mesh_edit_selection_changed)
-    alignment_d3d11_preview_host.mesh_edit_stroke_started.connect(_mesh_edit_begin_stroke)
-    alignment_d3d11_preview_host.mesh_edit_stroke_previewed.connect(_mesh_edit_apply_preview_payload)
-    alignment_d3d11_preview_host.mesh_edit_stroke_finished.connect(_mesh_edit_finish_stroke)
-    alignment_d3d11_preview_host.mesh_edit_stroke_cancelled.connect(_mesh_edit_cancel_stroke)
-    alignment_d3d11_preview_host.mesh_edit_selection_changed.connect(_mesh_edit_selection_changed)
+        preview_widget.mesh_edit_stroke_started.connect(lambda payload: _mesh_edit_begin_stroke(payload))
+        preview_widget.mesh_edit_stroke_previewed.connect(lambda payload: _mesh_edit_apply_preview_payload(payload))
+        preview_widget.mesh_edit_stroke_finished.connect(lambda payload: _mesh_edit_finish_stroke(payload))
+        preview_widget.mesh_edit_stroke_cancelled.connect(lambda payload: _mesh_edit_cancel_stroke(payload))
+        preview_widget.mesh_edit_selection_changed.connect(lambda payload: _mesh_edit_selection_changed(payload))
+    alignment_d3d11_preview_host.mesh_edit_stroke_started.connect(lambda payload: _mesh_edit_begin_stroke(payload))
+    alignment_d3d11_preview_host.mesh_edit_stroke_previewed.connect(lambda payload: _mesh_edit_apply_preview_payload(payload))
+    alignment_d3d11_preview_host.mesh_edit_stroke_finished.connect(lambda payload: _mesh_edit_finish_stroke(payload))
+    alignment_d3d11_preview_host.mesh_edit_stroke_cancelled.connect(lambda payload: _mesh_edit_cancel_stroke(payload))
+    alignment_d3d11_preview_host.mesh_edit_selection_changed.connect(lambda payload: _mesh_edit_selection_changed(payload))
     alignment_d3d11_preview_host.alignment_drag_started.connect(_prepare_alignment_d3d11_preview_drag)
     alignment_d3d11_preview_host.alignment_drag_changed.connect(_apply_alignment_d3d11_translation_total)
     alignment_d3d11_preview_host.alignment_drag_finished.connect(_finish_alignment_d3d11_translation)
@@ -1540,6 +1542,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     mesh_edit_part_combo.setToolTip(mesh_edit_action_control_text["part_combo_tooltip"])
     mesh_edit_tool_combo = QComboBox()
     _populate_combo_options_helper(mesh_edit_tool_combo, MESH_EDIT_TOOL_OPTIONS)
+    mesh_edit_tool_combo.setCurrentIndex(max(0, mesh_edit_tool_combo.findData("vertex")))
     mesh_edit_tool_combo.setVisible(False)
     mesh_edit_tool_palette = QFrame(mesh_edit_group)
     mesh_edit_tool_palette.setObjectName("MeshEditVerticalToolPalette")
@@ -1553,7 +1556,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         button.setToolButtonStyle(Qt.ToolButtonTextOnly)
         button.setCheckable(True)
         button.setAutoExclusive(True)
-        button.setChecked(tool == "grab")
+        button.setChecked(tool == "vertex")
         button.setMinimumHeight(24)
         button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         button.setToolTip(tooltip)
@@ -1591,10 +1594,12 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     mesh_edit_shrink_selection_button = QPushButton(mesh_edit_action_control_text["shrink_selection"])
     mesh_edit_smooth_selection_button = QPushButton(mesh_edit_action_control_text["smooth_selection"])
     mesh_edit_subdivide_selection_button = QPushButton(mesh_edit_action_control_text["subdivide_selection"])
+    mesh_edit_refine_smooth_selection_button = QPushButton(mesh_edit_action_control_text["refine_smooth_selection"])
     mesh_edit_split_selection_button = QPushButton(mesh_edit_action_control_text["split_selection"])
     mesh_edit_select_part_button.setToolTip(mesh_edit_action_control_text["select_part_tooltip"])
     mesh_edit_invert_selection_button.setToolTip(mesh_edit_action_control_text["invert_selection_tooltip"])
     mesh_edit_subdivide_selection_button.setToolTip(mesh_edit_action_control_text["subdivide_selection_tooltip"])
+    mesh_edit_refine_smooth_selection_button.setToolTip(mesh_edit_action_control_text["refine_smooth_selection_tooltip"])
     mesh_edit_split_selection_button.setToolTip(mesh_edit_action_control_text["split_selection_tooltip"])
     mesh_edit_delete_faces_button = QPushButton(mesh_edit_action_control_text["delete_faces"])
     mesh_edit_delete_faces_button.setToolTip(mesh_edit_action_control_text["delete_faces_tooltip"])
@@ -1610,6 +1615,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         mesh_edit_shrink_selection_button,
         mesh_edit_smooth_selection_button,
         mesh_edit_subdivide_selection_button,
+        mesh_edit_refine_smooth_selection_button,
         mesh_edit_split_selection_button,
         mesh_edit_delete_faces_button,
         mesh_edit_undo_button,
@@ -1725,6 +1731,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     mesh_edit_layout.addWidget(mesh_edit_invert_selection_button)
     mesh_edit_layout.addWidget(mesh_edit_selection_actions_widget)
     mesh_edit_layout.addWidget(mesh_edit_subdivide_selection_button)
+    mesh_edit_layout.addWidget(mesh_edit_refine_smooth_selection_button)
     mesh_edit_layout.addWidget(mesh_edit_split_selection_button)
     mesh_edit_layout.addWidget(mesh_edit_delete_faces_button)
     mesh_edit_button_row = QHBoxLayout()
@@ -1740,6 +1747,8 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     compact_mesh_edit_shrink_button = None
     compact_mesh_edit_feather_button = None
     compact_mesh_edit_reset_scope_button = None
+    compact_selection_mode_combo = None
+    compact_selection_depth_combo = None
     if classic_mesh_edit_toolbar is not None and classic_mesh_edit_toolbar_layout is not None:
         compact_actions_by_key = mesh_editor_actions_by_key()
         compact_action_keys = (
@@ -1753,9 +1762,8 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
             "brush_pinch",
             "delete",
             "subdivide",
+            "refine_smooth",
             "split",
-            "recalculate_normals",
-            "flip_normals",
             "undo",
             "redo",
         )
@@ -1774,17 +1782,29 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         compact_strength_spin = _make_double_spin_helper(50.0, 0.0, 100.0, 0, 5.0, "%")
         compact_falloff_combo = QComboBox(compact_mesh_edit_options_widget)
         _populate_combo_options_helper(compact_falloff_combo, MESH_EDIT_FALLOFF_OPTIONS)
+        compact_selection_mode_combo = QComboBox(compact_mesh_edit_options_widget)
+        compact_selection_mode_combo.setObjectName("ClassicMeshEditSelectionModeCombo")
+        _populate_combo_options_helper(compact_selection_mode_combo, MESH_EDIT_SELECTION_MODE_OPTIONS)
+        compact_selection_mode_combo.setToolTip(mesh_edit_action_control_text["selection_mode_tooltip"])
+        compact_selection_depth_combo = QComboBox(compact_mesh_edit_options_widget)
+        compact_selection_depth_combo.setObjectName("ClassicMeshEditSelectionDepthCombo")
+        _populate_combo_options_helper(compact_selection_depth_combo, MESH_EDIT_SELECTION_DEPTH_OPTIONS)
+        compact_selection_depth_combo.setToolTip(mesh_edit_action_control_text["selection_depth_tooltip"])
         compact_mirror_checkbox = QCheckBox("Mirror X", compact_mesh_edit_options_widget)
         compact_vertices_checkbox = QCheckBox("Dots", compact_mesh_edit_options_widget)
         for compact_spin in (compact_radius_spin, compact_strength_spin):
             compact_spin.setMaximumWidth(76)
         compact_falloff_combo.setMaximumWidth(132)
+        compact_selection_mode_combo.setMaximumWidth(132)
+        compact_selection_depth_combo.setMaximumWidth(104)
         compact_options_row.addWidget(QLabel("Radius"))
         compact_options_row.addWidget(compact_radius_spin)
         compact_options_row.addWidget(QLabel("Strength"))
         compact_options_row.addWidget(compact_strength_spin)
         compact_options_row.addWidget(QLabel("Falloff"))
         compact_options_row.addWidget(compact_falloff_combo)
+        compact_options_row.addWidget(compact_selection_mode_combo)
+        compact_options_row.addWidget(compact_selection_depth_combo)
         compact_options_row.addWidget(compact_mirror_checkbox)
         compact_options_row.addWidget(compact_vertices_checkbox)
         compact_mesh_edit_clear_button = QPushButton("Clear", compact_mesh_edit_options_widget)
@@ -1819,6 +1839,26 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         mesh_edit_falloff_combo.currentIndexChanged.connect(
             lambda _index: compact_falloff_combo.setCurrentIndex(
                 max(0, compact_falloff_combo.findData(mesh_edit_falloff_combo.currentData()))
+            )
+        )
+        compact_selection_mode_combo.currentIndexChanged.connect(
+            lambda _index: mesh_edit_selection_mode_combo.setCurrentIndex(
+                max(0, mesh_edit_selection_mode_combo.findData(compact_selection_mode_combo.currentData()))
+            )
+        )
+        mesh_edit_selection_mode_combo.currentIndexChanged.connect(
+            lambda _index: compact_selection_mode_combo.setCurrentIndex(
+                max(0, compact_selection_mode_combo.findData(mesh_edit_selection_mode_combo.currentData()))
+            )
+        )
+        compact_selection_depth_combo.currentIndexChanged.connect(
+            lambda _index: mesh_edit_selection_depth_combo.setCurrentIndex(
+                max(0, mesh_edit_selection_depth_combo.findData(compact_selection_depth_combo.currentData()))
+            )
+        )
+        mesh_edit_selection_depth_combo.currentIndexChanged.connect(
+            lambda _index: compact_selection_depth_combo.setCurrentIndex(
+                max(0, compact_selection_depth_combo.findData(mesh_edit_selection_depth_combo.currentData()))
             )
         )
         compact_mirror_checkbox.toggled.connect(lambda checked: mesh_edit_mirror_checkbox.setChecked(bool(checked)))
@@ -1867,7 +1907,6 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         )
     _mesh_edit_adjusted_sources_for_live_preview = alignment_mesh_edit_callbacks._mesh_edit_adjusted_sources_for_live_preview
     _mesh_edit_all_live_vertices_for_sources = alignment_mesh_edit_callbacks._mesh_edit_all_live_vertices_for_sources
-    _mesh_edit_all_vertices_in_scope = alignment_mesh_edit_callbacks._mesh_edit_all_vertices_in_scope
     _mesh_edit_allowed_source_indices = alignment_mesh_edit_callbacks._mesh_edit_allowed_source_indices
     _mesh_edit_apply_preview_payload = alignment_mesh_edit_callbacks._mesh_edit_apply_preview_payload
     _mesh_edit_base_source_index_is_editable = alignment_mesh_edit_callbacks._mesh_edit_base_source_index_is_editable
@@ -1897,12 +1936,11 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
     _mesh_edit_preview_distance_to_source_distance = alignment_mesh_edit_callbacks._mesh_edit_preview_distance_to_source_distance
     _mesh_edit_preview_point_to_source_point = alignment_mesh_edit_callbacks._mesh_edit_preview_point_to_source_point
     _mesh_edit_preview_source_indices = alignment_mesh_edit_callbacks._mesh_edit_preview_source_indices
-    _mesh_edit_preview_to_source_point = alignment_mesh_edit_callbacks._mesh_edit_preview_to_source_point
-    _mesh_edit_preview_to_source_vector = alignment_mesh_edit_callbacks._mesh_edit_preview_to_source_vector
     _mesh_edit_push_undo_snapshot = alignment_mesh_edit_callbacks._mesh_edit_push_undo_snapshot
     _mesh_edit_record_snapshot = alignment_mesh_edit_callbacks._mesh_edit_record_snapshot
     _mesh_edit_redo = alignment_mesh_edit_callbacks._mesh_edit_redo
     _mesh_edit_replace_live_triangles = alignment_mesh_edit_callbacks._mesh_edit_replace_live_triangles
+    _mesh_edit_replace_live_triangles_or_queue_rebuild = alignment_mesh_edit_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild
     _mesh_edit_replace_working_mesh = alignment_mesh_edit_callbacks._mesh_edit_replace_working_mesh
     _mesh_edit_reset_scope = alignment_mesh_edit_callbacks._mesh_edit_reset_scope
     _mesh_edit_restore_enabled_snapshot = alignment_mesh_edit_callbacks._mesh_edit_restore_enabled_snapshot
@@ -2130,7 +2168,9 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         _mesh_edit_cancel_stroke=locals().get('_mesh_edit_cancel_stroke'),
         _mesh_edit_finish_stroke=locals().get('_mesh_edit_finish_stroke'),
         _mesh_edit_preview_source_indices=locals().get('_mesh_edit_preview_source_indices'),
+        _mesh_edit_replace_live_triangles_or_queue_rebuild=locals().get('_mesh_edit_replace_live_triangles_or_queue_rebuild'),
         _mesh_edit_selection_changed=locals().get('_mesh_edit_selection_changed'),
+        _mesh_edit_update_live_preview=locals().get('_mesh_edit_update_live_preview'),
         _morph_slider_refresh_controls=locals().get('_morph_slider_refresh_controls'),
         _morph_slider_reload_profiles=locals().get('_morph_slider_reload_profiles'),
         _preview_target_mesh_indices=locals().get('_preview_target_mesh_indices'),
@@ -2177,6 +2217,7 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         mesh_edit_show_vertices_checkbox=locals().get('mesh_edit_show_vertices_checkbox'),
         mesh_edit_shrink_selection_button=locals().get('mesh_edit_shrink_selection_button'),
         mesh_edit_smooth_selection_button=locals().get('mesh_edit_smooth_selection_button'),
+        mesh_edit_refine_smooth_selection_button=locals().get('mesh_edit_refine_smooth_selection_button'),
         mesh_edit_status_label=locals().get('mesh_edit_status_label'),
         mesh_edit_strength_spin=locals().get('mesh_edit_strength_spin'),
         mesh_edit_split_selection_button=locals().get('mesh_edit_split_selection_button'),
@@ -5188,11 +5229,12 @@ def create_alignment_source_parts_outliner_section(context: dict[str, object]) -
         source_vertices,
     )
 
-    _copy_source_part_with_adjustment = lambda source, adjustment: _copy_source_part_with_adjustment_helper(
+    _copy_source_part_with_adjustment = lambda source, adjustment, **kwargs: _copy_source_part_with_adjustment_helper(
         source,
         adjustment,
         rotate_vector=_rotate_xyz,
         normalize_vector=_normalize,
+        **kwargs,
     )
 
     _mirror_submesh_x = lambda source, plane_x: _mirror_submesh_x_helper(

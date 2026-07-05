@@ -13,6 +13,7 @@ if(NOT DirectXTex_FOUND AND CDMW_FETCH_DIRECTXTEX)
         directxtex
         GIT_REPOSITORY https://github.com/microsoft/DirectXTex.git
         GIT_TAG main
+        UPDATE_DISCONNECTED TRUE
     )
     FetchContent_MakeAvailable(directxtex)
 endif()

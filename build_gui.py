@@ -65,7 +65,7 @@ PROFILES = {
     "fast": {
         "title": "FAST",
         "subtitle": "RUN",
-        "description": "Incremental cache reuse for quick local iteration.",
+        "description": "Incremental PyInstaller build; native helpers still rebuild.",
     },
     "debug": {
         "title": "DEBUG",

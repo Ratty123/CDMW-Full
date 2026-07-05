@@ -1,0 +1,725 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest import mock
+
+from cdmw.services.asset_authoring_service import (
+    ASSET_AUTHORING_DISCOVERY_SCHEMA,
+    ASSET_AUTHORING_MESH_HEALTH_SCHEMA,
+    ASSET_AUTHORING_MESH_OPTIMIZATION_SCHEMA,
+    ASSET_AUTHORING_SCENE_IMPORT_SCHEMA,
+    ASSET_AUTHORING_SOURCE_IMAGE_SCHEMA,
+    ASSET_AUTHORING_TANGENT_REPORT_SCHEMA,
+    ASSET_AUTHORING_TEXTURE_SET_SCHEMA,
+    ASSET_AUTHORING_UV_REPORT_SCHEMA,
+    AssetAuthoringService,
+    asset_authoring_discovery_report,
+    asset_authoring_fixture_manifest,
+)
+from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.modding.scene_import_result_ops import SceneImportResult
+from cdmw.services.service_container import ServiceContainer
+from tools.mesh_editor_dev_harness import run_scenario
+
+
+class AssetAuthoringServiceTests(unittest.TestCase):
+    def test_discovery_report_marks_missing_helpers_unavailable(self) -> None:
+        with mock.patch("cdmw.services.asset_authoring_service.find_native_mesh_core_binary", return_value=None):
+            report = AssetAuthoringService().discovery_report(
+                {"xatlas": Path("Z:/definitely/missing/xatlas.exe")}
+            )
+
+        self.assertEqual(ASSET_AUTHORING_DISCOVERY_SCHEMA, report["schema"])
+        self.assertEqual("ok", report["status"])
+        self.assertEqual("unavailable", report["helpers"]["cdmw_mesh_core"]["status"])
+        self.assertIn("auto-uv-json", report["helpers"]["cdmw_mesh_core"]["capabilities"])
+        self.assertIn("generate-tangents-json", report["helpers"]["cdmw_mesh_core"]["capabilities"])
+        self.assertIn("cleanup-json", report["helpers"]["cdmw_mesh_core"]["capabilities"])
+        self.assertIn("optimize-json", report["helpers"]["cdmw_mesh_core"]["capabilities"])
+        self.assertIn("import-scene-json", report["helpers"]["cdmw_mesh_core"]["capabilities"])
+        self.assertEqual("not_checked", report["helpers"]["cdmw_mesh_core"]["version_status"])
+        self.assertEqual("configured_missing", report["helpers"]["xatlas"]["status"])
+        self.assertFalse(report["helpers"]["xatlas"]["package_safe"])
+        json.dumps(report)
+
+    def test_discovery_report_accepts_configured_helper_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            helper = Path(temp_dir) / "material_maker.exe"
+            helper.write_text("", encoding="utf-8")
+            report = AssetAuthoringService().discovery_report({"material_maker": helper})
+
+        material_maker = report["helpers"]["material_maker"]
+        self.assertEqual("available", material_maker["status"])
+        self.assertEqual("configured", material_maker["source"])
+        self.assertIn("export_texture_set", material_maker["capabilities"])
+
+    def test_discovery_report_marks_bundled_mesh_backends_available_through_mesh_core(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            mesh_core = Path(temp_dir) / "cdmw-mesh-core.exe"
+            mesh_core.write_text("", encoding="utf-8")
+            with mock.patch("cdmw.services.asset_authoring_service.find_native_mesh_core_binary", return_value=mesh_core):
+                report = AssetAuthoringService().discovery_report()
+
+        for key in ("xatlas", "ufbx", "meshoptimizer"):
+            helper = report["helpers"][key]
+            self.assertEqual("available", helper["status"])
+            self.assertEqual("cdmw_mesh_core", helper["source"])
+            self.assertEqual("bundled", helper["version_status"])
+            self.assertEqual("bundled in CDMW Mesh Core", helper["version"])
+            self.assertEqual(str(mesh_core), helper["path"])
+
+    def test_discovery_report_can_probe_configured_helper_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            helper = Path(temp_dir) / "material_maker.exe"
+            helper.write_text("", encoding="utf-8")
+            with mock.patch("cdmw.services.asset_authoring_service.subprocess.run") as run_mock:
+                run_mock.return_value = mock.Mock(returncode=0, stdout="Material Maker 1.4.0\n", stderr="")
+                report = AssetAuthoringService().discovery_report(
+                    {"material_maker": helper},
+                    include_versions=True,
+                )
+
+        material_maker = report["helpers"]["material_maker"]
+        self.assertEqual("ok", material_maker["version_status"])
+        self.assertEqual("Material Maker 1.4.0", material_maker["version"])
+        self.assertEqual([str(helper), "--version"], material_maker["version_argv"])
+        self.assertIn((str(helper), "--version"), [call.args[0] for call in run_mock.call_args_list])
+
+    def test_discovery_report_marks_version_probe_failures_recoverable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            helper = Path(temp_dir) / "oiiotool.exe"
+            helper.write_text("", encoding="utf-8")
+            with mock.patch("cdmw.services.asset_authoring_service.subprocess.run") as run_mock:
+                run_mock.return_value = mock.Mock(returncode=2, stdout="", stderr="bad version")
+                report = asset_authoring_discovery_report(
+                    configured_paths={"openimageio": helper},
+                    include_versions=True,
+                )
+
+        openimageio = report["helpers"]["openimageio"]
+        self.assertEqual("available", openimageio["status"])
+        self.assertEqual("failed", openimageio["version_status"])
+        self.assertEqual("bad version", openimageio["version"])
+        self.assertEqual(2, openimageio["version_returncode"])
+
+    def test_fixture_manifest_points_at_repeatable_mesh_and_texture(self) -> None:
+        manifest = asset_authoring_fixture_manifest()
+
+        self.assertTrue(Path(manifest["mesh"]).is_file())
+        self.assertTrue(Path(manifest["texture"]).is_file())
+        self.assertEqual(3, manifest["expected"]["mesh_vertices"])
+        self.assertEqual((2, 2), tuple(manifest["expected"]["texture_size"]))
+
+    def test_service_container_binds_asset_authoring_settings(self) -> None:
+        container = ServiceContainer.create_default(settings="old")
+        self.assertIsNotNone(container.asset_authoring)
+
+        container.bind_settings("new")
+
+        self.assertEqual("new", container.asset_authoring.settings)
+
+    def test_harness_asset_authoring_discovery_writes_json_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_scenario("asset-authoring-discovery", Path(temp_dir))
+            report_path = Path(result["asset_authoring"]["report_path"])
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(ASSET_AUTHORING_DISCOVERY_SCHEMA, report["schema"])
+        self.assertIn("xatlas", report["helpers"])
+
+    def test_material_maker_project_command_uses_configured_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            helper = root / "material_maker.exe"
+            project = root / "wood.material"
+            helper.write_text("", encoding="utf-8")
+            project.write_text("", encoding="utf-8")
+
+            command = AssetAuthoringService().material_maker_project_command(
+                project,
+                {"material_maker": helper},
+            )
+
+        self.assertEqual("ready", command["status"])
+        self.assertTrue(command["can_launch"])
+        self.assertEqual([str(helper), str(project)], command["argv"])
+
+    def test_material_maker_export_command_requires_configured_template(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            helper = Path(temp_dir) / "material_maker.exe"
+            helper.write_text("", encoding="utf-8")
+            command = AssetAuthoringService().material_maker_export_command(
+                Path(temp_dir) / "wood.material",
+                Path(temp_dir) / "exports",
+                {"material_maker": helper},
+            )
+
+        self.assertEqual("cli_export_unconfigured", command["status"])
+        self.assertFalse(command["can_run"])
+
+    def test_material_maker_export_command_expands_json_template(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            helper = root / "material_maker.exe"
+            project = root / "wood.material"
+            output = root / "exports"
+            helper.write_text("", encoding="utf-8")
+            command = AssetAuthoringService().material_maker_export_command(
+                project,
+                output,
+                {
+                    "material_maker": helper,
+                    "material_maker_export_template": '["{exe}","--export","{project}","--output","{output}"]',
+                },
+            )
+
+        self.assertEqual("ready", command["status"])
+        self.assertTrue(command["can_run"])
+        self.assertEqual([str(helper), "--export", str(project), "--output", str(output)], command["argv"])
+
+    def test_run_material_maker_export_uses_configured_command_without_shell(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            helper = root / "material_maker.exe"
+            project = root / "wood.material"
+            output = root / "exports"
+            helper.write_text("", encoding="utf-8")
+            with mock.patch("cdmw.services.asset_authoring_service.subprocess.run") as run_mock:
+                run_mock.return_value = mock.Mock(returncode=0, stdout="done", stderr="")
+                result = AssetAuthoringService().run_material_maker_export(
+                    project,
+                    output,
+                    {
+                        "material_maker": helper,
+                        "material_maker_export_template": ["{exe}", "--export", "{project}", "--output", "{output}"],
+                    },
+                )
+
+        self.assertEqual("ok", result["status"])
+        run_mock.assert_called_once()
+        argv = run_mock.call_args.args[0]
+        self.assertEqual((str(helper), "--export", str(project), "--output", str(output)), argv)
+
+    def test_ingest_exported_texture_set_maps_material_maker_channels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            for name in (
+                "Oak_BaseColor.png",
+                "Oak_Normal.tga",
+                "Oak_Roughness.png",
+                "Oak_Metallic.png",
+                "Oak_AO.png",
+                "Oak_Height.exr",
+                "Oak_Recolor_Mask.png",
+                "Oak_Notes.txt",
+            ):
+                (root / name).write_bytes(b"source")
+
+            report = AssetAuthoringService().ingest_exported_texture_set(root, material_name="Oak")
+
+        self.assertEqual(ASSET_AUTHORING_TEXTURE_SET_SCHEMA, report["schema"])
+        self.assertEqual("ok", report["status"])
+        self.assertEqual("cdmw_directxtex", report["dds_authority"])
+        self.assertEqual(
+            {"base_color", "normal", "roughness", "metallic", "ao", "height", "recolor"},
+            set(report["channels"]),
+        )
+        self.assertEqual("review_intermediate", report["channels"]["base_color"]["source_role"])
+        self.assertEqual("normal_bc5", report["channels"]["normal"]["profile_hint"])
+        self.assertEqual("mask", report["channels"]["metallic"]["texture_type"])
+        self.assertEqual([], report["unmapped"])
+
+    def test_ingest_exported_texture_set_supports_overrides_and_duplicate_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "Oak_Custom.png").write_bytes(b"source")
+            (root / "Oak_Albedo.png").write_bytes(b"source")
+            (root / "Oak_BaseColor.png").write_bytes(b"source")
+
+            report = AssetAuthoringService().ingest_exported_texture_set(
+                root,
+                channel_overrides={"Oak_Custom.png": "ao"},
+            )
+
+        self.assertIn("ao", report["channels"])
+        self.assertIn("base_color", report["channels"])
+        self.assertEqual("Oak_Albedo.png", Path(report["channels"]["base_color"]["path"]).name)
+        self.assertTrue(any("Duplicate base_color map skipped" in warning for warning in report["warnings"]))
+
+    def test_ingest_exported_texture_set_reports_missing_export_folder(self) -> None:
+        report = AssetAuthoringService().ingest_exported_texture_set(Path("Z:/definitely/missing/material-maker"))
+
+        self.assertEqual(ASSET_AUTHORING_TEXTURE_SET_SCHEMA, report["schema"])
+        self.assertEqual("missing_export_dir", report["status"])
+        self.assertEqual({}, report["channels"])
+
+    def test_scene_import_report_wraps_obj_as_unmapped_structured_result(self) -> None:
+        mesh_path = Path(asset_authoring_fixture_manifest()["mesh"])
+
+        report = AssetAuthoringService().scene_import_report(mesh_path)
+
+        self.assertEqual(ASSET_AUTHORING_SCENE_IMPORT_SCHEMA, report["schema"])
+        self.assertEqual("ok", report["status"])
+        self.assertEqual("cdmw_scene_importer", report["backend"])
+        self.assertEqual("unmapped", report["crimson_compatibility"])
+        self.assertEqual("obj", report["source_format"])
+        self.assertEqual(1, report["mesh"]["submesh_count"])
+        self.assertEqual(3, report["mesh"]["vertex_count"])
+        self.assertEqual(1, report["mesh"]["face_count"])
+        self.assertFalse(report["skeleton_hints"]["has_skinning"])
+        json.dumps(report)
+
+    def test_scene_import_report_reports_fbx_as_unsupported_when_native_ufbx_is_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "rigged.fbx"
+            helper = root / "cdmw-mesh-core.exe"
+            source.write_bytes(b"fbx")
+            helper.write_bytes(b"")
+
+            with mock.patch("cdmw.modding.mesh_native_core.native_scene_import_report", return_value=None):
+                report = AssetAuthoringService().scene_import_report(source, {"cdmw_mesh_core": helper})
+
+        self.assertEqual(ASSET_AUTHORING_SCENE_IMPORT_SCHEMA, report["schema"])
+        self.assertEqual("unsupported", report["status"])
+        self.assertEqual("ufbx_unavailable", report["backend"])
+        self.assertEqual("available", report["helper"]["status"])
+        self.assertIn("fbx_animation_import_unavailable", report["unsupported"])
+        json.dumps(report)
+
+    def test_scene_import_report_wraps_native_ufbx_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "rigged.fbx"
+            source.write_bytes(b"fbx")
+            native_report = {
+                "status": "ok",
+                "backend": "cdmw_mesh_core_0.1",
+                "operation": "import_scene",
+                "import_backend": "ufbx",
+                "source_path": str(source),
+                "source_format": "fbx",
+                "crimson_compatibility": "unmapped",
+                "mesh": {"part_count": 1, "vertex_count": 4, "face_count": 2, "triangle_count": 2},
+                "materials": {"count": 1, "names": ["body"]},
+                "texture_hints": {"count": 1, "files": ["body_d.dds"]},
+                "skeleton_hints": {
+                    "has_skinning": True,
+                    "bone_count": 3,
+                    "skin_deformer_count": 1,
+                    "skin_cluster_count": 3,
+                    "rig_status": "reported_unsupported_until_crimson_mapping",
+                    "animation_status": "reported_unsupported_until_crimson_mapping",
+                },
+                "animations": {"count": 1, "names": ["idle"]},
+                "unsupported": ["fbx_rig_mapping_report_only", "fbx_animation_report_only"],
+                "diagnostics": ["FBX parsed with ufbx."],
+            }
+
+            with mock.patch("cdmw.modding.mesh_native_core.native_scene_import_report", return_value=native_report):
+                report = AssetAuthoringService().scene_import_report(source)
+
+        self.assertEqual(ASSET_AUTHORING_SCENE_IMPORT_SCHEMA, report["schema"])
+        self.assertEqual("ok", report["status"])
+        self.assertEqual("ufbx", report["backend"])
+        self.assertEqual(native_report, report["native_import"])
+        self.assertEqual(4, report["mesh"]["vertex_count"])
+        self.assertEqual([{"name": "body", "source": "ufbx"}], report["materials"])
+        self.assertEqual([{"kind": "referenced", "path": "body_d.dds", "source": "ufbx"}], report["texture_hints"])
+        self.assertTrue(report["skeleton_hints"]["has_skinning"])
+        self.assertIn("fbx_animation_report_only", report["unsupported"])
+        json.dumps(report)
+
+    def test_scene_import_report_marks_skinned_source_as_target_mapping_required(self) -> None:
+        submesh = SubMesh(
+            name="rigged",
+            material="body",
+            vertices=[(0.0, 0.0, 0.0)],
+            uvs=[(0.0, 0.0)],
+            normals=[(0.0, 1.0, 0.0)],
+            faces=[],
+            bone_indices=[(0,)],
+            bone_weights=[(1.0,)],
+        )
+        mesh = ParsedMesh(path="rigged.obj", format="obj", submeshes=[submesh], total_vertices=1, has_bones=True)
+        with mock.patch(
+            "cdmw.modding.scene_importer.import_scene_mesh_with_report",
+            return_value=SceneImportResult(mesh=mesh),
+        ):
+            report = AssetAuthoringService().scene_import_report(Path("rigged.obj"))
+
+        self.assertEqual("ok", report["status"])
+        self.assertTrue(report["skeleton_hints"]["has_skinning"])
+        self.assertEqual("skinning_detected_target_mapping_required", report["skeleton_hints"]["rig_status"])
+        self.assertIn("skeleton_binding_requires_target_mapping", report["unsupported"])
+        json.dumps(report)
+
+    def test_mesh_health_report_counts_bad_duplicate_and_loose_geometry_without_mutating(self) -> None:
+        submesh = SubMesh(
+            name="cleanup",
+            vertices=[
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+                (2.0, 2.0, 2.0),
+                (float("nan"), 0.0, 0.0),
+            ],
+            faces=[
+                (0, 1, 3),
+                (3, 1, 0),
+                (0, 0, 1),
+                (0, 1, 99),
+                ("bad", 1, 2),  # type: ignore[list-item]
+            ],
+        )
+        mesh = ParsedMesh(path="cleanup.obj", format="obj", submeshes=[submesh])
+        vertices_before = list(submesh.vertices)
+        faces_before = list(submesh.faces)
+
+        report = AssetAuthoringService().mesh_health_report(mesh)
+
+        self.assertEqual(ASSET_AUTHORING_MESH_HEALTH_SCHEMA, report["schema"])
+        self.assertEqual("issues_found", report["status"])
+        self.assertFalse(report["mutates"])
+        self.assertEqual(1, report["totals"]["invalid_vertices"])
+        self.assertEqual(1, report["totals"]["invalid_faces"])
+        self.assertEqual(1, report["totals"]["invalid_indices"])
+        self.assertEqual(1, report["totals"]["degenerate_faces"])
+        self.assertEqual(1, report["totals"]["duplicate_vertex_groups"])
+        self.assertEqual(1, report["totals"]["duplicate_vertices"])
+        self.assertEqual(1, report["totals"]["duplicate_faces"])
+        self.assertEqual(3, report["totals"]["loose_vertices"])
+        self.assertEqual(vertices_before, submesh.vertices)
+        self.assertEqual(faces_before, submesh.faces)
+        json.dumps(report)
+
+    def test_mesh_health_report_flags_topology_delta_against_original_mesh(self) -> None:
+        original = ParsedMesh(
+            path="before.obj",
+            format="obj",
+            submeshes=[
+                SubMesh(
+                    name="part",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        edited = ParsedMesh(
+            path="after.obj",
+            format="obj",
+            submeshes=[
+                SubMesh(
+                    name="part",
+                    vertices=[
+                        (0.0, 0.0, 0.0),
+                        (1.0, 0.0, 0.0),
+                        (0.0, 1.0, 0.0),
+                        (0.0, 0.0, 1.0),
+                    ],
+                    faces=[(0, 1, 2), (0, 2, 3)],
+                )
+            ],
+        )
+
+        report = AssetAuthoringService().mesh_health_report(edited, original_mesh=original)
+
+        self.assertTrue(report["topology"]["topology_changed"])
+        self.assertEqual(["vertex_count", "face_count", "index_count"], report["topology"]["changed_fields"])
+        self.assertTrue(any("Topology changed" in warning for warning in report["warnings"]))
+        json.dumps(report)
+
+    def test_mesh_optimization_report_wraps_native_meshoptimizer_evidence(self) -> None:
+        mesh = ParsedMesh(
+            path="optimize.obj",
+            format="obj",
+            submeshes=[
+                SubMesh(
+                    name="part",
+                    vertices=[
+                        (0.0, 0.0, 0.0),
+                        (1.0, 0.0, 0.0),
+                        (0.0, 1.0, 0.0),
+                        (1.0, 1.0, 0.0),
+                    ],
+                    faces=[(0, 1, 2), (1, 3, 2)],
+                )
+            ],
+        )
+        native_report = {
+            "status": "ok",
+            "backend": "cdmw_mesh_core_0.1",
+            "operation": "optimize",
+            "optimization_backend": "meshoptimizer",
+            "topology_changed": True,
+            "totals": {
+                "input_vertex_count": 4,
+                "referenced_vertex_count": 3,
+                "input_index_count": 6,
+                "output_index_count": 3,
+                "input_triangle_count": 2,
+                "output_triangle_count": 1,
+            },
+            "submeshes": [
+                {
+                    "index": 0,
+                    "optimization_backend": "meshoptimizer",
+                    "input_vertex_count": 4,
+                    "referenced_vertex_count": 3,
+                    "input_index_count": 6,
+                    "output_index_count": 3,
+                    "input_triangle_count": 2,
+                    "output_triangle_count": 1,
+                    "target_ratio": 0.5,
+                    "target_error": 0.02,
+                    "result_error": 0.01,
+                    "simplified": True,
+                    "topology_changed": True,
+                    "before": {"cache_acmr": 2.0, "cache_atvr": 1.0, "overdraw": 1.2, "overfetch": 1.0},
+                    "after": {"cache_acmr": 1.0, "cache_atvr": 0.75, "overdraw": 1.0, "overfetch": 0.75},
+                    "faces": [[0, 1, 2]],
+                }
+            ],
+        }
+        with mock.patch("cdmw.modding.mesh_native_core.native_mesh_optimization_report", return_value=native_report):
+            report = AssetAuthoringService().mesh_optimization_report(mesh, simplify_ratio=0.5, target_error=0.02)
+
+        self.assertEqual(ASSET_AUTHORING_MESH_OPTIMIZATION_SCHEMA, report["schema"])
+        self.assertEqual("issues_found", report["status"])
+        self.assertFalse(report["mutates"])
+        self.assertTrue(report["simplification"]["opt_in"])
+        self.assertEqual(native_report, report["native_optimization"])
+        self.assertIn("Native simplification changes index topology", report["warnings"][0])
+        json.dumps(report)
+
+    def test_uv_authoring_report_surfaces_islands_bounds_and_topology_delta(self) -> None:
+        original = ParsedMesh(
+            path="before.obj",
+            format="obj",
+            submeshes=[
+                SubMesh(
+                    name="part",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        edited = ParsedMesh(
+            path="after.obj",
+            format="obj",
+            submeshes=[
+                SubMesh(
+                    name="uv_islands",
+                    vertices=[
+                        (0.0, 0.0, 0.0),
+                        (1.0, 0.0, 0.0),
+                        (0.0, 1.0, 0.0),
+                        (2.0, 2.0, 0.0),
+                        (3.0, 2.0, 0.0),
+                        (2.0, 3.0, 0.0),
+                    ],
+                    uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (2.0, 2.0), (3.0, 2.0), (2.0, 3.0)],
+                    faces=[(0, 1, 2), (3, 4, 5)],
+                ),
+                SubMesh(name="missing_uv", vertices=[(0.0, 0.0, 0.0)], uvs=[], faces=[]),
+            ],
+        )
+
+        report = AssetAuthoringService().uv_authoring_report(edited, original_mesh=original, atlas_size=(1024, 1024))
+
+        self.assertEqual(ASSET_AUTHORING_UV_REPORT_SCHEMA, report["schema"])
+        self.assertEqual("issues_found", report["status"])
+        self.assertEqual(2, report["island_count"])
+        self.assertEqual((1024, 1024), tuple(report["atlas_size"]))
+        self.assertEqual((0.0, 0.0), tuple(report["uv_bounds"]["uv_min"]))
+        self.assertEqual((3.0, 3.0), tuple(report["uv_bounds"]["uv_max"]))
+        self.assertEqual(1, len(report["missing_uv_parts"]))
+        self.assertTrue(report["topology"]["topology_changed"])
+        self.assertTrue(any("UV remap safety" in warning for warning in report["warnings"]))
+        json.dumps(report)
+
+    def test_uv_authoring_report_can_include_native_xatlas_unwrap_evidence(self) -> None:
+        mesh = ParsedMesh(
+            path="uv.obj",
+            format="obj",
+            submeshes=[
+                SubMesh(
+                    name="part",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        native_report = {
+            "status": "ok",
+            "operation": "auto_uv",
+            "unwrap_backend": "xatlas",
+            "topology_changed": False,
+            "submeshes": [{"index": 0, "chart_count": 1, "output_vertex_count": 3}],
+        }
+
+        with mock.patch("cdmw.modding.mesh_native_core.native_mesh_auto_uv_report", return_value=native_report) as unwrap:
+            report = AssetAuthoringService().uv_authoring_report(mesh, atlas_size=(512, 512), include_native_unwrap=True)
+
+        unwrap.assert_called_once()
+        self.assertEqual(native_report, report["native_unwrap"])
+        self.assertEqual("xatlas", report["native_unwrap"]["unwrap_backend"])
+        json.dumps(report)
+
+    def test_tangent_authoring_report_surfaces_missing_and_complete_coverage(self) -> None:
+        mesh = ParsedMesh(
+            path="tangent.obj",
+            format="obj",
+            submeshes=[
+                SubMesh(
+                    name="ready",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                    normals=[(0.0, 0.0, 1.0)] * 3,
+                    tangents=[],
+                    faces=[(0, 1, 2)],
+                ),
+                SubMesh(
+                    name="generated",
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                    normals=[(0.0, 0.0, 1.0)] * 3,
+                    tangents=[(1.0, 0.0, 0.0)] * 3,
+                    faces=[(0, 1, 2)],
+                ),
+            ],
+        )
+
+        report = AssetAuthoringService().tangent_authoring_report(mesh)
+
+        self.assertEqual(ASSET_AUTHORING_TANGENT_REPORT_SCHEMA, report["schema"])
+        self.assertEqual("issues_found", report["status"])
+        self.assertFalse(report["mutates"])
+        self.assertEqual(1, report["totals"]["missing_tangent_parts"])
+        self.assertEqual(1, report["totals"]["complete_tangent_parts"])
+        self.assertEqual(2, report["totals"]["generatable_parts"])
+        self.assertEqual("missing", report["parts"][0]["tangent_coverage"])
+        self.assertEqual("complete", report["parts"][1]["tangent_coverage"])
+        json.dumps(report)
+
+    def test_openimageio_source_report_marks_missing_helper_without_blocking_existing_png(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "source.png"
+            source.write_bytes(b"png")
+            report = AssetAuthoringService().openimageio_source_report(
+                source,
+                {"openimageio": Path(temp_dir) / "missing-oiiotool.exe"},
+            )
+
+        self.assertEqual(ASSET_AUTHORING_SOURCE_IMAGE_SCHEMA, report["schema"])
+        self.assertEqual("helper_unavailable", report["status"])
+        self.assertTrue(report["existing_workflow_unaffected"])
+        self.assertFalse(report["can_convert"])
+        self.assertEqual([], report["metadata_argv"])
+        json.dumps(report)
+
+    def test_openimageio_convert_and_diff_commands_use_configured_oiiotool(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            helper = root / "oiiotool.exe"
+            source = root / "source.psd"
+            output = root / "converted.png"
+            rebuilt = root / "rebuilt.png"
+            helper.write_text("", encoding="utf-8")
+            source.write_bytes(b"source")
+            rebuilt.write_bytes(b"rebuilt")
+
+            service = AssetAuthoringService()
+            report = service.openimageio_source_report(source, {"openimageio": helper})
+            convert = service.openimageio_convert_command(source, output, {"openimageio": helper})
+            diff = service.openimageio_diff_command(output, rebuilt, {"openimageio": helper})
+
+        self.assertEqual("ready", report["status"])
+        self.assertTrue(report["openimageio_source_candidate"])
+        self.assertEqual([str(helper), "--info", "-v", str(source)], report["metadata_argv"])
+        self.assertEqual([str(helper), str(source), "-o", str(output)], convert["argv"])
+        self.assertFalse(diff["can_run"])
+        self.assertEqual("missing_source", diff["status"])
+        self.assertIn(str(output), diff["missing"])
+
+    def test_run_openimageio_metadata_surfaces_color_space_and_bit_depth(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            helper = root / "oiiotool.exe"
+            source = root / "source.exr"
+            helper.write_text("", encoding="utf-8")
+            source.write_bytes(b"source")
+            stdout = "\n".join(
+                (
+                    "source.exr : 1024 x 512, 4 channels, float openexr",
+                    "    oiio:ColorSpace: linear",
+                    "    Bits per channel: 16",
+                )
+            )
+            with mock.patch("cdmw.services.asset_authoring_service.subprocess.run") as run_mock:
+                run_mock.return_value = mock.Mock(returncode=0, stdout=stdout, stderr="")
+                result = AssetAuthoringService().run_openimageio_metadata(
+                    source,
+                    {"openimageio": helper},
+                )
+
+        self.assertEqual("ok", result["status"])
+        self.assertEqual((str(helper), "--info", "-v", str(source)), run_mock.call_args.args[0])
+        self.assertEqual(1024, result["metadata"]["width"])
+        self.assertEqual(512, result["metadata"]["height"])
+        self.assertEqual(4, result["metadata"]["channel_count"])
+        self.assertEqual(16, result["metadata"]["bit_depth"])
+        self.assertEqual("linear", result["metadata"]["color_space"])
+        json.dumps(result)
+
+    def test_run_openimageio_convert_uses_configured_command_without_shell(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            helper = root / "oiiotool.exe"
+            source = root / "source.exr"
+            output = root / "converted" / "source.png"
+            helper.write_text("", encoding="utf-8")
+            source.write_bytes(b"source")
+            with mock.patch("cdmw.services.asset_authoring_service.subprocess.run") as run_mock:
+                run_mock.return_value = mock.Mock(returncode=0, stdout="ok", stderr="")
+                result = AssetAuthoringService().run_openimageio_convert(
+                    source,
+                    output,
+                    {"openimageio": helper},
+                )
+
+        self.assertEqual("ok", result["status"])
+        run_mock.assert_called_once()
+        argv = run_mock.call_args.args[0]
+        self.assertEqual((str(helper), str(source), "-o", str(output)), argv)
+
+    def test_run_openimageio_diff_reports_nonzero_as_different(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            helper = root / "oiiotool.exe"
+            left = root / "left.png"
+            right = root / "right.png"
+            helper.write_text("", encoding="utf-8")
+            left.write_bytes(b"left")
+            right.write_bytes(b"right")
+            with mock.patch("cdmw.services.asset_authoring_service.subprocess.run") as run_mock:
+                run_mock.return_value = mock.Mock(returncode=1, stdout="diff", stderr="")
+                result = AssetAuthoringService().run_openimageio_diff(
+                    left,
+                    right,
+                    {"openimageio": helper},
+                )
+
+        self.assertEqual("different", result["status"])
+        argv = run_mock.call_args.args[0]
+        self.assertEqual((str(helper), "--diff", str(left), str(right)), argv)
+
+
+if __name__ == "__main__":
+    unittest.main()

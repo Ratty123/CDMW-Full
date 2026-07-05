@@ -386,6 +386,27 @@ def test_preview_submesh_bounds_uses_all_vertices_or_defaults() -> None:
     assert preview_submesh_bounds(()) == ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
 
 
+def test_preview_submesh_bounds_prefers_native_metadata(monkeypatch) -> None:
+    from cdmw.modding import mesh_native_core
+
+    class FallbackExplodes:
+        @property
+        def vertices(self):  # noqa: ANN201
+            raise AssertionError("Python vertex scan fallback")
+
+    monkeypatch.setattr(
+        mesh_native_core,
+        "summarize_native_mesh_submesh_metadata",
+        lambda submeshes: {
+            "total_vertices": 2,
+            "bbox_min": (-2.0, -1.0, 0.5),
+            "bbox_max": (3.0, 4.0, 5.0),
+        },
+    )
+
+    assert preview_submesh_bounds((FallbackExplodes(),)) == ((-2.0, -1.0, 0.5), (3.0, 4.0, 5.0))
+
+
 def test_parsed_preview_mesh_from_submeshes_summarizes_source_and_parts() -> None:
     source_mesh = type("SourceMesh", (), {"path": "source.pam", "format": "pam"})()
     first = type(
@@ -419,6 +440,46 @@ def test_parsed_preview_mesh_from_submeshes_summarizes_source_and_parts() -> Non
     assert parsed.total_faces == 3
     assert parsed.has_uvs is True
     assert parsed.has_bones is False
+
+
+def test_parsed_preview_mesh_from_submeshes_prefers_native_metadata(monkeypatch) -> None:
+    from cdmw.modding import mesh_native_core
+
+    class FallbackExplodes:
+        @property
+        def vertices(self):  # noqa: ANN201
+            raise AssertionError("Python vertex-count fallback")
+
+        @property
+        def faces(self):  # noqa: ANN201
+            raise AssertionError("Python face-count fallback")
+
+        @property
+        def uvs(self):  # noqa: ANN201
+            raise AssertionError("Python UV fallback")
+
+    monkeypatch.setattr(
+        mesh_native_core,
+        "summarize_native_mesh_submesh_metadata",
+        lambda submeshes: {
+            "total_vertices": 123,
+            "total_faces": 45,
+            "has_uvs": True,
+            "bbox_min": (-1.0, -2.0, -3.0),
+            "bbox_max": (4.0, 5.0, 6.0),
+        },
+    )
+
+    parsed = parsed_preview_mesh_from_submeshes(
+        type("SourceMesh", (), {"path": "source.pam", "format": "pam"})(),
+        (FallbackExplodes(),),
+    )
+
+    assert parsed.total_vertices == 123
+    assert parsed.total_faces == 45
+    assert parsed.has_uvs is True
+    assert parsed.bbox_min == (-1.0, -2.0, -3.0)
+    assert parsed.bbox_max == (4.0, 5.0, 6.0)
 
 
 def test_apply_missing_texture_overlay_color_only_colors_untextured_meshes() -> None:

@@ -31,6 +31,7 @@ def create_alignment_added_part_texture_callbacks(context: dict[str, object]) ->
     _added_part_texture_status_helper = context.get('_added_part_texture_status_helper')
     _added_part_texture_tree_visibility_state_helper = context.get('_added_part_texture_tree_visibility_state_helper')
     _added_texture_editor_loading_set_helper = context.get('_added_texture_editor_loading_set_helper')
+    _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
     _auto_fit_alignment_tree_columns = context.get('_auto_fit_alignment_tree_columns')
     _clear_transform_source_indices = context.get('_clear_transform_source_indices')
     _current_added_part_texture_source_index_helper = context.get('_current_added_part_texture_source_index_helper')
@@ -100,6 +101,7 @@ def create_alignment_added_part_texture_callbacks(context: dict[str, object]) ->
     source_index = context.get('source_index')
     source_material_texture_override_assignments = context.get('source_material_texture_override_assignments')
     source_path = context.get('source_path')
+    self = context.get('self')
     targets = context.get('targets')
     texture_files_for_mapping = context.get('texture_files_for_mapping')
     texture_sets = context.get('texture_sets')
@@ -309,6 +311,18 @@ def create_alignment_added_part_texture_callbacks(context: dict[str, object]) ->
         _add_dialog_supplemental_file(resolved)
         return resolved
 
+    def _active_mesh_edit_added_part_texture_mutation_blocked() -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            "Active Mesh Editor added-part texture overrides require native material execution; "
+            "Python texture override mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
     def _assign_added_part_selected_texture() -> None:
         assignment_state = _added_part_selected_texture_assignment_state_helper(
             loading_active=bool(added_texture_editor_loading.get("active")),
@@ -317,6 +331,8 @@ def create_alignment_added_part_texture_callbacks(context: dict[str, object]) ->
             source_path=str(added_texture_source_combo.currentData() or ""),
         )
         if not assignment_state["apply"]:
+            return
+        if _active_mesh_edit_added_part_texture_mutation_blocked():
             return
         _set_added_part_texture_override(
             int(assignment_state["source_index"]),
@@ -341,6 +357,8 @@ def create_alignment_added_part_texture_callbacks(context: dict[str, object]) ->
             slot_sources=slot_sources,
         )
         if not assignment_state["apply"]:
+            return
+        if _active_mesh_edit_added_part_texture_mutation_blocked():
             return
         for slot_kind, source_path in tuple(assignment_state["assignments"]):  # type: ignore[arg-type]
             _set_added_part_texture_override(source_index, slot_kind, source_path)
@@ -370,6 +388,8 @@ def create_alignment_added_part_texture_callbacks(context: dict[str, object]) ->
             title, message = _added_part_texture_invalid_file_message_helper()
             QMessageBox.warning(dialog, title, message)
             return
+        if _active_mesh_edit_added_part_texture_mutation_blocked():
+            return
         _set_added_part_texture_override(source_index, slot_kind, str(registered))
         try:
             _refresh_source_material_plan()
@@ -379,6 +399,8 @@ def create_alignment_added_part_texture_callbacks(context: dict[str, object]) ->
     def _clear_added_part_texture_override() -> None:
         source_index = _current_added_part_texture_source_index()
         slot_kind = str(added_texture_role_combo.currentData() or "base")
+        if _active_mesh_edit_added_part_texture_mutation_blocked():
+            return
         _set_added_part_texture_override(source_index, slot_kind, "")
 
     def _added_texture_tree_selection_changed(*_args: object) -> None:
@@ -444,6 +466,7 @@ def create_alignment_original_texture_material_callbacks(context: dict[str, obje
     _alignment_d3d11_next_original_texture_worker_request_id_helper = context.get('_alignment_d3d11_next_original_texture_worker_request_id_helper')
     _alignment_d3d11_original_texture_worker_request_current_helper = context.get('_alignment_d3d11_original_texture_worker_request_current_helper')
     _alignment_d3d11_record_original_texture_worker_refs_helper = context.get('_alignment_d3d11_record_original_texture_worker_refs_helper')
+    _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
     _alignment_texture_lookup_indexes = context.get('_alignment_texture_lookup_indexes')
     _apply_selected_donor_material = context.get('_apply_selected_donor_material')
     _attach_model_sidecar_texture_preview_paths = context.get('_attach_model_sidecar_texture_preview_paths')
@@ -930,6 +953,18 @@ def create_alignment_original_texture_material_callbacks(context: dict[str, obje
             expand_columns=(0, 2, 3),
         )
 
+    def _active_mesh_edit_donor_material_mutation_blocked() -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            "Active Mesh Editor donor material routing requires native material execution; "
+            "Python donor material plan mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
     def _clear_selected_donor_material_source() -> None:
         target_index = _selected_material_target_index_helper(_selected_target_index, part_target_combo.currentData)
         if target_index < 0:
@@ -939,6 +974,8 @@ def create_alignment_original_texture_material_callbacks(context: dict[str, obje
             except (TypeError, ValueError):
                 target_index = -1
         if target_index < 0:
+            return
+        if _active_mesh_edit_donor_material_mutation_blocked():
             return
         donor_material_plans_by_target.pop(target_index, None)
         texture_overrides_dirty["dirty"] = True
@@ -1152,6 +1189,8 @@ def create_alignment_original_texture_material_callbacks(context: dict[str, obje
                     str(donor_control_text["dialog_title"]),
                     str(donor_control_text["unreadable_sidecar_message"]),
                 )
+                return
+            if _active_mesh_edit_donor_material_mutation_blocked():
                 return
             donor_material_plans_by_target[target_index] = plan_state.plan
             rebuild_sidecar_checkbox.setChecked(True)
@@ -1410,6 +1449,7 @@ def create_alignment_texture_table_callbacks(context: dict[str, object]) -> Simp
     Qt = context.get('Qt')
     _all_suggested_override_sources_action_state_helper = context.get('_all_suggested_override_sources_action_state_helper')
     _apply_texture_row_to_item_helper = context.get('_apply_texture_row_to_item_helper')
+    _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
     _auto_fit_alignment_tree_columns = context.get('_auto_fit_alignment_tree_columns')
     _choose_texture_source_dialog_helper = context.get('_choose_texture_source_dialog_helper')
     _clear_transform_source_indices = context.get('_clear_transform_source_indices')
@@ -1493,6 +1533,7 @@ def create_alignment_texture_table_callbacks(context: dict[str, object]) -> Simp
     selected_texture_source_committing = context.get('selected_texture_source_committing')
     simplified_part_label = context.get('simplified_part_label')
     source_path = context.get('source_path')
+    self = context.get('self')
     state = context.get('state')
     suggested_source = context.get('suggested_source')
     summary_visible_count = context.get('summary_visible_count')
@@ -1576,6 +1617,18 @@ def create_alignment_texture_table_callbacks(context: dict[str, object]) -> Simp
         row_state = _current_texture_row()
         return str(row_state.get("target_name", "") or "") if row_state is not None else ""
 
+    def _active_mesh_edit_texture_table_mutation_blocked() -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            "Active Mesh Editor texture table overrides require native material execution; "
+            "Python texture override mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
     def _sync_selected_texture_editor(row_state: Optional[Dict[str, Any]]) -> None:
         selected_texture_editor_loading["active"] = True
         try:
@@ -1636,6 +1689,8 @@ def create_alignment_texture_table_callbacks(context: dict[str, object]) -> Simp
             )
 
     def _set_texture_row_assignment(row_state: Dict[str, Any], source_path: str, checked: bool) -> None:
+        if _active_mesh_edit_texture_table_mutation_blocked():
+            return
         _set_texture_row_assignment_helper(
             row_state,
             texture_override_assignments,

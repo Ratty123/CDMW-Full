@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 import unittest
 
 from cdmw.core.crimson_formats import (
@@ -13,11 +14,37 @@ from cdmw.core.crimson_formats import (
     rebuild_prefab_resized_strings,
     rebuild_prefab_same_length_strings,
 )
+from cdmw.core.pat_decoder import build_pat_model_preview
 
 
 def _lp(value: str) -> bytes:
     encoded = value.encode("utf-8")
     return len(encoded).to_bytes(4, "little") + encoded
+
+
+def _pat_preview_payload() -> bytes:
+    header = bytearray(48)
+    header[0:4] = b"PAR "
+    struct.pack_into("<3f", header, 16, 0.0, 0.0, 0.0)
+    struct.pack_into("<3f", header, 28, 1.0, 1.0, 1.0)
+    struct.pack_into("<I", header, 40, 1)
+    vertex_table = struct.pack("<I", 4)
+    vertices = bytearray()
+    for raw_x, raw_y, raw_z, u, v in (
+        (0, 0, 0, 0.0, 0.0),
+        (65535, 0, 0, 1.0, 0.0),
+        (65535, 65535, 0, 1.0, 1.0),
+        (0, 65535, 0, 0.0, 1.0),
+    ):
+        vertex = bytearray(32)
+        struct.pack_into("<3H", vertex, 0, raw_x, raw_y, raw_z)
+        struct.pack_into("<2e", vertex, 12, u, v)
+        vertices.extend(vertex)
+    index_offsets = struct.pack("<2I", 0, 6)
+    indices = struct.pack("<6H", 0, 1, 2, 0, 2, 3)
+    draw_offsets = struct.pack("<2I", 0, 1)
+    draw = struct.pack("<4I", 0, 0, 0, 6)
+    return bytes(header) + vertex_table + bytes(vertices) + index_offsets + indices + draw_offsets + draw + b"grass_mat\0grass_color.tga\0"
 
 
 class CrimsonFormatDecodeTests(unittest.TestCase):
@@ -216,6 +243,16 @@ class CrimsonFormatDecodeTests(unittest.TestCase):
         )
         self.assertEqual("1.300000", instances[0].scalar_parameters["_brightness"])
         self.assertEqual("0.878431 0.878431 0.878431", instances[0].color_parameters["_tintColor"])
+
+    def test_pat_model_preview_uses_compact_source_face_range(self) -> None:
+        preview = build_pat_model_preview(_pat_preview_payload(), "tree/test.pat")
+
+        mesh = preview.meshes[0]
+        self.assertEqual("pat", preview.format)
+        self.assertEqual([0, 1, 2, 3], mesh.source_vertex_indices)
+        self.assertEqual([], mesh.source_face_indices)
+        self.assertEqual(0, mesh.source_face_range_start)
+        self.assertEqual(2, mesh.source_face_range_count)
 
     def test_paa_metabin_decode_excludes_material_pipeline(self) -> None:
         decoded = decode_paa_metabin(b"\x00" * 24 + b"AnimationMetaData\x00" + _lp("character/animation/test.paa"))

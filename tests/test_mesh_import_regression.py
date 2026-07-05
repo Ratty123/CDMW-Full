@@ -5,7 +5,9 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from cdmw.modding.mesh_builder_common import _choose_static_donor_indices
 from cdmw.modding.mesh_importer import (
     _build_pac_in_place,
     _choose_pac_donor_indices,
@@ -174,6 +176,23 @@ class MeshImportRegressionTests(unittest.TestCase):
         )
 
         self.assertEqual(_choose_pac_donor_indices(original, imported), [2, 1])
+
+    def test_static_donor_mapping_uses_native_alignment_before_python_fallback(self) -> None:
+        original = SubMesh(
+            vertices=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0)],
+        )
+        imported = SubMesh(vertices=[(99.0, 99.0, 99.0), (1.0, 1.0, 1.0)])
+
+        with (
+            mock.patch("cdmw.modding.mesh_native_core.build_native_static_donor_indices", return_value=[2, 0]) as native,
+            mock.patch(
+                "cdmw.modding.mesh_builder_common._align_static_vertex_sequences",
+                side_effect=AssertionError("python donor alignment fallback should not run"),
+            ),
+        ):
+            self.assertEqual(_choose_static_donor_indices(original, imported), [2, 0])
+
+        native.assert_called_once_with(original, imported)
 
     def test_pac_in_place_rebuild_writes_imported_normals(self) -> None:
         data = bytearray(128)

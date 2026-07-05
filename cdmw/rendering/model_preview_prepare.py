@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from array import array
-from dataclasses import dataclass, fields as dataclass_fields
+from dataclasses import dataclass, field, fields as dataclass_fields
 import hashlib
 import math
 import os
 from pathlib import Path
+import shutil
 import tempfile
 import time
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
@@ -110,14 +111,27 @@ class ModelPreviewDrawBatch:
     texture_uv_scale: Tuple[float, float] = ()
     source_average_color: Tuple[float, float, float] = ()
     source_average_luma: float = 0.0
+    base_color: Tuple[float, float, float] = ()
+    bounds_min: Tuple[float, float, float] = ()
+    bounds_max: Tuple[float, float, float] = ()
     normal_finite_ratio: float = 1.0
     normal_repair_count: int = 0
     tangent_finite_ratio: float = 1.0
     bitangent_finite_ratio: float = 1.0
+    tangents_usable: Optional[bool] = None
     uv_finite_ratio: float = 1.0
     smooth_normal_ratio: float = 0.0
     position_y_min: float = 0.0
     position_y_max: float = 0.0
+    source_vertex_indices: Tuple[int, ...] = ()
+    source_face_indices: Tuple[int, ...] = ()
+    source_vertex_indices_binary: Dict[str, object] = field(default_factory=dict)
+    source_face_indices_binary: Dict[str, object] = field(default_factory=dict)
+    source_vertex_range_start: int = -1
+    source_vertex_range_count: int = 0
+    source_face_range_start: int = -1
+    source_face_range_count: int = 0
+    editor_identity_blob: bytes = b""
 
 
 @dataclass(slots=True)
@@ -720,6 +734,481 @@ def _pack_mesh_vertex_blob(
         )
 
 
+def _source_range_from_mesh(mesh: object, start_attr: str, count_attr: str) -> tuple[int, int] | None:
+    try:
+        raw_start = getattr(mesh, start_attr, -1)
+        raw_count = getattr(mesh, count_attr, 0)
+        start = int(raw_start if raw_start is not None else -1)
+        count = int(raw_count if raw_count is not None else 0)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return (start, count) if start >= 0 and count > 0 else None
+
+
+def _put_preview_source_i32_payload(
+    item: dict[str, object],
+    values: object,
+    *,
+    start_key: str,
+    count_key: str,
+    binary_key: str,
+    binary_path: Path,
+) -> None:
+    if isinstance(values, range) and values.step == 1 and values.start >= 0 and len(values) > 0:
+        item[start_key] = int(values.start)
+        item[count_key] = len(values)
+        return
+    data = array("i")
+    if data.itemsize != 4:
+        raise RuntimeError("native preview source sidecar requires 32-bit array('i')")
+    start: int | None = None
+    contiguous = True
+    iterable = () if values is None else values
+    try:
+        for offset, raw_value in enumerate(iterable):
+            value = int(raw_value)
+            data.append(value)
+            if offset == 0:
+                start = value
+                contiguous = value >= 0
+            elif start is None or value != start + offset:
+                contiguous = False
+    except (TypeError, ValueError, OverflowError):
+        return
+    if not data:
+        return
+    if contiguous and start is not None:
+        item[start_key] = start
+        item[count_key] = len(data)
+        return
+    try:
+        binary_path.write_bytes(data.tobytes())
+    except OSError:
+        return
+    item[binary_key] = {
+        "path": str(binary_path),
+        "count": len(data),
+        "components": 1,
+        "type": "i32",
+    }
+
+
+def _build_vertex_blob_native(model: object, *, flip_texture_v: bool = False) -> Tuple[bytes, int, List[ModelPreviewDrawBatch]] | None:
+    meshes = tuple(getattr(model, "meshes", None) or ())
+    if not meshes:
+        return b"", 0, []
+    try:
+        from cdmw.modding.mesh_native_core import write_native_preview_geometry_blob
+    except Exception:
+        return None
+    with tempfile.TemporaryDirectory(prefix="cdmw_preview_geometry_") as tmp:
+        temp_root = Path(tmp)
+        mesh_payloads: list[dict[str, object]] = []
+        for mesh_index, mesh in enumerate(meshes):
+            positions = getattr(mesh, "positions", []) or []
+            indices = getattr(mesh, "indices", []) or []
+            positions_binary = _model_preview_binary_descriptor(getattr(mesh, "positions_binary", None), components=3, kind="f64")
+            indices_binary = _model_preview_binary_descriptor(getattr(mesh, "indices_binary", None), components=1, kind="i32")
+            if (not positions and positions_binary is None) or (not indices and indices_binary is None):
+                continue
+            try:
+                source_submesh_index = int(getattr(mesh, "source_submesh_index", -1))
+            except (TypeError, ValueError, OverflowError):
+                source_submesh_index = -1
+            color = _sanitize_color3(tuple(getattr(mesh, "preview_color", ()) or ()), fallback=PALETTE[mesh_index % len(PALETTE)])
+            mesh_payload: dict[str, object] = {
+                "index": mesh_index,
+                "source_submesh_index": source_submesh_index,
+                "color": color,
+            }
+            if positions_binary is not None:
+                mesh_payload["positions_binary"] = positions_binary
+            else:
+                mesh_payload["positions"] = positions
+            normals_binary = _model_preview_binary_descriptor(getattr(mesh, "normals_binary", None), components=3, kind="f64")
+            if normals_binary is not None:
+                mesh_payload["normals_binary"] = normals_binary
+            else:
+                mesh_payload["normals"] = getattr(mesh, "normals", []) or []
+            texture_coordinates_binary = _model_preview_binary_descriptor(
+                getattr(mesh, "texture_coordinates_binary", None),
+                components=2,
+                kind="f64",
+            )
+            if texture_coordinates_binary is not None:
+                mesh_payload["texture_coordinates_binary"] = texture_coordinates_binary
+            else:
+                mesh_payload["texture_coordinates"] = getattr(mesh, "texture_coordinates", []) or []
+            if indices_binary is not None:
+                mesh_payload["indices_binary"] = indices_binary
+            else:
+                mesh_payload["indices"] = indices
+            source_vertex_indices_binary = _model_preview_binary_descriptor(
+                getattr(mesh, "source_vertex_indices_binary", None),
+                components=1,
+                kind="i32",
+            )
+            if source_vertex_indices_binary is not None:
+                mesh_payload["source_vertex_indices_binary"] = source_vertex_indices_binary
+            elif (source_vertex_range := _source_range_from_mesh(mesh, "source_vertex_range_start", "source_vertex_range_count")) is not None:
+                mesh_payload["source_vertex_start"] = source_vertex_range[0]
+                mesh_payload["source_vertex_count"] = source_vertex_range[1]
+            else:
+                _put_preview_source_i32_payload(
+                    mesh_payload,
+                    getattr(mesh, "source_vertex_indices", ()) or (),
+                    start_key="source_vertex_start",
+                    count_key="source_vertex_count",
+                    binary_key="source_vertex_indices_binary",
+                    binary_path=temp_root / f"mesh_{mesh_index:03d}_source_vertices.bin",
+                )
+            source_face_indices_binary = _model_preview_binary_descriptor(
+                getattr(mesh, "source_face_indices_binary", None),
+                components=1,
+                kind="i32",
+            )
+            if source_face_indices_binary is not None:
+                mesh_payload["source_face_indices_binary"] = source_face_indices_binary
+            elif (source_face_range := _source_range_from_mesh(mesh, "source_face_range_start", "source_face_range_count")) is not None:
+                mesh_payload["source_face_start"] = source_face_range[0]
+                mesh_payload["source_face_count"] = source_face_range[1]
+            else:
+                _put_preview_source_i32_payload(
+                    mesh_payload,
+                    getattr(mesh, "source_face_indices", ()) or (),
+                    start_key="source_face_start",
+                    count_key="source_face_count",
+                    binary_key="source_face_indices_binary",
+                    binary_path=temp_root / f"mesh_{mesh_index:03d}_source_faces.bin",
+                )
+            mesh_payloads.append(mesh_payload)
+        if not mesh_payloads:
+            return b"", 0, []
+
+        geometry_path = temp_root / "geometry.bin"
+        identity_path = temp_root / "identity.bin"
+        report = write_native_preview_geometry_blob(
+            geometry_path,
+            meshes=mesh_payloads,
+            identity_output_path=identity_path,
+        )
+        if report is None or not geometry_path.is_file():
+            return None
+        vertex_blob = geometry_path.read_bytes()
+        identity_blob = identity_path.read_bytes() if identity_path.is_file() else b""
+        report = _persist_preview_geometry_source_descriptors(report)
+        if report is None:
+            return None
+
+    try:
+        vertex_count = int(report.get("vertex_count", 0) or 0)
+        geometry_size = int(report.get("geometry_size", 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    bytes_per_vertex = 23 * 4
+    if vertex_count < 0 or len(vertex_blob) != geometry_size or len(vertex_blob) != vertex_count * bytes_per_vertex:
+        return None
+
+    batches: List[ModelPreviewDrawBatch] = []
+    raw_batches = report.get("batches")
+    if not isinstance(raw_batches, list):
+        return None
+
+    def tuple3(value: object, fallback: Tuple[float, float, float]) -> Tuple[float, float, float]:
+        if not isinstance(value, (tuple, list)) or len(value) < 3:
+            return fallback
+        return (
+            finite_float(value[0], fallback[0]),
+            finite_float(value[1], fallback[1]),
+            finite_float(value[2], fallback[2]),
+        )
+
+    def int_tuple(value: object) -> Tuple[int, ...]:
+        if not isinstance(value, (tuple, list)):
+            return ()
+        result: list[int] = []
+        for item in value:
+            try:
+                result.append(int(item))
+            except (TypeError, ValueError, OverflowError):
+                continue
+        return tuple(result)
+
+    def int_value(value: object, default: int = -1) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError, OverflowError):
+            return default
+
+    for raw_batch in raw_batches:
+        if not isinstance(raw_batch, Mapping):
+            continue
+        try:
+            mesh_index = int(raw_batch.get("mesh_index", -1))
+            batch_first_vertex = int(raw_batch.get("first_vertex", 0) or 0)
+            batch_vertex_count = int(raw_batch.get("vertex_count", 0) or 0)
+            identity_offset = int(raw_batch.get("identity_offset", 0) or 0)
+            identity_size = int(raw_batch.get("identity_size", 0) or 0)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if mesh_index < 0 or mesh_index >= len(meshes) or batch_vertex_count <= 0:
+            continue
+        source_vertex_range_start = int_value(raw_batch.get("source_vertex_start"), -1)
+        source_vertex_range_count = max(0, int_value(raw_batch.get("source_vertex_count"), 0))
+        if source_vertex_range_start < 0:
+            source_vertex_range_count = 0
+        source_face_range_start = int_value(raw_batch.get("source_face_start"), -1)
+        source_face_range_count = max(0, int_value(raw_batch.get("source_face_count"), 0))
+        if source_face_range_start < 0:
+            source_face_range_count = 0
+        batch_identity_blob = b""
+        if identity_size == batch_vertex_count * 12 and 0 <= identity_offset <= len(identity_blob):
+            identity_end = identity_offset + identity_size
+            if identity_end <= len(identity_blob):
+                batch_identity_blob = identity_blob[identity_offset:identity_end]
+        mesh = meshes[mesh_index]
+        texture_key = str(getattr(mesh, "preview_texture_path", "") or "").strip()
+        if not texture_key and getattr(mesh, "preview_texture_image", None) is not None:
+            texture_key = f"in_memory:{mesh_index}"
+        normal_texture_key = str(getattr(mesh, "preview_normal_texture_path", "") or "").strip()
+        if not normal_texture_key and getattr(mesh, "preview_normal_texture_image", None) is not None:
+            normal_texture_key = f"in_memory_normal:{mesh_index}"
+        material_texture_key = str(getattr(mesh, "preview_material_texture_path", "") or "").strip()
+        if not material_texture_key and getattr(mesh, "preview_material_texture_image", None) is not None:
+            material_texture_key = f"in_memory_material:{mesh_index}"
+        height_texture_key = str(getattr(mesh, "preview_height_texture_path", "") or "").strip()
+        if not height_texture_key and getattr(mesh, "preview_height_texture_image", None) is not None:
+            height_texture_key = f"in_memory_height:{mesh_index}"
+        texture_flip_vertical = resolve_preview_texture_flip_vertical(
+            getattr(mesh, "preview_texture_flip_vertical", None),
+            source_format=getattr(model, "format", ""),
+            source_path=getattr(model, "path", ""),
+            default=False,
+            flip_texture_v=bool(flip_texture_v),
+        )
+        if bool(getattr(mesh, "preview_debug_flip_base_v", False)):
+            texture_flip_vertical = not texture_flip_vertical
+        material_texture_type = str(getattr(mesh, "preview_material_texture_type", "") or "").strip().lower()
+        material_texture_subtype = str(getattr(mesh, "preview_material_texture_subtype", "") or "").strip().lower()
+        material_texture_packed_channels = tuple(
+            str(channel or "").strip().lower()
+            for channel in (getattr(mesh, "preview_material_texture_packed_channels", ()) or ())
+            if str(channel or "").strip()
+        )
+        texture_tint_values = tuple(getattr(mesh, "preview_texture_tint", ()) or ())[:3]
+        texture_tint = tuple(max(0.0, min(2.0, finite_float(value, 1.0))) for value in texture_tint_values)
+        texture_uv_scale_values = tuple(getattr(mesh, "preview_texture_uv_scale", ()) or ())[:2]
+        texture_uv_scale = tuple(max(0.05, min(64.0, finite_float(value, 1.0))) for value in texture_uv_scale_values)
+        texture_wrap_repeat = bool(raw_batch.get("texture_wrap_repeat", False))
+        if len(texture_uv_scale) >= 2 and (abs(float(texture_uv_scale[0]) - 1.0) > 1e-6 or abs(float(texture_uv_scale[1]) - 1.0) > 1e-6):
+            texture_wrap_repeat = True
+        batches.append(
+            ModelPreviewDrawBatch(
+                mesh_index=mesh_index,
+                material_name=str(getattr(mesh, "material_name", "") or "").strip(),
+                texture_name=str(getattr(mesh, "texture_name", "") or "").strip(),
+                first_vertex=batch_first_vertex,
+                vertex_count=batch_vertex_count,
+                texture_key=texture_key,
+                texture_dds_key=str(getattr(mesh, "preview_texture_dds_path", "") or "").strip() or dds_source_path_for_preview_path(texture_key),
+                normal_texture_key=normal_texture_key,
+                normal_texture_dds_key=str(getattr(mesh, "preview_normal_texture_dds_path", "") or "").strip() or dds_source_path_for_preview_path(normal_texture_key),
+                normal_texture_strength=float(getattr(mesh, "preview_normal_texture_strength", 0.0) or 0.0),
+                material_texture_key=material_texture_key,
+                material_texture_dds_key=str(getattr(mesh, "preview_material_texture_dds_path", "") or "").strip() or dds_source_path_for_preview_path(material_texture_key),
+                material_texture_type=material_texture_type,
+                material_texture_subtype=material_texture_subtype,
+                material_texture_packed_channels=material_texture_packed_channels,
+                material_decode_mode=_material_decode_mode_for_semantics(material_texture_type, material_texture_subtype, material_texture_packed_channels),
+                height_texture_key=height_texture_key,
+                height_texture_dds_key=str(getattr(mesh, "preview_height_texture_dds_path", "") or "").strip() or dds_source_path_for_preview_path(height_texture_key),
+                support_maps_disabled=bool(getattr(mesh, "preview_debug_disable_support_maps", False)),
+                has_texture_coordinates=bool(raw_batch.get("has_texture_coordinates", False)),
+                texture_wrap_repeat=texture_wrap_repeat,
+                texture_flip_vertical=texture_flip_vertical,
+                base_texture_quality=str(getattr(mesh, "preview_base_texture_quality", "") or "").strip().lower(),
+                texture_brightness=max(0.1, min(3.0, finite_float(getattr(mesh, "preview_texture_brightness", 1.0), 1.0))),
+                texture_tint=texture_tint,
+                texture_uv_scale=texture_uv_scale,
+                base_color=tuple3(raw_batch.get("base_color"), (0.78, 0.48, 0.34)),
+                bounds_min=tuple3(raw_batch.get("bounds_min"), (0.0, 0.0, 0.0)),
+                bounds_max=tuple3(raw_batch.get("bounds_max"), (0.0, 0.0, 0.0)),
+                normal_finite_ratio=max(0.0, min(1.0, finite_float(raw_batch.get("normal_finite_ratio", 1.0), 1.0))),
+                normal_repair_count=max(0, int(raw_batch.get("normal_repair_count", 0) or 0)),
+                tangent_finite_ratio=max(0.0, min(1.0, finite_float(raw_batch.get("tangent_finite_ratio", 1.0), 1.0))),
+                bitangent_finite_ratio=max(0.0, min(1.0, finite_float(raw_batch.get("bitangent_finite_ratio", 1.0), 1.0))),
+                tangents_usable=bool(raw_batch.get("tangents_usable", False)),
+                uv_finite_ratio=max(0.0, min(1.0, finite_float(raw_batch.get("uv_finite_ratio", 0.0), 0.0))),
+                smooth_normal_ratio=max(0.0, min(1.0, finite_float(raw_batch.get("smooth_normal_ratio", 0.0), 0.0))),
+                position_y_min=finite_float(raw_batch.get("position_y_min", 0.0), 0.0),
+                position_y_max=finite_float(raw_batch.get("position_y_max", 0.0), 0.0),
+                source_vertex_indices=int_tuple(raw_batch.get("source_vertex_indices")),
+                source_face_indices=int_tuple(raw_batch.get("source_face_indices")),
+                source_vertex_indices_binary=_model_preview_binary_descriptor(
+                    raw_batch.get("source_vertex_indices_binary"),
+                    components=1,
+                    kind="i32",
+                )
+                or {},
+                source_face_indices_binary=_model_preview_binary_descriptor(
+                    raw_batch.get("source_face_indices_binary"),
+                    components=1,
+                    kind="i32",
+                )
+                or {},
+                source_vertex_range_start=source_vertex_range_start,
+                source_vertex_range_count=source_vertex_range_count,
+                source_face_range_start=source_face_range_start,
+                source_face_range_count=source_face_range_count,
+                editor_identity_blob=batch_identity_blob,
+            )
+        )
+    if sum(batch.vertex_count for batch in batches) != vertex_count:
+        return None
+    return vertex_blob, vertex_count, batches
+
+
+def _model_preview_binary_descriptor(value: object, *, components: int, kind: str) -> dict[str, object] | None:
+    if not isinstance(value, Mapping):
+        return None
+    path = str(value.get("path") or "").strip()
+    if not path:
+        return None
+    try:
+        count = int(value.get("count", 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if count < 0:
+        return None
+    raw_components = value.get("components")
+    try:
+        parsed_components = int(raw_components) if raw_components is not None else components
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if parsed_components != components:
+        return None
+    parsed_kind = str(value.get("type") or kind).strip().lower()
+    if parsed_kind != kind:
+        return None
+    descriptor: dict[str, object] = {
+        "path": path,
+        "count": count,
+        "components": components,
+        "type": kind,
+    }
+    if bool(value.get("delete_after")):
+        descriptor["delete_after"] = True
+    return descriptor
+
+
+def _persist_preview_geometry_source_descriptors(report: object) -> dict[str, object] | None:
+    if not isinstance(report, Mapping):
+        return None
+    raw_batches = report.get("batches")
+    if not isinstance(raw_batches, list):
+        return dict(report)
+    persisted = dict(report)
+    batches: list[object] = []
+    for raw_batch in raw_batches:
+        if not isinstance(raw_batch, Mapping):
+            batches.append(raw_batch)
+            continue
+        batch = dict(raw_batch)
+        for key in ("source_vertex_indices_binary", "source_face_indices_binary"):
+            descriptor = _persist_model_preview_i32_descriptor(batch.get(key))
+            if descriptor is not None:
+                batch[key] = descriptor
+            elif _descriptor_count(batch.get(key)) > 0:
+                return None
+        batches.append(batch)
+    persisted["batches"] = batches
+    return persisted
+
+
+def _descriptor_count(value: object) -> int:
+    if not isinstance(value, Mapping):
+        return 0
+    try:
+        count = int(value.get("count", 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return count if count > 0 else 0
+
+
+def _persist_model_preview_i32_descriptor(value: object) -> dict[str, object] | None:
+    descriptor = _model_preview_binary_descriptor(value, components=1, kind="i32")
+    if descriptor is None or int(descriptor.get("count", 0) or 0) <= 0:
+        return descriptor
+    try:
+        from cdmw.modding.mesh_native_core import _native_preview_delta_output_path
+
+        target = Path(_native_preview_delta_output_path(".bin"))
+        shutil.copyfile(str(descriptor["path"]), target)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    persisted = dict(descriptor)
+    persisted["path"] = str(target)
+    persisted["delete_after"] = True
+    return persisted
+
+
+def _f64_list_from_binary_descriptor(value: object, *, components: int) -> list[tuple[float, ...]]:
+    descriptor = _model_preview_binary_descriptor(value, components=components, kind="f64")
+    if descriptor is None:
+        return []
+    count = int(descriptor["count"])
+    if count <= 0:
+        return []
+    data = array("d")
+    if data.itemsize != 8:
+        return []
+    try:
+        raw = Path(str(descriptor["path"])).read_bytes()
+    except OSError:
+        return []
+    if len(raw) != count * components * data.itemsize:
+        return []
+    data.frombytes(raw)
+    return [
+        tuple(float(data[offset + component]) for component in range(components))
+        for offset in range(0, len(data), components)
+    ]
+
+
+def _vec3_list_from_binary_descriptor(value: object) -> list[Tuple[float, float, float]]:
+    return [
+        (float(item[0]), float(item[1]), float(item[2]))
+        for item in _f64_list_from_binary_descriptor(value, components=3)
+    ]
+
+
+def _vec2_list_from_binary_descriptor(value: object) -> list[Tuple[float, float]]:
+    return [
+        (float(item[0]), float(item[1]))
+        for item in _f64_list_from_binary_descriptor(value, components=2)
+    ]
+
+
+def _i32_list_from_binary_descriptor(value: object) -> list[int]:
+    descriptor = _model_preview_binary_descriptor(value, components=1, kind="i32")
+    if descriptor is None:
+        return []
+    count = int(descriptor["count"])
+    if count <= 0:
+        return []
+    data = array("i")
+    if data.itemsize != 4:
+        return []
+    try:
+        raw = Path(str(descriptor["path"])).read_bytes()
+    except OSError:
+        return []
+    if len(raw) != count * data.itemsize:
+        return []
+    data.frombytes(raw)
+    return [int(value) for value in data]
+
+
 def _build_vertex_blob_impl(model: object, *, flip_texture_v: bool = False, use_numpy: bool = True) -> Tuple[bytes, int, List[ModelPreviewDrawBatch]]:
     meshes = getattr(model, "meshes", None)
     if not meshes:
@@ -730,13 +1219,20 @@ def _build_vertex_blob_impl(model: object, *, flip_texture_v: bool = False, use_
     for mesh_index, mesh in enumerate(meshes):
         positions: List[Tuple[float, float, float]] = []
         position_repair_count = 0
-        for raw_position in list(getattr(mesh, "positions", []) or []):
+        raw_positions = list(getattr(mesh, "positions", []) or []) or _vec3_list_from_binary_descriptor(
+            getattr(mesh, "positions_binary", None)
+        )
+        for raw_position in raw_positions:
             position, repaired = _sanitize_vector3(raw_position, fallback=(0.0, 0.0, 0.0))
             positions.append(position)
             if repaired:
                 position_repair_count += 1
-        normals = list(getattr(mesh, "normals", []) or [])
-        indices = list(getattr(mesh, "indices", []) or [])
+        normals = list(getattr(mesh, "normals", []) or []) or _vec3_list_from_binary_descriptor(
+            getattr(mesh, "normals_binary", None)
+        )
+        indices = list(getattr(mesh, "indices", []) or []) or _i32_list_from_binary_descriptor(
+            getattr(mesh, "indices_binary", None)
+        )
         if not positions or not indices:
             continue
         if len(normals) != len(positions):
@@ -752,7 +1248,9 @@ def _build_vertex_blob_impl(model: object, *, flip_texture_v: bool = False, use_
         smoothed_normals, smooth_normal_ratio = _build_preview_smoothed_normals(positions, normals, indices)
         texture_coordinates: List[Tuple[float, float]] = []
         uv_repair_count = 0
-        raw_texture_coordinates = list(getattr(mesh, "texture_coordinates", []) or [])
+        raw_texture_coordinates = list(getattr(mesh, "texture_coordinates", []) or []) or _vec2_list_from_binary_descriptor(
+            getattr(mesh, "texture_coordinates_binary", None)
+        )
         if len(raw_texture_coordinates) == len(positions):
             for raw_uv in raw_texture_coordinates:
                 uv, repaired = _sanitize_uv(raw_uv)
@@ -837,6 +1335,44 @@ def _build_vertex_blob_impl(model: object, *, flip_texture_v: bool = False, use_
         if len(texture_uv_scale) >= 2 and (abs(float(texture_uv_scale[0]) - 1.0) > 1e-6 or abs(float(texture_uv_scale[1]) - 1.0) > 1e-6):
             texture_wrap_repeat = True
         vertex_total = max(1, len(positions))
+        emitted_indices = _valid_triangle_indices(indices, len(positions))
+        emitted_positions = [positions[index] for index in emitted_indices] if emitted_indices else positions
+        mesh_source_vertices = tuple(
+            int(index)
+            for index in (
+                tuple(getattr(mesh, "source_vertex_indices", ()) or ())
+                or tuple(_i32_list_from_binary_descriptor(getattr(mesh, "source_vertex_indices_binary", None)))
+            )
+        )
+        mesh_source_faces = tuple(
+            int(index)
+            for index in (
+                tuple(getattr(mesh, "source_face_indices", ()) or ())
+                or tuple(_i32_list_from_binary_descriptor(getattr(mesh, "source_face_indices_binary", None)))
+            )
+        )
+        emitted_source_vertices: List[int] = []
+        emitted_source_faces: List[int] = []
+        for face_ordinal, index_offset in enumerate(range(0, len(indices) - 2, 3)):
+            triangle = (
+                int(indices[index_offset]),
+                int(indices[index_offset + 1]),
+                int(indices[index_offset + 2]),
+            )
+            if any(index < 0 or index >= len(positions) for index in triangle):
+                continue
+            source_face_index = int(mesh_source_faces[face_ordinal]) if face_ordinal < len(mesh_source_faces) else int(face_ordinal)
+            emitted_source_faces.append(source_face_index)
+            for index in triangle:
+                emitted_source_vertices.append(
+                    int(mesh_source_vertices[index])
+                    if 0 <= int(index) < len(mesh_source_vertices)
+                    else int(index)
+                )
+            if len(emitted_source_vertices) >= batch_vertex_count:
+                break
+        bounds_min = tuple(min(float(position[axis]) for position in emitted_positions) for axis in range(3))
+        bounds_max = tuple(max(float(position[axis]) for position in emitted_positions) for axis in range(3))
         position_y_min = min((float(position[1]) for position in positions), default=0.0)
         position_y_max = max((float(position[1]) for position in positions), default=0.0)
         batches.append(
@@ -867,20 +1403,29 @@ def _build_vertex_blob_impl(model: object, *, flip_texture_v: bool = False, use_
                 texture_brightness=max(0.1, min(3.0, finite_float(getattr(mesh, "preview_texture_brightness", 1.0), 1.0))),
                 texture_tint=texture_tint,
                 texture_uv_scale=texture_uv_scale,
+                base_color=color,
+                bounds_min=bounds_min,
+                bounds_max=bounds_max,
                 normal_finite_ratio=max(0.0, 1.0 - (float(normal_repair_count + position_repair_count) / float(vertex_total))),
                 normal_repair_count=normal_repair_count,
                 tangent_finite_ratio=max(0.0, 1.0 - (float(tangent_repair_count) / float(vertex_total))),
                 bitangent_finite_ratio=max(0.0, 1.0 - (float(bitangent_repair_count) / float(vertex_total))),
+                tangents_usable=bool(tangent_repair_count <= vertex_total * 0.20 and bitangent_repair_count <= vertex_total * 0.20),
                 uv_finite_ratio=max(0.0, 1.0 - (float(uv_repair_count) / float(vertex_total))) if has_texture_coordinates else 0.0,
                 smooth_normal_ratio=max(0.0, min(1.0, float(smooth_normal_ratio))),
                 position_y_min=position_y_min,
                 position_y_max=position_y_max,
+                source_vertex_indices=tuple(emitted_source_vertices[:batch_vertex_count]),
+                source_face_indices=tuple(emitted_source_faces[: max(0, batch_vertex_count // 3)]),
             )
         )
     return b"".join(vertex_chunks), vertex_count, batches
 
 
 def build_vertex_blob(model: object, *, flip_texture_v: bool = False) -> Tuple[bytes, int, List[ModelPreviewDrawBatch]]:
+    native_result = _build_vertex_blob_native(model, flip_texture_v=flip_texture_v)
+    if native_result is not None:
+        return native_result
     return _build_vertex_blob_impl(model, flip_texture_v=flip_texture_v, use_numpy=True)
 
 
@@ -1182,39 +1727,34 @@ def prepare_model_preview(
         start = int(batch.first_vertex) * bytes_per_vertex
         end = start + (int(batch.vertex_count) * bytes_per_vertex)
         mesh_source_submesh_index = int_or_default(getattr(mesh, "source_submesh_index", -1), -1)
-        mesh_source_vertices = tuple(int(index) for index in tuple(getattr(mesh, "source_vertex_indices", ()) or ()))
-        mesh_source_faces = tuple(int(index) for index in tuple(getattr(mesh, "source_face_indices", ()) or ()))
-        mesh_indices = tuple(int(index) for index in tuple(getattr(mesh, "indices", ()) or ()))
-        emitted_source_vertices: Tuple[int, ...] = ()
-        emitted_source_faces: Tuple[int, ...] = ()
-        if mesh_indices:
-            emitted_vertices: List[int] = []
-            emitted_faces: List[int] = []
-            vertex_limit = int(batch.vertex_count)
-            source_vertex_count = len(tuple(getattr(mesh, "positions", ()) or ()))
-            for face_ordinal, index_offset in enumerate(range(0, len(mesh_indices) - 2, 3)):
-                triangle = (
-                    int(mesh_indices[index_offset]),
-                    int(mesh_indices[index_offset + 1]),
-                    int(mesh_indices[index_offset + 2]),
-                )
-                if any(index < 0 or index >= source_vertex_count for index in triangle):
-                    continue
-                source_face_index = int(mesh_source_faces[face_ordinal]) if face_ordinal < len(mesh_source_faces) else int(face_ordinal)
-                emitted_faces.append(source_face_index)
-                for index in triangle:
-                    emitted_vertices.append(
-                        int(mesh_source_vertices[index])
-                        if 0 <= int(index) < len(mesh_source_vertices)
-                        else int(index)
-                    )
-                if len(emitted_vertices) >= vertex_limit:
-                    break
-            emitted_source_vertices = tuple(emitted_vertices[:vertex_limit])
-            emitted_source_faces = tuple(emitted_faces[: max(0, vertex_limit // 3)])
-        elif int(batch.vertex_count) > 0:
-            emitted_source_vertices = tuple(range(int(batch.vertex_count)))
-            emitted_source_faces = tuple(range(max(0, int(batch.vertex_count) // 3)))
+        emitted_source_vertices = tuple(int(index) for index in (batch.source_vertex_indices or ()))
+        emitted_source_faces = tuple(int(index) for index in (batch.source_face_indices or ()))
+        source_vertex_range_start = int_or_default(getattr(batch, "source_vertex_range_start", -1), -1)
+        source_vertex_range_count = max(0, int_or_default(getattr(batch, "source_vertex_range_count", 0), 0))
+        if source_vertex_range_start < 0:
+            source_vertex_range_count = 0
+        source_face_range_start = int_or_default(getattr(batch, "source_face_range_start", -1), -1)
+        source_face_range_count = max(0, int_or_default(getattr(batch, "source_face_range_count", 0), 0))
+        if source_face_range_start < 0:
+            source_face_range_count = 0
+        has_source_vertex_range = source_vertex_range_count > 0
+        has_source_face_range = source_face_range_count > 0
+        if (
+            not emitted_source_vertices
+            and int(batch.vertex_count) > 0
+            and not has_source_vertex_range
+            and not dict(batch.source_vertex_indices_binary or {})
+        ):
+            source_vertex_range_start = 0
+            source_vertex_range_count = int(batch.vertex_count)
+        if (
+            not emitted_source_faces
+            and int(batch.vertex_count) > 0
+            and not has_source_face_range
+            and not dict(batch.source_face_indices_binary or {})
+        ):
+            source_face_range_start = 0
+            source_face_range_count = max(0, int(batch.vertex_count) // 3)
         cloth_batch = cloth_by_mesh_index.get(int(getattr(batch, "mesh_index", -1))) or cloth_by_source_submesh.get(mesh_source_submesh_index)
         editor_role = str(getattr(mesh, "preview_role", "") or "").strip()
         editor_role_key = editor_role.lower()
@@ -1242,6 +1782,9 @@ def prepare_model_preview(
                 preview_texture_brightness=float(batch.texture_brightness or 1.0),
                 preview_texture_tint=tuple(batch.texture_tint or ()),
                 preview_texture_uv_scale=tuple(batch.texture_uv_scale or ()),
+                preview_base_color=tuple(batch.base_color or ()),
+                preview_bounds_min=tuple(batch.bounds_min or ()),
+                preview_bounds_max=tuple(batch.bounds_max or ()),
                 preview_normal_texture_strength=float(batch.normal_texture_strength or 0.0),
                 preview_material_texture_type=batch.material_texture_type,
                 preview_material_texture_subtype=batch.material_texture_subtype,
@@ -1252,6 +1795,7 @@ def prepare_model_preview(
                 preview_double_sided=bool(getattr(mesh, "preview_double_sided", False)),
                 has_texture_coordinates=bool(batch.has_texture_coordinates),
                 texture_wrap_repeat=bool(batch.texture_wrap_repeat),
+                tangents_usable=bool(batch.tangents_usable) if batch.tangents_usable is not None else None,
                 preview_debug_flip_base_v=False,
                 preview_debug_disable_support_maps=bool(batch.support_maps_disabled),
                 position_y_min=float(getattr(batch, "position_y_min", 0.0) or 0.0),
@@ -1259,6 +1803,13 @@ def prepare_model_preview(
                 source_submesh_index=mesh_source_submesh_index,
                 source_vertex_indices=emitted_source_vertices,
                 source_face_indices=emitted_source_faces,
+                source_vertex_indices_binary=dict(batch.source_vertex_indices_binary or {}),
+                source_face_indices_binary=dict(batch.source_face_indices_binary or {}),
+                source_vertex_range_start=source_vertex_range_start,
+                source_vertex_range_count=source_vertex_range_count,
+                source_face_range_start=source_face_range_start,
+                source_face_range_count=source_face_range_count,
+                editor_identity_blob=bytes(batch.editor_identity_blob or b""),
                 editor_role=editor_role,
                 editor_part_name=str(getattr(mesh, "material_name", "") or getattr(mesh, "texture_name", "") or getattr(mesh, "source_submesh_index", "") or "").strip(),
                 editor_editable=editor_editable,

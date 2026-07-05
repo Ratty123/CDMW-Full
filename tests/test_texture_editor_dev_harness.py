@@ -52,14 +52,26 @@ class TextureEditorDevHarnessTests(unittest.TestCase):
                     preview_rgba=np.full((8, 8, 4), 255, dtype=np.uint8),
                 )
 
+            def fake_decode(_dds_path, output_png_path, **_kwargs):
+                output_path = Path(output_png_path)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                Image.fromarray(np.full((8, 8, 4), 255, dtype=np.uint8), "RGBA").save(output_path)
+                return {"status": "decoded", "native_backend": "directxtex"}
+
             with (
                 patch("cdmw.services.texture_editor_service.TextureEditorNativeDdsService.export_dds", fake_export),
                 patch("cdmw.services.texture_editor_service.TextureEditorNativeDdsService.preview_compressed", fake_preview),
+                patch(
+                    "tools.texture_editor_dev_harness.texture_native.inspect_dds_with_directxtex",
+                    return_value={"status": "inspected", "native_backend": "directxtex"},
+                ),
+                patch("tools.texture_editor_dev_harness.texture_native.decode_dds_preview_with_directxtex", side_effect=fake_decode),
             ):
                 result = run_scenario("full-suite-smoke", output_dir)
 
             self.assertTrue(result["ok"])
             self.assertTrue((output_dir / "native-dds-export" / "harness_texture.dds").is_file())
+            self.assertTrue((output_dir / "native-dds-export" / "harness_texture_export_preview.png").is_file())
             self.assertTrue((output_dir / "compression-preview" / "harness_texture_preview.png").is_file())
             for path in output_dir.rglob("*"):
                 self.assertTrue(path.resolve().is_relative_to(output_dir.resolve()))

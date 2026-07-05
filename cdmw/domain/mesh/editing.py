@@ -21,6 +21,7 @@ MESH_EDIT_ACTIONS = (
     "delete",
     "dissolve",
     "subdivide",
+    "refine_smooth",
     "split",
     "separate",
     "duplicate",
@@ -45,6 +46,7 @@ MESH_EDIT_ACTIONS = (
     "flip_normals",
     "sharpen_normals",
     "soften_normals",
+    "weighted_normals",
     "copy_normals",
     "uv_transform",
     "material_assign",
@@ -207,9 +209,15 @@ class MeshEditResult:
     status: str
     revision: int
     affected_submesh_indices: tuple[int, ...] = ()
-    changed_vertices_by_submesh: tuple[tuple[int, tuple[int, ...]], ...] = ()
+    changed_vertices_by_submesh: tuple[tuple[int, Sequence[int] | set[int]], ...] = ()
     topology_changed: bool = False
+    submesh_count_delta: int = 0
+    submesh_counts: tuple[tuple[int, int], ...] = ()
     diagnostics: tuple[str, ...] = ()
+    metrics: Mapping[str, float] = field(default_factory=dict)
+    native_selection_groups: tuple[Mapping[str, object], ...] = ()
+    native_preview_vertex_update_groups: tuple[Mapping[str, object], ...] = ()
+    native_preview_triangle_groups: tuple[Mapping[str, object], ...] = ()
 
     @property
     def ok(self) -> bool:

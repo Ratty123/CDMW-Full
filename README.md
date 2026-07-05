@@ -140,9 +140,10 @@ Useful wrappers:
 Architecture details:
 
 - [Architecture](docs/architecture.md)
-- [Startup flow](docs/startup_flow.md)
-- [Worker lifecycle](docs/worker_lifecycle.md)
-- [Archive safety model](docs/archive_safety_model.md)
+- [Docs index](docs/README.md)
+- [Startup flow](docs/runbooks/startup-flow.md)
+- [Worker lifecycle](docs/runbooks/worker-lifecycle.md)
+- [Archive safety model](docs/features/archive-safety-model.md)
 
 ## Privacy
 

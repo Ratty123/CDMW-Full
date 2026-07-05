@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable, Mapping, MutableSequence, Sequence
 from dataclasses import dataclass
 
@@ -364,16 +365,68 @@ def morph_slider_unique_slider_id(
     return slider_id
 
 
+def _morph_slider_vertex_count(mesh: object | None) -> int:
+    try:
+        count = int(getattr(mesh, "total_vertices", 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        count = 0
+    if count > 0:
+        return count
+    return sum(
+        len(getattr(submesh, "vertices", ()) or ())
+        for submesh in getattr(mesh, "submeshes", ()) or ()
+    )
+
+
+def _morph_slider_native_post_edit_deltas(
+    working_mesh: object,
+    slider_only_mesh: object,
+) -> list[list[tuple[float, float, float]]] | None:
+    try:
+        from cdmw.modding.mesh_native_core import (
+            build_native_morph_post_edit_deltas,
+            native_mesh_core_available,
+            record_native_mesh_core_fallback,
+        )
+    except Exception:
+        return None
+    native_result = build_native_morph_post_edit_deltas(working_mesh, slider_only_mesh)
+    if (
+        native_result is None
+        and native_mesh_core_available()
+        and not os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip()
+    ):
+        record_native_mesh_core_fallback(
+            "morph_post_edit_delta",
+            "native_result_unavailable",
+            vertices=max(_morph_slider_vertex_count(working_mesh), _morph_slider_vertex_count(slider_only_mesh)),
+        )
+    return native_result
+
+
+def _allow_python_morph_post_edit_delta_fallback(working_mesh: object, slider_only_mesh: object) -> bool:
+    if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        return True
+    try:
+        from cdmw.modding.mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+    except Exception:
+        return True
+    if not native_mesh_core_available():
+        return True
+    vertex_count = max(_morph_slider_vertex_count(working_mesh), _morph_slider_vertex_count(slider_only_mesh))
+    record_native_mesh_core_fallback(
+        "morph_post_edit_delta.blocked",
+        "Python morph post-edit delta fallback blocked while native mesh core is available",
+        vertex_count=vertex_count,
+    )
+    return False
+
+
 def morph_slider_zero_post_edit_deltas(mesh: object | None) -> list[list[tuple[float, float, float]]]:
-    if mesh is None:
-        return []
-    return [
-        [(0.0, 0.0, 0.0) for _vertex in tuple(getattr(submesh, "vertices", ()) or ())]
-        for submesh in tuple(getattr(mesh, "submeshes", ()) or ())
-    ]
+    return []
 
 
-def morph_slider_capture_post_edit_deltas(
+def _morph_slider_capture_post_edit_deltas_fallback(
     working_mesh: object | None,
     slider_only_mesh: object | None,
 ) -> list[list[tuple[float, float, float]]]:
@@ -381,13 +434,13 @@ def morph_slider_capture_post_edit_deltas(
         return []
     captured: list[list[tuple[float, float, float]]] = []
     for working_submesh, slider_submesh in zip(
-        tuple(getattr(working_mesh, "submeshes", ()) or ()),
-        tuple(getattr(slider_only_mesh, "submeshes", ()) or ()),
+        getattr(working_mesh, "submeshes", ()) or (),
+        getattr(slider_only_mesh, "submeshes", ()) or (),
     ):
         submesh_deltas: list[tuple[float, float, float]] = []
         for working_vertex, slider_vertex in zip(
-            tuple(getattr(working_submesh, "vertices", ()) or ()),
-            tuple(getattr(slider_submesh, "vertices", ()) or ()),
+            getattr(working_submesh, "vertices", ()) or (),
+            getattr(slider_submesh, "vertices", ()) or (),
         ):
             submesh_deltas.append(
                 (
@@ -400,12 +453,26 @@ def morph_slider_capture_post_edit_deltas(
     return captured
 
 
+def morph_slider_capture_post_edit_deltas(
+    working_mesh: object | None,
+    slider_only_mesh: object | None,
+) -> list[list[tuple[float, float, float]]]:
+    if working_mesh is None or slider_only_mesh is None:
+        return []
+    native_result = _morph_slider_native_post_edit_deltas(working_mesh, slider_only_mesh)
+    if native_result is not None:
+        return native_result
+    if not _allow_python_morph_post_edit_delta_fallback(working_mesh, slider_only_mesh):
+        raise RuntimeError("native morph post-edit delta failed and Python morph fallback was blocked")
+    return _morph_slider_capture_post_edit_deltas_fallback(working_mesh, slider_only_mesh)
+
+
 def morph_slider_expected_vertex_counts(mesh: object | None) -> list[int]:
     if mesh is None:
         return []
     return [
-        len(tuple(getattr(submesh, "vertices", ()) or ()))
-        for submesh in tuple(getattr(mesh, "submeshes", ()) or ())
+        len(getattr(submesh, "vertices", ()) or ())
+        for submesh in getattr(mesh, "submeshes", ()) or ()
     ]
 
 
@@ -413,10 +480,12 @@ def morph_slider_post_edit_deltas_need_reset(
     post_edit_deltas: Sequence[Sequence[object]],
     expected_vertex_counts: Sequence[int],
 ) -> bool:
+    if not post_edit_deltas:
+        return False
     if len(post_edit_deltas) != len(expected_vertex_counts):
         return True
     return any(
-        len(post_edit_deltas[index]) != int(expected_count)
+        len(post_edit_deltas[index]) not in {0, int(expected_count)}
         for index, expected_count in enumerate(expected_vertex_counts)
     )
 
@@ -425,16 +494,13 @@ def morph_slider_zero_post_edit_deltas_for_sources(
     post_edit_deltas: MutableSequence[MutableSequence[tuple[float, float, float]]],
     source_indices: Iterable[object],
 ) -> None:
-    for raw_source_index in tuple(source_indices or ()):
+    for raw_source_index in source_indices or ():
         try:
             source_index = int(raw_source_index)
         except (TypeError, ValueError):
             continue
         if 0 <= source_index < len(post_edit_deltas):
-            post_edit_deltas[source_index] = [
-                (0.0, 0.0, 0.0)
-                for _vertex_delta in post_edit_deltas[source_index]
-            ]
+            post_edit_deltas[source_index] = []
 
 
 def morph_slider_reload_state(

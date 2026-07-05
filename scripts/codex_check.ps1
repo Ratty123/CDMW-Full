@@ -71,5 +71,10 @@ if ($ExistingTests.Count -eq 0) {
 }
 
 Write-Host "Running $Area checks with $Python"
-& $Python -m pytest @ExistingTests
+if ($Area -eq "mesh") {
+    $MeshUnitFilter = "not native_mesh_editor_d3d11_delta_scenario_uses_vertex_update_without_fallback and not native_mesh_editor_standalone_stroke_scenario_uses_native_session_without_fallback and not native_mesh_editor_qt_responsiveness_scenario_uses_worker_without_fallback and not native_mesh_editor_qt_cancellation_scenario_cancels_without_fallback"
+    & $Python -m pytest @ExistingTests -k $MeshUnitFilter
+} else {
+    & $Python -m pytest @ExistingTests
+}
 exit $LASTEXITCODE

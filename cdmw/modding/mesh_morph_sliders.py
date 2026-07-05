@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import shutil
 from dataclasses import dataclass, field
@@ -12,7 +13,7 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 from .mesh_deformer import build_vertex_adjacency, clone_mesh_for_editing, recompute_mesh_normals
-from .mesh_parser import ParsedMesh
+from .mesh_parser import ParsedMesh, _compute_smooth_normals
 from .scene_importer import import_scene_mesh, refresh_parsed_mesh_totals
 
 
@@ -20,7 +21,6 @@ MESH_MORPH_SLIDER_PROFILE_FORMAT = "cdmw.mesh_morph_slider_profile.v1"
 MESH_MORPH_TARGET_EXTENSIONS = {".obj", ".pac", ".pam", ".pamlod"}
 MESH_MORPH_SLIDER_TYPE_MORPH_TARGET = "morph_target"
 MESH_MORPH_SLIDER_TYPE_REGION_VOLUME = "region_volume"
-
 Vec3 = tuple[float, float, float]
 
 
@@ -76,7 +76,7 @@ def _normalized_submesh_identity(submesh: object) -> str:
 
 def _topology_faces(submesh: object) -> tuple[tuple[int, int, int], ...]:
     faces: list[tuple[int, int, int]] = []
-    for raw_face in tuple(getattr(submesh, "faces", ()) or ()):
+    for raw_face in getattr(submesh, "faces", ()) or ():
         if len(raw_face) < 3:
             continue
         faces.append((int(raw_face[0]), int(raw_face[1]), int(raw_face[2])))
@@ -85,14 +85,15 @@ def _topology_faces(submesh: object) -> tuple[tuple[int, int, int], ...]:
 
 def _topology_signature_payload(mesh: ParsedMesh) -> dict[str, object]:
     submeshes = []
-    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+    for submesh in getattr(mesh, "submeshes", ()) or ():
+        faces = _topology_faces(submesh)
         submeshes.append(
             {
                 "name": str(getattr(submesh, "name", "") or ""),
                 "material": str(getattr(submesh, "material", "") or ""),
-                "vertex_count": len(tuple(getattr(submesh, "vertices", ()) or ())),
-                "face_count": len(_topology_faces(submesh)),
-                "faces": [list(face) for face in _topology_faces(submesh)],
+                "vertex_count": len(getattr(submesh, "vertices", ()) or ()),
+                "face_count": len(faces),
+                "faces": [list(face) for face in faces],
             }
         )
     return {
@@ -112,8 +113,8 @@ def _signature_matches(base_signature: Mapping[str, object], profile_signature: 
 def validate_morph_target(base_mesh: ParsedMesh, target_mesh: ParsedMesh) -> None:
     """Raise ValueError if a morph target cannot be blended with base_mesh."""
 
-    base_submeshes = tuple(getattr(base_mesh, "submeshes", ()) or ())
-    target_submeshes = tuple(getattr(target_mesh, "submeshes", ()) or ())
+    base_submeshes = getattr(base_mesh, "submeshes", ()) or ()
+    target_submeshes = getattr(target_mesh, "submeshes", ()) or ()
     issues: list[str] = []
     if len(base_submeshes) != len(target_submeshes):
         issues.append(f"submesh count mismatch: base {len(base_submeshes)}, target {len(target_submeshes)}")
@@ -126,8 +127,8 @@ def validate_morph_target(base_mesh: ParsedMesh, target_mesh: ParsedMesh) -> Non
                 f"submesh {submesh_index} name mismatch: base {_submesh_identity(base_submesh)!r}, "
                 f"target {_submesh_identity(target_submesh)!r}"
             )
-        base_vertices = tuple(getattr(base_submesh, "vertices", ()) or ())
-        target_vertices = tuple(getattr(target_submesh, "vertices", ()) or ())
+        base_vertices = getattr(base_submesh, "vertices", ()) or ()
+        target_vertices = getattr(target_submesh, "vertices", ()) or ()
         if len(base_vertices) != len(target_vertices):
             issues.append(
                 f"submesh {submesh_index} vertex count mismatch: base {len(base_vertices)}, target {len(target_vertices)}"
@@ -145,6 +146,75 @@ def validate_morph_target(base_mesh: ParsedMesh, target_mesh: ParsedMesh) -> Non
         raise ValueError("Incompatible morph target: " + "; ".join(issues))
 
 
+def _morph_target_basic_identity_compatible(base_mesh: ParsedMesh, target_mesh: ParsedMesh) -> bool:
+    base_submeshes = getattr(base_mesh, "submeshes", ()) or ()
+    target_submeshes = getattr(target_mesh, "submeshes", ()) or ()
+    if len(base_submeshes) != len(target_submeshes):
+        return False
+    for base_submesh, target_submesh in zip(base_submeshes, target_submeshes):
+        base_name = _normalized_submesh_identity(base_submesh)
+        target_name = _normalized_submesh_identity(target_submesh)
+        if base_name and target_name and base_name != target_name:
+            return False
+    return True
+
+
+def _build_native_morph_delta(base_mesh: ParsedMesh, target_mesh: ParsedMesh) -> tuple[tuple[Vec3, ...], ...] | None:
+    if not _morph_target_basic_identity_compatible(base_mesh, target_mesh):
+        return None
+    try:
+        from .mesh_native_core import build_native_morph_target_delta
+    except Exception:
+        return None
+    return build_native_morph_target_delta(base_mesh, target_mesh)
+
+
+def _record_native_morph_delta_fallback(base_mesh: ParsedMesh) -> None:
+    try:
+        from .mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+    except Exception:
+        return
+    if not native_mesh_core_available() or os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        return
+    record_native_mesh_core_fallback(
+        "morph_target_delta",
+        "native_result_unavailable",
+        vertices=sum(len(submesh.vertices or ()) for submesh in base_mesh.submeshes),
+        faces=sum(len(submesh.faces or ()) for submesh in base_mesh.submeshes),
+    )
+
+
+def _allow_python_morph_fallback(mesh: ParsedMesh, operation: str) -> bool:
+    if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        return True
+    try:
+        from .mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+    except Exception:
+        return True
+    if not native_mesh_core_available():
+        return True
+    vertex_count = _mesh_count_hint(mesh, "total_vertices")
+    face_count = _mesh_count_hint(mesh, "total_faces")
+    record_native_mesh_core_fallback(
+        f"{operation}.blocked",
+        "Python morph fallback blocked while native mesh core is available",
+        vertex_count=vertex_count,
+        face_count=face_count,
+    )
+    return False
+
+
+def _mesh_count_hint(mesh: ParsedMesh, attr: str) -> int:
+    try:
+        count = int(getattr(mesh, attr, 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        count = 0
+    if count > 0:
+        return count
+    source = "vertices" if attr == "total_vertices" else "faces"
+    return sum(len(getattr(submesh, source, ()) or ()) for submesh in getattr(mesh, "submeshes", ()) or ())
+
+
 def build_morph_delta(
     base_mesh: ParsedMesh,
     target_mesh: ParsedMesh,
@@ -155,19 +225,26 @@ def build_morph_delta(
     max_percent: float = 100.0,
     default_percent: float = 0.0,
 ) -> MeshMorphSliderDelta:
-    validate_morph_target(base_mesh, target_mesh)
+    native_deltas = _build_native_morph_delta(base_mesh, target_mesh)
     delta_submeshes: list[tuple[Vec3, ...]] = []
-    for base_submesh, target_submesh in zip(base_mesh.submeshes, target_mesh.submeshes):
-        submesh_deltas: list[Vec3] = []
-        for base_vertex, target_vertex in zip(base_submesh.vertices, target_submesh.vertices):
-            submesh_deltas.append(
-                (
-                    float(target_vertex[0]) - float(base_vertex[0]),
-                    float(target_vertex[1]) - float(base_vertex[1]),
-                    float(target_vertex[2]) - float(base_vertex[2]),
+    if native_deltas is not None:
+        delta_submeshes = list(native_deltas)
+    else:
+        if not _allow_python_morph_fallback(base_mesh, "morph_target_delta"):
+            raise RuntimeError("native morph target delta failed and Python morph fallback was blocked")
+        validate_morph_target(base_mesh, target_mesh)
+        _record_native_morph_delta_fallback(base_mesh)
+        for base_submesh, target_submesh in zip(base_mesh.submeshes, target_mesh.submeshes):
+            submesh_deltas: list[Vec3] = []
+            for base_vertex, target_vertex in zip(base_submesh.vertices, target_submesh.vertices):
+                submesh_deltas.append(
+                    (
+                        float(target_vertex[0]) - float(base_vertex[0]),
+                        float(target_vertex[1]) - float(base_vertex[1]),
+                        float(target_vertex[2]) - float(base_vertex[2]),
+                    )
                 )
-            )
-        delta_submeshes.append(tuple(submesh_deltas))
+            delta_submeshes.append(tuple(submesh_deltas))
     normalized_id = _safe_slider_id(slider_id)
     return MeshMorphSliderDelta(
         slider_id=normalized_id,
@@ -212,9 +289,9 @@ def _normalized_vertex_selection(
             continue
         if not (0 <= submesh_index < len(mesh.submeshes)):
             continue
-        vertex_count = len(tuple(getattr(mesh.submeshes[submesh_index], "vertices", ()) or ()))
+        vertex_count = len(getattr(mesh.submeshes[submesh_index], "vertices", ()) or ())
         selected: set[int] = set()
-        for raw_vertex_index in tuple(raw_vertex_indices or ()):
+        for raw_vertex_index in raw_vertex_indices or ():
             try:
                 vertex_index = int(raw_vertex_index)
             except (TypeError, ValueError):
@@ -251,6 +328,31 @@ def _feathered_selection_weights(submesh: object, selected: set[int], feather: i
     return weights
 
 
+def _build_native_region_volume_delta(
+    base_mesh: ParsedMesh,
+    selection: Mapping[int, Iterable[int]],
+    amount: float,
+    feather: int,
+) -> tuple[tuple[Vec3, ...], ...] | None:
+    try:
+        from .mesh_native_core import (
+            build_native_region_volume_delta,
+            native_mesh_core_available,
+            record_native_mesh_core_fallback,
+        )
+    except Exception:
+        return None
+    native_result = build_native_region_volume_delta(base_mesh, selection, amount, feather)
+    if native_result is None and native_mesh_core_available() and not os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        record_native_mesh_core_fallback(
+            "region_volume_delta",
+            "native_result_unavailable",
+            vertices=sum(len(submesh.vertices or ()) for submesh in base_mesh.submeshes),
+            faces=sum(len(submesh.faces or ()) for submesh in base_mesh.submeshes),
+        )
+    return native_result
+
+
 def build_region_volume_delta(
     base_mesh: ParsedMesh,
     selected_vertices_by_submesh: Mapping[int, Iterable[int]] | Iterable[int],
@@ -269,12 +371,25 @@ def build_region_volume_delta(
     if not any(selection.values()):
         raise ValueError("Cannot create region slider without selected vertices.")
 
-    normal_mesh = clone_mesh_for_editing(base_mesh)
-    recompute_mesh_normals(normal_mesh)
+    normalized_id = _safe_slider_id(slider_id)
+    native_deltas = _build_native_region_volume_delta(base_mesh, selection, amount, int(feather or 0))
+    if native_deltas is not None:
+        return MeshMorphSliderDelta(
+            slider_id=normalized_id,
+            label=label.strip() or _prettify_slider_label(normalized_id),
+            deltas=native_deltas,
+            min_percent=float(min_percent),
+            max_percent=float(max_percent),
+            default_percent=float(default_percent),
+            slider_type=MESH_MORPH_SLIDER_TYPE_REGION_VOLUME,
+        )
+
+    if not _allow_python_morph_fallback(base_mesh, "region_volume_delta"):
+        raise RuntimeError("native region volume delta failed and Python morph fallback was blocked")
     amount_value = float(amount)
     delta_submeshes: list[tuple[Vec3, ...]] = []
     for submesh_index, submesh in enumerate(base_mesh.submeshes):
-        vertices = [_vec3(vertex) for vertex in tuple(getattr(submesh, "vertices", ()) or ())]
+        vertices = [_vec3(vertex) for vertex in (getattr(submesh, "vertices", ()) or ())]
         selected = selection.get(submesh_index, set())
         weights = _feathered_selection_weights(submesh, selected, int(feather or 0))
         if weights:
@@ -285,8 +400,7 @@ def build_region_volume_delta(
             )
         else:
             center = (0.0, 0.0, 0.0)
-        normal_submesh = normal_mesh.submeshes[submesh_index]
-        normals = [_vec3(normal, (0.0, 1.0, 0.0)) for normal in tuple(getattr(normal_submesh, "normals", ()) or ())]
+        normals = [_vec3(normal, (0.0, 1.0, 0.0)) for normal in _compute_smooth_normals(submesh.vertices, submesh.faces)]
         submesh_deltas: list[Vec3] = []
         for vertex_index, vertex in enumerate(vertices):
             weight = max(0.0, min(1.0, float(weights.get(vertex_index, 0.0) or 0.0)))
@@ -307,7 +421,6 @@ def build_region_volume_delta(
                 )
             )
         delta_submeshes.append(tuple(submesh_deltas))
-    normalized_id = _safe_slider_id(slider_id)
     return MeshMorphSliderDelta(
         slider_id=normalized_id,
         label=label.strip() or _prettify_slider_label(normalized_id),
@@ -337,6 +450,31 @@ def _post_edit_delta_at(
         return (0.0, 0.0, 0.0)
 
 
+def _apply_native_morph_slider_values(
+    base_mesh: ParsedMesh,
+    deltas: Sequence[MeshMorphSliderDelta],
+    values: Mapping[str, float],
+    post_edit_deltas: object,
+) -> ParsedMesh | None:
+    try:
+        from .mesh_native_core import (
+            apply_native_morph_slider_values,
+            native_mesh_core_available,
+            record_native_mesh_core_fallback,
+        )
+    except Exception:
+        return None
+    native_result = apply_native_morph_slider_values(base_mesh, deltas, values, post_edit_deltas)
+    if native_result is None and native_mesh_core_available() and not os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        record_native_mesh_core_fallback(
+            "morph_apply",
+            "native_result_unavailable",
+            vertices=sum(len(submesh.vertices or ()) for submesh in base_mesh.submeshes),
+            faces=sum(len(submesh.faces or ()) for submesh in base_mesh.submeshes),
+        )
+    return native_result
+
+
 def apply_morph_slider_values(
     base_mesh: ParsedMesh,
     deltas: Sequence[MeshMorphSliderDelta],
@@ -345,6 +483,12 @@ def apply_morph_slider_values(
 ) -> ParsedMesh:
     """Return a cloned mesh with slider percentages and optional post-edit deltas applied."""
 
+    native_result = _apply_native_morph_slider_values(base_mesh, deltas, values, post_edit_deltas)
+    if native_result is not None:
+        return native_result
+
+    if not _allow_python_morph_fallback(base_mesh, "morph_apply"):
+        raise RuntimeError("native morph apply failed and Python morph fallback was blocked")
     result = clone_mesh_for_editing(base_mesh)
     active_deltas = tuple(deltas or ())
     for submesh_index, submesh in enumerate(result.submeshes):
@@ -546,8 +690,8 @@ def _write_region_delta_file(
         "amount": float(amount),
         "feather": int(feather or 0),
         "selected_vertices_by_submesh": {
-            str(int(submesh_index)): sorted(int(vertex_index) for vertex_index in tuple(vertices or ()))
-            for submesh_index, vertices in dict(selected_vertices_by_submesh or {}).items()
+            str(int(submesh_index)): sorted(int(vertex_index) for vertex_index in (vertices or ()))
+            for submesh_index, vertices in (selected_vertices_by_submesh or {}).items()
         },
         "deltas": [
             [[float(dx), float(dy), float(dz)] for dx, dy, dz in submesh_deltas]
@@ -573,8 +717,8 @@ def _read_region_delta_file(base_mesh: ParsedMesh, profile: MeshMorphSliderProfi
     delta_submeshes: list[tuple[Vec3, ...]] = []
     for submesh_index, (raw_submesh_deltas, base_submesh) in enumerate(zip(raw_deltas, base_mesh.submeshes)):
         submesh_deltas: list[Vec3] = []
-        raw_values = tuple(raw_submesh_deltas or ())
-        vertex_count = len(tuple(getattr(base_submesh, "vertices", ()) or ()))
+        raw_values = raw_submesh_deltas or ()
+        vertex_count = len(getattr(base_submesh, "vertices", ()) or ())
         if len(raw_values) != vertex_count:
             raise ValueError(
                 f"Region slider vertex count mismatch in submesh {submesh_index}: base {vertex_count}, delta {len(raw_values)}"

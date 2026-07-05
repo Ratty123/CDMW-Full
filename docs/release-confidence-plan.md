@@ -11,10 +11,11 @@ one is required.
 ## Read First
 
 1. `AGENTS.md`
-2. `docs/architecture.md`
-3. `docs/project-map.md`
-4. `docs/test-matrix.md` when choosing validation
-5. `docs/project-map-detailed.md` only when package boundaries are unclear
+2. `docs/README.md`
+3. `docs/architecture.md`
+4. `docs/project-map.md`
+5. `docs/test-matrix.md` when choosing validation
+6. `docs/project-map-detailed.md` only when package boundaries are unclear
 
 ## Current Focus
 
@@ -46,6 +47,17 @@ one is required.
 - Remaining failures, if any, are classified with owner, command, and reason.
 
 ## Latest Validation
+
+2026-07-05:
+
+- Mesh area gate: `.\scripts\codex_check.ps1 -Area mesh` passed with
+  647 passed / 4 deselected.
+- Release onefile package built, native helpers rebuilt, 483 embedded archive
+  members validated, and packaged startup smoke passed with
+  `QT_QPA_PLATFORM=offscreen` and `CDMW_GUI_STARTUP_SMOKE=1`.
+- Release artifact:
+  `dist/CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe`
+  SHA256 `E65ED0336F132D1E992EADAAB3495EB1283B215AA08917A5AAC32DA7A8A9F58F`.
 
 2026-06-21:
 

@@ -75,8 +75,10 @@ from .static_mesh_runtime_builder import (
     _build_mapped_replacement_mesh,
     _replacement_mesh_with_original_part_copies,
     _transformed_replacement_sources,
+    source_affine_for_transformed_preview,
     source_delta_for_transformed_delta,
     source_distance_for_transformed_distance,
+    source_normal_transform_for_transformed_preview,
     source_point_for_transformed_point,
 )
 from .static_mesh_source_parts import (

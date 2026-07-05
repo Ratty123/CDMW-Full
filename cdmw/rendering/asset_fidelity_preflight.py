@@ -164,18 +164,18 @@ def dds_encoder_compatibility_matrix() -> Dict[str, object]:
 def tangent_basis_report() -> Dict[str, object]:
     return {
         "schema_version": ASSET_FIDELITY_PREFLIGHT_SCHEMA_VERSION,
-        "active": "cdmw_fallback",
+        "active": "MikkTSpace",
         "paths": {
             "cdmw_fallback": {
                 "status": "bundled",
-                "role": "MikkTSpace-style fallback tangent/binormal generator",
+                "role": "legacy tangent/binormal generator",
                 "notes": "available for all preview imports; orthonormalizes tangent frames and preserves mirrored-UV handedness",
             },
             "MikkTSpace": {
-                "status": "not_bundled",
-                "role": "future_optional_validator",
-                "package_safe": False,
-                "notes": "standard tangent basis for normal maps; enable only when vendored/built safely",
+                "status": "bundled_native_helper",
+                "role": "reference tangent generator",
+                "package_safe": True,
+                "notes": "cdmw_mesh_core generate-tangents-json reports face-corner tangents/signs plus current vertex-storage remap metadata",
             },
         },
     }

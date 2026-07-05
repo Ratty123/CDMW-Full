@@ -28,9 +28,10 @@ stay stable while implementation moves behind compatibility wrappers.
   worker extraction points.
 - `cdmw/core/`, `cdmw/modding/`, `cdmw/rendering/`: low-level archive, texture,
   rendering, import/export, and external tool logic.
-- `native/cdmw_mesh_core/`: bundled C++ mesh-edit helper for geometry-heavy
-  Mesh Editor operations, called from Python service/modding boundaries with
-  Python fallback.
+- `native/cdmw_mesh_core/`: bundled C++ mesh-edit core for resident Mesh Editor
+  sessions. Python service/modding boundaries dispatch commands and report
+  explicit unavailable/error states instead of silently falling back when native
+  editing is required.
 
 ## Layer Rules
 
@@ -55,10 +56,16 @@ module paths where needed.
 ## Services
 
 `ServiceContainer` creates bounded service objects for archives, archive
-mutation, texture workflow, mesh, package, diagnostics, settings, cache, and
-filesystem coordination. Archive mutation service methods are deliberately
-unwired until confirmation, preflight, backup, apply, and restore flows are moved
-through it safely.
+mutation, asset authoring, texture workflow, mesh, package, diagnostics,
+settings, cache, and filesystem coordination. Asset authoring discovery,
+Material Maker command handoff, review-only texture-set ingest, and source
+scene import reports stay in the asset authoring service. Mesh health preflight
+reports, UV/tangent authoring reports, and optional OpenImageIO source image
+handoff commands stay there too until cleanup/texture conversion moves into worker-backed commands. Target
+compatibility stays unmapped until routed to a known Crimson asset, and DDS
+rebuild authority stays with the existing CDMW/DirectXTex texture paths. Archive
+mutation service methods are deliberately unwired until confirmation, preflight,
+backup, apply, and restore flows are moved through it safely.
 
 `cdmw/services/workspace_layout.py` owns app-managed local workspace paths.
 Portable installs keep the config beside the executable, while generated local
@@ -69,8 +76,10 @@ folders are migrated conservatively when settings are created.
 ## Workers
 
 Shared worker contracts live under `cdmw/workers/`. Use `WorkerSuccess`,
-`WorkerFailure`, and `CancellationToken` for new long-running work. Worker-heavy
-tabs expose `request_shutdown()` and `iter_shutdown_workers()`.
+`WorkerFailure`, and `CancellationToken` for new long-running work. Asset
+authoring workers keep Material Maker CLI export and optional OpenImageIO
+metadata/convert/diff subprocess execution out of UI code. Worker-heavy tabs
+expose `request_shutdown()` and `iter_shutdown_workers()`.
 
 ## Testing
 

@@ -12,6 +12,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from cdmw.core import texture_native
 from cdmw.domain.textures.editor_presets import resolve_texture_editor_dds_preset, texture_editor_dds_presets
 from cdmw.models import TextureEditorDocument, TextureEditorLayer
 from cdmw.services.texture_editor_service import TextureEditorNativeDdsOptions, TextureEditorNativeDdsService
@@ -60,6 +61,7 @@ def run_native_dds_export(output_dir: Path) -> dict[str, object]:
     document, layer_pixels = build_synthetic_document()
     scenario_dir = output_dir / "native-dds-export"
     scenario_dir.mkdir(parents=True, exist_ok=True)
+    preview_path = scenario_dir / "harness_texture_export_preview.png"
     result = TextureEditorNativeDdsService().export_dds(
         document,
         layer_pixels,
@@ -69,10 +71,29 @@ def run_native_dds_export(output_dir: Path) -> dict[str, object]:
             temp_root=scenario_dir / "temp",
         ),
     )
+    inspect_report = texture_native.inspect_dds_with_directxtex(result.dds_path, timeout_seconds=30.0) or {}
+    decode_report = texture_native.decode_dds_preview_with_directxtex(
+        result.dds_path,
+        preview_path,
+        max_dimension=1024,
+        slot_kind="base",
+        srgb="srgb" if bool(result.report.get("srgb")) else "linear",
+        temp_root=scenario_dir / "temp",
+        timeout_seconds=30.0,
+    ) or {}
     return {
-        "ok": result.dds_path.is_file() and result.report.get("native_backend") == "directxtex",
+        "ok": (
+            result.dds_path.is_file()
+            and result.report.get("native_backend") == "directxtex"
+            and inspect_report.get("status") == "inspected"
+            and preview_path.is_file()
+            and decode_report.get("status") == "decoded"
+        ),
         "dds_path": str(result.dds_path),
+        "roundtrip_preview_png": str(preview_path),
         "report": _json_safe_report(result.report),
+        "inspect_report": _json_safe_report(inspect_report),
+        "decode_report": _json_safe_report(decode_report),
     }
 
 

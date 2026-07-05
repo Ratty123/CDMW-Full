@@ -58,6 +58,7 @@ def selection_highlight_sets_state(
     selected_target_source_editor_ids: Sequence[int],
     disabled_source_editor_ids: Sequence[int],
     default_d3d11_editor_ids: Sequence[int],
+    mesh_edit_active: bool = False,
     hovered_source_highlights: Sequence[int] = (),
     hovered_source_editor_ids: Sequence[int] = (),
     part_pick_checked: bool = False,
@@ -73,7 +74,7 @@ def selection_highlight_sets_state(
     highlighted_original_indices = tuple(sorted(set(selected_original_indices).union(selected_target_original_indices)))
 
     highlight_active = bool(geometry_active) or bool(texture_tab_active) or bool(hovered_source_indices)
-    gizmo_enabled = bool(preview_gizmo_checked) and not bool(mesh_edit_raw_active)
+    gizmo_enabled = bool(preview_gizmo_checked) and not bool(mesh_edit_raw_active) and not bool(mesh_edit_active)
     if not bool(d3d11_active):
         return {
             "highlighted_source_indices": highlighted_source_indices,

@@ -17,7 +17,7 @@ class StaticReplacementMeshEditResult:
     native_update: MeshEditorNativeUpdate
     affected_submesh_indices: tuple[int, ...] = ()
     emptied_submesh_indices: tuple[int, ...] = ()
-    changed_vertices_by_submesh: dict[int, set[int]] | None = None
+    changed_vertices_by_submesh: dict[int, object] | None = None
     removed_face_count: int = 0
     removed_vertex_count: int = 0
     added_face_count: int = 0
@@ -33,15 +33,37 @@ class StaticReplacementMeshEditSession:
     session_id: str = "static-replacement"
     mode: str = "edit"
     controller: MeshEditorController = field(default_factory=MeshEditorController)
+    submesh_counts: tuple[tuple[int, int], ...] = ()
+    mesh: ParsedMesh | None = None
 
     def open(self, mesh: ParsedMesh) -> None:
         self.controller.open_mesh(mesh, session_id=self.session_id, mode=self.mode)
+        self.mesh = mesh
+        self.submesh_counts = _mesh_counts(self.mesh)
 
     def close(self) -> None:
         self.controller.close_active_session()
 
     def view(self) -> MeshEditSessionView:
         return self.controller.session_view()
+
+    def select(
+        self,
+        *,
+        operation: str = "replace",
+        vertices_by_submesh: Mapping[int, Iterable[int]] | None = None,
+        edges_by_submesh: Mapping[int, Iterable[Sequence[int]]] | None = None,
+        faces_by_submesh: Mapping[int, Iterable[int]] | None = None,
+        source_indices: Iterable[int] | None = None,
+        **params: object,
+    ) -> MeshEditResult:
+        selection = MeshEditSelection.from_maps(
+            vertices_by_submesh=vertices_by_submesh,
+            edges_by_submesh=edges_by_submesh,
+            faces_by_submesh=faces_by_submesh,
+            source_indices=source_indices,
+        )
+        return self.controller.apply("select", selection=selection, operation=operation, **params)
 
     def apply(
         self,
@@ -59,17 +81,28 @@ class StaticReplacementMeshEditSession:
             faces_by_submesh=faces_by_submesh,
             source_indices=source_indices,
         )
-        before = _mesh_counts(self.controller.working_mesh(clone=False))
+        before = self.submesh_counts
         service_action = "separate" if str(action or "").strip().lower() == "split" else action
-        edit_result = self.controller.apply(service_action, selection=selection, **params)
+        action_params = dict(params)
+        command_mode = action_params.pop("mode", None) or ("sculpt" if str(service_action).strip().lower() == "brush" else "edit")
+        edit_result = self.controller.apply(service_action, selection=selection, mode=str(command_mode), **action_params)
+        return self._result(edit_result, before=before, selection=selection)
+
+    def apply_current_selection(self, action: str, **params: object) -> StaticReplacementMeshEditResult:
+        before = self.submesh_counts
+        service_action = "separate" if str(action or "").strip().lower() == "split" else action
+        action_params = dict(params)
+        command_mode = action_params.pop("mode", None) or ("sculpt" if str(service_action).strip().lower() == "brush" else "edit")
+        selection = self.controller.session_view().selection
+        edit_result = self.controller.apply(service_action, selection=None, mode=str(command_mode), **action_params)
         return self._result(edit_result, before=before, selection=selection)
 
     def undo(self) -> StaticReplacementMeshEditResult:
-        before = _mesh_counts(self.controller.working_mesh(clone=False))
+        before = self.submesh_counts
         return self._result(self.controller.undo(), before=before, selection=MeshEditSelection())
 
     def redo(self) -> StaticReplacementMeshEditResult:
-        before = _mesh_counts(self.controller.working_mesh(clone=False))
+        before = self.submesh_counts
         return self._result(self.controller.redo(), before=before, selection=MeshEditSelection())
 
     def _result(
@@ -80,11 +113,22 @@ class StaticReplacementMeshEditSession:
         selection: MeshEditSelection,
     ) -> StaticReplacementMeshEditResult:
         native_update = self.controller.native_update_for_result(edit_result)
+        if not edit_result.submesh_counts:
+            raise RuntimeError(
+                f"native {edit_result.action} result did not include submesh counts; "
+                "Python working mesh hydration is disabled"
+            )
+        mesh = self.mesh
+        if mesh is None:
+            raise RuntimeError("static replacement edit session has no compatibility mesh; Python working mesh hydration is disabled")
+        after = edit_result.submesh_counts
+        self.submesh_counts = after
         return _static_result(
-            self.controller.working_mesh(clone=True),
+            mesh,
             edit_result,
             native_update,
             before=before,
+            after=after,
             selection=selection,
         )
 
@@ -121,23 +165,21 @@ def _static_result(
     native_update: MeshEditorNativeUpdate,
     *,
     before: tuple[tuple[int, int], ...],
+    after: tuple[tuple[int, int], ...] | None = None,
     selection: MeshEditSelection,
 ) -> StaticReplacementMeshEditResult:
-    after = _mesh_counts(mesh)
+    after = after or _mesh_counts(mesh)
     before_vertices = sum(vertex_count for vertex_count, _face_count in before)
     before_faces = sum(face_count for _vertex_count, face_count in before)
     after_vertices = sum(vertex_count for vertex_count, _face_count in after)
     after_faces = sum(face_count for _vertex_count, face_count in after)
     affected = tuple(int(index) for index in edit_result.affected_submesh_indices)
-    emptied = tuple(index for index in affected if 0 <= index < len(mesh.submeshes) and not mesh.submeshes[index].faces)
-    changed = {
-        int(submesh): set(int(index) for index in indices)
-        for submesh, indices in edit_result.changed_vertices_by_submesh
-    }
+    emptied = tuple(index for index in affected if 0 <= index < len(after) and after[index][1] <= 0)
+    changed = _changed_vertices_for_static_result(edit_result)
     source_index = _selection_source_index(selection)
     new_index = max(affected, default=-1) if len(after) > len(before) else -1
     moved_face_count = _moved_face_count(before, after, source_index) if new_index >= 0 else 0
-    moved_vertex_count = len(mesh.submeshes[new_index].vertices) if new_index >= 0 else 0
+    moved_vertex_count = after[new_index][0] if 0 <= new_index < len(after) else 0
     return StaticReplacementMeshEditResult(
         mesh=mesh,
         edit_result=edit_result,
@@ -158,6 +200,23 @@ def _static_result(
 
 def _mesh_counts(mesh: ParsedMesh) -> tuple[tuple[int, int], ...]:
     return tuple((len(submesh.vertices), len(submesh.faces)) for submesh in mesh.submeshes)
+
+
+def _changed_vertices_for_static_result(edit_result: MeshEditResult) -> dict[int, object]:
+    changed: dict[int, object] = {}
+    for raw_submesh, indices in edit_result.changed_vertices_by_submesh:
+        try:
+            submesh = int(raw_submesh)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if isinstance(indices, Mapping):
+            changed[submesh] = dict(indices)
+            continue
+        if isinstance(indices, range) and indices.step == 1:
+            changed[submesh] = indices
+        else:
+            changed[submesh] = {int(index) for index in indices}
+    return changed
 
 
 def _selection_source_index(selection: MeshEditSelection) -> int:

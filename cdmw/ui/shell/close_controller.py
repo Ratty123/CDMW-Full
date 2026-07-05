@@ -17,6 +17,7 @@ WORKER_TAB_NAMES = (
     "mesh_editor_tab",
     "texture_editor_tab",
     "item_icons_tab",
+    "settings_tab",
 )
 
 

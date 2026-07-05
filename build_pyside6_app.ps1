@@ -249,7 +249,7 @@ function Get-BuildProfileDescription {
 
     switch ($Profile) {
         "release" { return "clean, windowed, validates onefile archives; use for publishing" }
-        "fast" { return "incremental, reuses PyInstaller work cache, skips onefile archive validation; use for local iteration" }
+        "fast" { return "incremental PyInstaller cache, native helpers rebuild incrementally, skips onefile archive validation; use for local iteration" }
         "debug" { return "clean, console-enabled, verbose PyInstaller logging, validates onefile archives; use for troubleshooting" }
         default { throw "Unsupported build profile: $Profile" }
     }
@@ -385,22 +385,17 @@ Assert-CleanPythonSitePackages -PythonExe $pythonExe
 
 if (-not $SkipNativeBuild) {
     $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
-    if ($BuildProfile -eq "fast" -and (Test-NativeOutputsPresent -Configuration $nativeConfig)) {
-        Write-BuildProgress -Percent 16 -Stage "Native helpers already built"
-        Write-Host "Skipping native helper build for fast profile; existing $nativeConfig binaries found."
-    } else {
-        Write-BuildProgress -Percent 12 -Stage "Building native helpers"
-        Write-Host "Building native helpers ($nativeConfig)..."
-        $nativeBuildArgs = @{ Configuration = $nativeConfig }
-        if ($BuildProfile -ne "fast") {
-            $nativeBuildArgs.Clean = $true
-        }
-        & (Join-Path $scriptDir "build_native_windows.ps1") @nativeBuildArgs
-        if ($LASTEXITCODE -ne 0) {
-            throw "Native helper build failed with exit code $LASTEXITCODE."
-        }
-        Write-BuildProgress -Percent 20 -Stage "Native helpers ready"
+    Write-BuildProgress -Percent 12 -Stage "Building native helpers"
+    Write-Host "Building native helpers ($nativeConfig)..."
+    $nativeBuildArgs = @{ Configuration = $nativeConfig }
+    if ($BuildProfile -ne "fast") {
+        $nativeBuildArgs.Clean = $true
     }
+    & (Join-Path $scriptDir "build_native_windows.ps1") @nativeBuildArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Native helper build failed with exit code $LASTEXITCODE."
+    }
+    Write-BuildProgress -Percent 20 -Stage "Native helpers ready"
 } else {
     Write-Warning "Skipping native helper build. Release packaging still requires existing native binaries."
     Write-BuildProgress -Percent 16 -Stage "Native helper build skipped"

@@ -5,6 +5,7 @@ import unittest
 from cdmw.domain.mesh import MESH_EDIT_ACTIONS, MESH_EDIT_MODES
 from cdmw.ui.mesh_editor.actions import (
     MESH_EDITOR_ACTIONS,
+    NATIVE_EDITOR_SESSION_COMMANDS,
     mesh_editor_actions_by_key,
     mesh_editor_actions_for_category,
     validate_mesh_editor_actions,
@@ -45,6 +46,7 @@ class MeshEditorActionsTests(unittest.TestCase):
             "delete",
             "dissolve",
             "subdivide",
+            "refine_smooth",
             "split",
             "separate",
             "duplicate",
@@ -62,13 +64,12 @@ class MeshEditorActionsTests(unittest.TestCase):
             "compact_orphans",
             "fix_winding",
             "fill_holes",
-            "triangulate_display",
-            "quadrangulate_display",
             "recalculate_normals",
             "generate_tangents",
             "flip_normals",
             "sharpen_normals",
             "soften_normals",
+            "weighted_normals",
             "copy_normals",
             "uv_transform",
             "uv_flip_u",
@@ -81,6 +82,7 @@ class MeshEditorActionsTests(unittest.TestCase):
             "uv_planar_project",
             "uv_box_project",
             "uv_cylindrical_project",
+            "uv_auto_unwrap",
             "uv_pack",
             "uv_snap_grid",
             "uv_snap_pixels",
@@ -105,6 +107,8 @@ class MeshEditorActionsTests(unittest.TestCase):
         self.assertEqual("edge", topology["edge_split"].selection_mode)
         self.assertEqual("edge", topology["bridge"].selection_mode)
         self.assertEqual("Ctrl+R", topology["loop_cut"].shortcut)
+        self.assertEqual("Ctrl+Shift+E", topology["refine_smooth"].shortcut)
+        self.assertEqual((("smooth_iterations", 2), ("smooth_strength", 0.5)), topology["refine_smooth"].params)
         self.assertEqual((("rotate", (0.0, 0.0, 15.0)),), transform["transform_rotate"].params)
         self.assertEqual((("scale", (1.1, 1.1, 1.1)),), transform["transform_scale"].params)
         self.assertEqual("edit", topology["extrude"].mode)
@@ -124,6 +128,7 @@ class MeshEditorActionsTests(unittest.TestCase):
         self.assertEqual((("projection", "planar"), ("plane", "xy")), uv["uv_planar_project"].params)
         self.assertEqual((("projection", "box"),), uv["uv_box_project"].params)
         self.assertEqual((("projection", "cylindrical"), ("axis", "z")), uv["uv_cylindrical_project"].params)
+        self.assertEqual((("auto_uv", True), ("allow_topology_change", True)), uv["uv_auto_unwrap"].params)
         self.assertEqual((("pack", True),), uv["uv_pack"].params)
         self.assertEqual((("snap_grid", 0.125),), uv["uv_snap_grid"].params)
         self.assertEqual((("pixel_snap", True), ("texture_size", (1024.0, 1024.0))), uv["uv_snap_pixels"].params)
@@ -133,6 +138,7 @@ class MeshEditorActionsTests(unittest.TestCase):
         self.assertEqual("Ctrl+P", uv["uv_planar_project"].shortcut)
         self.assertEqual("Alt+P", uv["uv_pack"].shortcut)
         self.assertEqual("Ctrl+Alt+H", normals["sharpen_normals"].shortcut)
+        self.assertEqual("Ctrl+Alt+Shift+S", normals["weighted_normals"].shortcut)
         self.assertEqual("Ctrl+Alt+Shift+N", normals["copy_normals"].shortcut)
         self.assertFalse(sculpt["brush_grab"].requires_selection)
         self.assertFalse(sculpt["brush_smooth"].requires_selection)
@@ -146,7 +152,17 @@ class MeshEditorActionsTests(unittest.TestCase):
         self.assertTrue(mesh_editor_actions_by_key()["flip_normals"].requires_selection)
         self.assertTrue(mesh_editor_actions_by_key()["sharpen_normals"].requires_selection)
         self.assertTrue(mesh_editor_actions_by_key()["soften_normals"].requires_selection)
+        self.assertTrue(mesh_editor_actions_by_key()["weighted_normals"].requires_selection)
         self.assertTrue(mesh_editor_actions_by_key()["copy_normals"].requires_selection)
+        self.assertNotIn("triangulate_display", mesh_editor_actions_by_key())
+        self.assertNotIn("quadrangulate_display", mesh_editor_actions_by_key())
+
+    def test_native_unavailable_gate_covers_native_session_commands(self) -> None:
+        expected = set(MESH_EDIT_ACTIONS) - {"set_mode", "select", "triangulate_display", "quadrangulate_display"}
+        self.assertEqual(expected, set(NATIVE_EDITOR_SESSION_COMMANDS))
+        self.assertNotIn("select", NATIVE_EDITOR_SESSION_COMMANDS)
+        self.assertNotIn("triangulate_display", NATIVE_EDITOR_SESSION_COMMANDS)
+        self.assertNotIn("quadrangulate_display", NATIVE_EDITOR_SESSION_COMMANDS)
 
 
 if __name__ == "__main__":

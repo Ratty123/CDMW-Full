@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
 from cdmw.models import ArchiveEntry
 from cdmw.modding.scene_importer import SceneImportResult
-from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest, mesh_editor_source_skeleton
+from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
 
 
 class MeshEditorShellBridgeMixin:
@@ -47,12 +47,7 @@ class MeshEditorShellBridgeMixin:
             mode=str(mode or "modify_original").strip() or "modify_original",
             source_path=source_path,
             source_entry=source_entry,
-            source_skeleton=mesh_editor_source_skeleton(
-                source_skeleton=source_skeleton,
-                source_path=source_path,
-                supplemental_files=request_supplemental_files,
-                scene_import_result=scene_import_result,
-            ),
+            source_skeleton=source_skeleton,
             supplemental_files=request_supplemental_files,
             scene_import_result=scene_import_result,
         )
@@ -184,7 +179,6 @@ class MeshEditorShellBridgeMixin:
         if not isinstance(entry, ArchiveEntry):
             self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
             return
-        self._open_mesh_editor_for_entry(entry, mode="modify_original", activate=True)
         self._set_last_active_operation(
             "mesh_replacement_modify_original",
             path=getattr(entry, "path", ""),
@@ -238,6 +232,7 @@ class MeshEditorShellBridgeMixin:
             self.mesh_editor_tab.set_active_tool_state(
                 mode=mode if command == "set_mode" else "",
                 active_selection_mode=selection_mode,
+                active_tool_key=key if command == "brush" or key == "transform_move" else "",
             )
         if routed is True:
             self.set_status_message(f"Mesh Editor action sent: {text}.")
@@ -251,7 +246,6 @@ class MeshEditorShellBridgeMixin:
         if current_entry is None:
             self.set_status_message("Select a supported archive mesh to modify.", error=True)
             return
-        self._open_mesh_editor_for_entry(current_entry, mode="modify_original", activate=True)
         self._set_last_active_operation(
             "mesh_replacement_modify_original",
             path=getattr(current_entry, "path", ""),

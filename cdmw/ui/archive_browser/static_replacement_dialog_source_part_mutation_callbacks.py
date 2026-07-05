@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from types import SimpleNamespace
+
+from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.ui.archive_browser.static_replacement_sparse_history import (
+    allow_python_full_mesh_clone_fallback,
+    clear_mesh_history_snapshot_stack,
+    clone_mesh_for_static_replacement_native_first,
+    release_native_submesh_snapshot,
+    replace_mesh_history_snapshot_stack,
+)
 
 
 def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) -> SimpleNamespace:
@@ -29,7 +39,6 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
     _mapping_role_hint = context.get('_mapping_role_hint')
     _maybe_flatten_scene_import_parts = context.get('_maybe_flatten_scene_import_parts')
     _maybe_reduce_high_density_scene_import = context.get('_maybe_reduce_high_density_scene_import')
-    _mirror_submesh_x = context.get('_mirror_submesh_x')
     _normalize_appended_part_to_work_area = context.get('_normalize_appended_part_to_work_area')
     _parse_mapping_edit = context.get('_parse_mapping_edit')
     _pop_geometry_undo_snapshot = context.get('_pop_geometry_undo_snapshot')
@@ -60,11 +69,14 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
     _set_source_parts_preview_rebuild_pending = context.get('_set_source_parts_preview_rebuild_pending')
     _set_texture_sets = context.get('_set_texture_sets')
     _set_transform_source_indices = context.get('_set_transform_source_indices')
+    _alignment_d3d11_preview_active = context.get('_alignment_d3d11_preview_active')
+    _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
+    _mesh_edit_preview_source_indices = context.get('_mesh_edit_preview_source_indices')
+    _mesh_edit_replace_live_triangles_or_queue_rebuild = context.get('_mesh_edit_replace_live_triangles_or_queue_rebuild')
     _source_display_name = context.get('_source_display_name')
     _source_group_label_or_fallback_helper = context.get('_source_group_label_or_fallback_helper')
     _source_mapping_target_indices = context.get('_source_mapping_target_indices')
     _source_material_group_label = context.get('_source_material_group_label')
-    _source_mirror_plane_x = context.get('_source_mirror_plane_x')
     _source_part_add_mesh_part_failed_title_helper = context.get('_source_part_add_mesh_part_failed_title_helper')
     _source_part_added_mesh_part_status_helper = context.get('_source_part_added_mesh_part_status_helper')
     _source_part_append_file_route_state_helper = context.get('_source_part_append_file_route_state_helper')
@@ -111,7 +123,6 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
     base_copy = context.get('base_copy')
     base_submeshes = context.get('base_submeshes')
     clear_response = context.get('clear_response')
-    clone_mesh_for_editing = context.get('clone_mesh_for_editing')
     copied_original_physics_sensitive_sources = context.get('copied_original_physics_sensitive_sources')
     copied_original_source_indices = context.get('copied_original_source_indices')
     copied_original_source_to_original_index = context.get('copied_original_source_to_original_index')
@@ -143,6 +154,7 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
     mesh_edit_redo_adjustment_stack = context.get('mesh_edit_redo_adjustment_stack')
     mesh_edit_redo_stack = context.get('mesh_edit_redo_stack')
     mesh_edit_selected_faces_by_submesh = context.get('mesh_edit_selected_faces_by_submesh')
+    mesh_edit_selected_source_indices = context.get('mesh_edit_selected_source_indices')
     mesh_edit_selected_vertices_by_submesh = context.get('mesh_edit_selected_vertices_by_submesh')
     mesh_edit_undo_adjustment_stack = context.get('mesh_edit_undo_adjustment_stack')
     mesh_edit_undo_stack = context.get('mesh_edit_undo_stack')
@@ -229,6 +241,143 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
     value = context.get('value')
     working_copy = context.get('working_copy')
 
+    def _source_part_current_preview_indices() -> object:
+        if callable(_mesh_edit_preview_source_indices):
+            return _mesh_edit_preview_source_indices()
+        mesh = _get_replacement_mesh_for_mapping()
+        return range(len(getattr(mesh, "submeshes", ()) or ())) if mesh is not None else ()
+
+    def _source_part_mesh_edit_active() -> bool:
+        if not callable(_alignment_mesh_edit_tab_active):
+            return False
+        return bool(_alignment_mesh_edit_tab_active())
+
+    def _source_part_refresh_geometry_preview(
+        reason: str,
+        source_indices: object | None = None,
+        *,
+        replace_all: bool = False,
+    ) -> None:
+        static_preview_geometry_cache.clear()
+        static_preview_prepared_cache.clear()
+        texture_overrides_dirty["dirty"] = True
+        if callable(_alignment_d3d11_preview_active) and _alignment_d3d11_preview_active():
+            if callable(_mesh_edit_replace_live_triangles_or_queue_rebuild):
+                _mesh_edit_replace_live_triangles_or_queue_rebuild(
+                    source_indices if source_indices is not None else _source_part_current_preview_indices(),
+                    replace_all=replace_all,
+                )
+                return
+            self.set_status_message(
+                "Native D3D11 source-part preview commands are unavailable; preview is stale. Reload D3D11 preview to resync.",
+                error=True,
+            )
+            return
+        if _source_part_mesh_edit_active():
+            self.set_status_message(
+                "Active Mesh Editor source-part preview requires native D3D11 refresh; Python preview rebuild fallback is disabled.",
+                error=True,
+            )
+            return
+        replacement_mesh_for_mapping = _get_replacement_mesh_for_mapping()
+        _set_replacement_preview_model(
+            parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
+            if replacement_mesh_for_mapping is not None
+            else None
+        )
+        _set_source_parts_preview_rebuild_pending(reason)
+        _queue_static_preview_rebuild()
+
+    def _source_part_active_geometry_mutation_blocked() -> bool:
+        if not _source_part_mesh_edit_active():
+            return False
+        self.set_status_message(
+            "Active Mesh Editor source-part topology changes require native geometry execution; Python mesh mutation fallback is disabled.",
+            error=True,
+        )
+        return True
+
+    def _source_part_material_routing_mutation_blocked() -> bool:
+        if not _source_part_mesh_edit_active():
+            return False
+        self.set_status_message(
+            "Active Mesh Editor source-part material routing requires native material execution; Python routing mutation fallback is disabled.",
+            error=True,
+        )
+        return True
+
+    def _source_part_append_capture_mesh_snapshot(mesh: object, operation: str) -> object | None:
+        if mesh is None:
+            return None
+        try:
+            from cdmw.modding.mesh_native_core import snapshot_native_mesh_submeshes
+
+            native_snapshot = snapshot_native_mesh_submeshes(mesh)
+        except Exception:
+            native_snapshot = None
+        if native_snapshot is not None:
+            return native_snapshot
+        def _fallback_allowed(candidate: object) -> bool:
+            if allow_python_full_mesh_clone_fallback(
+                candidate,
+                operation,
+                "Python source-part append rollback clone fallback blocked while native mesh core is available",
+            ):
+                return True
+            self.set_status_message(
+                "Native source-part append rollback snapshot failed; Python full-mesh clone fallback blocked while native mesh core is available.",
+                error=True,
+            )
+            return False
+
+        return clone_mesh_for_static_replacement_native_first(
+            mesh,
+            operation,
+            "Python source-part append rollback clone fallback blocked while native mesh core is available",
+            fallback_allowed=_fallback_allowed,
+        )
+
+    def _source_part_append_restore_mesh_snapshot(snapshot: object) -> object | None:
+        if isinstance(snapshot, Mapping) and snapshot.get("kind") == "native_submesh_snapshot":
+            try:
+                from cdmw.modding.mesh_native_core import restore_native_mesh_submesh_snapshot
+
+                restored = ParsedMesh()
+                if restore_native_mesh_submesh_snapshot(restored, snapshot):
+                    return restored
+            except Exception:
+                return None
+            return None
+        if isinstance(snapshot, ParsedMesh):
+            return _source_part_append_clone_parsed_mesh_snapshot(snapshot)
+        return None
+
+    def _source_part_append_clone_parsed_mesh_snapshot(snapshot: ParsedMesh) -> ParsedMesh | None:
+        def _fallback_allowed(candidate: object) -> bool:
+            if allow_python_full_mesh_clone_fallback(
+                candidate,
+                "source_part.append_rollback_restore",
+                "Python source-part append rollback restore clone fallback blocked while native mesh core is available",
+            ):
+                return True
+            self.set_status_message(
+                "Native source-part append rollback restore failed; Python full-mesh clone fallback blocked while native mesh core is available.",
+                error=True,
+            )
+            return False
+
+        restored = clone_mesh_for_static_replacement_native_first(
+            snapshot,
+            "source_part.append_rollback_restore",
+            "Python source-part append rollback restore clone fallback blocked while native mesh core is available",
+            fallback_allowed=_fallback_allowed,
+        )
+        return restored if isinstance(restored, ParsedMesh) else None
+
+    def _source_part_append_release_rollback_snapshots(snapshot: object) -> None:
+        release_native_submesh_snapshot(getattr(snapshot, "replacement_mesh", None))
+        release_native_submesh_snapshot(getattr(snapshot, "replacement_base_mesh", None))
+
     def _delete_selected_source_parts(source_indices: Optional[Sequence[int]] = None) -> None:
         replacement_mesh_for_mapping = _get_replacement_mesh_for_mapping()
         replacement_mesh_base_for_mapping = _get_replacement_mesh_base_for_mapping()
@@ -252,6 +401,8 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
         source_part_delete_status_text = _source_part_delete_status_text_helper()
         if not delete_selection_state.available:
             self.set_status_message(source_part_delete_status_text[delete_selection_state.status_key])
+            return
+        if _source_part_active_geometry_mutation_blocked():
             return
         delete_indices = set(delete_selection_state.delete_indices)
         _push_geometry_undo_snapshot(source_part_delete_status_text["undo_label"])
@@ -348,9 +499,11 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
                 static_preview_baked_transform_state.get("parts", {}),
                 index_map,
                 copy_values=True,
-            )
+        )
         mesh_edit_selected_vertices_by_submesh.clear()
         mesh_edit_selected_faces_by_submesh.clear()
+        if hasattr(mesh_edit_selected_source_indices, "clear"):
+            mesh_edit_selected_source_indices.clear()
         if morph_slider_post_edit_deltas and len(morph_slider_post_edit_deltas) == source_count:
             morph_slider_post_edit_deltas[:] = [
                 deltas
@@ -375,14 +528,10 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
                 undo_label=source_part_delete_status_text["undo_label"],
                 defer_preview=True,
             )
-        _set_replacement_preview_model(parsed_mesh_to_preview_model(replacement_mesh_for_mapping))
-        static_preview_geometry_cache.clear()
-        static_preview_prepared_cache.clear()
-        mesh_edit_undo_stack.clear()
-        mesh_edit_redo_stack.clear()
+        clear_mesh_history_snapshot_stack(mesh_edit_undo_stack)
+        clear_mesh_history_snapshot_stack(mesh_edit_redo_stack)
         mesh_edit_undo_adjustment_stack.clear()
         mesh_edit_redo_adjustment_stack.clear()
-        texture_overrides_dirty["dirty"] = True
         texture_sets = group_replacement_texture_sets(texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
         _set_texture_sets(texture_sets)
         _apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
@@ -415,8 +564,10 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             pass
         _load_selected_part_controls()
         _sync_highlight_sets()
-        _set_source_parts_preview_rebuild_pending(_source_part_deleted_pending_reason_helper(len(delete_indices)))
-        _queue_static_preview_rebuild()
+        _source_part_refresh_geometry_preview(
+            _source_part_deleted_pending_reason_helper(len(delete_indices)),
+            replace_all=True,
+        )
         self.set_status_message(_source_part_deleted_status_helper(len(delete_indices)))
 
     def _apply_source_part_preview_changes() -> None:
@@ -426,13 +577,14 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
         static_preview_geometry_cache.clear()
         static_preview_prepared_cache.clear()
         texture_overrides_dirty["dirty"] = True
-        _set_source_parts_preview_rebuild_pending(rebuild_reason)
         _refresh_source_assignment_columns()
         _update_mapping_status()
         _update_selection_context()
-        _queue_static_preview_rebuild()
+        _source_part_refresh_geometry_preview(rebuild_reason, replace_all=True)
 
     def _apply_source_material_grouped_routing() -> None:
+        if _source_part_material_routing_mutation_blocked():
+            return
         replacement_mesh_for_mapping = _get_replacement_mesh_for_mapping()
         texture_sets = _get_texture_sets()
         if original_mesh_for_mapping is None or replacement_mesh_for_mapping is None:
@@ -542,6 +694,8 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
         )
         if not duplicate_route.available:
             return
+        if _source_part_active_geometry_mutation_blocked():
+            return
         _push_geometry_undo_snapshot(duplicate_route.undo_label)
         source = replacement_mesh_for_mapping.submeshes[source_index]
         source_adjustment = source_part_adjustments.get(
@@ -549,17 +703,29 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             StaticSourcePartAdjustment(source_index),
         )
         if mirrored:
-            baked_source = _copy_source_part_with_adjustment(source, source_adjustment)
-            plane_x = _source_mirror_plane_x(list(getattr(baked_source, "vertices", ()) or ()))
-            working_copy = _mirror_submesh_x(baked_source, plane_x)
-            base_copy = copy.deepcopy(working_copy)
+            working_copy = _copy_source_part_with_adjustment(
+                source,
+                source_adjustment,
+                mirror_x_around_bounds_center=True,
+            )
+            base_copy = _copy_source_part_with_adjustment(
+                working_copy,
+                StaticSourcePartAdjustment(source_submesh_index=0),
+            )
             new_adjustment = StaticSourcePartAdjustment(source_submesh_index=0)
         else:
-            working_copy = copy.deepcopy(source)
-            base_copy = copy.deepcopy(
+            working_copy = _copy_source_part_with_adjustment(
+                source,
+                StaticSourcePartAdjustment(source_submesh_index=source_index),
+            )
+            base_source = (
                 replacement_mesh_base_for_mapping.submeshes[source_index]
                 if source_index < len(replacement_mesh_base_for_mapping.submeshes)
                 else source
+            )
+            base_copy = _copy_source_part_with_adjustment(
+                base_source,
+                StaticSourcePartAdjustment(source_submesh_index=source_index),
             )
             new_adjustment = copy.deepcopy(source_adjustment)
 
@@ -617,12 +783,8 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             )
 
         source_geometry_revision["value"] = int(source_geometry_revision.get("value", 0) or 0) + 1
-        mesh_edit_redo_stack.clear()
+        clear_mesh_history_snapshot_stack(mesh_edit_redo_stack)
         mesh_edit_redo_adjustment_stack.clear()
-        _set_replacement_preview_model(parsed_mesh_to_preview_model(replacement_mesh_for_mapping))
-        static_preview_geometry_cache.clear()
-        static_preview_prepared_cache.clear()
-        texture_overrides_dirty["dirty"] = True
         texture_sets = group_replacement_texture_sets(texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
         _set_texture_sets(texture_sets)
         _apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
@@ -643,13 +805,15 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
         except NameError:
             pass
         _load_selected_part_controls()
-        _queue_static_preview_rebuild()
+        _source_part_refresh_geometry_preview(duplicate_route.status_text, (new_index,))
         self.set_status_message(duplicate_route.status_text)
 
     def _append_mesh_part_to_geometry() -> None:
         replacement_mesh_for_mapping = _get_replacement_mesh_for_mapping()
         replacement_mesh_base_for_mapping = _get_replacement_mesh_base_for_mapping()
         if replacement_mesh_for_mapping is None or replacement_mesh_base_for_mapping is None:
+            return
+        if _source_part_active_geometry_mutation_blocked():
             return
         source_part_append_mesh_file_dialog_text = _source_part_append_mesh_file_dialog_text_helper()
         selected_path, _selected_filter = QFileDialog.getOpenFileName(
@@ -679,9 +843,21 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
                 _source_part_unsupported_mesh_part_message_helper(source_path.name),
             )
             return
+        rollback_replacement_mesh = _source_part_append_capture_mesh_snapshot(
+            replacement_mesh_for_mapping,
+            "source_part.append_rollback_working_mesh",
+        )
+        rollback_replacement_base_mesh = _source_part_append_capture_mesh_snapshot(
+            replacement_mesh_base_for_mapping,
+            "source_part.append_rollback_base_mesh",
+        )
+        if rollback_replacement_mesh is None or rollback_replacement_base_mesh is None:
+            release_native_submesh_snapshot(rollback_replacement_mesh)
+            release_native_submesh_snapshot(rollback_replacement_base_mesh)
+            return
         append_rollback_snapshot = _source_part_append_rollback_snapshot_helper(
-            replacement_mesh=clone_mesh_for_editing(replacement_mesh_for_mapping),
-            replacement_base_mesh=clone_mesh_for_editing(replacement_mesh_base_for_mapping),
+            replacement_mesh=rollback_replacement_mesh,
+            replacement_base_mesh=rollback_replacement_base_mesh,
             appended_source_indices=appended_source_indices,
             independent_output_source_indices=independent_output_source_indices,
             preview_only_source_indices=preview_only_source_indices,
@@ -705,14 +881,21 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             selected_target_original_highlights=selected_target_original_highlight_indices,
         )
 
-        def _rollback_cancelled_appended_mesh_part_import() -> None:
-            replacement_mesh_for_mapping = _get_replacement_mesh_for_mapping()
-            replacement_mesh_base_for_mapping = _get_replacement_mesh_base_for_mapping()
-            replacement_mesh_for_mapping = clone_mesh_for_editing(append_rollback_snapshot.replacement_mesh)
+        def _rollback_cancelled_appended_mesh_part_import() -> bool:
+            replacement_mesh_for_mapping = _source_part_append_restore_mesh_snapshot(
+                append_rollback_snapshot.replacement_mesh
+            )
+            replacement_mesh_base_for_mapping = _source_part_append_restore_mesh_snapshot(
+                append_rollback_snapshot.replacement_base_mesh
+            )
+            if replacement_mesh_for_mapping is None or replacement_mesh_base_for_mapping is None:
+                self.set_status_message(
+                    "Could not restore source-part append rollback snapshot; reload the preview before continuing.",
+                    error=True,
+                )
+                return False
             _set_replacement_mesh_for_mapping(replacement_mesh_for_mapping)
-            replacement_mesh_base_for_mapping = clone_mesh_for_editing(append_rollback_snapshot.replacement_base_mesh)
             _set_replacement_mesh_base_for_mapping(replacement_mesh_base_for_mapping)
-            _set_replacement_preview_model(parsed_mesh_to_preview_model(replacement_mesh_for_mapping))
             appended_source_indices.clear()
             appended_source_indices.update(append_rollback_snapshot.appended_source_indices)
             independent_output_source_indices.clear()
@@ -732,7 +915,10 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             source_material_texture_override_assignments.update(
                 append_rollback_snapshot.source_material_texture_override_assignments
             )
-            mesh_edit_redo_stack[:] = list(append_rollback_snapshot.mesh_edit_redo_stack)
+            replace_mesh_history_snapshot_stack(
+                mesh_edit_redo_stack,
+                append_rollback_snapshot.mesh_edit_redo_stack,
+            )
             mesh_edit_redo_adjustment_stack[:] = copy.deepcopy(
                 append_rollback_snapshot.mesh_edit_redo_adjustment_stack
             )
@@ -760,9 +946,6 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             )
             _sync_highlight_sets()
             _refresh_original_reference_preview()
-            static_preview_geometry_cache.clear()
-            static_preview_prepared_cache.clear()
-            texture_overrides_dirty["dirty"] = True
             texture_sets = group_replacement_texture_sets(
                 texture_files_for_mapping,
                 obj_mesh=replacement_mesh_for_mapping,
@@ -780,15 +963,18 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             except NameError:
                 pass
             _load_selected_part_controls()
-            _queue_static_preview_rebuild()
+            _source_part_refresh_geometry_preview("cancelled mesh part import", replace_all=True)
+            return True
         append_undo_pushed = False
         try:
             append_scene_result = import_scene_mesh_with_report(source_path)
             append_scene_result = _maybe_flatten_scene_import_parts(source_path, append_scene_result)
             if append_scene_result is None:
+                _source_part_append_release_rollback_snapshots(append_rollback_snapshot)
                 return
             append_scene_result = _maybe_reduce_high_density_scene_import(source_path, append_scene_result)
             if append_scene_result is None:
+                _source_part_append_release_rollback_snapshots(append_rollback_snapshot)
                 return
             _push_geometry_undo_snapshot("Add mesh part")
             append_undo_pushed = True
@@ -802,6 +988,7 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
         except Exception as exc:
             if append_undo_pushed:
                 _pop_geometry_undo_snapshot()
+            _source_part_append_release_rollback_snapshots(append_rollback_snapshot)
             QMessageBox.warning(dialog, _source_part_add_mesh_part_failed_title_helper(), str(exc))
             return
         placement_note = _normalize_appended_part_to_work_area(append_result.source_indices)
@@ -833,12 +1020,8 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             )
         _invalidate_source_display_cache()
         source_geometry_revision["value"] = int(source_geometry_revision.get("value", 0) or 0) + 1
-        mesh_edit_redo_stack.clear()
+        clear_mesh_history_snapshot_stack(mesh_edit_redo_stack)
         mesh_edit_redo_adjustment_stack.clear()
-        _set_replacement_preview_model(parsed_mesh_to_preview_model(replacement_mesh_for_mapping))
-        static_preview_geometry_cache.clear()
-        static_preview_prepared_cache.clear()
-        texture_overrides_dirty["dirty"] = True
         texture_sets = group_replacement_texture_sets(texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
         _set_texture_sets(texture_sets)
         _apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
@@ -878,7 +1061,10 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
         except NameError:
             pass
         _load_selected_part_controls()
-        _queue_static_preview_rebuild()
+        _source_part_refresh_geometry_preview(
+            _source_part_added_mesh_part_status_helper(source_path.name, placement_note),
+            append_result.source_indices,
+        )
         assignment_action = _prompt_assign_appended_mesh_parts(
             source_path,
             append_result.source_indices,
@@ -886,10 +1072,13 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             discovered_texture_files=tuple(append_scene_result.discovered_texture_files or ()),
         )
         if assignment_action == "cancel":
-            _rollback_cancelled_appended_mesh_part_import()
-            _pop_geometry_undo_snapshot()
-            self.set_status_message(_source_part_cancel_import_status_helper(source_path.name))
-            return
+            try:
+                if _rollback_cancelled_appended_mesh_part_import():
+                    _pop_geometry_undo_snapshot()
+                    self.set_status_message(_source_part_cancel_import_status_helper(source_path.name))
+                return
+            finally:
+                _source_part_append_release_rollback_snapshots(append_rollback_snapshot)
         _refresh_source_assignment_columns()
         try:
             _refresh_added_part_texture_tree(int(append_result.source_indices[0]) if append_result.source_indices else None)
@@ -899,7 +1088,11 @@ def create_alignment_source_part_mutation_callbacks(context: dict[str, object]) 
             _refresh_source_material_plan()
         except NameError:
             pass
-        _queue_static_preview_rebuild()
+        _source_part_refresh_geometry_preview(
+            _source_part_added_mesh_part_status_helper(source_path.name, placement_note),
+            append_result.source_indices,
+        )
+        _source_part_append_release_rollback_snapshots(append_rollback_snapshot)
         self.set_status_message(
             _source_part_added_mesh_part_status_helper(source_path.name, placement_note)
         )

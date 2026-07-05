@@ -57,6 +57,17 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         self.assertIn('family_tree.setHeaderLabels(["Role", "File", "Status", "Evidence", "Why"])', source)
         self.assertIn("self._install_tree_horizontal_wheel_guard(family_tree)", source)
 
+    def test_open_preview_window_reuses_current_archive_family_graph(self) -> None:
+        source = ARCHIVE_REFERENCE_PREVIEW.read_text(encoding="utf-8")
+        reference_start = source.index("def _open_archive_reference_preview_entry")
+        reference_end = source.index("def _export_selected_archive_texture_reference", reference_start)
+        reference_source = source[reference_start:reference_end]
+
+        self.assertIn("def _current_archive_preview_result_for_reference_entry", source)
+        self.assertIn("archive_entry_identity_key(current_entry) != archive_entry_identity_key(entry)", source)
+        self.assertIn("current_result = self._current_archive_preview_result_for_reference_entry(resolved_entry)", reference_source)
+        self.assertIn("self._show_archive_reference_preview_dialog(resolved_entry, current_result)", reference_source)
+
     def test_archive_summary_highlighter_understands_simplified_previews(self) -> None:
         source = (REPO_ROOT / "cdmw" / "ui" / "text_preview_widgets.py").read_text(encoding="utf-8")
 

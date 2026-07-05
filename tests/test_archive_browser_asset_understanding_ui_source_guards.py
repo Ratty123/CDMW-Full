@@ -476,6 +476,30 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("MODIFY_ORIGINAL_README.txt", source)
         self.assertIn("find_available_output_path(parent_root / workspace_name)", source)
 
+    def test_modify_original_defers_mesh_editor_open_until_clone_ready(self) -> None:
+        shell_source = MESH_EDITOR_SHELL_BRIDGE.read_text(encoding="utf-8")
+        modify_source = ARCHIVE_MESH_MODIFY_ORIGINAL.read_text(encoding="utf-8")
+        patch_source = ARCHIVE_MESH_PATCH_FLOW.read_text(encoding="utf-8")
+
+        for name in ("_mesh_editor_modify_original_requested", "_modify_current_archive_original_mesh"):
+            start = shell_source.index(f"    def {name}(")
+            next_def = shell_source.find("\n    def ", start + 1)
+            end = next_def if next_def != -1 else shell_source.index("\n__all__", start)
+            body = shell_source[start:end]
+            self.assertIn("_start_archive_modify_original_workspace", body)
+            self.assertIn("_set_last_active_operation", body)
+            self.assertNotIn("self._open_mesh_editor_for_entry(", body)
+
+        self.assertIn("def _start_archive_mesh_patch(", patch_source)
+        self.assertIn("self._open_mesh_editor_for_entry(", patch_source)
+        start = modify_source.index("    def _start_archive_modify_original_workspace(")
+        task_start = modify_source.index("        def _task(", start)
+        pre_task = modify_source[start:task_start]
+        task_body = modify_source[task_start:modify_source.index("        def _handle_complete(", task_start)]
+        self.assertIn("cleanup_stale_sessions = True", pre_task)
+        self.assertNotIn("self._cleanup_stale_modify_original_sessions()", pre_task)
+        self.assertIn("self._cleanup_stale_modify_original_sessions(on_log=log)", task_body)
+
     def test_modify_original_in_app_clone_skips_obj_skeleton_resolution(self) -> None:
         archive_modding_source = (
             (REPO_ROOT / "cdmw" / "core" / "archive_modding.py").read_text(encoding="utf-8")
@@ -487,9 +511,9 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("resolve_skeleton_for_obj: bool = True", archive_modding_source)
         self.assertIn('export_kind == "fbx" or bool(resolve_skeleton_for_obj)', archive_modding_source)
         self.assertIn("resolve_skeleton_for_obj=create_workspace", main_window_source)
-        self.assertIn("resolve_skeleton_for_model(", main_window_source)
         self.assertIn("source_skeleton = None", main_window_source)
-        self.assertIn("parse_pab(skeleton_data, skeleton_entry.path)", main_window_source)
+        self.assertNotIn("resolve_skeleton_for_model(", main_window_source)
+        self.assertNotIn("parse_pab(skeleton_data, skeleton_entry.path)", main_window_source)
         self.assertIn("source_skeleton=source_skeleton", main_window_source)
 
     def test_modify_original_preserves_selected_archive_entry_as_export_target(self) -> None:

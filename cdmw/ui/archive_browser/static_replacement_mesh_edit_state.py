@@ -75,6 +75,7 @@ def mesh_edit_action_control_text() -> dict[str, str]:
         "shrink_selection": "Shrink Selection",
         "smooth_selection": "Smooth / Feather Selection",
         "subdivide_selection": "Subdivide Selection",
+        "refine_smooth_selection": "Refine Smooth Selection",
         "split_selection": "Split Selection To Part",
         "delete_faces": "Delete Selected Faces",
         "undo": "Undo",
@@ -88,6 +89,7 @@ def mesh_edit_action_control_text() -> dict[str, str]:
         "select_part_tooltip": "Select every vertex in the current editable Mesh Editing scope.",
         "invert_selection_tooltip": "Invert the selected vertices inside the current editable Mesh Editing scope.",
         "subdivide_selection_tooltip": "Add local triangle density around selected vertices, then keep sculpting.",
+        "refine_smooth_selection_tooltip": "Add local triangle density around selected vertices, then smooth the new detail.",
         "split_selection_tooltip": "Move selected faces into a new replacement source part.",
         "delete_faces_tooltip": "Delete triangles touched by selected Mesh Editing vertices. Cut boundaries are left open.",
     }
@@ -113,8 +115,8 @@ def mesh_edit_delete_faces_text() -> dict[str, str]:
 def mesh_edit_subdivide_text() -> dict[str, str]:
     return {
         "morph_blocker": "Bake or reset Morph Sliders before subdividing mesh detail.",
-        "select_vertices": "Select vertices before subdividing mesh detail.",
-        "no_selected_vertices": "No faces touched the selected Mesh Editing vertices.",
+        "select_vertices": "Select vertices or faces before subdividing mesh detail.",
+        "no_selected_vertices": "No faces touched the selected Mesh Editing elements.",
     }
 
 
@@ -146,6 +148,10 @@ def mesh_edit_subdivided_selection_status(added_faces: int) -> str:
     return f"Subdivided {int(added_faces):,} new face(s) for Mesh Editing detail."
 
 
+def mesh_edit_refined_selection_status(added_faces: int) -> str:
+    return f"Refined and smoothed {int(added_faces):,} new face(s) for Mesh Editing detail."
+
+
 def mesh_edit_split_selection_status(moved_faces: int) -> str:
     return f"Split {int(moved_faces):,} face(s) into a new replacement source part."
 
@@ -154,6 +160,7 @@ def mesh_edit_topology_changed_status(action: str) -> str:
     labels = {
         "remove_faces": "Remove Faces changed topology. Use Reset Scope to restore Morph Slider compatibility.",
         "subdivide_selection": "Subdivide Selection changed topology. Use Reset Scope to restore Morph Slider compatibility.",
+        "refine_smooth_selection": "Refine Smooth Selection changed topology. Use Reset Scope to restore Morph Slider compatibility.",
         "split_selection": "Split Selection changed topology. Use Reset Scope to restore Morph Slider compatibility.",
     }
     return labels.get(str(action or "").strip(), "")
@@ -224,12 +231,12 @@ def mesh_edit_reset_scope_source_indices(
 ) -> tuple[int, ...]:
     if working_mesh is None or base_mesh is None:
         return ()
-    working_count = len(tuple(getattr(working_mesh, "submeshes", ()) or ()))
-    base_count = len(tuple(getattr(base_mesh, "submeshes", ()) or ()))
+    working_count = len(getattr(working_mesh, "submeshes", ()) or ())
+    base_count = len(getattr(base_mesh, "submeshes", ()) or ())
     if mesh_edit_scope_mode(scope_mode) == "selected":
         raw_indices = (mesh_edit_source_index(selected_scope_source_index),)
     else:
-        raw_indices = tuple(range(base_count))
+        raw_indices = range(base_count)
     indices: list[int] = []
     for raw_index in raw_indices:
         source_index = mesh_edit_source_index(raw_index)
@@ -246,8 +253,8 @@ def mesh_edit_full_reset_source_indices(
 ) -> tuple[int, ...]:
     if working_mesh is None or base_mesh is None:
         return ()
-    working_count = len(tuple(getattr(working_mesh, "submeshes", ()) or ()))
-    base_count = len(tuple(getattr(base_mesh, "submeshes", ()) or ()))
+    working_count = len(getattr(working_mesh, "submeshes", ()) or ())
+    base_count = len(getattr(base_mesh, "submeshes", ()) or ())
     return tuple(
         source_index
         for source_index in range(base_count)
@@ -267,6 +274,8 @@ def mesh_edit_safe_scale(raw_scale: object) -> float:
     return scale if abs(scale) > 1e-8 else 1.0
 
 
+# Legacy normalization helper retained for archive/static-data plumbing. Active
+# Mesh Editor screen-to-world transforms are owned by the native D3D11/core path.
 def mesh_edit_preview_to_source_vector(vector: Iterable[object], raw_scale: object) -> tuple[float, float, float]:
     values = tuple(vector)
     scale = mesh_edit_safe_scale(raw_scale)
@@ -433,7 +442,7 @@ def mesh_edit_sorted_index_groups(
     allowed_indices = None if allowed_source_indices is None else {int(index) for index in allowed_source_indices}
     submesh_count = None
     if mesh is not None:
-        submesh_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
+        submesh_count = len(getattr(mesh, "submeshes", ()) or ())
     normalized: dict[int, list[int]] = {}
     for raw_source_index, raw_indices in groups.items():
         try:
@@ -447,7 +456,11 @@ def mesh_edit_sorted_index_groups(
         if not raw_indices:
             continue
         indices: set[int] = set()
-        for raw_index in tuple(raw_indices or ()):
+        try:
+            raw_index_iter = iter(raw_indices or ())
+        except TypeError:
+            continue
+        for raw_index in raw_index_iter:
             try:
                 index = int(raw_index)
             except (TypeError, ValueError):
@@ -571,11 +584,11 @@ def mesh_edit_index_groups_as_sets(
     }
 
 
-def mesh_edit_all_vertices_by_source(mesh: object | None, source_indices: Iterable[int]) -> dict[int, set[int]]:
+def mesh_edit_all_vertices_by_source(mesh: object | None, source_indices: Iterable[int]) -> dict[int, range]:
     if mesh is None:
         return {}
-    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
-    selection: dict[int, set[int]] = {}
+    submeshes = getattr(mesh, "submeshes", ()) or ()
+    selection: dict[int, range] = {}
     for raw_source_index in source_indices:
         try:
             source_index = int(raw_source_index)
@@ -585,7 +598,7 @@ def mesh_edit_all_vertices_by_source(mesh: object | None, source_indices: Iterab
             continue
         vertex_count = len(getattr(submeshes[source_index], "vertices", ()) or ())
         if vertex_count > 0:
-            selection[source_index] = set(range(vertex_count))
+            selection[source_index] = range(vertex_count)
     return selection
 
 
@@ -601,7 +614,11 @@ def mesh_edit_inverted_vertex_selection(
         except (TypeError, ValueError):
             continue
         vertices: set[int] = set()
-        for raw_vertex_index in tuple(raw_vertices or ()):
+        try:
+            raw_vertex_iter = iter(raw_vertices or ())
+        except TypeError:
+            continue
+        for raw_vertex_index in raw_vertex_iter:
             try:
                 vertex_index = int(raw_vertex_index)
             except (TypeError, ValueError):
@@ -614,22 +631,110 @@ def mesh_edit_inverted_vertex_selection(
     return inverted
 
 
+def _mesh_count_hint(mesh: object | None, attr: str) -> int:
+    if mesh is None:
+        return 0
+    try:
+        direct = int(getattr(mesh, attr, 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        direct = 0
+    if direct > 0:
+        return direct
+    total = 0
+    for submesh in getattr(mesh, "submeshes", ()) or ():
+        try:
+            total += len(getattr(submesh, "vertices", ()) or ())
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return max(0, total)
+
+
+def _selected_vertex_count_hint(selected_vertices_by_source: Mapping[int, Iterable[int]]) -> int:
+    total = 0
+    for raw_vertices in (selected_vertices_by_source or {}).values():
+        try:
+            total += len(raw_vertices)  # type: ignore[arg-type]
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return max(0, total)
+
+
+def _allow_python_selected_vertex_points_fallback(
+    mesh: object | None,
+    selected_vertices_by_source: Mapping[int, Iterable[int]],
+) -> bool:
+    if mesh is None or not selected_vertices_by_source:
+        return True
+    try:
+        from cdmw.modding.mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+    except Exception:
+        return True
+    try:
+        native_available = bool(native_mesh_core_available())
+    except Exception:
+        native_available = False
+    if not native_available:
+        return True
+    vertex_count = _mesh_count_hint(mesh, "total_vertices")
+    selected_count = _selected_vertex_count_hint(selected_vertices_by_source)
+    record_native_mesh_core_fallback(
+        "selection.vertex_points.blocked",
+        "Python selected-vertex point fallback blocked while native mesh core is available",
+        vertex_count=vertex_count,
+        selected_vertex_count=selected_count,
+    )
+    return False
+
+
 def mesh_edit_selected_vertex_points(
     mesh: object | None,
     selected_vertices_by_source: Mapping[int, Iterable[int]],
 ) -> list[tuple[float, float, float]]:
     if mesh is None:
         return []
-    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    if not _allow_python_selected_vertex_points_fallback(mesh, selected_vertices_by_source):
+        return []
+    submeshes = getattr(mesh, "submeshes", ()) or ()
     points: list[tuple[float, float, float]] = []
     for source_index, vertices in mesh_edit_sorted_index_groups(selected_vertices_by_source, mesh=mesh).items():
         submesh = submeshes[source_index]
-        submesh_vertices = tuple(getattr(submesh, "vertices", ()) or ())
+        submesh_vertices = getattr(submesh, "vertices", ()) or ()
         for vertex_index in vertices:
-            if vertex_index < len(submesh_vertices):
+            try:
+                if vertex_index >= len(submesh_vertices):
+                    continue
                 vertex = submesh_vertices[vertex_index]
                 points.append((float(vertex[0]), float(vertex[1]), float(vertex[2])))
+            except (TypeError, ValueError, OverflowError, IndexError):
+                continue
     return points
+
+
+def _mesh_edit_native_selection_bounds(
+    mesh: object | None,
+    selected_vertices_by_source: Mapping[int, Iterable[int]],
+) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+    if mesh is None or not selected_vertices_by_source:
+        return None
+    try:
+        from cdmw.modding.mesh_native_core import summarize_native_mesh_selection_bounds
+    except Exception:
+        return None
+    try:
+        report = summarize_native_mesh_selection_bounds(mesh, selected_vertices_by_source)  # type: ignore[arg-type]
+    except Exception:
+        return None
+    if not isinstance(report, Mapping) or not bool(report.get("has_bounds")):
+        return None
+    try:
+        raw_min = tuple(report.get("bbox_min") or ())
+        raw_max = tuple(report.get("bbox_max") or ())
+        return (
+            (float(raw_min[0]), float(raw_min[1]), float(raw_min[2])),
+            (float(raw_max[0]), float(raw_max[1]), float(raw_max[2])),
+        )
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return None
 
 
 def mesh_edit_selection_region_default_amount(
@@ -638,6 +743,15 @@ def mesh_edit_selection_region_default_amount(
     *,
     fallback: float = 0.01,
 ) -> float:
+    native_bounds = _mesh_edit_native_selection_bounds(mesh, selected_vertices_by_source)
+    if native_bounds is not None:
+        min_point, max_point = native_bounds
+        diagonal = math.sqrt(
+            (max_point[0] - min_point[0]) ** 2
+            + (max_point[1] - min_point[1]) ** 2
+            + (max_point[2] - min_point[2]) ** 2
+        )
+        return max(0.001, diagonal * 0.08)
     points = mesh_edit_selected_vertex_points(mesh, selected_vertices_by_source)
     if not points:
         return float(fallback)
@@ -706,6 +820,7 @@ __all__ = [
     "source_geometry_revision_initial_state",
     "mesh_edit_should_restore_deleted_output",
     "mesh_edit_subdivide_text",
+    "mesh_edit_refined_selection_status",
     "mesh_edit_subdivided_selection_status",
     "mesh_edit_split_selection_status",
     "mesh_edit_split_text",

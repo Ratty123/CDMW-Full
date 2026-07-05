@@ -65,6 +65,22 @@ def _minimal_luminance_dds(*, width: int = 4, height: int = 4, bit_count: int = 
 
 
 class NativeTextureBackendTests(unittest.TestCase):
+    def test_directxtex_fetchcontent_builds_from_cached_source_offline(self) -> None:
+        for relative in (
+            "native/cd_texture_dx/CMakeLists.txt",
+            "native/cdmw_d3d11_preview/CMakeLists.txt",
+        ):
+            with self.subTest(relative=relative):
+                source = Path(relative).read_text(encoding="utf-8")
+
+                self.assertIn("GIT_REPOSITORY https://github.com/microsoft/DirectXTex.git", source)
+                self.assertIn("UPDATE_DISCONNECTED TRUE", source)
+        build_source = Path("build_native_windows.ps1").read_text(encoding="utf-8")
+        self.assertIn("Save-DirectXTexDependencyCache", build_source)
+        self.assertIn("build\\native-deps", build_source)
+        self.assertIn("-DFETCHCONTENT_SOURCE_DIR_DIRECTXTEX=", build_source)
+        self.assertIn("-DFETCHCONTENT_UPDATES_DISCONNECTED=ON", build_source)
+
     def test_directxtex_cache_key_includes_backend_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

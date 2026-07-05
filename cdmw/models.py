@@ -1092,9 +1092,19 @@ class ModelPreviewMesh:
     texture_coordinates: List[Tuple[float, float]] = field(default_factory=list)
     normals: List[Tuple[float, float, float]] = field(default_factory=list)
     indices: List[int] = field(default_factory=list)
+    positions_binary: Dict[str, object] = field(default_factory=dict)
+    texture_coordinates_binary: Dict[str, object] = field(default_factory=dict)
+    normals_binary: Dict[str, object] = field(default_factory=dict)
+    indices_binary: Dict[str, object] = field(default_factory=dict)
     source_submesh_index: int = -1
     source_vertex_indices: List[int] = field(default_factory=list)
     source_face_indices: List[int] = field(default_factory=list)
+    source_vertex_indices_binary: Dict[str, object] = field(default_factory=dict)
+    source_face_indices_binary: Dict[str, object] = field(default_factory=dict)
+    source_vertex_range_start: int = -1
+    source_vertex_range_count: int = 0
+    source_face_range_start: int = -1
+    source_face_range_count: int = 0
     preview_texture_path: str = ""
     preview_texture_dds_path: str = ""
     preview_texture_image: object = None
@@ -1357,6 +1367,9 @@ class PreparedModelPreviewBatch:
     preview_texture_tint: Tuple[float, float, float] = ()
     preview_texture_uv_scale: Tuple[float, float] = ()
     preview_vertex_color_mean: Tuple[float, float, float] = ()
+    preview_base_color: Tuple[float, float, float] = ()
+    preview_bounds_min: Tuple[float, float, float] = ()
+    preview_bounds_max: Tuple[float, float, float] = ()
     preview_vertex_alpha_mean: Optional[float] = None
     preview_vertex_alpha_min: Optional[float] = None
     preview_vertex_color_count: int = 0
@@ -1370,6 +1383,7 @@ class PreparedModelPreviewBatch:
     preview_double_sided: bool = False
     has_texture_coordinates: bool = False
     texture_wrap_repeat: bool = False
+    tangents_usable: Optional[bool] = None
     preview_debug_flip_base_v: bool = False
     preview_debug_disable_support_maps: bool = False
     position_y_min: float = 0.0
@@ -1377,6 +1391,13 @@ class PreparedModelPreviewBatch:
     source_submesh_index: int = -1
     source_vertex_indices: Tuple[int, ...] = ()
     source_face_indices: Tuple[int, ...] = ()
+    source_vertex_indices_binary: Dict[str, object] = field(default_factory=dict)
+    source_face_indices_binary: Dict[str, object] = field(default_factory=dict)
+    source_vertex_range_start: int = -1
+    source_vertex_range_count: int = 0
+    source_face_range_start: int = -1
+    source_face_range_count: int = 0
+    editor_identity_blob: bytes = b""
     editor_role: str = ""
     editor_part_name: str = ""
     editor_editable: bool = True

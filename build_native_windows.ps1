@@ -45,6 +45,9 @@ if (-not (Test-Path -LiteralPath $cmake)) {
     $cmake = "cmake"
 }
 
+$nativeDependencyCacheDir = Join-Path $scriptDir "build\native-deps"
+$directXTexSourceCacheDir = Join-Path $nativeDependencyCacheDir "directxtex-src"
+
 function Clear-StaleCMakeBuildDirectory {
     param(
         [Parameter(Mandatory = $true)]
@@ -74,6 +77,37 @@ function Clear-StaleCMakeBuildDirectory {
     Remove-Item -LiteralPath $BuildDir -Recurse -Force
 }
 
+function Test-NativeProjectUsesDirectXTex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectDir
+    )
+
+    $cmakeListsPath = Join-Path $ProjectDir "CMakeLists.txt"
+    if (-not (Test-Path -LiteralPath $cmakeListsPath)) {
+        return $false
+    }
+    return (Get-Content -LiteralPath $cmakeListsPath -Raw) -like "*DirectXTex.git*"
+}
+
+function Save-DirectXTexDependencyCache {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectDir
+    )
+
+    if (Test-Path -LiteralPath $directXTexSourceCacheDir) {
+        return
+    }
+    $sourceDir = Join-Path $ProjectDir "build\_deps\directxtex-src"
+    if (-not (Test-Path -LiteralPath $sourceDir)) {
+        return
+    }
+    New-Item -ItemType Directory -Path $nativeDependencyCacheDir -Force | Out-Null
+    Copy-Item -LiteralPath $sourceDir -Destination $directXTexSourceCacheDir -Recurse -Force
+    Write-Host "Cached DirectXTex source for offline native rebuilds: $directXTexSourceCacheDir"
+}
+
 function Invoke-NativeBuild {
     param(
         [Parameter(Mandatory = $true)]
@@ -83,6 +117,10 @@ function Invoke-NativeBuild {
     )
 
     $buildDir = Join-Path $ProjectDir "build"
+    $usesDirectXTex = Test-NativeProjectUsesDirectXTex -ProjectDir $ProjectDir
+    if ($Clean -and $usesDirectXTex) {
+        Save-DirectXTexDependencyCache -ProjectDir $ProjectDir
+    }
     if ($Clean -and (Test-Path -LiteralPath $buildDir)) {
         Remove-Item -LiteralPath $buildDir -Recurse -Force
     }
@@ -92,6 +130,9 @@ function Invoke-NativeBuild {
     New-Item -ItemType Directory -Path $buildDir -Force | Out-Null
 
     $configure = "`"$vcvars`" && `"$cmake`" -S `"$ProjectDir`" -B `"$buildDir`" -G `"Visual Studio 17 2022`" -A x64"
+    if ($usesDirectXTex -and (Test-Path -LiteralPath $directXTexSourceCacheDir)) {
+        $configure += " -DFETCHCONTENT_SOURCE_DIR_DIRECTXTEX=`"$directXTexSourceCacheDir`" -DFETCHCONTENT_UPDATES_DISCONNECTED=ON"
+    }
     $build = "`"$vcvars`" && `"$cmake`" --build `"$buildDir`" --config $Configuration"
     cmd.exe /d /s /c $configure
     if ($LASTEXITCODE -ne 0) {
@@ -105,6 +146,9 @@ function Invoke-NativeBuild {
     $exePath = Join-Path $ProjectDir $ExeRelativePath
     if (-not (Test-Path -LiteralPath $exePath)) {
         throw "Native build completed but expected binary is missing: $exePath"
+    }
+    if ($usesDirectXTex) {
+        Save-DirectXTexDependencyCache -ProjectDir $ProjectDir
     }
     Write-Host "Built native binary: $exePath"
 }

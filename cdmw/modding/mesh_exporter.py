@@ -13,6 +13,7 @@ import io
 import json
 import os
 import struct
+import tempfile
 import zlib
 import math
 from pathlib import Path, PurePath
@@ -25,7 +26,6 @@ from .logging import get_logger
 logger = get_logger("core.mesh_exporter")
 
 _OBJ_ROUNDTRIP_SIDECAR_FORMAT = "mesh_roundtrip_manifest_v2"
-
 
 def _obj_roundtrip_sidecar_path(obj_path: str | Path) -> Path:
     return Path(f"{obj_path}.meta.json")
@@ -86,6 +86,21 @@ def write_roundtrip_manifest(
     extra_payload: Optional[dict] = None,
 ) -> Path:
     sidecar_path = _obj_roundtrip_sidecar_path(export_path)
+    try:
+        from .mesh_native_core import write_native_obj_roundtrip_manifest
+    except Exception:
+        write_native_obj_roundtrip_manifest = None
+    if write_native_obj_roundtrip_manifest is not None:
+        try:
+            if write_native_obj_roundtrip_manifest(
+                mesh,
+                export_path,
+                companion_path=companion_path,
+                extra_payload=extra_payload,
+            ):
+                return sidecar_path
+        except Exception:
+            pass
     payload = _build_roundtrip_manifest_payload(
         mesh,
         str(export_path),
@@ -99,6 +114,31 @@ def write_roundtrip_manifest(
 # ═══════════════════════════════════════════════════════════════════════
 #  OBJ EXPORTER
 # ═══════════════════════════════════════════════════════════════════════
+
+def _export_obj_native(
+    mesh: ParsedMesh,
+    obj_path: str,
+    mtl_path: str,
+    base: str,
+    scale: float,
+    *,
+    manifest_path: str | Path = "",
+    extra_payload: Optional[dict] = None,
+) -> bool:
+    try:
+        from .mesh_native_core import export_native_obj
+    except Exception:
+        return False
+    return export_native_obj(
+        mesh,
+        obj_path,
+        base_name=base,
+        mtl_filename=os.path.basename(mtl_path),
+        scale=scale,
+        manifest_path=manifest_path,
+        extra_payload=extra_payload,
+    )
+
 
 def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
                split_submeshes: bool = False, scale: float = 1.0) -> list[str]:
@@ -125,6 +165,16 @@ def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
 
     # Write MTL
     _write_mtl(mtl_path, mesh.submeshes)
+
+    sidecar_path = _obj_roundtrip_sidecar_path(obj_path)
+    if _export_obj_native(mesh, obj_path, mtl_path, base, scale, manifest_path=sidecar_path):
+        if not sidecar_path.is_file():
+            sidecar_path = write_roundtrip_manifest(mesh, obj_path, companion_path=mtl_path)
+        logger.info("Exported OBJ: %s (%d verts, %d faces)", obj_path,
+                    mesh.total_vertices, mesh.total_faces)
+        return [obj_path, mtl_path, str(sidecar_path)]
+    if not _allow_python_export_fallback(mesh, "export.obj"):
+        raise RuntimeError("native OBJ export failed and Python export fallback was blocked")
 
     # Write OBJ
     lines = [
@@ -253,6 +303,76 @@ class _FbxId:
     def __init__(self, val): self.val = val
 
 
+class _FbxBinaryArray:
+    def __init__(self, descriptor: dict, kind: str):
+        self.path = Path(str(descriptor.get("path") or ""))
+        self.count = int(descriptor.get("count", 0) or 0)
+        self.kind = kind
+
+    def __bool__(self) -> bool:
+        return self.count > 0
+
+    @property
+    def item_size(self) -> int:
+        return 8 if self.kind == "d" else 4
+
+
+class _NativeFbxGeometry:
+    def __init__(self, temp_dir: tempfile.TemporaryDirectory, report: dict):
+        self._temp_dir = temp_dir
+        self._by_index: dict[int, dict[str, _FbxBinaryArray]] = {}
+        for raw_item in report.get("submeshes") or ():
+            if not isinstance(raw_item, dict):
+                continue
+            try:
+                index = int(raw_item.get("index", len(self._by_index)))
+                item = {
+                    "vertices": _FbxBinaryArray(raw_item["vertices_binary"], "d"),
+                    "indices": _FbxBinaryArray(raw_item["indices_binary"], "i"),
+                    "normals": _FbxBinaryArray(raw_item["normals_binary"], "d"),
+                    "uvs": _FbxBinaryArray(raw_item["uvs_binary"], "d"),
+                }
+            except (KeyError, TypeError, ValueError, OverflowError):
+                continue
+            self._by_index[index] = item
+
+    def __bool__(self) -> bool:
+        return bool(self._by_index)
+
+    def item(self, index: int) -> dict[str, _FbxBinaryArray] | None:
+        return self._by_index.get(index)
+
+    def close(self) -> None:
+        self._temp_dir.cleanup()
+
+
+def _fbx_geometry_native(
+    mesh: ParsedMesh,
+    *,
+    scale: float,
+    require_vertex_aligned_uvs: bool = False,
+) -> _NativeFbxGeometry | None:
+    try:
+        from .mesh_native_core import build_native_fbx_geometry_arrays
+    except Exception:
+        return None
+    temp_dir = tempfile.TemporaryDirectory(prefix="cdmw_fbx_geometry_")
+    report = build_native_fbx_geometry_arrays(
+        mesh,
+        temp_dir.name,
+        scale=scale,
+        require_vertex_aligned_uvs=require_vertex_aligned_uvs,
+    )
+    if not isinstance(report, dict):
+        temp_dir.cleanup()
+        return None
+    native_geometry = _NativeFbxGeometry(temp_dir, report)
+    if not native_geometry:
+        native_geometry.close()
+        return None
+    return native_geometry
+
+
 def _fbx_prop(v):
     """Encode a single FBX property value."""
     if isinstance(v, bool):
@@ -270,6 +390,15 @@ def _fbx_prop(v):
         return b"S" + struct.pack("<I", len(e)) + e
     if isinstance(v, bytes):
         return b"R" + struct.pack("<I", len(v)) + v
+    if isinstance(v, _FbxBinaryArray):
+        raw = v.path.read_bytes()
+        expected_size = v.count * v.item_size
+        if len(raw) != expected_size:
+            raise ValueError("invalid native FBX array payload size")
+        cmp = zlib.compress(raw)
+        enc = 1 if len(cmp) < len(raw) else 0
+        payload = cmp if enc else raw
+        return v.kind.encode("ascii") + struct.pack("<III", v.count, enc, len(payload)) + payload
     if isinstance(v, list):
         if not v:
             return b"i" + struct.pack("<III", 0, 0, 0)
@@ -376,6 +505,48 @@ def _fbx_bone_visual_sizes(skeleton, scale: float = 1.0) -> dict[int, float]:
     return {index: max(minimum, min(float(size), maximum)) for index, size in sizes.items()}
 
 
+def _export_fbx_native(mesh: ParsedMesh, fbx_path: str, base: str, scale: float, *, skeleton: object = None) -> bool:
+    try:
+        from .mesh_native_core import export_native_fbx
+    except Exception:
+        return False
+    return export_native_fbx(
+        mesh,
+        fbx_path,
+        base_name=base,
+        scale=scale,
+        skeleton=skeleton,
+    )
+
+
+def _allow_python_export_fallback(mesh: ParsedMesh, operation: str) -> bool:
+    if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        return True
+    try:
+        from .mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+    except Exception:
+        return True
+    if not native_mesh_core_available():
+        return True
+    vertex_count = _mesh_count_hint(mesh, "total_vertices")
+    face_count = _mesh_count_hint(mesh, "total_faces")
+    record_native_mesh_core_fallback(
+        f"{operation}.blocked",
+        "Python export fallback blocked while native mesh core is available",
+        vertex_count=vertex_count,
+        face_count=face_count,
+    )
+    return False
+
+
+def _mesh_count_hint(mesh: ParsedMesh, attr: str) -> int:
+    try:
+        value = int(getattr(mesh, attr, 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return value if value >= 0 else 0
+
+
 def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
                scale: float = 1.0) -> str:
     """Export mesh to binary FBX 7.4 file.
@@ -385,6 +556,14 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
     os.makedirs(output_dir, exist_ok=True)
     base = name or Path(mesh.path).stem
     fbx_path = os.path.join(output_dir, f"{base}.fbx")
+
+    if _export_fbx_native(mesh, fbx_path, base, scale):
+        logger.info("Exported FBX: %s (%d verts, %d faces)", fbx_path,
+                    mesh.total_vertices, mesh.total_faces)
+        return fbx_path
+    native_geometry = _fbx_geometry_native(mesh, scale=scale)
+    if native_geometry is None and not _allow_python_export_fallback(mesh, "export.fbx"):
+        raise RuntimeError("native FBX export failed and Python export fallback was blocked")
 
     buf = io.BytesIO()
     W = _fbx_node
@@ -434,7 +613,6 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
         mat_ids.append(uid())
 
     root_id = uid()
-
     # Objects
     def objects(b):
         for idx, sm in enumerate(mesh.submeshes):
@@ -443,23 +621,31 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
             ma_id = mat_ids[idx]
 
             # Geometry node
-            verts_flat = []
-            for x, y, z in sm.vertices:
-                verts_flat.extend([x * scale, y * scale, z * scale])
+            native_item = native_geometry.item(idx) if native_geometry is not None else None
+            if native_item is not None:
+                verts_flat = native_item["vertices"]
+                indices_flat = native_item["indices"]
+                normals_flat = native_item["normals"]
+                uvs_flat = native_item["uvs"]
+                uv_indices = []
+            else:
+                verts_flat = []
+                for x, y, z in sm.vertices:
+                    verts_flat.extend([x * scale, y * scale, z * scale])
 
-            indices_flat = []
-            for a, b_idx, c in sm.faces:
-                indices_flat.extend([a, b_idx, c ^ -1])  # FBX: last index XOR -1
+                indices_flat = []
+                for a, b_idx, c in sm.faces:
+                    indices_flat.extend([a, b_idx, c ^ -1])  # FBX: last index XOR -1
 
-            normals_flat = []
-            for nx, ny, nz in sm.normals:
-                normals_flat.extend([nx, ny, nz])
+                normals_flat = []
+                for nx, ny, nz in sm.normals:
+                    normals_flat.extend([nx, ny, nz])
 
-            uvs_flat = []
-            uv_indices = []
-            for i_v, (u, v) in enumerate(sm.uvs):
-                uvs_flat.extend([u, 1.0 - v])
-                uv_indices.append(i_v)
+                uvs_flat = []
+                uv_indices = []
+                for i_v, (u, v) in enumerate(sm.uvs):
+                    uvs_flat.extend([u, 1.0 - v])
+                    uv_indices.append(i_v)
 
             def geom_node(b2, vf=verts_flat, iff=indices_flat, nf=normals_flat,
                           uf=uvs_flat, ui=uv_indices, sm_ref=sm, m=mid):
@@ -528,7 +714,11 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
             W(b, "Material", [ma_id, f"{sm.material or sm.name}\x00\x01Material", ""],
               children=[mat_node])
 
-    W(buf, "Objects", children=[objects])
+    try:
+        W(buf, "Objects", children=[objects])
+    finally:
+        if native_geometry is not None:
+            native_geometry.close()
 
     # Connections
     def connections(b):
@@ -576,6 +766,15 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
     os.makedirs(output_dir, exist_ok=True)
     base = name or Path(mesh.path).stem
     fbx_path = os.path.join(output_dir, f"{base}.fbx")
+
+    if _export_fbx_native(mesh, fbx_path, base, scale, skeleton=skeleton):
+        bone_count = len(skeleton.bones) if skeleton else 0
+        logger.info("Exported FBX+Skeleton: %s (%d verts, %d faces, %d bones)",
+                    fbx_path, mesh.total_vertices, mesh.total_faces, bone_count)
+        return fbx_path
+    native_geometry = _fbx_geometry_native(mesh, scale=scale, require_vertex_aligned_uvs=True)
+    if native_geometry is None and not _allow_python_export_fallback(mesh, "export.fbx_skeleton"):
+        raise RuntimeError("native FBX skeleton export failed and Python export fallback was blocked")
 
     buf = io.BytesIO()
     W = _fbx_node
@@ -627,7 +826,6 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
 
     root_id = uid()
     skin_id = uid() if skeleton and skeleton.bones else None
-
     # Objects
     def objects(b):
         # Mesh geometry + model + material (same as before)
@@ -636,22 +834,29 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
             mod_id = model_ids[idx]
             ma_id = mat_ids[idx]
 
-            verts_flat = []
-            for x, y, z in sm.vertices:
-                verts_flat.extend([x * scale, y * scale, z * scale])
+            native_item = native_geometry.item(idx) if native_geometry is not None else None
+            if native_item is not None:
+                verts_flat = native_item["vertices"]
+                indices_flat = native_item["indices"]
+                normals_flat = native_item["normals"]
+                uvs_flat = native_item["uvs"]
+            else:
+                verts_flat = []
+                for x, y, z in sm.vertices:
+                    verts_flat.extend([x * scale, y * scale, z * scale])
 
-            indices_flat = []
-            for a, b_idx, c in sm.faces:
-                indices_flat.extend([a, b_idx, c ^ -1])
+                indices_flat = []
+                for a, b_idx, c in sm.faces:
+                    indices_flat.extend([a, b_idx, c ^ -1])
 
-            normals_flat = []
-            for nx, ny, nz in sm.normals:
-                normals_flat.extend([nx, ny, nz])
+                normals_flat = []
+                for nx, ny, nz in sm.normals:
+                    normals_flat.extend([nx, ny, nz])
 
-            uvs_flat = []
-            if len(sm.uvs) == len(sm.vertices):
-                for u, v in sm.uvs:
-                    uvs_flat.extend([u, 1.0 - v])
+                uvs_flat = []
+                if len(sm.uvs) == len(sm.vertices):
+                    for u, v in sm.uvs:
+                        uvs_flat.extend([u, 1.0 - v])
 
             def geom_node(b2, vf=verts_flat, iff=indices_flat, nf=normals_flat, uf=uvs_flat):
                 def layer_elem_normal(b3, nf_=nf):
@@ -729,7 +934,11 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
                     f"{bone.name}\x00\x01Model", "LimbNode"],
                     children=[bone_model])
 
-    W(buf, "Objects", children=[objects])
+    try:
+        W(buf, "Objects", children=[objects])
+    finally:
+        if native_geometry is not None:
+            native_geometry.close()
 
     # Connections
     def connections(b):

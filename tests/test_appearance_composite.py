@@ -249,6 +249,12 @@ class AppearanceCompositeTests(unittest.TestCase):
         body_mesh = next(mesh for mesh in preview_model.meshes if "body_a.pac" in mesh.preview_role)
         armor_mesh = next(mesh for mesh in preview_model.meshes if "armor_a.pac" in mesh.preview_role)
         self.assertLess(max(position[0] for position in body_mesh.positions), min(position[0] for position in armor_mesh.positions))
+        self.assertEqual(0, body_mesh.source_vertex_range_start)
+        self.assertEqual(3, body_mesh.source_vertex_range_count)
+        self.assertEqual(0, body_mesh.source_face_range_start)
+        self.assertEqual(1, body_mesh.source_face_range_count)
+        self.assertEqual([], body_mesh.source_vertex_indices)
+        self.assertEqual([], body_mesh.source_face_indices)
 
     def test_composite_builder_can_use_what_if_model_override(self):
         app_xml = """

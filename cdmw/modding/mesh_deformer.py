@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Sequence
 
@@ -47,23 +48,43 @@ class MeshPartSplitResult:
 _EXTRA_SUBMESH_ATTRS = (
     "texture_slots",
     "preview_color",
+    "preview_role",
+    "preview_texture_path",
+    "preview_texture_name",
+    "preview_texture_dds_path",
+    "preview_texture_flip_vertical",
+    "preview_texture_brightness",
+    "preview_texture_contrast",
+    "preview_texture_saturation",
+    "preview_texture_gamma",
+    "preview_texture_tint",
+    "preview_texture_uv_scale",
+    "preview_base_texture_default_path",
+    "preview_base_texture_default_name",
     "preview_vertex_color_mean",
     "preview_vertex_alpha_mean",
     "preview_vertex_alpha_min",
     "preview_vertex_color_count",
     "preview_normal_texture_path",
     "preview_normal_texture_name",
+    "preview_normal_texture_dds_path",
     "preview_normal_texture_strength",
     "preview_material_texture_path",
     "preview_material_texture_name",
+    "preview_material_texture_dds_path",
     "preview_material_texture_type",
     "preview_material_texture_subtype",
     "preview_material_texture_packed_channels",
     "preview_material_texture_inputs",
     "preview_material_parameters",
+    "preview_material_texture_default_path",
+    "preview_material_texture_default_name",
     "preview_native_material_overrides",
     "preview_height_texture_path",
     "preview_height_texture_name",
+    "preview_height_texture_dds_path",
+    "preview_alpha_mode",
+    "preview_double_sided",
     "preview_sidecar_shader_family",
     "cdmw_material_authority_profile",
     "cdmw_material_authority_contract",
@@ -74,6 +95,10 @@ _EXTRA_SUBMESH_ATTRS = (
     "cdmw_source_texture_set_key",
     "cdmw_material_route_status",
     "cdmw_material_route_reason",
+    "cdmw_mesh_edit_material_source_submesh_index",
+    "cdmw_mesh_edit_topology_source_submesh_index",
+    "cdmw_native_preview_triangle_group",
+    "cdmw_native_preview_vertex_update_group",
 )
 
 
@@ -102,7 +127,7 @@ def mesh_topology_signature(mesh: ParsedMesh) -> MeshTopologySignature:
 def _topology_face_triples(submesh: SubMesh) -> tuple[tuple[int, int, int], ...]:
     vertex_count = len(submesh.vertices or ())
     triples: list[tuple[int, int, int]] = []
-    for face in tuple(submesh.faces or ()):
+    for face in submesh.faces or ():
         if len(face) < 3:
             continue
         try:
@@ -612,7 +637,7 @@ def _face_indices_touching_vertices(submesh: SubMesh, vertex_indices: Iterable[i
     if not selected_vertices:
         return set()
     selected_faces: set[int] = set()
-    for face_index, face in enumerate(tuple(submesh.faces or ())):
+    for face_index, face in enumerate(submesh.faces or ()):
         if len(face) < 3:
             continue
         try:
@@ -654,7 +679,7 @@ def split_faces_to_submesh(
     recompute_normals: bool = True,
 ) -> MeshPartSplitResult:
     face_groups: dict[int, set[int]] = {}
-    for raw_submesh_index, raw_faces in dict(selected_faces_by_submesh or {}).items():
+    for raw_submesh_index, raw_faces in (selected_faces_by_submesh or {}).items():
         try:
             submesh_index = int(raw_submesh_index)
         except (TypeError, ValueError, OverflowError):
@@ -664,7 +689,7 @@ def split_faces_to_submesh(
             if faces:
                 face_groups[submesh_index] = faces
     if not face_groups:
-        for raw_submesh_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
+        for raw_submesh_index, raw_vertices in (selected_vertices_by_submesh or {}).items():
             try:
                 submesh_index = int(raw_submesh_index)
             except (TypeError, ValueError, OverflowError):
@@ -683,7 +708,7 @@ def split_faces_to_submesh(
     old_vertex_count = len(source.vertices)
     moved_faces: list[tuple[int, int, int]] = []
     kept_faces: list[tuple[int, int, int]] = []
-    for face_index, face in enumerate(tuple(source.faces or ())):
+    for face_index, face in enumerate(source.faces or ()):
         if len(face) < 3:
             continue
         try:
@@ -728,6 +753,8 @@ def split_faces_to_submesh(
     new_submesh.vertex_count = len(new_submesh.vertices)
     new_submesh.face_count = len(new_submesh.faces)
     _copy_extra_submesh_attrs(source, new_submesh)
+    new_submesh.cdmw_mesh_edit_material_source_submesh_index = source_submesh_index
+    new_submesh.cdmw_mesh_edit_topology_source_submesh_index = source_submesh_index
     removed_vertices = _compact_submesh_faces(source, kept_faces)
     if recompute_normals:
         if source.faces:
@@ -760,7 +787,7 @@ def subdivide_faces_touching_vertices(
     added_face_count = 0
     face_limit = max(1, _int_value(max_faces_per_submesh, 1))
     face_groups: dict[int, set[int]] = {}
-    for raw_submesh_index, raw_faces in dict(selected_faces_by_submesh or {}).items():
+    for raw_submesh_index, raw_faces in (selected_faces_by_submesh or {}).items():
         try:
             submesh_index = int(raw_submesh_index)
         except (TypeError, ValueError, OverflowError):
@@ -771,7 +798,7 @@ def subdivide_faces_touching_vertices(
         if faces:
             face_groups[submesh_index] = set(sorted(faces)[:face_limit])
 
-    selection_items = face_groups.items() if face_groups else dict(selected_vertices_by_submesh or {}).items()
+    selection_items = face_groups.items() if face_groups else (selected_vertices_by_submesh or {}).items()
     for raw_submesh_index, raw_selection in selection_items:
         try:
             submesh_index = int(raw_submesh_index)
@@ -791,7 +818,7 @@ def subdivide_faces_touching_vertices(
             if not selected:
                 continue
             split_face_indices: set[int] = set()
-            for face_index, face in enumerate(tuple(submesh.faces or ())):
+            for face_index, face in enumerate(submesh.faces or ()):
                 if len(face) < 3:
                     continue
                 try:
@@ -864,7 +891,7 @@ def subdivide_faces_touching_vertices(
             return new_index
 
         new_faces: list[tuple[int, int, int]] = []
-        for face_index, face in enumerate(tuple(submesh.faces or ())):
+        for face_index, face in enumerate(submesh.faces or ()):
             if len(face) < 3:
                 continue
             try:
@@ -1022,7 +1049,7 @@ def _normalized_selection_by_submesh(
             continue
         vertex_count = len(mesh.submeshes[submesh_index].vertices)
         selected: set[int] = set()
-        for raw_vertex in tuple(raw_vertices or ()):
+        for raw_vertex in raw_vertices or ():
             try:
                 vertex_index = int(raw_vertex)
             except (TypeError, ValueError, OverflowError):
@@ -1034,6 +1061,97 @@ def _normalized_selection_by_submesh(
     return result
 
 
+def _native_vertex_selection(
+    mesh: ParsedMesh,
+    selection: dict[int, set[int]],
+    *,
+    operation: str,
+    iterations: int,
+) -> dict[int, set[int]] | None:
+    try:
+        from .mesh_native_core import apply_native_mesh_selection
+    except ImportError:
+        return None
+    return apply_native_mesh_selection(mesh, selection, operation=operation, iterations=iterations)
+
+
+def _mesh_count_hint(mesh: ParsedMesh, attr: str) -> int:
+    try:
+        direct = int(getattr(mesh, attr, 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        direct = 0
+    if direct > 0:
+        return direct
+    total = 0
+    member = "faces" if attr == "total_faces" else "vertices"
+    for submesh in getattr(mesh, "submeshes", ()) or ():
+        try:
+            total += len(getattr(submesh, member, ()) or ())
+        except TypeError:
+            continue
+    return total
+
+
+def _valid_source_indices(mesh: ParsedMesh, source_indices: Iterable[int] | None) -> tuple[int, ...]:
+    if source_indices is None:
+        return tuple(range(len(mesh.submeshes)))
+    result: list[int] = []
+    seen: set[int] = set()
+    for raw_index in source_indices or ():
+        index = _int_value(raw_index, -1)
+        if index < 0 or index >= len(mesh.submeshes) or index in seen:
+            continue
+        seen.add(index)
+        result.append(index)
+    return tuple(result)
+
+
+def _target_vertex_count(mesh: ParsedMesh, source_indices: Iterable[int]) -> int:
+    total = 0
+    submeshes = getattr(mesh, "submeshes", ()) or ()
+    for submesh_index in source_indices:
+        if not (0 <= submesh_index < len(submeshes)):
+            continue
+        try:
+            total += len(getattr(submeshes[submesh_index], "vertices", ()) or ())
+        except TypeError:
+            continue
+    return total
+
+
+def _allow_python_selection_expansion_fallback(
+    mesh: ParsedMesh,
+    operation: str,
+    source_indices: Iterable[int],
+    *,
+    selected_vertex_count: int = 0,
+) -> bool:
+    if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        return True
+    try:
+        from .mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+    except ImportError:
+        return True
+    if not native_mesh_core_available():
+        return True
+    target_vertex_count = _target_vertex_count(mesh, source_indices)
+    vertex_count = max(
+        _mesh_count_hint(mesh, "total_vertices"),
+        target_vertex_count,
+        int(selected_vertex_count or 0),
+    )
+    face_count = _mesh_count_hint(mesh, "total_faces")
+    record_native_mesh_core_fallback(
+        f"{operation}.blocked",
+        "Python selection expansion fallback blocked while native mesh core is available",
+        vertex_count=vertex_count,
+        face_count=face_count,
+        target_vertex_count=target_vertex_count,
+        selected_vertex_count=int(selected_vertex_count or 0),
+    )
+    return False
+
+
 def grow_vertex_selection(
     mesh: ParsedMesh,
     selected_vertices_by_submesh: Mapping[int, Iterable[int]] | Iterable[int],
@@ -1041,7 +1159,18 @@ def grow_vertex_selection(
     steps: int = 1,
 ) -> dict[int, set[int]]:
     selection = _normalized_selection_by_submesh(mesh, selected_vertices_by_submesh)
-    for _step in range(max(0, _int_value(steps, 0))):
+    step_count = max(0, _int_value(steps, 0))
+    native_selection = _native_vertex_selection(mesh, selection, operation="grow", iterations=step_count)
+    if native_selection is not None:
+        return native_selection
+    if not _allow_python_selection_expansion_fallback(
+        mesh,
+        "selection.grow",
+        selection.keys(),
+        selected_vertex_count=sum(len(vertices) for vertices in selection.values()),
+    ):
+        return {}
+    for _step in range(step_count):
         next_selection: dict[int, set[int]] = {index: set(vertices) for index, vertices in selection.items()}
         for submesh_index, selected in selection.items():
             adjacency = build_vertex_adjacency(mesh.submeshes[submesh_index])
@@ -1060,7 +1189,18 @@ def shrink_vertex_selection(
     steps: int = 1,
 ) -> dict[int, set[int]]:
     selection = _normalized_selection_by_submesh(mesh, selected_vertices_by_submesh)
-    for _step in range(max(0, _int_value(steps, 0))):
+    step_count = max(0, _int_value(steps, 0))
+    native_selection = _native_vertex_selection(mesh, selection, operation="shrink", iterations=step_count)
+    if native_selection is not None:
+        return native_selection
+    if not _allow_python_selection_expansion_fallback(
+        mesh,
+        "selection.shrink",
+        selection.keys(),
+        selected_vertex_count=sum(len(vertices) for vertices in selection.values()),
+    ):
+        return {}
+    for _step in range(step_count):
         next_selection: dict[int, set[int]] = {}
         for submesh_index, selected in selection.items():
             adjacency = build_vertex_adjacency(mesh.submeshes[submesh_index])
@@ -1084,7 +1224,18 @@ def smooth_vertex_selection(
     iterations: int = 1,
 ) -> dict[int, set[int]]:
     selection = _normalized_selection_by_submesh(mesh, selected_vertices_by_submesh)
-    for _iteration in range(max(0, _int_value(iterations, 0))):
+    iteration_count = max(0, _int_value(iterations, 0))
+    native_selection = _native_vertex_selection(mesh, selection, operation="smooth", iterations=iteration_count)
+    if native_selection is not None:
+        return native_selection
+    if not _allow_python_selection_expansion_fallback(
+        mesh,
+        "selection.smooth",
+        selection.keys(),
+        selected_vertex_count=sum(len(vertices) for vertices in selection.values()),
+    ):
+        return {}
+    for _iteration in range(iteration_count):
         next_selection: dict[int, set[int]] = {}
         for submesh_index, submesh in enumerate(mesh.submeshes):
             selected = selection.get(submesh_index, set())
@@ -1107,6 +1258,75 @@ def smooth_vertex_selection(
             if smoothed:
                 next_selection[submesh_index] = smoothed
         selection = next_selection
+    return selection
+
+
+def invert_vertex_selection(
+    mesh: ParsedMesh,
+    selected_vertices_by_submesh: Mapping[int, Iterable[int]] | Iterable[int],
+    *,
+    source_indices: Iterable[int] | None = None,
+) -> dict[int, set[int]]:
+    selection = _normalized_selection_by_submesh(mesh, selected_vertices_by_submesh)
+    target_sources = _valid_source_indices(mesh, source_indices)
+    native_selection = None
+    try:
+        from .mesh_native_core import apply_native_mesh_selection
+    except ImportError:
+        native_selection = None
+    else:
+        native_selection = apply_native_mesh_selection(
+            mesh,
+            selection,
+            source_indices=target_sources,
+            operation="invert",
+            iterations=1,
+        )
+    if native_selection is not None:
+        return native_selection
+    if not _allow_python_selection_expansion_fallback(
+        mesh,
+        "selection.invert",
+        target_sources,
+        selected_vertex_count=sum(len(vertices) for vertices in selection.values()),
+    ):
+        return {}
+    inverted: dict[int, set[int]] = {}
+    for submesh_index in target_sources:
+        vertex_count = len(mesh.submeshes[submesh_index].vertices)
+        vertices = set(range(vertex_count)) - selection.get(submesh_index, set())
+        if vertices:
+            inverted[submesh_index] = vertices
+    return inverted
+
+
+def select_all_vertex_selection(
+    mesh: ParsedMesh,
+    source_indices: Iterable[int],
+) -> dict[int, set[int]]:
+    target_sources = _valid_source_indices(mesh, source_indices)
+    native_selection = None
+    try:
+        from .mesh_native_core import apply_native_mesh_selection
+    except ImportError:
+        native_selection = None
+    else:
+        native_selection = apply_native_mesh_selection(
+            mesh,
+            {},
+            source_indices=target_sources,
+            operation="all",
+            iterations=0,
+        )
+    if native_selection is not None:
+        return native_selection
+    if not _allow_python_selection_expansion_fallback(mesh, "selection.select_all", target_sources):
+        return {}
+    selection: dict[int, set[int]] = {}
+    for submesh_index in target_sources:
+        vertex_count = len(mesh.submeshes[submesh_index].vertices)
+        if vertex_count > 0:
+            selection[submesh_index] = set(range(vertex_count))
     return selection
 
 

@@ -20,8 +20,10 @@ from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QFrame,
+    QGridLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QSlider,
@@ -37,16 +39,63 @@ from cdmw.domain.mesh import (
     MeshAnimationKeyframe,
     MeshAnimationSequenceSegment,
     MeshAnimationTrack,
+    MeshEditCommand,
+    MeshEditResult,
     MeshEditSelection,
 )
 from cdmw.modding.skeleton_parser import Bone, Skeleton
-from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewRenderSettings, TextureEditorSourceBinding
+from cdmw.models import (
+    ArchiveEntry,
+    ModelPreviewData,
+    ModelPreviewRenderSettings,
+    PreparedModelPreviewData,
+    TextureEditorSourceBinding,
+)
+from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_texture_sources import MeshTextureSourceResolution, resolve_mesh_texture_source
-from cdmw.ui.mesh_editor import MeshEditorActionBar, MeshEditorController, MeshEditorTab
+from cdmw.ui.mesh_editor import (
+    MeshEditorActionBar,
+    MeshEditorActionExecution,
+    MeshEditorController,
+    MeshEditorNativeUpdate,
+    MeshEditorTab,
+)
 from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
 from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
-from cdmw.workers.mesh_editor_workers import MeshFileSessionLoadWorker, MeshNativePreviewPackageWorker
+from cdmw.workers.mesh_editor_workers import (
+    MeshEditCommandWorker,
+    MeshFileSessionLoadWorker,
+    MeshNativePreviewPackageWorker,
+)
 from tools.mesh_editor_dev_harness import _build_two_part_synthetic_mesh, build_synthetic_mesh
+
+
+def _i32_values(group: object, json_key: str, binary_key: str) -> list[int]:
+    if not isinstance(group, dict):
+        return []
+    raw_json = group.get(json_key)
+    if isinstance(raw_json, list):
+        return [int(value) for value in raw_json]
+    if json_key.endswith("_indices"):
+        range_prefix = json_key[: -len("_indices")]
+        raw_start = group.get(f"{range_prefix}_start")
+        raw_count = group.get(f"{range_prefix}_count")
+        if raw_start is not None or raw_count is not None:
+            try:
+                start = int(raw_start if raw_start is not None else -1)
+                count = int(raw_count if raw_count is not None else 0)
+            except (TypeError, ValueError, OverflowError):
+                return []
+            if start >= 0 and count > 0:
+                return list(range(start, start + count))
+    descriptor = group.get(binary_key)
+    if not isinstance(descriptor, dict):
+        return []
+    path = Path(str(descriptor.get("path") or ""))
+    data = path.read_bytes()
+    if len(data) % 4:
+        return []
+    return list(struct.unpack("<" + "i" * (len(data) // 4), data))
 
 
 def _pab_payload(bones: tuple[tuple[str, int], ...]) -> bytes:
@@ -88,13 +137,27 @@ class _DummyMeshEditorShell(MeshEditorShellBridgeMixin):
 class _StandaloneNativeHost:
     def __init__(self) -> None:
         self.calls: list[tuple[str, object]] = []
+        self.mesh_edit_stroke_started = _FakeSignal()
+        self.mesh_edit_stroke_previewed = _FakeSignal()
+        self.mesh_edit_stroke_finished = _FakeSignal()
+        self.mesh_edit_stroke_cancelled = _FakeSignal()
+
+    def set_mesh_edit_state(self, **kwargs: object) -> bool:
+        self.calls.append(("mesh_edit_state", kwargs))
+        return True
 
     def update_mesh_edit_vertices(self, groups: object) -> bool:
         self.calls.append(("vertices", groups))
         return True
 
-    def replace_mesh_edit_triangles(self, groups: object, *, replace_all: bool = False) -> bool:
-        self.calls.append(("triangles", (groups, replace_all)))
+    def replace_mesh_edit_triangles(
+        self,
+        groups: object,
+        *,
+        replace_all: bool = False,
+        source_submesh_indices: object = (),
+    ) -> bool:
+        self.calls.append(("triangles", (groups, replace_all, source_submesh_indices)))
         return True
 
     def set_material_overrides(self, **kwargs: object) -> bool:
@@ -123,6 +186,12 @@ class _StandaloneNativePickHost(_StandaloneNativeHost):
     def set_source_part_picking(self, enabled: bool) -> bool:
         self.calls.append(("part_picking", bool(enabled)))
         return True
+
+
+class _FailingStandaloneNativeHost(_StandaloneNativeHost):
+    def update_mesh_edit_vertices(self, groups: object) -> bool:
+        self.calls.append(("vertices", groups))
+        return False
 
 
 class _FlakyStandaloneNativePickHost(_StandaloneNativePickHost):
@@ -268,6 +337,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertIsNotNone(loop_cut_button)
         assert loop_cut_button is not None
         self.assertFalse(loop_cut_button.icon().isNull())
+        self.assertEqual(Qt.ToolButtonStyle.ToolButtonTextUnderIcon, loop_cut_button.toolButtonStyle())
+        self.assertEqual("Loop Cut", loop_cut_button.text())
         self.assertEqual("loop_cut", loop_cut_button.property("meshEditorCommand"))
         self.assertEqual("edit", loop_cut_button.property("meshEditorMode"))
         self.assertEqual("edge", loop_cut_button.property("meshEditorSelectionMode"))
@@ -275,6 +346,75 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual("Ctrl+R", loop_cut_button.property("meshEditorShortcut"))
         self.assertEqual("Ctrl+R", loop_cut_button.shortcut().toString(QKeySequence.SequenceFormat.PortableText))
         self.assertIn("Shortcut: Ctrl+R", loop_cut_button.toolTip())
+        app.processEvents()
+        action_bar.deleteLater()
+
+    def test_action_bar_tracks_checked_sculpt_tool(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        action_bar = MeshEditorActionBar()
+
+        action_bar.update_action_state(
+            has_target=True,
+            selection_empty=False,
+            mode="sculpt",
+            active_selection_mode="vertex",
+            active_tool_key="brush_smooth",
+        )
+
+        self.assertTrue(action_bar.button_for_key("brush_smooth").isChecked())
+        self.assertFalse(action_bar.button_for_key("brush_inflate").isChecked())
+        self.assertFalse(action_bar.button_for_key("select_vertex").isChecked())
+        self.assertIn("QToolButton:checked", action_bar.styleSheet())
+        self.assertIn("#1769aa", action_bar.styleSheet())
+
+        action_bar.update_action_state(
+            has_target=True,
+            selection_empty=False,
+            mode="sculpt",
+            active_selection_mode="vertex",
+            active_tool_key="brush_inflate",
+        )
+
+        self.assertFalse(action_bar.button_for_key("brush_smooth").isChecked())
+        self.assertTrue(action_bar.button_for_key("brush_inflate").isChecked())
+        self.assertFalse(action_bar.button_for_key("select_vertex").isChecked())
+
+        action_bar.update_action_state(
+            has_target=True,
+            selection_empty=False,
+            mode="edit",
+            active_selection_mode="face",
+            active_tool_key="",
+        )
+
+        self.assertFalse(action_bar.button_for_key("brush_inflate").isChecked())
+        self.assertTrue(action_bar.button_for_key("select_face").isChecked())
+        app.processEvents()
+        action_bar.deleteLater()
+
+    def test_action_bar_keeps_compact_topology_tools_on_one_row(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        actions = mesh_editor_actions_by_key()
+        action_bar = MeshEditorActionBar(
+            tuple(actions[key] for key in ("delete", "subdivide", "refine_smooth", "split", "recalculate_normals"))
+        )
+
+        topology_frame = action_bar.findChild(QFrame, "MeshEditorActionCategory_topology")
+        self.assertIsNotNone(topology_frame)
+        assert topology_frame is not None
+        layout = topology_frame.layout()
+        self.assertIsInstance(layout, QGridLayout)
+        assert isinstance(layout, QGridLayout)
+        split_index = layout.indexOf(action_bar.button_for_key("split"))
+        row, column, _row_span, _column_span = layout.getItemPosition(split_index)
+
+        self.assertEqual(0, row)
+        self.assertEqual(3, column)
+        self.assertEqual("Refine", action_bar.button_for_key("refine_smooth").text())
+        self.assertEqual("Recalc", action_bar.button_for_key("recalculate_normals").text())
+        self.assertEqual("Recalculate Normals", action_bar.button_for_key("recalculate_normals").accessibleName())
+        self.assertEqual(Qt.ToolButtonStyle.ToolButtonTextUnderIcon, action_bar.button_for_key("delete").toolButtonStyle())
+        self.assertEqual(42, action_bar.button_for_key("delete").height())
         app.processEvents()
         action_bar.deleteLater()
 
@@ -356,7 +496,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_embedded_builder_keeps_classic_primary_with_advanced_restore(self) -> None:
+    def test_mesh_editor_embedded_builder_keeps_advanced_workspace_hidden_without_restore_button(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedMerged"))
         builder = _EmbeddedMeshBuilder()
@@ -371,12 +511,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertFalse(builder.tabs.isTabVisible(2))
         self.assertFalse(builder.tabs.isTabVisible(4))
         restore = builder.tabs.findChild(QPushButton, "MeshEditorAdvancedMeshDataRestoreButton")
-        assert restore is not None
+        self.assertIsNone(restore)
         legacy_restore = builder.tabs.findChild(QPushButton, "MeshEditorLegacyMeshControlsRestoreButton")
-        assert legacy_restore is not None
-        restore.click()
-        self.assertTrue(builder.tabs.isTabVisible(4))
-        self.assertEqual("Advanced Mesh Data", builder.tabs.tabText(builder.tabs.currentIndex()))
+        self.assertIsNone(legacy_restore)
+        self.assertEqual("Setup", builder.tabs.tabText(builder.tabs.currentIndex()))
         workspace = builder.tabs.findChild(QFrame, "MeshEditorEmbeddedMergedWorkspace")
         self.assertIsNotNone(workspace)
         outliner = workspace.findChild(QTreeWidget, "MeshEditorOutlinerPanel")
@@ -401,9 +539,6 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertIn("Review", [panels.tabText(index) for index in range(panels.count())])
         self.assertIn("Checks", [panels.tabText(index) for index in range(panels.count())])
 
-        legacy_restore.click()
-        self.assertTrue(builder.tabs.isTabVisible(2))
-        self.assertEqual("Mesh Editing", builder.tabs.tabText(builder.tabs.currentIndex()))
         app.processEvents()
         tab.deleteLater()
 
@@ -586,6 +721,36 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    def test_mesh_editor_embedded_reports_native_editor_unavailable_and_disables_native_tools(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedNativeUnavailable"))
+        builder = _EmbeddedMeshBuilder()
+
+        with patch("cdmw.ui.mesh_editor.tab.native_mesh_core_available", return_value=False):
+            tab.mount_embedded_builder(builder)
+            builder.controller.select(vertices_by_submesh={0: (0,)})
+            tab._refresh_embedded_workspace_from_builder()
+
+            workspace = tab.embedded_workspace
+            assert workspace is not None
+            delete = workspace.findChild(QToolButton, "MeshEditorPartDeleteButton")
+            clone = workspace.findChild(QToolButton, "MeshEditorPartCloneButton")
+            clear = workspace.findChild(QToolButton, "MeshEditorPartClearSelectionButton")
+            assert delete is not None
+            assert clone is not None
+            assert clear is not None
+
+            self.assertIn("Native Mesh Editor unavailable", workspace.status_label.text())
+            self.assertFalse(delete.isEnabled())
+            self.assertFalse(clone.isEnabled())
+            self.assertTrue(clear.isEnabled())
+            self.assertFalse(tab._handle_embedded_part_context_action("delete", 0))
+            self.assertEqual([], builder.part_actions)
+            self.assertIn("Native Mesh Editor C++ core is missing", workspace.status_label.text())
+
+        app.processEvents()
+        tab.deleteLater()
+
     def test_mesh_editor_standalone_workspace_exposes_blender_style_regions(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorWorkspace"))
@@ -677,25 +842,30 @@ class MeshEditorActionBarTests(unittest.TestCase):
         workspace = tab.standalone_workspace
         workspace.part_selection_requested.emit(0, "toggle")
         workspace.part_selection_requested.emit(1, "toggle")
+        routed: list[tuple[str, tuple[int, ...]]] = []
 
-        workspace.part_context_action_requested.emit("duplicate", 0)
-        names_after_clone = [part.name for part in tab.standalone_controller.working_mesh().submeshes]
+        def fake_run(action: object, *, selection: MeshEditSelection | None = None, **_params: object) -> MeshEditorActionExecution:
+            routed.append((str(action), tuple(selection.source_indices if selection is not None else ())))
+            return MeshEditorActionExecution(
+                MeshEditResult(action=str(action), status="ok", revision=1, affected_submesh_indices=tuple(selection.source_indices if selection else ())),
+                MeshEditorNativeUpdate(),
+            )
 
-        workspace.part_context_action_requested.emit("delete", 2)
-        names_after_delete = [part.name for part in tab.standalone_controller.working_mesh().submeshes]
+        with patch.object(tab.standalone_controller, "run_editor_action", side_effect=fake_run):
+            workspace.part_context_action_requested.emit("duplicate", 0)
+            workspace.part_context_action_requested.emit("delete", 1)
 
-        self.assertEqual(
-            ["harness_quad", "harness_quad_b", "harness_quad duplicate", "harness_quad_b duplicate"],
-            names_after_clone,
-        )
-        self.assertEqual(("harness_quad", "harness_quad_b", "harness_quad_b duplicate"), tuple(names_after_delete))
-        self.assertEqual((), tab.standalone_controller.session_view().selection.source_indices)
+        self.assertEqual([("duplicate", (0, 1)), ("delete", (0, 1))], routed)
+        self.assertEqual((0, 1), tab.standalone_controller.session_view().selection.source_indices)
         app.processEvents()
         tab.deleteLater()
 
     def test_mesh_editor_workspace_part_controls_show_selection_details_and_route_actions(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPartControls"))
+        native_available = patch("cdmw.ui.mesh_editor.tab.native_mesh_core_available", return_value=True)
+        native_available.start()
+        self.addCleanup(native_available.stop)
 
         tab.open_mesh_session(
             _build_two_part_synthetic_mesh(),
@@ -737,8 +907,16 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(flip.isEnabled())
         self.assertTrue(texture.isEnabled())
 
+        routed_part_actions: list[tuple[str, int]] = []
+        try:
+            workspace.part_context_action_requested.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+        workspace.part_context_action_requested.connect(
+            lambda action, part_index: routed_part_actions.append((str(action), int(part_index)))
+        )
         clone.click()
-        self.assertEqual(4, len(tab.standalone_controller.working_mesh().submeshes))
+        self.assertEqual([("duplicate", 0)], routed_part_actions)
         clear.click()
         self.assertEqual((), tab.standalone_controller.session_view().selection.source_indices)
         self.assertFalse(clone.isEnabled())
@@ -823,6 +1001,158 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    def test_mesh_editor_native_preview_stroke_dispatches_native_session_payload(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativeStroke"))
+        host = _StandaloneNativeHost()
+        tab.set_native_preview_host(host)
+        tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-native-stroke", mode="edit")
+        assert tab.standalone_controller is not None
+        tab.standalone_controller.select(vertices_by_submesh={0: (0, 1)})
+        tab.update_editor_session_state(
+            tab.standalone_controller.session_view(),
+            active_selection_mode=tab.standalone_controller.active_selection_mode,
+        )
+        tab.set_active_tool_state(mode="edit", active_tool_key="transform_move")
+
+        mesh_edit_states = [payload for name, payload in host.calls if name == "mesh_edit_state"]
+        self.assertTrue(mesh_edit_states)
+        self.assertTrue(mesh_edit_states[-1]["enabled"])
+        self.assertEqual("move", mesh_edit_states[-1]["tool"])
+        self.assertEqual("selection", mesh_edit_states[-1]["target_mode"])
+
+        captured: list[tuple[str, str | None, dict[str, object]]] = []
+
+        def fake_apply(action: str, *, selection: object = None, mode: str | None = None, **params: object) -> MeshEditResult:
+            captured.append((str(action), mode, dict(params)))
+            phase = str(params.get("stroke_phase") or "")
+            changed = ((0, (0, 1)),) if phase == "update" else ()
+            native_groups = (
+                {
+                    "preview_backend": "cdmw_mesh_core",
+                    "source_submesh_index": 0,
+                    "source_vertex_indices": [0, 1],
+                    "positions": [0.0, 0.0, 0.0, 0.25, 0.0, 0.0],
+                },
+            ) if changed else ()
+            return MeshEditResult(
+                action=str(action),
+                status="ok",
+                revision=len(captured),
+                affected_submesh_indices=(0,) if changed else (),
+                changed_vertices_by_submesh=changed,
+                metrics={"native_stroke_active": 0.0 if phase == "end" else 1.0},
+                native_preview_vertex_update_groups=native_groups,
+            )
+
+        vertex_descriptor = {"path": "move_vertices.bin", "count": 2, "components": 1, "type": "i32"}
+        begin_drag = {"start_x": 10, "start_y": 20, "end_x": 10, "end_y": 20, "viewport_width": 100, "viewport_height": 80}
+        update_drag = {"start_x": 10, "start_y": 20, "end_x": 18, "end_y": 20, "viewport_width": 100, "viewport_height": 80}
+        with (
+            patch.object(tab, "_native_mesh_editor_available", return_value=True),
+            patch.object(tab.standalone_controller, "apply", side_effect=fake_apply),
+        ):
+            host.mesh_edit_stroke_started.emit(
+                {
+                    "stroke_id": 7,
+                    "tool": "move",
+                    "screen_drag": begin_drag,
+                    "groups": (
+                        {
+                            "source_submesh_index": 0,
+                            "source_vertex_indices_binary": vertex_descriptor,
+                        },
+                    ),
+                }
+            )
+            host.mesh_edit_stroke_previewed.emit(
+                {
+                    "stroke_id": 7,
+                    "tool": "move",
+                    "screen_drag": update_drag,
+                    "groups": (
+                        {
+                            "source_submesh_index": 0,
+                            "source_vertex_indices_binary": vertex_descriptor,
+                        },
+                    ),
+                }
+            )
+            host.mesh_edit_stroke_finished.emit({"stroke_id": 7, "tool": "move"})
+
+        self.assertEqual(["transform", "transform", "transform"], [item[0] for item in captured])
+        self.assertEqual(["begin", "update", "end"], [item[2]["stroke_phase"] for item in captured])
+        self.assertEqual(["7", "7", "7"], [item[2]["stroke_id"] for item in captured])
+        self.assertEqual(begin_drag, captured[0][2]["screen_drag"])
+        self.assertEqual(update_drag, captured[1][2]["screen_drag"])
+        self.assertNotIn("translate", captured[0][2])
+        self.assertNotIn("translate", captured[1][2])
+        self.assertEqual(
+            [{"index": 0, "indices_binary": vertex_descriptor}],
+            captured[0][2]["_native_selection_payload"]["vertices_by_submesh"],  # type: ignore[index]
+        )
+        self.assertNotIn("_native_selection_payload", captured[1][2])
+        self.assertNotIn("_native_selection_payload", captured[2][2])
+        self.assertEqual("", tab.standalone_native_mesh_edit_stroke_id)
+        self.assertFalse(tab._standalone_action_worker_active())
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_native_brush_stroke_forwards_d3d11_candidate_groups(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativeBrushStroke"))
+        host = _StandaloneNativeHost()
+        tab.set_native_preview_host(host)
+        tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-native-brush-stroke", mode="sculpt")
+        assert tab.standalone_controller is not None
+        tab.set_active_tool_state(mode="sculpt", active_tool_key="brush_grab")
+
+        captured: list[dict[str, object]] = []
+
+        def fake_apply(action: str, *, selection: object = None, mode: str | None = None, **params: object) -> MeshEditResult:
+            _ = selection
+            self.assertEqual("brush", action)
+            self.assertEqual("sculpt", mode)
+            captured.append(dict(params))
+            return MeshEditResult(action="brush", status="ok", revision=len(captured), metrics={"native_stroke_active": 1.0})
+
+        vertex_descriptor = {"path": "stroke_vertices.bin", "count": 2, "components": 1, "type": "i32"}
+        weight_descriptor = {"path": "stroke_weights.bin", "count": 2, "components": 1, "type": "f32"}
+        screen_drag = {"start_x": 10, "start_y": 20, "end_x": 10, "end_y": 28, "viewport_width": 100, "viewport_height": 80}
+        with (
+            patch.object(tab, "_native_mesh_editor_available", return_value=True),
+            patch.object(tab.standalone_controller, "apply", side_effect=fake_apply),
+        ):
+            host.mesh_edit_stroke_started.emit(
+                {
+                    "stroke_id": 9,
+                    "tool": "grab",
+                    "screen_drag": screen_drag,
+                    "strength": 0.625,
+                    "groups": (
+                        {
+                            "source_submesh_index": 0,
+                            "source_vertex_indices_binary": vertex_descriptor,
+                            "source_vertex_weights_binary": weight_descriptor,
+                        },
+                    ),
+                }
+            )
+
+        native_selection = captured[0]["_native_selection_payload"]
+        assert isinstance(native_selection, dict)
+        self.assertEqual(
+            [{"index": 0, "indices_binary": vertex_descriptor, "weights_binary": weight_descriptor}],
+            native_selection["vertices_by_submesh"],
+        )
+        self.assertEqual(screen_drag, captured[0]["screen_drag"])
+        self.assertNotIn("delta", captured[0])
+        self.assertEqual(0.625, captured[0]["strength"])
+        for omitted in ("center", "amount", "radius", "falloff", "iterations", "invert"):
+            self.assertNotIn(omitted, captured[0])
+        app.processEvents()
+        tab.deleteLater()
+
     def test_mesh_editor_native_preview_part_pick_replays_after_loaded_status(self) -> None:
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -854,7 +1184,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
     def test_mesh_editor_workspace_compare_panel_reflects_source_vs_edited_summary(self) -> None:
         app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorComparePanel"))
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", f"MeshEditorComparePanel-{time.time_ns()}"))
 
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-compare", mode="edit")
         assert tab.standalone_controller is not None
@@ -868,17 +1198,24 @@ class MeshEditorActionBarTests(unittest.TestCase):
             tab.standalone_controller.session_view(),
             active_selection_mode=tab.standalone_controller.active_selection_mode,
         )
+        session = tab.standalone_controller.mesh_service._session(tab.standalone_controller.active_session_id)
+        session.native_editor_mesh_dirty = True
+        session.native_editor_mesh_dirty_counts = ((4, 2),)
 
         compare = tab.standalone_workspace.findChild(QTreeWidget, "MeshEditorComparePanel")
         combo = tab.standalone_workspace.findChild(QComboBox, "MeshEditorCompareModeCombo")
         assert compare is not None
         assert combo is not None
+        tab.standalone_compare_mode = "edited"
         rows = [(compare.topLevelItem(index).text(0), compare.topLevelItem(index).text(2)) for index in range(compare.topLevelItemCount())]
-        self.assertTrue(any(label == "Bounds" for label, _value in rows))
-        self.assertTrue(any(label.startswith("0: harness_quad") and "bounds" in value for label, value in rows))
+        self.assertEqual([("Info", "")], rows)
 
+        self.assertEqual("edited", tab.standalone_compare_mode)
+        self.assertTrue(tab.standalone_controller.native_editor_mesh_dirty())
         tab._refresh_standalone_preview()
         edited_vertices = int(getattr(tab.standalone_preview, "_vertex_count", 0) or 0)
+        self.assertEqual(0, edited_vertices)
+        self.assertIn("Python preview rebuild is disabled", tab.standalone_status_label.text())
         tab.standalone_controller.apply(
             "duplicate",
             selection=MeshEditSelection.from_maps(source_indices=(0,)),
@@ -888,13 +1225,16 @@ class MeshEditorActionBarTests(unittest.TestCase):
             tab.standalone_controller.session_view(),
             active_selection_mode=tab.standalone_controller.active_selection_mode,
         )
+        session.native_editor_mesh_dirty = True
+        session.native_editor_mesh_dirty_counts = ((8, 4),)
         tab._refresh_standalone_preview()
         duplicated_vertices = int(getattr(tab.standalone_preview, "_vertex_count", 0) or 0)
-        combo.setCurrentText("Source")
+        self.assertEqual(0, duplicated_vertices)
+        tab.standalone_compare_mode = "source"
+        tab._refresh_standalone_preview()
         source_vertices = int(getattr(tab.standalone_preview, "_vertex_count", 0) or 0)
 
-        self.assertGreater(duplicated_vertices, edited_vertices)
-        self.assertEqual(edited_vertices, source_vertices)
+        self.assertGreater(source_vertices, 0)
         self.assertEqual("source", tab.standalone_compare_mode)
         app.processEvents()
         tab.deleteLater()
@@ -960,15 +1300,18 @@ class MeshEditorActionBarTests(unittest.TestCase):
         select_all = workspace.findChild(QToolButton, "MeshEditorUVSelectAllButton")
         flip_u = workspace.findChild(QToolButton, "MeshEditorUVAction_uv_flip_u")
         pack = workspace.findChild(QToolButton, "MeshEditorUVAction_uv_pack")
+        auto_uv = workspace.findChild(QToolButton, "MeshEditorUVAction_uv_auto_unwrap")
         uv_tree = workspace.findChild(QTreeWidget, "MeshEditorUVPanel")
         assert summary is not None
         assert select_all is not None
         assert flip_u is not None
         assert pack is not None
+        assert auto_uv is not None
         assert uv_tree is not None
         self.assertIn("UV:", summary.text())
         self.assertFalse(flip_u.isEnabled())
         self.assertFalse(pack.isEnabled())
+        self.assertFalse(auto_uv.isEnabled())
 
         island = next(
             uv_tree.topLevelItem(index)
@@ -982,7 +1325,35 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(flip_u.isEnabled())
         previous_revision = tab.standalone_controller.session_view().revision
         flip_u.click()
+        self.assertTrue(_wait_for(app, lambda: tab.standalone_controller is not None and tab.standalone_controller.session_view().revision > previous_revision))
         self.assertGreater(tab.standalone_controller.session_view().revision, previous_revision)
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_auto_uv_dispatches_native_allow_flag_without_preflight(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorAutoUvDispatch"))
+        tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-auto-uv-accept", mode="edit")
+        assert tab.standalone_controller is not None
+        tab.standalone_controller.select(source_indices=(0,))
+        tab.update_editor_session_state(
+            tab.standalone_controller.session_view(),
+            active_selection_mode=tab.standalone_controller.active_selection_mode,
+        )
+
+        auto_uv = tab.standalone_workspace.findChild(QToolButton, "MeshEditorUVAction_uv_auto_unwrap")
+        assert auto_uv is not None
+        dispatched: list[object] = []
+
+        with patch("cdmw.ui.mesh_editor.tab.QMessageBox.question", side_effect=AssertionError("Auto UV preflight prompt")):
+            with patch.object(tab, "_start_standalone_action_worker", side_effect=lambda action, **_kwargs: dispatched.append(action) or True):
+                with patch.object(tab.standalone_controller, "working_mesh", side_effect=AssertionError("Auto UV preflight hydrated mesh")):
+                    auto_uv.click()
+
+        self.assertEqual(1, len(dispatched))
+        params = dict(tuple(getattr(dispatched[0], "params", ()) or ()))
+        self.assertTrue(params.get("auto_uv"))
+        self.assertTrue(params.get("allow_topology_change"))
         app.processEvents()
         tab.deleteLater()
 
@@ -1419,7 +1790,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_file_session_loads_sibling_source_skeleton_for_weight_transfer(self) -> None:
+    def test_mesh_editor_file_session_does_not_auto_load_sibling_source_skeleton(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorSiblingSourceSkeleton"))
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1431,36 +1802,15 @@ class MeshEditorActionBarTests(unittest.TestCase):
             parsed.submeshes[0].bone_indices = [(0,), (1,), (0, 1), (1,)]
             parsed.submeshes[0].bone_weights = [(1.0,), (1.0,), (0.25, 0.75), (1.0,)]
             parsed.has_bones = True
-            target_skeleton = Skeleton(
-                bones=[Bone(index=4, name="Spine"), Bone(index=9, name="Root")],
-                bone_count=2,
-            )
 
             with patch("cdmw.services.mesh_service.parse_mesh", return_value=parsed):
                 tab.open_mesh_file_session(mesh_path, session_id="standalone-file-source-skeleton", mode="edit")
 
             assert tab.standalone_controller is not None
-            self.assertEqual(str(skeleton_path.resolve()), getattr(tab.standalone_source_skeleton, "path", ""))
+            self.assertIsNone(tab.standalone_source_skeleton)
             linked = tab.standalone_controller.skeleton_summary()
-            self.assertTrue(linked.skeleton_linked)
-            self.assertEqual(str(skeleton_path.resolve()), linked.skeleton_source)
-            self.assertEqual(2, len(linked.bones))
-            working = tab.standalone_controller.working_mesh(clone=False)
-            working.submeshes[0].bone_indices = [(), (), (), ()]
-            working.submeshes[0].bone_weights = [(), (), (), ()]
-            tab.standalone_controller.attach_skeleton(target_skeleton)
-            tab.standalone_controller.select(source_indices=(0,), vertices_by_submesh={0: (2,)})
-            tab.update_editor_session_state(
-                tab.standalone_controller.session_view(),
-                active_selection_mode=tab.standalone_controller.active_selection_mode,
-            )
-            weight_transfer_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorWeightTransferButton")
-            assert weight_transfer_button is not None
-
-            weight_transfer_button.click()
-
-            self.assertEqual((4, 9), working.submeshes[0].bone_indices[2])
-            self.assertEqual((0.75, 0.25), working.submeshes[0].bone_weights[2])
+            self.assertFalse(linked.skeleton_linked)
+            self.assertEqual("", linked.skeleton_source)
         app.processEvents()
         tab.deleteLater()
 
@@ -1612,6 +1962,42 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 tab.deleteLater()
         app.processEvents()
 
+    def test_mesh_editor_sync_native_preview_uses_pose_payload_before_pose_snapshot(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_root = Path(temp_dir)
+            package_dir = output_root / "package"
+            mesh = build_synthetic_mesh()
+            pose_skeleton = object()
+            pose_rotations = {0: (0.0, 0.0, 0.0)}
+            prepared = PreparedModelPreviewData(source_path="native-pose")
+            tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorSyncNativePosePackage"))
+            try:
+                tab.open_mesh_session(mesh, session_id="sync-native-pose", mode="edit")
+                with (
+                    patch.object(
+                        tab,
+                        "_standalone_pose_native_preview_context",
+                        return_value=(mesh, pose_skeleton, pose_rotations),
+                    ),
+                    patch.object(tab, "_standalone_preview_mesh_snapshot", side_effect=AssertionError("snapshot not allowed")),
+                    patch("cdmw.ui.mesh_editor.tab.mesh_pose_to_native_preview", return_value=prepared) as native,
+                    patch(
+                        "cdmw.ui.mesh_editor.tab.mesh_editor_write_prepared_native_preview_package",
+                        return_value=package_dir,
+                    ) as writer,
+                ):
+                    self.assertEqual(package_dir, tab.write_standalone_native_preview_package(output_root=output_root))
+
+                native.assert_called_once_with(mesh, skeleton=pose_skeleton, pose_rotations=pose_rotations)
+                self.assertIs(writer.call_args.args[0], mesh)
+                self.assertIs(writer.call_args.args[1], prepared)
+                self.assertEqual(output_root, writer.call_args.kwargs["output_root"])
+                self.assertFalse(tab.standalone_native_package_has_reference)
+            finally:
+                tab.deleteLater()
+        app.processEvents()
+
     def test_mesh_editor_shell_wires_texture_open_request_to_texture_editor_bridge(self) -> None:
         source = Path("cdmw/ui/shell/tool_tabs.py").read_text(encoding="utf-8")
         self.assertIn("open_texture_source_requested.connect(self._open_source_in_texture_editor)", source)
@@ -1634,42 +2020,117 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertFalse(tab.modify_original_button.isEnabled())
         tab.standalone_controller.select(vertices_by_submesh={0: (0, 1)})
         tab.update_editor_session_state(tab.standalone_controller.session_view(), active_selection_mode=tab.standalone_controller.active_selection_mode)
+        host.calls.clear()
 
         self.assertTrue(tab.action_bar.button_for_key("transform_rotate").isEnabled())
         tab.action_bar.button_for_key("transform_rotate").click()
+        self.assertTrue(_wait_for(app, lambda: len(host.calls) >= 1 and not tab._standalone_action_worker_active()))
 
         self.assertEqual(["vertices"], [name for name, _payload in host.calls])
-        self.assertEqual([0, 1], host.calls[0][1][0]["source_vertex_indices"])
+        self.assertEqual([0, 1], _i32_values(host.calls[0][1][0], "source_vertex_indices", "source_vertex_indices_binary"))
         self.assertNotEqual((-0.75, -0.75, 0.0), tab.standalone_controller.working_mesh().submeshes[0].vertices[0])
         self.assertIn("Revision: 1", tab.standalone_status_label.text())
         self.assertEqual(("Mesh Editor action applied: Rotate.", False), messages[-1])
         self.assertTrue(tab.action_bar.button_for_key("undo").isEnabled())
         tab.action_bar.button_for_key("undo").click()
+        self.assertTrue(_wait_for(app, lambda: len(host.calls) >= 3 and not tab._standalone_action_worker_active()))
 
-        self.assertEqual(["vertices", "triangles", "material", "selection"], [name for name, _payload in host.calls])
+        self.assertEqual(["vertices", "vertices", "selection"], [name for name, _payload in host.calls])
+        self.assertEqual([0, 1], _i32_values(host.calls[1][1][0], "source_vertex_indices", "source_vertex_indices_binary"))
         self.assertEqual((-0.75, -0.75, 0.0), tab.standalone_controller.working_mesh().submeshes[0].vertices[0])
         self.assertIn("Revision: 2", tab.standalone_status_label.text())
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_standalone_session_refreshes_preview_without_native_host(self) -> None:
+    def test_mesh_editor_tab_records_native_preview_update_metric(self) -> None:
         app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorStandaloneFallback"))
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorStandaloneMetrics"))
+        host = _StandaloneNativeHost()
+        tab.set_native_preview_host(host)
+        tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-metrics", mode="edit")
+        tab.standalone_preview_stack.setCurrentWidget(tab.standalone_native_host_frame)
+        host.calls.clear()
+        result = MeshEditResult(
+            action="brush",
+            status="ok",
+            revision=1,
+            affected_submesh_indices=(0,),
+            changed_vertices_by_submesh=((0, (0,)),),
+            metrics={"cpp_ms": 1.25},
+        )
+        update = MeshEditorNativeUpdate(
+            vertex_groups=(
+                {
+                    "source_submesh_index": 0,
+                    "source_vertex_indices": [0],
+                    "positions": [0.0, 0.0, 0.0],
+                },
+            ),
+        )
+
+        self.assertTrue(tab._finish_standalone_action_execution(MeshEditorActionExecution(result, update), action_text="Brush"))
+
+        self.assertEqual(["vertices"], [name for name, _payload in host.calls])
+        assert tab.standalone_last_action_result is not None
+        self.assertEqual(1.25, tab.standalone_last_action_result.metrics["cpp_ms"])
+        self.assertGreaterEqual(tab.standalone_last_action_result.metrics["d3d11_update_ms"], 0.0)
+        self.assertNotIn("qt_preview_refresh_ms", tab.standalone_last_action_result.metrics)
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_tab_d3d11_update_failure_does_not_refresh_python_preview(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorStandaloneNativeUpdateFailure"))
+        host = _FailingStandaloneNativeHost()
+        messages: list[tuple[str, bool]] = []
+        tab.status_message_requested.connect(lambda message, error=False: messages.append((message, bool(error))))
+        tab.set_native_preview_host(host)
+        tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-stale-native", mode="edit")
+        tab.standalone_preview_stack.setCurrentWidget(tab.standalone_native_host_frame)
+        host.calls.clear()
+        update = MeshEditorNativeUpdate(vertex_groups=({"source_submesh_index": 0, "source_vertex_start": 0, "source_vertex_count": 1},))
+
+        with patch.object(tab, "_refresh_standalone_preview", side_effect=AssertionError("python preview fallback")):
+            self.assertFalse(tab._apply_standalone_native_update(update))
+
+        self.assertEqual(["vertices"], [name for name, _payload in host.calls])
+        self.assertIs(tab.standalone_native_host_frame, tab.standalone_preview_stack.currentWidget())
+        self.assertIn("preview is stale", tab.standalone_status_label.text())
+        self.assertEqual((tab.standalone_status_label.text(), True), messages[-1])
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_tab_standalone_native_delta_without_native_host_does_not_refresh_python_preview(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorStandaloneNoNativeFallback"))
+        messages: list[tuple[str, bool]] = []
+        tab.status_message_requested.connect(lambda message, error=False: messages.append((message, bool(error))))
 
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-fallback", mode="edit")
-        assert tab.standalone_controller is not None
-        before_vertices = int(getattr(tab.standalone_preview, "_vertex_count", 0) or 0)
-        tab.standalone_controller.select(vertices_by_submesh={0: (0, 1, 2, 3)}, faces_by_submesh={0: (0,)})
-        tab.update_editor_session_state(tab.standalone_controller.session_view(), active_selection_mode=tab.standalone_controller.active_selection_mode)
+        tab.set_native_preview_host(None)
+        result = MeshEditResult(
+            action="brush",
+            status="ok",
+            revision=1,
+            changed_vertices_by_submesh=((0, (0,)),),
+        )
+        update = MeshEditorNativeUpdate(
+            vertex_groups=(
+                {
+                    "preview_backend": "cdmw_mesh_core",
+                    "source_submesh_index": 0,
+                    "source_vertex_indices": [0],
+                    "positions": [0.0, 0.0, 0.0],
+                },
+            ),
+        )
 
-        self.assertIs(tab.workspace_stack.currentWidget(), tab.standalone_workspace)
-        self.assertTrue(tab.action_bar.isHidden())
-        self.assertTrue(tab.action_bar.button_for_key("extrude").isEnabled())
-        tab.action_bar.button_for_key("extrude").click()
+        with patch.object(tab, "_refresh_standalone_preview", side_effect=AssertionError("python preview fallback")):
+            self.assertFalse(tab._finish_standalone_action_execution(MeshEditorActionExecution(result, update), action_text="Brush"))
 
-        self.assertGreater(int(getattr(tab.standalone_preview, "_vertex_count", 0) or 0), before_vertices)
-        self.assertIn("Revision: 1", tab.standalone_status_label.text())
-        self.assertTrue(tab.action_bar.button_for_key("undo").isEnabled())
+        self.assertIn("preview is stale", tab.standalone_status_label.text())
+        self.assertEqual((tab.standalone_status_label.text(), True), messages[-1])
+        self.assertIn("d3d11_update_failed_ms", tab.standalone_last_action_metrics)
         app.processEvents()
         tab.deleteLater()
 
@@ -1706,11 +2167,11 @@ class MeshEditorActionBarTests(unittest.TestCase):
             mesh_path.write_bytes(b"mesh-bytes")
             parsed = build_synthetic_mesh("pam")
             parsed.path = str(mesh_path)
-            loaded: list[tuple[int, object, object]] = []
+            loaded: list[tuple[int, object, object, object]] = []
             errors: list[tuple[int, str]] = []
             finished: list[bool] = []
             worker = MeshFileSessionLoadWorker(4, mesh_path, session_id="worker-file", mode="edit")
-            worker.loaded.connect(lambda request_id, service, view: loaded.append((request_id, service, view)))
+            worker.loaded.connect(lambda request_id, service, view, mesh: loaded.append((request_id, service, view, mesh)))
             worker.error.connect(lambda request_id, message: errors.append((request_id, message)))
             worker.finished.connect(lambda: finished.append(True))
 
@@ -1721,8 +2182,9 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertEqual([], errors)
             self.assertEqual([True], finished)
             self.assertEqual(1, len(loaded))
-            request_id, service, view = loaded[0]
+            request_id, service, view, mesh = loaded[0]
             self.assertEqual(4, request_id)
+            self.assertIs(parsed, mesh)
             self.assertEqual("worker-file", view.session_id)
             self.assertEqual("edit", view.mode)
             self.assertEqual("edit", service.session_view("worker-file").mode)
@@ -1775,6 +2237,114 @@ class MeshEditorActionBarTests(unittest.TestCase):
             tab.deleteLater()
         app.processEvents()
 
+    def test_mesh_edit_command_worker_can_cancel_before_run(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        completed: list[object] = []
+        cancelled: list[tuple[int, str]] = []
+        finished: list[bool] = []
+        worker = MeshEditCommandWorker(
+            13,
+            MeshService(),
+            "mesh-command-worker-cancel",
+            MeshEditCommand("delete"),
+            action_text="Delete",
+        )
+        worker.completed.connect(lambda _request_id, result: completed.append(result))
+        worker.cancelled.connect(lambda request_id, message: cancelled.append((request_id, message)))
+        worker.finished.connect(lambda: finished.append(True))
+
+        worker.stop()
+        worker.run()
+
+        self.assertEqual([], completed)
+        self.assertEqual([(13, "Cancelled Delete.")], cancelled)
+        self.assertEqual([True], finished)
+        app.processEvents()
+
+    def test_mesh_edit_command_worker_applies_immutable_service_command(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        completed: list[object] = []
+        errors: list[tuple[int, str]] = []
+        calls: list[tuple[str, MeshEditCommand]] = []
+
+        class FakeService:
+            def apply_command(self, session_id: str, command: MeshEditCommand) -> MeshEditResult:
+                calls.append((session_id, command))
+                return MeshEditResult(action=command.action, status="ok", revision=7)
+
+        original = MeshEditCommand("delete", params={"remove_orphans": True})
+        worker = MeshEditCommandWorker(
+            14,
+            FakeService(),  # type: ignore[arg-type]
+            "mesh-command-worker-apply",
+            original,
+            action_text="Delete",
+        )
+        worker.completed.connect(lambda _request_id, result: completed.append(result))
+        worker.error.connect(lambda request_id, message: errors.append((request_id, message)))
+
+        worker.run()
+
+        self.assertEqual([], errors)
+        self.assertEqual(1, len(completed))
+        self.assertEqual("mesh-command-worker-apply", calls[0][0])
+        applied = calls[0][1]
+        self.assertEqual("delete", applied.action)
+        self.assertIsNot(applied, original)
+        self.assertNotIn("stop_event", original.params)
+        self.assertIn("stop_event", applied.params)
+        app.processEvents()
+
+    def test_mesh_edit_command_worker_rejects_legacy_display_cleanup(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        completed: list[object] = []
+        errors: list[tuple[int, str]] = []
+
+        class FakeService:
+            def apply_command(self, _session_id: str, _command: MeshEditCommand) -> MeshEditResult:
+                raise AssertionError("legacy cleanup should not reach service")
+
+        worker = MeshEditCommandWorker(
+            15,
+            FakeService(),  # type: ignore[arg-type]
+            "mesh-command-worker-legacy-cleanup",
+            MeshEditCommand("triangulate_display"),
+            action_text="Triangulate Display",
+        )
+        worker.completed.connect(lambda _request_id, result: completed.append(result))
+        worker.error.connect(lambda request_id, message: errors.append((request_id, message)))
+
+        worker.run()
+
+        self.assertEqual([], completed)
+        self.assertEqual(1, len(errors))
+        self.assertEqual(15, errors[0][0])
+        self.assertIn("legacy display-shape cleanup", errors[0][1])
+        app.processEvents()
+
+    def test_mesh_editor_tab_runs_standalone_topology_action_in_worker_by_default(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorStandaloneTopologyWorker"))
+        controller = MeshEditorController()
+        mesh = build_synthetic_mesh("pam")
+        controller.open_mesh(mesh, session_id="standalone-large-topology", mode="edit")
+        controller.select(source_indices=(0,))
+        tab.standalone_controller = controller
+        tab.standalone_mesh_label = "large.pam"
+        tab.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
+        action = mesh_editor_actions_by_key()["delete"]
+        try:
+            self.assertTrue(tab._should_run_standalone_action_worker(action, controller))
+            with (
+                patch.object(controller, "run_editor_action", side_effect=AssertionError("sync topology edit")),
+                patch.object(tab, "_start_standalone_action_worker", return_value=True) as starter,
+            ):
+                self.assertTrue(tab._run_standalone_action(action))
+            starter.assert_called_once()
+        finally:
+            tab.deleteLater()
+        app.processEvents()
+
     def test_mesh_editor_tab_opens_standalone_mesh_file_session_async(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorStandaloneFileSessionAsync"))
@@ -1814,6 +2384,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         host = _StandaloneNativeHost()
         tab.set_native_preview_host(host)
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-native-package", mode="edit")
+        host.calls.clear()
 
         ok = tab.load_standalone_native_preview_package(
             Path("C:/tmp/mesh-editor-package"),
@@ -1822,9 +2393,9 @@ class MeshEditorActionBarTests(unittest.TestCase):
         )
 
         self.assertTrue(ok)
-        self.assertEqual(
+        self.assertIn(
             ("load_package", (Path("C:/tmp/mesh-editor-package"), Path("C:/tmp/mesh-editor-status.json"), False)),
-            host.calls[-1],
+            host.calls,
         )
         self.assertEqual(Path("C:/tmp/mesh-editor-package"), tab.standalone_native_package_dir)
         self.assertIn("Native D3D11 preview loading:", tab.standalone_status_label.text())
@@ -1995,6 +2566,52 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
+    def test_mesh_editor_tab_reports_native_editor_unavailable_and_disables_native_tools(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativeUnavailable"))
+
+        with patch("cdmw.ui.mesh_editor.tab.native_mesh_core_available", return_value=False):
+            tab.open_mesh_session(build_synthetic_mesh(), session_id="native-unavailable-ui", mode="edit")
+            assert tab.standalone_controller is not None
+            tab.standalone_controller.select(vertices_by_submesh={0: (0,)})
+            tab.update_editor_session_state(
+                tab.standalone_controller.session_view(),
+                active_selection_mode=tab.standalone_controller.active_selection_mode,
+            )
+
+            self.assertIn("Native Mesh Editor unavailable", tab.standalone_status_label.text())
+            self.assertTrue(tab.action_bar.button_for_key("mode_edit").isEnabled())
+            self.assertTrue(tab.action_bar.button_for_key("select_vertex").isEnabled())
+            self.assertFalse(tab.action_bar.button_for_key("delete").isEnabled())
+            self.assertFalse(tab.action_bar.button_for_key("subdivide").isEnabled())
+            self.assertFalse(tab.action_bar.button_for_key("brush_grab").isEnabled())
+            self.assertFalse(tab.action_bar.button_for_key("transform_move").isEnabled())
+            self.assertFalse(tab.action_bar.button_for_key("weighted_normals").isEnabled())
+            self.assertFalse(tab.action_bar.button_for_key("uv_transform").isEnabled())
+            self.assertFalse(tab.action_bar.button_for_key("remove_doubles").isEnabled())
+            self.assertFalse(tab.action_bar.button_for_key("material_assign").isEnabled())
+            workspace_delete = tab.standalone_workspace.button_for_key("delete")
+            workspace_transform = tab.standalone_workspace.button_for_key("transform_move")
+            workspace_weighted = tab.standalone_workspace.button_for_key("weighted_normals")
+            workspace_select = tab.standalone_workspace.button_for_key("select_vertex")
+            assert workspace_delete is not None
+            assert workspace_transform is not None
+            assert workspace_weighted is not None
+            assert workspace_select is not None
+            self.assertFalse(workspace_delete.isEnabled())
+            self.assertFalse(workspace_transform.isEnabled())
+            self.assertFalse(workspace_weighted.isEnabled())
+            self.assertTrue(workspace_select.isEnabled())
+            with patch.object(tab, "_start_standalone_action_worker", side_effect=AssertionError("worker started")):
+                self.assertTrue(tab._run_standalone_action(mesh_editor_actions_by_key()["delete"]))
+                self.assertTrue(tab._run_standalone_action(mesh_editor_actions_by_key()["transform_move"]))
+            self.assertFalse(tab._handle_part_context_action("duplicate", 0))
+            self.assertEqual((), tab.standalone_controller.session_view().selection.source_indices)
+            self.assertIn("Native Mesh Editor C++ core is missing", tab.standalone_status_label.text())
+
+        app.processEvents()
+        tab.deleteLater()
+
     def test_mesh_editor_tab_can_set_active_tool_state_without_editing(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorToolState"))
@@ -2006,6 +2623,15 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual("edge", tab.current_selection_mode)
         self.assertTrue(tab.action_bar.button_for_key("mode_sculpt").isChecked())
         self.assertTrue(tab.action_bar.button_for_key("select_edge").isChecked())
+
+        tab.set_active_tool_state(mode="sculpt", active_tool_key="brush_smooth")
+        self.assertTrue(tab.action_bar.button_for_key("brush_smooth").isChecked())
+        self.assertFalse(tab.action_bar.button_for_key("select_edge").isChecked())
+
+        tab.set_active_tool_state(active_selection_mode="vertex", active_tool_key="")
+        self.assertEqual("", tab.current_tool_action_key)
+        self.assertFalse(tab.action_bar.button_for_key("brush_smooth").isChecked())
+        self.assertTrue(tab.action_bar.button_for_key("select_vertex").isChecked())
         app.processEvents()
         tab.deleteLater()
 

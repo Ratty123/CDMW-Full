@@ -35,12 +35,10 @@ from cdmw.core.archive_modding import (
     mesh_import_runtime_sibling_mesh_candidates,
 )
 from cdmw.core.mesh_baseline import read_archive_entry_baseline_data
-from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
 from cdmw.domain.mesh.session import MeshImportSetupSelection, ModifyOriginalWorkflowSelection
 from cdmw.models import ArchiveEntry
 from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
 from cdmw.modding.scene_importer import SceneImportResult, import_scene_mesh_with_report
-from cdmw.modding.skeleton_parser import parse_pab
 from cdmw.modding.static_mesh_replacer import StaticMeshReplacementOptions, StaticSubmeshMapping
 from cdmw.services.diagnostics_service import process_is_alive as _process_is_alive
 from cdmw.services.workspace_layout import workspace_paths
@@ -195,7 +193,12 @@ class ArchiveMeshModifyOriginalMixin:
             )
         )
 
-    def _cleanup_stale_modify_original_sessions(self, *, max_age_seconds: float = 24.0 * 60.0 * 60.0) -> None:
+    def _cleanup_stale_modify_original_sessions(
+        self,
+        *,
+        max_age_seconds: float = 24.0 * 60.0 * 60.0,
+        on_log: Optional[Callable[[str], None]] = None,
+    ) -> None:
         session_root = workspace_paths(self.settings_file_path.parent)["modify_original_sessions_root"]
         if not session_root.is_dir():
             return
@@ -244,10 +247,12 @@ class ArchiveMeshModifyOriginalMixin:
                 removed_count += 1
             except Exception:
                 failed_count += 1
-        if removed_count:
-            self.append_archive_log(f"Cleaned {removed_count:,} stale Modify Original internal session folder(s).")
-        if failed_count:
-            self.append_archive_log(f"Skipped {failed_count:,} stale Modify Original session folder(s) that were locked or unavailable.")
+        if removed_count or failed_count:
+            log = on_log if on_log is not None else self.append_archive_log
+            if removed_count:
+                log(f"Cleaned {removed_count:,} stale Modify Original internal session folder(s).")
+            if failed_count:
+                log(f"Skipped {failed_count:,} stale Modify Original session folder(s) that were locked or unavailable.")
 
     def _modify_original_runtime_candidate_note(
         self,
@@ -381,11 +386,12 @@ class ArchiveMeshModifyOriginalMixin:
         include_family = bool(selection.include_family_files)
         open_after = bool(create_workspace and selection.open_workspace_after_create)
         workspace_name = self._archive_modify_original_workspace_name(entry)
+        cleanup_stale_sessions = False
         if create_workspace:
             parent_root = selection.workspace_parent or (Path(self._suggest_workspace_base_dir()).expanduser() / "modify_original")
             workspace_dir = find_available_output_path(parent_root / workspace_name)
         else:
-            self._cleanup_stale_modify_original_sessions()
+            cleanup_stale_sessions = True
             session_root = workspace_paths(self.settings_file_path.parent)["modify_original_sessions_root"]
             workspace_dir = find_available_output_path(session_root / workspace_name)
         related_entries: Tuple[ArchiveEntry, ...] = ()
@@ -414,8 +420,10 @@ class ArchiveMeshModifyOriginalMixin:
         cached_family_graph = getattr(current_preview_result, "asset_family_graph", None) if preview_matches_entry else None
 
         def _task(log: Callable[[str], None], progress: Callable[[int, int, str], None]) -> dict[str, object]:
-            total_steps = 6
+            total_steps = 5
             progress(1, total_steps, "Modify Original: creating safe clone folder...")
+            if cleanup_stale_sessions:
+                self._cleanup_stale_modify_original_sessions(on_log=log)
             workspace_dir.parent.mkdir(parents=True, exist_ok=True)
             log(
                 f"Creating Modify Original workspace: {workspace_dir}"
@@ -454,23 +462,6 @@ class ArchiveMeshModifyOriginalMixin:
             original_data = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data).data
             original_mesh = parse_mesh(original_data, entry.path)
             source_skeleton = None
-            progress(5, total_steps, "Modify Original: resolving skeleton context...")
-            try:
-                skeleton_entry, _skeleton_report = resolve_skeleton_for_model(
-                    entry,
-                    archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    archive_entries_by_basename=self.archive_entries_by_basename,
-                    pac_data=original_data,
-                    read_entry_data=lambda candidate: read_archive_entry_data(candidate)[0],
-                )
-                if isinstance(skeleton_entry, ArchiveEntry):
-                    skeleton_data, _decompressed, _note = read_archive_entry_data(skeleton_entry)
-                    parsed_skeleton = parse_pab(skeleton_data, skeleton_entry.path)
-                    if getattr(parsed_skeleton, "bones", ()):
-                        source_skeleton = parsed_skeleton
-                        log(f"Resolved Modify Original skeleton context: {skeleton_entry.path}")
-            except Exception as exc:
-                log(f"Modify Original skeleton context unavailable: {exc}")
             supplemental_files = self._modify_original_workspace_supplemental_files(workspace_dir)
             readme_path: Optional[Path] = None
             manifest_path = workspace_dir / "modify_original_workspace.json"
@@ -523,7 +514,7 @@ class ArchiveMeshModifyOriginalMixin:
                 ),
                 encoding="utf-8",
             )
-            progress(6, total_steps, "Modify Original: opening Geometry workspace...")
+            progress(5, total_steps, "Modify Original: opening Geometry workspace...")
             return {
                 "workspace_dir": workspace_dir,
                 "obj_path": obj_path,

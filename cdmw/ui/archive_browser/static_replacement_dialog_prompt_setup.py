@@ -8,6 +8,9 @@ from types import SimpleNamespace
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
     install_static_replacement_prompt_dependencies,
 )
+from cdmw.ui.archive_browser.static_replacement_sparse_history import (
+    clone_mesh_for_static_replacement_native_first,
+)
 
 install_static_replacement_prompt_dependencies(globals())
 
@@ -110,8 +113,20 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
             if isinstance(scene_import_result, SceneImportResult)
             else import_scene_mesh(obj_path)
         )
-        replacement_mesh_base_for_mapping = clone_mesh_for_editing(replacement_mesh_base_for_mapping)
-        replacement_mesh_for_mapping = clone_mesh_for_editing(replacement_mesh_base_for_mapping)
+        replacement_mesh_base_for_mapping = clone_mesh_for_static_replacement_native_first(
+            replacement_mesh_base_for_mapping,
+            "prompt_setup.replacement_base_clone",
+            "Python replacement setup base clone fallback blocked while native mesh core is available",
+        )
+        if replacement_mesh_base_for_mapping is None:
+            raise RuntimeError("Native replacement setup base clone failed.")
+        replacement_mesh_for_mapping = clone_mesh_for_static_replacement_native_first(
+            replacement_mesh_base_for_mapping,
+            "prompt_setup.replacement_working_clone",
+            "Python replacement setup working clone fallback blocked while native mesh core is available",
+        )
+        if replacement_mesh_for_mapping is None:
+            raise RuntimeError("Native replacement setup working clone failed.")
         _alignment_startup_step(alignment_startup_text["preview_meshes"])
         original_reference_preview_model = parsed_mesh_to_preview_model(original_mesh_for_mapping)
         replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
@@ -433,7 +448,13 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         _mesh_edit_cancel_stroke = alignment_mesh_geometry_preview_section._mesh_edit_cancel_stroke
         _mesh_edit_finish_stroke = alignment_mesh_geometry_preview_section._mesh_edit_finish_stroke
         _mesh_edit_preview_source_indices = alignment_mesh_geometry_preview_section._mesh_edit_preview_source_indices
+        _mesh_edit_replace_live_triangles_or_queue_rebuild = getattr(
+            alignment_mesh_geometry_preview_section,
+            "_mesh_edit_replace_live_triangles_or_queue_rebuild",
+            None,
+        )
         _mesh_edit_selection_changed = alignment_mesh_geometry_preview_section._mesh_edit_selection_changed
+        _mesh_edit_update_live_preview = alignment_mesh_geometry_preview_section._mesh_edit_update_live_preview
         _morph_slider_refresh_controls = alignment_mesh_geometry_preview_section._morph_slider_refresh_controls
         _morph_slider_reload_profiles = alignment_mesh_geometry_preview_section._morph_slider_reload_profiles
         _preview_target_mesh_indices = alignment_mesh_geometry_preview_section._preview_target_mesh_indices
@@ -445,6 +466,8 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         _selected_part_preview_indices = alignment_mesh_geometry_preview_section._selected_part_preview_indices
         _static_options_from_placement_snapshot = alignment_mesh_geometry_preview_section._static_options_from_placement_snapshot
         _sync_mesh_edit_preview_settings = alignment_mesh_geometry_preview_section._sync_mesh_edit_preview_settings
+        if callable(_mesh_edit_replace_live_triangles_or_queue_rebuild):
+            prompt_shell_context["_mesh_edit_replace_live_triangles_or_queue_rebuild"] = _mesh_edit_replace_live_triangles_or_queue_rebuild
         prompt_shell_context["_sync_mesh_edit_preview_settings"] = _sync_mesh_edit_preview_settings
         button = alignment_mesh_geometry_preview_section.button
         edit = alignment_mesh_geometry_preview_section.edit
@@ -481,6 +504,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         mesh_edit_show_vertices_checkbox = alignment_mesh_geometry_preview_section.mesh_edit_show_vertices_checkbox
         mesh_edit_shrink_selection_button = alignment_mesh_geometry_preview_section.mesh_edit_shrink_selection_button
         mesh_edit_smooth_selection_button = alignment_mesh_geometry_preview_section.mesh_edit_smooth_selection_button
+        mesh_edit_refine_smooth_selection_button = alignment_mesh_geometry_preview_section.mesh_edit_refine_smooth_selection_button
         mesh_edit_status_label = alignment_mesh_geometry_preview_section.mesh_edit_status_label
         mesh_edit_strength_spin = alignment_mesh_geometry_preview_section.mesh_edit_strength_spin
         mesh_edit_split_selection_button = alignment_mesh_geometry_preview_section.mesh_edit_split_selection_button

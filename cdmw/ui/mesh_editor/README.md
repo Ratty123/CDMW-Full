@@ -16,12 +16,15 @@ preview-mode requests for edited, source, and ghost overlay views.
 `ParsedMesh` without starting the full Archive Browser builder. It routes toolbar
 actions through `MeshEditorController`, updates the native preview host when one
 is attached, and falls back to refreshing the lightweight preview panel.
+`MeshEditorController.native_update_for_result()` is native-payload-only; Python
+mesh-based preview packing is explicit archive-only code behind
+`legacy_python_update_for_result(..., allow_archive_legacy_preview_rebuild=True)`.
 `MeshEditorTab.open_mesh_file_session()` opens a supported PAC/PAM/PAMLOD file
 through `MeshService.load_mesh_file()` before entering the same standalone edit
 session path for scripted callers. UI callers should use
 `MeshEditorTab.open_mesh_file_session_async()`, which runs file IO, parsing, and
-service session creation in `MeshFileSessionLoadWorker` before attaching the
-controller on the UI thread.
+service session creation in `MeshFileSessionLoadWorker`, then attaches the
+controller and already-loaded mesh on the UI thread.
 `MeshEditorTab.start_standalone_native_preview()` starts the native D3D11 host
 for that standalone session without starting the full app workflow; the
 standalone workspace exposes that as its `D3D11` command button and polls the
@@ -42,10 +45,13 @@ converts edit results into native preview update payloads.
 
 `actions.py` and `action_bar.py` own the Mesh Editor command palette and Qt tool
 surface. They map visible tools to service command keys without applying edits.
+Topology tools include local Subdivide and Refine Smooth, which adds connected
+detail before smoothing the affected area for less pointy surfaces.
 Normal tools include service-routed recalc, tangent generation, flip,
-sharpen/soften, and source-normal copy commands; cleanup tools include remove
-doubles, delete loose vertices, compact orphans, winding repair, hole fill, and
-display triangulate/quadrangulate helpers. Widgets only emit descriptors.
+sharpen/soften, weighted normals, and source-normal copy commands; cleanup
+tools include remove doubles, delete loose vertices, compact orphans, winding
+repair, hole fill, and display triangulate/quadrangulate helpers. Widgets only
+emit descriptors.
 `MeshEditorTab.update_editor_session_state()`,
 `MeshEditorTab.update_editor_action_state()`, and
 `MeshEditorTab.set_active_tool_state()` keep tool enablement and active mode
@@ -74,6 +80,92 @@ Routing panel. The tab replays native part-picking enablement after preview
 load/reload and reports unavailable picker state in the workspace. UI code still
 delegates clone/delete/normals/texture work through `MeshEditorController` and
 `MeshService`.
+Native D3D11 viewport Move/Grab/Smooth/Inflate/Pinch stroke events also route
+through `MeshEditorController`/`MeshService` as resident native-session
+`transform`/`brush` commands with `stroke_phase` and `stroke_id` payloads.
+Move with existing resident vertex, edge, face, or source selection and
+selection-target Grab with existing resident selection send only `screen_drag`
+plus the tool scalar fields and rely on the matching resident C++ selection;
+they no longer serialize D3D11 selected candidate groups on begin or update.
+Move or Grab begin with no resident selection carries `screen_brush` as a
+native screen-selection payload instead of D3D11 groups. Brush-target Grab and
+Smooth/Inflate/Pinch begin and update
+packets carry native `screen_brush` context and omit D3D11 groups; native core
+chooses resident selection for selection-target strokes and screen-brush
+weights for brush-target strokes.
+D3D11 Move and Grab paths build `screen_drag` cursor endpoints plus viewport and
+world-view-projection context through Qt and `MeshService`; `screen_drag`
+includes per-source world transforms when alignment preview transforms are
+active, so native mesh core composes them with the base WVP, unprojects at the
+native pivot or brush center, and resolves pixel deltas, object-space
+displacement, and transform axis constraints during apply. If a D3D11-style WVP
+payload cannot be resolved, native mesh core fails closed instead of falling
+back to legacy camera math; malformed per-source WVP/transform overrides also
+fail closed for that source instead of using the base untransformed WVP.
+Projected drag ignores compatibility `translate`/`delta` vectors if present.
+Standalone D3D11 stroke dispatch requires `screen_drag` for Move/Vertex
+begin/update packets and does not synthesize `translate` or brush `delta` when
+the native drag payload is missing. End/cancel packets may omit `screen_drag`
+only to close an existing native stroke.
+Smooth, Inflate, Pinch, and Remove do not build
+unused drag payloads. Current D3D11 packets do not serialize `camera_world`,
+yaw/pitch, pan, distance, or FOV fallback fields; native mesh core still accepts
+legacy `step_delta`/`delta` vectors and camera fields for non-updated non-WVP
+callers.
+Brush-target Grab packets pair that `screen_drag` movement with `screen_brush`
+weight resolution. Smooth update packets send strength/iterations plus
+`screen_brush`, while Inflate and Pinch updates send
+`screen_brush`/`screen_radius`/strength payloads so native mesh core owns
+pixel-radius to world-amount conversion and can derive screen-space brush
+weights when explicit update weights are absent. `screen_radius` includes the
+D3D11 world-view-projection matrix plus per-source world transforms when
+alignment preview transforms are active, so native mesh core composes them and
+converts the pixel radius/default amount at the native-derived center; unresolved
+WVP payloads do not fall back to legacy distance/FOV amount math, and projected
+radius ignores compatibility `center`/`radius`/`amount` scalars if present.
+Current D3D11 packets do not serialize `camera_world`, distance/FOV fallback
+fields, or center.
+`screen_brush` includes the D3D11 world-view-projection matrix; native mesh core
+uses WVP for projection and ray picking. Malformed per-source projection
+overrides, source-only overrides without a base WVP for other sources, and
+projected cursor misses fail closed before brush weights can fall back to
+object-space radius.
+Current D3D11 packets do not serialize `camera_world`, yaw/pitch, pan,
+distance, or FOV fallback fields.
+Smooth/Inflate/Pinch packets also carry `target_mode` and
+`selection_depth_mode`, so native brush weights apply the same selection-vs-brush
+and visible-vs-xray rules the D3D11 host previously resolved. Inflate/Pinch
+center is derived in native mesh core from explicit weights, resident vertex
+selection, or screen-brush weights, not serialized by the D3D11 host.
+Standalone D3D11 brush-selection events now send `screen_brush`, target mode,
+operation, selection depth mode, and falloff instead of expanding vertex,
+edge, face, or source-part candidates in the host. Source-part click selection
+while Mesh Edit is active also sends a source-target `screen_brush` payload
+instead of resolving the part inside the D3D11 host. Source-part context
+requests while Mesh Edit is active use the same native source screen pick; a
+native miss preserves the current selection and skips the menu. Mesh Edit hover
+clears stale source hover state without projecting source parts in the D3D11
+host.
+Standalone D3D11 rectangle/lasso selection events now send `screen_region`
+with D3D11 start/end coordinates, optional lasso points, source-submesh filter,
+viewport, and world-view-projection matrices instead of expanding selection
+candidates in the host. The old D3D11 vertex/edge/face hover
+candidate projectors are removed; Mesh Edit overlay drawing keeps the cursor
+ring and selected geometry while hit resolution stays in native screen
+selection.
+`MeshEditorTab` routes those events to a resident native `select` command
+through `MeshService`, C++ expands the requested selection mask from the D3D11
+projection matrix, composes D3D11 per-source world transforms when alignment
+preview transforms are active, ignores leaked legacy groups for projected
+screen selection including source-specific projection override arrays, prevents
+non-overridden sources from using legacy camera defaults, treats region edge
+selection as projected segment hits with hit-point depth checks,
+treats region face/source selection as projected triangle hits, applies native
+visible-depth filtering when requested for brush or region selection, and pushes
+the resulting selection groups back to the D3D11 preview host.
+D3D11 brush candidate weight sidecars are forwarded as native selection weights,
+so C++ applies host-computed screen/depth falloff instead of recomputing it in
+Python or from object-space distance.
 `MeshEditorController.uv_summary()` exposes service-backed UV island bounds,
 selection, and texture routing for the workspace UV panel.
 The workspace UV tab includes a non-mutating `MeshUvCanvas` that paints the
@@ -201,3 +293,7 @@ Authority metadata stays with the edited mesh state.
 `static_replacement_adapter.py` is the compatibility bridge used by Archive
 Browser static replacement code when it delegates mesh edits and session history
 to Mesh Editor service commands.
+Active static-replacement Mesh Editor callbacks require accepted native preview
+payloads for changed native results. Missing or rejected D3D11/static payloads
+raise instead of rebuilding live preview triangles or inverse transforms from
+Python mesh state.

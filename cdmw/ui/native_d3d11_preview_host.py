@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from array import array
 import ctypes
 import json
 import os
@@ -15,6 +16,128 @@ from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_CO
 from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
 
 
+def _write_i32_preview_delta(values: Sequence[int], suffix: str) -> tuple[dict[str, object], Path] | None:
+    try:
+        data = array("i", (int(value) for value in values))
+    except (OverflowError, ValueError):
+        return None
+    if data.itemsize != 4:
+        return None
+    with tempfile.NamedTemporaryFile(prefix="cdmw_mesh_preview_delta_", suffix=suffix, delete=False) as handle:
+        path = Path(handle.name)
+        data.tofile(handle)
+    return (
+        {
+            "path": str(path),
+            "count": len(data),
+            "components": 1,
+            "type": "i32",
+            "delete_after": True,
+        },
+        path,
+    )
+
+
+def _sorted_nonnegative_indices(raw_values: Iterable[int] | None) -> list[int]:
+    values: set[int] = set()
+    try:
+        iterator = iter(raw_values or ())
+    except TypeError:
+        return []
+    for raw_value in iterator:
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if value >= 0:
+            values.add(value)
+    return sorted(values)
+
+
+def _compact_nonnegative_indices(raw_values: Iterable[int] | None) -> tuple[tuple[int, int] | None, list[int]]:
+    if isinstance(raw_values, range):
+        count = len(raw_values)
+        if raw_values.start >= 0 and raw_values.step == 1 and count > 0:
+            return (raw_values.start, count), []
+        return None, []
+    values = _sorted_nonnegative_indices(raw_values)
+    if not values:
+        return None, []
+    start = values[0]
+    for offset, value in enumerate(values):
+        if value != start + offset:
+            return None, values
+    return (start, len(values)), []
+
+
+def _put_compact_group_indices(
+    group: dict[str, object],
+    *,
+    json_key: str,
+    binary_key: str,
+    start_key: str,
+    count_key: str,
+    binary_suffix: str,
+    temp_paths: list[Path] | None = None,
+) -> bool:
+    if binary_key in group or start_key in group:
+        return True
+    index_range, values = _compact_nonnegative_indices(group.get(json_key))  # type: ignore[arg-type]
+    if index_range is not None:
+        group.pop(json_key, None)
+        group[start_key] = index_range[0]
+        group[count_key] = index_range[1]
+    elif values:
+        if temp_paths is not None:
+            payload = _write_i32_preview_delta(values, binary_suffix)
+            if payload is None:
+                return False
+            descriptor, path = payload
+            temp_paths.append(path)
+            group.pop(json_key, None)
+            group[binary_key] = descriptor
+        else:
+            group[json_key] = values
+    return True
+
+
+def _compact_mesh_edit_selection_group(
+    group: Mapping[str, object],
+    *,
+    temp_paths: list[Path] | None = None,
+) -> dict[str, object] | None:
+    compacted = dict(group)
+    if not _put_compact_group_indices(
+        compacted,
+        json_key="source_vertex_indices",
+        binary_key="source_vertex_indices_binary",
+        start_key="source_vertex_start",
+        count_key="source_vertex_count",
+        binary_suffix="_selection_vertices.bin",
+        temp_paths=temp_paths,
+    ):
+        return None
+    if not _put_compact_group_indices(
+        compacted,
+        json_key="source_face_indices",
+        binary_key="source_face_indices_binary",
+        start_key="source_face_start",
+        count_key="source_face_count",
+        binary_suffix="_selection_faces.bin",
+        temp_paths=temp_paths,
+    ):
+        return None
+    return compacted
+
+
+def _mesh_edit_json_groups(groups: Sequence[Mapping[str, object]] | None) -> Sequence[Mapping[str, object]]:
+    if groups is None:
+        return ()
+    if isinstance(groups, (list, tuple)):
+        return groups
+    return tuple(groups)
+
+
 class NativeD3D11PreviewHostFrame(QFrame):
     _WM_SET_ZOOM = 0x8000 + 0x431
     _WM_SET_FIT = 0x8000 + 0x432
@@ -23,6 +146,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
     _WM_COPYDATA_COMMAND = 0x43444D57
     _WM_COPYDATA_EVENT = 0x44334431
     _HOST_CLASS = "CDMWNativeD3D11PreviewWindow"
+    _MESH_EDIT_VERTEX_FILE_THRESHOLD = 512 * 1024
     _MESH_EDIT_TRIANGLE_FILE_THRESHOLD = 512 * 1024
     view_state_changed = Signal(float, bool)
     view_state_payload_changed = Signal(object)
@@ -265,7 +389,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
 
     def set_display_mode(self, mode: str) -> bool:
         normalized = str(mode or "replacement_only").strip().lower()
-        if normalized not in {"side_by_side", "overlay", "replacement_only"}:
+        if normalized not in {"side_by_side", "overlay", "replacement_only", "original_only"}:
             normalized = "replacement_only"
         return self._send_host_json_command(
             {
@@ -342,7 +466,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
         return self._send_host_json_command({"command": "reset_tool_pbd_cloth_preview"})
 
     def set_highlighted_source_submeshes(self, source_submesh_indices: Sequence[int]) -> bool:
-        ordered = sorted({int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0})
+        ordered = _sorted_nonnegative_indices(source_submesh_indices)
         return self._send_host_json_command(
             {
                 "command": "set_highlights",
@@ -356,8 +480,8 @@ class NativeD3D11PreviewHostFrame(QFrame):
         replacement_submesh_indices: Sequence[int] = (),
         original_submesh_indices: Sequence[int] = (),
     ) -> bool:
-        replacement = sorted({int(index) for index in tuple(replacement_submesh_indices or ()) if int(index) >= 0})
-        original = sorted({int(index) for index in tuple(original_submesh_indices or ()) if int(index) >= 0})
+        replacement = _sorted_nonnegative_indices(replacement_submesh_indices)
+        original = _sorted_nonnegative_indices(original_submesh_indices)
         return self._send_host_json_command(
             {
                 "command": "set_highlights",
@@ -368,7 +492,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
         )
 
     def set_hidden_source_submeshes(self, source_submesh_indices: Sequence[int]) -> bool:
-        ordered = sorted({int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0})
+        ordered = _sorted_nonnegative_indices(source_submesh_indices)
         return self._send_host_json_command(
             {
                 "command": "set_hidden_source_submeshes",
@@ -387,7 +511,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
             {
                 "command": "set_texture_flip_vertical",
                 "enabled": bool(enabled),
-                "source_submesh_indices": [int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0],
+                "source_submesh_indices": [int(index) for index in (source_submesh_indices or ()) if int(index) >= 0],
                 "editor_role": str(editor_role or "replacement_preview"),
             }
         )
@@ -432,7 +556,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
         payload: Dict[str, object] = {
             "command": "set_material_overrides",
             "editor_role": str(editor_role or "replacement_preview"),
-            "source_submesh_indices": [int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0],
+            "source_submesh_indices": [int(index) for index in (source_submesh_indices or ()) if int(index) >= 0],
         }
         for key, value in (
             ("texture_brightness", texture_brightness),
@@ -478,7 +602,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
         translation_sensitivity: float = 0.85,
         rotation_degrees_per_pixel: float = 0.18,
     ) -> bool:
-        ordered = sorted({int(index) for index in tuple(source_submesh_indices or ()) if int(index) >= 0})
+        ordered = _sorted_nonnegative_indices(source_submesh_indices)
         return self._send_host_json_command(
             {
                 "command": "set_alignment_state",
@@ -541,15 +665,11 @@ class NativeD3D11PreviewHostFrame(QFrame):
             return raw
 
         parts: List[Dict[str, object]] = []
-        for item in tuple(part_transforms or ()):
+        for item in part_transforms or ():
             if not isinstance(item, Mapping):
                 continue
             try:
-                source_indices = sorted({
-                    int(index)
-                    for index in tuple(item.get("source_submesh_indices", ()) or ())
-                    if int(index) >= 0
-                })
+                source_indices = _sorted_nonnegative_indices(item.get("source_submesh_indices", ()))  # type: ignore[arg-type]
             except (TypeError, ValueError):
                 source_indices = []
             if not source_indices:
@@ -605,7 +725,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
                 "command": "set_mesh_edit_state",
                 "enabled": bool(enabled),
                 "scope_mode": str(scope_mode or "all"),
-                "source_submesh_indices": [int(index) for index in tuple(source_submesh_indices or ())],
+                "source_submesh_indices": [int(index) for index in (source_submesh_indices or ())],
                 "target_mode": str(target_mode or "brush"),
                 "tool": str(tool or "grab"),
                 "delete_mode": str(delete_mode or "release"),
@@ -620,35 +740,43 @@ class NativeD3D11PreviewHostFrame(QFrame):
         )
 
     def update_mesh_edit_vertices(self, groups: Sequence[Mapping[str, object]]) -> bool:
-        return self._send_host_json_command(
+        return self._send_mesh_edit_json_or_file(
             {
                 "command": "update_mesh_edit_vertices",
-                "groups": list(groups or ()),
-            }
+                "groups": _mesh_edit_json_groups(groups),
+            },
+            file_command="update_mesh_edit_vertices_file",
+            file_prefix="cdmw_mesh_edit_vertices_",
+            threshold=self._MESH_EDIT_VERTEX_FILE_THRESHOLD,
         )
 
-    def replace_mesh_edit_triangles(self, groups: Sequence[Mapping[str, object]], *, replace_all: bool = False) -> bool:
-        payload = {"command": "replace_mesh_edit_triangles", "groups": list(groups or ()), "replace_all": bool(replace_all)}
+    def _send_mesh_edit_json_or_file(
+        self,
+        payload: Mapping[str, object],
+        *,
+        file_command: str,
+        file_prefix: str,
+        threshold: int,
+    ) -> bool:
         try:
-            encoded = json.dumps(payload, separators=(",", ":"))
+            encoded = json.dumps(dict(payload), separators=(",", ":")).encode("utf-8")
         except (TypeError, ValueError):
             return False
-        if len(encoded.encode("utf-8")) <= self._MESH_EDIT_TRIANGLE_FILE_THRESHOLD:
+        if len(encoded) <= threshold:
             return self._send_host_json_command(payload)
         temp_path: Optional[Path] = None
         try:
             with tempfile.NamedTemporaryFile(
-                "w",
-                encoding="utf-8",
+                "wb",
                 suffix=".json",
-                prefix="cdmw_mesh_edit_triangles_",
+                prefix=file_prefix,
                 delete=False,
             ) as temp_file:
                 temp_file.write(encoded)
                 temp_path = Path(temp_file.name)
             ok = self._send_host_json_command(
                 {
-                    "command": "replace_mesh_edit_triangles_file",
+                    "command": file_command,
                     "payload_file": str(temp_path),
                     "delete_after": True,
                 }
@@ -664,43 +792,122 @@ class NativeD3D11PreviewHostFrame(QFrame):
                     pass
             return False
 
+    def replace_mesh_edit_triangles(
+        self,
+        groups: Sequence[Mapping[str, object]],
+        *,
+        replace_all: bool = False,
+        source_submesh_indices: Sequence[int] | None = None,
+    ) -> bool:
+        sources: list[int] = []
+        for raw_index in source_submesh_indices or ():
+            try:
+                source_index = int(raw_index)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if source_index >= 0:
+                sources.append(source_index)
+        payload = {
+            "command": "replace_mesh_edit_triangles",
+            "groups": _mesh_edit_json_groups(groups),
+            "replace_all": bool(replace_all),
+            "source_submesh_indices": sources,
+        }
+        return self._send_mesh_edit_json_or_file(
+            payload,
+            file_command="replace_mesh_edit_triangles_file",
+            file_prefix="cdmw_mesh_edit_triangles_",
+            threshold=self._MESH_EDIT_TRIANGLE_FILE_THRESHOLD,
+        )
+
     def clear_mesh_edit_vertex_selection(self) -> bool:
         return self._send_host_json_command({"command": "clear_mesh_edit_selection"})
 
-    def select_mesh_edit_brush_vertices(self) -> bool:
-        return self._send_host_json_command({"command": "select_mesh_edit_brush"})
+    def select_mesh_edit_brush_vertices(
+        self,
+        *,
+        x: int | None = None,
+        y: int | None = None,
+        target_mode: str = "vertex",
+        operation: str = "replace",
+    ) -> bool:
+        payload: dict[str, object] = {
+            "command": "select_mesh_edit_brush",
+            "target_mode": str(target_mode or "vertex"),
+            "operation": str(operation or "replace"),
+        }
+        if x is not None:
+            payload["x"] = int(x)
+        if y is not None:
+            payload["y"] = int(y)
+        return self._send_host_json_command(payload)
 
     def set_mesh_edit_selection_groups(self, groups: Sequence[Mapping[str, object]]) -> bool:
-        return self._send_host_json_command(
-            {
-                "command": "set_mesh_edit_selection",
-                "groups": [dict(group) for group in tuple(groups or ()) if isinstance(group, Mapping)],
-            }
-        )
+        temp_paths: list[Path] = []
+        compacted_groups: list[dict[str, object]] = []
+        for group in groups or ():
+            if not isinstance(group, Mapping):
+                continue
+            compacted = _compact_mesh_edit_selection_group(group, temp_paths=temp_paths)
+            if compacted is None:
+                for path in temp_paths:
+                    path.unlink(missing_ok=True)
+                return False
+            compacted_groups.append(compacted)
+        try:
+            ok = self._send_host_json_command(
+                {
+                    "command": "set_mesh_edit_selection",
+                    "groups": compacted_groups,
+                }
+            )
+        except Exception:
+            ok = False
+        if not ok:
+            for path in temp_paths:
+                path.unlink(missing_ok=True)
+        return ok
 
     def set_mesh_edit_vertex_selection(self, selected_vertices_by_submesh: Mapping[int, Iterable[int]]) -> bool:
         groups = []
-        for raw_source_index, raw_vertices in dict(selected_vertices_by_submesh or {}).items():
+        temp_paths: list[Path] = []
+        for raw_source_index, raw_vertices in (selected_vertices_by_submesh or {}).items():
             try:
                 source_index = int(raw_source_index)
             except (TypeError, ValueError):
                 continue
-            vertices = []
-            for raw_vertex in tuple(raw_vertices or ()):
-                try:
-                    vertex_index = int(raw_vertex)
-                except (TypeError, ValueError):
-                    continue
-                if vertex_index >= 0:
-                    vertices.append(vertex_index)
-            if vertices:
+            index_range, vertices = _compact_nonnegative_indices(raw_vertices)
+            if index_range is not None:
                 groups.append(
                     {
                         "source_submesh_index": source_index,
-                        "source_vertex_indices": sorted(set(vertices)),
+                        "source_vertex_start": index_range[0],
+                        "source_vertex_count": index_range[1],
                     }
                 )
-        return self._send_host_json_command({"command": "set_mesh_edit_selection", "groups": groups})
+                continue
+            if vertices:
+                payload = _write_i32_preview_delta(vertices, "_selection_vertices.bin")
+                if payload is None:
+                    for path in temp_paths:
+                        path.unlink(missing_ok=True)
+                    return False
+                descriptor, path = payload
+                temp_paths.append(path)
+                groups.append(
+                    {
+                        "source_submesh_index": source_index,
+                        "source_vertex_indices_binary": descriptor,
+                    }
+                )
+        try:
+            ok = self._send_host_json_command({"command": "set_mesh_edit_selection", "groups": groups})
+        except Exception:
+            ok = False
+        if not ok:
+            for path in temp_paths:
+                path.unlink(missing_ok=True)
+        return ok
 
     def nativeEvent(self, event_type: object, message: object) -> tuple[bool, int]:  # type: ignore[override]
         if platform.system().lower() != "windows":

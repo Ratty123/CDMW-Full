@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import patch
 
+from cdmw.modding import mesh_native_core
+import cdmw.ui.archive_browser.static_replacement_morph_slider_state as morph_slider_state
 from cdmw.ui.archive_browser.static_replacement_morph_slider_state import (
     morph_slider_add_requires_modify_original_text,
     morph_slider_add_target_route_state,
@@ -60,6 +63,22 @@ from cdmw.ui.archive_browser.static_replacement_morph_slider_state import (
     morph_slider_zero_post_edit_deltas,
     morph_slider_zero_post_edit_deltas_for_sources,
 )
+
+
+class CountingSequence:
+    def __init__(self, values: list[object]) -> None:
+        self._values = list(values)
+        self.iterations = 0
+
+    def __bool__(self) -> bool:
+        return bool(self._values)
+
+    def __iter__(self):
+        self.iterations += 1
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
 
 
 def test_morph_slider_supported_requires_modify_original_base_and_working_mesh() -> None:
@@ -284,11 +303,24 @@ def test_morph_slider_zero_post_edit_deltas_match_source_vertex_shape() -> None:
         ]
     )
 
-    assert morph_slider_zero_post_edit_deltas(mesh) == [
-        [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0)],
-        [(0.0, 0.0, 0.0)],
-    ]
+    assert morph_slider_zero_post_edit_deltas(mesh) == []
     assert morph_slider_zero_post_edit_deltas(None) == []
+
+
+def test_morph_slider_expected_counts_do_not_iterate_vertices() -> None:
+    vertices = CountingSequence([0, 1, 2])
+    mesh = SimpleNamespace(submeshes=[SimpleNamespace(vertices=vertices)])
+
+    assert morph_slider_expected_vertex_counts(mesh) == [3]
+    assert vertices.iterations == 0
+
+
+def test_morph_slider_zero_post_edit_deltas_streams_vertices_once() -> None:
+    vertices = CountingSequence([0, 1, 2])
+    mesh = SimpleNamespace(submeshes=[SimpleNamespace(vertices=vertices)])
+
+    assert morph_slider_zero_post_edit_deltas(mesh) == []
+    assert vertices.iterations == 0
 
 
 def test_morph_slider_capture_post_edit_deltas_compares_working_and_slider_meshes() -> None:
@@ -312,6 +344,81 @@ def test_morph_slider_capture_post_edit_deltas_compares_working_and_slider_meshe
     assert morph_slider_capture_post_edit_deltas(None, slider_mesh) == []
 
 
+def test_morph_slider_capture_post_edit_fallback_streams_vertices_once() -> None:
+    working_vertices = CountingSequence([(2.0, 3.0, 4.0), (5.0, 6.0, 7.0)])
+    slider_vertices = CountingSequence([(1.0, 1.0, 1.0), (3.0, 2.0, 1.0)])
+    working_mesh = SimpleNamespace(submeshes=[SimpleNamespace(vertices=working_vertices)])
+    slider_mesh = SimpleNamespace(submeshes=[SimpleNamespace(vertices=slider_vertices)])
+
+    with (
+        patch.object(morph_slider_state, "_morph_slider_native_post_edit_deltas", return_value=None),
+        patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=False),
+    ):
+        assert morph_slider_capture_post_edit_deltas(working_mesh, slider_mesh) == [
+            [(1.0, 2.0, 3.0), (2.0, 4.0, 6.0)]
+        ]
+    assert working_vertices.iterations == 1
+    assert slider_vertices.iterations == 1
+
+
+def test_morph_slider_capture_post_edit_deltas_returns_native_before_python_loop() -> None:
+    working_mesh = SimpleNamespace(submeshes=[SimpleNamespace(vertices=[(2.0, 3.0, 4.0)])])
+    slider_mesh = SimpleNamespace(submeshes=[SimpleNamespace(vertices=[(1.0, 1.0, 1.0)])])
+    native_deltas = [[(1.0, 2.0, 3.0)]]
+    calls: list[object] = []
+    original_native = morph_slider_state._morph_slider_native_post_edit_deltas
+    original_fallback = morph_slider_state._morph_slider_capture_post_edit_deltas_fallback
+
+    def fake_native(working: object, slider: object) -> list[list[tuple[float, float, float]]]:
+        calls.append((working, slider))
+        return native_deltas
+
+    def fail_python_fallback(*_args: object, **_kwargs: object) -> list[list[tuple[float, float, float]]]:
+        raise AssertionError("python morph post-edit delta loop should stay fallback-only")
+
+    try:
+        morph_slider_state._morph_slider_native_post_edit_deltas = fake_native  # type: ignore[assignment]
+        morph_slider_state._morph_slider_capture_post_edit_deltas_fallback = fail_python_fallback  # type: ignore[assignment]
+        result = morph_slider_capture_post_edit_deltas(working_mesh, slider_mesh)
+    finally:
+        morph_slider_state._morph_slider_native_post_edit_deltas = original_native  # type: ignore[assignment]
+        morph_slider_state._morph_slider_capture_post_edit_deltas_fallback = original_fallback  # type: ignore[assignment]
+
+    assert result == native_deltas
+    assert calls == [(working_mesh, slider_mesh)]
+
+
+def test_morph_slider_capture_post_edit_deltas_blocks_python_fallback_when_native_available() -> None:
+    working_mesh = SimpleNamespace(
+        total_vertices=1,
+        submeshes=[SimpleNamespace(vertices=[(2.0, 3.0, 4.0)])],
+    )
+    slider_mesh = SimpleNamespace(
+        total_vertices=1,
+        submeshes=[SimpleNamespace(vertices=[(1.0, 1.0, 1.0)])],
+    )
+
+    mesh_native_core.clear_native_mesh_core_fallback_counts()
+    with (
+        patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=True),
+        patch.object(morph_slider_state, "_morph_slider_native_post_edit_deltas", return_value=None),
+        patch.object(
+            morph_slider_state,
+            "_morph_slider_capture_post_edit_deltas_fallback",
+            side_effect=AssertionError("python fallback blocked"),
+        ),
+    ):
+        try:
+            morph_slider_capture_post_edit_deltas(working_mesh, slider_mesh)
+        except RuntimeError as exc:
+            assert "Python morph fallback was blocked" in str(exc)
+        else:
+            raise AssertionError("large native-capable post-edit fallback should be blocked")
+
+    assert mesh_native_core.native_mesh_core_fallback_events()[-1]["operation"] == "morph_post_edit_delta.blocked"
+    mesh_native_core.clear_native_mesh_core_fallback_counts()
+
+
 def test_morph_slider_delta_shape_helpers_detect_and_reset_mismatches() -> None:
     mesh = SimpleNamespace(
         submeshes=[
@@ -322,6 +429,8 @@ def test_morph_slider_delta_shape_helpers_detect_and_reset_mismatches() -> None:
     expected_counts = morph_slider_expected_vertex_counts(mesh)
 
     assert expected_counts == [2, 1]
+    assert not morph_slider_post_edit_deltas_need_reset([], expected_counts)
+    assert not morph_slider_post_edit_deltas_need_reset([[], []], expected_counts)
     assert not morph_slider_post_edit_deltas_need_reset(
         [[(1.0, 0.0, 0.0), (2.0, 0.0, 0.0)], [(3.0, 0.0, 0.0)]],
         expected_counts,
@@ -343,7 +452,7 @@ def test_morph_slider_zero_post_edit_deltas_for_sources_mutates_valid_sources_on
 
     assert post_edit_deltas == [
         [(1.0, 0.0, 0.0), (2.0, 0.0, 0.0)],
-        [(0.0, 0.0, 0.0)],
+        [],
     ]
 
 

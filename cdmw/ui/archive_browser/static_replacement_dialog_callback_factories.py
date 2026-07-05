@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from cdmw.ui.archive_browser.static_replacement_sparse_history import (
+    clone_mesh_for_static_replacement_native_first,
+)
+
 
 def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> SimpleNamespace:
     List = context.get('List')
@@ -1194,6 +1198,7 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
     Qt = context.get('Qt')
     StaticSourcePartAdjustment = context.get('StaticSourcePartAdjustment')
     _apply_current_glow_color_to_role_overrides = context.get('_apply_current_glow_color_to_role_overrides')
+    _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
     _clear_transform_source_indices = context.get('_clear_transform_source_indices')
     _copied_original_dds_badge = context.get('_copied_original_dds_badge')
     _copied_original_texture_tooltip = context.get('_copied_original_texture_tooltip')
@@ -1305,6 +1310,7 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
     source_tree = context.get('source_tree')
     source_tree_item_update_guard = context.get('source_tree_item_update_guard')
     texture_overrides_dirty = context.get('texture_overrides_dirty')
+    self = context.get('self')
 
     def _refresh_selected_part_copied_texture_controls() -> None:
         source_index = int(selected_source_part.get("index", -1))
@@ -1411,6 +1417,42 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
         except Exception:
             return False
 
+    def _active_mesh_edit_material_tuning_mutation_blocked() -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            "Active Mesh Editor source material tuning requires native material execution; "
+            "Python adjustment mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
+    def _active_mesh_edit_copied_texture_mutation_blocked() -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            "Active Mesh Editor copied-source texture routing requires native material execution; "
+            "Python texture intent mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
+    def _active_mesh_edit_source_part_output_mutation_blocked(action: str) -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            f"Active Mesh Editor source-part {action} requires native material execution; "
+            "Python adjustment mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
     def _update_selected_part_material_adjustment(_signal_value: object = None, *, push_undo: bool = True) -> bool:
         if part_inspector_loading["active"]:
             return False
@@ -1434,6 +1476,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
             default_adjustment=StaticSourcePartAdjustment,
         )
         if not getattr(material_state, "available", False) or not getattr(material_state, "changed", False):
+            return False
+        if _active_mesh_edit_material_tuning_mutation_blocked():
             return False
         if push_undo:
             _push_geometry_undo_snapshot(_source_part_edit_undo_label_helper("material"))
@@ -1467,6 +1511,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
         )
         if not action_state.available:
             return
+        if _active_mesh_edit_copied_texture_mutation_blocked():
+            return
         _push_geometry_undo_snapshot(action_state.undo_label)
         copied_original_texture_disabled_sources.discard(action_state.source_index)
         texture_overrides_dirty["dirty"] = action_state.mark_dirty
@@ -1482,6 +1528,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
             copied_source_indices=copied_original_texture_intents_by_source.keys(),
         )
         if not action_state.available:
+            return
+        if _active_mesh_edit_copied_texture_mutation_blocked():
             return
         _push_geometry_undo_snapshot(action_state.undo_label)
         if action_state.disable_copied_texture:
@@ -1499,6 +1547,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
             copied_source_indices=copied_original_texture_intents_by_source.keys(),
         )
         if not action_state.available:
+            return
+        if _active_mesh_edit_copied_texture_mutation_blocked():
             return
         _push_geometry_undo_snapshot(action_state.undo_label)
         if action_state.remove_intent:
@@ -1666,6 +1716,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
         )
         if not action_state.available:
             return
+        if _active_mesh_edit_source_part_output_mutation_blocked("role change"):
+            return
         _push_geometry_undo_snapshot(action_state.undo_label)
         _set_source_role_override_value(action_state.source_index, action_state.normalized_role)
         _load_part_glow_color_controls(source_part_adjustments.get(action_state.source_index))
@@ -1683,6 +1735,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
 
     def _set_selected_source_glow_color() -> None:
         action_state = _source_part_glow_color_action_state_helper()
+        if _active_mesh_edit_source_part_output_mutation_blocked("glow override"):
+            return
         _push_geometry_undo_snapshot(_source_part_edit_undo_label_helper(action_state.undo_action))
         _apply_current_glow_color_to_role_overrides()
         _refresh_ui_texture_sets_after_source_part_material_override()
@@ -1778,6 +1832,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
         )
         if not action_state.available:
             return
+        if _active_mesh_edit_source_part_output_mutation_blocked("reset"):
+            return
         _push_geometry_undo_snapshot(_source_part_edit_undo_label_helper(action_state.undo_action))
         for target_source_index in action_state.target_indices:
             source_part_adjustments.pop(target_source_index, None)
@@ -1801,6 +1857,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
             selected_source_indices=_selected_source_indices_from_tree(),
         )
         if not action_state.available:
+            return
+        if _active_mesh_edit_source_part_output_mutation_blocked("remove from output"):
             return
         _push_geometry_undo_snapshot(_source_part_edit_undo_label_helper(action_state.undo_action))
         for target_source_index in action_state.target_indices:
@@ -4316,6 +4374,7 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
     _alignment_d3d11_selected_part_control_state_helper = context.get('_alignment_d3d11_selected_part_control_state_helper')
     _alignment_d3d11_translation_to_transform_units_helper = context.get('_alignment_d3d11_translation_to_transform_units_helper')
     _alignment_geometry_tab_active = context.get('_alignment_geometry_tab_active')
+    _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
     _alignment_global_fast_preview_state_helper = context.get('_alignment_global_fast_preview_state_helper')
     _alignment_global_rotation_origin_state_helper = context.get('_alignment_global_rotation_origin_state_helper')
     _alignment_global_transform_spin_commit_state_helper = context.get('_alignment_global_transform_spin_commit_state_helper')
@@ -4341,6 +4400,7 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
     _part_source_indices_for_commit_helper = context.get('_part_source_indices_for_commit_helper')
     _push_geometry_undo_snapshot = context.get('_push_geometry_undo_snapshot')
     _queue_static_preview_rebuild = context.get('_queue_static_preview_rebuild')
+    _record_runtime_event = context.get('_record_runtime_event')
     _refresh_source_assignment_columns = context.get('_refresh_source_assignment_columns')
     _run_static_preview_batch = context.get('_run_static_preview_batch')
     _safe_alignment_timer_active = context.get('_safe_alignment_timer_active')
@@ -4361,6 +4421,8 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
     alignment_mode_combo = context.get('alignment_mode_combo')
     alignment_transform_generation = context.get('alignment_transform_generation')
     dialog = context.get('dialog')
+    dialog_title = context.get('dialog_title')
+    entry = context.get('entry')
     flip_direction_checkbox = context.get('flip_direction_checkbox')
     material_edit_refresh_timer = context.get('material_edit_refresh_timer')
     modify_original_clone_mode = context.get('modify_original_clone_mode')
@@ -4392,6 +4454,7 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
     scale_y_spin = context.get('scale_y_spin')
     scale_z_spin = context.get('scale_z_spin')
     selected_source_part = context.get('selected_source_part')
+    self = context.get('self')
     source_material_plan_refresh_timer = context.get('source_material_plan_refresh_timer')
     source_part_adjustments = context.get('source_part_adjustments')
     static_dialog_preview = context.get('static_dialog_preview')
@@ -4410,6 +4473,41 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
         if not callable(callback):
             return ()
         return tuple(int(index) for index in tuple(callback(indices, **kwargs) or ()))
+
+    def _active_mesh_edit_transform_preview_queue_blocked(kind: str, event: str) -> bool:
+        if not (callable(_mesh_edit_raw_preview_active) and _mesh_edit_raw_preview_active()):
+            return False
+        message = f"Active Mesh Editor static preview {kind} is disabled; native D3D11 preview payloads are required."
+        if callable(_record_runtime_event):
+            _record_runtime_event(
+                event,
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                reason=message,
+            )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
+    def _active_mesh_edit_part_adjustment_mutation_blocked(kind: str) -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            f"Active Mesh Editor source-part {kind} changes require native geometry execution; "
+            "Python adjustment mutation fallback is disabled."
+        )
+        if callable(_record_runtime_event):
+            _record_runtime_event(
+                "mesh_edit_source_part_adjustment_mutation_blocked",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                reason=message,
+            )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
 
     def _sync_linked_scale(value: float, source_spin: Optional[QDoubleSpinBox] = None) -> None:
         sender = source_spin if source_spin is not None else dialog.sender()
@@ -4591,7 +4689,7 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
     def _replay_alignment_d3d11_fast_transform() -> None:
         replay_state = _alignment_d3d11_fast_transform_replay_state_helper(
             alignment_d3d11_state,
-            mesh_edit_raw_active=_mesh_edit_raw_preview_active(),
+            mesh_edit_raw_active=bool(_mesh_edit_raw_preview_active() or _alignment_mesh_edit_tab_active()),
             preview_active=_alignment_d3d11_preview_active(),
         )
         if bool(replay_state["clear_state"]):
@@ -4690,7 +4788,10 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
             applied=applied,
         )
         static_preview_interactive_until["time"] = float(preview_queue_state["interactive_until"])
-        if bool(preview_queue_state["start_timer"]):
+        if bool(preview_queue_state["start_timer"]) and not _active_mesh_edit_transform_preview_queue_blocked(
+            "transform refresh",
+            "mesh_edit_static_preview_transform_refresh_blocked",
+        ):
             static_preview_refresh_timer.start()
 
     def _queue_part_transform_preview_update(source_index: object) -> None:
@@ -4705,7 +4806,10 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
             applied=applied,
         )
         static_preview_interactive_until["time"] = float(preview_queue_state["interactive_until"])
-        if bool(preview_queue_state["start_timer"]):
+        if bool(preview_queue_state["start_timer"]) and not _active_mesh_edit_transform_preview_queue_blocked(
+            "transform refresh",
+            "mesh_edit_static_preview_transform_refresh_blocked",
+        ):
             static_preview_refresh_timer.start()
 
     for spin in (
@@ -4862,6 +4966,8 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
     )
 
     def _apply_alignment_part_translation_delta(source_indices: Sequence[int], delta_xyz: Sequence[float]) -> None:
+        if _active_mesh_edit_part_adjustment_mutation_blocked("transform"):
+            return
         for source_index in source_indices:
             adjustment = _ensure_source_part_adjustment(int(source_index))
             adjustment.offset_xyz = _add_vector3_delta_helper(adjustment.offset_xyz or (0.0, 0.0, 0.0), delta_xyz)
@@ -4877,6 +4983,8 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
             _queue_part_transform_preview_update(tuple(refresh_state["source_indices"]))
 
     def _apply_alignment_part_rotation_delta(source_indices: Sequence[int], delta_xyz: Sequence[float]) -> None:
+        if _active_mesh_edit_part_adjustment_mutation_blocked("transform"):
+            return
         for source_index in source_indices:
             adjustment = _ensure_source_part_adjustment(int(source_index))
             adjustment.rotate_xyz_degrees = _add_vector3_delta_helper(
@@ -5095,6 +5203,8 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
         delta = _alignment_d3d11_translation_to_transform_units(dx, dy, dz)
         part_source_indices = _alignment_d3d11_drag_part_source_indices_helper(alignment_d3d11_drag_transaction)
         if part_source_indices:
+            if _active_mesh_edit_part_adjustment_mutation_blocked("D3D11 transform"):
+                return
             update_state = _alignment_d3d11_drag_transform_update_state_helper(
                 part_source_indices=part_source_indices,
                 delta_xyz=delta,
@@ -5125,6 +5235,8 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
         delta = (float(dx), float(dy), float(dz))
         part_source_indices = _alignment_d3d11_drag_part_source_indices_helper(alignment_d3d11_drag_transaction)
         if part_source_indices:
+            if _active_mesh_edit_part_adjustment_mutation_blocked("D3D11 transform"):
+                return
             update_state = _alignment_d3d11_drag_transform_update_state_helper(
                 part_source_indices=part_source_indices,
                 delta_xyz=delta,
@@ -5249,6 +5361,7 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
     Sequence = context.get('Sequence')
     StaticSourcePartAdjustment = context.get('StaticSourcePartAdjustment')
     _alignment_dialog_widgets_live = context.get('_alignment_dialog_widgets_live')
+    _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
     _alignment_part_clipboard_can_paste = context.get('_alignment_part_clipboard_can_paste')
     _alignment_part_transform_preview_queue_indices_helper = context.get('_alignment_part_transform_preview_queue_indices_helper')
     _auto_fit_alignment_tree_columns = context.get('_auto_fit_alignment_tree_columns')
@@ -5450,6 +5563,7 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
     texture_sets = context.get('texture_sets')
     time = context.get('time')
     transform_source_indices = context.get('transform_source_indices')
+    self = context.get('self')
 
     _parts_outliner_source_label = lambda source_index: _source_outliner_label_helper(
         source_index,
@@ -5484,6 +5598,30 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
 
     def _clear_transform_source_indices() -> None:
         transform_source_indices.clear()
+
+    def _active_mesh_edit_include_exclude_mutation_blocked() -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            "Active Mesh Editor source-part include/exclude changes require native geometry execution; "
+            "Python adjustment mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
+    def _active_mesh_edit_source_routing_mutation_blocked(action: str) -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            f"Active Mesh Editor source routing {action} requires native material execution; "
+            "Python routing mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
 
     def _set_source_parts_apply_pending(reason: str) -> None:
         reason_text = _source_parts_mark_apply_pending_helper(source_parts_apply_state, reason)
@@ -5567,6 +5705,8 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
             selected_source_index=selected_source_part.get("index", -1),
         )
         if not toggle_state.available:
+            return
+        if _active_mesh_edit_include_exclude_mutation_blocked():
             return
         _push_geometry_undo_snapshot(_source_part_edit_undo_label_helper(toggle_state.undo_action))
         adjustment = _ensure_source_part_adjustment(toggle_state.source_index)
@@ -5781,6 +5921,8 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
         )
         if not apply_state.available:
             return
+        if _active_mesh_edit_source_routing_mutation_blocked("target changes"):
+            return
         _push_geometry_undo_snapshot("Change source target")
         route_state = _mapping_source_target_route_state_helper(apply_state.target_index)
         defer_preview = bool(route_state["defer_preview"])
@@ -5844,6 +5986,8 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
             refresh_reason=_parts_outliner_source_role_change_refresh_reason_helper(),
         )
         if not action_state.available:
+            return
+        if _active_mesh_edit_source_routing_mutation_blocked("role changes"):
             return
         _push_geometry_undo_snapshot(action_state.undo_label)
         _set_source_role_override_value(action_state.source_index, action_state.normalized_role)
@@ -6343,6 +6487,8 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
     ) -> None:
         edit = mapping_edits_by_target.get(target_index)
         if edit is None:
+            return
+        if _active_mesh_edit_source_routing_mutation_blocked("target changes"):
             return
         if push_undo:
             _push_geometry_undo_snapshot(undo_label)
@@ -7473,8 +7619,23 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
     def _mark_alignment_d3d11_rebuild_reason(reason: str) -> None:
         _alignment_d3d11_mark_rebuild_reason_helper(alignment_d3d11_state, reason)
 
+    def _active_mesh_edit_preview_queue_blocked(kind: str, event: str) -> bool:
+        if _mesh_edit_enabled_checked() and callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active():
+            message = f"Active Mesh Editor static preview {kind} is disabled; native D3D11 preview payloads are required."
+            _record_runtime_event(
+                event,
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                reason=message,
+            )
+            self.set_status_message(message, error=True)
+            return True
+        return False
+
     def _queue_static_preview_refresh(*_args: object) -> None:
         _mark_alignment_d3d11_rebuild_reason("geometry")
+        if _active_mesh_edit_preview_queue_blocked("refresh", "mesh_edit_static_preview_refresh_blocked"):
+            return
         if _static_preview_batch_queue_request_helper(static_preview_batch_state, "refresh"):
             _record_runtime_event(
                 "mesh_alignment_static_preview_refresh_batched",
@@ -7525,6 +7686,8 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
 
     def _queue_static_preview_rebuild(*_args: object) -> None:
         _mark_alignment_d3d11_rebuild_reason("geometry")
+        if _active_mesh_edit_preview_queue_blocked("rebuild", "mesh_edit_static_preview_rebuild_blocked"):
+            return
         if _static_preview_batch_queue_request_helper(static_preview_batch_state, "rebuild"):
             return
         static_preview_interactive_until["time"] = time.monotonic() + 0.8
@@ -7533,6 +7696,8 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
 
     def _queue_texture_preview_refresh(*_args: object) -> None:
         _mark_alignment_d3d11_rebuild_reason("material")
+        if _active_mesh_edit_preview_queue_blocked("texture refresh", "mesh_edit_static_preview_texture_refresh_blocked"):
+            return
         if _static_preview_batch_queue_request_helper(static_preview_batch_state, "texture"):
             return
         if callable(_alignment_d3d11_invalidate_package_cache):
@@ -7542,6 +7707,8 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
 
     def _queue_texture_uv_preview_refresh(*_args: object) -> None:
         _mark_alignment_d3d11_rebuild_reason("texture_uv")
+        if _active_mesh_edit_preview_queue_blocked("texture UV refresh", "mesh_edit_static_preview_texture_uv_refresh_blocked"):
+            return
         if _static_preview_batch_queue_request_helper(static_preview_batch_state, "texture_uv"):
             return
         static_preview_geometry_cache.clear()
@@ -7965,6 +8132,22 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
     def _clear_source_parts_preview_rebuild_pending_if_ready() -> None:
         if callable(_clear_source_parts_preview_rebuild_pending):
             _clear_source_parts_preview_rebuild_pending()
+
+    def _active_mesh_edit_d3d11_static_preview_queue_blocked(kind: str, event: str) -> bool:
+        if not _mesh_edit_raw_preview_active_value():
+            return False
+        message = f"Active Mesh Editor static preview {kind} is disabled; native D3D11 preview payloads are required."
+        if callable(_record_runtime_event):
+            _record_runtime_event(
+                event,
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                reason=message,
+            )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
 
     def _sync_highlight_sets_if_ready() -> None:
         if callable(_sync_highlight_sets):
@@ -8435,6 +8618,8 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         if dirty_flags.affects_material():
             texture_overrides_dirty["dirty"] = True
         _alignment_d3d11_invalidate_package_cache(f"stale_{reason}")
+        if _active_mesh_edit_d3d11_static_preview_queue_blocked("stale reload", "mesh_edit_static_preview_stale_reload_blocked"):
+            return
         static_preview_refresh_timer.start()
 
     def _handle_alignment_d3d11_stale_reload(package_dir: object, *, request_id: int = 0, reason: str) -> None:
@@ -9608,6 +9793,9 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
     preview_mode_combo = context.get('preview_mode_combo')
     preview_renderer_combo = context.get('preview_renderer_combo')
     preview_stack = context.get('preview_stack')
+    mesh_edit_enabled_checkbox = context.get('mesh_edit_enabled_checkbox')
+    if mesh_edit_enabled_checkbox is None:
+        mesh_edit_enabled_checkbox = SimpleNamespace(isChecked=lambda: False)
     replacement_only_preview = context.get('replacement_only_preview')
     selected_original_highlight_indices = context.get('selected_original_highlight_indices')
     selected_source_highlight_indices = context.get('selected_source_highlight_indices')
@@ -9686,6 +9874,7 @@ def create_alignment_preview_mode_callbacks(context: dict[str, object]) -> Simpl
             texture_tab_active=control_tabs.widget(control_tabs.currentIndex()) is textures_tab if d3d11_active else False,
             mesh_edit_raw_active=bool(_mesh_edit_raw_preview_active()) if d3d11_active else False,
             preview_gizmo_checked=bool(preview_gizmo_checkbox.isChecked()) if d3d11_active else False,
+            mesh_edit_active=bool(mesh_edit_enabled_checkbox.isChecked()) if d3d11_active else False,
             selected_source_overlay_ids=(
                 _d3d11_editor_ids_for_source_indices(
                     tuple(selected_source_highlight_indices),
@@ -9925,7 +10114,6 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
     alignment_virtual_texture_contract = context.get('alignment_virtual_texture_contract')
     appended_source_indices = context.get('appended_source_indices')
     classify_texture_binding = context.get('classify_texture_binding')
-    clone_mesh_for_editing = context.get('clone_mesh_for_editing')
     default_pac_xml_profile_cache_path = context.get('default_pac_xml_profile_cache_path')
     direct_source_preview_index_map = context.get('direct_source_preview_index_map')
     discover_scene_texture_files = context.get('discover_scene_texture_files')
@@ -10406,7 +10594,13 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
                 or int(placement_snapshot.get("source_geometry_revision", 0) or 0) > 0
             )
         ):
-            edited_source_mesh = clone_mesh_for_editing(replacement_mesh_for_mapping)
+            edited_source_mesh = clone_mesh_for_static_replacement_native_first(
+                replacement_mesh_for_mapping,
+                "export.edited_source_mesh_clone",
+                "Python edited source mesh clone fallback blocked while native mesh core is available",
+            )
+            if edited_source_mesh is None:
+                raise RuntimeError("Native edited source mesh clone failed.")
         pac_xml_corpus_root = ""
         archive_extract_widget = getattr(self, "archive_extract_root_edit", None)
         if archive_extract_widget is not None:

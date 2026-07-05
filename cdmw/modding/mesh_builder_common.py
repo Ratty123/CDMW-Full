@@ -460,6 +460,14 @@ def _align_static_vertex_sequences(
     return aligned
 
 
+def _build_native_static_donor_indices(orig_sm: SubMesh, new_sm: SubMesh) -> list[int] | None:
+    try:
+        from .mesh_native_core import build_native_static_donor_indices
+    except Exception:
+        return None
+    return build_native_static_donor_indices(orig_sm, new_sm)
+
+
 def _choose_static_donor_indices(orig_sm: SubMesh, new_sm: SubMesh) -> list[int]:
     """Choose donor records for a topology-changing static mesh rebuild."""
     orig_vertices = list(orig_sm.vertices)
@@ -468,6 +476,18 @@ def _choose_static_donor_indices(orig_sm: SubMesh, new_sm: SubMesh) -> list[int]
         return []
     if not orig_vertices:
         return [0] * len(new_vertices)
+
+    native_donor_indices = _build_native_static_donor_indices(orig_sm, new_sm)
+    if native_donor_indices is not None:
+        try:
+            native_values = [int(index) for index in native_donor_indices]
+        except (TypeError, ValueError, OverflowError):
+            native_values = []
+        if (
+            len(native_values) == len(new_vertices)
+            and all(0 <= index < len(orig_vertices) for index in native_values)
+        ):
+            return native_values
 
     try:
         donor_indices = _align_static_vertex_sequences(orig_vertices, new_vertices)

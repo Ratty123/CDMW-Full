@@ -566,8 +566,10 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
                 normals=[tuple(normal) for normal in submesh.normals[: len(submesh.vertices)]],
                 indices=indices,
                 source_submesh_index=submesh_index,
-                source_vertex_indices=list(range(len(submesh.vertices))),
-                source_face_indices=list(range(len(submesh.faces))),
+                source_vertex_range_start=0,
+                source_vertex_range_count=len(submesh.vertices),
+                source_face_range_start=0,
+                source_face_range_count=len(submesh.faces),
             )
         )
     return preview_meshes

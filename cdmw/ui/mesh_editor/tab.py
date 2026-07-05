@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import time
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable, Mapping, Optional, Sequence
@@ -14,6 +15,8 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
+    QProgressDialog,
     QPushButton,
     QSizePolicy,
     QStackedWidget,
@@ -22,12 +25,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.domain.mesh import MeshEditSelection, MeshEditSessionView
+from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection, MeshEditSessionView
 from cdmw.models import ModelPreviewData, ModelPreviewRenderSettings, TextureEditorSourceBinding
+from cdmw.modding.mesh_native_core import native_mesh_core_available
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.mesh_service import MeshService
 from cdmw.ui.mesh_editor.action_bar import MeshEditorActionBar
+from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS
 from cdmw.ui.mesh_editor.controller import (
+    MeshEditorActionExecution,
     MeshEditorController,
     MeshEditorNativeUpdate,
     apply_native_update_to_host,
@@ -35,11 +41,29 @@ from cdmw.ui.mesh_editor.controller import (
 from cdmw.ui.mesh_editor.native_preview_runtime import (
     mesh_editor_native_preview_data,
     mesh_editor_native_preview_command,
+    mesh_editor_write_prepared_native_preview_package,
     mesh_editor_write_native_preview_package,
 )
-from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest, mesh_editor_source_skeleton
+from cdmw.ui.mesh_editor.native_preview_payloads import mesh_pose_to_native_preview
+from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
 from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
-from cdmw.workers.mesh_editor_workers import MeshFileSessionLoadWorker, MeshNativePreviewPackageWorker, MeshTextureSourceResolveWorker
+from cdmw.workers.mesh_editor_workers import (
+    MeshEditCommandWorker,
+    MeshFileSessionLoadWorker,
+    MeshNativePreviewPackageWorker,
+    MeshTextureSourceResolveWorker,
+)
+
+_STANDALONE_NATIVE_TOOL_STATE: dict[str, tuple[str, str, str]] = {
+    "transform_move": ("move", "selection", "edit"),
+    "brush_grab": ("grab", "selection", "sculpt"),
+    "brush_smooth": ("smooth", "selection", "sculpt"),
+    "brush_inflate": ("inflate", "selection", "sculpt"),
+    "brush_pinch": ("pinch", "selection", "sculpt"),
+}
+_LEGACY_SCREEN_CAMERA_FIELDS = frozenset(
+    {"camera_world", "yaw_degrees", "pitch_degrees", "distance", "vertical_fov_degrees", "pan"}
+)
 
 try:  # pragma: no cover - import guard keeps source tests light.
     from cdmw.models import ArchiveEntry
@@ -84,6 +108,7 @@ class MeshEditorTab(QWidget):
         self.current_archive_selection: Optional[ArchiveEntry] = None
         self.current_edit_mode = "object"
         self.current_selection_mode = "vertex"
+        self.current_tool_action_key = ""
         self.current_selection_empty = True
         self.current_undo_count = 0
         self.current_redo_count = 0
@@ -105,6 +130,13 @@ class MeshEditorTab(QWidget):
         self.standalone_native_package_thread: QThread | None = None
         self.standalone_native_package_worker: MeshNativePreviewPackageWorker | None = None
         self.standalone_native_package_request_id = 0
+        self.standalone_action_thread: QThread | None = None
+        self.standalone_action_worker: MeshEditCommandWorker | None = None
+        self.standalone_action_progress: QProgressDialog | None = None
+        self.standalone_action_request_id = 0
+        self.standalone_action_text = ""
+        self.standalone_last_action_result: MeshEditResult | None = None
+        self.standalone_last_action_metrics: dict[str, float] = {}
         self.standalone_native_package_reset_view = True
         self.standalone_mesh_label = ""
         self.standalone_source_skeleton: object | None = None
@@ -112,11 +144,18 @@ class MeshEditorTab(QWidget):
         self.standalone_texture_preview_overrides: dict[int, str] = {}
         self.standalone_native_package_dir: Path | None = None
         self.standalone_native_status_file: Path | None = None
+        self.standalone_native_package_has_reference = False
+        self.standalone_native_package_pending_has_reference = False
+        self.standalone_native_package_compare_mode = "edited"
+        self.standalone_native_package_pending_compare_mode = "edited"
         self.standalone_native_status_signature: tuple[int, int] = (0, 0)
         self.standalone_native_status_payload_text = ""
         self.standalone_native_last_status_payload: dict[str, object] = {}
         self.standalone_native_part_picking_wanted = False
         self.standalone_native_part_picking_enabled = False
+        self.standalone_native_mesh_edit_state_signature: tuple[object, ...] = ()
+        self.standalone_native_mesh_edit_stroke_id = ""
+        self.standalone_native_mesh_edit_stroke_changed = False
         self.embedded_workspace: MeshEditorWorkspace | None = None
         self._embedded_control_tabs: QTabWidget | None = None
         self._embedded_classic_builder: QWidget | None = None
@@ -306,6 +345,7 @@ class MeshEditorTab(QWidget):
             ("standalone_file_load", self.standalone_file_load_thread, self.standalone_file_load_worker),
             ("standalone_texture_source", self.standalone_texture_source_thread, self.standalone_texture_source_worker),
             ("standalone_native_package", self.standalone_native_package_thread, self.standalone_native_package_worker),
+            ("standalone_mesh_action", self.standalone_action_thread, self.standalone_action_worker),
         )
 
     def request_shutdown(self) -> None:
@@ -369,14 +409,8 @@ class MeshEditorTab(QWidget):
         self._embedded_control_tabs = control_tabs
         self._embedded_classic_builder = builder
         setattr(builder, "_mesh_editor_embedded_merged_visible", lambda widget=workspace: control_tabs.currentWidget() is widget)
-        setattr(
-            builder,
-            "_mesh_editor_embedded_show_advanced_mesh_data",
-            lambda tabs=control_tabs, index=advanced_index: self._show_embedded_advanced_mesh_data(tabs, index),
-        )
         setattr(builder, "_mesh_editor_embedded_native_part_selected", self._handle_embedded_native_part_selected)
         setattr(builder, "_mesh_editor_embedded_show_part_context_menu", self._show_embedded_part_context_menu)
-        self._install_embedded_advanced_restore_button(control_tabs, builder, advanced_index, classic_index)
         control_tabs.currentChanged.connect(lambda _index: self._refresh_embedded_workspace_from_builder())
         if control_tabs.currentIndex() == classic_index:
             for index in range(control_tabs.count()):
@@ -386,69 +420,12 @@ class MeshEditorTab(QWidget):
                     break
         self._refresh_embedded_workspace_from_builder()
 
-    def _show_embedded_advanced_mesh_data(self, control_tabs: QTabWidget, advanced_index: int) -> None:
-        if advanced_index < 0:
-            return
-        if hasattr(control_tabs, "setTabVisible"):
-            control_tabs.setTabVisible(advanced_index, True)
-        control_tabs.setCurrentIndex(advanced_index)
-        self._refresh_embedded_workspace_from_builder()
-
-    def _show_embedded_legacy_mesh_controls(self, control_tabs: QTabWidget, classic_index: int) -> None:
-        if classic_index < 0:
-            return
-        if hasattr(control_tabs, "setTabVisible"):
-            control_tabs.setTabVisible(classic_index, True)
-        control_tabs.setCurrentIndex(classic_index)
-        self._refresh_embedded_workspace_from_builder()
-
-    def _install_embedded_advanced_restore_button(
-        self,
-        control_tabs: QTabWidget,
-        builder: QWidget,
-        advanced_index: int,
-        classic_index: int,
-    ) -> None:
-        diagnostics_index = _mesh_editor_tab_index(control_tabs, "Diagnostics")
-        if diagnostics_index < 0:
-            return
-        diagnostics_widget = control_tabs.widget(diagnostics_index)
-        if diagnostics_widget is None or diagnostics_widget.findChild(QPushButton, "MeshEditorAdvancedMeshDataRestoreButton"):
-            return
-        content = diagnostics_widget.widget() if hasattr(diagnostics_widget, "widget") else diagnostics_widget
-        layout = content.layout() if content is not None else None
-        if layout is None and content is not None:
-            layout = QVBoxLayout(content)
-            layout.setContentsMargins(4, 4, 4, 4)
-            layout.setSpacing(4)
-        if layout is None:
-            return
-        restore_button = QPushButton("Advanced Mesh Data / Restore", diagnostics_widget)
-        restore_button.setObjectName("MeshEditorAdvancedMeshDataRestoreButton")
-        restore_button.setToolTip("Open the previous advanced mesh data workspace for diagnostics and rollback.")
-        restore_button.clicked.connect(
-            lambda _checked=False, tabs=control_tabs, index=advanced_index: self._show_embedded_advanced_mesh_data(
-                tabs,
-                index,
-            )
-        )
-        layout.insertWidget(0, restore_button)
-        legacy_button = QPushButton("Legacy Mesh Controls", diagnostics_widget)
-        legacy_button.setObjectName("MeshEditorLegacyMeshControlsRestoreButton")
-        legacy_button.setToolTip("Open the previous full mesh controls tab for fallback editing.")
-        legacy_button.clicked.connect(
-            lambda _checked=False, tabs=control_tabs, index=classic_index: self._show_embedded_legacy_mesh_controls(
-                tabs,
-                index,
-            )
-        )
-        layout.insertWidget(1, legacy_button)
-
     def set_native_preview_host(self, host: object | None) -> None:
         self.standalone_native_host = host if host is not None else getattr(self, "standalone_native_host_frame", None)
         self._wire_standalone_native_part_events(self.standalone_native_host)
         if self.standalone_native_part_picking_wanted:
             self._request_standalone_native_part_picking(True, retries=2)
+        self._sync_standalone_native_mesh_edit_state(force=True)
 
     def _wire_standalone_native_part_events(self, host: object | None) -> None:
         if host is None:
@@ -460,6 +437,11 @@ class MeshEditorTab(QWidget):
         for signal_name, handler in (
             ("source_part_selected", self._handle_native_source_part_selected),
             ("source_part_context_requested", self._handle_native_source_part_context_requested),
+            ("mesh_edit_stroke_started", self._handle_standalone_native_mesh_edit_stroke_started),
+            ("mesh_edit_stroke_previewed", self._handle_standalone_native_mesh_edit_stroke_previewed),
+            ("mesh_edit_stroke_finished", self._handle_standalone_native_mesh_edit_stroke_finished),
+            ("mesh_edit_stroke_cancelled", self._handle_standalone_native_mesh_edit_stroke_cancelled),
+            ("mesh_edit_selection_changed", self._handle_standalone_native_mesh_edit_selection_changed),
         ):
             signal = getattr(host, signal_name, None)
             connector = getattr(signal, "connect", None)
@@ -513,6 +495,61 @@ class MeshEditorTab(QWidget):
         ):
             self._request_standalone_native_part_picking(True, retries=max(0, int(retries or 0)))
 
+    def _sync_standalone_native_mesh_edit_state(self, *, force: bool = False) -> bool:
+        host = self.standalone_native_host
+        setter = getattr(host, "set_mesh_edit_state", None)
+        if not callable(setter):
+            self.standalone_native_mesh_edit_state_signature = ()
+            return False
+        tool_state = _STANDALONE_NATIVE_TOOL_STATE.get(str(self.current_tool_action_key or "").strip())
+        controller = self.standalone_controller
+        if controller is None or tool_state is None or not self._native_mesh_editor_available():
+            signature = (False,)
+            if not force and signature == self.standalone_native_mesh_edit_state_signature:
+                return True
+            self.standalone_native_mesh_edit_state_signature = signature
+            try:
+                return bool(setter(enabled=False))
+            except (RuntimeError, TypeError):
+                return False
+        tool, target_mode, mode = tool_state
+        try:
+            view = controller.session_view()
+            source_indices = tuple(int(index) for index in view.selection.source_indices)
+            selection_empty = bool(view.selection.is_empty())
+        except Exception:
+            source_indices = ()
+            selection_empty = True
+        target = target_mode if not selection_empty else ("selection" if tool in {"move", "vertex"} else "brush")
+        signature = (
+            True,
+            tool,
+            target,
+            mode,
+            str(self.current_selection_mode or "vertex"),
+            source_indices,
+        )
+        if not force and signature == self.standalone_native_mesh_edit_state_signature:
+            return True
+        self.standalone_native_mesh_edit_state_signature = signature
+        try:
+            return bool(
+                setter(
+                    enabled=True,
+                    scope_mode="selection" if source_indices else "all",
+                    source_submesh_indices=source_indices,
+                    target_mode=target,
+                    tool=tool,
+                    radius_pixels=24.0,
+                    strength=0.5,
+                    falloff="smooth",
+                    selection_mode=str(self.current_selection_mode or "vertex"),
+                    smooth_iterations=3,
+                )
+            )
+        except (RuntimeError, TypeError, ValueError):
+            return False
+
     def _standalone_preview_mesh_snapshot(self) -> ParsedMesh:
         controller = self.standalone_controller
         if controller is None:
@@ -528,6 +565,18 @@ class MeshEditorTab(QWidget):
             return None
         return controller.base_mesh(clone=True)
 
+    def _standalone_pose_native_preview_context(
+        self,
+    ) -> tuple[ParsedMesh, object, Mapping[int, tuple[float, float, float]]] | None:
+        controller = self.standalone_controller
+        if (
+            controller is None
+            or self.standalone_compare_mode in {"source", "ghost"}
+            or self.standalone_texture_preview_overrides
+        ):
+            return None
+        return controller.pose_preview_native_context()
+
     def _apply_texture_preview_overrides(self, mesh: ParsedMesh) -> None:
         if not self.standalone_texture_preview_overrides:
             return
@@ -540,19 +589,43 @@ class MeshEditorTab(QWidget):
         controller = self.standalone_controller
         if controller is None:
             raise RuntimeError("Mesh Editor has no standalone edit session.")
-        mesh = self._standalone_preview_mesh_snapshot()
-        reference_mesh = self._standalone_reference_mesh_snapshot()
-        package_dir = mesh_editor_write_native_preview_package(
-            mesh,
-            reference_mesh=reference_mesh,
-            output_root=output_root,
-            display_mode="overlay" if self.standalone_compare_mode == "ghost" else "replacement_only",
-            skeleton_overlay=controller.skeleton_overlay_data(),
-            use_textures=True,
-            high_quality_textures=True,
-        )
+        display_mode = "original_only" if self.standalone_compare_mode == "source" else ("overlay" if self.standalone_compare_mode == "ghost" else "replacement_only")
+        pose_native_context = self._standalone_pose_native_preview_context()
+        if pose_native_context is not None:
+            mesh, pose_skeleton, pose_rotations = pose_native_context
+            reference_mesh = None
+            prepared = mesh_pose_to_native_preview(
+                mesh,
+                skeleton=pose_skeleton,
+                pose_rotations=pose_rotations,
+            )
+            package_dir = mesh_editor_write_prepared_native_preview_package(
+                mesh,
+                prepared,
+                output_root=output_root,
+                display_mode=display_mode,
+                skeleton_overlay=controller.skeleton_overlay_data(),
+                use_textures=True,
+                high_quality_textures=True,
+            )
+        else:
+            mesh = self._standalone_preview_mesh_snapshot()
+            reference_mesh = self._standalone_reference_mesh_snapshot()
+            package_dir = mesh_editor_write_native_preview_package(
+                mesh,
+                reference_mesh=reference_mesh,
+                output_root=output_root,
+                display_mode=display_mode,
+                skeleton_overlay=controller.skeleton_overlay_data(),
+                use_textures=True,
+                high_quality_textures=True,
+            )
         self.standalone_native_package_dir = package_dir
         self.standalone_native_status_file = package_dir / "host_status.json"
+        self.standalone_native_package_has_reference = reference_mesh is not None
+        self.standalone_native_package_pending_has_reference = reference_mesh is not None
+        self.standalone_native_package_compare_mode = self.standalone_compare_mode
+        self.standalone_native_package_pending_compare_mode = self.standalone_compare_mode
         return package_dir
 
     def load_standalone_native_preview_package(
@@ -580,6 +653,7 @@ class MeshEditorTab(QWidget):
             if host is getattr(self, "standalone_native_host_frame", None):
                 self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
             self._request_standalone_native_part_picking(True, retries=3)
+            self._sync_standalone_native_mesh_edit_state(force=True)
             self.standalone_status_label.setText(f"Native D3D11 preview loading: {package_path}")
         return ok
 
@@ -624,6 +698,7 @@ class MeshEditorTab(QWidget):
         self.standalone_native_status_timer.start()
         process.start()
         self._request_standalone_native_part_picking(True, retries=3)
+        self._sync_standalone_native_mesh_edit_state(force=True)
         return True
 
     def start_standalone_native_preview(self, output_root: Path | None = None, *, reset_view: bool = True) -> bool:
@@ -640,10 +715,24 @@ class MeshEditorTab(QWidget):
             self.status_message_requested.emit("Native D3D11 preview unavailable: no active session.", True)
             return False
         try:
-            # Snapshot safety still covers the old working_mesh(clone=True) path;
-            # pose preview swaps in a deformed clone without mutating the session.
-            mesh_snapshot = self._standalone_preview_mesh_snapshot()
-            reference_snapshot = self._standalone_reference_mesh_snapshot()
+            pose_native_context = self._standalone_pose_native_preview_context()
+            if pose_native_context is not None:
+                mesh_snapshot, pose_skeleton, pose_rotations = pose_native_context
+                reference_snapshot = None
+
+                def prepare_native_preview(mesh: ParsedMesh) -> object:
+                    prepared = mesh_pose_to_native_preview(
+                        mesh,
+                        skeleton=pose_skeleton,
+                        pose_rotations=pose_rotations,
+                    )
+                    return prepared
+
+            else:
+                # Snapshot safety still covers source/ghost/no-pose paths.
+                mesh_snapshot = self._standalone_preview_mesh_snapshot()
+                reference_snapshot = self._standalone_reference_mesh_snapshot()
+                prepare_native_preview = lambda mesh, reference=reference_snapshot: mesh_editor_native_preview_data(mesh, reference_mesh=reference)
             skeleton_overlay = controller.skeleton_overlay_data()
         except Exception as exc:
             self.standalone_status_label.setText(f"Native D3D11 preview unavailable: {exc}")
@@ -651,17 +740,18 @@ class MeshEditorTab(QWidget):
             return False
         self.standalone_native_package_request_id += 1
         request_id = self.standalone_native_package_request_id
+        display_mode = "original_only" if self.standalone_compare_mode == "source" else ("overlay" if self.standalone_compare_mode == "ghost" else "replacement_only")
         worker = MeshNativePreviewPackageWorker(
             request_id,
             mesh_snapshot,
             ModelPreviewRenderSettings(use_textures_by_default=True, high_quality_by_default=True),
-            prepare_native_preview=lambda mesh, reference=reference_snapshot: mesh_editor_native_preview_data(mesh, reference_mesh=reference),
+            prepare_native_preview=prepare_native_preview,
             output_root=output_root,
             model_preview_data=ModelPreviewData(path=str(mesh_snapshot.path or "mesh_editor.pac"), physics_overlay=skeleton_overlay),
             use_textures=True,
             high_quality_textures=True,
             backend="d3d11",
-            display_mode="overlay" if self.standalone_compare_mode == "ghost" else "replacement_only",
+            display_mode=display_mode,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -675,6 +765,8 @@ class MeshEditorTab(QWidget):
         self.standalone_native_package_thread = thread
         self.standalone_native_package_worker = worker
         self.standalone_native_package_reset_view = bool(reset_view)
+        self.standalone_native_package_pending_has_reference = reference_snapshot is not None
+        self.standalone_native_package_pending_compare_mode = self.standalone_compare_mode
         self.standalone_status_label.setText("Preparing native D3D11 preview package...")
         thread.start(QThread.LowPriority)
         return True
@@ -694,6 +786,8 @@ class MeshEditorTab(QWidget):
             package_dir,
             reset_view=self.standalone_native_package_reset_view,
         ):
+            self.standalone_native_package_has_reference = bool(self.standalone_native_package_pending_has_reference)
+            self.standalone_native_package_compare_mode = self.standalone_native_package_pending_compare_mode
             self.status_message_requested.emit(f"Native D3D11 preview started after package build ({float(elapsed_ms):.1f} ms).", False)
 
     def _handle_standalone_native_package_error(self, request_id: int, message: str) -> None:
@@ -727,6 +821,125 @@ class MeshEditorTab(QWidget):
             try:
                 thread.requestInterruption()
                 thread.quit()
+            except RuntimeError:
+                pass
+
+    def _standalone_action_worker_active(self) -> bool:
+        return self.standalone_action_thread is not None or self.standalone_action_worker is not None
+
+    def _start_standalone_action_worker(self, action: object, *, action_text: str) -> bool:
+        controller = self.standalone_controller
+        if controller is None:
+            return False
+        if self._standalone_action_worker_active():
+            self.status_message_requested.emit("Wait for the current Mesh Editor action to finish, or cancel it first.", True)
+            return True
+        command = self._standalone_action_command(action, controller, action_text=action_text)
+        if command is None:
+            return False
+        session_id = controller.session_view().session_id
+        self.standalone_action_request_id += 1
+        request_id = self.standalone_action_request_id
+        worker = MeshEditCommandWorker(request_id, controller.mesh_service, session_id, command, action_text=action_text)
+        thread = QThread(self)
+        progress = QProgressDialog(f"Applying {action_text}...", "Cancel", 0, 100, self)
+        progress.setWindowTitle("Mesh Editor")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(250)
+        progress.setAutoClose(False)
+        progress.setAutoReset(False)
+        progress.canceled.connect(self._cancel_standalone_action_worker)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.progress_changed.connect(self._handle_standalone_action_progress)
+        worker.completed.connect(self._handle_standalone_action_completed)
+        worker.cancelled.connect(self._handle_standalone_action_cancelled)
+        worker.error.connect(self._handle_standalone_action_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_action_worker(target_thread, target_worker))
+        self.standalone_action_thread = thread
+        self.standalone_action_worker = worker
+        self.standalone_action_progress = progress
+        self.standalone_action_text = str(action_text or "Mesh Editor action")
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        self.status_message_requested.emit(f"Applying {action_text} in the background...", False)
+        thread.start(QThread.LowPriority)
+        return True
+
+    def _handle_standalone_action_progress(self, request_id: int, percent: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_action_request_id):
+            return
+        progress = self.standalone_action_progress
+        if progress is not None:
+            progress.setLabelText(str(message or "Applying Mesh Editor action..."))
+            progress.setValue(max(0, min(100, int(percent or 0))))
+        self.standalone_status_label.setText(str(message or "Applying Mesh Editor action..."))
+
+    def _handle_standalone_action_completed(self, request_id: int, result: object) -> None:
+        if int(request_id) != int(self.standalone_action_request_id):
+            return
+        controller = self.standalone_controller
+        if controller is None:
+            return
+        update_started = time.perf_counter()
+        native_update = controller.native_update_for_result(result)
+        result = _mesh_edit_result_with_metric(
+            result,
+            "preview_delta_build_ms",
+            (time.perf_counter() - update_started) * 1000.0,
+        )
+        execution = MeshEditorActionExecution(
+            edit_result=result,
+            native_update=native_update,
+        )
+        self._finish_standalone_action_execution(execution, action_text=self.standalone_action_text)
+
+    def _handle_standalone_action_cancelled(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_action_request_id):
+            return
+        text = str(message or "Mesh Editor action cancelled.")
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, False)
+
+    def _handle_standalone_action_error(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_action_request_id):
+            return
+        text = str(message or "Mesh Editor action failed.")
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, True)
+
+    def _cleanup_standalone_action_worker(
+        self,
+        thread: QThread,
+        worker: MeshEditCommandWorker,
+    ) -> None:
+        if self.standalone_action_thread is thread:
+            self.standalone_action_thread = None
+        if self.standalone_action_worker is worker:
+            self.standalone_action_worker = None
+            self.standalone_action_text = ""
+        progress = self.standalone_action_progress
+        if progress is not None:
+            progress.close()
+            progress.deleteLater()
+            self.standalone_action_progress = None
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+
+    def _cancel_standalone_action_worker(self) -> None:
+        worker = self.standalone_action_worker
+        thread = self.standalone_action_thread
+        if worker is None and thread is None:
+            return
+        if worker is not None:
+            try:
+                worker.stop()
+            except RuntimeError:
+                pass
+        if thread is not None:
+            try:
+                thread.requestInterruption()
             except RuntimeError:
                 pass
 
@@ -772,11 +985,13 @@ class MeshEditorTab(QWidget):
         source_path = Path(path)
         self.close_standalone_session()
         self.standalone_compare_mode = "edited"
-        self.standalone_controller = MeshEditorController()
-        loaded_source_skeleton = mesh_editor_source_skeleton(source_skeleton=source_skeleton, source_path=source_path)
+        mesh_service = MeshService()
+        mesh = mesh_service.load_mesh_file(source_path)
+        self.standalone_controller = MeshEditorController(mesh_service=mesh_service)
+        loaded_source_skeleton = source_skeleton
         try:
-            view = self.standalone_controller.open_mesh_file(
-                source_path,
+            view = self.standalone_controller.open_mesh(
+                mesh,
                 session_id=str(session_id or f"mesh-editor-file:{source_path.name}"),
                 mode=str(mode or "object"),
             )
@@ -789,7 +1004,7 @@ class MeshEditorTab(QWidget):
                 loaded_source_skeleton,
                 source_path=str(getattr(loaded_source_skeleton, "path", "") or source_path),
             )
-        self._show_standalone_session(view, mesh=self.standalone_controller.working_mesh(clone=False), target_entry=target_entry)
+        self._show_standalone_session(view, mesh=mesh, target_entry=target_entry)
         return view
 
     def open_mesh_file_session_async(
@@ -823,10 +1038,7 @@ class MeshEditorTab(QWidget):
         self.standalone_file_load_worker = worker
         self.standalone_file_load_thread = thread
         self.standalone_file_load_target_entry = target_entry
-        self.standalone_file_load_source_skeleton = mesh_editor_source_skeleton(
-            source_skeleton=source_skeleton,
-            source_path=source_path,
-        )
+        self.standalone_file_load_source_skeleton = source_skeleton
         self.current_archive_selection = target_entry  # type: ignore[assignment]
         self.current_request = None
         self.standalone_mesh_label = str(source_path)
@@ -837,12 +1049,11 @@ class MeshEditorTab(QWidget):
         self.status_message_requested.emit(f"Mesh Editor loading standalone mesh: {source_path.name}", False)
         return request_id
 
-    def _handle_standalone_file_loaded(self, request_id: int, mesh_service: MeshService, view: MeshEditSessionView) -> None:
+    def _handle_standalone_file_loaded(self, request_id: int, mesh_service: MeshService, view: MeshEditSessionView, mesh: ParsedMesh) -> None:
         if int(request_id) != self.standalone_file_load_request_id:
             return
         self.standalone_controller = MeshEditorController(mesh_service=mesh_service)
         view = self.standalone_controller.attach_session(view.session_id)
-        mesh = self.standalone_controller.working_mesh(clone=False)
         self.standalone_source_skeleton = self.standalone_file_load_source_skeleton
         if self.standalone_source_skeleton is not None:
             self.standalone_controller.attach_skeleton(
@@ -907,6 +1118,7 @@ class MeshEditorTab(QWidget):
         self._cancel_standalone_file_load()
         self._cancel_standalone_texture_source_resolution()
         self._cancel_standalone_native_package_worker()
+        self._cancel_standalone_action_worker()
         self._stop_standalone_native_preview_process()
         if self.standalone_controller is not None:
             try:
@@ -921,6 +1133,10 @@ class MeshEditorTab(QWidget):
         self.standalone_texture_preview_overrides.clear()
         self.standalone_native_package_dir = None
         self.standalone_native_status_file = None
+        self.standalone_native_package_has_reference = False
+        self.standalone_native_package_pending_has_reference = False
+        self.standalone_native_package_compare_mode = "edited"
+        self.standalone_native_package_pending_compare_mode = "edited"
         self._reset_standalone_native_status_tracking()
         self.standalone_native_status_timer.stop()
         self._request_standalone_native_part_picking(False)
@@ -1130,10 +1346,13 @@ class MeshEditorTab(QWidget):
         self.standalone_native_status_timer.stop()
         self._request_standalone_native_part_picking(False)
         if self.has_active_standalone_session():
-            self.standalone_preview_stack.setCurrentWidget(self.standalone_preview)
             last_event = str(self.standalone_native_last_status_payload.get("event", "") or "").strip().lower()
             if last_event not in {"error", "closed"}:
-                self._refresh_standalone_preview()
+                message = "Native D3D11 preview stopped unexpectedly; preview is stale. Reload native preview to resync."
+                self.standalone_status_label.setText(message)
+                self.status_message_requested.emit(message, True)
+                return
+            self.standalone_preview_stack.setCurrentWidget(self.standalone_preview)
 
     def _handle_standalone_native_preview_error(self, process: QProcess) -> None:
         if self.standalone_native_process is not process:
@@ -1182,6 +1401,7 @@ class MeshEditorTab(QWidget):
         *,
         mode: str = "",
         active_selection_mode: str = "",
+        active_tool_key: str | None = None,
         selection_empty: bool | None = None,
         undo_count: int | None = None,
         redo_count: int | None = None,
@@ -1190,6 +1410,8 @@ class MeshEditorTab(QWidget):
             self.current_edit_mode = str(mode)
         if active_selection_mode:
             self.current_selection_mode = str(active_selection_mode)
+        if active_tool_key is not None:
+            self.current_tool_action_key = str(active_tool_key)
         if selection_empty is not None:
             self.current_selection_empty = bool(selection_empty)
         if undo_count is not None:
@@ -1197,6 +1419,7 @@ class MeshEditorTab(QWidget):
         if redo_count is not None:
             self.current_redo_count = max(0, int(redo_count or 0))
         self._sync_state()
+        self._sync_standalone_native_mesh_edit_state()
 
     def update_editor_session_state(
         self,
@@ -1229,8 +1452,12 @@ class MeshEditorTab(QWidget):
             redo_count=int(view.redo_count or 0),
         )
 
-    def set_active_tool_state(self, *, mode: str = "", active_selection_mode: str = "") -> None:
-        self.update_editor_action_state(mode=mode, active_selection_mode=active_selection_mode)
+    def set_active_tool_state(self, *, mode: str = "", active_selection_mode: str = "", active_tool_key: str | None = None) -> None:
+        self.update_editor_action_state(
+            mode=mode,
+            active_selection_mode=active_selection_mode,
+            active_tool_key=active_tool_key,
+        )
 
     def _refresh_standalone_export_validation(self, view: MeshEditSessionView | None) -> None:
         updater = getattr(self.standalone_workspace, "update_export_validation", None)
@@ -1302,11 +1529,33 @@ class MeshEditorTab(QWidget):
             return self.current_request.target_entry
         return self.current_archive_selection
 
+    def _native_mesh_editor_available(self) -> bool:
+        try:
+            return bool(native_mesh_core_available())
+        except Exception:
+            return False
+
+    def _native_editor_action_blocked(self, command: str, *, embedded: bool = False) -> bool:
+        normalized = str(command or "").strip().lower()
+        if normalized not in NATIVE_EDITOR_SESSION_COMMANDS or self._native_mesh_editor_available():
+            return False
+        prefix = "Embedded Mesh Editor" if embedded else "Mesh Editor"
+        message = f"{prefix} action unavailable: Native Mesh Editor C++ core is missing ({normalized})."
+        if embedded:
+            label = getattr(self.embedded_workspace, "status_label", None) if self.embedded_workspace is not None else None
+        else:
+            label = getattr(self, "standalone_status_label", None)
+        if label is not None:
+            label.setText(message)
+        self.status_message_requested.emit(message, True)
+        return True
+
     def _sync_state(self) -> None:
         target = self._current_target_entry()
         has_standalone = self.has_active_standalone_session()
         has_target = target is not None or has_standalone
         has_workflow_target = target is not None
+        native_editor_available = self._native_mesh_editor_available()
         workflow_mode = str(getattr(self.current_request, "mode", "") or "modify_original")
         path_text = self._entry_path(target) if target is not None else self.standalone_mesh_label
         label_text = self._entry_label(target) if target is not None else Path(self.standalone_mesh_label).name or "none"
@@ -1332,13 +1581,16 @@ class MeshEditorTab(QWidget):
             button.setEnabled(has_workflow_target)
         self.standalone_native_preview_button.setEnabled(has_standalone)
         self.action_bar.setVisible(False)
+        self.action_bar.setEnabled(not self._standalone_action_worker_active())
         self.action_bar.update_action_state(
             has_target=has_target,
             selection_empty=self.current_selection_empty,
             mode=self.current_edit_mode,
             active_selection_mode=self.current_selection_mode,
+            active_tool_key=self.current_tool_action_key,
             undo_count=self.current_undo_count,
             redo_count=self.current_redo_count,
+            native_editor_available=native_editor_available,
         )
         workspace_state = getattr(self.standalone_workspace, "update_action_state", None)
         if callable(workspace_state):
@@ -1349,6 +1601,7 @@ class MeshEditorTab(QWidget):
                 active_selection_mode=self.current_selection_mode,
                 undo_count=self.current_undo_count,
                 redo_count=self.current_redo_count,
+                native_editor_available=native_editor_available,
             )
 
     def _handle_action_requested(self, action: object) -> None:
@@ -1390,11 +1643,15 @@ class MeshEditorTab(QWidget):
             workspace.update_export_validation(None)
             workspace.update_action_state(has_target=False)
             return
+        native_editor_available = self._native_mesh_editor_available()
         if hasattr(workspace, "status_label"):
-            workspace.status_label.setText(
-                f"Mesh editing ready | Mode: {str(view.mode or 'edit').title()} | "
-                f"Revision {view.revision} | Undo {view.undo_count} | Redo {view.redo_count}"
-            )
+            if native_editor_available:
+                workspace.status_label.setText(
+                    f"Mesh editing ready | Mode: {str(view.mode or 'edit').title()} | "
+                    f"Revision {view.revision} | Undo {view.undo_count} | Redo {view.redo_count}"
+                )
+            else:
+                workspace.status_label.setText("Native Mesh Editor unavailable: C++ mesh core missing.")
         workspace.update_session_summary(view, mesh_label=self._entry_label(self._current_target_entry()))
         for method_name, updater_name in (
             ("workspace_summary", "update_workspace_summary"),
@@ -1417,6 +1674,7 @@ class MeshEditorTab(QWidget):
             active_selection_mode=str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "vertex"),
             undo_count=int(view.undo_count or 0),
             redo_count=int(view.redo_count or 0),
+            native_editor_available=native_editor_available,
         )
 
     def _apply_embedded_native_update(self, update: MeshEditorNativeUpdate) -> bool:
@@ -1488,6 +1746,8 @@ class MeshEditorTab(QWidget):
             return self._handle_embedded_part_selection(part_index, "replace")
         if normalized == "toggle_selection":
             return self._handle_embedded_part_selection(part_index, "toggle")
+        if self._native_editor_action_blocked(normalized, embedded=True):
+            return False
         controller = self._embedded_builder_controller()
         if controller is None:
             self.status_message_requested.emit("Embedded Mesh Editor part tools are not ready yet.", True)
@@ -1553,6 +1813,13 @@ class MeshEditorTab(QWidget):
         except Exception as exc:
             self.status_message_requested.emit(f"Embedded Mesh Editor UV selection failed: {exc}", True)
             return False
+        if not result.ok:
+            diagnostic = "; ".join(str(item) for item in tuple(result.diagnostics or ()) if str(item).strip())
+            self.status_message_requested.emit(
+                f"Embedded Mesh Editor UV selection failed{': ' + diagnostic if diagnostic else ''}.",
+                True,
+            )
+            return False
         self._apply_embedded_native_update(controller.native_update_for_result(result))
         self._refresh_embedded_workspace_from_builder()
         return True
@@ -1565,6 +1832,13 @@ class MeshEditorTab(QWidget):
             result = controller.select_uv_lasso(points, operation=operation)
         except Exception as exc:
             self.status_message_requested.emit(f"Embedded Mesh Editor UV lasso failed: {exc}", True)
+            return False
+        if not result.ok:
+            diagnostic = "; ".join(str(item) for item in tuple(result.diagnostics or ()) if str(item).strip())
+            self.status_message_requested.emit(
+                f"Embedded Mesh Editor UV lasso failed{': ' + diagnostic if diagnostic else ''}.",
+                True,
+            )
             return False
         self._apply_embedded_native_update(controller.native_update_for_result(result))
         self._refresh_embedded_workspace_from_builder()
@@ -1634,8 +1908,7 @@ class MeshEditorTab(QWidget):
             return False
         self.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
         if self.standalone_compare_mode != "source":
-            native_visible = self.standalone_preview_stack.currentWidget() is self.standalone_native_host_frame
-            if native_visible or self._standalone_native_process_running():
+            if self._standalone_native_preview_update_active():
                 if self.standalone_native_package_thread is None:
                     self.start_standalone_native_preview_async(reset_view=False)
             else:
@@ -1662,10 +1935,7 @@ class MeshEditorTab(QWidget):
             self.standalone_animation_timer.stop()
         self.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
         if self.standalone_compare_mode != "source":
-            if self.standalone_preview_stack.currentWidget() is self.standalone_native_host_frame:
-                if self.standalone_native_package_thread is None:
-                    self.start_standalone_native_preview_async(reset_view=False)
-            elif self._standalone_native_process_running():
+            if self._standalone_native_preview_update_active():
                 if self.standalone_native_package_thread is None:
                     self.start_standalone_native_preview_async(reset_view=False)
             else:
@@ -1678,10 +1948,17 @@ class MeshEditorTab(QWidget):
             return False
         try:
             result = controller.select_uv_region(uv_min, uv_max, operation=operation)  # type: ignore[arg-type]
-            update = controller.native_update_for_result(result)
         except Exception as exc:
             self.status_message_requested.emit(f"Mesh Editor UV selection failed: {exc}", True)
             return False
+        if not result.ok:
+            diagnostic = "; ".join(str(item) for item in tuple(result.diagnostics or ()) if str(item).strip())
+            self.status_message_requested.emit(
+                f"Mesh Editor UV selection failed{': ' + diagnostic if diagnostic else ''}.",
+                True,
+            )
+            return False
+        update = controller.native_update_for_result(result)
         view = controller.session_view()
         self.update_editor_session_state(view, active_selection_mode=controller.active_selection_mode)
         self._apply_standalone_native_update(update)
@@ -1698,10 +1975,17 @@ class MeshEditorTab(QWidget):
             return False
         try:
             result = controller.select_uv_lasso(points, operation=operation)  # type: ignore[arg-type]
-            update = controller.native_update_for_result(result)
         except Exception as exc:
             self.status_message_requested.emit(f"Mesh Editor UV lasso selection failed: {exc}", True)
             return False
+        if not result.ok:
+            diagnostic = "; ".join(str(item) for item in tuple(result.diagnostics or ()) if str(item).strip())
+            self.status_message_requested.emit(
+                f"Mesh Editor UV lasso selection failed{': ' + diagnostic if diagnostic else ''}.",
+                True,
+            )
+            return False
+        update = controller.native_update_for_result(result)
         view = controller.session_view()
         self.update_editor_session_state(view, active_selection_mode=controller.active_selection_mode)
         self._apply_standalone_native_update(update)
@@ -1758,6 +2042,375 @@ class MeshEditorTab(QWidget):
                 pass
         return None
 
+    def _handle_standalone_native_mesh_edit_stroke_started(self, payload: object) -> bool:
+        return self._apply_standalone_native_mesh_edit_stroke(payload, "begin")
+
+    def _handle_standalone_native_mesh_edit_stroke_previewed(self, payload: object) -> bool:
+        return self._apply_standalone_native_mesh_edit_stroke(payload, "update")
+
+    def _handle_standalone_native_mesh_edit_stroke_finished(self, payload: object) -> bool:
+        return self._apply_standalone_native_mesh_edit_stroke(payload, "end")
+
+    def _handle_standalone_native_mesh_edit_stroke_cancelled(self, payload: object) -> bool:
+        return self._apply_standalone_native_mesh_edit_stroke(payload, "cancel")
+
+    def _handle_standalone_native_mesh_edit_selection_changed(self, payload: object) -> bool:
+        controller = self.standalone_controller
+        if controller is None or not isinstance(payload, Mapping):
+            return False
+        raw_screen_brush = payload.get("screen_brush")
+        raw_screen_region = payload.get("screen_region")
+        if not isinstance(raw_screen_brush, Mapping) and not isinstance(raw_screen_region, Mapping):
+            return False
+        if self._native_editor_action_blocked("select"):
+            return False
+        operation = str(payload.get("operation", payload.get("selection_operation", "replace")) or "replace").strip().lower()
+        context_request = bool(payload.get("context_request"))
+        screen_payload: dict[str, object] = {}
+        if isinstance(raw_screen_brush, Mapping):
+            screen_payload["screen_brush"] = self._native_screen_payload(raw_screen_brush)
+        if isinstance(raw_screen_region, Mapping):
+            screen_payload["screen_region"] = self._native_screen_payload(raw_screen_region)
+        if "falloff" in payload:
+            screen_payload["falloff"] = str(payload.get("falloff") or "smooth")
+        if "target_mode" in payload:
+            screen_payload["target_mode"] = str(payload.get("target_mode") or "vertex")
+        if "selection_depth_mode" in payload:
+            screen_payload["selection_depth_mode"] = str(payload.get("selection_depth_mode") or "visible")
+        try:
+            result = controller.apply(
+                "select",
+                selection=MeshEditSelection(),
+                operation=operation,
+                _native_screen_selection_payload=screen_payload,
+            )
+            native_update = controller.native_update_for_result(result)
+        except Exception as exc:
+            self.standalone_status_label.setText(f"Native D3D11 mesh selection failed: {exc}")
+            self.status_message_requested.emit(f"Native D3D11 mesh selection failed: {exc}", True)
+            return False
+        if not result.ok:
+            diagnostic = "; ".join(str(item) for item in tuple(result.diagnostics or ()) if str(item).strip())
+            self.standalone_status_label.setText(f"Native D3D11 mesh selection failed{': ' + diagnostic if diagnostic else ''}.")
+            return False
+        self.standalone_last_action_result = result
+        self.standalone_last_action_metrics = {
+            str(key): float(value) for key, value in dict(result.metrics).items()
+        }
+        if not self._apply_standalone_native_update(native_update):
+            return False
+        if context_request:
+            if float(dict(result.metrics).get("editor_select_source_pick_count", 0.0) or 0.0) <= 0.0:
+                self.standalone_status_label.setText("Native D3D11 mesh context hit no source part.")
+                return False
+            view = controller.session_view()
+            source_indices = tuple(int(index) for index in view.selection.source_indices)
+            if not source_indices:
+                self.standalone_status_label.setText("Native D3D11 mesh context hit no source part.")
+                return False
+            try:
+                context_x = int(payload.get("context_x", 0) or 0)
+                context_y = int(payload.get("context_y", 0) or 0)
+            except (TypeError, ValueError):
+                context_x = 0
+                context_y = 0
+            global_pos = self._standalone_native_global_pos(context_x, context_y)
+            QTimer.singleShot(
+                0,
+                lambda index=source_indices[0], position=global_pos: self.standalone_workspace.show_part_context_menu_for_part(
+                    index,
+                    position,
+                ),
+            )
+            self.standalone_status_label.setText("Native D3D11 mesh context opened.")
+            return True
+        self.standalone_status_label.setText("Native D3D11 mesh selection updated.")
+        return True
+
+    def _apply_standalone_native_mesh_edit_stroke(self, payload: object, phase: str) -> bool:
+        controller = self.standalone_controller
+        if controller is None or not isinstance(payload, Mapping):
+            return False
+        if self._native_editor_action_blocked("transform" if str(payload.get("tool") or "").strip().lower() in {"move", "vertex"} else "brush"):
+            return False
+        command = self._standalone_native_mesh_edit_stroke_command(payload, phase)
+        if command is None:
+            return False
+        stroke_id = str(command.params.get("stroke_id") or "")
+        if phase == "begin":
+            if self.standalone_native_mesh_edit_stroke_id and self.standalone_native_mesh_edit_stroke_id != stroke_id:
+                return False
+        elif stroke_id and self.standalone_native_mesh_edit_stroke_id and self.standalone_native_mesh_edit_stroke_id != stroke_id:
+            return False
+        try:
+            result = controller.apply(command.action, selection=command.selection, mode=command.mode, **dict(command.params))
+            native_update = controller.native_update_for_result(result)
+        except Exception as exc:
+            self.standalone_status_label.setText(f"Native D3D11 mesh edit stroke failed: {exc}")
+            self.status_message_requested.emit(f"Native D3D11 mesh edit stroke failed: {exc}", True)
+            if phase in {"end", "cancel"}:
+                self.standalone_native_mesh_edit_stroke_id = ""
+                self.standalone_native_mesh_edit_stroke_changed = False
+            return False
+        if stroke_id and phase == "begin":
+            self.standalone_native_mesh_edit_stroke_id = stroke_id
+            self.standalone_native_mesh_edit_stroke_changed = False
+        has_native_delta = result.ok and (
+            result.affected_submesh_indices
+            or result.changed_vertices_by_submesh
+            or result.topology_changed
+            or native_update.vertex_groups
+            or native_update.triangle_groups
+            or native_update.material_override_groups
+        )
+        stroke_changed = bool(self.standalone_native_mesh_edit_stroke_changed or has_native_delta)
+        if has_native_delta:
+            self.standalone_native_mesh_edit_stroke_changed = True
+        if phase in {"end", "cancel"}:
+            self.standalone_native_mesh_edit_stroke_id = ""
+            self.standalone_native_mesh_edit_stroke_changed = False
+        if str(result.status or "").strip().lower() in {"ok", "noop"}:
+            self.standalone_last_action_result = result
+            self.standalone_last_action_metrics = {
+                str(key): float(value) for key, value in dict(result.metrics).items()
+            }
+        if has_native_delta:
+            self._apply_standalone_native_update(native_update)
+            if phase != "update":
+                if phase == "end" and stroke_changed:
+                    self.current_selection_mode = controller.active_selection_mode
+                    self.current_undo_count += 1
+                    self.current_redo_count = 0
+                    QTimer.singleShot(0, self._sync_state)
+                self.standalone_status_label.setText(f"Native D3D11 mesh edit stroke {phase}.")
+            else:
+                self.standalone_status_label.setText("Native D3D11 mesh edit stroke updating.")
+        elif phase in {"end", "cancel"}:
+            if phase == "end" and stroke_changed:
+                self.current_selection_mode = controller.active_selection_mode
+                self.current_undo_count += 1
+                self.current_redo_count = 0
+                QTimer.singleShot(0, self._sync_state)
+            self.standalone_status_label.setText(f"Native D3D11 mesh edit stroke {phase}.")
+        return True
+
+    def _standalone_native_mesh_edit_stroke_command(self, payload: Mapping[object, object], phase: str) -> MeshEditCommand | None:
+        normalized_phase = str(phase or "").strip().lower()
+        if normalized_phase not in {"begin", "update", "end", "cancel"}:
+            return None
+        stroke_id = str(payload.get("stroke_id") or "").strip()
+        if not stroke_id:
+            return None
+        tool = str(payload.get("tool") or "").strip().lower()
+        raw_groups_for_reuse = payload.get("groups")
+        try:
+            has_groups_for_reuse = bool(tuple(raw_groups_for_reuse or ())) and not isinstance(raw_groups_for_reuse, (Mapping, str, bytes))  # type: ignore[arg-type]
+        except TypeError:
+            has_groups_for_reuse = False
+        reuse_resident_selection = (
+            normalized_phase == "update"
+            and (
+                tool in {"move", "vertex", "grab"}
+                or (
+                    tool in {"smooth", "inflate", "pinch"}
+                    and isinstance(payload.get("screen_brush"), Mapping)
+                    and not has_groups_for_reuse
+                )
+            )
+            and bool(stroke_id)
+            and stroke_id == self.standalone_native_mesh_edit_stroke_id
+        )
+        params: dict[str, object] = {
+            "stroke_phase": normalized_phase,
+            "stroke_id": stroke_id,
+        }
+        if tool in {"move", "vertex"}:
+            raw_screen_drag = payload.get("screen_drag")
+            if not isinstance(raw_screen_drag, Mapping):
+                if normalized_phase in {"end", "cancel"}:
+                    return MeshEditCommand("transform", params=params, mode="edit", label="D3D11 stroke")
+                return None
+            params["screen_drag"] = MeshEditorTab._native_screen_payload(raw_screen_drag)
+            if not reuse_resident_selection:
+                raw_screen_brush = payload.get("screen_brush")
+                if isinstance(raw_screen_brush, Mapping):
+                    screen_payload: dict[str, object] = {"screen_brush": MeshEditorTab._native_screen_payload(raw_screen_brush)}
+                    if "target_mode" in payload:
+                        screen_payload["target_mode"] = str(payload.get("target_mode") or "vertex")
+                    if "selection_depth_mode" in payload:
+                        screen_payload["selection_depth_mode"] = str(payload.get("selection_depth_mode") or "visible")
+                    if "falloff" in payload:
+                        screen_payload["falloff"] = str(payload.get("falloff") or "smooth")
+                    params["_native_screen_selection_payload"] = screen_payload
+                else:
+                    native_selection = self._standalone_native_payload_selection(payload)
+                    if native_selection:
+                        params["_native_selection_payload"] = native_selection
+            return MeshEditCommand("transform", params=params, mode="edit", label="D3D11 stroke")
+        if tool not in {"grab", "smooth", "inflate", "pinch"}:
+            return None
+        params["tool"] = tool
+        raw_center = payload.get("center")
+        if raw_center is not None:
+            params["center"] = raw_center if isinstance(raw_center, Mapping) else self._standalone_native_payload_vec3(raw_center)
+        raw_screen_drag = payload.get("screen_drag")
+        if isinstance(raw_screen_drag, Mapping):
+            params["screen_drag"] = MeshEditorTab._native_screen_payload(raw_screen_drag)
+        if "radius" in payload:
+            params["radius"] = self._standalone_native_payload_float(payload.get("radius"), 1.0)
+        raw_screen_radius = payload.get("screen_radius")
+        if isinstance(raw_screen_radius, Mapping):
+            params["screen_radius"] = MeshEditorTab._native_screen_payload(raw_screen_radius)
+        raw_screen_brush = payload.get("screen_brush")
+        if isinstance(raw_screen_brush, Mapping):
+            params["screen_brush"] = MeshEditorTab._native_screen_payload(raw_screen_brush)
+        if "target_mode" in payload:
+            params["target_mode"] = str(payload.get("target_mode") or "vertex")
+        if "selection_depth_mode" in payload:
+            params["selection_depth_mode"] = str(payload.get("selection_depth_mode") or "visible")
+        if "strength" in payload:
+            params["strength"] = self._standalone_native_payload_float(payload.get("strength"), 0.5)
+        if "amount" in payload:
+            params["amount"] = self._standalone_native_payload_float(payload.get("amount"), 0.0)
+        if "falloff" in payload:
+            params["falloff"] = str(payload.get("falloff") or "smooth")
+        if "smooth_iterations" in payload:
+            params["iterations"] = self._standalone_native_payload_int(payload.get("smooth_iterations"), 3)
+        if "invert" in payload:
+            params["invert"] = bool(payload.get("invert"))
+        if not reuse_resident_selection and not (isinstance(raw_screen_brush, Mapping) and not has_groups_for_reuse):
+            native_selection = self._standalone_native_payload_selection(payload)
+            if native_selection:
+                params["_native_selection_payload"] = native_selection
+        return MeshEditCommand("brush", params=params, mode="sculpt", label="D3D11 stroke")
+
+    @staticmethod
+    def _native_screen_payload(payload: Mapping[object, object]) -> dict[object, object]:
+        return {key: value for key, value in payload.items() if str(key) not in _LEGACY_SCREEN_CAMERA_FIELDS}
+
+    @classmethod
+    def _standalone_native_payload_selection(cls, payload: Mapping[object, object]) -> dict[str, object]:
+        raw_groups = payload.get("groups")
+        if isinstance(raw_groups, Mapping) or isinstance(raw_groups, (str, bytes)):
+            return {}
+        try:
+            groups = tuple(raw_groups or ())  # type: ignore[arg-type]
+        except TypeError:
+            return {}
+        vertices_by_submesh: list[dict[str, object]] = []
+        faces_by_submesh: list[dict[str, object]] = []
+        for raw_group in groups:
+            if not isinstance(raw_group, Mapping):
+                continue
+            submesh_index = cls._standalone_native_payload_int(
+                raw_group.get("source_submesh_index", raw_group.get("index", raw_group.get("submesh_index"))),
+                -1,
+            )
+            if submesh_index < 0:
+                continue
+            vertex_payload = cls._standalone_native_group_indices(
+                raw_group,
+                values_key="source_vertex_indices",
+                binary_key="source_vertex_indices_binary",
+                weights_key="source_vertex_weights",
+                weights_binary_key="source_vertex_weights_binary",
+                start_key="source_vertex_start",
+                count_key="source_vertex_count",
+            )
+            if vertex_payload:
+                vertices_by_submesh.append({"index": submesh_index, **vertex_payload})
+            face_payload = cls._standalone_native_group_indices(
+                raw_group,
+                values_key="source_face_indices",
+                binary_key="source_face_indices_binary",
+                start_key="source_face_start",
+                count_key="source_face_count",
+            )
+            if face_payload:
+                faces_by_submesh.append({"index": submesh_index, **face_payload})
+        result: dict[str, object] = {}
+        if vertices_by_submesh:
+            result["vertices_by_submesh"] = vertices_by_submesh
+        if faces_by_submesh:
+            result["faces_by_submesh"] = faces_by_submesh
+        return result
+
+    @classmethod
+    def _standalone_native_group_indices(
+        cls,
+        group: Mapping[object, object],
+        *,
+        values_key: str,
+        binary_key: str,
+        start_key: str,
+        count_key: str,
+        weights_key: str = "",
+        weights_binary_key: str = "",
+    ) -> dict[str, object]:
+        binary = group.get(binary_key)
+        weight_payload: dict[str, object] = {}
+        weights_binary = group.get(weights_binary_key) if weights_binary_key else None
+        if isinstance(weights_binary, Mapping):
+            weight_payload["weights_binary"] = dict(weights_binary)
+        elif weights_key:
+            raw_weights = group.get(weights_key)
+            if not isinstance(raw_weights, Mapping) and not isinstance(raw_weights, (str, bytes)):
+                try:
+                    weights = tuple(raw_weights or ())  # type: ignore[arg-type]
+                except TypeError:
+                    weights = ()
+                if weights:
+                    weight_payload["weights"] = weights
+        if isinstance(binary, Mapping):
+            return {"indices_binary": dict(binary), **weight_payload}
+        start = cls._standalone_native_payload_int(group.get(start_key), -1)
+        count = cls._standalone_native_payload_int(group.get(count_key), 0)
+        if start >= 0 and count > 0:
+            return {"start": start, "count": count, **weight_payload}
+        raw_values = group.get(values_key)
+        if isinstance(raw_values, Mapping) or isinstance(raw_values, (str, bytes)):
+            return {}
+        try:
+            values = tuple(raw_values or ())  # type: ignore[arg-type]
+        except TypeError:
+            return {}
+        indices = sorted({cls._standalone_native_payload_int(value, -1) for value in values})
+        indices = [index for index in indices if index >= 0]
+        return {"indices": indices, **weight_payload} if indices else {}
+
+    @staticmethod
+    def _standalone_native_payload_vec3(value: object) -> tuple[float, float, float]:
+        if isinstance(value, Mapping):
+            raw_values = (value.get("x", 0.0), value.get("y", 0.0), value.get("z", 0.0))
+        else:
+            try:
+                raw_values = tuple(value or ())[:3]  # type: ignore[arg-type]
+            except TypeError:
+                raw_values = ()
+        result: list[float] = []
+        for raw in tuple(raw_values)[:3]:
+            try:
+                result.append(float(raw))  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                result.append(0.0)
+        while len(result) < 3:
+            result.append(0.0)
+        return result[0], result[1], result[2]
+
+    @staticmethod
+    def _standalone_native_payload_float(value: object, fallback: float = 0.0) -> float:
+        try:
+            return float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError, OverflowError):
+            return float(fallback)
+
+    @staticmethod
+    def _standalone_native_payload_int(value: object, fallback: int = 0) -> int:
+        try:
+            return int(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError, OverflowError):
+            return int(fallback)
+
     def _handle_part_selection(self, part_index: int, operation: str = "toggle") -> bool:
         controller = self.standalone_controller
         if controller is None:
@@ -1803,6 +2456,8 @@ class MeshEditorTab(QWidget):
             return self._handle_part_selection(part_index, "replace")
         if normalized == "toggle_selection":
             return self._handle_part_selection(part_index, "toggle")
+        if self._native_editor_action_blocked(normalized):
+            return False
         controller = self.standalone_controller
         if controller is None:
             self.status_message_requested.emit("Open a standalone Mesh Editor session before editing parts.", True)
@@ -1859,32 +2514,124 @@ class MeshEditorTab(QWidget):
         controller = self.standalone_controller
         if controller is None:
             return False
+        if self._standalone_action_worker_active():
+            self.status_message_requested.emit("Wait for the current Mesh Editor action to finish, or cancel it first.", True)
+            return True
         text = str(getattr(action, "text", "") or getattr(action, "key", "") or "action")
+        key = str(getattr(action, "key", "") or "").strip()
+        if key in _STANDALONE_NATIVE_TOOL_STATE:
+            self.set_active_tool_state(
+                mode=str(getattr(action, "mode", "") or ""),
+                active_tool_key=key,
+            )
+        if self._native_editor_action_blocked(str(getattr(action, "command", "") or "")):
+            return True
+        if self._should_run_standalone_action_worker(action, controller):
+            return self._start_standalone_action_worker(action, action_text=text)
         try:
             execution = controller.run_editor_action(action)
         except Exception as exc:
             self.status_message_requested.emit(f"Mesh Editor action failed: {text}: {exc}", True)
             return False
+        return self._finish_standalone_action_execution(execution, action_text=text)
+
+    def _finish_standalone_action_execution(self, execution: object, *, action_text: str = "") -> bool:
+        controller = self.standalone_controller
+        if controller is None:
+            return False
         self.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
-        if execution.edit_result.ok:
-            self._apply_standalone_native_update(execution.native_update)
+        edit_result = getattr(execution, "edit_result", None)
+        native_update = getattr(execution, "native_update", MeshEditorNativeUpdate())
+        text = str(action_text or getattr(edit_result, "action", "") or "action")
+        if bool(getattr(edit_result, "ok", False)):
+            native_host_was_available = self.standalone_native_host is not None
+            native_update_has_payload = _native_update_has_payload(native_update)
+            preview_started = time.perf_counter()
+            preview_updated = self._apply_standalone_native_update(native_update)
+            preview_elapsed_ms = (time.perf_counter() - preview_started) * 1000.0
+            if native_host_was_available:
+                metric_name = "d3d11_update_ms" if preview_updated else "d3d11_update_failed_ms"
+            elif native_update_has_payload:
+                metric_name = "native_preview_unavailable_ms"
+            else:
+                metric_name = "native_preview_noop_ms"
+            edit_result = _mesh_edit_result_with_metric(edit_result, metric_name, preview_elapsed_ms)
+            if isinstance(edit_result, MeshEditResult):
+                self.standalone_last_action_result = edit_result
+                self.standalone_last_action_metrics = {str(key): float(value) for key, value in dict(edit_result.metrics).items()}
+            if native_update_has_payload and not preview_updated:
+                return False
             self._update_standalone_status()
             self.status_message_requested.emit(f"Mesh Editor action applied: {text}.", False)
             return True
-        diagnostic = "; ".join(str(item) for item in tuple(execution.edit_result.diagnostics or ()) if str(item).strip())
+        diagnostic = "; ".join(str(item) for item in tuple(getattr(edit_result, "diagnostics", ()) or ()) if str(item).strip())
         self.status_message_requested.emit(
             f"Mesh Editor action made no changes: {text}{': ' + diagnostic if diagnostic else ''}.",
             False,
         )
         return False
 
+    def _should_run_standalone_action_worker(self, action: object, controller: MeshEditorController) -> bool:
+        if not self._standalone_action_can_run_in_background(action):
+            return False
+        if bool(getattr(action, "requires_selection", False)):
+            try:
+                return not controller.session_view().selection.is_empty()
+            except Exception:
+                return False
+        return True
+
+    def _standalone_action_can_run_in_background(self, action: object) -> bool:
+        command = str(getattr(action, "command", "") or "").strip().lower()
+        return bool(command and command not in {"set_mode", "select"})
+
+    def _standalone_action_command(
+        self,
+        action: object,
+        controller: MeshEditorController,
+        *,
+        action_text: str = "",
+    ) -> MeshEditCommand | None:
+        command = str(getattr(action, "command", "") or "").strip().lower()
+        if not command or command in {"set_mode", "select"}:
+            return None
+        params = self._action_params(action)
+        mode = str(getattr(action, "mode", "") or "").strip() or None
+        return MeshEditCommand(
+            action=command,
+            selection=None,
+            params=params,
+            mode=mode,
+            label=str(action_text or getattr(action, "text", "") or getattr(action, "key", "") or command),
+        )
+
+    @staticmethod
+    def _action_params(action: object) -> dict[str, object]:
+        try:
+            return dict(tuple(getattr(action, "params", ()) or ()))
+        except (TypeError, ValueError):
+            return {}
+
     def _apply_standalone_native_update(self, update: MeshEditorNativeUpdate) -> bool:
-        if self.standalone_native_host is not None and apply_native_update_to_host(self.standalone_native_host, update):
-            if self.standalone_native_host is getattr(self, "standalone_native_host_frame", None):
-                self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
-            return True
-        self._refresh_standalone_preview()
-        return False
+        host = self.standalone_native_host
+        if host is not None:
+            if apply_native_update_to_host(host, update):
+                if host is getattr(self, "standalone_native_host_frame", None):
+                    self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
+                return True
+        if _native_update_has_payload(update) or self._standalone_native_preview_update_active():
+            message = "Native D3D11 preview update failed; preview is stale. Reload native preview to resync."
+            self.standalone_status_label.setText(message)
+            self.status_message_requested.emit(message, True)
+            return False
+        return True
+
+    def _standalone_native_preview_update_active(self) -> bool:
+        return (
+            self.standalone_preview_stack.currentWidget() is getattr(self, "standalone_native_host_frame", None)
+            or self._standalone_native_process_running()
+            or self.standalone_native_package_thread is not None
+        )
 
     def _refresh_standalone_preview(self) -> None:
         controller = self.standalone_controller
@@ -1892,6 +2639,12 @@ class MeshEditorTab(QWidget):
             self.standalone_preview_stack.setCurrentWidget(self.standalone_preview)
             self.standalone_preview.clear_model("No active edit session.")
             self.standalone_status_label.setText("No active edit session.")
+            return
+        if self.standalone_compare_mode != "source" and controller.native_editor_mesh_dirty():
+            message = "Native D3D11 preview required; Python preview rebuild is disabled while C++ mesh state is dirty."
+            self.standalone_preview_stack.setCurrentWidget(self.standalone_preview)
+            self.standalone_preview.clear_model(message)
+            self.standalone_status_label.setText(message)
             return
         self.standalone_preview_stack.setCurrentWidget(self.standalone_preview)
         prepared = controller.source_preview_data() if self.standalone_compare_mode == "source" else controller.native_preview_data()
@@ -1908,7 +2661,30 @@ class MeshEditorTab(QWidget):
         if not self.has_active_standalone_session():
             return
         if normalized == "source":
+            host = self.standalone_native_host
+            setter = getattr(host, "set_display_mode", None)
+            package_can_show_source = self.standalone_native_package_has_reference or self.standalone_native_package_compare_mode == "source"
+            if (
+                callable(setter)
+                and package_can_show_source
+                and self.standalone_preview_stack.currentWidget() is self.standalone_native_host_frame
+                and setter("original_only")
+            ):
+                self.standalone_status_label.setText("Native D3D11 compare view: source.")
+                return
+            if self._standalone_native_preview_update_active():
+                if self.standalone_native_package_thread is None and self.start_standalone_native_preview_async(reset_view=False):
+                    self.standalone_status_label.setText("Preparing native D3D11 source compare preview...")
+                else:
+                    self.standalone_status_label.setText("Native D3D11 source compare preview pending.")
+                return
             self._refresh_standalone_preview()
+            return
+        if normalized == "ghost" and self._standalone_native_preview_update_active() and not self.standalone_native_package_has_reference:
+            if self.standalone_native_package_thread is None and self.start_standalone_native_preview_async(reset_view=False):
+                self.standalone_status_label.setText("Preparing native D3D11 ghost compare preview...")
+            else:
+                self.standalone_status_label.setText("Native D3D11 ghost compare preview pending.")
             return
         host = self.standalone_native_host
         setter = getattr(host, "set_display_mode", None)
@@ -1916,6 +2692,11 @@ class MeshEditorTab(QWidget):
             display_mode = "overlay" if normalized == "ghost" else "replacement_only"
             if setter(display_mode):
                 self.standalone_status_label.setText(f"Native D3D11 compare view: {normalized}.")
+                return
+            if self._standalone_native_preview_update_active():
+                message = "Native D3D11 compare view update failed; preview is stale. Reload native preview to resync."
+                self.standalone_status_label.setText(message)
+                self.status_message_requested.emit(message, True)
                 return
         self._refresh_standalone_preview()
 
@@ -1925,6 +2706,12 @@ class MeshEditorTab(QWidget):
         self._set_standalone_status(self.standalone_controller.session_view())
 
     def _set_standalone_status(self, view: MeshEditSessionView) -> None:
+        if not self._native_mesh_editor_available():
+            self.standalone_status_label.setText(
+                "Native Mesh Editor unavailable: C++ mesh core missing. "
+                f"Mesh edit tools disabled. Session: {view.session_id} | Mode: {view.mode}"
+            )
+            return
         self.standalone_status_label.setText(
             f"Session: {view.session_id} | Mode: {view.mode} | Revision: {view.revision} | Undo: {view.undo_count} | Redo: {view.redo_count}"
         )
@@ -2034,6 +2821,33 @@ class MeshEditorTab(QWidget):
         if target is None:
             return
         self.open_archive_target_requested.emit(target)
+
+
+def _native_update_has_payload(update: object) -> bool:
+    if not isinstance(update, MeshEditorNativeUpdate):
+        return False
+    return bool(
+        update.vertex_groups
+        or update.triangle_groups
+        or update.triangle_source_submesh_indices
+        or update.selection_groups
+        or update.refresh_selection
+        or update.material_override_groups
+        or update.replace_all_triangles
+    )
+
+
+def _mesh_edit_result_with_metric(result: object, key: str, elapsed_ms: float) -> object:
+    if not isinstance(result, MeshEditResult):
+        return result
+    metrics: dict[str, float] = {}
+    for raw_key, raw_value in dict(result.metrics or {}).items():
+        try:
+            metrics[str(raw_key)] = float(raw_value)
+        except (TypeError, ValueError, OverflowError):
+            continue
+    metrics[str(key)] = max(0.0, float(elapsed_ms))
+    return replace(result, metrics=metrics)
 
 
 def _mesh_editor_texture_binding_target(value: object) -> tuple[str, int]:

@@ -1314,6 +1314,15 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertIn("HKX collision/skeleton preview", preview.summary)
         self.assertTrue(any(mesh.preview_role == "hkx_collision_shape" for mesh in preview.meshes))
         self.assertTrue(any(mesh.preview_role == "hkx_skeleton_bone" for mesh in preview.meshes))
+        for mesh in preview.meshes:
+            if not str(mesh.preview_role).startswith("hkx_"):
+                continue
+            self.assertEqual([], mesh.source_vertex_indices)
+            self.assertEqual([], mesh.source_face_indices)
+            self.assertEqual(0, mesh.source_vertex_range_start)
+            self.assertEqual(len(mesh.positions), mesh.source_vertex_range_count)
+            self.assertEqual(0, mesh.source_face_range_start)
+            self.assertEqual(len(mesh.indices) // 3, mesh.source_face_range_count)
         self.assertIsNotNone(preview.physics_overlay)
         assert preview.physics_overlay is not None
         self.assertEqual(1, len(preview.physics_overlay.shapes))

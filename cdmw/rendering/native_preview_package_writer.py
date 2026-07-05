@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from array import array
 import dataclasses
 import copy
 import hashlib
@@ -22,6 +23,7 @@ from PySide6.QtGui import QColor, QImage
 from cdmw.core.dds_native import dds_native_report_dict, dds_source_path_from_report, inspect_dds_native_path
 from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
 from cdmw.core.texture_native import read_native_texture_report_sidecar
+from cdmw.modding.mesh_native_core import write_native_preview_identity_blob
 from cdmw.models import (
     ClothPreviewBatch,
     ClothPreviewConstraint,
@@ -37,25 +39,23 @@ from cdmw.rendering.native_preview_payloads import (
     ISOLATED_PREVIEW_VERTEX_FLOATS,
     ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES,
     NativePreviewBatchPayload,
-    _VERTEX_STRUCT,
+    _batch_base_color,
     _batch_has_metal_preview_response,
     _batch_normal_texture_binding_allowed,
+    _batch_tangents_usable,
     _clamp01,
     _contains_token,
-    _first_vertex_color,
     _input_texture_kind,
     _lighting_preset_for_settings,
     _local_file_url,
     _looks_like_normal_texture_path,
     _normal_texture_binding_allowed,
     _normal_texture_input_binding_allowed,
-    _payload_bounds,
     _payload_material_inputs,
     _payload_material_slots,
     _safe_float,
     _safe_int,
     _suffix_tokens,
-    _tangents_usable,
     _technical_texture_kind,
     _vector_length,
     build_native_preview_payloads,
@@ -183,38 +183,305 @@ def _editor_identity_blob(
     batch: PreparedModelPreviewBatch,
     vertex_count: int,
 ) -> Tuple[Dict[str, object], bytes]:
+    metadata = _editor_identity_metadata(batch, vertex_count, 0)
+    source_vertex_range = _batch_source_range(batch, "source_vertex_range_start", "source_vertex_range_count")
+    source_face_range = _batch_source_range(batch, "source_face_range_start", "source_face_range_count")
+    raw_source_vertices = (
+        ()
+        if source_vertex_range is not None
+        else (getattr(batch, "source_vertex_indices", ()) or ())
+    )
+    raw_source_faces = (
+        ()
+        if source_face_range is not None
+        else (getattr(batch, "source_face_indices", ()) or ())
+    )
+    source_submesh_index = _safe_int(getattr(batch, "source_submesh_index", -1), -1)
+    identity_blob = bytearray()
+    for vertex_offset in range(vertex_count):
+        source_vertex_index = (
+            int(source_vertex_range[0] + vertex_offset)
+            if source_vertex_range is not None and vertex_offset < source_vertex_range[1]
+            else
+            _source_index_at(raw_source_vertices, vertex_offset, vertex_offset)
+        )
+        face_offset = int(vertex_offset) // 3
+        source_face_index = (
+            int(source_face_range[0] + face_offset)
+            if source_face_range is not None and face_offset < source_face_range[1]
+            else
+            _source_index_at(raw_source_faces, face_offset, face_offset)
+        )
+        identity_blob.extend(_IDENTITY_STRUCT.pack(source_submesh_index, source_vertex_index, source_face_index))
+    metadata["identity_size"] = len(identity_blob)
+    return metadata, bytes(identity_blob)
+
+
+def _editor_identity_metadata(
+    batch: PreparedModelPreviewBatch,
+    vertex_count: int,
+    identity_size: int,
+) -> Dict[str, object]:
     source_submesh_index = _safe_int(getattr(batch, "source_submesh_index", -1), -1)
     role = str(getattr(batch, "editor_role", "") or "")
     role_key = role.strip().lower()
     reference_role = "reference" in role_key or "original" in role_key
-    raw_source_vertices = tuple(int(index) for index in tuple(getattr(batch, "source_vertex_indices", ()) or ()))
-    raw_source_faces = tuple(int(index) for index in tuple(getattr(batch, "source_face_indices", ()) or ()))
-    identity_blob = bytearray()
-    for vertex_offset in range(vertex_count):
-        source_vertex_index = (
-            int(raw_source_vertices[vertex_offset])
-            if vertex_offset < len(raw_source_vertices)
-            else int(vertex_offset)
-        )
-        face_offset = int(vertex_offset) // 3
-        source_face_index = (
-            int(raw_source_faces[face_offset])
-            if face_offset < len(raw_source_faces)
-            else int(face_offset)
-        )
-        identity_blob.extend(_IDENTITY_STRUCT.pack(source_submesh_index, source_vertex_index, source_face_index))
+    source_vertex_range = _batch_source_range(batch, "source_vertex_range_start", "source_vertex_range_count")
+    source_face_range = _batch_source_range(batch, "source_face_range_start", "source_face_range_count")
+    raw_source_vertices = (
+        ()
+        if source_vertex_range is not None
+        else (getattr(batch, "source_vertex_indices", ()) or ())
+    )
+    raw_source_faces = (
+        ()
+        if source_face_range is not None
+        else (getattr(batch, "source_face_indices", ()) or ())
+    )
+    source_vertex_max = _source_index_max(raw_source_vertices)
+    source_face_max = _source_index_max(raw_source_faces)
     return {
         "source_submesh_index": source_submesh_index,
-        "source_vertex_count": (max(raw_source_vertices) + 1) if raw_source_vertices else 0,
-        "source_face_count": (max(raw_source_faces) + 1) if raw_source_faces else 0,
+        "source_vertex_count": (
+            source_vertex_range[0] + source_vertex_range[1]
+            if source_vertex_range is not None
+            else source_vertex_max + 1 if source_vertex_max >= 0 else 0
+        ),
+        "source_face_count": (
+            source_face_range[0] + source_face_range[1]
+            if source_face_range is not None
+            else source_face_max + 1 if source_face_max >= 0 else 0
+        ),
         "identity_stride_bytes": _IDENTITY_STRUCT.size,
         "identity_file": "",
         "identity_offset": 0,
-        "identity_size": len(identity_blob),
+        "identity_size": int(identity_size),
         "role": role,
         "part_name": str(getattr(batch, "editor_part_name", "") or ""),
         "editable": bool(getattr(batch, "editor_editable", source_submesh_index >= 0)) and not reference_role,
-    }, bytes(identity_blob)
+    }
+
+
+def _source_index_count(values: object) -> int | None:
+    try:
+        count = len(values)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return max(0, int(count))
+
+
+def _source_index_at(values: object, offset: int, fallback: int) -> int:
+    count = _source_index_count(values)
+    if count is not None and 0 <= offset < count:
+        try:
+            return int(values[offset])  # type: ignore[index]
+        except (TypeError, ValueError, IndexError, KeyError, OverflowError):
+            pass
+    try:
+        for item_offset, raw_value in enumerate(values or ()):  # type: ignore[arg-type]
+            if item_offset == offset:
+                return int(raw_value)
+            if item_offset > offset:
+                break
+    except (TypeError, ValueError, OverflowError):
+        pass
+    return int(fallback)
+
+
+def _source_index_max(values: object) -> int:
+    count = _source_index_count(values)
+    if count is not None:
+        max_value = -1
+        indexed = True
+        for offset in range(count):
+            try:
+                value = int(values[offset])  # type: ignore[index]
+            except (TypeError, ValueError, IndexError, KeyError, OverflowError):
+                indexed = False
+                break
+            max_value = max(max_value, value)
+        if indexed:
+            return max_value
+    max_value = -1
+    try:
+        for raw_value in values or ():  # type: ignore[arg-type]
+            max_value = max(max_value, int(raw_value))
+    except (TypeError, ValueError, OverflowError):
+        return -1
+    return max_value
+
+
+def _batch_source_range(batch: PreparedModelPreviewBatch, start_attr: str, count_attr: str) -> Tuple[int, int] | None:
+    start = _safe_int(getattr(batch, start_attr, -1), -1)
+    count = _safe_int(getattr(batch, count_attr, 0), 0)
+    if start < 0 or count <= 0:
+        return None
+    return start, count
+
+
+def _batch_source_i32_descriptor(batch: PreparedModelPreviewBatch, attr: str) -> Dict[str, object] | None:
+    value = getattr(batch, attr, None)
+    if not isinstance(value, Mapping):
+        return None
+    path = str(value.get("path") or "").strip()
+    if not path:
+        return None
+    try:
+        count = int(value.get("count", 0) or 0)
+        components = int(value.get("components", 1) or 1)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if count < 0 or components != 1:
+        return None
+    if str(value.get("type") or "i32").strip().lower() != "i32":
+        return None
+    descriptor: Dict[str, object] = {
+        "path": path,
+        "count": count,
+        "components": 1,
+        "type": "i32",
+    }
+    if bool(value.get("delete_after")):
+        descriptor["delete_after"] = True
+    return descriptor
+
+
+def _write_identity_source_i32_sidecar(
+    identity_path: Path,
+    batch: PreparedModelPreviewBatch,
+    suffix: str,
+    values: object,
+) -> Dict[str, object] | None:
+    if values is None:
+        return None
+    try:
+        if len(values) <= 0:  # type: ignore[arg-type]
+            return None
+    except TypeError:
+        pass
+    data = array("i")
+    if data.itemsize != 4:
+        return None
+    try:
+        data.extend(values)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        data = array("i")
+        try:
+            data.extend(int(index) for index in values)  # type: ignore[union-attr]
+        except (TypeError, ValueError, OverflowError):
+            return None
+    if not data:
+        return None
+    sidecar_path = identity_path.with_name(f"{identity_path.stem}_{id(batch):x}_{suffix}.bin")
+    try:
+        sidecar_path.write_bytes(data.tobytes())
+    except OSError:
+        return None
+    return {
+        "path": str(sidecar_path),
+        "count": len(data),
+        "components": 1,
+        "type": "i32",
+    }
+
+
+def _source_values_nonempty(values: object) -> bool:
+    if values is None:
+        return False
+    try:
+        return len(values) > 0  # type: ignore[arg-type]
+    except TypeError:
+        return True
+
+
+def _cleanup_identity_sidecars(paths: Sequence[Path]) -> None:
+    for sidecar_path in paths:
+        try:
+            sidecar_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _write_editor_identity_blob_native(
+    identity_path: Path,
+    batch: PreparedModelPreviewBatch,
+    vertex_count: int,
+) -> Dict[str, object] | None:
+    source_submesh_index = _safe_int(getattr(batch, "source_submesh_index", -1), -1)
+    role = str(getattr(batch, "editor_role", "") or "")
+    source_vertex_indices_binary = _batch_source_i32_descriptor(batch, "source_vertex_indices_binary")
+    source_face_indices_binary = _batch_source_i32_descriptor(batch, "source_face_indices_binary")
+    source_vertex_range = None if source_vertex_indices_binary is not None else _batch_source_range(
+        batch,
+        "source_vertex_range_start",
+        "source_vertex_range_count",
+    )
+    source_face_range = None if source_face_indices_binary is not None else _batch_source_range(
+        batch,
+        "source_face_range_start",
+        "source_face_range_count",
+    )
+    sidecar_paths: list[Path] = []
+    if source_vertex_indices_binary is None and source_vertex_range is None:
+        source_vertex_values = getattr(batch, "source_vertex_indices", ()) or ()
+        source_vertex_indices_binary = _write_identity_source_i32_sidecar(
+            identity_path,
+            batch,
+            "source_vertices",
+            source_vertex_values,
+        )
+        if source_vertex_indices_binary is not None:
+            sidecar_paths.append(Path(str(source_vertex_indices_binary["path"])))
+        elif _source_values_nonempty(source_vertex_values):
+            _cleanup_identity_sidecars(sidecar_paths)
+            return None
+    if source_face_indices_binary is None and source_face_range is None:
+        source_face_values = getattr(batch, "source_face_indices", ()) or ()
+        source_face_indices_binary = _write_identity_source_i32_sidecar(
+            identity_path,
+            batch,
+            "source_faces",
+            source_face_values,
+        )
+        if source_face_indices_binary is not None:
+            sidecar_paths.append(Path(str(source_face_indices_binary["path"])))
+        elif _source_values_nonempty(source_face_values):
+            _cleanup_identity_sidecars(sidecar_paths)
+            return None
+    try:
+        report = write_native_preview_identity_blob(
+            identity_path,
+            source_submesh_index=source_submesh_index,
+            vertex_count=vertex_count,
+            source_vertex_indices=(),
+            source_face_indices=(),
+            source_vertex_indices_binary=source_vertex_indices_binary,
+            source_face_indices_binary=source_face_indices_binary,
+            source_vertex_start=None if source_vertex_range is None else source_vertex_range[0],
+            source_vertex_count=0 if source_vertex_range is None else source_vertex_range[1],
+            source_face_start=None if source_face_range is None else source_face_range[0],
+            source_face_count=0 if source_face_range is None else source_face_range[1],
+            role=role,
+            part_name=str(getattr(batch, "editor_part_name", "") or ""),
+            editable=bool(getattr(batch, "editor_editable", source_submesh_index >= 0)),
+            append=True,
+        )
+    finally:
+        _cleanup_identity_sidecars(sidecar_paths)
+    if not isinstance(report, Mapping):
+        return None
+    return {
+        "source_submesh_index": _safe_int(report.get("source_submesh_index"), source_submesh_index),
+        "source_vertex_count": _safe_int(report.get("source_vertex_count"), 0),
+        "source_face_count": _safe_int(report.get("source_face_count"), 0),
+        "identity_stride_bytes": _safe_int(report.get("identity_stride_bytes"), _IDENTITY_STRUCT.size),
+        "identity_file": "",
+        "identity_offset": 0,
+        "identity_size": _safe_int(report.get("identity_size"), vertex_count * _IDENTITY_STRUCT.size),
+        "role": str(report.get("role", role) or ""),
+        "part_name": str(report.get("part_name", getattr(batch, "editor_part_name", "") or "") or ""),
+        "editable": bool(report.get("editable", False)),
+    }
 
 
 def _write_cloth_runtime_payloads(
@@ -538,8 +805,12 @@ def write_isolated_d3d11_preview_package(
     progress_total = max(1, len(prepared_batches))
     aggregate_geometry_file = "geometry/geometry.bin"
     aggregate_identity_file = "geometry/identity.bin"
+    aggregate_identity_path = geometry_dir / "identity.bin"
+    try:
+        aggregate_identity_path.unlink(missing_ok=True)
+    except OSError:
+        pass
     aggregate_geometry_chunks: list[bytes] = []
-    aggregate_identity_chunks: list[bytes] = []
     aggregate_geometry_size = 0
     aggregate_identity_size = 0
 
@@ -674,14 +945,37 @@ def write_isolated_d3d11_preview_package(
         aggregate_geometry_size += len(usable_blob)
         if stop_event is not None and getattr(stop_event, "is_set", lambda: False)():
             raise RunCancelled("D3D11 package write cancelled.")
-        editor_identity, identity_blob = _editor_identity_blob(batch, vertex_count)
         identity_offset = aggregate_identity_size
-        aggregate_identity_chunks.append(identity_blob)
-        aggregate_identity_size += len(identity_blob)
+        expected_identity_size = vertex_count * _IDENTITY_STRUCT.size
+        precomputed_identity_blob = bytes(getattr(batch, "editor_identity_blob", b"") or b"")
+        source_indices_are_descriptor_backed = (
+            _batch_source_i32_descriptor(batch, "source_vertex_indices_binary") is not None
+            or _batch_source_i32_descriptor(batch, "source_face_indices_binary") is not None
+        )
+        used_precomputed_identity = len(precomputed_identity_blob) == expected_identity_size and not source_indices_are_descriptor_backed
+        if used_precomputed_identity:
+            editor_identity = _editor_identity_metadata(batch, vertex_count, expected_identity_size)
+            if precomputed_identity_blob:
+                with aggregate_identity_path.open("ab") as identity_stream:
+                    identity_stream.write(precomputed_identity_blob)
+            identity_size = expected_identity_size
+        else:
+            editor_identity = _write_editor_identity_blob_native(aggregate_identity_path, batch, vertex_count)
+        if editor_identity is None:
+            if source_indices_are_descriptor_backed:
+                raise RuntimeError("native preview identity generation failed for descriptor-backed source ids")
+            editor_identity, identity_blob = _editor_identity_blob(batch, vertex_count)
+            if identity_blob:
+                with aggregate_identity_path.open("ab") as identity_stream:
+                    identity_stream.write(identity_blob)
+            identity_size = len(identity_blob)
+        elif not used_precomputed_identity:
+            identity_size = _safe_int(editor_identity.get("identity_size"), vertex_count * _IDENTITY_STRUCT.size)
+        aggregate_identity_size += identity_size
         editor_identity["identity_file"] = aggregate_identity_file
         editor_identity["identity_offset"] = identity_offset
-        editor_identity["identity_size"] = len(identity_blob)
-        tangents_usable = _tangents_usable(usable_blob, vertex_count)
+        editor_identity["identity_size"] = identity_size
+        tangents_usable = _batch_tangents_usable(batch, usable_blob, vertex_count)
         support_dds_enabled = bool(
             use_textures
             and high_quality_textures
@@ -889,7 +1183,7 @@ def write_isolated_d3d11_preview_package(
                 "vertex_size": len(usable_blob),
                 "vertex_count": vertex_count,
                 "editor_identity": editor_identity,
-                "base_color": list(_first_vertex_color(usable_blob)),
+                "base_color": list(_batch_base_color(batch, usable_blob)),
                 "textures": textures,
                 "dds_textures": dds_textures,
                 "texture_flip_vertical": texture_flip_vertical,
@@ -1054,8 +1348,6 @@ def write_isolated_d3d11_preview_package(
     tone_gamma = _safe_float(getattr(settings, "d3d11_tone_gamma", 1.00), 1.00)
     if aggregate_geometry_chunks:
         (geometry_dir / "geometry.bin").write_bytes(b"".join(aggregate_geometry_chunks))
-    if aggregate_identity_chunks:
-        (geometry_dir / "identity.bin").write_bytes(b"".join(aggregate_identity_chunks))
     package_write_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
     if trace_enabled:
         load_trace["package_write_ms"] = package_write_ms

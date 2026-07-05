@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from cdmw.ui.archive_browser.actions import archive_context_menu_icons
 from cdmw.constants import DEFAULT_UI_PREVIEW_COLOR_SCHEME
 from cdmw.core.archive import (
+    archive_entry_identity_key,
     build_archive_asset_family_graph,
     build_archive_entry_metadata_summary,
     build_archive_preview_result,
@@ -52,6 +53,22 @@ from cdmw.workers.archive_preview_native import NATIVE_PREVIEW_CORE_MODEL_EXTENS
 
 class ArchiveReferencePreviewMixin:
     """Referenced asset preview, D3D11 reference preview, and reference actions."""
+    def _current_archive_preview_result_for_reference_entry(
+        self,
+        entry: ArchiveEntry,
+    ) -> Optional[ArchivePreviewResult]:
+        current_entry = self._current_archive_entry()
+        result = getattr(self, "current_archive_preview_result", None)
+        if (
+            not isinstance(current_entry, ArchiveEntry)
+            or not isinstance(result, ArchivePreviewResult)
+            or bool(getattr(self, "archive_preview_showing_loose", False))
+        ):
+            return None
+        if archive_entry_identity_key(current_entry) != archive_entry_identity_key(entry):
+            return None
+        return result
+
     def _show_archive_reference_preview_dialog(
         self,
         entry: ArchiveEntry,
@@ -603,6 +620,11 @@ class ArchiveReferencePreviewMixin:
         semantic_sidecar_texts: Sequence[str] = (),
     ) -> None:
         resolved_entry = entry
+        current_result = self._current_archive_preview_result_for_reference_entry(resolved_entry)
+        if current_result is not None:
+            self._show_archive_reference_preview_dialog(resolved_entry, current_result)
+            self.set_status_message(f"Opened preview for {resolved_entry.basename}.")
+            return
 
         def _task(log: Callable[[str], None]) -> ArchivePreviewResult:
             log(f"Preparing referenced-file preview for {resolved_entry.path}...")

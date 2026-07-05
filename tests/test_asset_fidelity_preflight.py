@@ -27,15 +27,16 @@ class AssetFidelityPreflightTests(unittest.TestCase):
         self.assertEqual("not_bundled", matrix["backends"]["ISPC Texture Compressor"]["bundled_feasibility"])
         self.assertEqual("not_bundled", matrix["backends"]["bc7enc_rdo"]["bundled_feasibility"])
 
-    def test_tangent_report_marks_mikktspace_report_only_until_bundled(self) -> None:
+    def test_tangent_report_marks_mikktspace_native_helper_as_active(self) -> None:
         report = tangent_basis_report()
 
-        self.assertEqual("cdmw_fallback", report["active"])
+        self.assertEqual("MikkTSpace", report["active"])
         self.assertEqual("bundled", report["paths"]["cdmw_fallback"]["status"])
-        self.assertIn("MikkTSpace-style", report["paths"]["cdmw_fallback"]["role"])
+        self.assertIn("legacy", report["paths"]["cdmw_fallback"]["role"])
         self.assertIn("mirrored-UV handedness", report["paths"]["cdmw_fallback"]["notes"])
-        self.assertEqual("not_bundled", report["paths"]["MikkTSpace"]["status"])
-        self.assertFalse(report["paths"]["MikkTSpace"]["package_safe"])
+        self.assertEqual("bundled_native_helper", report["paths"]["MikkTSpace"]["status"])
+        self.assertTrue(report["paths"]["MikkTSpace"]["package_safe"])
+        self.assertIn("face-corner", report["paths"]["MikkTSpace"]["notes"])
 
     def test_manifest_includes_health_report_fields(self) -> None:
         manifest = asset_fidelity_preflight_manifest(

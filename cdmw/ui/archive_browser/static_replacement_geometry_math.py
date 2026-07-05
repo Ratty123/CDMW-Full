@@ -271,6 +271,9 @@ def mirror_submesh_x(
     *,
     normalize_vector: Callable[[Vector3], Vector3],
 ) -> object:
+    native_mirror = _mirror_submesh_x_native_clone(source, plane_x)
+    if native_mirror is not None:
+        return native_mirror
     mirrored = copy.deepcopy(source)
     mirrored.vertices = [
         (2.0 * float(plane_x) - float(vertex[0]), float(vertex[1]), float(vertex[2]))
@@ -292,14 +295,68 @@ def mirror_submesh_x(
     return mirrored
 
 
+def _mirror_submesh_x_native_clone(submesh: object, plane_x: float) -> object | None:
+    try:
+        from cdmw.modding.mesh_native_core import clone_native_mesh_affine_transformed_submesh
+    except Exception:
+        return None
+    position_matrix = (
+        -1.0,
+        0.0,
+        0.0,
+        2.0 * float(plane_x),
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+    )
+    normal_matrix = (
+        -1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+    )
+    try:
+        return clone_native_mesh_affine_transformed_submesh(
+            submesh,
+            position_matrix=position_matrix,
+            normal_matrix=normal_matrix,
+            reverse_face_winding=True,
+        )
+    except Exception:
+        return None
+
+
 def copy_source_part_with_adjustment(
     source: object,
     adjustment: object,
     *,
     rotate_vector: Callable[[Vector3, Sequence[float]], Vector3],
     normalize_vector: Callable[[Vector3], Vector3],
+    mirror_x_around_bounds_center: bool = False,
 ) -> object:
+    native_copy = _copy_source_part_with_adjustment_native_copy(
+        source,
+        adjustment,
+        mirror_x_around_bounds_center=mirror_x_around_bounds_center,
+    )
+    if native_copy is not None:
+        return native_copy
     copied = copy.deepcopy(source)
+    if _copy_source_part_with_adjustment_native(copied, adjustment):
+        if mirror_x_around_bounds_center:
+            plane_x = source_mirror_plane_x(None, list(getattr(copied, "vertices", ()) or ()))
+            return mirror_submesh_x(copied, plane_x, normalize_vector=normalize_vector)
+        return copied
     vertices = list(getattr(copied, "vertices", ()) or ())
     if not vertices:
         return copied
@@ -330,7 +387,45 @@ def copy_source_part_with_adjustment(
         copied.normals = [normalize_vector(rotate_vector(tuple(normal), rotation)) for normal in normals]
     copied.vertex_count = len(copied.vertices)
     copied.face_count = len(getattr(copied, "faces", ()) or ())
+    if mirror_x_around_bounds_center:
+        plane_x = source_mirror_plane_x(None, list(getattr(copied, "vertices", ()) or ()))
+        return mirror_submesh_x(copied, plane_x, normalize_vector=normalize_vector)
     return copied
+
+
+def _copy_source_part_with_adjustment_native_copy(
+    submesh: object,
+    adjustment: object,
+    *,
+    mirror_x_around_bounds_center: bool = False,
+) -> object | None:
+    try:
+        from cdmw.modding.mesh_native_core import clone_native_mesh_affine_transformed_submesh
+    except Exception:
+        return None
+    try:
+        return clone_native_mesh_affine_transformed_submesh(
+            submesh,
+            source_part_adjustment=adjustment,
+            mirror_x_around_bounds_center=mirror_x_around_bounds_center,
+        )
+    except Exception:
+        return None
+
+
+def _copy_source_part_with_adjustment_native(submesh: object, adjustment: object) -> bool:
+    try:
+        from cdmw.modding.mesh_native_core import apply_native_mesh_affine_transform_submeshes
+    except Exception:
+        return False
+    try:
+        changed = apply_native_mesh_affine_transform_submeshes(
+            [submesh],
+            source_part_adjustments_by_index={0: adjustment},
+        )
+    except Exception:
+        return False
+    return changed == {0}
 
 
 __all__ = [

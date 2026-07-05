@@ -23,6 +23,7 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
     StaticSourcePartAdjustment = context.get("StaticSourcePartAdjustment")
     _added_part_texture_role_label_helper = context.get("_added_part_texture_role_label_helper")
     _alignment_dialog_widgets_live = context.get("_alignment_dialog_widgets_live")
+    _alignment_mesh_edit_tab_active = context.get("_alignment_mesh_edit_tab_active")
     _current_source_part_adjustments_helper = context.get("_current_source_part_adjustments_helper")
     _disabled_source_part_indices_helper = context.get("_disabled_source_part_indices_helper")
     _enabled_renderable_source_indices_helper = context.get("_enabled_renderable_source_indices_helper")
@@ -124,6 +125,7 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
     texture_filter_refresh = context.get("texture_filter_refresh")
     texture_overrides_dirty = context.get("texture_overrides_dirty")
     texture_override_rows = context.get("texture_override_rows")
+    self = context.get("self")
     modify_original_clone_mode = bool(context.get("modify_original_clone_mode"))
 
     def _replacement_mesh():
@@ -396,6 +398,18 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
             source_part_adjustments[source_index] = adjustment
         return adjustment
 
+    def _active_mesh_edit_material_override_mutation_blocked() -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            "Active Mesh Editor source material overrides require native material execution; "
+            "Python adjustment mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
     _current_source_part_adjustments = lambda: _current_source_part_adjustments_helper(
         source_part_adjustments,
         is_default_adjustment=_is_default_source_part_adjustment,
@@ -412,6 +426,8 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
             glow_rgb=glow_rgb,
         )
         if role_state.source_index < 0:
+            return ""
+        if _active_mesh_edit_material_override_mutation_blocked():
             return ""
         if role_state.store_override:
             source_role_overrides[role_state.source_index] = role_state.normalized_role

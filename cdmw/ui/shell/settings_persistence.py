@@ -64,6 +64,11 @@ class SettingsPersistenceMixin:
         self.settings.setValue("paths/dds_staging_root", self.dds_staging_root_edit.text())
         self.settings.setValue("paths/output_root", self.output_root_edit.text())
         self.settings.setValue("paths/texconv_path", self.texconv_path_edit.text())
+        self.settings.setValue("asset_authoring/material_maker_project_path", self.material_maker_project_edit.text())
+        self.settings.setValue("asset_authoring/material_maker_export_dir", self.material_maker_export_dir_edit.text())
+        self.settings.setValue("asset_authoring/oiio_source_path", self.openimageio_source_path_edit.text())
+        self.settings.setValue("asset_authoring/oiio_output_path", self.openimageio_output_path_edit.text())
+        self.settings.setValue("asset_authoring/oiio_compare_path", self.openimageio_compare_path_edit.text())
         self.settings.setValue("archive/package_root", self.archive_package_root_edit.text())
         self.settings.setValue("archive/extract_root", self.archive_extract_root_edit.text())
         self.settings.setValue("archive/filter_text", self.archive_filter_edit.text())
@@ -301,6 +306,7 @@ class SettingsPersistenceMixin:
         self.settings.setValue("sections/paths_expanded", self.paths_section.toggle_button.isChecked())
         self.settings.setValue("sections/archive_locations_expanded", self.archive_locations_section.toggle_button.isChecked())
         self.settings.setValue("sections/settings_expanded", self.settings_section.toggle_button.isChecked())
+        self.settings.setValue("sections/asset_authoring_expanded", self.asset_authoring_section.toggle_button.isChecked())
         self.settings.setValue("sections/dds_output_expanded", self.dds_output_section.toggle_button.isChecked())
         self.settings.setValue("sections/filters_expanded", self.filters_section.toggle_button.isChecked())
         self.settings.setValue("sections/chainner_expanded", self.chainner_section.toggle_button.isChecked())
@@ -336,6 +342,21 @@ class SettingsPersistenceMixin:
         self.dds_staging_root_edit.setText(self.settings.value("paths/dds_staging_root", defaults.dds_staging_root))
         self.output_root_edit.setText(self.settings.value("paths/output_root", defaults.output_root))
         self.texconv_path_edit.setText(self.settings.value("paths/texconv_path", defaults.texconv_path))
+        self.material_maker_project_edit.setText(
+            str(self.settings.value("asset_authoring/material_maker_project_path", "") or "")
+        )
+        self.material_maker_export_dir_edit.setText(
+            str(self.settings.value("asset_authoring/material_maker_export_dir", "") or "")
+        )
+        self.openimageio_source_path_edit.setText(
+            str(self.settings.value("asset_authoring/oiio_source_path", "") or "")
+        )
+        self.openimageio_output_path_edit.setText(
+            str(self.settings.value("asset_authoring/oiio_output_path", "") or "")
+        )
+        self.openimageio_compare_path_edit.setText(
+            str(self.settings.value("asset_authoring/oiio_compare_path", "") or "")
+        )
         self.archive_package_root_edit.setText(self.settings.value("archive/package_root", defaults.archive_package_root))
         self.archive_extract_root_edit.setText(self.settings.value("archive/extract_root", defaults.archive_extract_root))
         archive_filter_text = defaults.archive_filter_text
@@ -691,6 +712,7 @@ class SettingsPersistenceMixin:
         self.paths_section.set_expanded(self._read_bool("sections/paths_expanded", False))
         self.archive_locations_section.set_expanded(self._read_bool("sections/archive_locations_expanded", False))
         self.settings_section.set_expanded(self._read_bool("sections/settings_expanded", False))
+        self.asset_authoring_section.set_expanded(self._read_bool("sections/asset_authoring_expanded", False))
         self.dds_output_section.set_expanded(self._read_bool("sections/dds_output_expanded", False))
         self.filters_section.set_expanded(self._read_bool("sections/filters_expanded", False))
         self.chainner_section.set_expanded(self._read_bool("sections/chainner_expanded", False))

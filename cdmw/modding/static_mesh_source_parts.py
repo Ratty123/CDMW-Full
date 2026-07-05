@@ -92,25 +92,43 @@ def _texture_uv_transform_for_submesh(
 def _apply_texture_uv_transform(submesh: SubMesh, transform: StaticTextureUvTransform) -> None:
     if not submesh.uvs or len(submesh.uvs) != len(submesh.vertices):
         return
+    payload = _texture_uv_transform_payload(transform)
+    pivot_u, pivot_v = payload["pivot"]  # type: ignore[assignment]
+    offset_u, offset_v = payload["offset"]  # type: ignore[assignment]
+    scale_u, scale_v = payload["scale"]  # type: ignore[assignment]
+    scale_u = scale_u if abs(scale_u) > 1e-8 else 1.0
+    scale_v = scale_v if abs(scale_v) > 1e-8 else 1.0
+    rotate_steps = int(round(float(payload["rotate"]) / 90.0)) % 4
+
+    transformed: list[tuple[float, float]] = []
+    for raw_u, raw_v in submesh.uvs:
+        u = (float(raw_u) - pivot_u) * scale_u
+        v = (float(raw_v) - pivot_v) * scale_v
+        if bool(payload["flip_u"]):
+            u = -u
+        if bool(payload["flip_v"]):
+            v = -v
+        for _step in range(rotate_steps):
+            u, v = -v, u
+        transformed.append((u + pivot_u + offset_u, v + pivot_v + offset_v))
+    submesh.uvs = transformed
+
+
+def _texture_uv_transform_payload(transform: StaticTextureUvTransform) -> dict[str, object]:
     pivot_u, pivot_v = _uv_pair(transform.pivot_uv, (0.5, 0.5))
     offset_u, offset_v = _uv_pair(transform.offset_uv, (0.0, 0.0))
     scale_u, scale_v = _uv_pair(transform.scale_uv, (1.0, 1.0))
     scale_u = scale_u if abs(scale_u) > 1e-8 else 1.0
     scale_v = scale_v if abs(scale_v) > 1e-8 else 1.0
     rotate_steps = int(round(float(getattr(transform, "rotate_degrees", 0) or 0) / 90.0)) % 4
-
-    transformed: list[tuple[float, float]] = []
-    for raw_u, raw_v in submesh.uvs:
-        u = (float(raw_u) - pivot_u) * scale_u
-        v = (float(raw_v) - pivot_v) * scale_v
-        if bool(transform.flip_u):
-            u = -u
-        if bool(transform.flip_v):
-            v = -v
-        for _step in range(rotate_steps):
-            u, v = -v, u
-        transformed.append((u + pivot_u + offset_u, v + pivot_v + offset_v))
-    submesh.uvs = transformed
+    return {
+        "offset": (offset_u, offset_v),
+        "scale": (scale_u, scale_v),
+        "rotate": float(rotate_steps * 90.0),
+        "flip_u": bool(transform.flip_u),
+        "flip_v": bool(transform.flip_v),
+        "pivot": (pivot_u, pivot_v),
+    }
 
 
 def _uv_pair(value: tuple[float, float] | None, fallback: tuple[float, float]) -> tuple[float, float]:
@@ -168,3 +186,63 @@ def _apply_source_part_adjustment(
     submesh.vertices = adjusted_vertices
     if submesh.normals and len(submesh.normals) == len(submesh.vertices):
         submesh.normals = [_normalize(_rotate_xyz(normal, rotation)) for normal in submesh.normals]
+
+
+def _source_part_adjustment_matrices(
+    submesh: SubMesh,
+    adjustment: StaticSourcePartAdjustment,
+    *,
+    pivot: tuple[float, float, float] | None = None,
+) -> tuple[tuple[float, ...], tuple[float, ...]] | None:
+    if not submesh.vertices:
+        return None
+    pivot = pivot if pivot is not None else _center(*_bbox(submesh.vertices))
+    sx, sy, sz = adjustment.scale_xyz or (1.0, 1.0, 1.0)
+    uniform = float(adjustment.uniform_scale or 1.0)
+    scale_xyz = (float(sx) * uniform, float(sy) * uniform, float(sz) * uniform)
+    offset = tuple(float(value) for value in adjustment.offset_xyz)
+    rotation = tuple(float(value) for value in adjustment.rotate_xyz_degrees)
+
+    c0 = _rotate_xyz((scale_xyz[0], 0.0, 0.0), rotation)
+    c1 = _rotate_xyz((0.0, scale_xyz[1], 0.0), rotation)
+    c2 = _rotate_xyz((0.0, 0.0, scale_xyz[2]), rotation)
+    pivot_linear = (
+        c0[0] * pivot[0] + c1[0] * pivot[1] + c2[0] * pivot[2],
+        c0[1] * pivot[0] + c1[1] * pivot[1] + c2[1] * pivot[2],
+        c0[2] * pivot[0] + c1[2] * pivot[1] + c2[2] * pivot[2],
+    )
+    translation = (
+        pivot[0] + offset[0] - pivot_linear[0],
+        pivot[1] + offset[1] - pivot_linear[1],
+        pivot[2] + offset[2] - pivot_linear[2],
+    )
+    position_matrix = (
+        c0[0],
+        c1[0],
+        c2[0],
+        translation[0],
+        c0[1],
+        c1[1],
+        c2[1],
+        translation[1],
+        c0[2],
+        c1[2],
+        c2[2],
+        translation[2],
+    )
+
+    n0 = _rotate_xyz((1.0, 0.0, 0.0), rotation)
+    n1 = _rotate_xyz((0.0, 1.0, 0.0), rotation)
+    n2 = _rotate_xyz((0.0, 0.0, 1.0), rotation)
+    normal_matrix = (
+        n0[0],
+        n1[0],
+        n2[0],
+        n0[1],
+        n1[1],
+        n2[1],
+        n0[2],
+        n1[2],
+        n2[2],
+    )
+    return position_matrix, normal_matrix

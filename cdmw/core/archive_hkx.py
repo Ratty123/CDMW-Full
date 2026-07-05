@@ -16513,8 +16513,10 @@ def _hkx_preview_box_mesh(
         positions=positions,
         indices=indices,
         source_submesh_index=source_submesh_index,
-        source_vertex_indices=list(range(len(positions))),
-        source_face_indices=list(range(len(indices) // 3)),
+        source_vertex_range_start=0,
+        source_vertex_range_count=len(positions),
+        source_face_range_start=0,
+        source_face_range_count=len(indices) // 3,
         preview_role=preview_role,
     )
 
@@ -16601,8 +16603,10 @@ def _hkx_preview_cylinder_mesh(
         positions=positions,
         indices=indices,
         source_submesh_index=source_submesh_index,
-        source_vertex_indices=list(range(len(positions))),
-        source_face_indices=list(range(len(indices) // 3)),
+        source_vertex_range_start=0,
+        source_vertex_range_count=len(positions),
+        source_face_range_start=0,
+        source_face_range_count=len(indices) // 3,
         preview_role=preview_role,
     )
 
@@ -16638,8 +16642,10 @@ def _hkx_preview_marker_mesh(
         positions=positions,
         indices=indices,
         source_submesh_index=source_submesh_index,
-        source_vertex_indices=list(range(len(positions))),
-        source_face_indices=list(range(len(indices) // 3)),
+        source_vertex_range_start=0,
+        source_vertex_range_count=len(positions),
+        source_face_range_start=0,
+        source_face_range_count=len(indices) // 3,
         preview_role=preview_role,
     )
 
@@ -16684,8 +16690,10 @@ def _hkx_preview_sphere_mesh(
         positions=positions,
         indices=indices,
         source_submesh_index=source_submesh_index,
-        source_vertex_indices=list(range(len(positions))),
-        source_face_indices=list(range(len(indices) // 3)),
+        source_vertex_range_start=0,
+        source_vertex_range_count=len(positions),
+        source_face_range_start=0,
+        source_face_range_count=len(indices) // 3,
         preview_role=preview_role,
     )
 
@@ -16754,8 +16762,10 @@ def _hkx_preview_shape_meshes(
                 positions=list(vertices),
                 indices=indices,
                 source_submesh_index=shape_index,
-                source_vertex_indices=list(range(len(vertices))),
-                source_face_indices=list(range(len(indices) // 3)),
+                source_vertex_range_start=0,
+                source_vertex_range_count=len(vertices),
+                source_face_range_start=0,
+                source_face_range_count=len(indices) // 3,
                 preview_role="hkx_collision_shape",
             )
         )

@@ -16,6 +16,20 @@ from cdmw.domain.mesh.skeleton import (
     MeshAnimationTrack,
 )
 from cdmw.modding.skeleton_parser import Bone, Skeleton
+from cdmw.services.asset_authoring_service import (
+    ASSET_AUTHORING_MESH_HEALTH_SCHEMA,
+    ASSET_AUTHORING_SOURCE_IMAGE_SCHEMA,
+    ASSET_AUTHORING_TANGENT_REPORT_SCHEMA,
+    ASSET_AUTHORING_UV_REPORT_SCHEMA,
+)
+from cdmw.modding.mesh_native_core import (
+    clear_native_mesh_core_fallback_counts,
+    native_mesh_core_available,
+    native_mesh_core_fallback_counts,
+    native_mesh_core_fallback_events,
+    record_native_mesh_core_fallback,
+)
+from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
 from cdmw.ui.mesh_editor.native_preview_payloads import (
     mesh_edit_material_override_groups,
     mesh_edit_selection_groups,
@@ -30,16 +44,21 @@ from cdmw.ui.mesh_editor.native_preview_runtime import (
 )
 from cdmw.models import ArchiveEntry
 from tools.mesh_editor_dev_harness import (
+    _build_two_part_synthetic_mesh,
+    _coverage_command,
     _papr_constraint_metadata_summary,
     _png_capture_summary,
     _real_archive_papr_read_status,
     _sample_real_archive_paa_playback,
+    _selection_edges_from_group,
+    _selection_faces_from_group,
     _sequence_event_marker_overlap,
     _sequence_lane_pair_summary,
     _sequence_path_record_context,
     _sequence_reference_overlap,
     _sequence_timeline_field_overlap,
     _sequence_timeline_field_semantic_aliases,
+    build_native_benchmark_mesh,
     build_synthetic_mesh,
     run_scenario,
 )
@@ -59,10 +78,968 @@ def _write_rgb_png(path: Path, width: int, height: int, rows: list[bytes]) -> No
         + _png_chunk(b"IHDR", header)
         + _png_chunk(b"IDAT", zlib.compress(raw))
         + _png_chunk(b"IEND", b"")
-    )
+)
+
+
+def _i32_descriptor_values(group: dict[str, object], json_key: str, binary_key: str) -> list[int]:
+    raw_json = group.get(json_key)
+    raw_descriptor = group.get(binary_key)
+    if isinstance(raw_json, list) and (raw_json or not isinstance(raw_descriptor, dict)):
+        return [int(value) for value in raw_json]
+    if "vertex" in json_key:
+        start_key, count_key = "source_vertex_start", "source_vertex_count"
+    elif "face" in json_key:
+        start_key, count_key = "source_face_start", "source_face_count"
+    else:
+        start_key, count_key = "", ""
+    try:
+        raw_start = group.get(start_key, -1)
+        raw_count = group.get(count_key, 0)
+        start = int(raw_start if raw_start is not None else -1)
+        count = int(raw_count if raw_count is not None else 0)
+    except (TypeError, ValueError, OverflowError):
+        start, count = -1, 0
+    if start >= 0 and count > 0:
+        return list(range(start, start + count))
+    if not isinstance(raw_descriptor, dict) or not str(raw_descriptor.get("path") or "").strip():
+        return []
+    path = Path(str(raw_descriptor.get("path") or ""))
+    data = path.read_bytes()
+    if len(data) % 4:
+        return []
+    return list(struct.unpack("<" + "i" * (len(data) // 4), data))
+
+
+def _f64_descriptor_values(group: dict[str, object], json_key: str, binary_key: str) -> list[float]:
+    raw_json = group.get(json_key)
+    if isinstance(raw_json, list):
+        return [float(value) for value in raw_json]
+    raw_descriptor = group.get(binary_key)
+    if not isinstance(raw_descriptor, dict):
+        return []
+    path = Path(str(raw_descriptor.get("path") or ""))
+    data = path.read_bytes()
+    if len(data) % 8:
+        return []
+    return list(struct.unpack("<" + "d" * (len(data) // 8), data))
+
+
+def _edge_descriptor_values(group: dict[str, object]) -> list[list[int]]:
+    raw_json = group.get("source_edges")
+    if isinstance(raw_json, list):
+        return [[int(edge[0]), int(edge[1])] for edge in raw_json if isinstance(edge, list) and len(edge) >= 2]
+    values = _i32_descriptor_values(group, "source_edges", "source_edges_binary")
+    return [[values[index], values[index + 1]] for index in range(0, len(values) - 1, 2)]
 
 
 class MeshEditorDevHarnessTests(unittest.TestCase):
+    def test_native_smoke_selection_event_helpers_accept_ranges_and_binary_edges(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            edge_path = Path(temp_dir) / "cdmw_mesh_preview_delta_test_edges.bin"
+            edge_path.write_bytes(struct.pack("<iiii", 0, 1, 2, 3))
+            group = {
+                "source_edges_binary": {
+                    "path": str(edge_path),
+                    "count": 2,
+                    "components": 2,
+                    "type": "i32",
+                    "delete_after": True,
+                },
+                "source_face_start": 0,
+                "source_face_count": 2,
+            }
+
+            self.assertEqual(((0, 1), (2, 3)), _selection_edges_from_group(group))
+            self.assertEqual((0, 1), _selection_faces_from_group(group))
+            self.assertFalse(edge_path.exists())
+
+    def test_native_mesh_core_fallback_telemetry_records_and_clears(self) -> None:
+        clear_native_mesh_core_fallback_counts()
+        try:
+            record_native_mesh_core_fallback(
+                "preview_geometry",
+                "forced test fallback",
+                vertex_count=4,
+                face_count=2,
+                submesh_indices=(0,),
+            )
+
+            self.assertEqual({"preview_geometry": 1}, native_mesh_core_fallback_counts())
+            events = native_mesh_core_fallback_events()
+            self.assertEqual("preview_geometry", events[0]["operation"])
+            self.assertEqual("forced test fallback", events[0]["reason"])
+            self.assertEqual(4, events[0]["vertex_count"])
+        finally:
+            clear_native_mesh_core_fallback_counts()
+
+    def test_long_edit_mesh_tools_scenario_exercises_all_active_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_scenario("long-edit-mesh-tools", Path(temp_dir))
+
+        self.assertTrue(result["ok"])
+        long_edit = result["long_edit"]
+        self.assertEqual(17, long_edit["tool_count"])
+        self.assertEqual([], long_edit["failed_tools"])
+        self.assertTrue(long_edit["native_fallback_ok"])
+        if long_edit["native_core_available"]:
+            self.assertEqual({}, long_edit["native_fallback_counts"])
+        self.assertTrue(all(item["toggle_persistence_ok"] for item in long_edit["tools"]))
+        tools = {item["tool"] for item in long_edit["tools"]}
+        self.assertTrue(
+            {
+                "move",
+                "grab",
+                "smooth",
+                "inflate",
+                "pinch",
+                "delete_face",
+                "delete_edge",
+                "delete_vertex",
+                "subdivide_face",
+                "subdivide_edge",
+                "subdivide_vertex",
+                "refine_smooth_face",
+                "refine_smooth_edge",
+                "refine_smooth_vertex",
+                "split_face",
+                "split_edge",
+                "split_vertex",
+            }.issubset(tools)
+        )
+
+    def test_native_mesh_editor_workflow_scenario_uses_native_session_without_fallback(self) -> None:
+        if not native_mesh_core_available():
+            self.skipTest("native mesh core binary not built")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("cdmw.services.mesh_service.apply_mesh_edit_geometry_action", side_effect=AssertionError("old geometry dispatcher used")):
+                result = run_scenario("native-mesh-editor-workflow", Path(temp_dir))
+
+        self.assertTrue(result["ok"])
+        workflow = result["native_mesh_editor_workflow"]
+        self.assertTrue(workflow["native_core_available"])
+        self.assertTrue(workflow["native_fallback_ok"])
+        self.assertEqual({}, workflow["native_fallback_counts"])
+        self.assertTrue(workflow["command_ok"])
+        self.assertTrue(workflow["topology_ok"])
+        self.assertTrue(workflow["undo_redo_ok"])
+        self.assertEqual(
+            ["select_replace", "select_grow", "select_shrink", "select_smooth"],
+            [item["label"] for item in workflow["selection_commands"]],
+        )
+        self.assertTrue(all("cpp_ms" in item.get("metrics", {}) for item in workflow["selection_commands"]))
+        self.assertTrue(all("editor_select_cpp_ms" in item.get("metrics", {}) for item in workflow["selection_commands"]))
+        self.assertEqual(["delete", "subdivide", "refine_smooth", "brush", "undo", "redo"], [item["label"] for item in workflow["commands"]])
+        self.assertTrue(all("native_apply_roundtrip_ms" in item.get("metrics", {}) for item in workflow["commands"][:4]))
+        self.assertTrue(all("service_total_ms" in item.get("metrics", {}) for item in workflow["commands"][:4]))
+        self.assertTrue(all(item.get("metrics", {}).get("io_serialization_ms", 0.0) > 0.0 for item in workflow["commands"][:3]))
+        self.assertTrue(all("native_history_roundtrip_ms" in item.get("metrics", {}) for item in workflow["commands"][4:6]))
+
+    def test_native_session_action_coverage_avoids_legacy_geometry_dispatcher(self) -> None:
+        from cdmw.services.mesh_service import MeshService
+
+        if not native_mesh_core_available():
+            self.skipTest("native mesh core binary not built")
+        nonresident_display_actions = {"triangulate_display", "quadrangulate_display"}
+        for action in sorted(set(MESH_EDIT_ACTIONS) - nonresident_display_actions):
+            service = MeshService()
+            mesh = _build_two_part_synthetic_mesh() if action == "material_copy" else build_synthetic_mesh()
+            view = service.open_edit_session(mesh, session_id=f"native-session-coverage-{action}", mode="edit")
+            try:
+                with patch(
+                    "cdmw.services.mesh_service.apply_mesh_edit_geometry_action",
+                    side_effect=AssertionError(f"old geometry dispatcher used: {action}"),
+                ):
+                    result = service.apply_command(view.session_id, _coverage_command(action))
+            finally:
+                service.close_edit_session(view.session_id)
+            with self.subTest(action=action):
+                self.assertIn(result.status, {"ok", "noop"})
+
+    def test_native_mesh_editor_qt_responsiveness_scenario_uses_worker_without_fallback(self) -> None:
+        if not native_mesh_core_available():
+            self.skipTest("native mesh core binary not built")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("cdmw.services.mesh_service.apply_mesh_edit_geometry_action", side_effect=AssertionError("old geometry dispatcher used")):
+                result = run_scenario("native-mesh-editor-qt-responsiveness", Path(temp_dir))
+
+        self.assertTrue(result["ok"])
+        responsiveness = result["native_mesh_editor_qt_responsiveness"]
+        self.assertTrue(responsiveness["native_core_available"])
+        self.assertTrue(responsiveness["dispatch_target_ok"])
+        self.assertTrue(responsiveness["progress_target_ok"])
+        self.assertTrue(responsiveness["qt_heartbeat_ok"])
+        self.assertTrue(responsiveness["command_ok"])
+        self.assertTrue(responsiveness["native_fallback_ok"])
+        self.assertEqual({}, responsiveness["native_fallback_counts"])
+        self.assertGreaterEqual(responsiveness["heartbeat_count"], 2)
+
+    def test_native_mesh_editor_qt_cancellation_scenario_cancels_without_fallback(self) -> None:
+        if not native_mesh_core_available():
+            self.skipTest("native mesh core binary not built")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("cdmw.services.mesh_service.apply_mesh_edit_geometry_action", side_effect=AssertionError("old geometry dispatcher used")):
+                result = run_scenario("native-mesh-editor-qt-cancellation", Path(temp_dir))
+
+        self.assertTrue(result["ok"])
+        cancellation = result["native_mesh_editor_qt_cancellation"]
+        self.assertTrue(cancellation["native_core_available"])
+        self.assertTrue(cancellation["dispatch_target_ok"])
+        self.assertTrue(cancellation["progress_target_ok"])
+        self.assertTrue(cancellation["cancel_target_ok"])
+        self.assertTrue(cancellation["native_fallback_ok"])
+        self.assertEqual({}, cancellation["native_fallback_counts"])
+        self.assertLessEqual(cancellation["cancel_latency_ms"], 500.0)
+        self.assertIn("Cancelled", cancellation["cancelled"])
+
+    def test_native_mesh_editor_standalone_stroke_scenario_uses_native_session_without_fallback(self) -> None:
+        if not native_mesh_core_available():
+            self.skipTest("native mesh core binary not built")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("cdmw.services.mesh_service.apply_mesh_edit_geometry_action", side_effect=AssertionError("old geometry dispatcher used")):
+                result = run_scenario("native-mesh-editor-standalone-stroke", Path(temp_dir))
+
+        self.assertTrue(result["ok"])
+        stroke = result["native_mesh_editor_standalone_stroke"]
+        self.assertTrue(stroke["native_core_available"])
+        self.assertTrue(stroke["moved"])
+        self.assertTrue(stroke["undo_restored"])
+        self.assertTrue(stroke["brush_moved"])
+        self.assertTrue(stroke["brush_weighted_delta_ok"])
+        self.assertTrue(stroke["brush_undo_restored"])
+        self.assertEqual(1, stroke["undo_count_after_stroke"])
+        self.assertEqual(1, stroke["undo_count_after_brush"])
+        self.assertEqual("", stroke["stroke_id_after_finish"])
+        self.assertTrue(stroke["dispatch_target_ok"])
+        self.assertTrue(stroke["signals_ok"])
+        self.assertTrue(stroke["screen_selection_ok"])
+        self.assertTrue(stroke["screen_payloads_without_legacy_camera_fields_ok"])
+        self.assertEqual([1], stroke["screen_selection_vertices"])
+        self.assertEqual([[0, 1]], stroke["screen_selection_edges"])
+        self.assertEqual([0], stroke["screen_selection_faces"])
+        self.assertIn("set_mesh_edit_selection", stroke["host_calls"])
+        self.assertEqual(1.0, stroke["screen_selection_metrics"]["editor_select_resident_operation"])
+        self.assertEqual(1.0, stroke["last_action_metrics"]["editor_select_reused"])
+        self.assertEqual(0.0, stroke["last_action_metrics"]["editor_select_roundtrip_ms"])
+        self.assertTrue(stroke["native_fallback_ok"])
+        self.assertEqual({}, stroke["native_fallback_counts"])
+        self.assertIn("set_mesh_edit_state", stroke["host_calls"])
+        self.assertIn("update_mesh_edit_vertices", stroke["host_calls"])
+        self.assertEqual("grab", stroke["mesh_edit_state"]["tool"])
+        self.assertEqual("selection", stroke["mesh_edit_state"]["target_mode"])
+
+    def test_native_mesh_editor_static_screen_stroke_scenario_uses_native_session_without_fallback(self) -> None:
+        if not native_mesh_core_available():
+            self.skipTest("native mesh core binary not built")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("cdmw.services.mesh_service.apply_mesh_edit_geometry_action", side_effect=AssertionError("old geometry dispatcher used")):
+                result = run_scenario("native-mesh-editor-static-screen-stroke", Path(temp_dir))
+
+        self.assertTrue(result["ok"])
+        stroke = result["native_mesh_editor_static_screen_stroke"]
+        self.assertTrue(stroke["native_core_available"])
+        self.assertTrue(stroke["transform_moved"])
+        self.assertTrue(stroke["descriptor_transform_moved"])
+        self.assertTrue(stroke["brush_moved"])
+        self.assertTrue(stroke["transform_delta_ok"])
+        self.assertTrue(stroke["transform_incremental_drag_ok"])
+        self.assertEqual(0.0, stroke["transform_begin_screen_drag"]["start_x"])
+        self.assertEqual(2.0, stroke["transform_begin_screen_drag"]["end_x"])
+        self.assertEqual(2.0, stroke["transform_update_screen_drag"]["start_x"])
+        self.assertEqual(5.0, stroke["transform_update_screen_drag"]["end_x"])
+        self.assertTrue(stroke["descriptor_transform_delta_ok"])
+        self.assertTrue(stroke["brush_delta_ok"])
+        self.assertTrue(stroke["screen_payloads_without_legacy_camera_fields_ok"])
+        self.assertTrue(stroke["screen_payloads_with_source_transform_overrides_ok"])
+        self.assertEqual(1, stroke["transform_vertex_group_count"])
+        self.assertEqual(1, stroke["descriptor_transform_vertex_group_count"])
+        self.assertEqual(1, stroke["brush_vertex_group_count"])
+        self.assertTrue(stroke["native_fallback_ok"])
+        self.assertEqual({}, stroke["native_fallback_counts"])
+
+    def test_standalone_native_grab_update_skips_redundant_selection_payload(self) -> None:
+        from cdmw.ui.mesh_editor import MeshEditorTab
+
+        class Adapter:
+            standalone_native_mesh_edit_stroke_id = "stroke-1"
+            _standalone_native_payload_vec3 = staticmethod(MeshEditorTab._standalone_native_payload_vec3)
+            _standalone_native_payload_float = staticmethod(MeshEditorTab._standalone_native_payload_float)
+            _standalone_native_payload_int = staticmethod(MeshEditorTab._standalone_native_payload_int)
+
+            @staticmethod
+            def _standalone_native_payload_selection(_payload: object) -> dict[str, object]:
+                raise AssertionError("grab update should reuse resident native selection")
+
+        command = MeshEditorTab._standalone_native_mesh_edit_stroke_command(
+            Adapter(),
+            {
+                "stroke_id": "stroke-1",
+                "tool": "grab",
+                "center": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "screen_drag": {
+                    "start_x": 0.0,
+                    "start_y": 0.0,
+                    "end_x": 5.0,
+                    "end_y": 0.0,
+                    "yaw_degrees": 90.0,
+                    "pitch_degrees": 0.0,
+                    "distance": 1.0,
+                    "viewport_height": 200.0,
+                    "vertical_fov_degrees": 90.0,
+                },
+                "groups": [{"source_submesh_index": 0, "source_vertex_indices": [0, 1]}],
+            },
+            "update",
+        )
+
+        self.assertIsNotNone(command)
+        self.assertEqual("brush", command.action)
+        self.assertNotIn("_native_selection_payload", command.params)
+        self.assertIn("screen_drag", command.params)
+        self.assertNotIn("yaw_degrees", command.params["screen_drag"])
+        self.assertNotIn("vertical_fov_degrees", command.params["screen_drag"])
+
+    def test_standalone_native_grab_begin_with_screen_brush_skips_host_groups(self) -> None:
+        from cdmw.ui.mesh_editor import MeshEditorTab
+
+        class Adapter:
+            standalone_native_mesh_edit_stroke_id = ""
+            _standalone_native_payload_vec3 = staticmethod(MeshEditorTab._standalone_native_payload_vec3)
+            _standalone_native_payload_float = staticmethod(MeshEditorTab._standalone_native_payload_float)
+            _standalone_native_payload_int = staticmethod(MeshEditorTab._standalone_native_payload_int)
+
+            @staticmethod
+            def _standalone_native_payload_selection(_payload: object) -> dict[str, object]:
+                raise AssertionError("grab screen-brush begin should not require host-expanded groups")
+
+        command = MeshEditorTab._standalone_native_mesh_edit_stroke_command(
+            Adapter(),
+            {
+                "stroke_id": "grab-1",
+                "tool": "grab",
+                "target_mode": "vertex",
+                "selection_depth_mode": "visible",
+                "falloff": "smooth",
+                "screen_drag": {
+                    "start_x": 100.0,
+                    "start_y": 80.0,
+                    "end_x": 100.0,
+                    "end_y": 80.0,
+                },
+                "screen_brush": {
+                    "x": 100.0,
+                    "y": 80.0,
+                    "radius_pixels": 24.0,
+                    "viewport_width": 200.0,
+                    "viewport_height": 160.0,
+                },
+                "strength": 0.5,
+            },
+            "begin",
+        )
+
+        self.assertIsNotNone(command)
+        self.assertEqual("brush", command.action)
+        self.assertIn("screen_drag", command.params)
+        self.assertIn("screen_brush", command.params)
+        self.assertEqual("vertex", command.params["target_mode"])
+        self.assertNotIn("_native_selection_payload", command.params)
+
+    def test_standalone_native_move_begin_forwards_screen_selection_to_native(self) -> None:
+        from cdmw.ui.mesh_editor import MeshEditorTab
+
+        class Adapter:
+            standalone_native_mesh_edit_stroke_id = ""
+            _standalone_native_payload_vec3 = staticmethod(MeshEditorTab._standalone_native_payload_vec3)
+            _standalone_native_payload_float = staticmethod(MeshEditorTab._standalone_native_payload_float)
+            _standalone_native_payload_int = staticmethod(MeshEditorTab._standalone_native_payload_int)
+
+            @staticmethod
+            def _standalone_native_payload_selection(_payload: object) -> dict[str, object]:
+                raise AssertionError("move screen selection should not require host-expanded groups")
+
+        command = MeshEditorTab._standalone_native_mesh_edit_stroke_command(
+            Adapter(),
+            {
+                "stroke_id": "move-1",
+                "tool": "move",
+                "target_mode": "vertex",
+                "selection_depth_mode": "visible",
+                "falloff": "smooth",
+                "screen_drag": {
+                    "start_x": 100.0,
+                    "start_y": 80.0,
+                    "end_x": 100.0,
+                    "end_y": 80.0,
+                },
+                "screen_brush": {
+                    "x": 100.0,
+                    "y": 80.0,
+                    "radius_pixels": 24.0,
+                    "viewport_width": 200.0,
+                    "viewport_height": 160.0,
+                },
+            },
+            "begin",
+        )
+
+        self.assertIsNotNone(command)
+        self.assertEqual("transform", command.action)
+        self.assertIn("screen_drag", command.params)
+        self.assertNotIn("_native_selection_payload", command.params)
+        screen_payload = command.params["_native_screen_selection_payload"]
+        self.assertEqual("vertex", screen_payload["target_mode"])
+        self.assertEqual("visible", screen_payload["selection_depth_mode"])
+        self.assertEqual(100.0, screen_payload["screen_brush"]["x"])
+
+    def test_standalone_native_move_requires_screen_drag(self) -> None:
+        from cdmw.ui.mesh_editor import MeshEditorTab
+
+        class Adapter:
+            standalone_native_mesh_edit_stroke_id = ""
+            _standalone_native_payload_vec3 = staticmethod(MeshEditorTab._standalone_native_payload_vec3)
+            _standalone_native_payload_float = staticmethod(MeshEditorTab._standalone_native_payload_float)
+            _standalone_native_payload_int = staticmethod(MeshEditorTab._standalone_native_payload_int)
+
+            @staticmethod
+            def _standalone_native_payload_selection(_payload: object) -> dict[str, object]:
+                return {"vertices_by_submesh": [{"index": 0, "indices": [0]}]}
+
+        command = MeshEditorTab._standalone_native_mesh_edit_stroke_command(
+            Adapter(),
+            {
+                "stroke_id": "move-1",
+                "tool": "move",
+                "step_delta": {"x": 0.0, "y": 0.0, "z": 0.25},
+            },
+            "begin",
+        )
+
+        self.assertIsNone(command)
+        finish_command = MeshEditorTab._standalone_native_mesh_edit_stroke_command(
+            Adapter(),
+            {
+                "stroke_id": "move-1",
+                "tool": "move",
+            },
+            "end",
+        )
+
+        self.assertIsNotNone(finish_command)
+        self.assertNotIn("screen_drag", finish_command.params)
+
+    def test_standalone_native_inflate_forwards_screen_radius_to_native(self) -> None:
+        from cdmw.ui.mesh_editor import MeshEditorTab
+
+        class Adapter:
+            standalone_native_mesh_edit_stroke_id = "stroke-1"
+            _standalone_native_payload_vec3 = staticmethod(MeshEditorTab._standalone_native_payload_vec3)
+            _standalone_native_payload_float = staticmethod(MeshEditorTab._standalone_native_payload_float)
+            _standalone_native_payload_int = staticmethod(MeshEditorTab._standalone_native_payload_int)
+
+            @staticmethod
+            def _standalone_native_payload_selection(_payload: object) -> dict[str, object]:
+                raise AssertionError("screen_brush update should reuse resident native selection")
+
+        command = MeshEditorTab._standalone_native_mesh_edit_stroke_command(
+            Adapter(),
+            {
+                "stroke_id": "stroke-1",
+                "tool": "inflate",
+                "center": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "screen_radius": {"radius_pixels": 8.0, "distance": 2.0, "viewport_height": 100.0, "vertical_fov_degrees": 45.0},
+                "screen_brush": {"x": 100.0, "y": 120.0, "radius_pixels": 8.0, "viewport_width": 200.0, "viewport_height": 100.0},
+                "target_mode": "vertex",
+                "selection_depth_mode": "visible",
+                "strength": 0.5,
+            },
+            "update",
+        )
+
+        self.assertIsNotNone(command)
+        self.assertEqual("brush", command.action)
+        self.assertNotIn("_native_selection_payload", command.params)
+        self.assertIn("screen_radius", command.params)
+        self.assertIn("screen_brush", command.params)
+        self.assertNotIn("distance", command.params["screen_radius"])
+        self.assertNotIn("vertical_fov_degrees", command.params["screen_radius"])
+        self.assertEqual("vertex", command.params["target_mode"])
+        self.assertEqual("visible", command.params["selection_depth_mode"])
+        self.assertNotIn("amount", command.params)
+
+    def test_standalone_native_selection_event_uses_screen_payload(self) -> None:
+        tab_source = Path("cdmw/ui/mesh_editor/tab.py").read_text(encoding="utf-8")
+        self.assertIn('"mesh_edit_selection_changed", self._handle_standalone_native_mesh_edit_selection_changed', tab_source)
+        handler_start = tab_source.index("def _handle_standalone_native_mesh_edit_selection_changed")
+        handler_body = tab_source[handler_start:tab_source.index("def _apply_standalone_native_mesh_edit_stroke", handler_start)]
+        self.assertIn('payload.get("screen_brush")', handler_body)
+        self.assertIn('payload.get("screen_region")', handler_body)
+        self.assertIn("_native_screen_selection_payload=screen_payload", handler_body)
+        self.assertIn('screen_payload["screen_brush"]', handler_body)
+        self.assertIn('screen_payload["screen_region"]', handler_body)
+        self.assertIn('screen_payload["target_mode"]', handler_body)
+        self.assertIn('screen_payload["selection_depth_mode"]', handler_body)
+        self.assertIn("native_update = controller.native_update_for_result(result)", handler_body)
+        self.assertIn("self._apply_standalone_native_update(native_update)", handler_body)
+        self.assertNotIn("_standalone_native_payload_selection(payload)", handler_body)
+
+    def test_d3d11_brush_selection_event_carries_screen_brush_context(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        self.assertIn("void send_mesh_edit_screen_brush_selection_event(int x, int y)", source)
+        selection_event_start = source.index("void send_mesh_edit_selection_event(")
+        selection_event_body = source[selection_event_start:source.index("int update_mesh_edit_vertices_from_payload", selection_event_start)]
+        self.assertIn("bool include_screen_brush = false", selection_event_body)
+        self.assertIn('\\"screen_brush\\":', selection_event_body)
+        screen_event_body = source[source.index("void send_mesh_edit_screen_brush_selection_event("):selection_event_start]
+        self.assertIn('\\"target_mode\\":', screen_event_body)
+        self.assertIn('\\"selection_depth_mode\\":', screen_event_body)
+        self.assertIn("mesh_edit_screen_brush_json(mesh_edit_.last_x, mesh_edit_.last_y, mesh_edit_.radius_pixels)", selection_event_body)
+        brush_json_start = source.index("std::string mesh_edit_screen_brush_json(")
+        brush_json_body = source[brush_json_start:source.index("std::string mesh_edit_screen_region_json(", brush_json_start)]
+        self.assertIn("mesh_edit_source_projection_overrides_json()", brush_json_body)
+        brush_selection_start = source.index("void apply_mesh_edit_brush_selection(")
+        brush_selection_body = source[brush_selection_start:source.index("bool mesh_edit_preview_event_due", brush_selection_start)]
+        self.assertIn("send_mesh_edit_screen_brush_selection_event(x, y)", brush_selection_body)
+        self.assertNotIn("mesh_edit_depth_filter_enabled()", brush_selection_body)
+        self.assertNotIn("mesh_edit_face_candidates_at", brush_selection_body)
+        self.assertNotIn("mesh_edit_edge_candidates_at", brush_selection_body)
+        self.assertNotIn("mesh_edit_candidates_at(x, y, mesh_edit_.radius_pixels, false)", brush_selection_body)
+
+    def test_d3d11_region_selection_event_carries_screen_region_context(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        self.assertIn("std::string mesh_edit_screen_region_json(int x, int y) const", source)
+        self.assertIn("void send_mesh_edit_screen_region_selection_event(int x, int y)", source)
+
+        region_start = source.index("std::string mesh_edit_screen_region_json(")
+        region_body = source[region_start:source.index("std::string mesh_edit_payload_json(", region_start)]
+        self.assertIn('\\"start_x\\":', region_body)
+        self.assertIn('\\"end_x\\":', region_body)
+        self.assertIn('\\"points\\":', region_body)
+        self.assertIn('\\"source_submesh_indices\\":', region_body)
+        self.assertIn('\\"world_view_projection\\":', region_body)
+        self.assertIn("XMStoreFloat4x4(&world_view_projection, current_mvp_matrix())", region_body)
+        self.assertIn("mesh_edit_source_projection_overrides_json()", region_body)
+        for legacy_field in ('\\"camera_world\\":', '\\"yaw_degrees\\":', '\\"pitch_degrees\\":', '\\"distance\\":', '\\"vertical_fov_degrees\\":', '\\"pan\\":'):
+            self.assertNotIn(legacy_field, region_body)
+
+        region_event_start = source.index("void send_mesh_edit_screen_region_selection_event(")
+        region_event_body = source[region_event_start:source.index("void send_mesh_edit_selection_event(", region_event_start)]
+        self.assertIn('\\"target_mode\\":', region_event_body)
+        self.assertIn('\\"selection_depth_mode\\":', region_event_body)
+        self.assertIn('\\"screen_region\\":', region_event_body)
+
+        selection_start = source.index("void apply_mesh_edit_region_selection")
+        selection_body = source[selection_start:source.index("void finish_mesh_edit_selection_drag", selection_start)]
+        self.assertIn("send_mesh_edit_screen_region_selection_event(x, y)", selection_body)
+        self.assertNotIn("mesh_edit_screen_vertices_for_view", selection_body)
+        self.assertNotIn("mesh_edit_depth_filter_enabled()", selection_body)
+        self.assertNotIn("mesh_edit_faces_in_selection_region", selection_body)
+        self.assertNotIn("apply_mesh_edit_face_selection_delta", selection_body)
+        self.assertNotIn("apply_mesh_edit_edge_selection_delta", selection_body)
+        self.assertNotIn("apply_mesh_edit_selection_delta", selection_body)
+
+    def test_d3d11_source_selection_accepts_screen_payload(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        brush_command_start = source.index('if (command == "select_mesh_edit_brush")')
+        brush_command_body = source[brush_command_start:source.index('if (command == "select_mesh_edit_region")', brush_command_start)]
+        region_command_start = source.index('if (command == "select_mesh_edit_region")')
+        region_command_body = source[region_command_start:source.index('if (command == "update_mesh_edit_vertices")', region_command_start)]
+        brush_event_start = source.index("void send_mesh_edit_screen_brush_selection_event(")
+        brush_event_body = source[brush_event_start:source.index("void send_mesh_edit_screen_region_selection_event(", brush_event_start)]
+        part_click_start = source.index("void send_source_part_screen_selection_event(")
+        part_click_body = source[part_click_start:source.index("void update_source_part_hover(", part_click_start)]
+        part_context_start = source.index("void send_source_part_screen_context_event(")
+        part_context_body = source[part_context_start:source.index("void update_source_part_hover(", part_context_start)]
+        hover_start = source.index("void update_source_part_hover(")
+        hover_body = source[hover_start:source.index("void begin_source_part_click(", hover_start)]
+        begin_part_click_start = source.index("void begin_source_part_click(")
+        begin_part_click_body = source[begin_part_click_start:source.index("void finish_source_part_click(", begin_part_click_start)]
+        finish_part_click_start = source.index("void finish_source_part_click(")
+        finish_part_click_body = source[finish_part_click_start:source.index("bool request_source_part_context(", finish_part_click_start)]
+        source_context_start = source.index("bool request_source_part_context(")
+        source_context_body = source[source_context_start:source.index("std::string mesh_edit_screen_drag_json(", source_context_start)]
+        brush_json_start = source.index("std::string mesh_edit_screen_brush_json(")
+        brush_json_body = source[brush_json_start:source.index("std::string mesh_edit_screen_region_json(", brush_json_start)]
+        region_json_start = source.index("std::string mesh_edit_screen_region_json(")
+        region_json_body = source[region_json_start:source.index("std::string mesh_edit_payload_json(", region_json_start)]
+        overrides_start = source.index("std::string mesh_edit_source_projection_overrides_json() const")
+        overrides_body = source[overrides_start:source.index("std::string mesh_edit_screen_brush_json(", overrides_start)]
+
+        tab_source = Path("cdmw/ui/mesh_editor/tab.py").read_text(encoding="utf-8")
+        handler_start = tab_source.index("def _handle_standalone_native_mesh_edit_selection_changed")
+        handler_body = tab_source[handler_start:tab_source.index("def _apply_standalone_native_mesh_edit_stroke", handler_start)]
+
+        native_source = Path("native/cdmw_mesh_core/src/main.cpp").read_text(encoding="utf-8")
+        native_projection_start = native_source.index("MeshEditorScreenBrushProjection mesh_editor_screen_brush_projection")
+        native_projection_body = native_source[native_projection_start:native_source.index("bool mesh_editor_screen_ray_from_projection", native_projection_start)]
+        native_brush_start = native_source.index("void mesh_editor_add_screen_brush_selection(")
+        native_brush_body = native_source[native_brush_start:native_source.index("bool mesh_editor_screen_region_contains", native_brush_start)]
+        native_select_start = native_source.index('if (command == "select")')
+        native_select_body = native_source[native_select_start:native_source.index('if (command == "apply")', native_select_start)]
+        native_region_start = native_source.index("void mesh_editor_add_screen_region_selection(")
+        native_region_body = native_source[native_region_start:native_source.index("MeshEditorSelection mesh_editor_selection_from_json", native_region_start)]
+        harness_source = Path("tools/mesh_editor_dev_harness.py").read_text(encoding="utf-8")
+
+        self.assertIn('target_mode == "source"', brush_command_body)
+        self.assertIn('target_mode == "source"', region_command_body)
+        self.assertIn('\\"target_mode\\":', brush_event_body)
+        self.assertIn('\\"screen_brush\\":', brush_event_body)
+        self.assertIn('\\"operation\\":\\"toggle\\"', part_click_body)
+        self.assertIn('\\"target_mode\\":\\"source\\"', part_click_body)
+        self.assertIn('\\"selection_depth_mode\\":\\"xray\\"', part_click_body)
+        self.assertIn("mesh_edit_screen_brush_json(x, y, 28.0f, false)", part_click_body)
+        self.assertIn('send_mesh_edit_event("mesh_edit_selection_changed", payload.str())', part_click_body)
+        self.assertIn('\\"operation\\":\\"context\\"', part_context_body)
+        self.assertIn('\\"target_mode\\":\\"source\\"', part_context_body)
+        self.assertIn('\\"context_request\\":true', part_context_body)
+        self.assertIn('\\"context_x\\":', part_context_body)
+        self.assertIn("mesh_edit_screen_brush_json(x, y, 28.0f, false)", part_context_body)
+        self.assertIn("if (mesh_edit_.enabled)", hover_body)
+        self.assertLess(
+            hover_body.index("if (mesh_edit_.enabled)"),
+            hover_body.index("source_part_at(x, y, 28.0f)"),
+        )
+        self.assertIn('send_source_part_event("source_part_hovered", -1)', hover_body)
+        self.assertIn("if (mesh_edit_.enabled)", source_context_body)
+        self.assertLess(
+            source_context_body.index("if (mesh_edit_.enabled)"),
+            source_context_body.index("source_part_at(x, y, 28.0f)"),
+        )
+        self.assertIn("send_source_part_screen_context_event(x, y)", source_context_body)
+        self.assertIn("bool include_source_filter = true", brush_json_body)
+        self.assertIn("include_source_filter && !mesh_edit_.source_submesh_indices.empty()", brush_json_body)
+        self.assertIn("mesh_edit_source_projection_overrides_json()", brush_json_body)
+        self.assertIn("mesh_edit_source_projection_overrides_json()", region_json_body)
+        self.assertIn("alignment_preview_transform_active()", overrides_body)
+        self.assertIn("alignment_preview_transform_for_batch(batch)", overrides_body)
+        self.assertIn("mesh_edit_source_allowed(batch.source_submesh_index)", overrides_body)
+        self.assertIn("source_submesh_world_transforms", overrides_body)
+        self.assertIn("world_transform", overrides_body)
+        self.assertNotIn("current_world_view_projection", overrides_body)
+        self.assertIn("if (!mesh_edit_.enabled)", begin_part_click_body)
+        self.assertIn("source_part_at(x, y, 28.0f)", begin_part_click_body)
+        self.assertIn("if (mesh_edit_.enabled)", finish_part_click_body)
+        self.assertIn("send_source_part_screen_selection_event(x, y)", finish_part_click_body)
+        self.assertIn("send_source_part_event(\"source_part_selected\"", finish_part_click_body)
+        self.assertLess(
+            finish_part_click_body.index("if (mesh_edit_.enabled)"),
+            finish_part_click_body.index("send_source_part_screen_selection_event(x, y)"),
+        )
+        self.assertIn('target_mode == "source"', native_brush_body)
+        self.assertIn("source_submesh_world_transforms", native_projection_body)
+        self.assertIn("matrix4x4_multiply(source_world_transform, projection.world_view_projection)", native_projection_body)
+        self.assertIn("mesh_editor_projection_for_submesh(", native_projection_body)
+        self.assertIn("mesh_editor_projection_for_submesh(projection, entry.first)", native_brush_body)
+        self.assertIn("mesh_editor_pick_source_with_screen_ray(session, *raw_brush, projection)", native_brush_body)
+        self.assertIn("selection.source_indices.insert(best_source_index)", native_brush_body)
+        self.assertIn('target_mode == "edge" || target_mode == "face"', native_brush_body)
+        self.assertIn("mesh_editor_screen_ray_from_projection(*raw_brush, entry_projection, screen_ray)", native_brush_body)
+        self.assertIn("mesh_editor_ray_segment_distance(", native_brush_body)
+        self.assertIn("mesh_editor_ray_intersects_triangle(", native_brush_body)
+        self.assertIn("mesh_editor_project_screen_brush_vertex_with_projection", native_brush_body)
+        self.assertIn('selection_operation == "context"', native_select_body)
+        self.assertIn("source_pick_count", native_select_body)
+        self.assertIn("mesh_editor_selection_empty(incoming)", native_select_body)
+        self.assertIn("editor_select_source_pick_count", handler_body)
+        self.assertIn("show_part_context_menu_for_part", handler_body)
+        self.assertIn('payload.get("context_request")', handler_body)
+        self.assertIn('target_mode == "source"', native_region_body)
+        self.assertIn("mesh_editor_projection_for_submesh(projection, entry.first)", native_region_body)
+        self.assertIn("selection.source_indices.insert(entry.first)", native_region_body)
+        self.assertIn('"command": "select_mesh_edit_brush"', harness_source)
+        self.assertIn('"target_mode": "source"', harness_source)
+        self.assertIn("source_screen_selection_ok", harness_source)
+        self.assertIn('"command": "set_alignment_transforms"', harness_source)
+        self.assertIn("_screen_source_transform_override_ok", harness_source)
+        self.assertIn("screen_payloads_with_source_transform_overrides_ok", harness_source)
+
+    def test_d3d11_native_screen_tools_skip_overlay_candidate_hits(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        overlay_start = source.index("const bool cursor_in_view =")
+        overlay_body = source[overlay_start:source.index("if (mesh_edit_.selection_drag_active &&", overlay_start)]
+
+        self.assertIn("add_ring(", overlay_body)
+        self.assertIn('const bool remove_tool = mesh_edit_.tool == "remove";', overlay_body)
+        self.assertIn("draw_mesh_edit_vertex_dots_instanced(view, *dot_vertices, xray_mode);", source)
+        self.assertIn("mesh_edit_source_face_selected(batch, triangle_index, base)", source)
+        self.assertIn("mesh_edit_source_edge_selected(key0, key1)", source)
+        self.assertNotIn("native_screen_tool", source)
+        self.assertNotIn("brush_vertices", source)
+        self.assertNotIn("brush_triangle", source)
+        self.assertNotIn("struct EditorCandidate", source)
+        self.assertNotIn("struct MeshEditEdgeCandidate", source)
+        self.assertNotIn("mesh_edit_candidates_at_in_view", source)
+        self.assertNotIn("mesh_edit_edge_candidates_at_in_view", source)
+        self.assertNotIn("mesh_edit_face_candidates_at_in_view", source)
+        self.assertNotIn("std::vector<EditorCandidate> mesh_edit_face_candidates_at_in_view", source)
+        self.assertNotIn("distance_to_screen_triangle", source)
+        self.assertNotIn("distance_to_screen_segment", source)
+
+    def test_d3d11_inflate_payload_uses_screen_radius_not_host_amount(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        amount_start = source.index("} else if (amount_tool) {")
+        amount_body = source[amount_start:source.index("} else {", amount_start)]
+
+        self.assertIn('\\"screen_radius\\":', amount_body)
+        self.assertIn('\\"screen_brush\\":', amount_body)
+        radius_start = source.index("std::string mesh_edit_screen_radius_json(")
+        radius_body = source[radius_start:source.index("std::string mesh_edit_screen_brush_json(", radius_start)]
+        self.assertIn('\\"world_view_projection\\":', radius_body)
+        self.assertNotIn('\\"camera_world\\":', radius_body)
+        self.assertIn("XMStoreFloat4x4(&world_view_projection, current_mvp_matrix())", radius_body)
+        self.assertIn("mesh_edit_source_projection_overrides_json()", radius_body)
+        self.assertNotIn('\\"distance\\":', radius_body)
+        self.assertNotIn('\\"vertical_fov_degrees\\":', radius_body)
+        self.assertNotIn('\\"center\\":', amount_body)
+        self.assertNotIn("mesh_edit_average_position(candidates)", amount_body)
+        self.assertNotIn('\\"amount\\":', amount_body)
+        self.assertNotIn("amount_world", amount_body)
+
+        native_source = Path("native/cdmw_mesh_core/src/main.cpp").read_text(encoding="utf-8")
+        self.assertIn("mesh_editor_source_world_view_projection_from_json", native_source)
+        self.assertIn("mesh_editor_screen_radius_units_at_center(screen_radius_payload, center, result.index)", native_source)
+
+    def test_d3d11_screen_drag_payload_uses_cursor_endpoints(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        drag_start = source.index("std::string mesh_edit_screen_drag_json(")
+        drag_body = source[drag_start:source.index("std::string mesh_edit_screen_radius_json(", drag_start)]
+        payload_start = source.index("std::string mesh_edit_payload_json(")
+        payload_body = source[payload_start:source.index("void send_mesh_edit_event(", payload_start)]
+
+        self.assertIn('\\"start_x\\":', drag_body)
+        self.assertIn('\\"end_x\\":', drag_body)
+        self.assertIn('\\"world_view_projection\\":', drag_body)
+        self.assertIn("XMStoreFloat4x4(&world_view_projection, current_mvp_matrix())", drag_body)
+        self.assertIn("mesh_edit_source_projection_overrides_json()", drag_body)
+        self.assertNotIn("const std::string screen_drag = mesh_edit_screen_drag_json", payload_body)
+        self.assertEqual(2, payload_body.count("mesh_edit_screen_drag_json(mesh_edit_.last_x, mesh_edit_.last_y, x, y)"))
+        for legacy_field in ('\\"yaw_degrees\\":', '\\"pitch_degrees\\":', '\\"distance\\":', '\\"vertical_fov_degrees\\":'):
+            self.assertNotIn(legacy_field, drag_body)
+        self.assertNotIn('\\"camera_world\\":', drag_body)
+        self.assertNotIn("delta_x_pixels", drag_body)
+        self.assertNotIn("end_x - start_x", drag_body)
+
+        native_source = Path("native/cdmw_mesh_core/src/main.cpp").read_text(encoding="utf-8")
+        self.assertIn("mesh_editor_screen_drag_projection_delta", native_source)
+        self.assertIn("const Vec3 base_translate = screen_drag_projection_payload ? Vec3{0.0, 0.0, 0.0} : transform.translate", native_source)
+        self.assertIn("add_screen_drag_delta(base_translate, screen_drag, &transform.pivot, result.index)", native_source)
+        self.assertIn("const Vec3 drag_base = screen_drag_projection_payload", native_source)
+        self.assertIn("add_screen_drag_delta(\n        drag_base,", native_source)
+        self.assertIn("result.index\n    );", native_source)
+
+    def test_d3d11_smooth_payload_sends_screen_brush_context(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        brush_start = source.index("std::string mesh_edit_screen_brush_json(")
+        brush_body = source[brush_start:source.index("std::string mesh_edit_screen_region_json(", brush_start)]
+        payload_start = source.index("std::string mesh_edit_payload_json(")
+        payload_body = source[payload_start:source.index("void send_mesh_edit_event(", payload_start)]
+        smooth_start = source.index("} else if (smooth_tool) {")
+        smooth_body = source[smooth_start:source.index("} else if (amount_tool) {", smooth_start)]
+        begin_start = source.index("bool begin_mesh_edit_drag(")
+        begin_body = source[begin_start:source.index("bool update_mesh_edit_drag(", begin_start)]
+        update_start = source.index("bool update_mesh_edit_drag(")
+        update_body = source[update_start:source.index("bool finish_mesh_edit_drag(", update_start)]
+
+        self.assertIn('\\"x\\":', brush_body)
+        self.assertIn('\\"radius_pixels\\":', brush_body)
+        self.assertIn('\\"viewport_width\\":', brush_body)
+        self.assertIn('\\"world_view_projection\\":', brush_body)
+        self.assertIn("XMStoreFloat4x4(&world_view_projection, current_mvp_matrix())", brush_body)
+        for legacy_field in ('\\"camera_world\\":', '\\"yaw_degrees\\":', '\\"pitch_degrees\\":', '\\"distance\\":', '\\"vertical_fov_degrees\\":', '\\"pan\\":'):
+            self.assertNotIn(legacy_field, brush_body)
+        self.assertIn('\\"source_submesh_indices\\":[', brush_body)
+        self.assertIn('const bool grab_screen_brush_tool = grab_tool && mesh_edit_.target_mode != "selection";', payload_body)
+        self.assertIn("bool include_screen_selection = false", payload_body)
+        self.assertIn("screen_brush_tool || include_screen_selection", payload_body)
+        self.assertIn('const bool remove_screen_tool = tool == "remove" && mesh_edit_.delete_mode != "selection";', payload_body)
+        self.assertIn("const bool screen_brush_tool = grab_screen_brush_tool || smooth_tool || amount_tool || remove_screen_tool", payload_body)
+        self.assertNotIn("mesh_edit_falloff_weight", source)
+        self.assertIn('\\"target_mode\\":', payload_body)
+        self.assertIn('\\"selection_depth_mode\\":', payload_body)
+        self.assertIn('\\"screen_brush\\":', smooth_body)
+        self.assertIn("const bool has_resident_selection = !mesh_edit_.selected_vertices.empty()", begin_body)
+        self.assertIn("|| !mesh_edit_.selected_edges.empty()", begin_body)
+        self.assertIn("|| !mesh_edit_.selected_faces.empty()", begin_body)
+        self.assertIn("|| !mesh_edit_.selected_sources.empty();", begin_body)
+        self.assertIn('move_screen_selection_tool = mesh_edit_.tool == "move" && !has_resident_selection', begin_body)
+        self.assertIn('grab_screen_selection_tool = mesh_edit_.tool == "grab" && mesh_edit_.target_mode == "selection" && !has_resident_selection', begin_body)
+        self.assertIn("bool screen_selection_tool = move_screen_selection_tool || grab_screen_selection_tool", begin_body)
+        self.assertIn("bool resident_selection_drag_tool = selection_drag_tool && has_resident_selection", begin_body)
+        self.assertIn("bool native_selection_tool = screen_brush_tool || resident_selection_drag_tool", begin_body)
+        self.assertIn('mesh_edit_.tool == "grab" && mesh_edit_.target_mode != "selection"', begin_body)
+        self.assertIn("bool screen_brush_tool = screen_selection_tool", begin_body)
+        self.assertIn("drag_uses_resident_selection = screen_selection_tool || resident_selection_drag_tool", begin_body)
+        self.assertIn("if (!native_selection_tool) return true;", begin_body)
+        self.assertIn('send_mesh_edit_event("mesh_edit_stroke_started", mesh_edit_payload_json(x, y, false, screen_selection_tool));', begin_body)
+        self.assertNotIn("drag_candidates", begin_body)
+        self.assertNotIn("mesh_edit_payload_json(candidates", begin_body)
+        self.assertIn("screen_brush_update_tool", update_body)
+        self.assertIn("resident_selection_drag = drag_mode && mesh_edit_.drag_uses_resident_selection", update_body)
+        self.assertIn('mesh_edit_.tool == "grab" && mesh_edit_.target_mode != "selection"', update_body)
+        self.assertIn("!screen_brush_update_tool && !resident_selection_drag", update_body)
+        self.assertIn('send_mesh_edit_event("mesh_edit_stroke_previewed", mesh_edit_payload_json(x, y, ctrl_down));', update_body)
+        self.assertNotIn("mesh_edit_payload_json(candidates", update_body)
+        self.assertNotIn("mesh_edit_groups_json", source)
+
+    def test_d3d11_remove_payload_sends_screen_brush_without_groups(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        payload_start = source.index("std::string mesh_edit_payload_json(")
+        payload_body = source[payload_start:source.index("void send_mesh_edit_event(", payload_start)]
+        remove_start = payload_body.index("} else if (remove_screen_tool) {")
+        remove_body = payload_body[remove_start:]
+        begin_start = source.index("bool begin_mesh_edit_drag(")
+        begin_body = source[begin_start:source.index("bool update_mesh_edit_drag(", begin_start)]
+        update_start = source.index("bool update_mesh_edit_drag(")
+        update_body = source[update_start:source.index("bool finish_mesh_edit_drag(", update_start)]
+
+        self.assertIn('remove_screen_tool = tool == "remove" && mesh_edit_.delete_mode != "selection"', payload_body)
+        self.assertIn('remove_screen_tool ? "face"', payload_body)
+        self.assertIn('\\"delete_mode\\":\\"', remove_body)
+        self.assertIn("json_escape(mesh_edit_.delete_mode)", remove_body)
+        self.assertIn('\\"screen_brush\\":', remove_body)
+        self.assertIn('\\"falloff\\":', remove_body)
+        self.assertNotIn("mesh_edit_average_position", remove_body)
+        self.assertNotIn('\\"screen_radius\\":', remove_body)
+        self.assertIn('remove_screen_tool = mesh_edit_.tool == "remove" && mesh_edit_.delete_mode != "selection"', begin_body)
+        self.assertIn("|| remove_screen_tool", begin_body)
+        self.assertIn("native_selection_tool", begin_body)
+        self.assertIn("!native_selection_tool", begin_body)
+        self.assertIn('remove_screen_tool = mesh_edit_.tool == "remove" && mesh_edit_.delete_mode != "selection"', update_body)
+        self.assertIn("screen_brush_update_tool = remove_screen_tool", update_body)
+        self.assertIn("!screen_brush_update_tool && !resident_selection_drag", update_body)
+
+    def test_d3d11_grab_brush_target_payload_sends_screen_brush_without_groups(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        payload_start = source.index("std::string mesh_edit_payload_json(")
+        payload_body = source[payload_start:source.index("void send_mesh_edit_event(", payload_start)]
+        grab_start = payload_body.index("if (grab_tool) {")
+        grab_body = payload_body[grab_start:payload_body.index("} else if (smooth_tool) {", grab_start)]
+        begin_start = source.index("bool begin_mesh_edit_drag(")
+        begin_body = source[begin_start:source.index("bool update_mesh_edit_drag(", begin_start)]
+        update_start = source.index("bool update_mesh_edit_drag(")
+        update_body = source[update_start:source.index("bool finish_mesh_edit_drag(", update_start)]
+
+        self.assertIn('grab_screen_brush_tool = grab_tool && mesh_edit_.target_mode != "selection"', payload_body)
+        self.assertIn('\\"screen_drag\\":', grab_body)
+        self.assertIn('\\"screen_brush\\":', grab_body)
+        self.assertIn('\\"falloff\\":', grab_body)
+        self.assertIn('mesh_edit_.tool == "grab" && mesh_edit_.target_mode != "selection"', begin_body)
+        self.assertIn('grab_screen_selection_tool = mesh_edit_.tool == "grab" && mesh_edit_.target_mode == "selection" && !has_resident_selection', begin_body)
+        self.assertIn('send_mesh_edit_event("mesh_edit_stroke_started", mesh_edit_payload_json(x, y, false, screen_selection_tool));', begin_body)
+        self.assertIn('mesh_edit_.tool == "grab" && mesh_edit_.target_mode != "selection"', update_body)
+        self.assertIn('send_mesh_edit_event("mesh_edit_stroke_previewed", mesh_edit_payload_json(x, y, ctrl_down));', update_body)
+
+    def test_d3d11_selected_drag_begin_uses_resident_selection_without_groups(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        begin_start = source.index("bool begin_mesh_edit_drag(")
+        begin_body = source[begin_start:source.index("bool update_mesh_edit_drag(", begin_start)]
+        update_start = source.index("bool update_mesh_edit_drag(")
+        update_body = source[update_start:source.index("bool finish_mesh_edit_drag(", update_start)]
+
+        self.assertNotIn("mesh_edit_selected_candidates()", begin_body)
+        self.assertIn('selection_drag_tool = mesh_edit_.target_mode == "selection"', begin_body)
+        self.assertIn("resident_selection_drag_tool = selection_drag_tool && has_resident_selection", begin_body)
+        self.assertIn("native_selection_tool = screen_brush_tool || resident_selection_drag_tool", begin_body)
+        self.assertIn("drag_uses_resident_selection = screen_selection_tool || resident_selection_drag_tool", begin_body)
+        self.assertIn('send_mesh_edit_event("mesh_edit_stroke_started", mesh_edit_payload_json(x, y, false, screen_selection_tool));', begin_body)
+        self.assertNotIn("mesh_edit_payload_json(candidates", begin_body)
+        self.assertIn("resident_selection_drag = drag_mode && mesh_edit_.drag_uses_resident_selection", update_body)
+        self.assertIn("!screen_brush_update_tool && !resident_selection_drag", update_body)
+        self.assertNotIn("drag_candidates", update_body)
+
+    def test_native_mesh_editor_d3d11_delta_scenario_uses_vertex_update_without_fallback(self) -> None:
+        if not native_mesh_core_available():
+            self.skipTest("native mesh core binary not built")
+        if find_native_d3d11_host() is None:
+            self.skipTest("native D3D11 preview host not built")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("cdmw.services.mesh_service.apply_mesh_edit_geometry_action", side_effect=AssertionError("old geometry dispatcher used")):
+                result = run_scenario("native-mesh-editor-d3d11-delta", Path(temp_dir), allow_synthetic_d3d11=True)
+
+        self.assertTrue(result["ok"])
+        d3d11_delta = result["native_mesh_editor_d3d11_delta"]
+        self.assertTrue(d3d11_delta["native_core_available"])
+        self.assertTrue(d3d11_delta["transform_delta_ok"])
+        self.assertTrue(d3d11_delta["transform_screen_payload_ok"])
+        self.assertTrue(d3d11_delta["transform_dispatch_target_ok"])
+        self.assertTrue(d3d11_delta["dispatch_target_ok"])
+        self.assertEqual(["update_mesh_edit_vertices"], d3d11_delta["transform_host_calls"])
+        self.assertEqual("mesh_edit_vertices_updated", d3d11_delta["transform_update_event"]["event"])
+        self.assertGreater(d3d11_delta["transform_update_event"]["changed_vertices"], 0)
+        self.assertEqual(0, d3d11_delta["transform_triangle_group_count"])
+        self.assertFalse(d3d11_delta["transform_replace_all_triangles"])
+        self.assertGreaterEqual(d3d11_delta["transform_command"]["metrics"]["d3d11_update_ms"], 0.0)
+        self.assertTrue(d3d11_delta["delta_only_ok"])
+        self.assertTrue(d3d11_delta["brush_screen_payload_ok"])
+        self.assertTrue(d3d11_delta["screen_payloads_without_legacy_camera_fields_ok"])
+        self.assertTrue(d3d11_delta["screen_payloads_with_source_transform_overrides_ok"])
+        self.assertTrue(d3d11_delta["brush_dispatch_target_ok"])
+        self.assertEqual(["update_mesh_edit_vertices"], d3d11_delta["host_calls"])
+        self.assertEqual("mesh_edit_vertices_updated", d3d11_delta["update_event"]["event"])
+        self.assertGreater(d3d11_delta["update_event"]["changed_vertices"], 0)
+        self.assertEqual(0, d3d11_delta["triangle_group_count"])
+        self.assertFalse(d3d11_delta["replace_all_triangles"])
+        self.assertTrue(d3d11_delta["native_fallback_ok"])
+        self.assertEqual({}, d3d11_delta["native_fallback_counts"])
+        self.assertTrue(d3d11_delta["native_apply_and_d3d11_metrics_ok"])
+        self.assertTrue(d3d11_delta["native_history_and_d3d11_metrics_ok"])
+        self.assertGreaterEqual(d3d11_delta["d3d11_update_ms"], 0.0)
+        self.assertGreaterEqual(d3d11_delta["command"]["metrics"]["d3d11_update_ms"], 0.0)
+        self.assertTrue(d3d11_delta["topology_delta_ok"])
+        self.assertIn("replace_mesh_edit_triangles", d3d11_delta["topology_host_calls"])
+        self.assertNotIn("update_mesh_edit_vertices", d3d11_delta["topology_host_calls"])
+        self.assertEqual("mesh_edit_triangles_replaced", d3d11_delta["topology_update_event"]["event"])
+        self.assertGreaterEqual(d3d11_delta["topology_update_event"]["replaced_batches"], 1)
+        self.assertEqual([0], d3d11_delta["topology_triangle_calls"][0]["source_submesh_indices"])
+        self.assertFalse(d3d11_delta["topology_replace_all_triangles"])
+        self.assertGreaterEqual(d3d11_delta["topology_command"]["metrics"]["d3d11_update_ms"], 0.0)
+        self.assertTrue(d3d11_delta["appended_delta_ok"])
+        self.assertIn("replace_mesh_edit_triangles", d3d11_delta["appended_host_calls"])
+        self.assertNotIn("update_mesh_edit_vertices", d3d11_delta["appended_host_calls"])
+        self.assertEqual("mesh_edit_triangles_replaced", d3d11_delta["appended_update_event"]["event"])
+        self.assertGreaterEqual(d3d11_delta["appended_update_event"]["replaced_batches"], 1)
+        self.assertEqual([1], d3d11_delta["appended_triangle_calls"][0]["source_submesh_indices"])
+        self.assertFalse(d3d11_delta["appended_replace_all_triangles"])
+        self.assertGreater(d3d11_delta["appended_command"]["submesh_count_delta"], 0)
+        self.assertGreaterEqual(d3d11_delta["appended_command"]["metrics"]["d3d11_update_ms"], 0.0)
+        self.assertTrue(d3d11_delta["separated_delta_ok"])
+        self.assertIn("replace_mesh_edit_triangles", d3d11_delta["separated_host_calls"])
+        self.assertNotIn("update_mesh_edit_vertices", d3d11_delta["separated_host_calls"])
+        self.assertEqual("mesh_edit_triangles_replaced", d3d11_delta["separated_update_event"]["event"])
+        self.assertGreaterEqual(d3d11_delta["separated_update_event"]["replaced_batches"], 1)
+        self.assertEqual([0, 2], d3d11_delta["separated_triangle_calls"][0]["source_submesh_indices"])
+        self.assertFalse(d3d11_delta["separated_replace_all_triangles"])
+        self.assertGreater(d3d11_delta["separated_command"]["submesh_count_delta"], 0)
+        self.assertGreaterEqual(d3d11_delta["separated_command"]["metrics"]["d3d11_update_ms"], 0.0)
+
+    def test_native_mesh_editor_d3d11_payload_scenario_proves_source_transform_overrides(self) -> None:
+        if find_native_d3d11_host() is None:
+            self.skipTest("native D3D11 preview host not built")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_scenario("native-mesh-editor-d3d11-payloads", Path(temp_dir), allow_synthetic_d3d11=True)
+
+        self.assertTrue(result["ok"])
+        payloads = result["native_mesh_editor_d3d11_payloads"]
+        self.assertTrue(payloads["screen_payloads_without_legacy_camera_fields_ok"])
+        self.assertTrue(payloads["screen_payloads_with_source_transform_overrides_ok"])
+        self.assertEqual("alignment_transforms", payloads["alignment_transform_status"]["event"])
+        self.assertTrue(payloads["alignment_transform_status"]["ok"])
+
+    def test_synthetic_d3d11_scenarios_are_blocked_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_scenario("native-mesh-editor-d3d11-delta", Path(temp_dir))
+
+        self.assertFalse(result["ok"])
+        self.assertIn("checkerboard", result["error"])
+        self.assertIn("real-archive-mesh-editor-d3d11-side-by-side-edit-smoke", result["error"])
+
+    def test_native_benchmark_mesh_meets_target_counts(self) -> None:
+        mesh = build_native_benchmark_mesh()
+
+        self.assertGreaterEqual(mesh.total_vertices, 100_000)
+        self.assertGreaterEqual(mesh.total_faces, 200_000)
+        self.assertEqual(mesh.total_vertices, len(mesh.submeshes[0].vertices))
+        self.assertEqual(mesh.total_faces, len(mesh.submeshes[0].faces))
+
     def test_sequence_reference_overlap_summarizes_source_compiled_clip_refs(self) -> None:
         overlap = _sequence_reference_overlap(
             (
@@ -684,6 +1661,61 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
             self.assertEqual("target>expression", status["constraint_record_gap_numeric_match_rows"][0]["between_fields"])
             self.assertFalse(status["constraint_solving_supported"])
 
+    def test_asset_authoring_mesh_health_scenario_writes_json_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+
+            result = run_scenario("asset-authoring-mesh-health", output_dir)
+            report = json.loads(Path(result["asset_authoring"]["report_path"]).read_text(encoding="utf-8"))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(ASSET_AUTHORING_MESH_HEALTH_SCHEMA, report["schema"])
+        self.assertTrue(report["topology"]["topology_changed"])
+        self.assertGreaterEqual(report["totals"]["duplicate_vertices"], 1)
+        self.assertGreaterEqual(report["totals"]["degenerate_faces"], 1)
+        self.assertGreaterEqual(report["totals"]["invalid_indices"], 1)
+
+    def test_asset_authoring_uv_report_scenario_writes_json_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+
+            result = run_scenario("asset-authoring-uv-report", output_dir)
+            report = json.loads(Path(result["asset_authoring"]["report_path"]).read_text(encoding="utf-8"))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(ASSET_AUTHORING_UV_REPORT_SCHEMA, report["schema"])
+        self.assertGreaterEqual(report["island_count"], 1)
+        self.assertTrue(report["uv_bounds"]["available"])
+
+    def test_asset_authoring_tangent_report_scenario_writes_json_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+
+            result = run_scenario("asset-authoring-tangent-report", output_dir)
+            report = json.loads(Path(result["asset_authoring"]["report_path"]).read_text(encoding="utf-8"))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(ASSET_AUTHORING_TANGENT_REPORT_SCHEMA, report["schema"])
+        self.assertEqual("generate_tangents", report["operation"])
+        self.assertGreaterEqual(report["before"]["totals"]["missing_tangent_parts"], 1)
+        self.assertGreaterEqual(report["totals"]["complete_tangent_parts"], 1)
+        self.assertEqual("ok", report["command"]["status"])
+
+    def test_asset_authoring_openimageio_report_scenario_writes_json_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+
+            result = run_scenario("asset-authoring-openimageio-report", output_dir)
+            report = json.loads(Path(result["asset_authoring"]["report_path"]).read_text(encoding="utf-8"))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(ASSET_AUTHORING_SOURCE_IMAGE_SCHEMA, report["schema"])
+        self.assertEqual("helper_unavailable", report["status"])
+        self.assertTrue(report["openimageio_source_candidate"])
+        self.assertFalse(report["can_convert"])
+        self.assertEqual("helper_unavailable", report["metadata_command"]["status"])
+        self.assertEqual("helper_unavailable", report["convert_command"]["status"])
+
     def test_service_smoke_writes_result_json_without_starting_app(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir)
@@ -709,7 +1741,7 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
             selection_pruning = result["service"]["selection_pruning"]
             self.assertTrue(selection_pruning["ok"])
             self.assertEqual({"0": [[0, 1]]}, selection_pruning["malformed"]["edges_by_submesh"])
-            self.assertEqual({"0": [1]}, selection_pruning["malformed"]["faces_by_submesh"])
+            self.assertEqual({}, selection_pruning["malformed"]["faces_by_submesh"])
             self.assertEqual({"0": [[0, 3]]}, selection_pruning["loose_edge"]["edges_by_submesh"])
             history_selection = result["service"]["history_selection"]
             self.assertTrue(history_selection["ok"])
@@ -945,6 +1977,41 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
             self.assertTrue(real_archive["read_only"])
             self.assertIn("missing PAMT", real_archive["skipped"])
 
+    def test_real_archive_mesh_editor_d3d11_edit_smoke_reports_missing_game_root_without_archive_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            output_dir = temp_root / "out"
+
+            result = run_scenario("real-archive-mesh-editor-d3d11-edit-smoke", output_dir, game_root=temp_root / "missing")
+
+            self.assertFalse(result["ok"])
+            self.assertTrue((output_dir / "result.json").is_file())
+            real_archive = result["real_archive_mesh_editor_d3d11_edit"]
+            self.assertTrue(real_archive["read_only"])
+            self.assertIn("missing PAMT", real_archive["skipped"])
+
+    def test_real_archive_mesh_editor_drag_smoke_uses_multistep_mouse_moves(self) -> None:
+        source = Path("tools/mesh_editor_dev_harness.py").read_text(encoding="utf-8")
+        self.assertIn("mouse_drag_mid = (mouse_drag_start[0] + 16, mouse_drag_start[1])", source)
+        self.assertIn("mouse_drag_points = (mouse_drag_mid, mouse_drag_end)", source)
+        self.assertIn("for move_x, move_y in mouse_drag_points:", source)
+        self.assertIn('all(event.get("event") == "mesh_edit_vertices_updated" for event in edit_update_events)', source)
+        self.assertIn('"mouse_drag_points": [list(point) for point in mouse_drag_points]', source)
+        self.assertIn("selected_before_capture_path = output_dir / \"real_archive_selected_before_drag.png\"", source)
+        self.assertIn("visual_proof_path = output_dir / \"real_archive_visual_edit_proof.png\"", source)
+        self.assertIn("_write_real_archive_visual_edit_proof(", source)
+        self.assertIn('"visual_edit_proof_png": str(visual_proof_path)', source)
+        self.assertIn('"visual_edit_proof_summary": visual_proof_summary', source)
+
+    def test_real_archive_mesh_editor_side_by_side_drag_smoke_uses_replacement_viewport(self) -> None:
+        source = Path("tools/mesh_editor_dev_harness.py").read_text(encoding="utf-8")
+        self.assertIn('"real-archive-mesh-editor-d3d11-side-by-side-edit-smoke"', source)
+        self.assertIn("reference_mesh=mesh if side_by_side else None", source)
+        self.assertIn('display_mode="side_by_side" if side_by_side else "replacement_only"', source)
+        self.assertIn("projection_probe_start = (700, 360) if side_by_side else (440, 360)", source)
+        self.assertIn("replacement_viewport_offset_ok = (not side_by_side) or viewport_x > 1.0", source)
+        self.assertIn('"drag_points_in_replacement_viewport": drag_points_in_replacement_viewport', source)
+
     def test_png_capture_summary_rejects_blank_capture(self) -> None:
         width = 64
         height = 64
@@ -997,7 +2064,18 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
         self.assertEqual(1, len(prepared.batches))
         self.assertEqual({"roughness": 0.4, "metalness": 0.2}, prepared.batches[0].preview_native_material_overrides)
         self.assertEqual(6, prepared.batches[0].index_count)
-        self.assertEqual((0, 1, 2, 1, 3, 2), prepared.batches[0].source_vertex_indices)
+        prepared_identity = {
+            "source_vertex_indices": list(prepared.batches[0].source_vertex_indices),
+            "source_vertex_indices_binary": prepared.batches[0].source_vertex_indices_binary,
+            "source_vertex_start": prepared.batches[0].source_vertex_range_start,
+            "source_vertex_count": prepared.batches[0].source_vertex_range_count,
+            "source_face_indices": list(prepared.batches[0].source_face_indices),
+            "source_face_indices_binary": prepared.batches[0].source_face_indices_binary,
+            "source_face_start": prepared.batches[0].source_face_range_start,
+            "source_face_count": prepared.batches[0].source_face_range_count,
+        }
+        self.assertEqual([0, 1, 2, 1, 3, 2], _i32_descriptor_values(prepared_identity, "source_vertex_indices", "source_vertex_indices_binary"))
+        self.assertEqual([0, 1], _i32_descriptor_values(prepared_identity, "source_face_indices", "source_face_indices_binary"))
         self.assertEqual([0], [group["source_submesh_index"] for group in triangle_groups])
         self.assertEqual("harness_material", triangle_groups[0]["material_name"])
         self.assertEqual([0], material_groups[0]["source_submesh_indices"])
@@ -1006,16 +2084,16 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
         self.assertEqual(0.0, reset_material_groups[0]["roughness"])
         self.assertEqual(0.0, reset_material_groups[0]["metalness"])
         self.assertEqual(1.0, reset_material_groups[0]["texture_brightness"])
-        self.assertEqual([0, 1, 2, 3], triangle_groups[0]["source_vertex_indices"])
-        self.assertEqual(8, len(triangle_groups[0]["uvs"]))
-        self.assertEqual([0, 2], vertex_groups[0]["source_vertex_indices"])
-        self.assertEqual(6, len(vertex_groups[0]["positions"]))
-        self.assertEqual([0.0, 1.0, 0.0, 0.0], vertex_groups[0]["uvs"])
-        self.assertEqual([0, 1, 2], selection_groups[0]["source_vertex_indices"])
-        self.assertEqual([0], selection_groups[0]["source_face_indices"])
-        self.assertEqual(1, len(selection_groups[0]["source_face_indices"]))
+        self.assertEqual([0, 1, 2, 3], _i32_descriptor_values(triangle_groups[0], "source_vertex_indices", "source_vertex_indices_binary"))
+        self.assertEqual(8, len(_f64_descriptor_values(triangle_groups[0], "uvs", "uvs_binary")))
+        self.assertEqual([0, 2], _i32_descriptor_values(vertex_groups[0], "source_vertex_indices", "source_vertex_indices_binary"))
+        self.assertEqual(6, len(_f64_descriptor_values(vertex_groups[0], "positions", "positions_binary")))
+        self.assertEqual([0.0, 1.0, 0.0, 0.0], _f64_descriptor_values(vertex_groups[0], "uvs", "uvs_binary"))
+        self.assertEqual([0, 1, 2], _i32_descriptor_values(selection_groups[0], "source_vertex_indices", "source_vertex_indices_binary"))
+        self.assertEqual([0], _i32_descriptor_values(selection_groups[0], "source_face_indices", "source_face_indices_binary"))
+        self.assertEqual(1, len(_i32_descriptor_values(selection_groups[0], "source_face_indices", "source_face_indices_binary")))
         edge_selection_groups = mesh_edit_selection_groups(mesh, MeshEditSelection.from_maps(edges_by_submesh={0: ((1, 2),)}))
-        self.assertEqual([[1, 2]], edge_selection_groups[0]["source_edges"])
+        self.assertEqual([[1, 2]], _edge_descriptor_values(edge_selection_groups[0]))
         non_edge_selection_groups = mesh_edit_selection_groups(mesh, MeshEditSelection.from_maps(edges_by_submesh={0: ((0, 3),)}))
         self.assertEqual([], non_edge_selection_groups)
 
@@ -1027,8 +2105,426 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
             loose_edge_mesh,
             MeshEditSelection.from_maps(edges_by_submesh={0: ((0, 3),)}),
         )
-        self.assertEqual([[0, 3]], loose_edge_selection_groups[0]["source_edges"])
-        self.assertEqual([0, 3], loose_edge_selection_groups[0]["source_vertex_indices"])
+        self.assertEqual([[0, 3]], _edge_descriptor_values(loose_edge_selection_groups[0]))
+        self.assertEqual([0, 3], _i32_descriptor_values(loose_edge_selection_groups[0], "source_vertex_indices", "source_vertex_indices_binary"))
+
+    def test_live_vertex_update_groups_forward_native_binary_descriptors(self) -> None:
+        mesh = build_synthetic_mesh()
+        mesh.submeshes[0].cdmw_native_preview_vertex_update_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "source_vertex_indices_binary": {"path": "ids.bin", "count": 2, "components": 1, "type": "i32", "delete_after": True},
+            "positions_binary": {"path": "positions.bin", "count": 2, "components": 3, "type": "f64", "delete_after": True},
+            "normals_binary": {"path": "normals.bin", "count": 2, "components": 3, "type": "f64", "delete_after": True},
+            "uvs_binary": {"path": "uvs.bin", "count": 2, "components": 2, "type": "f64", "delete_after": True},
+        }
+
+        groups = mesh_edit_vertex_update_groups(mesh, {0: (0, 2)})
+
+        self.assertEqual(
+            [
+                {
+                    "preview_backend": "cdmw_mesh_core",
+                    "source_submesh_index": 0,
+                    "source_vertex_indices_binary": {"path": "ids.bin", "count": 2, "components": 1, "type": "i32", "delete_after": True},
+                    "positions_binary": {"path": "positions.bin", "count": 2, "components": 3, "type": "f64", "delete_after": True},
+                    "normals_binary": {"path": "normals.bin", "count": 2, "components": 3, "type": "f64", "delete_after": True},
+                    "uvs_binary": {"path": "uvs.bin", "count": 2, "components": 2, "type": "f64", "delete_after": True},
+                }
+            ],
+            groups,
+        )
+        self.assertFalse(hasattr(mesh.submeshes[0], "cdmw_native_preview_vertex_update_group"))
+
+    def test_live_vertex_update_groups_forward_native_full_range(self) -> None:
+        mesh = build_synthetic_mesh()
+        mesh.submeshes[0].cdmw_native_preview_vertex_update_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "source_vertex_start": 0,
+            "source_vertex_count": 4,
+            "positions_binary": {"path": "positions.bin", "count": 4, "components": 3, "type": "f64", "delete_after": True},
+            "normals_binary": {"path": "normals.bin", "count": 4, "components": 3, "type": "f64", "delete_after": True},
+            "uvs_binary": {"path": "uvs.bin", "count": 4, "components": 2, "type": "f64", "delete_after": True},
+        }
+
+        groups = mesh_edit_vertex_update_groups(mesh, {0: range(0, 4)})
+
+        self.assertEqual(
+            [
+                {
+                    "preview_backend": "cdmw_mesh_core",
+                    "source_submesh_index": 0,
+                    "source_vertex_start": 0,
+                    "source_vertex_count": 4,
+                    "positions_binary": {"path": "positions.bin", "count": 4, "components": 3, "type": "f64", "delete_after": True},
+                    "normals_binary": {"path": "normals.bin", "count": 4, "components": 3, "type": "f64", "delete_after": True},
+                    "uvs_binary": {"path": "uvs.bin", "count": 4, "components": 2, "type": "f64", "delete_after": True},
+                }
+            ],
+            groups,
+        )
+        self.assertFalse(hasattr(mesh.submeshes[0], "cdmw_native_preview_vertex_update_group"))
+
+    def test_live_vertex_update_python_fallback_uses_compact_source_range(self) -> None:
+        mesh = build_synthetic_mesh()
+
+        with (
+            patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=False),
+            patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_vertex_update_groups_native", return_value={}),
+        ):
+            groups = mesh_edit_vertex_update_groups(mesh, {0: range(0, 4)}, allow_python_fallback=True)
+
+        self.assertEqual(1, len(groups))
+        self.assertEqual(0, groups[0]["source_vertex_start"])
+        self.assertEqual(4, groups[0]["source_vertex_count"])
+        self.assertNotIn("source_vertex_indices", groups[0])
+
+    def test_live_vertex_update_python_fallback_is_legacy_opt_in(self) -> None:
+        mesh = build_synthetic_mesh()
+
+        with (
+            patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=False),
+            patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_vertex_update_groups_native", return_value={}),
+        ):
+            groups = mesh_edit_vertex_update_groups(mesh, {0: range(0, 4)})
+
+        self.assertEqual([], groups)
+
+    def test_triangle_groups_forward_native_binary_descriptors(self) -> None:
+        mesh = build_synthetic_mesh()
+        mesh.submeshes[0].cdmw_native_preview_triangle_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "source_vertex_indices_binary": {"path": "source_vertices.bin", "count": 4, "components": 1, "type": "i32", "delete_after": True},
+            "source_face_indices_binary": {"path": "source_faces.bin", "count": 2, "components": 1, "type": "i32", "delete_after": True},
+            "positions_binary": {"path": "positions.bin", "count": 4, "components": 3, "type": "f64", "delete_after": True},
+            "normals_binary": {"path": "normals.bin", "count": 4, "components": 3, "type": "f64", "delete_after": True},
+            "uvs_binary": {"path": "uvs.bin", "count": 4, "components": 2, "type": "f64", "delete_after": True},
+            "indices_binary": {"path": "indices.bin", "count": 6, "components": 1, "type": "i32", "delete_after": True},
+        }
+
+        groups = mesh_edit_triangle_groups(mesh, (0,))
+
+        self.assertEqual("cdmw_mesh_core", groups[0]["preview_backend"])
+        self.assertEqual("positions.bin", groups[0]["positions_binary"]["path"])
+        self.assertEqual("indices.bin", groups[0]["indices_binary"]["path"])
+        self.assertNotIn("positions", groups[0])
+        self.assertFalse(hasattr(mesh.submeshes[0], "cdmw_native_preview_triangle_group"))
+
+    def test_triangle_groups_forward_native_source_ranges(self) -> None:
+        mesh = build_synthetic_mesh()
+        mesh.submeshes[0].cdmw_native_preview_triangle_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "source_vertex_start": 7,
+            "source_vertex_count": 4,
+            "source_face_start": 3,
+            "source_face_count": 2,
+            "positions_binary": {"path": "positions.bin", "count": 4, "components": 3, "type": "f64", "delete_after": True},
+            "normals_binary": {"path": "normals.bin", "count": 4, "components": 3, "type": "f64", "delete_after": True},
+            "uvs_binary": {"path": "uvs.bin", "count": 4, "components": 2, "type": "f64", "delete_after": True},
+            "indices_binary": {"path": "indices.bin", "count": 6, "components": 1, "type": "i32", "delete_after": True},
+        }
+
+        groups = mesh_edit_triangle_groups(mesh, (0,))
+
+        self.assertEqual("cdmw_mesh_core", groups[0]["preview_backend"])
+        self.assertEqual([7, 8, 9, 10], _i32_descriptor_values(groups[0], "source_vertex_indices", "source_vertex_indices_binary"))
+        self.assertEqual([3, 4], _i32_descriptor_values(groups[0], "source_face_indices", "source_face_indices_binary"))
+        self.assertNotIn("source_vertex_indices", groups[0])
+        self.assertNotIn("source_vertex_indices_binary", groups[0])
+        self.assertNotIn("source_face_indices", groups[0])
+        self.assertNotIn("source_face_indices_binary", groups[0])
+        self.assertFalse(hasattr(mesh.submeshes[0], "cdmw_native_preview_triangle_group"))
+
+    def test_triangle_group_python_fallback_uses_compact_identity_ranges(self) -> None:
+        mesh = build_synthetic_mesh()
+
+        with (
+            patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=False),
+            patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_triangle_groups_native", return_value={}),
+        ):
+            groups = mesh_edit_triangle_groups(mesh, (0,), allow_python_fallback=True)
+
+        self.assertEqual(0, groups[0]["source_vertex_start"])
+        self.assertEqual(4, groups[0]["source_vertex_count"])
+        self.assertEqual(0, groups[0]["source_face_start"])
+        self.assertEqual(2, groups[0]["source_face_count"])
+        self.assertNotIn("source_vertex_indices", groups[0])
+        self.assertNotIn("source_face_indices", groups[0])
+
+    def test_triangle_group_python_fallback_is_legacy_opt_in(self) -> None:
+        mesh = build_synthetic_mesh()
+
+        with (
+            patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=False),
+            patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_triangle_groups_native", return_value={}),
+        ):
+            groups = mesh_edit_triangle_groups(mesh, (0,))
+
+        self.assertEqual([], groups)
+
+    def test_standalone_preview_initial_blob_uses_native_geometry_writer(self) -> None:
+        mesh = build_synthetic_mesh()
+        vertex_struct = struct.Struct("<23f")
+        native_blob = b"".join(
+            vertex_struct.pack(
+                float(index),
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.25,
+                0.55,
+                0.85,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+            )
+            for index in range(6)
+        )
+        identity_blob = struct.pack(
+            "<iiiiiiiiiiiiiiiiii",
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            2,
+            0,
+            0,
+            1,
+            1,
+            0,
+            3,
+            1,
+            0,
+            2,
+            1,
+        )
+        calls: list[dict[str, object]] = []
+
+        def _fake_native_geometry(output_path: Path, **kwargs: object) -> dict[str, object]:
+            calls.append(dict(kwargs))
+            Path(output_path).write_bytes(native_blob)
+            identity_output_path = kwargs.get("identity_output_path")
+            if identity_output_path:
+                Path(identity_output_path).write_bytes(identity_blob)
+            return {
+                "vertex_count": 6,
+                "geometry_size": len(native_blob),
+                "batches": [
+                    {
+                        "mesh_index": 0,
+                        "first_vertex": 0,
+                        "vertex_count": 6,
+                        "has_texture_coordinates": True,
+                        "source_vertex_indices": [0, 1, 2, 1, 3, 2],
+                        "source_face_indices": [0, 1],
+                        "identity_offset": 0,
+                        "identity_size": len(identity_blob),
+                    }
+                ],
+            }
+
+        with (
+            patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("native.exe")),
+            patch("cdmw.modding.mesh_native_core._ensure_native_mesh_session_submesh", return_value="session-0"),
+            patch("cdmw.modding.mesh_native_core.write_native_preview_geometry_blob", side_effect=_fake_native_geometry),
+        ):
+            prepared = mesh_to_native_preview(mesh)
+
+        self.assertEqual(1, len(calls))
+        self.assertEqual("session-0", calls[0]["meshes"][0]["session_id"])
+        self.assertNotIn("positions", calls[0]["meshes"][0])
+        self.assertNotIn("normals", calls[0]["meshes"][0])
+        self.assertNotIn("texture_coordinates", calls[0]["meshes"][0])
+        self.assertNotIn("faces", calls[0]["meshes"][0])
+        self.assertNotIn("source_vertex_indices", calls[0]["meshes"][0])
+        self.assertNotIn("source_face_indices", calls[0]["meshes"][0])
+        self.assertNotIn("indices", calls[0]["meshes"][0])
+        self.assertEqual(6, prepared.batches[0].index_count)
+        self.assertEqual((0, 1, 2, 1, 3, 2), prepared.batches[0].source_vertex_indices)
+        self.assertEqual((0, 1), prepared.batches[0].source_face_indices)
+        self.assertEqual(identity_blob, prepared.batches[0].editor_identity_blob)
+
+    def test_standalone_preview_records_native_geometry_fallback(self) -> None:
+        clear_native_mesh_core_fallback_counts()
+        try:
+            with patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=None):
+                with self.assertRaisesRegex(RuntimeError, "native Mesh Editor preview geometry unavailable"):
+                    mesh_to_native_preview(build_synthetic_mesh())
+
+            self.assertEqual({"preview_geometry": 1}, native_mesh_core_fallback_counts())
+            self.assertEqual("native preview geometry unavailable", native_mesh_core_fallback_events()[0]["reason"])
+        finally:
+            clear_native_mesh_core_fallback_counts()
+
+    def test_large_standalone_initial_preview_python_fallback_blocks_when_native_available(self) -> None:
+        mesh = build_synthetic_mesh()
+        mesh.submeshes[0].vertices = [(0.0, 0.0, 0.0)] * 10_001
+        mesh.submeshes[0].normals = [(0.0, 0.0, 1.0)] * 10_001
+        mesh.submeshes[0].uvs = [(0.0, 0.0)] * 10_001
+        mesh.submeshes[0].faces = [(0, 1, 2)]
+        mesh.submeshes[0].vertex_count = 10_001
+        mesh.submeshes[0].face_count = 1
+        mesh.total_vertices = 10_001
+        mesh.total_faces = 1
+
+        clear_native_mesh_core_fallback_counts()
+        try:
+            with (
+                patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=True),
+                patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=None),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "native Mesh Editor preview geometry unavailable"):
+                    mesh_to_native_preview(mesh)
+
+            self.assertEqual({"preview_geometry.blocked": 1}, native_mesh_core_fallback_counts())
+            self.assertEqual(
+                "Python preview fallback blocked while native mesh core is available",
+                native_mesh_core_fallback_events()[0]["reason"],
+            )
+        finally:
+            clear_native_mesh_core_fallback_counts()
+
+    def test_selection_overlay_groups_use_native_helper_when_available(self) -> None:
+        mesh = build_synthetic_mesh()
+        calls: list[dict[str, object]] = []
+
+        def _fake_native_selection_groups(mesh_arg: object, **kwargs: object) -> list[dict[str, object]]:
+            calls.append(dict(kwargs))
+            return [
+                {
+                    "preview_backend": "cdmw_mesh_core",
+                    "source_submesh_index": 0,
+                    "source_vertex_indices": [0, 1, 2],
+                    "source_face_indices": [0],
+                }
+            ]
+
+        with patch("cdmw.modding.mesh_native_core.build_native_mesh_selection_groups", side_effect=_fake_native_selection_groups):
+            groups = mesh_edit_selection_groups(mesh, MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}))
+
+        self.assertEqual("cdmw_mesh_core", groups[0]["preview_backend"])
+        self.assertEqual({0: {0}}, calls[0]["faces_by_submesh"])
+        self.assertEqual({}, calls[0]["vertices_by_submesh"])
+
+    def test_selection_overlay_python_fallback_uses_compact_ranges(self) -> None:
+        mesh = build_synthetic_mesh()
+
+        with (
+            patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=False),
+            patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_selection_groups_native", return_value=None),
+        ):
+            whole_groups = mesh_edit_selection_groups(
+                mesh,
+                MeshEditSelection(source_indices=(0,)),
+                allow_python_fallback=True,
+            )
+            face_groups = mesh_edit_selection_groups(
+                mesh,
+                MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+                allow_python_fallback=True,
+            )
+
+        self.assertEqual(0, whole_groups[0]["source_vertex_start"])
+        self.assertEqual(4, whole_groups[0]["source_vertex_count"])
+        self.assertNotIn("source_vertex_indices", whole_groups[0])
+        self.assertEqual(0, face_groups[0]["source_vertex_start"])
+        self.assertEqual(3, face_groups[0]["source_vertex_count"])
+        self.assertEqual(0, face_groups[0]["source_face_start"])
+        self.assertEqual(1, face_groups[0]["source_face_count"])
+        self.assertNotIn("source_vertex_indices", face_groups[0])
+        self.assertNotIn("source_face_indices", face_groups[0])
+
+    def test_selection_overlay_python_fallback_is_legacy_opt_in(self) -> None:
+        mesh = build_synthetic_mesh()
+
+        with (
+            patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=False),
+            patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_selection_groups_native", return_value=None),
+        ):
+            groups = mesh_edit_selection_groups(mesh, MeshEditSelection(source_indices=(0,)))
+
+        self.assertEqual([], groups)
+
+    def test_large_standalone_preview_python_fallback_blocks_when_native_available(self) -> None:
+        mesh = build_synthetic_mesh()
+        mesh.submeshes[0].vertices = [(0.0, 0.0, 0.0)] * 10_001
+        mesh.submeshes[0].normals = [(0.0, 0.0, 1.0)] * 10_001
+        mesh.submeshes[0].uvs = [(0.0, 0.0)] * 10_001
+        mesh.submeshes[0].faces = [(0, 1, 2)]
+        mesh.submeshes[0].vertex_count = 10_001
+        mesh.submeshes[0].face_count = 1
+        mesh.total_vertices = 10_001
+        mesh.total_faces = 1
+
+        clear_native_mesh_core_fallback_counts()
+        try:
+            with (
+                patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=True),
+                patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_triangle_groups_native", return_value={}),
+                patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_vertex_update_groups_native", return_value={}),
+                patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_selection_groups_native", return_value=None),
+            ):
+                triangle_groups = mesh_edit_triangle_groups(mesh)
+                vertex_groups = mesh_edit_vertex_update_groups(mesh, {0: range(0, 10_001)})
+                selection_groups = mesh_edit_selection_groups(mesh, MeshEditSelection(source_indices=(0,)))
+
+            self.assertEqual([], triangle_groups)
+            self.assertEqual([], vertex_groups)
+            self.assertEqual([], selection_groups)
+            self.assertEqual(
+                {
+                    "preview_triangle_group.blocked": 1,
+                    "preview_vertex_update.blocked": 1,
+                    "selection_overlay.blocked": 1,
+                },
+                native_mesh_core_fallback_counts(),
+            )
+        finally:
+            clear_native_mesh_core_fallback_counts()
+
+    def test_large_selection_overlay_blocks_before_python_work_estimate(self) -> None:
+        mesh = build_synthetic_mesh()
+        mesh.submeshes[0].vertices = [(0.0, 0.0, 0.0)] * 10_001
+        mesh.submeshes[0].normals = [(0.0, 0.0, 1.0)] * 10_001
+        mesh.submeshes[0].uvs = [(0.0, 0.0)] * 10_001
+        mesh.submeshes[0].vertex_count = 10_001
+        mesh.total_vertices = 10_001
+
+        clear_native_mesh_core_fallback_counts()
+        try:
+            with (
+                patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=True),
+                patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_selection_groups_native", return_value=None),
+                patch(
+                    "cdmw.ui.mesh_editor.native_preview_payloads._selection_preview_fallback_work",
+                    side_effect=AssertionError("selection fallback work should be blocked first"),
+                ),
+            ):
+                groups = mesh_edit_selection_groups(mesh, MeshEditSelection.from_maps(vertices_by_submesh={0: range(10_001)}))
+
+            self.assertEqual([], groups)
+            self.assertEqual({"selection_overlay.blocked": 1}, native_mesh_core_fallback_counts())
+        finally:
+            clear_native_mesh_core_fallback_counts()
 
     def test_preview_payloads_ignore_malformed_faces(self) -> None:
         mesh = build_synthetic_mesh()
@@ -1042,12 +2538,132 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
 
         self.assertEqual(1, prepared.face_count)
         self.assertEqual(3, prepared.batches[0].index_count)
-        self.assertEqual((0, 1, 2), prepared.batches[0].source_vertex_indices)
-        self.assertEqual((1,), prepared.batches[0].source_face_indices)
-        self.assertEqual([1], triangle_groups[0]["source_face_indices"])
-        self.assertEqual([0, 1, 2], triangle_groups[0]["indices"])
-        self.assertEqual([0, 1, 2], selection_groups[0]["source_vertex_indices"])
-        self.assertEqual([1], selection_groups[0]["source_face_indices"])
+        prepared_identity = {
+            "source_vertex_indices": list(prepared.batches[0].source_vertex_indices),
+            "source_vertex_indices_binary": prepared.batches[0].source_vertex_indices_binary,
+            "source_vertex_start": prepared.batches[0].source_vertex_range_start,
+            "source_vertex_count": prepared.batches[0].source_vertex_range_count,
+            "source_face_indices": list(prepared.batches[0].source_face_indices),
+            "source_face_indices_binary": prepared.batches[0].source_face_indices_binary,
+            "source_face_start": prepared.batches[0].source_face_range_start,
+            "source_face_count": prepared.batches[0].source_face_range_count,
+        }
+        self.assertEqual([0, 1, 2], _i32_descriptor_values(prepared_identity, "source_vertex_indices", "source_vertex_indices_binary"))
+        self.assertEqual([1], _i32_descriptor_values(prepared_identity, "source_face_indices", "source_face_indices_binary"))
+        self.assertEqual([1], _i32_descriptor_values(triangle_groups[0], "source_face_indices", "source_face_indices_binary"))
+        self.assertEqual([0, 1, 2], _i32_descriptor_values(triangle_groups[0], "indices", "indices_binary"))
+        self.assertEqual([0, 1, 2], _i32_descriptor_values(selection_groups[0], "source_vertex_indices", "source_vertex_indices_binary"))
+        self.assertEqual([1], _i32_descriptor_values(selection_groups[0], "source_face_indices", "source_face_indices_binary"))
+
+    def test_vertex_update_consumes_native_group_before_scanning_changed_ids(self) -> None:
+        class CountOnlyIndices:
+            def __len__(self) -> int:
+                return 2
+
+            def __iter__(self):  # type: ignore[no-untyped-def]
+                raise AssertionError("python changed-id scan")
+
+        mesh = build_synthetic_mesh()
+        mesh.submeshes[0].cdmw_native_preview_vertex_update_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "source_vertex_indices": [0, 2],
+            "positions": [0.0, 0.0, 0.0, 1.0, 1.0, 0.0],
+            "normals": [0.0, 0.0, 1.0, 0.0, 0.0, 1.0],
+            "uvs": [0.0, 0.0, 1.0, 1.0],
+        }
+
+        with patch(
+            "cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_vertex_update_groups_native",
+            side_effect=AssertionError("native generator fallback"),
+        ):
+            groups = mesh_edit_vertex_update_groups(mesh, {0: CountOnlyIndices()})  # type: ignore[dict-item]
+
+        self.assertEqual([0, 2], groups[0]["source_vertex_indices"])
+        self.assertEqual([0.0, 0.0, 0.0, 1.0, 1.0, 0.0], groups[0]["positions"])
+
+    def test_vertex_update_descriptor_reaches_native_generator_before_python_scan(self) -> None:
+        mesh = build_synthetic_mesh()
+        descriptor_input = {
+            "changed_vertices_binary": {"path": "changed.bin", "count": 2, "components": 1, "type": "i32", "delete_after": True}
+        }
+        native_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "source_vertex_indices_binary": {"path": "changed.bin", "count": 2, "components": 1, "type": "i32", "delete_after": True},
+            "positions_binary": {"path": "positions.bin", "count": 2, "components": 3, "type": "f64", "delete_after": True},
+            "normals_binary": {"path": "normals.bin", "count": 2, "components": 3, "type": "f64", "delete_after": True},
+            "uvs_binary": {"path": "uvs.bin", "count": 2, "components": 2, "type": "f64", "delete_after": True},
+        }
+
+        def native_groups(_mesh: object, changed_vertices_by_submesh: object) -> dict[int, dict[str, object]]:
+            self.assertEqual({0: descriptor_input}, changed_vertices_by_submesh)
+            return {0: native_group}
+
+        with (
+            patch("cdmw.ui.mesh_editor.native_preview_payloads._mesh_edit_vertex_update_groups_native", side_effect=native_groups),
+            patch("cdmw.ui.mesh_editor.native_preview_payloads._source_vertex_indices", side_effect=AssertionError("python id scan")),
+        ):
+            groups = mesh_edit_vertex_update_groups(mesh, {0: descriptor_input})
+
+        self.assertEqual([native_group], groups)
+
+    def test_vertex_update_native_generator_retries_after_session_invalidation(self) -> None:
+        from cdmw.ui.mesh_editor import native_preview_payloads
+
+        mesh = build_synthetic_mesh()
+        native_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "source_vertex_start": 0,
+            "source_vertex_count": 4,
+            "positions_binary": {"path": "positions.bin", "count": 4, "components": 3, "type": "f64", "delete_after": True},
+        }
+        calls: list[dict[int, object]] = []
+        invalidated: list[int] = []
+
+        def native_groups(_mesh: object, changed_vertices_by_submesh: object) -> list[dict[str, object]]:
+            calls.append(dict(changed_vertices_by_submesh))  # type: ignore[arg-type]
+            return [] if len(calls) == 1 else [native_group]
+
+        def invalidate(_mesh: object, submesh_indices: object) -> None:
+            invalidated.extend(int(index) for index in submesh_indices)  # type: ignore[arg-type]
+
+        with (
+            patch("cdmw.modding.mesh_native_core.build_native_mesh_preview_vertex_update_groups", side_effect=native_groups),
+            patch("cdmw.modding.mesh_native_core.invalidate_native_mesh_session_submeshes", side_effect=invalidate),
+        ):
+            groups = native_preview_payloads._mesh_edit_vertex_update_groups_native(mesh, {0: range(0, 4)})
+
+        self.assertEqual([{0: range(0, 4)}, {0: range(0, 4)}], calls)
+        self.assertEqual([0], invalidated)
+        self.assertEqual(native_group, groups[0])
+
+    def test_vertex_update_native_generator_sends_sanitized_request(self) -> None:
+        from cdmw.ui.mesh_editor import native_preview_payloads
+
+        mesh = build_synthetic_mesh()
+        native_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "source_vertex_start": 0,
+            "source_vertex_count": 4,
+            "positions_binary": {"path": "positions.bin", "count": 4, "components": 3, "type": "f64"},
+        }
+        calls: list[dict[int, object]] = []
+
+        def native_groups(_mesh: object, changed_vertices_by_submesh: object) -> list[dict[str, object]]:
+            calls.append(dict(changed_vertices_by_submesh))  # type: ignore[arg-type]
+            return [native_group]
+
+        with patch("cdmw.modding.mesh_native_core.build_native_mesh_preview_vertex_update_groups", side_effect=native_groups):
+            groups = native_preview_payloads._mesh_edit_vertex_update_groups_native(
+                mesh,
+                {0: range(0, 4), -1: range(0, 1), 999: range(0, 1), "bad": range(0, 1)},  # type: ignore[dict-item]
+            )
+
+        self.assertEqual([{0: range(0, 4)}], calls)
+        self.assertEqual(native_group, groups[0])
 
     def test_preview_payloads_sanitize_non_finite_vertex_data(self) -> None:
         mesh = build_synthetic_mesh()
@@ -1064,27 +2680,29 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
             "tint_color": [0.2, 0.3, 0.4],
         }
 
-        prepared = mesh_to_native_preview(mesh)
-        triangle_groups = mesh_edit_triangle_groups(mesh, source_submesh_indices=(True, 0.5, 0, float("inf")))  # type: ignore[arg-type]
+        with self.assertRaisesRegex(RuntimeError, "native Mesh Editor preview geometry unavailable"):
+            mesh_to_native_preview(mesh)
+        with patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=False):
+            triangle_groups = mesh_edit_triangle_groups(
+                mesh,
+                source_submesh_indices=(True, 0.5, 0, float("inf")),  # type: ignore[arg-type]
+                allow_python_fallback=True,
+            )
+            vertex_groups = mesh_edit_vertex_update_groups(
+                mesh,
+                {0: (True, 1.0, 1.9, float("inf"), "bad"), float("inf"): (0,)},  # type: ignore[dict-item]
+                allow_python_fallback=True,
+            )
         material_groups = mesh_edit_material_override_groups(mesh, (0,))
         reset_material_groups = mesh_edit_material_override_groups(mesh, (0,), include_defaults=True)
-        vertex_groups = mesh_edit_vertex_update_groups(
-            mesh,
-            {0: (True, 1.0, 1.9, float("inf"), "bad"), float("inf"): (0,)},  # type: ignore[dict-item]
-        )
 
-        vertex_record = struct.Struct("<23f").unpack_from(prepared.batches[0].vertex_blob, 23 * 4)
-        self.assertEqual(0, prepared.vertex_count)
-        self.assertEqual((0.0, 5.0, 0.0), vertex_record[:3])
-        self.assertEqual((0.0, 0.5, 0.0), vertex_record[3:6])
-        self.assertEqual((0.0, 0.0), vertex_record[9:11])
-        self.assertEqual([0.0, 5.0, 0.0], triangle_groups[0]["positions"][3:6])
-        self.assertEqual([0.0, 0.5, 0.0], triangle_groups[0]["normals"][3:6])
-        self.assertEqual([0.0, 0.0], triangle_groups[0]["uvs"][2:4])
-        self.assertEqual([1], vertex_groups[0]["source_vertex_indices"])
-        self.assertEqual([0.0, 5.0, 0.0], vertex_groups[0]["positions"])
-        self.assertEqual([0.0, 0.5, 0.0], vertex_groups[0]["normals"])
-        self.assertEqual([0.0, 0.0], vertex_groups[0]["uvs"])
+        self.assertEqual([0.0, 5.0, 0.0], _f64_descriptor_values(triangle_groups[0], "positions", "positions_binary")[3:6])
+        self.assertEqual([0.0, 0.5, 0.0], _f64_descriptor_values(triangle_groups[0], "normals", "normals_binary")[3:6])
+        self.assertEqual([0.0, 0.0], _f64_descriptor_values(triangle_groups[0], "uvs", "uvs_binary")[2:4])
+        self.assertEqual([1], _i32_descriptor_values(vertex_groups[0], "source_vertex_indices", "source_vertex_indices_binary"))
+        self.assertEqual([0.0, 5.0, 0.0], _f64_descriptor_values(vertex_groups[0], "positions", "positions_binary"))
+        self.assertEqual([0.0, 0.5, 0.0], _f64_descriptor_values(vertex_groups[0], "normals", "normals_binary"))
+        self.assertEqual([0.0, 0.0], _f64_descriptor_values(vertex_groups[0], "uvs", "uvs_binary"))
         self.assertEqual(1.2, material_groups[0]["texture_brightness"])
         self.assertEqual(0.2, material_groups[0]["metalness"])
         self.assertEqual([0.2, 0.3, 0.4], material_groups[0]["tint_color"])

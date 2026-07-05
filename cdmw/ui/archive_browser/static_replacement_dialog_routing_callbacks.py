@@ -746,6 +746,7 @@ def create_alignment_source_part_geometry_action_callbacks(context: dict[str, ob
     Path = context.get('Path')
     SCENE_TEXTURE_SOURCE_EXTENSIONS = context.get('SCENE_TEXTURE_SOURCE_EXTENSIONS')
     Sequence = context.get('Sequence')
+    _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
     _ensure_source_part_adjustment = context.get('_ensure_source_part_adjustment')
     _load_selected_part_controls = context.get('_load_selected_part_controls')
     _push_geometry_undo_snapshot = context.get('_push_geometry_undo_snapshot')
@@ -782,6 +783,7 @@ def create_alignment_source_part_geometry_action_callbacks(context: dict[str, ob
     replacement_mesh_base_for_mapping = context.get('replacement_mesh_base_for_mapping')
     replacement_mesh_for_mapping = context.get('replacement_mesh_for_mapping')
     selected_source_part = context.get('selected_source_part')
+    self = context.get('self')
     source_index = context.get('source_index')
     source_indices = context.get('source_indices')
     spin = context.get('spin')
@@ -790,7 +792,21 @@ def create_alignment_source_part_geometry_action_callbacks(context: dict[str, ob
     texture_files_for_mapping = context.get('texture_files_for_mapping')
     value = context.get('value')
 
+    def _active_mesh_edit_source_part_geometry_action_blocked(action: str) -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            f"Active Mesh Editor source-part {action} requires native geometry execution; "
+            "Python geometry mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
     def _normalize_appended_part_to_work_area(source_indices: Sequence[int]) -> str:
+        if _active_mesh_edit_source_part_geometry_action_blocked("work-area normalization"):
+            return ""
         if replacement_mesh_for_mapping is None or replacement_mesh_base_for_mapping is None:
             return ""
         fit_state = _source_part_appended_work_area_fit_state_helper(
@@ -813,6 +829,8 @@ def create_alignment_source_part_geometry_action_callbacks(context: dict[str, ob
         return fit_state.placement_note
 
     def _fit_selected_part_size() -> None:
+        if _active_mesh_edit_source_part_geometry_action_blocked("fit-size"):
+            return
         if replacement_mesh_for_mapping is None or original_mesh_for_mapping is None:
             return
         fit_state = _source_part_fit_size_state_helper(
@@ -831,6 +849,8 @@ def create_alignment_source_part_geometry_action_callbacks(context: dict[str, ob
         _queue_static_preview_rebuild()
 
     def _nudge_selected_part(dx: float, dy: float, dz: float) -> None:
+        if _active_mesh_edit_source_part_geometry_action_blocked("nudge"):
+            return
         source_index = int(selected_source_part.get("index", -1))
         if source_index < 0:
             return
@@ -854,6 +874,8 @@ def create_alignment_source_part_geometry_action_callbacks(context: dict[str, ob
         )
 
     def _center_selected_part_on_target() -> None:
+        if _active_mesh_edit_source_part_geometry_action_blocked("center-on-target"):
+            return
         if replacement_mesh_for_mapping is None or original_mesh_for_mapping is None:
             return
         center_state = _source_part_center_on_target_state_helper(
@@ -900,6 +922,7 @@ def create_alignment_complete_swap_callbacks(context: dict[str, object]) -> Simp
     StaticSubmeshMapping = context.get('StaticSubmeshMapping')
     _alignment_d3d11_live_frame_available = context.get('_alignment_d3d11_live_frame_available')
     _alignment_dialog_widgets_live = context.get('_alignment_dialog_widgets_live')
+    _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
     _apply_checked_complete_swap = context.get('_apply_checked_complete_swap')
     _call_if_alignment_widgets_live = context.get('_call_if_alignment_widgets_live')
     _is_marker_source = context.get('_is_marker_source')
@@ -974,6 +997,7 @@ def create_alignment_complete_swap_callbacks(context: dict[str, object]) -> Simp
     rebuild_sidecar_checkbox = context.get('rebuild_sidecar_checkbox')
     render_source_indices = context.get('render_source_indices')
     replacement_mesh_for_mapping = context.get('replacement_mesh_for_mapping')
+    self = context.get('self')
     source_color_faithful_checkbox = context.get('source_color_faithful_checkbox')
     source_face_counts = context.get('source_face_counts')
     source_groups = context.get('source_groups')
@@ -1079,8 +1103,22 @@ def create_alignment_complete_swap_callbacks(context: dict[str, object]) -> Simp
             return set(_mapped_source_indices_helper(mappings) or ())
         return set()
 
+    def _active_mesh_edit_complete_swap_routing_blocked() -> bool:
+        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
+            return False
+        message = (
+            "Active Mesh Editor complete-swap material routing requires native material execution; "
+            "Python texture routing mutation fallback is disabled."
+        )
+        set_status_message = getattr(self, "set_status_message", None)
+        if callable(set_status_message):
+            set_status_message(message, error=True)
+        return True
+
     def _apply_complete_external_swap_routing_to_ui(*, push_undo: bool = True) -> None:
         if not _alignment_dialog_widgets_live():
+            return
+        if _active_mesh_edit_complete_swap_routing_blocked():
             return
         def _call_if_alignment_widgets_live(callback: Callable[[], None]) -> None:
             if not callable(callback):

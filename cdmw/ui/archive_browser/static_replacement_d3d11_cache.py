@@ -109,8 +109,11 @@ def alignment_d3d11_invalidate_package_cache(
     cleanup_package: Callable[[Path, int], None],
 ) -> None:
     normalized_reason = str(reason or "geometry").strip().lower()
-    if normalized_reason == "material":
-        state["last_cache_event"] = "material_dirty"  # type: ignore[index]
+    if normalized_reason in {"material", "mesh_edit_mode"}:
+        if normalized_reason == "material":
+            state["last_cache_event"] = "material_dirty"  # type: ignore[index]
+        else:
+            state["last_cache_event"] = "mode_dirty"  # type: ignore[index]
         state["last_cache_reason"] = normalized_reason  # type: ignore[index]
         return
     package_cache = state.get("package_cache")

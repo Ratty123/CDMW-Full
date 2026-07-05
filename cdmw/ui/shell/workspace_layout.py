@@ -62,6 +62,7 @@ class ShellWorkspaceLayoutMixin:
         self._build_texture_workflow_paths_section()
         self._build_texture_workflow_setup_overview_section()
         self._build_texture_workflow_settings_section(left_layout, pump_startup_splash)
+        self._build_texture_workflow_asset_authoring_section(left_layout)
         left_layout.addWidget(self._build_dds_output_section())
         left_layout.addWidget(self._build_workflow_profiles_section())
         left_layout.addWidget(self._build_upscale_backend_section(pump_startup_splash))

@@ -6,6 +6,11 @@ from dataclasses import dataclass, field
 
 from cdmw.domain.mesh import MESH_EDIT_ACTIONS, MESH_EDIT_MODES
 
+_NON_NATIVE_EDITOR_SESSION_COMMANDS = frozenset(
+    {"set_mode", "select", "triangulate_display", "quadrangulate_display"}
+)
+NATIVE_EDITOR_SESSION_COMMANDS = frozenset(MESH_EDIT_ACTIONS) - _NON_NATIVE_EDITOR_SESSION_COMMANDS
+
 
 @dataclass(frozen=True, slots=True)
 class MeshEditorAction:
@@ -39,6 +44,7 @@ _SHORTCUTS = {
     "delete": "Delete",
     "dissolve": "Ctrl+Delete",
     "subdivide": "Ctrl+E",
+    "refine_smooth": "Ctrl+Shift+E",
     "split": "Y",
     "separate": "Shift+Y",
     "duplicate": "Shift+D",
@@ -56,13 +62,12 @@ _SHORTCUTS = {
     "compact_orphans": "Ctrl+Alt+Delete",
     "fix_winding": "Ctrl+Alt+N",
     "fill_holes": "Ctrl+F",
-    "triangulate_display": "Ctrl+T",
-    "quadrangulate_display": "Alt+Q",
     "recalculate_normals": "Shift+N",
     "generate_tangents": "Ctrl+Shift+N",
     "flip_normals": "Alt+N",
     "sharpen_normals": "Ctrl+Alt+H",
     "soften_normals": "Ctrl+Alt+S",
+    "weighted_normals": "Ctrl+Alt+Shift+S",
     "copy_normals": "Ctrl+Alt+Shift+N",
     "uv_transform": "U",
     "uv_flip_u": "Shift+U",
@@ -75,6 +80,7 @@ _SHORTCUTS = {
     "uv_planar_project": "Ctrl+P",
     "uv_box_project": "Ctrl+Alt+B",
     "uv_cylindrical_project": "Ctrl+Alt+C",
+    "uv_auto_unwrap": "Ctrl+Alt+P",
     "uv_pack": "Alt+P",
     "uv_snap_grid": "Ctrl+Alt+G",
     "uv_snap_pixels": "Ctrl+Shift+P",
@@ -106,6 +112,7 @@ _TOOLTIPS = {
     "uv_planar_project": "Project selected vertices onto a basic XY planar UV layout.",
     "uv_box_project": "Project selected vertices with a basic normal-driven box UV layout.",
     "uv_cylindrical_project": "Project selected vertices around a basic vertical cylinder UV layout.",
+    "uv_auto_unwrap": "Auto unwrap selected parts with native xatlas when safe, falling back to planar UVs.",
     "uv_pack": "Pack selected UV islands into the 0-1 texture tile.",
     "uv_snap_grid": "Snap selected UVs to a coarse edit grid.",
     "uv_snap_pixels": "Snap selected UVs to texture-pixel increments.",
@@ -118,10 +125,10 @@ _TOOLTIPS = {
     "compact_orphans": "Compact orphan vertices and invalid face references.",
     "fix_winding": "Flip triangle winding when it disagrees with vertex normals.",
     "fill_holes": "Fill simple three- or four-edge boundary holes.",
-    "triangulate_display": "Convert polygon display faces to triangles.",
-    "quadrangulate_display": "Quadrangulate display helper; leaves game triangle data unchanged.",
+    "refine_smooth": "Subdivide selected detail, then smooth the affected vertices for less pointy surfaces.",
     "material_assign": "Assign material and texture metadata to selected parts or faces.",
     "material_copy": "Copy material routing metadata from another part into selected parts or faces.",
+    "weighted_normals": "Weight vertex normals by face area for smoother lighting without changing mesh shape.",
 }
 
 
@@ -158,6 +165,7 @@ MESH_EDITOR_ACTIONS = tuple(_with_palette_metadata(action) for action in (
     MeshEditorAction("delete", "Delete", "delete", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("dissolve", "Dissolve", "dissolve", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("subdivide", "Subdivide", "subdivide", "topology", mode="edit", requires_selection=True),
+    MeshEditorAction("refine_smooth", "Refine Smooth", "refine_smooth", "topology", mode="edit", params=(("smooth_iterations", 2), ("smooth_strength", 0.5)), requires_selection=True),
     MeshEditorAction("split", "Split", "split", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("separate", "Separate", "separate", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("duplicate", "Duplicate", "duplicate", "topology", mode="edit", requires_selection=True),
@@ -175,13 +183,12 @@ MESH_EDITOR_ACTIONS = tuple(_with_palette_metadata(action) for action in (
     MeshEditorAction("compact_orphans", "Compact Orphans", "compact_orphans", "cleanup", mode="edit"),
     MeshEditorAction("fix_winding", "Fix Winding", "fix_winding", "cleanup", mode="edit"),
     MeshEditorAction("fill_holes", "Fill Holes", "fill_holes", "cleanup", mode="edit"),
-    MeshEditorAction("triangulate_display", "Triangulate", "triangulate_display", "cleanup", mode="edit"),
-    MeshEditorAction("quadrangulate_display", "Quad Display", "quadrangulate_display", "cleanup", mode="edit"),
     MeshEditorAction("recalculate_normals", "Recalculate Normals", "recalculate_normals", "normals", mode="edit", requires_selection=True),
     MeshEditorAction("generate_tangents", "Generate Tangents", "generate_tangents", "normals", icon_key="recalculate_normals", mode="edit", requires_selection=True),
     MeshEditorAction("flip_normals", "Flip Normals", "flip_normals", "normals", mode="edit", requires_selection=True),
     MeshEditorAction("sharpen_normals", "Sharpen Normals", "sharpen_normals", "normals", icon_key="edge_split", mode="edit", requires_selection=True),
     MeshEditorAction("soften_normals", "Soften Normals", "soften_normals", "normals", icon_key="recalculate_normals", mode="edit", requires_selection=True),
+    MeshEditorAction("weighted_normals", "Weighted Normals", "weighted_normals", "normals", icon_key="recalculate_normals", mode="edit", requires_selection=True),
     MeshEditorAction("copy_normals", "Copy Normals", "copy_normals", "normals", icon_key="material_copy", mode="edit", requires_selection=True),
     MeshEditorAction("uv_transform", "Transform UV", "uv_transform", "uv", mode="edit", requires_selection=True),
     MeshEditorAction("uv_flip_u", "Flip U", "uv_transform", "uv", mode="edit", params=(("flip_u", True),), requires_selection=True),
@@ -194,6 +201,7 @@ MESH_EDITOR_ACTIONS = tuple(_with_palette_metadata(action) for action in (
     MeshEditorAction("uv_planar_project", "Planar UV", "uv_transform", "uv", mode="edit", params=(("projection", "planar"), ("plane", "xy")), requires_selection=True),
     MeshEditorAction("uv_box_project", "Box UV", "uv_transform", "uv", mode="edit", params=(("projection", "box"),), requires_selection=True),
     MeshEditorAction("uv_cylindrical_project", "Cylinder UV", "uv_transform", "uv", mode="edit", params=(("projection", "cylindrical"), ("axis", "z")), requires_selection=True),
+    MeshEditorAction("uv_auto_unwrap", "Auto UV", "uv_transform", "uv", mode="edit", params=(("auto_uv", True), ("allow_topology_change", True)), requires_selection=True),
     MeshEditorAction("uv_pack", "Pack UV", "uv_transform", "uv", mode="edit", params=(("pack", True),), requires_selection=True),
     MeshEditorAction("uv_snap_grid", "Snap Grid", "uv_transform", "uv", mode="edit", params=(("snap_grid", 0.125),), requires_selection=True),
     MeshEditorAction("uv_snap_pixels", "Snap Pixel", "uv_transform", "uv", mode="edit", params=(("pixel_snap", True), ("texture_size", (1024.0, 1024.0))), requires_selection=True),
@@ -234,6 +242,7 @@ def validate_mesh_editor_actions() -> None:
 
 __all__ = [
     "MESH_EDITOR_ACTIONS",
+    "NATIVE_EDITOR_SESSION_COMMANDS",
     "MeshEditorAction",
     "mesh_editor_actions_by_key",
     "mesh_editor_actions_for_category",

@@ -6,6 +6,7 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from PySide6.QtCore import QUrl
 
@@ -77,6 +78,483 @@ def _vertex(
 
 
 class NativePreviewPayloadTests(unittest.TestCase):
+    def test_direct_preview_identity_sparse_source_ids_use_native_sidecars(self) -> None:
+        from cdmw.modding import mesh_native_core
+
+        sidecar_paths: list[Path] = []
+
+        def _fake_native_job(binary: object, command: str, payload: dict[str, object], **_kwargs: object) -> dict[str, object]:
+            self.assertEqual("preview-identity-json", command)
+            self.assertNotIn("source_vertex_indices", payload)
+            self.assertNotIn("source_face_indices", payload)
+            vertex_descriptor = payload["source_vertex_indices_binary"]
+            face_descriptor = payload["source_face_indices_binary"]
+            vertex_path = Path(str(vertex_descriptor["path"]))  # type: ignore[index]
+            face_path = Path(str(face_descriptor["path"]))  # type: ignore[index]
+            sidecar_paths.extend((vertex_path, face_path))
+            self.assertEqual((10, 12, 11), struct.unpack("<3i", vertex_path.read_bytes()))
+            self.assertEqual((20,), struct.unpack("<i", face_path.read_bytes()))
+            Path(str(payload["output_path"])).write_bytes(b"\0" * (3 * 12))
+            return {"status": "ok", "binary": str(binary)}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("mesh-core.exe")):
+                with patch("cdmw.modding.mesh_native_core._run_native_mesh_core_job", side_effect=_fake_native_job):
+                    report = mesh_native_core.write_native_preview_identity_blob(
+                        Path(temp_dir) / "identity.bin",
+                        source_submesh_index=5,
+                        vertex_count=3,
+                        source_vertex_indices=(10, 12, 11),
+                        source_face_indices=(20,),
+                    )
+
+        self.assertEqual("ok", report["status"])  # type: ignore[index]
+        self.assertTrue(sidecar_paths)
+        self.assertTrue(all(not path.exists() for path in sidecar_paths))
+
+    def test_native_vertex_blob_forwards_source_ranges_without_python_lists(self) -> None:
+        from cdmw.rendering.model_preview_prepare import _build_vertex_blob_native
+
+        model = ModelPreviewData(
+            meshes=[
+                ModelPreviewMesh(
+                    positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    normals=[(0.0, 0.0, 1.0)] * 3,
+                    texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                    indices=[0, 1, 2],
+                    source_submesh_index=7,
+                    source_vertex_range_start=0,
+                    source_vertex_range_count=3,
+                    source_face_range_start=0,
+                    source_face_range_count=1,
+                )
+            ]
+        )
+
+        def _fake_writer(output_path: object, *, meshes: object, identity_output_path: object = None, **_kwargs: object) -> dict[str, object]:
+            payload = tuple(meshes)[0]  # type: ignore[arg-type]
+            self.assertEqual(0, payload["source_vertex_start"])
+            self.assertEqual(3, payload["source_vertex_count"])
+            self.assertEqual(0, payload["source_face_start"])
+            self.assertEqual(1, payload["source_face_count"])
+            self.assertNotIn("source_vertex_indices", payload)
+            self.assertNotIn("source_face_indices", payload)
+            Path(str(output_path)).write_bytes(b"\0" * (3 * 23 * 4))
+            if identity_output_path is not None:
+                Path(str(identity_output_path)).write_bytes(b"\0" * (3 * 12))
+            return {
+                "status": "ok",
+                "operation": "preview_geometry",
+                "vertex_count": 3,
+                "geometry_size": 3 * 23 * 4,
+                "batches": [
+                    {
+                        "mesh_index": 0,
+                        "first_vertex": 0,
+                        "vertex_count": 3,
+                        "identity_offset": 0,
+                        "identity_size": 3 * 12,
+                        "source_vertex_start": 0,
+                        "source_vertex_count": 3,
+                        "source_face_start": 0,
+                        "source_face_count": 1,
+                    }
+                ],
+            }
+
+        with patch("cdmw.modding.mesh_native_core.write_native_preview_geometry_blob", side_effect=_fake_writer):
+            result = _build_vertex_blob_native(model)
+
+        self.assertIsNotNone(result)
+        _blob, vertex_count, batches = result  # type: ignore[misc]
+        self.assertEqual(3, vertex_count)
+        self.assertEqual(0, batches[0].source_vertex_range_start)
+        self.assertEqual(3, batches[0].source_vertex_range_count)
+        self.assertEqual(0, batches[0].source_face_range_start)
+        self.assertEqual(1, batches[0].source_face_range_count)
+
+    def test_mesh_editor_native_preview_prefers_report_descriptors_before_json_ids(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.mesh_editor.native_preview_payloads import mesh_to_native_preview
+
+        class IterationForbiddenList(list):
+            def __iter__(self):  # type: ignore[override]
+                raise AssertionError("descriptor-backed native preview report parsed JSON source ids")
+
+        mesh = ParsedMesh(
+            path="descriptor-preview.pac",
+            format="pac",
+            submeshes=[
+                SubMesh(
+                    vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    normals=[(0.0, 0.0, 1.0)] * 3,
+                    uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+            total_vertices=3,
+            total_faces=1,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            source_vertices_path = temp_root / "source_vertices.bin"
+            source_faces_path = temp_root / "source_faces.bin"
+            source_vertices_path.write_bytes(struct.pack("<3i", 10, 12, 11))
+            source_faces_path.write_bytes(struct.pack("<i", 20))
+            vertex_descriptor = {"path": str(source_vertices_path), "count": 3, "components": 1, "type": "i32"}
+            face_descriptor = {"path": str(source_faces_path), "count": 1, "components": 1, "type": "i32"}
+
+            def _fake_writer(output_path: object, *, identity_output_path: object = None, **_kwargs: object) -> dict[str, object]:
+                Path(str(output_path)).write_bytes(_vertex(0.0, 0.0, 0.0) * 3)
+                if identity_output_path is not None:
+                    Path(str(identity_output_path)).write_bytes(b"\0" * (3 * 12))
+                return {
+                    "status": "ok",
+                    "vertex_count": 3,
+                    "geometry_size": 3 * 23 * 4,
+                    "batches": [
+                        {
+                            "mesh_index": 0,
+                            "first_vertex": 0,
+                            "vertex_count": 3,
+                            "identity_offset": 0,
+                            "identity_size": 3 * 12,
+                            "source_vertex_indices": IterationForbiddenList([10, 12, 11]),
+                            "source_face_indices": IterationForbiddenList([20]),
+                            "source_vertex_indices_binary": vertex_descriptor,
+                            "source_face_indices_binary": face_descriptor,
+                        }
+                    ],
+                }
+
+            with patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("mesh-core.exe")):
+                with patch("cdmw.modding.mesh_native_core._ensure_native_mesh_session_submesh", return_value="session-0"):
+                    with patch("cdmw.modding.mesh_native_core.write_native_preview_geometry_blob", side_effect=_fake_writer):
+                        prepared = mesh_to_native_preview(mesh)
+
+        batch = prepared.batches[0]
+        self.assertEqual((), batch.source_vertex_indices)
+        self.assertEqual((), batch.source_face_indices)
+        self.assertEqual(3, batch.source_vertex_indices_binary["count"])
+        self.assertEqual(1, batch.source_face_indices_binary["count"])
+        for descriptor in (batch.source_vertex_indices_binary, batch.source_face_indices_binary):
+            Path(str(descriptor["path"])).unlink(missing_ok=True)
+
+    def test_mesh_editor_preview_updates_prefer_descriptors_before_json_ids(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.mesh_editor.native_preview_payloads import mesh_edit_triangle_groups, mesh_edit_vertex_update_groups
+
+        class IterationForbiddenList(list):
+            def __iter__(self):  # type: ignore[override]
+                raise AssertionError("descriptor-backed preview group parsed JSON source ids")
+
+        def descriptor(path: str, count: int, *, components: int = 1, kind: str = "i32") -> dict[str, object]:
+            return {"path": path, "count": count, "components": components, "type": kind}
+
+        submesh = SubMesh(
+            name="Body",
+            material="Mat",
+            texture="Tex",
+            vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            normals=[(0.0, 0.0, 1.0)] * 3,
+            uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+            faces=[(0, 1, 2)],
+        )
+        submesh.cdmw_native_preview_triangle_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "source_vertex_indices": IterationForbiddenList([0, 1, 2]),
+            "source_face_indices": IterationForbiddenList([0]),
+            "indices": IterationForbiddenList([0, 1, 2]),
+            "source_vertex_indices_binary": descriptor("tri-source-vertices.bin", 3),
+            "source_face_indices_binary": descriptor("tri-source-faces.bin", 1),
+            "positions_binary": descriptor("tri-positions.bin", 3, components=3, kind="f64"),
+            "normals_binary": descriptor("tri-normals.bin", 3, components=3, kind="f64"),
+            "uvs_binary": descriptor("tri-uvs.bin", 3, components=2, kind="f64"),
+            "indices_binary": descriptor("tri-indices.bin", 3),
+        }
+        mesh = ParsedMesh(submeshes=[submesh], total_vertices=3, total_faces=1)
+
+        triangle_group = mesh_edit_triangle_groups(mesh, (0,))[0]
+        self.assertIn("source_vertex_indices_binary", triangle_group)
+        self.assertIn("source_face_indices_binary", triangle_group)
+        self.assertIn("indices_binary", triangle_group)
+        self.assertNotIn("source_vertex_indices", triangle_group)
+        self.assertNotIn("source_face_indices", triangle_group)
+        self.assertNotIn("indices", triangle_group)
+
+        submesh.cdmw_native_preview_vertex_update_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "source_vertex_indices": IterationForbiddenList([0, 1]),
+            "source_vertex_indices_binary": descriptor("update-source-vertices.bin", 2),
+            "positions_binary": descriptor("update-positions.bin", 2, components=3, kind="f64"),
+            "normals_binary": descriptor("update-normals.bin", 2, components=3, kind="f64"),
+            "uvs_binary": descriptor("update-uvs.bin", 2, components=2, kind="f64"),
+        }
+        vertex_group = mesh_edit_vertex_update_groups(mesh, {0: {"source_vertex_indices_binary": descriptor("changed.bin", 2)}})[0]
+        self.assertIn("source_vertex_indices_binary", vertex_group)
+        self.assertNotIn("source_vertex_indices", vertex_group)
+
+    def test_native_vertex_blob_sparse_source_ids_use_binary_descriptors(self) -> None:
+        from cdmw.rendering.model_preview_prepare import _build_vertex_blob_native
+
+        model = ModelPreviewData(
+            meshes=[
+                ModelPreviewMesh(
+                    positions=[
+                        (0.0, 0.0, 0.0),
+                        (1.0, 0.0, 0.0),
+                        (0.0, 1.0, 0.0),
+                        (1.0, 1.0, 0.0),
+                    ],
+                    normals=[(0.0, 0.0, 1.0)] * 4,
+                    texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)],
+                    indices=[0, 1, 2, 1, 3, 2],
+                    source_submesh_index=7,
+                    source_vertex_indices=[10, 12, 11, 15],
+                    source_face_indices=[20, 25],
+                )
+            ]
+        )
+        persisted_paths: list[Path] = []
+
+        def _fake_writer(output_path: object, *, meshes: object, identity_output_path: object = None, **_kwargs: object) -> dict[str, object]:
+            payload = tuple(meshes)[0]  # type: ignore[arg-type]
+            self.assertNotIn("source_vertex_indices", payload)
+            self.assertNotIn("source_face_indices", payload)
+            vertex_descriptor = payload["source_vertex_indices_binary"]
+            face_descriptor = payload["source_face_indices_binary"]
+            vertex_path = Path(str(vertex_descriptor["path"]))  # type: ignore[index]
+            face_path = Path(str(face_descriptor["path"]))  # type: ignore[index]
+            self.assertEqual((10, 12, 11, 15), struct.unpack("<4i", vertex_path.read_bytes()))
+            self.assertEqual((20, 25), struct.unpack("<2i", face_path.read_bytes()))
+            Path(str(output_path)).write_bytes(b"\0" * (6 * 23 * 4))
+            if identity_output_path is not None:
+                Path(str(identity_output_path)).write_bytes(b"\0" * (6 * 12))
+            return {
+                "status": "ok",
+                "operation": "preview_geometry",
+                "vertex_count": 6,
+                "geometry_size": 6 * 23 * 4,
+                "batches": [
+                    {
+                        "mesh_index": 0,
+                        "first_vertex": 0,
+                        "vertex_count": 6,
+                        "identity_offset": 0,
+                        "identity_size": 6 * 12,
+                        "source_vertex_indices_binary": vertex_descriptor,
+                        "source_face_indices_binary": face_descriptor,
+                    }
+                ],
+            }
+
+        with patch("cdmw.modding.mesh_native_core.write_native_preview_geometry_blob", side_effect=_fake_writer):
+            result = _build_vertex_blob_native(model)
+
+        self.assertIsNotNone(result)
+        _blob, vertex_count, batches = result  # type: ignore[misc]
+        self.assertEqual(6, vertex_count)
+        self.assertEqual((), batches[0].source_vertex_indices)
+        self.assertEqual((), batches[0].source_face_indices)
+        for descriptor in (batches[0].source_vertex_indices_binary, batches[0].source_face_indices_binary):
+            path = Path(str(descriptor["path"]))
+            persisted_paths.append(path)
+            self.assertTrue(path.is_file())
+            self.assertTrue(descriptor.get("delete_after"))
+        for path in persisted_paths:
+            path.unlink(missing_ok=True)
+
+    def test_prepare_model_preview_uses_compact_identity_ranges_for_missing_source_ids(self) -> None:
+        from cdmw.rendering import model_preview_prepare as prepare
+
+        model = ModelPreviewData(
+            path="identity-range.pam",
+            meshes=[
+                ModelPreviewMesh(
+                    positions=[(0.0, 0.0, 0.0)],
+                    indices=[0, 0, 0],
+                    source_submesh_index=4,
+                )
+            ],
+        )
+        batch = prepare.ModelPreviewDrawBatch(
+            mesh_index=0,
+            material_name="mat",
+            texture_name="tex",
+            first_vertex=0,
+            vertex_count=6,
+        )
+        vertex_blob = b"\0" * (6 * 23 * 4)
+
+        with patch.object(prepare, "build_vertex_blob", return_value=(vertex_blob, 6, [batch])):
+            _model, prepared = prepare.prepare_model_preview(model, enable_material_combiner=False)
+
+        self.assertIsNotNone(prepared)
+        prepared_batch = prepared.batches[0]  # type: ignore[union-attr]
+        self.assertEqual((), prepared_batch.source_vertex_indices)
+        self.assertEqual((), prepared_batch.source_face_indices)
+        self.assertEqual(0, prepared_batch.source_vertex_range_start)
+        self.assertEqual(6, prepared_batch.source_vertex_range_count)
+        self.assertEqual(0, prepared_batch.source_face_range_start)
+        self.assertEqual(2, prepared_batch.source_face_range_count)
+
+    def test_editor_identity_range_descriptors_skip_legacy_source_iterables(self) -> None:
+        from cdmw.rendering.native_preview_package_writer import _editor_identity_blob, _editor_identity_metadata
+
+        class ExplodingIterable:
+            def __iter__(self) -> object:
+                raise AssertionError("legacy source ids should not be iterated when compact range descriptors exist")
+
+        batch = PreparedModelPreviewBatch(
+            vertex_blob=_vertex(0.0, 0.0, 0.0) * 3,
+            index_count=3,
+            source_submesh_index=5,
+            source_vertex_indices=ExplodingIterable(),  # type: ignore[arg-type]
+            source_face_indices=ExplodingIterable(),  # type: ignore[arg-type]
+            source_vertex_range_start=10,
+            source_vertex_range_count=3,
+            source_face_range_start=20,
+            source_face_range_count=1,
+        )
+
+        metadata = _editor_identity_metadata(batch, 3, 0)
+        blob_metadata, identity_blob = _editor_identity_blob(batch, 3)
+
+        self.assertEqual(13, metadata["source_vertex_count"])
+        self.assertEqual(21, metadata["source_face_count"])
+        self.assertEqual(3 * 12, blob_metadata["identity_size"])
+        self.assertEqual(3 * 12, len(identity_blob))
+
+    def test_editor_identity_sparse_source_sequences_avoid_tuple_copy(self) -> None:
+        from cdmw.rendering.native_preview_package_writer import _editor_identity_blob, _editor_identity_metadata
+
+        class IndexOnlySourceIds:
+            def __init__(self, values: tuple[int, ...]) -> None:
+                self._values = values
+
+            def __len__(self) -> int:
+                return len(self._values)
+
+            def __getitem__(self, index: int) -> int:
+                return self._values[index]
+
+            def __iter__(self) -> object:
+                raise AssertionError("source ids should be indexed without tuple-copy iteration")
+
+        batch = PreparedModelPreviewBatch(
+            vertex_blob=_vertex(0.0, 0.0, 0.0) * 3,
+            index_count=3,
+            source_submesh_index=5,
+            source_vertex_indices=IndexOnlySourceIds((10, 12, 11)),  # type: ignore[arg-type]
+            source_face_indices=IndexOnlySourceIds((20,)),  # type: ignore[arg-type]
+        )
+
+        metadata = _editor_identity_metadata(batch, 3, 0)
+        blob_metadata, identity_blob = _editor_identity_blob(batch, 3)
+        identity_rows = tuple(struct.iter_unpack("<iii", identity_blob))
+
+        self.assertEqual(13, metadata["source_vertex_count"])
+        self.assertEqual(21, metadata["source_face_count"])
+        self.assertEqual(3 * 12, blob_metadata["identity_size"])
+        self.assertEqual(((5, 10, 20), (5, 12, 20), (5, 11, 20)), identity_rows)
+
+    def test_preview_package_blocks_descriptor_backed_identity_python_fallback(self) -> None:
+        blob = b"".join(
+            (
+                _vertex(0.0, 0.0, 0.0),
+                _vertex(1.0, 0.0, 0.0),
+                _vertex(0.0, 1.0, 0.0),
+            )
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            source_vertices = temp / "source_vertices.bin"
+            source_faces = temp / "source_faces.bin"
+            source_vertices.write_bytes(struct.pack("<3i", 10, 11, 12))
+            source_faces.write_bytes(struct.pack("<i", 20))
+            prepared = PreparedModelPreviewData(
+                source_path=str(temp / "scene.pam"),
+                format="pam",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=blob,
+                        index_count=3,
+                        source_submesh_index=5,
+                        source_vertex_indices_binary={
+                            "path": str(source_vertices),
+                            "count": 3,
+                            "components": 1,
+                            "type": "i32",
+                        },
+                        source_face_indices_binary={
+                            "path": str(source_faces),
+                            "count": 1,
+                            "components": 1,
+                            "type": "i32",
+                        },
+                    ),
+                ),
+            )
+
+            with patch("cdmw.rendering.native_preview_package_writer._write_editor_identity_blob_native", return_value=None):
+                with self.assertRaisesRegex(RuntimeError, "descriptor-backed source ids"):
+                    write_isolated_d3d11_preview_package(
+                        ModelPreviewData(path=str(temp / "scene.pam")),
+                        prepared,
+                        output_root=temp / "package",
+                    )
+
+    def test_editor_identity_sparse_source_ids_use_native_sidecars(self) -> None:
+        from cdmw.rendering.native_preview_package_writer import _write_editor_identity_blob_native
+
+        batch = PreparedModelPreviewBatch(
+            vertex_blob=_vertex(0.0, 0.0, 0.0) * 3,
+            index_count=3,
+            source_submesh_index=5,
+            source_vertex_indices=(10, 11, 12),
+            source_face_indices=(20,),
+        )
+        captured: dict[str, object] = {}
+        sidecar_paths: list[Path] = []
+
+        def _fake_identity_writer(output_path: object, **kwargs: object) -> dict[str, object]:
+            captured.update(kwargs)
+            vertex_descriptor = kwargs.get("source_vertex_indices_binary")
+            face_descriptor = kwargs.get("source_face_indices_binary")
+            self.assertIsInstance(vertex_descriptor, dict)
+            self.assertIsInstance(face_descriptor, dict)
+            vertex_path = Path(str(vertex_descriptor["path"]))  # type: ignore[index]
+            face_path = Path(str(face_descriptor["path"]))  # type: ignore[index]
+            sidecar_paths.extend((vertex_path, face_path))
+            self.assertEqual((10, 11, 12), struct.unpack("<3i", vertex_path.read_bytes()))
+            self.assertEqual((20,), struct.unpack("<i", face_path.read_bytes()))
+            Path(str(output_path)).write_bytes(b"\0" * (3 * 12))
+            return {
+                "source_submesh_index": 5,
+                "source_vertex_count": 13,
+                "source_face_count": 21,
+                "identity_stride_bytes": 12,
+                "identity_size": 3 * 12,
+                "role": "",
+                "part_name": "",
+                "editable": True,
+            }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            identity_path = Path(temp_dir) / "identity.bin"
+            with patch("cdmw.rendering.native_preview_package_writer.write_native_preview_identity_blob", side_effect=_fake_identity_writer):
+                metadata = _write_editor_identity_blob_native(identity_path, batch, 3)
+
+        self.assertEqual((), captured["source_vertex_indices"])
+        self.assertEqual((), captured["source_face_indices"])
+        self.assertEqual(13, metadata["source_vertex_count"])  # type: ignore[index]
+        self.assertEqual(21, metadata["source_face_count"])  # type: ignore[index]
+        self.assertTrue(sidecar_paths)
+        self.assertTrue(all(not path.exists() for path in sidecar_paths))
+
     def test_skeleton_overlay_manifest_includes_bone_positions(self) -> None:
         model = ModelPreviewData(
             path="body.pac",
@@ -411,6 +889,97 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertEqual(ARCHIVE_MODEL_RENDERER_D3D11, normalize_archive_model_renderer_backend("old_removed_renderer"))
         self.assertEqual(ARCHIVE_MODEL_RENDERER_DEFAULT, normalize_archive_model_renderer_backend("unknown"))
 
+    def test_native_d3d11_mesh_edit_vertex_updates_keep_group_sequence(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+
+        app = QApplication.instance() or QApplication([])
+        commands: list[dict[str, object]] = []
+        host = NativeD3D11PreviewHostFrame()
+        host._send_host_json_command = lambda payload: commands.append(payload) or True  # type: ignore[method-assign]
+        groups = (
+            {
+                "source_submesh_index": 0,
+                "source_vertex_start": 1,
+                "source_vertex_count": 2,
+                "positions_binary": {"path": "positions.bin", "count": 2, "components": 3, "type": "f64"},
+            },
+        )
+        try:
+            self.assertTrue(host.update_mesh_edit_vertices(groups))
+            self.assertIs(groups, commands[-1]["groups"])
+        finally:
+            host.close()
+            host.deleteLater()
+            app.processEvents()
+
+    def test_native_d3d11_mesh_edit_vertex_updates_use_file_for_large_payloads(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+
+        app = QApplication.instance() or QApplication([])
+        commands: list[dict[str, object]] = []
+        host = NativeD3D11PreviewHostFrame()
+        host._MESH_EDIT_VERTEX_FILE_THRESHOLD = 1
+        host._send_host_json_command = lambda payload: commands.append(dict(payload)) or True  # type: ignore[method-assign]
+        payload_path: Path | None = None
+        try:
+            self.assertTrue(
+                host.update_mesh_edit_vertices(
+                    (
+                        {
+                            "source_submesh_index": 0,
+                            "source_vertex_start": 0,
+                            "source_vertex_count": 2,
+                            "positions": [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
+                        },
+                    )
+                )
+            )
+            self.assertEqual("update_mesh_edit_vertices_file", commands[-1]["command"])
+            payload_path = Path(str(commands[-1]["payload_file"]))
+            payload = json.loads(payload_path.read_text(encoding="utf-8"))
+            self.assertEqual("update_mesh_edit_vertices", payload["command"])
+            self.assertEqual(1, len(payload["groups"]))
+        finally:
+            if payload_path is not None:
+                payload_path.unlink(missing_ok=True)
+            host.close()
+            host.deleteLater()
+            app.processEvents()
+
+    def test_native_d3d11_mesh_edit_triangle_replace_keeps_group_sequence(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+
+        app = QApplication.instance() or QApplication([])
+        commands: list[dict[str, object]] = []
+        host = NativeD3D11PreviewHostFrame()
+        host._send_host_json_command = lambda payload: commands.append(payload) or True  # type: ignore[method-assign]
+        groups = (
+            {
+                "source_submesh_index": 0,
+                "source_vertex_start": 0,
+                "source_vertex_count": 3,
+                "source_face_start": 0,
+                "source_face_count": 1,
+                "indices_binary": {"path": "indices.bin", "count": 3, "components": 1, "type": "i32"},
+            },
+        )
+        try:
+            self.assertTrue(host.replace_mesh_edit_triangles(groups, source_submesh_indices=(0,)))
+            self.assertIs(groups, commands[-1]["groups"])
+        finally:
+            host.close()
+            host.deleteLater()
+            app.processEvents()
+
     def test_native_d3d11_highlight_commands_select_individual_parts(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
@@ -446,6 +1015,118 @@ class NativePreviewPayloadTests(unittest.TestCase):
                 },
                 commands[-1],
             )
+        finally:
+            host.close()
+            host.deleteLater()
+            app.processEvents()
+
+    def test_native_d3d11_vertex_selection_uses_binary_descriptor(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+
+        app = QApplication.instance() or QApplication([])
+        commands: list[dict[str, object]] = []
+        host = NativeD3D11PreviewHostFrame()
+        host._send_host_json_command = lambda payload: commands.append(dict(payload)) or True  # type: ignore[method-assign]
+        try:
+            self.assertTrue(host.set_mesh_edit_vertex_selection({2: [5, 1, 5, -1]}))
+            group = commands[-1]["groups"][0]  # type: ignore[index]
+            self.assertEqual("set_mesh_edit_selection", commands[-1]["command"])
+            self.assertEqual(2, group["source_submesh_index"])
+            self.assertNotIn("source_vertex_indices", group)
+            descriptor = group["source_vertex_indices_binary"]
+            path = Path(str(descriptor["path"]))
+            try:
+                self.assertEqual({"count": 2, "components": 1, "type": "i32", "delete_after": True}, {key: descriptor[key] for key in ("count", "components", "type", "delete_after")})
+                data = path.read_bytes()
+                self.assertEqual([1, 5], list(struct.unpack("<ii", data)))
+            finally:
+                path.unlink(missing_ok=True)
+        finally:
+            host.close()
+            host.deleteLater()
+            app.processEvents()
+
+    def test_native_d3d11_vertex_selection_forwards_compact_ranges(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+
+        app = QApplication.instance() or QApplication([])
+        commands: list[dict[str, object]] = []
+        host = NativeD3D11PreviewHostFrame()
+        host._send_host_json_command = lambda payload: commands.append(dict(payload)) or True  # type: ignore[method-assign]
+        try:
+            self.assertTrue(host.set_mesh_edit_vertex_selection({2: range(3, 6)}))
+            group = commands[-1]["groups"][0]  # type: ignore[index]
+            self.assertEqual("set_mesh_edit_selection", commands[-1]["command"])
+            self.assertEqual(2, group["source_submesh_index"])
+            self.assertEqual(3, group["source_vertex_start"])
+            self.assertEqual(3, group["source_vertex_count"])
+            self.assertNotIn("source_vertex_indices", group)
+            self.assertNotIn("source_vertex_indices_binary", group)
+        finally:
+            host.close()
+            host.deleteLater()
+            app.processEvents()
+
+    def test_native_d3d11_selection_groups_compact_contiguous_indices(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+
+        app = QApplication.instance() or QApplication([])
+        commands: list[dict[str, object]] = []
+        host = NativeD3D11PreviewHostFrame()
+        host._send_host_json_command = lambda payload: commands.append(dict(payload)) or True  # type: ignore[method-assign]
+        try:
+            self.assertTrue(
+                host.set_mesh_edit_selection_groups(
+                    [
+                        {
+                            "source_submesh_index": 2,
+                            "source_selected": True,
+                            "source_vertex_indices": [3, 4, 5],
+                            "source_face_indices": [7, 8],
+                        },
+                        {
+                            "source_submesh_index": 3,
+                            "source_vertex_indices": [1, 5],
+                            "source_face_indices": [9, 12],
+                        },
+                    ]
+                )
+            )
+            first = commands[-1]["groups"][0]  # type: ignore[index]
+            self.assertIs(True, first["source_selected"])
+            self.assertEqual(3, first["source_vertex_start"])
+            self.assertEqual(3, first["source_vertex_count"])
+            self.assertEqual(7, first["source_face_start"])
+            self.assertEqual(2, first["source_face_count"])
+            self.assertNotIn("source_vertex_indices", first)
+            self.assertNotIn("source_face_indices", first)
+
+            second = commands[-1]["groups"][1]  # type: ignore[index]
+            self.assertNotIn("source_vertex_indices", second)
+            self.assertNotIn("source_vertex_start", second)
+            descriptor = second["source_vertex_indices_binary"]
+            path = Path(str(descriptor["path"]))
+            try:
+                self.assertEqual({"count": 2, "components": 1, "type": "i32", "delete_after": True}, {key: descriptor[key] for key in ("count", "components", "type", "delete_after")})
+                self.assertEqual([1, 5], list(struct.unpack("<ii", path.read_bytes())))
+            finally:
+                path.unlink(missing_ok=True)
+            face_descriptor = second["source_face_indices_binary"]
+            face_path = Path(str(face_descriptor["path"]))
+            try:
+                self.assertEqual({"count": 2, "components": 1, "type": "i32", "delete_after": True}, {key: face_descriptor[key] for key in ("count", "components", "type", "delete_after")})
+                self.assertEqual([9, 12], list(struct.unpack("<ii", face_path.read_bytes())))
+            finally:
+                face_path.unlink(missing_ok=True)
         finally:
             host.close()
             host.deleteLater()
@@ -1982,6 +2663,33 @@ class NativePreviewWidgetRuntimeTests(unittest.TestCase):
         widget.close()
         widget.deleteLater()
         app.processEvents()
+
+    def test_native_preview_panel_selection_fallback_emits_compact_ranges(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance() or QApplication([])
+        widget = NativePreviewPanel("test", theme_key="dark")
+        payloads: list[dict[str, object]] = []
+        widget.mesh_edit_selection_changed.connect(lambda payload: payloads.append(dict(payload)))
+        try:
+            widget.set_mesh_edit_vertex_selection({2: [3, 5, 4, 3, -1]})
+            group = payloads[-1]["groups"][0]  # type: ignore[index]
+            self.assertEqual(2, group["source_submesh_index"])
+            self.assertEqual(3, group["source_vertex_start"])
+            self.assertEqual(3, group["source_vertex_count"])
+            self.assertNotIn("source_vertex_indices", group)
+            self.assertEqual(3, payloads[-1]["selected_vertex_count"])
+
+            widget.set_mesh_edit_vertex_selection({2: [5, 1, 5, -1]})
+            group = payloads[-1]["groups"][0]  # type: ignore[index]
+            self.assertEqual([1, 5], group["source_vertex_indices"])
+            self.assertNotIn("source_vertex_start", group)
+            self.assertEqual(2, payloads[-1]["selected_vertex_count"])
+        finally:
+            widget.close()
+            widget.deleteLater()
+            app.processEvents()
 
     def test_repeated_payload_replacement_does_not_delete_live_geometry(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

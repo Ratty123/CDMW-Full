@@ -21,6 +21,7 @@ Use `%TEMP%` for pytest temp dirs when `.pytest-tmp` is locked.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_runtime_dependency_smoke.py tests/test_crash_reporting_guards.py tests/test_pyinstaller_temp_cleanup.py tests/test_shell_main_window_proxy.py
+.\.venv\Scripts\python.exe -m pytest tests/test_settings_tab_asset_authoring.py
 .\scripts\codex_check.ps1 -Area stability
 ```
 
@@ -44,6 +45,12 @@ Use `%TEMP%` for pytest temp dirs when `.pytest-tmp` is locked.
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_dev_harness.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario full-suite-smoke --output "$env:TEMP\cdmw-mesh-editor-harness"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-benchmark --output "$env:TEMP\cdmw-native-mesh-editor-benchmark"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-static-screen-stroke --output "$env:TEMP\cdmw-native-mesh-editor-static-screen-stroke"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-qt-responsiveness --output "$env:TEMP\cdmw-native-mesh-editor-qt"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-qt-cancellation --output "$env:TEMP\cdmw-native-mesh-editor-qt-cancel"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-d3d11-edit-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-d3d11-edit"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-d3d11-side-by-side-edit-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-d3d11-side-by-side"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-rigging-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-rigging"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-animation-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-animation"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-sequence-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-sequence"
@@ -51,10 +58,22 @@ Use `%TEMP%` for pytest temp dirs when `.pytest-tmp` is locked.
 .\scripts\codex_check.ps1 -Area mesh
 ```
 
+`codex_check -Area mesh` skips interactive D3D11/Qt harness cases. Use the real
+archive Mesh Editor D3D11 edit smokes above for visual proof on game geometry,
+and run the Qt harness commands above only when intentionally validating worker
+responsiveness/cancellation. D3D11 harness windows are moved to screen 1 before
+captures and mouse input.
+
+Do not use `native-mesh-editor-d3d11-delta` or
+`native-mesh-editor-d3d11-payloads` as visual edit proof. They are synthetic
+checkerboard regression harnesses and intentionally do not show game geometry.
+The harness blocks them by default; pass `--allow-synthetic-d3d11` only for
+protocol-only regression testing.
+
 ## Texture Workflow
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_texture_workflow_ui_source_guards.py tests/test_texture_domain_profiles.py tests/test_texture_workflow_unavailable_editor.py tests/test_texture_editor_workers.py tests/test_texture_editor_ui_helpers.py tests/test_texture_editor_native_service.py tests/test_texture_editor_dev_harness.py tests/test_static_texture_replacement.py
+.\.venv\Scripts\python.exe -m pytest tests/test_texture_workflow_ui_source_guards.py tests/test_texture_workflow_asset_authoring_panel.py tests/test_texture_domain_profiles.py tests/test_texture_workflow_unavailable_editor.py tests/test_texture_editor_workers.py tests/test_texture_editor_ui_helpers.py tests/test_texture_editor_native_service.py tests/test_texture_editor_dev_harness.py tests/test_static_texture_replacement.py
 .\scripts\codex_check.ps1 -Area texture
 ```
 
@@ -79,8 +98,16 @@ Use `%TEMP%` for pytest temp dirs when `.pytest-tmp` is locked.
 ## Services, Domain, And Workers
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_services.py tests/test_diagnostics_service.py tests/test_workers.py tests/test_shell_context.py
+.\.venv\Scripts\python.exe -m pytest tests/test_services.py tests/test_asset_authoring_service.py tests/test_asset_authoring_workers.py tests/test_diagnostics_service.py tests/test_workers.py tests/test_shell_context.py
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-discovery --output "%TEMP%\cdmw-asset-authoring-discovery"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-mesh-health --output "%TEMP%\cdmw-asset-authoring-mesh-health"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-uv-report --output "%TEMP%\cdmw-asset-authoring-uv-report"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-tangent-report --output "%TEMP%\cdmw-asset-authoring-tangent-report"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-openimageio-report --output "%TEMP%\cdmw-asset-authoring-openimageio-report"
 ```
+
+`asset-authoring-mesh-health` writes both mesh-health and meshoptimizer
+optimization preflight reports.
 
 ## Full Suite
 

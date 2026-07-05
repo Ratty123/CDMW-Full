@@ -130,6 +130,7 @@ class ShellToolTabsMixin:
         self.settings_tab = SettingsTab(
             settings=self.settings,
             theme_key=self.current_theme_key,
+            asset_authoring_service=getattr(self.app_context.services, "asset_authoring", None),
         )
         self.settings_tab.set_language_options(
             self.ui_localizer.available_languages(),

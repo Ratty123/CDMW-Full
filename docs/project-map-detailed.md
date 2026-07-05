@@ -3,7 +3,29 @@
 This is the long historical ownership map. Read `docs/project-map.md` first;
 use this file only when compact navigation is not enough.
 
-Last reviewed: 2026-06-19
+Last reviewed: 2026-07-04
+
+## Docs Structure
+
+- `docs/architecture.md`: stable architecture, layer rules, ownership, and
+  safety boundaries.
+- `docs/project-map.md`: compact repo navigation map, owners, tests, and docs
+  per area. Read it before this file.
+- `docs/project-map-detailed.md`: historical/file-level ownership detail for
+  package-boundary questions.
+- `docs/test-matrix.md`: validation commands by feature area and release scope.
+- `docs/release-confidence-plan.md`: release/readiness validation order and
+  latest broad confidence evidence.
+- `docs/features/`: long-lived feature/topic docs that are broader than one
+  package, including archive safety, asset authoring, and mesh skeleton
+  discovery.
+- `docs/runbooks/`: short operational flows, currently startup and worker
+  lifecycle.
+- `docs/reference/`: cross-cutting notes and pitfalls.
+- `docs/plans/active/<slug>.md`: current implementation plans only. Superseded,
+  completed, handoff, and new-chat bootstrap plans should be deleted.
+- `docs/ai/PROJECT_MEMORY.md`: curated durable AI handoff notes, not chat logs
+  or raw command output.
 
 ## Entry Points
 
@@ -74,7 +96,11 @@ Last reviewed: 2026-06-19
 - Recent Texture Editor document operation split: `editor_document_state.py` also owns image resize, canvas resize, crop-to-selection, trim-transparent, flip, and rotate document/pixel mutation state.
 - Recent Texture Editor canvas/source operation split: `editor_view_state.py` also owns composite render/cache update state, and `editor_selection_state.py` also owns lasso snap source-pixel selection.
 - Recent Texture Editor export ownership split: `editor_export_state.py` also owns default workspace-root construction; `cdmw/ui/texture_editor_tab.py` no longer imports `cdmw.core.texture_editor` directly.
-- `cdmw/ui/mesh_editor/`: mesh editor tab, controller, session, builder host, shell bridge, and empty state. Has a local `README.md`.
+- `cdmw/ui/mesh_editor/`: Mesh Editor tab, controller, session, builder host,
+  shell bridge, native preview payload/runtime adapters, and empty state. It
+  should stay UI/dispatch-focused while `MeshService` and
+  `native/cdmw_mesh_core/` own live edit-session behavior. Has a local
+  `README.md`.
 - `cdmw/ui/item_icons/`: item icon tab support. `panels.py` owns root/library/preview panel construction and panel signal wiring. `controller.py` owns record list population, target combo/filter refresh, selection helpers, and target handoff. `state.py` owns settings path serialization and safe item-icon path/component rules. `tab.py` remains a smaller coordinator for lifecycle, library mutations, source/final preview, export, loose-mod patching, texture-editor handoff, generated-icon registration, and source chooser behavior.
 - `cdmw/ui/model_library/`: model library tab support. `panels.py` owns controls/results/preview panel construction and panel signal wiring. `actions.py`, `catalogue.py`, `commands.py`, `controller.py`, `local_rows.py`, `preview.py`, `selection.py`, `settings.py`, `tasks.py`, `texture_status.py`, and `view_state.py` own the existing Model Library behavior slices. `tab.py` is now a smaller construction/coordinator surface plus payload import resolution and local mirror state helpers.
 - `cdmw/ui/archive_browser/mesh_import_setup_state.py`: mesh import file/setup dialog titles, mesh import/swap status text, mesh replacement-mode log text, setup/preflight presentation text, compatibility details labels, placement status chips, static-guidance suffix, and continue-button label rules used by archive mesh setup/import flows.
@@ -203,6 +229,10 @@ These public imports are intentionally preserved while internals move:
 
 - `cdmw/services/`: service container plus archive, cache, diagnostics, filesystem, mesh, package, settings, workspace-layout, and texture workflow services.
 - `cdmw/services/workspace_layout.py`: source of truth for app-managed `workspace/` paths and conservative migration from old root-level default folders.
+- `cdmw/services/mesh_service.py`: edit-session service boundary for Mesh
+  Editor; routes supported edit operations to resident native
+  `mesh-editor-session-json` sessions and keeps Python/Qt out of normal
+  per-edit geometry hot paths.
 - `cdmw/domain/`: pure-ish rules under `archives`, `mesh`, `packages`, and `textures`.
 - `cdmw/domain/archives/filters.py`: archive filter state plus pure archive entry category and item-name lookup rules used by UI and workers.
 - `cdmw/domain/textures/profiles.py`: texture processing profile tables, default workflow profile/rule builders, legacy default workflow upgrade rules, and default-workflow seeding predicates. `cdmw/core/pipeline.py` preserves legacy imports for callers while planning uses the domain owner.
@@ -214,6 +244,11 @@ These public imports are intentionally preserved while internals move:
 - `cdmw/rendering/material_combiner.py`: material texture synthesis, material-map decode rules, and generated preview map ownership for native/model preview rendering. The legacy `cdmw/ui/model_preview_material_combiner.py` path is a compatibility wrapper.
 - `cdmw/ui/shell/app_window.py`: shell `MainWindow` owner; recent cleanup removed wildcard imports from constants, models, archive, chainner, and pipeline, then removed fully unused low-level core/modding/worker/domain imports. The file is now under the 760-line shell guard.
 - `cdmw/workers/`: Qt worker runner, archive scan/preview/filter workers, package workers, texture workers, Model Library workers, D3D11 package workers, and shared results/protocol helpers.
+- `native/cdmw_mesh_core/`: resident C++ mesh editing core for live Edit Mesh
+  sessions, native selection, edit tools, topology, undo/redo, and preview
+  deltas.
+- `native/cd_texture_dx/`: DirectXTex-backed texture helper for DDS read/write,
+  mipmaps, format conversion, and block compression.
 - Boundary status: improving, but archive browser UI still appears to own too much workflow coordination.
 
 ## Highest-Risk Files

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import os
+from copy import copy
 from collections.abc import Callable, Mapping, Sequence
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
@@ -11,7 +13,6 @@ from cdmw.domain.textures.material_authority import complete_swap_material_autho
 from .mesh_deformer import (
     apply_brush_deformation,
     apply_vertex_delta,
-    clone_mesh_for_editing,
     compact_orphan_vertices,
     delete_faces_by_indices,
     recompute_submesh_normals,
@@ -19,9 +20,42 @@ from .mesh_deformer import (
     subdivide_faces_touching_vertices,
 )
 from .mesh_native_core import (
+    apply_native_mesh_auto_uv,
+    apply_native_mesh_bridge,
+    apply_native_mesh_brush,
+    apply_native_mesh_brush_binary_selection,
+    apply_native_mesh_brush_selection,
+    apply_native_mesh_compact_orphans,
+    apply_native_mesh_copy_normals,
+    apply_native_mesh_delete,
+    apply_native_mesh_dissolve,
+    apply_native_mesh_duplicate,
+    apply_native_mesh_edge_split,
+    apply_native_mesh_extrude,
+    apply_native_mesh_fill,
+    apply_native_mesh_fill_holes,
+    apply_native_mesh_fix_winding,
+    apply_native_mesh_flip_normals,
+    apply_native_mesh_generate_tangents,
+    apply_native_mesh_inset,
+    apply_native_mesh_loop_cut,
+    apply_native_mesh_merge,
+    apply_native_mesh_mirror,
     apply_native_mesh_recalculate_normals,
+    apply_native_mesh_remove_doubles,
+    apply_native_mesh_separate,
+    apply_native_mesh_sharpen_normals,
+    apply_native_mesh_split,
+    apply_native_mesh_subdivide,
     apply_native_mesh_transform,
+    apply_native_mesh_transform_binary_selection,
+    apply_native_mesh_transform_selection,
+    apply_native_mesh_triangulate_display,
     apply_native_mesh_uv_transform,
+    apply_native_mesh_weld,
+    apply_native_mesh_weighted_normals,
+    native_mesh_core_available,
+    record_native_mesh_core_fallback,
 )
 from .mesh_parser import ParsedMesh, SubMesh
 
@@ -29,8 +63,13 @@ Vec2 = tuple[float, float]
 Vec3 = tuple[float, float, float]
 UvKey = tuple[float, float]
 UvEdgeKey = tuple[tuple[int, int], tuple[UvKey, UvKey]]
-MeshEditChangedVertices = dict[int, set[int]]
+MeshEditChangedVertices = dict[int, Sequence[int] | set[int]]
 MeshEditAffected = set[int]
+
+
+class NativeLiveHistoryUnavailable(RuntimeError):
+    """Raised when native live undo deltas are required but unavailable."""
+
 
 _NATIVE_MATERIAL_OVERRIDE_KEYS = {
     "texture_brightness",
@@ -66,11 +105,76 @@ _MATERIAL_ASSIGN_PARAM_KEYS = {
     "preview_native_material_overrides",
     "native_material_overrides",
 }
+def _record_native_edit_fallback(
+    mesh: ParsedMesh,
+    operation: str,
+    reason: str,
+    *,
+    submesh_indices: object = None,
+) -> None:
+    details: dict[str, object] = {
+        "vertex_count": _mesh_count(mesh, "total_vertices"),
+        "face_count": _mesh_count(mesh, "total_faces"),
+    }
+    indices = _fallback_submesh_indices(submesh_indices)
+    if indices:
+        details["submesh_indices"] = indices
+    record_native_mesh_core_fallback(operation, reason, **details)
+
+
+def _allow_python_mesh_edit_fallback(mesh: ParsedMesh, operation: str, *, submesh_indices: object = None) -> bool:
+    if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
+        return True
+    if not native_mesh_core_available():
+        return True
+    _record_native_edit_fallback(
+        mesh,
+        f"{operation}.blocked",
+        "Python mesh edit fallback blocked while native mesh core is available",
+        submesh_indices=submesh_indices,
+    )
+    return False
+
+
+def _recompute_normals_after_native_edit(mesh: ParsedMesh, submesh_indices: object, reason: str) -> None:
+    target_indices = {
+        index for index in _fallback_submesh_indices(submesh_indices)
+        if 0 <= index < len(mesh.submeshes)
+    }
+    if not target_indices:
+        return
+    native_normals = apply_native_mesh_recalculate_normals(mesh, target_indices)
+    if native_normals is not None:
+        return
+    if not _allow_python_mesh_edit_fallback(mesh, "normals.recalculate", submesh_indices=target_indices):
+        return
+    _record_native_edit_fallback(mesh, "normals.recalculate", reason, submesh_indices=target_indices)
+    for submesh_index in target_indices:
+        recompute_submesh_normals(mesh.submeshes[submesh_index])
+
+
+def _mesh_count(mesh: ParsedMesh, attr: str) -> int:
+    try:
+        value = int(getattr(mesh, attr, 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return value if value >= 0 else 0
+
+
+def _fallback_submesh_indices(value: object) -> tuple[int, ...]:
+    if value is None:
+        return ()
+    try:
+        raw_values = value.keys() if isinstance(value, Mapping) else value
+        return tuple(sorted({int(index) for index in raw_values}))  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return ()
 
 MESH_TOPOLOGY_ACTIONS = {
     "delete",
     "dissolve",
     "subdivide",
+    "refine_smooth",
     "split",
     "separate",
     "duplicate",
@@ -99,6 +203,7 @@ MESH_GEOMETRY_ACTIONS = MESH_TOPOLOGY_ACTIONS | {
     "flip_normals",
     "sharpen_normals",
     "soften_normals",
+    "weighted_normals",
     "copy_normals",
     "uv_transform",
     "material_assign",
@@ -125,6 +230,8 @@ def apply_mesh_edit_geometry_action(
         return _loop_cut(mesh, selection, params)
     if action in {"subdivide", "loop_cut"}:
         return _subdivide(mesh, selection, params)
+    if action == "refine_smooth":
+        return _refine_smooth(mesh, selection, params)
     if action == "split":
         return _split(mesh, selection, params)
     if action == "separate":
@@ -171,6 +278,8 @@ def apply_mesh_edit_geometry_action(
         return _sharpen_normals(mesh, selection)
     if action == "soften_normals":
         return _recalculate_normals(mesh, selection)
+    if action == "weighted_normals":
+        return _weighted_normals(mesh, selection)
     if action == "copy_normals":
         return _copy_normals(mesh, selection, params)
     if action == "uv_transform":
@@ -180,6 +289,16 @@ def apply_mesh_edit_geometry_action(
     if action == "material_copy":
         return _material_copy(mesh, selection, params)
     return set(), {}
+
+
+def _stop_event(params: Mapping[str, object]) -> object | None:
+    candidate = params.get("stop_event")
+    return candidate if callable(getattr(candidate, "is_set", None)) else None
+
+
+def _native_kwargs(params: Mapping[str, object]) -> dict[str, object]:
+    stop_event = _stop_event(params)
+    return {"stop_event": stop_event} if stop_event is not None else {}
 
 
 def refresh_mesh_totals(mesh: ParsedMesh) -> None:
@@ -284,6 +403,32 @@ def _selected_vertices(
     return valid
 
 
+def _selected_vertices_with_source_ranges(
+    mesh: ParsedMesh,
+    selection: MeshEditSelection,
+) -> dict[int, Sequence[int] | set[int]]:
+    selected: dict[int, Sequence[int] | set[int]] = {}
+    if selection.vertices_by_submesh or selection.edges_by_submesh or selection.faces_by_submesh:
+        selected.update(
+            _selected_vertices(
+                mesh,
+                MeshEditSelection.from_maps(
+                    vertices_by_submesh=selection.vertex_map(),
+                    edges_by_submesh=selection.edge_map(),
+                    faces_by_submesh=selection.face_map(),
+                ),
+                fallback_all=False,
+            )
+        )
+    for submesh_index in selection.source_indices:
+        if not 0 <= submesh_index < len(mesh.submeshes):
+            continue
+        vertex_count = len(mesh.submeshes[submesh_index].vertices)
+        if vertex_count > 0:
+            selected[submesh_index] = range(vertex_count)
+    return selected
+
+
 def _selected_faces(mesh: ParsedMesh, selection: MeshEditSelection, *, fallback_all: bool = False) -> dict[int, set[int]]:
     result = selection.face_map()
     if not result and selection.edges_by_submesh:
@@ -341,7 +486,7 @@ def _valid_face_indices_for_submesh(submesh: SubMesh, indices: set[int]) -> set[
 
 def _valid_face_items(submesh: SubMesh) -> tuple[tuple[int, tuple[int, int, int]], ...]:
     items: list[tuple[int, tuple[int, int, int]]] = []
-    for face_index, face in enumerate(tuple(submesh.faces or ())):
+    for face_index, face in enumerate(submesh.faces or ()):
         vertices = _valid_face_vertices(face, len(submesh.vertices))
         if len(vertices) == 3:
             items.append((face_index, (vertices[0], vertices[1], vertices[2])))
@@ -389,8 +534,34 @@ def _existing_face_edges(submesh: SubMesh) -> set[tuple[int, int]]:
 
 
 def _changed_from_vertices(vertices: MeshEditChangedVertices) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
-    changed = {index: set(values) for index, values in vertices.items() if values}
+    changed: MeshEditChangedVertices = {}
+    for index, values in vertices.items():
+        if not values:
+            continue
+        normalized = _changed_vertex_values(values)
+        if normalized:
+            changed[index] = normalized
     return set(changed), changed
+
+
+def _changed_vertex_values(values: object) -> Sequence[int] | set[int]:
+    if isinstance(values, range):
+        return values if values.step == 1 and values.start >= 0 else ()
+    if isinstance(values, Mapping):
+        for start_key, count_key in (
+            ("changed_vertex_start", "changed_vertex_count"),
+            ("vertex_index_start", "vertex_index_count"),
+            ("source_vertex_start", "source_vertex_count"),
+        ):
+            try:
+                start = int(values.get(start_key, -1))
+                count = int(values.get(count_key, 0))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if start >= 0 and count > 0:
+                return range(start, start + count)
+        return set()
+    return set(values)  # type: ignore[arg-type]
 
 
 def _transform(
@@ -398,9 +569,6 @@ def _transform(
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
-    vertices_by_submesh = _selected_vertices(mesh, selection, fallback_all=False)
-    if not vertices_by_submesh:
-        return set(), {}
     axis_mask = _axis_mask(params.get("axis", params.get("constraint_axis", "")))
     translate = _constrain_vec3(
         _vec3(params.get("translate", params.get("delta", (0.0, 0.0, 0.0)))),
@@ -415,7 +583,102 @@ def _transform(
     )
     snap = _positive_float(params.get("snap", params.get("snap_increment", 0.0)))
     recompute_normals = bool(params.get("recompute_normals", True))
-    if bool(params.get("mirror_x", False)) and scale == (1.0, 1.0, 1.0) and rotate == (0.0, 0.0, 0.0):
+    history_delta = bool(params.get("_require_native_history_delta", False))
+    pivot = params.get("pivot")
+    pivot_vec = _vec3(pivot) if pivot is not None else None
+    native_mirror_x = bool(params.get("mirror_x", False)) and scale == (1.0, 1.0, 1.0) and rotate == (0.0, 0.0, 0.0)
+    native_binary_vertices = (
+        params.get("native_selected_vertices_binary_by_submesh")
+        if isinstance(params.get("native_selected_vertices_binary_by_submesh"), Mapping)
+        else {}
+    )
+    native_changed = apply_native_mesh_transform_binary_selection(
+        mesh,
+        selected_vertices_binary_by_submesh=native_binary_vertices,
+        translate=translate,
+        scale=scale,
+        rotate=rotate,
+        pivot=pivot_vec,
+        snap=snap,
+        mirror_x=native_mirror_x,
+        mirror_pairs_by_submesh=params.get("mirror_pairs_by_submesh") if isinstance(params.get("mirror_pairs_by_submesh"), Mapping) else None,
+        history_delta=history_delta,
+        **_native_kwargs(params),
+    )
+    if native_changed is not None:
+        if recompute_normals:
+            _recompute_normals_after_native_edit(
+                mesh,
+                native_changed,
+                "native normal recompute unavailable after binary transform",
+            )
+        return _changed_from_vertices(native_changed)
+    if native_binary_vertices:
+        return set(), {}
+    native_changed = apply_native_mesh_transform_selection(
+        mesh,
+        vertices_by_submesh=selection.vertex_map(),
+        edges_by_submesh=selection.edge_map(),
+        faces_by_submesh=selection.face_map(),
+        source_indices=selection.source_indices,
+        translate=translate,
+        scale=scale,
+        rotate=rotate,
+        pivot=pivot_vec,
+        snap=snap,
+        mirror_x=native_mirror_x,
+        mirror_pairs_by_submesh=params.get("mirror_pairs_by_submesh") if isinstance(params.get("mirror_pairs_by_submesh"), Mapping) else None,
+        history_delta=history_delta,
+        **_native_kwargs(params),
+    )
+    if native_changed is not None:
+        if recompute_normals:
+            _recompute_normals_after_native_edit(
+                mesh,
+                native_changed,
+                "native normal recompute unavailable after transform",
+            )
+        return _changed_from_vertices(native_changed)
+    if history_delta:
+        raise NativeLiveHistoryUnavailable("native transform history delta unavailable")
+    python_expansion_domains = selection.edge_map() or selection.face_map() or set(selection.source_indices)
+    if python_expansion_domains and not _allow_python_mesh_edit_fallback(
+        mesh,
+        "live_edit.transform",
+        submesh_indices=python_expansion_domains,
+    ):
+        return set(), {}
+    vertices_by_submesh = _selected_vertices(mesh, selection, fallback_all=False)
+    if not vertices_by_submesh:
+        return set(), {}
+    native_changed = apply_native_mesh_transform(
+        mesh,
+        vertices_by_submesh,
+        translate=translate,
+        scale=scale,
+        rotate=rotate,
+        pivot=pivot_vec,
+        snap=snap,
+        mirror_x=native_mirror_x,
+        mirror_pairs_by_submesh=params.get("mirror_pairs_by_submesh") if isinstance(params.get("mirror_pairs_by_submesh"), Mapping) else None,
+        history_delta=history_delta,
+        **_native_kwargs(params),
+    )
+    if native_changed is not None:
+        if recompute_normals:
+            _recompute_normals_after_native_edit(
+                mesh,
+                native_changed,
+                "native normal recompute unavailable after transform",
+            )
+        return _changed_from_vertices(native_changed)
+    if history_delta:
+        raise NativeLiveHistoryUnavailable("native transform history delta unavailable")
+    _record_native_edit_fallback(mesh, "live_edit.transform", "native transform unavailable", submesh_indices=vertices_by_submesh)
+    if not _allow_python_mesh_edit_fallback(mesh, "live_edit.transform", submesh_indices=vertices_by_submesh):
+        return set(), {}
+    pivot_vec = _selection_center(mesh, vertices_by_submesh) if pivot_vec is None else pivot_vec
+    if native_mirror_x:
         changed: MeshEditChangedVertices = {}
         mirror_pairs_by_submesh = params.get("mirror_pairs_by_submesh")
         for submesh_index, indices in vertices_by_submesh.items():
@@ -430,22 +693,6 @@ def _transform(
             if touched:
                 changed[submesh_index] = set(touched)
         return _changed_from_vertices(changed)
-    pivot = params.get("pivot")
-    pivot_vec = _vec3(pivot) if pivot is not None else _selection_center(mesh, vertices_by_submesh)
-    native_changed = apply_native_mesh_transform(
-        mesh,
-        vertices_by_submesh,
-        translate=translate,
-        scale=scale,
-        rotate=rotate,
-        pivot=pivot_vec,
-        snap=snap,
-    )
-    if native_changed is not None:
-        if recompute_normals:
-            for submesh_index in native_changed:
-                recompute_submesh_normals(mesh.submeshes[submesh_index])
-        return _changed_from_vertices(native_changed)
     changed: MeshEditChangedVertices = {}
     for submesh_index, indices in vertices_by_submesh.items():
         submesh = mesh.submeshes[submesh_index]
@@ -535,6 +782,14 @@ def _positive_float(value: object) -> float:
     return parsed
 
 
+def _nonnegative_int(value: object) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return parsed if parsed >= 0 else 0
+
+
 def _snap_vertex(vertex: Vec3, increment: float) -> Vec3:
     if increment <= 0.0:
         return vertex
@@ -580,7 +835,71 @@ def _brush(
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    history_delta = bool(params.get("_require_native_history_delta", False))
+    native_binary_vertices = (
+        params.get("native_selected_vertices_binary_by_submesh")
+        if isinstance(params.get("native_selected_vertices_binary_by_submesh"), Mapping)
+        else {}
+    )
+    native_binary_selection = apply_native_mesh_brush_binary_selection(
+        mesh,
+        selected_vertices_binary_by_submesh=native_binary_vertices,
+        vertex_weights_binary_by_submesh=params.get("native_vertex_weights_binary_by_submesh")
+        if isinstance(params.get("native_vertex_weights_binary_by_submesh"), Mapping)
+        else {},
+        params=params,
+        history_delta=history_delta,
+        **_native_kwargs(params),
+    )
+    if native_binary_selection is not None:
+        return _changed_from_vertices(native_binary_selection)
+    if native_binary_vertices:
+        return _changed_from_vertices({})
+    if not selection.is_empty():
+        native_changed = apply_native_mesh_brush_selection(
+            mesh,
+            vertices_by_submesh=selection.vertex_map(),
+            edges_by_submesh=selection.edge_map(),
+            faces_by_submesh=selection.face_map(),
+            source_indices=selection.source_indices,
+            params=params,
+            history_delta=history_delta,
+            **_native_kwargs(params),
+        )
+        if native_changed is not None:
+            return _changed_from_vertices(native_changed)
+        if history_delta:
+            raise NativeLiveHistoryUnavailable("native brush history delta unavailable")
+    python_expansion_domains = selection.edge_map() or selection.face_map() or set(selection.source_indices)
+    if python_expansion_domains and not _allow_python_mesh_edit_fallback(
+        mesh,
+        f"live_edit.{str(params.get('tool', 'brush') or 'brush')}",
+        submesh_indices=python_expansion_domains,
+    ):
+        return set(), {}
     selected = _selected_vertices(mesh, selection, fallback_all=False)
+    native_selected: dict[int, set[int] | None] = (
+        {submesh_index: set(vertices) for submesh_index, vertices in selected.items()}
+        if selected
+        else {index: None for index, _submesh in enumerate(mesh.submeshes)}
+    )
+    native_changed = apply_native_mesh_brush(mesh, native_selected, params, history_delta=history_delta, **_native_kwargs(params))
+    if native_changed is not None:
+        return _changed_from_vertices(native_changed)
+    if history_delta:
+        raise NativeLiveHistoryUnavailable("native brush history delta unavailable")
+    _record_native_edit_fallback(
+        mesh,
+        f"live_edit.{str(params.get('tool', 'brush') or 'brush')}",
+        "native brush unavailable",
+        submesh_indices=native_selected,
+    )
+    if not _allow_python_mesh_edit_fallback(
+        mesh,
+        f"live_edit.{str(params.get('tool', 'brush') or 'brush')}",
+        submesh_indices=native_selected,
+    ):
+        return set(), {}
     if not selected:
         selected = {index: None for index, _submesh in enumerate(mesh.submeshes)}
     changed: MeshEditChangedVertices = {}
@@ -620,7 +939,34 @@ def _delete(
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
     if _truthy(params.get("delete_parts")) and selection.source_indices:
         return _delete_submeshes(mesh, selection.source_indices), {}
-    faces = _selected_faces(mesh, selection, fallback_all=False)
+    faces = selection.face_map()
+    edges = selection.edge_map()
+    vertices = selection.vertex_map()
+    all_faces = set(selection.source_indices)
+    native_binary_vertices = (
+        params.get("native_selected_vertices_binary_by_submesh")
+        if isinstance(params.get("native_selected_vertices_binary_by_submesh"), Mapping)
+        else {}
+    )
+    if faces or edges or vertices or native_binary_vertices or all_faces:
+        native_affected = apply_native_mesh_delete(
+            mesh,
+            faces,
+            vertices,
+            selected_edges_by_submesh=edges,
+            selected_vertices_binary_by_submesh=native_binary_vertices,
+            all_faces_by_submesh=all_faces,
+            remove_orphans=remove_orphans,
+            recompute_normals=bool(params.get("recompute_normals", True)),
+            **_native_kwargs(params),
+        )
+        if native_affected is not None:
+            refresh_mesh_totals(mesh)
+            return native_affected, {}
+        _record_native_edit_fallback(mesh, "topology.delete", "native delete unavailable", submesh_indices=faces or vertices or edges or all_faces)
+        if not _allow_python_mesh_edit_fallback(mesh, "topology.delete", submesh_indices=faces or vertices or edges or all_faces):
+            return set(), {}
+        faces = _selected_faces(mesh, selection, fallback_all=False)
     if faces:
         result = delete_faces_by_indices(mesh, faces, remove_orphans=remove_orphans)
     else:
@@ -629,8 +975,27 @@ def _delete(
 
 
 def _dissolve(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
-    if selection.edge_map():
-        affected = _dissolve_internal_edges(mesh, selection.edge_map())
+    faces = selection.face_map()
+    edges = selection.edge_map()
+    vertices = selection.vertex_map()
+    all_faces = set(selection.source_indices)
+    if faces or edges or vertices or all_faces:
+        native_affected = apply_native_mesh_dissolve(
+            mesh,
+            faces,
+            vertices,
+            selected_edges_by_submesh=edges,
+            all_faces_by_submesh=all_faces,
+            recompute_normals=True,
+        )
+        if native_affected is not None:
+            refresh_mesh_totals(mesh)
+            return set(native_affected), {}
+        _record_native_edit_fallback(mesh, "topology.dissolve", "native dissolve unavailable", submesh_indices=faces or vertices or edges or all_faces)
+        if not _allow_python_mesh_edit_fallback(mesh, "topology.dissolve", submesh_indices=faces or vertices or edges or all_faces):
+            return set(), {}
+    if edges:
+        affected = _dissolve_internal_edges(mesh, edges)
         if affected:
             refresh_mesh_totals(mesh)
             return affected, {}
@@ -666,7 +1031,7 @@ def _dissolve_internal_edges(mesh: ParsedMesh, selected_edges: dict[int, set[tup
         edge_faces: dict[tuple[int, int], list[int]] = {}
         face_by_index: dict[int, tuple[int, int, int]] = {}
         face_order: list[int] = []
-        for face_index, face in enumerate(tuple(submesh.faces or ())):
+        for face_index, face in enumerate(submesh.faces or ()):
             vertices = _valid_face_vertices(face, len(submesh.vertices))
             if len(vertices) != 3:
                 continue
@@ -713,7 +1078,29 @@ def _subdivide(
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
-    face_selection = bool(selection.edges_by_submesh or selection.faces_by_submesh or selection.source_indices)
+    faces = selection.face_map()
+    edges = selection.edge_map()
+    all_faces = set(selection.source_indices)
+    face_selection = bool(edges or faces or all_faces)
+    vertices = {} if face_selection else selection.vertex_map()
+    if not (faces or edges or vertices or all_faces):
+        return set(), {}
+    native_result = apply_native_mesh_subdivide(
+        mesh,
+        faces,
+        vertices,
+        params,
+        selected_edges_by_submesh=edges,
+        all_faces_by_submesh=all_faces,
+        refine=False,
+        recompute_normals=bool(params.get("recompute_normals", True)),
+        **_native_kwargs(params),
+    )
+    if native_result is not None:
+        return native_result
+    _record_native_edit_fallback(mesh, "topology.subdivide", "native subdivide unavailable", submesh_indices=faces or vertices or edges or all_faces)
+    if not _allow_python_mesh_edit_fallback(mesh, "topology.subdivide", submesh_indices=faces or vertices or edges or all_faces):
+        return set(), {}
     faces = _selected_faces(mesh, selection, fallback_all=False) if face_selection else {}
     vertices = {} if face_selection else _selected_vertices(mesh, selection, fallback_all=False)
     if face_selection and not faces:
@@ -728,11 +1115,93 @@ def _subdivide(
     return set(result.affected_submesh_indices), result.changed_vertices_by_submesh or {}
 
 
+def _refine_smooth(
+    mesh: ParsedMesh,
+    selection: MeshEditSelection,
+    params: dict[str, object],
+) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    faces = selection.face_map()
+    edges = selection.edge_map()
+    all_faces = set(selection.source_indices)
+    face_selection = bool(edges or faces or all_faces)
+    vertices = {} if face_selection else selection.vertex_map()
+    if not (faces or edges or vertices or all_faces):
+        return set(), {}
+    native_result = apply_native_mesh_subdivide(
+        mesh,
+        faces,
+        vertices,
+        params,
+        selected_edges_by_submesh=edges,
+        all_faces_by_submesh=all_faces,
+        refine=True,
+        recompute_normals=bool(params.get("recompute_normals", True)),
+        **_native_kwargs(params),
+    )
+    if native_result is not None:
+        return native_result
+    _record_native_edit_fallback(mesh, "topology.refine_smooth", "native refine smooth unavailable", submesh_indices=faces or vertices or edges or all_faces)
+    if not _allow_python_mesh_edit_fallback(mesh, "topology.refine_smooth", submesh_indices=faces or vertices or edges or all_faces):
+        return set(), {}
+    faces = _selected_faces(mesh, selection, fallback_all=False) if face_selection else {}
+    vertices = {} if face_selection else _selected_vertices(mesh, selection, fallback_all=False)
+    if face_selection and not faces:
+        return set(), {}
+    affected, changed = _subdivide(mesh, selection, params)
+    if not changed:
+        return affected, changed
+    strength = max(0.0, min(1.0, _float_value(params.get("smooth_strength", params.get("strength", 0.5)), 0.5)))
+    iterations = max(1, min(12, _positive_int(params.get("smooth_iterations", params.get("iterations", 2)), 2)))
+    recompute_normals = bool(params.get("recompute_normals", True))
+    for submesh_index, vertex_indices in tuple(changed.items()):
+        if not 0 <= submesh_index < len(mesh.submeshes):
+            continue
+        selected = {int(index) for index in vertex_indices if 0 <= int(index) < len(mesh.submeshes[submesh_index].vertices)}
+        if not selected:
+            continue
+        smoothed = apply_brush_deformation(
+            mesh.submeshes[submesh_index],
+            tool="smooth",
+            center=(0.0, 0.0, 0.0),
+            radius=0.0,
+            strength=strength,
+            vertex_indices=selected,
+            vertex_weights={index: 1.0 for index in selected},
+            iterations=iterations,
+            recompute_normals=recompute_normals,
+        )
+        if smoothed:
+            changed.setdefault(submesh_index, set()).update(smoothed)
+    refresh_mesh_totals(mesh)
+    return affected, changed
+
+
 def _split(
     mesh: ParsedMesh,
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    faces = selection.face_map()
+    edges = selection.edge_map()
+    all_faces = set(selection.source_indices)
+    face_selection = bool(edges or faces or all_faces)
+    vertices = {} if face_selection else selection.vertex_map()
+    if faces or edges or vertices or all_faces:
+        native_result = apply_native_mesh_split(
+            mesh,
+            faces,
+            vertices,
+            params,
+            selected_edges_by_submesh=edges,
+            all_faces_by_submesh=all_faces,
+            recompute_normals=bool(params.get("recompute_normals", True)),
+            **_native_kwargs(params),
+        )
+        if native_result is not None:
+            return native_result
+        _record_native_edit_fallback(mesh, "topology.split", "native split unavailable", submesh_indices=faces or vertices or edges or all_faces)
+        if not _allow_python_mesh_edit_fallback(mesh, "topology.split", submesh_indices=faces or vertices or edges or all_faces):
+            return set(), {}
     faces = _selected_faces(mesh, selection, fallback_all=False)
     changed: MeshEditChangedVertices = {}
     for submesh_index, face_indices in faces.items():
@@ -747,7 +1216,7 @@ def _split(
         selected_vertices: set[int] = set()
         unselected_vertices: set[int] = set()
         valid_faces: list[tuple[int, tuple[int, int, int]]] = []
-        for face_index, face in enumerate(tuple(submesh.faces or ())):
+        for face_index, face in enumerate(submesh.faces or ()):
             vertices = _valid_face_vertices(face, len(submesh.vertices))
             if len(vertices) != 3:
                 continue
@@ -781,9 +1250,39 @@ def _separate(
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    native_result = apply_native_mesh_separate(
+        mesh,
+        selection.face_map(),
+        selection.vertex_map(),
+        selected_edges_by_submesh=selection.edge_map(),
+        recompute_normals=bool(params.get("recompute_normals", True)),
+    )
+    if native_result is not None:
+        affected = {
+            index
+            for index in (native_result.source_submesh_index, native_result.new_submesh_index)
+            if index >= 0
+        }
+        for new_index in (native_result.new_submesh_index,):
+            source_index = native_result.source_submesh_index
+            if not (0 <= source_index < len(mesh.submeshes) and 0 <= new_index < len(mesh.submeshes)):
+                continue
+            source = mesh.submeshes[source_index]
+            moved = mesh.submeshes[new_index]
+            _copy_material_route_metadata(source, moved)
+            moved.cdmw_mesh_edit_material_source_submesh_index = source_index
+            moved.cdmw_mesh_edit_topology_source_submesh_index = source_index
+        refresh_mesh_totals(mesh)
+        return affected, {}
+
+    raw_targets = selection.face_map() or selection.vertex_map() or selection.edge_map() or set(selection.source_indices)
+    _record_native_edit_fallback(mesh, "topology.separate", "native separate unavailable", submesh_indices=raw_targets)
+    if raw_targets and not _allow_python_mesh_edit_fallback(mesh, "topology.separate", submesh_indices=raw_targets):
+        return set(), {}
+    selected_faces = _selected_faces(mesh, selection, fallback_all=False)
     result = split_faces_to_submesh(
         mesh,
-        selected_faces_by_submesh=_selected_faces(mesh, selection, fallback_all=False),
+        selected_faces_by_submesh=selected_faces,
         recompute_normals=bool(params.get("recompute_normals", True)),
     )
     affected = {index for index in (result.source_submesh_index, result.new_submesh_index) if index >= 0}
@@ -795,7 +1294,45 @@ def _duplicate(
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    raw_faces = selection.face_map()
+    raw_vertices = selection.vertex_map()
+    raw_edges = selection.edge_map()
+    all_faces_by_submesh = {
+        index
+        for index in selection.source_indices
+        if 0 <= index < len(mesh.submeshes)
+    }
+    if bool(params.get("all", False)) and selection.is_empty():
+        all_faces_by_submesh.update(range(len(mesh.submeshes)))
+    native_duplicate = apply_native_mesh_duplicate(
+        mesh,
+        raw_faces,
+        raw_vertices,
+        selected_edges_by_submesh=raw_edges,
+        all_faces_by_submesh=all_faces_by_submesh,
+        recompute_normals=bool(params.get("recompute_normals", True)),
+    )
+    if native_duplicate is not None:
+        native_indices, source_by_new = native_duplicate
+        for new_index, source_index in source_by_new.items():
+            if not (0 <= source_index < len(mesh.submeshes) and 0 <= new_index < len(mesh.submeshes)):
+                continue
+            source = mesh.submeshes[source_index]
+            copied = mesh.submeshes[new_index]
+            _copy_material_route_metadata(source, copied)
+            copied.cdmw_mesh_edit_material_source_submesh_index = source_index
+            copied.cdmw_mesh_edit_topology_source_submesh_index = source_index
+            if not copied.normals:
+                recompute_submesh_normals(copied)
+        refresh_mesh_totals(mesh)
+        return set(native_indices), {}
+
     new_indices: set[int] = set()
+    raw_targets = raw_faces or raw_vertices or raw_edges or all_faces_by_submesh
+    if raw_targets:
+        _record_native_edit_fallback(mesh, "topology.duplicate", "native duplicate unavailable", submesh_indices=raw_targets)
+        if not _allow_python_mesh_edit_fallback(mesh, "topology.duplicate", submesh_indices=raw_targets):
+            return set(), {}
     faces = _selected_faces(mesh, selection, fallback_all=bool(params.get("all", False)))
     if faces:
         for submesh_index, face_indices in faces.items():
@@ -815,10 +1352,51 @@ def _mirror(
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
     axis = str(params.get("axis", "x")).strip().lower()
     axis_index = {"x": 0, "y": 1, "z": 2}.get(axis, 0)
+    axis_name = ("x", "y", "z")[axis_index]
     in_place = bool(params.get("in_place", False))
+    face_selection = selection.face_map()
+    edge_selection = selection.edge_map()
+    vertex_selection = selection.vertex_map()
+    all_faces = set(selection.source_indices)
     affected: set[int] = set()
     changed: MeshEditChangedVertices = {}
     if in_place:
+        if not (face_selection or edge_selection or vertex_selection or all_faces):
+            return set(), {}
+        scale_values = [1.0, 1.0, 1.0]
+        scale_values[axis_index] = -1.0
+        native_changed = apply_native_mesh_transform_selection(
+            mesh,
+            vertices_by_submesh=vertex_selection,
+            edges_by_submesh=edge_selection,
+            faces_by_submesh=face_selection,
+            source_indices=selection.source_indices,
+            translate=(0.0, 0.0, 0.0),
+            scale=(scale_values[0], scale_values[1], scale_values[2]),
+            rotate=(0.0, 0.0, 0.0),
+            pivot=(0.0, 0.0, 0.0),
+            snap=0.0,
+            **_native_kwargs(params),
+        )
+        if native_changed is not None:
+            _recompute_normals_after_native_edit(
+                mesh,
+                native_changed,
+                "native normal recompute unavailable after in-place mirror",
+            )
+            return _changed_from_vertices(native_changed)
+        _record_native_edit_fallback(
+            mesh,
+            "topology.mirror",
+            "native in-place mirror unavailable",
+            submesh_indices=face_selection or vertex_selection or edge_selection or all_faces,
+        )
+        if not _allow_python_mesh_edit_fallback(
+            mesh,
+            "topology.mirror",
+            submesh_indices=face_selection or vertex_selection or edge_selection or all_faces,
+        ):
+            return set(), {}
         selected = _selected_vertices(mesh, selection, fallback_all=False)
         if not selected:
             return set(), {}
@@ -834,6 +1412,33 @@ def _mirror(
             affected.add(submesh_index)
             changed[submesh_index] = set(vertex_indices)
     else:
+        if not (face_selection or edge_selection or vertex_selection or all_faces):
+            return set(), {}
+        native_result = apply_native_mesh_mirror(
+            mesh,
+            face_selection,
+            vertex_selection,
+            axis=axis_name,
+            selected_edges_by_submesh=edge_selection,
+            all_faces_by_submesh=all_faces,
+            recompute_normals=True,
+            **_native_kwargs(params),
+        )
+        if native_result is not None:
+            native_indices, _source_by_new = native_result
+            return set(native_indices), {}
+        _record_native_edit_fallback(
+            mesh,
+            "topology.mirror",
+            "native mirror unavailable",
+            submesh_indices=face_selection or vertex_selection or edge_selection or all_faces,
+        )
+        if not _allow_python_mesh_edit_fallback(
+            mesh,
+            "topology.mirror",
+            submesh_indices=face_selection or vertex_selection or edge_selection or all_faces,
+        ):
+            return set(), {}
         faces = _selected_faces(mesh, selection, fallback_all=False)
         if faces:
             for submesh_index, face_indices in faces.items():
@@ -855,6 +1460,25 @@ def _extrude(
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    face_selection = selection.face_map()
+    edge_selection = selection.edge_map()
+    vertex_selection = selection.vertex_map()
+    all_faces = set(selection.source_indices)
+    if face_selection or edge_selection or vertex_selection or all_faces:
+        native_result = apply_native_mesh_extrude(
+            mesh,
+            face_selection,
+            vertex_selection,
+            params,
+            selected_edges_by_submesh=edge_selection,
+            all_faces_by_submesh=all_faces,
+            recompute_normals=bool(params.get("recompute_normals", True)),
+        )
+        if native_result is not None:
+            return native_result
+        _record_native_edit_fallback(mesh, "topology.extrude", "native extrude unavailable", submesh_indices=face_selection or vertex_selection or edge_selection or all_faces)
+        if not _allow_python_mesh_edit_fallback(mesh, "topology.extrude", submesh_indices=face_selection or vertex_selection or edge_selection or all_faces):
+            return set(), {}
     faces = _selected_faces(mesh, selection, fallback_all=False)
     offset = _vec3(params.get("offset", params.get("delta", (0.0, 0.0, 0.25))))
     if not faces and selection.edge_map():
@@ -940,10 +1564,34 @@ def _inset(
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
-    faces = _selected_faces(mesh, selection, fallback_all=False)
     amount = _inset_amount(params.get("amount", 0.25))
     if amount <= 1e-8:
         return set(), {}
+    face_selection = selection.face_map()
+    edge_selection = selection.edge_map()
+    vertex_selection = selection.vertex_map()
+    all_faces = set(selection.source_indices)
+    if face_selection or edge_selection or vertex_selection or all_faces:
+        native_result = apply_native_mesh_inset(
+            mesh,
+            face_selection,
+            vertex_selection,
+            {**params, "amount": amount},
+            selected_edges_by_submesh=edge_selection,
+            all_faces_by_submesh=all_faces,
+            recompute_normals=bool(params.get("recompute_normals", True)),
+        )
+        if native_result is not None:
+            return native_result
+        _record_native_edit_fallback(
+            mesh,
+            "topology.inset",
+            "native inset unavailable",
+            submesh_indices=face_selection or vertex_selection or edge_selection or all_faces,
+        )
+        if not _allow_python_mesh_edit_fallback(mesh, "topology.inset", submesh_indices=face_selection or vertex_selection or edge_selection or all_faces):
+            return set(), {}
+    faces = _selected_faces(mesh, selection, fallback_all=False)
     changed: MeshEditChangedVertices = {}
     for submesh_index, face_indices in faces.items():
         submesh = mesh.submeshes[submesh_index]
@@ -1007,6 +1655,27 @@ def _loop_cut(
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
     selected_edges = selection.edge_map()
+    native_result = apply_native_mesh_loop_cut(
+        mesh,
+        selected_edges,
+        params,
+        recompute_normals=bool(params.get("recompute_normals", True)),
+        **_native_kwargs(params),
+    )
+    if native_result is not None:
+        return native_result
+    _record_native_edit_fallback(
+        mesh,
+        "topology.loop_cut",
+        "native loop cut unavailable",
+        submesh_indices=selected_edges,
+    )
+    if selected_edges and not _allow_python_mesh_edit_fallback(
+        mesh,
+        "topology.loop_cut",
+        submesh_indices=selected_edges,
+    ):
+        return set(), {}
     cut_count = _loop_cut_count(params)
     cut_fractions = _loop_cut_fractions(params, cut_count)
     changed: MeshEditChangedVertices = {}
@@ -1126,6 +1795,29 @@ def _edge_cut_faces(edge_vertices: tuple[int, ...], opposite_vertex: int) -> lis
 
 def _edge_split(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
     selected_edges = selection.edge_map()
+    selected_faces = selection.face_map()
+    selected_vertices = selection.vertex_map()
+    native_result = apply_native_mesh_edge_split(
+        mesh,
+        selected_faces,
+        selected_vertices,
+        selected_edges_by_submesh=selected_edges,
+        recompute_normals=True,
+    )
+    if native_result is not None:
+        return native_result
+    _record_native_edit_fallback(
+        mesh,
+        "topology.edge_split",
+        "native edge split unavailable",
+        submesh_indices=selected_edges or selected_faces or selected_vertices,
+    )
+    if (selected_edges or selected_faces or selected_vertices) and not _allow_python_mesh_edit_fallback(
+        mesh,
+        "topology.edge_split",
+        submesh_indices=selected_edges or selected_faces or selected_vertices,
+    ):
+        return set(), {}
     changed: MeshEditChangedVertices = {}
     if selected_edges:
         for submesh_index, edges in selected_edges.items():
@@ -1197,6 +1889,32 @@ def _edge_key(a: int, b: int) -> tuple[int, int]:
 
 
 def _merge(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    selected_vertices = selection.vertex_map()
+    selected_edges = selection.edge_map()
+    selected_faces = selection.face_map()
+    all_faces = set(selection.source_indices)
+    native_result = apply_native_mesh_merge(
+        mesh,
+        selected_faces,
+        selected_vertices,
+        selected_edges_by_submesh=selected_edges,
+        all_faces_by_submesh=all_faces,
+        recompute_normals=True,
+    )
+    if native_result is not None:
+        return native_result
+    _record_native_edit_fallback(
+        mesh,
+        "topology.merge",
+        "native merge unavailable",
+        submesh_indices=selected_vertices or selected_edges or selected_faces or all_faces,
+    )
+    if (selected_vertices or selected_edges or selected_faces or all_faces) and not _allow_python_mesh_edit_fallback(
+        mesh,
+        "topology.merge",
+        submesh_indices=selected_vertices or selected_edges or selected_faces or all_faces,
+    ):
+        return set(), {}
     selected = _selected_vertices(mesh, selection, fallback_all=False)
     changed: MeshEditChangedVertices = {}
     for submesh_index, vertex_indices in selected.items():
@@ -1230,8 +1948,35 @@ def _weld(
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
-    selected = _selected_vertices(mesh, selection, fallback_all=False)
     threshold = _positive_float(params.get("threshold", params.get("distance", params.get("merge_distance", 1e-5)))) or 1e-5
+    selected_vertices = selection.vertex_map()
+    selected_edges = selection.edge_map()
+    selected_faces = selection.face_map()
+    all_faces = set(selection.source_indices)
+    native_result = apply_native_mesh_weld(
+        mesh,
+        selected_faces,
+        selected_vertices,
+        threshold=threshold,
+        selected_edges_by_submesh=selected_edges,
+        all_faces_by_submesh=all_faces,
+        recompute_normals=True,
+    )
+    if native_result is not None:
+        return native_result
+    _record_native_edit_fallback(
+        mesh,
+        "topology.weld",
+        "native weld unavailable",
+        submesh_indices=selected_vertices or selected_edges or selected_faces or all_faces,
+    )
+    if (selected_vertices or selected_edges or selected_faces or all_faces) and not _allow_python_mesh_edit_fallback(
+        mesh,
+        "topology.weld",
+        submesh_indices=selected_vertices or selected_edges or selected_faces or all_faces,
+    ):
+        return set(), {}
+    selected = _selected_vertices(mesh, selection, fallback_all=False)
     threshold_squared = threshold * threshold
     changed: MeshEditChangedVertices = {}
     for submesh_index, vertex_indices in selected.items():
@@ -1282,8 +2027,25 @@ def _weld(
 
 def _fill(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
     selected = selection.vertex_map()
+    selected_edges = selection.edge_map()
+    native_affected = apply_native_mesh_fill(
+        mesh,
+        selected,
+        selected_edges_by_submesh=selected_edges,
+        recompute_normals=True,
+    )
+    if native_affected is not None:
+        refresh_mesh_totals(mesh)
+        return native_affected, {}
+    _record_native_edit_fallback(mesh, "topology.fill", "native fill unavailable", submesh_indices=selected or selected_edges)
+    if (selected or selected_edges) and not _allow_python_mesh_edit_fallback(
+        mesh,
+        "topology.fill",
+        submesh_indices=selected or selected_edges,
+    ):
+        return set(), {}
     edge_loops: dict[int, list[int]] = {}
-    for submesh_index, edges in selection.edge_map().items():
+    for submesh_index, edges in selected_edges.items():
         vertices = selected.setdefault(submesh_index, set())
         for a, b in edges:
             vertices.update((a, b))
@@ -1331,25 +2093,68 @@ def _remove_doubles(
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
-    selected = _selected_vertices(mesh, selection, fallback_all=False)
+    selected: dict[int, set[int] | None] = {}
+    for submesh_index in selection.source_indices:
+        if 0 <= submesh_index < len(mesh.submeshes) and len(mesh.submeshes[submesh_index].vertices) >= 2:
+            selected[submesh_index] = None
+    if selection.vertices_by_submesh or selection.edges_by_submesh or selection.faces_by_submesh:
+        explicit_selection = MeshEditSelection.from_maps(
+            vertices_by_submesh=selection.vertex_map(),
+            edges_by_submesh=selection.edge_map(),
+            faces_by_submesh=selection.face_map(),
+        )
+        for submesh_index, vertices in _selected_vertices(mesh, explicit_selection, fallback_all=False).items():
+            selected.setdefault(submesh_index, vertices)
     if not selected:
-        selected = {index: set(range(len(submesh.vertices))) for index, submesh in enumerate(mesh.submeshes)}
-    return _weld(mesh, MeshEditSelection.from_maps(vertices_by_submesh=selected), params)
+        selected = {index: None for index, submesh in enumerate(mesh.submeshes) if len(submesh.vertices) >= 2}
+    threshold = _positive_float(params.get("threshold", params.get("distance", params.get("merge_distance", 1e-5)))) or 1e-5
+    native_affected = apply_native_mesh_remove_doubles(mesh, selected, threshold=threshold)
+    if native_affected is not None:
+        refresh_mesh_totals(mesh)
+        return native_affected, {}
+    _record_native_edit_fallback(mesh, "topology.remove_doubles", "native remove doubles unavailable", submesh_indices=selected)
+    if not _allow_python_mesh_edit_fallback(mesh, "topology.remove_doubles", submesh_indices=selected):
+        return set(), {}
+    fallback_selected = {
+        submesh_index: (
+            set(range(len(mesh.submeshes[submesh_index].vertices)))
+            if vertices is None
+            else set(vertices)
+        )
+        for submesh_index, vertices in selected.items()
+        if 0 <= submesh_index < len(mesh.submeshes)
+    }
+    return _weld(mesh, MeshEditSelection.from_maps(vertices_by_submesh=fallback_selected), params)
 
 
 def _delete_loose_vertices(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
     target_indices = _submesh_indices(mesh, selection)
+    native_result = apply_native_mesh_compact_orphans(mesh, submesh_indices=target_indices, recompute_normals=True)
+    if native_result is not None:
+        refresh_mesh_totals(mesh)
+        return set(native_result.affected_submesh_indices), {}
+    _record_native_edit_fallback(mesh, "topology.compact_orphans", "native compact orphans unavailable", submesh_indices=target_indices)
+    if not _allow_python_mesh_edit_fallback(mesh, "topology.compact_orphans", submesh_indices=target_indices):
+        return set(), {}
     result = compact_orphan_vertices(mesh, submesh_indices=target_indices, recompute_normals=True)
     refresh_mesh_totals(mesh)
     return set(result.affected_submesh_indices), {}
 
 
 def _fix_winding(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    target_indices = _submesh_indices(mesh, selection)
+    native_affected = apply_native_mesh_fix_winding(mesh, target_indices, recompute_normals=True)
+    if native_affected is not None:
+        refresh_mesh_totals(mesh)
+        return set(native_affected), {}
+    _record_native_edit_fallback(mesh, "topology.fix_winding", "native fix winding unavailable", submesh_indices=target_indices)
+    if not _allow_python_mesh_edit_fallback(mesh, "topology.fix_winding", submesh_indices=target_indices):
+        return set(), {}
     affected: set[int] = set()
-    for submesh_index in _submesh_indices(mesh, selection):
+    for submesh_index in target_indices:
         submesh = mesh.submeshes[submesh_index]
-        vertices = tuple(submesh.vertices or ())
-        normals = tuple(submesh.normals or ())
+        vertices = submesh.vertices or ()
+        normals = submesh.normals or ()
         new_faces: list[tuple[int, int, int]] = []
         for _face_index, (a, b, c) in _valid_face_items(submesh):
             face = (a, b, c)
@@ -1369,8 +2174,16 @@ def _fix_winding(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEd
 
 
 def _fill_holes(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    target_indices = _submesh_indices(mesh, selection)
+    native_affected = apply_native_mesh_fill_holes(mesh, target_indices, recompute_normals=True)
+    if native_affected is not None:
+        refresh_mesh_totals(mesh)
+        return set(native_affected), {}
+    _record_native_edit_fallback(mesh, "topology.fill_holes", "native fill holes unavailable", submesh_indices=target_indices)
+    if not _allow_python_mesh_edit_fallback(mesh, "topology.fill_holes", submesh_indices=target_indices):
+        return set(), {}
     affected: set[int] = set()
-    for submesh_index in _submesh_indices(mesh, selection):
+    for submesh_index in target_indices:
         submesh = mesh.submeshes[submesh_index]
         boundary_edges = _boundary_edges(submesh)
         if not boundary_edges:
@@ -1400,12 +2213,25 @@ def _fill_holes(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEdi
 
 
 def _triangulate_display(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    target_indices = _submesh_indices(mesh, selection)
+    native_affected = apply_native_mesh_triangulate_display(mesh, target_indices, recompute_normals=True)
+    if native_affected is not None:
+        refresh_mesh_totals(mesh)
+        return set(native_affected), {}
+    _record_native_edit_fallback(
+        mesh,
+        "topology.triangulate_display",
+        "native display triangulate unavailable",
+        submesh_indices=target_indices,
+    )
+    if not _allow_python_mesh_edit_fallback(mesh, "topology.triangulate_display", submesh_indices=target_indices):
+        return set(), {}
     affected: set[int] = set()
-    for submesh_index in _submesh_indices(mesh, selection):
+    for submesh_index in target_indices:
         submesh = mesh.submeshes[submesh_index]
         vertex_count = len(submesh.vertices or ())
         new_faces: list[tuple[int, int, int]] = []
-        for face in tuple(submesh.faces or ()):
+        for face in submesh.faces or ():
             if not isinstance(face, (tuple, list)):
                 continue
             indices = [_coerce_index(value) for value in tuple(face or ())]
@@ -1507,9 +2333,18 @@ def _cross(left: Vec3, right: Vec3) -> Vec3:
 
 
 def _bridge(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    selected_edges = selection.edge_map()
+    if selected_edges:
+        native_affected = apply_native_mesh_bridge(mesh, selected_edges, recompute_normals=True)
+        if native_affected is not None:
+            refresh_mesh_totals(mesh)
+            return set(native_affected), {}
+        _record_native_edit_fallback(mesh, "topology.bridge", "native bridge unavailable", submesh_indices=selected_edges)
+        if not _allow_python_mesh_edit_fallback(mesh, "topology.bridge", submesh_indices=selected_edges):
+            return set(), {}
     affected: set[int] = set()
     bridge_candidate_seen = False
-    for submesh_index, edges in selection.edge_map().items():
+    for submesh_index, edges in selected_edges.items():
         if not 0 <= submesh_index < len(mesh.submeshes):
             continue
         submesh = mesh.submeshes[submesh_index]
@@ -1588,9 +2423,12 @@ def _recalculate_normals(mesh: ParsedMesh, selection: MeshEditSelection) -> tupl
     target_indices = _surface_channel_target_indices(mesh, selection)
     if not target_indices:
         return set(), {}
-    native_affected = apply_native_mesh_recalculate_normals(mesh, target_indices)
-    if native_affected is not None:
-        return native_affected, {}
+    native_changed = apply_native_mesh_recalculate_normals(mesh, target_indices, return_changed_vertices=True)
+    if native_changed is not None:
+        return _changed_from_vertices(native_changed)
+    if not _allow_python_mesh_edit_fallback(mesh, "normals.recalculate", submesh_indices=target_indices):
+        return set(), {}
+    _record_native_edit_fallback(mesh, "normals.recalculate", "native normal recompute unavailable", submesh_indices=target_indices)
     affected: set[int] = set()
     for submesh_index in sorted(target_indices):
         submesh = mesh.submeshes[submesh_index]
@@ -1602,10 +2440,66 @@ def _recalculate_normals(mesh: ParsedMesh, selection: MeshEditSelection) -> tupl
     return affected, {}
 
 
+def _weighted_normals(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    target_indices = _surface_channel_target_indices(mesh, selection)
+    if not target_indices:
+        return set(), {}
+    native_changed = apply_native_mesh_weighted_normals(mesh, target_indices)
+    if native_changed is not None:
+        return _changed_from_vertices(native_changed)
+    _record_native_edit_fallback(mesh, "normals.weighted", "native weighted normals unavailable", submesh_indices=target_indices)
+    if not _allow_python_mesh_edit_fallback(mesh, "normals.weighted", submesh_indices=target_indices):
+        return set(), {}
+    changed: MeshEditChangedVertices = {}
+    for submesh_index in sorted(target_indices):
+        submesh = mesh.submeshes[submesh_index]
+        before = tuple(_vec3(normal, (0.0, 0.0, 0.0)) for normal in tuple(submesh.normals or ()))
+        normals = _computed_weighted_normals(submesh)
+        if not normals:
+            continue
+        touched = {
+            index
+            for index, normal in enumerate(normals)
+            if index >= len(before) or not _same_vec3(before[index], normal)
+        }
+        if touched:
+            submesh.normals = normals
+            changed[submesh_index] = touched
+    return _changed_from_vertices(changed)
+
+
+def _computed_weighted_normals(submesh: SubMesh) -> list[Vec3]:
+    vertices = tuple(_vec3(vertex) for vertex in tuple(submesh.vertices or ()))
+    if not vertices:
+        return []
+    accum: list[Vec3] = [(0.0, 0.0, 0.0) for _vertex in vertices]
+    for _face_index, (a, b, c) in _valid_face_items(submesh):
+        weighted = _cross(_sub(vertices[b], vertices[a]), _sub(vertices[c], vertices[a]))
+        if _dot(weighted, weighted) <= 1e-24:
+            continue
+        accum[a] = _add(accum[a], weighted)
+        accum[b] = _add(accum[b], weighted)
+        accum[c] = _add(accum[c], weighted)
+    fallback_normals = tuple(_vec3(normal, (0.0, 1.0, 0.0)) for normal in tuple(submesh.normals or ()))
+    result: list[Vec3] = []
+    for index, value in enumerate(accum):
+        normal = _normalized_vec3(value)
+        if normal == (0.0, 0.0, 0.0) and index < len(fallback_normals):
+            normal = _normalized_vec3(fallback_normals[index])
+        result.append(normal if normal != (0.0, 0.0, 0.0) else (0.0, 1.0, 0.0))
+    return result
+
+
 def _generate_tangents(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
     target_indices = _surface_channel_target_indices(mesh, selection)
     if not target_indices:
         return set(), {}
+    native_affected = apply_native_mesh_generate_tangents(mesh, target_indices)
+    if native_affected is not None:
+        return native_affected, {}
+    if not _allow_python_mesh_edit_fallback(mesh, "tangents.generate", submesh_indices=target_indices):
+        return set(), {}
+    _record_native_edit_fallback(mesh, "tangents.generate", "native tangent generation unavailable", submesh_indices=target_indices)
     affected: set[int] = set()
     for submesh_index in sorted(target_indices):
         submesh = mesh.submeshes[submesh_index]
@@ -1655,8 +2549,42 @@ def _computed_vertex_tangents(submesh: SubMesh) -> list[Vec3]:
 def _flip_normals(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
     if selection.is_empty():
         return set(), {}
+    has_explicit_selection = bool(selection.vertices_by_submesh or selection.edges_by_submesh or selection.faces_by_submesh)
+    if selection.source_indices and not has_explicit_selection:
+        target_indices = set(_submesh_indices(mesh, selection))
+        if not target_indices:
+            return set(), {}
+        native_affected = apply_native_mesh_flip_normals(mesh, target_indices)
+        if native_affected is not None:
+            return native_affected, {}
+        _record_native_edit_fallback(mesh, "normals.flip", "native submesh flip normals unavailable", submesh_indices=target_indices)
+        if not _allow_python_mesh_edit_fallback(mesh, "normals.flip", submesh_indices=target_indices):
+            return set(), {}
+        affected: set[int] = set()
+        for submesh_index in sorted(target_indices):
+            submesh = mesh.submeshes[submesh_index]
+            valid_faces = [face for _face_index, face in _valid_face_items(submesh)]
+            if not valid_faces:
+                continue
+            submesh.faces = [(face[0], face[2], face[1]) for face in valid_faces]
+            if len(submesh.normals) == len(submesh.vertices):
+                submesh.normals = [(-normal[0], -normal[1], -normal[2]) for normal in submesh.normals]
+            else:
+                recompute_submesh_normals(submesh)
+            affected.add(submesh_index)
+        return affected, {}
     selected_faces = _selected_faces(mesh, selection, fallback_all=False)
     if selected_faces:
+        native_affected = apply_native_mesh_flip_normals(
+            mesh,
+            set(selected_faces),
+            selected_faces_by_submesh=selected_faces,
+        )
+        if native_affected is not None:
+            return native_affected, {}
+        _record_native_edit_fallback(mesh, "normals.flip", "native selected-face flip normals unavailable", submesh_indices=selected_faces)
+        if not _allow_python_mesh_edit_fallback(mesh, "normals.flip", submesh_indices=selected_faces):
+            return set(), {}
         affected: set[int] = set()
         for submesh_index, face_indices in selected_faces.items():
             submesh = mesh.submeshes[submesh_index]
@@ -1679,8 +2607,15 @@ def _flip_normals(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshE
     if selection.vertices_by_submesh or selection.edges_by_submesh or selection.faces_by_submesh:
         return set(), {}
 
+    target_indices = set(_submesh_indices(mesh, selection))
+    native_affected = apply_native_mesh_flip_normals(mesh, target_indices)
+    if native_affected is not None:
+        return native_affected, {}
+    _record_native_edit_fallback(mesh, "normals.flip", "native submesh flip normals unavailable", submesh_indices=target_indices)
+    if not _allow_python_mesh_edit_fallback(mesh, "normals.flip", submesh_indices=target_indices):
+        return set(), {}
     affected: set[int] = set()
-    for submesh_index in _submesh_indices(mesh, selection):
+    for submesh_index in sorted(target_indices):
         submesh = mesh.submeshes[submesh_index]
         valid_faces = [face for _face_index, face in _valid_face_items(submesh)]
         if not valid_faces:
@@ -1695,8 +2630,27 @@ def _flip_normals(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshE
 
 
 def _sharpen_normals(mesh: ParsedMesh, selection: MeshEditSelection) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    has_explicit_selection = bool(selection.vertices_by_submesh or selection.edges_by_submesh or selection.faces_by_submesh)
+    if selection.source_indices and not has_explicit_selection:
+        target_indices = {
+            submesh_index
+            for submesh_index in selection.source_indices
+            if 0 <= submesh_index < len(mesh.submeshes)
+        }
+        native_changed = apply_native_mesh_sharpen_normals(mesh, {submesh_index: set() for submesh_index in target_indices})
+        if native_changed is not None:
+            return _changed_from_vertices(native_changed)
+        _record_native_edit_fallback(mesh, "normals.sharpen", "native sharpen normals unavailable", submesh_indices=target_indices)
+        if not _allow_python_mesh_edit_fallback(mesh, "normals.sharpen", submesh_indices=target_indices):
+            return set(), {}
     selected_faces = _selected_faces(mesh, selection, fallback_all=False)
     if not selected_faces:
+        return set(), {}
+    native_changed = apply_native_mesh_sharpen_normals(mesh, selected_faces)
+    if native_changed is not None:
+        return _changed_from_vertices(native_changed)
+    _record_native_edit_fallback(mesh, "normals.sharpen", "native sharpen normals unavailable", submesh_indices=selected_faces)
+    if not _allow_python_mesh_edit_fallback(mesh, "normals.sharpen", submesh_indices=selected_faces):
         return set(), {}
     changed: MeshEditChangedVertices = {}
     for submesh_index, face_indices in selected_faces.items():
@@ -1736,6 +2690,30 @@ def _copy_normals(
     source_mesh = params.get("source_mesh")
     if not isinstance(source_mesh, ParsedMesh):
         return set(), {}
+    selected_vertices = selection.vertex_map()
+    selected_edges = selection.edge_map()
+    selected_faces = selection.face_map()
+    source_indices = tuple(selection.source_indices)
+    raw_targets = selected_vertices or selected_edges or selected_faces or set(source_indices)
+    if not raw_targets:
+        return set(), {}
+    native_changed = apply_native_mesh_copy_normals(
+        mesh,
+        source_mesh,
+        selected_vertices,
+        selected_edges_by_submesh=selected_edges,
+        selected_faces_by_submesh=selected_faces,
+        source_indices=source_indices,
+    )
+    if native_changed is not None:
+        return _changed_from_vertices(native_changed)
+    _record_native_edit_fallback(mesh, "normals.copy", "native copy normals unavailable", submesh_indices=raw_targets)
+    if not _allow_python_mesh_edit_fallback(
+        mesh,
+        "normals.copy",
+        submesh_indices=raw_targets,
+    ):
+        return set(), {}
     selected = _selected_vertices(mesh, selection, fallback_all=False)
     if not selected:
         return set(), {}
@@ -1765,16 +2743,104 @@ def _copy_normals(
     return _changed_from_vertices(changed)
 
 
+def _selection_target_sources(selection: MeshEditSelection) -> set[int]:
+    targets: set[int] = set()
+    targets.update(_fallback_submesh_indices(selection.vertex_map()))
+    targets.update(_fallback_submesh_indices(selection.edge_map()))
+    targets.update(_fallback_submesh_indices(selection.face_map()))
+    targets.update(_fallback_submesh_indices(selection.source_indices))
+    return targets
+
+
 def _uv_transform(
     mesh: ParsedMesh,
     selection: MeshEditSelection,
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
+    use_python_selection_layout = _uses_uv_islands(params)
+    native_auto_attempted = False
+    native_uv_attempted = False
+    selected_vertices = selection.vertex_map()
+    selected_edges = selection.edge_map()
+    selected_faces = selection.face_map()
+    source_indices = tuple(selection.source_indices)
+    native_target_sources = _selection_target_sources(selection)
+    if not use_python_selection_layout and native_target_sources:
+        if _uses_uv_auto(params):
+            native_auto_attempted = True
+            native_changed = apply_native_mesh_auto_uv(
+                mesh,
+                native_target_sources,
+                resolution=_nonnegative_int(params.get("resolution", params.get("atlas_size", 0))),
+                allow_topology_change=_truthy(params.get("allow_topology_change", params.get("confirm_topology_change", False))),
+            )
+            if native_changed is not None:
+                return _changed_from_vertices(native_changed)
+            _record_native_edit_fallback(mesh, "uv.auto", "native auto UV unavailable", submesh_indices=native_target_sources)
+            if not _allow_python_mesh_edit_fallback(mesh, "uv.auto", submesh_indices=native_target_sources):
+                return set(), {}
+            params = {**params, "projection": params.get("fallback_projection", "planar")}
+        offset = _vec2(params.get("offset", (0.0, 0.0)))
+        scale = _vec2(params.get("scale", (1.0, 1.0)), (1.0, 1.0))
+        rotate_degrees = _float_value(params.get("rotate", params.get("rotate_degrees", 0.0)))
+        flip_u = bool(params.get("flip_u", False))
+        flip_v = bool(params.get("flip_v", False))
+        pivot = _uv_pivot(params, flip_u=flip_u, flip_v=flip_v)
+        special_layout = (
+            _uses_uv_projection(params)
+            or _uses_uv_normalize(params)
+            or _uses_uv_align(params)
+            or _uses_uv_pack(params)
+            or _uses_uv_snap(params)
+        )
+        native_uv_attempted = True
+        native_changed = apply_native_mesh_uv_transform(
+            mesh,
+            selected_vertices,
+            selected_edges_by_submesh=selected_edges,
+            selected_faces_by_submesh=selected_faces,
+            source_indices=source_indices,
+            **_native_uv_transform_kwargs(
+                params,
+                offset=offset,
+                scale=scale,
+                rotate_degrees=rotate_degrees,
+                flip_u=flip_u,
+                flip_v=flip_v,
+                pivot=pivot,
+            ),
+        )
+        if native_changed is not None:
+            return _changed_from_vertices(native_changed)
+        native_operation = "uv.layout" if special_layout else "uv.transform"
+        _record_native_edit_fallback(mesh, native_operation, "native UV transform unavailable", submesh_indices=native_target_sources)
+        if not _allow_python_mesh_edit_fallback(mesh, native_operation, submesh_indices=native_target_sources):
+            return set(), {}
+    elif not use_python_selection_layout:
+        return set(), {}
+    python_layout_domains = selected_edges or selected_faces or set(source_indices)
+    if use_python_selection_layout and python_layout_domains and not _allow_python_mesh_edit_fallback(
+        mesh,
+        "uv.layout" if use_python_selection_layout else "uv.transform",
+        submesh_indices=python_layout_domains,
+    ):
+        return set(), {}
     selected = _selected_vertices(mesh, selection, fallback_all=False)
-    if _uses_uv_islands(params) or _uses_uv_pack(params):
+    if use_python_selection_layout:
         selected = _uv_island_vertices(mesh, selected)
     if not selected:
         return set(), {}
+    if _uses_uv_auto(params) and not native_auto_attempted:
+        native_changed = apply_native_mesh_auto_uv(
+            mesh,
+            set(selected),
+            resolution=_nonnegative_int(params.get("resolution", params.get("atlas_size", 0))),
+            allow_topology_change=_truthy(params.get("allow_topology_change", params.get("confirm_topology_change", False))),
+        )
+        if native_changed is not None:
+            return _changed_from_vertices(native_changed)
+        _record_native_edit_fallback(mesh, "uv.auto", "native auto UV unavailable", submesh_indices=selected)
+        params = {**params, "projection": params.get("fallback_projection", "planar")}
     offset = _vec2(params.get("offset", (0.0, 0.0)))
     scale = _vec2(params.get("scale", (1.0, 1.0)), (1.0, 1.0))
     rotate_degrees = _float_value(params.get("rotate", params.get("rotate_degrees", 0.0)))
@@ -1788,22 +2854,35 @@ def _uv_transform(
         or _uses_uv_pack(params)
         or _uses_uv_snap(params)
     )
-    if not special_layout:
+    if not native_uv_attempted:
         native_changed = apply_native_mesh_uv_transform(
             mesh,
             selected,
-            offset=offset,
-            scale=scale,
-            rotate_degrees=rotate_degrees,
-            flip_u=flip_u,
-            flip_v=flip_v,
-            pivot=pivot,
+            **_native_uv_transform_kwargs(
+                params,
+                offset=offset,
+                scale=scale,
+                rotate_degrees=rotate_degrees,
+                flip_u=flip_u,
+                flip_v=flip_v,
+                pivot=pivot,
+            ),
         )
         if native_changed is not None:
             return _changed_from_vertices(native_changed)
+        native_operation = "uv.layout" if special_layout else "uv.transform"
+        _record_native_edit_fallback(mesh, native_operation, "native UV transform unavailable", submesh_indices=selected)
+        if not _allow_python_mesh_edit_fallback(mesh, native_operation, submesh_indices=selected):
+            return set(), {}
     changed: MeshEditChangedVertices = {}
     for submesh_index, vertex_indices in selected.items():
         submesh = mesh.submeshes[submesh_index]
+        initialized_uvs = False
+        if len(submesh.uvs) != len(submesh.vertices):
+            if not _uses_uv_projection(params):
+                continue
+            submesh.uvs = [(0.0, 0.0)] * len(submesh.vertices)
+            initialized_uvs = True
         if len(submesh.uvs) != len(submesh.vertices):
             continue
         uvs = list(submesh.uvs)
@@ -1829,7 +2908,11 @@ def _uv_transform(
         _align_uvs(uvs, valid_vertices, params)
         if _uses_uv_snap(params):
             _snap_uvs(uvs, valid_vertices, params)
-        touched = {index for index in valid_vertices if not _same_vec2(original_uvs[index], _vec2(uvs[index]))}
+        touched = {
+            index
+            for index in valid_vertices
+            if initialized_uvs or not _same_vec2(original_uvs[index], _vec2(uvs[index]))
+        }
         if touched:
             changed[submesh_index] = touched
         submesh.uvs = uvs
@@ -1844,9 +2927,51 @@ def _uv_pivot(params: dict[str, object], *, flip_u: bool, flip_v: bool) -> Vec2:
     return (0.0, 0.0)
 
 
+def _native_uv_transform_kwargs(
+    params: dict[str, object],
+    *,
+    offset: Vec2,
+    scale: Vec2,
+    rotate_degrees: float,
+    flip_u: bool,
+    flip_v: bool,
+    pivot: Vec2,
+) -> dict[str, object]:
+    return {
+        "offset": offset,
+        "scale": scale,
+        "rotate_degrees": rotate_degrees,
+        "flip_u": flip_u,
+        "flip_v": flip_v,
+        "pivot": pivot,
+        "projection": _uv_projection_mode(params) if _uses_uv_projection(params) else "",
+        "plane": str(params.get("plane", "") or ""),
+        "axis": str(params.get("axis", params.get("cylindrical_axis", "")) or ""),
+        "normalize": _uses_uv_normalize(params),
+        "target_min": _vec2(params.get("target_min", params.get("normalize_min", (0.0, 0.0)))),
+        "target_max": _vec2(params.get("target_max", params.get("normalize_max", (1.0, 1.0))), (1.0, 1.0)),
+        "pack": _uses_uv_pack(params),
+        "pack_columns": _nonnegative_int(params.get("pack_columns", 0)),
+        "padding": max(0.0, _float_value(params.get("padding", params.get("pack_padding", 0.02)), 0.02)),
+        "align_u": params.get("align_u"),
+        "align_v": params.get("align_v"),
+        "snap_step": _uv_snap_steps(params) if _uses_uv_snap(params) else (0.0, 0.0),
+        "initialize_missing_uvs": _uses_uv_projection(params),
+    }
+
+
 def _uses_uv_projection(params: dict[str, object]) -> bool:
     projection = _uv_projection_mode(params)
     return projection in {"planar", "xy", "xz", "yz", "box", "cube", "cylindrical", "cylinder"}
+
+
+def _uses_uv_auto(params: dict[str, object]) -> bool:
+    unwrap = str(params.get("unwrap", params.get("auto_unwrap", "")) or "").strip().lower()
+    return (
+        _truthy(params.get("auto_uv", False))
+        or _truthy(params.get("xatlas", False))
+        or unwrap in {"auto", "xatlas", "true", "1", "yes"}
+    )
 
 
 def _uses_uv_normalize(params: dict[str, object]) -> bool:
@@ -2298,6 +3423,7 @@ def _material_copy(
         target.material = str(source.material or "")
         target.texture = str(source.texture or "")
         _copy_material_route_metadata(source, target)
+        target.cdmw_mesh_edit_material_source_submesh_index = source_index
         if _material_signature(target) != before:
             affected.add(submesh_index)
     return affected, {}
@@ -2332,7 +3458,7 @@ def _material_target_submesh_indices(
         valid_faces = {index for index in face_indices if 0 <= index < len(submesh.faces)}
         if not valid_faces:
             continue
-        if valid_faces == set(range(len(submesh.faces))):
+        if len(valid_faces) == len(submesh.faces):
             targets.add(submesh_index)
             continue
         split = split_faces_to_submesh(
@@ -2347,7 +3473,7 @@ def _material_target_submesh_indices(
 
 
 def _material_assign_changes(submesh: SubMesh, params: dict[str, object]) -> bool:
-    probe = clone_mesh_for_editing(ParsedMesh(submeshes=[submesh])).submeshes[0]
+    probe = copy(submesh)
     material = params.get("material")
     texture = params.get("texture")
     if material is not None:
@@ -2359,7 +3485,7 @@ def _material_assign_changes(submesh: SubMesh, params: dict[str, object]) -> boo
 
 
 def _material_copy_changes(source: SubMesh, target: SubMesh) -> bool:
-    probe = clone_mesh_for_editing(ParsedMesh(submeshes=[target])).submeshes[0]
+    probe = copy(target)
     probe.material = str(source.material or "")
     probe.texture = str(source.texture or "")
     _copy_material_route_metadata(source, probe)
@@ -2421,9 +3547,16 @@ def _clear_material_route_metadata(submesh: SubMesh) -> None:
 
 
 def _copy_material_route_metadata(source: SubMesh, target: SubMesh) -> None:
-    for attr_name in _MATERIAL_ROUTE_ATTRS:
+    for attr_name in (*_MATERIAL_ROUTE_ATTRS, *_MATERIAL_PREVIEW_ATTRS):
         if hasattr(source, attr_name):
-            setattr(target, attr_name, getattr(source, attr_name))
+            value = getattr(source, attr_name)
+            if isinstance(value, dict):
+                value = dict(value)
+            elif isinstance(value, list):
+                value = list(value)
+            elif isinstance(value, set):
+                value = set(value)
+            setattr(target, attr_name, value)
         elif hasattr(target, attr_name):
             delattr(target, attr_name)
     overrides = getattr(source, "preview_native_material_overrides", None)
@@ -2443,6 +3576,49 @@ _MATERIAL_ROUTE_ATTRS = (
         "cdmw_source_texture_set_key",
         "cdmw_material_route_status",
         "cdmw_material_route_reason",
+)
+
+_MATERIAL_PREVIEW_ATTRS = (
+        "texture_slots",
+        "preview_color",
+        "preview_role",
+        "preview_texture_path",
+        "preview_texture_name",
+        "preview_texture_dds_path",
+        "preview_texture_flip_vertical",
+        "preview_texture_brightness",
+        "preview_texture_contrast",
+        "preview_texture_saturation",
+        "preview_texture_gamma",
+        "preview_texture_tint",
+        "preview_texture_uv_scale",
+        "preview_base_texture_default_path",
+        "preview_base_texture_default_name",
+        "preview_vertex_color_mean",
+        "preview_vertex_alpha_mean",
+        "preview_vertex_alpha_min",
+        "preview_vertex_color_count",
+        "preview_normal_texture_path",
+        "preview_normal_texture_name",
+        "preview_normal_texture_dds_path",
+        "preview_normal_texture_strength",
+        "preview_material_texture_path",
+        "preview_material_texture_name",
+        "preview_material_texture_dds_path",
+        "preview_material_texture_type",
+        "preview_material_texture_subtype",
+        "preview_material_texture_packed_channels",
+        "preview_material_texture_inputs",
+        "preview_material_parameters",
+        "preview_material_texture_default_path",
+        "preview_material_texture_default_name",
+        "preview_height_texture_path",
+        "preview_height_texture_name",
+        "preview_height_texture_dds_path",
+        "preview_alpha_mode",
+        "preview_double_sided",
+        "preview_sidecar_shader_family",
+        "cdmw_mesh_edit_material_source_submesh_index",
 )
 
 
@@ -2540,6 +3716,8 @@ def _append_face_copy(mesh: ParsedMesh, submesh_index: int, face_indices: set[in
     new_submesh.vertex_count = len(new_submesh.vertices)
     new_submesh.face_count = len(new_submesh.faces)
     _copy_material_route_metadata(source, new_submesh)
+    new_submesh.cdmw_mesh_edit_material_source_submesh_index = submesh_index
+    new_submesh.cdmw_mesh_edit_topology_source_submesh_index = submesh_index
     if not new_submesh.normals:
         recompute_submesh_normals(new_submesh)
     mesh.submeshes.append(new_submesh)
@@ -2593,6 +3771,7 @@ def _append_mirrored_face_copy(mesh: ParsedMesh, submesh_index: int, face_indice
 __all__ = [
     "MESH_GEOMETRY_ACTIONS",
     "MESH_TOPOLOGY_ACTIONS",
+    "NativeLiveHistoryUnavailable",
     "apply_mesh_edit_geometry_action",
     "refresh_mesh_totals",
 ]

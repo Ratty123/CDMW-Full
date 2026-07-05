@@ -301,7 +301,8 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
         self.assertEqual([], manifest["editable_value_groups"])
         self.assertEqual("bundled", manifest["dds_encoder_matrix"]["backends"]["DirectXTex"]["status"])
         self.assertEqual("not_bundled", manifest["dds_encoder_matrix"]["backends"]["NVTT"]["bundled_feasibility"])
-        self.assertEqual("cdmw_fallback", manifest["tangent_basis"]["active"])
+        self.assertEqual("MikkTSpace", manifest["tangent_basis"]["active"])
+        self.assertEqual("bundled_native_helper", manifest["tangent_basis"]["paths"]["MikkTSpace"]["status"])
         self.assertEqual("green_up_asset_inverted_for_directx_preview", manifest["normal_y_policy"]["normal_y_mode"])
         self.assertEqual("checklist_only", manifest["renderdoc_truth_pass"]["status"])
         self.assertEqual(

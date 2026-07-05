@@ -128,22 +128,13 @@ from cdmw.modding.material_replacer import (
     apply_true_source_basic_controls_to_profile,
 )
 from cdmw.modding.mesh_deformer import (
-    apply_brush_deformation,
-    apply_vertex_delta,
     assert_mesh_topology_unchanged,
-    build_vertex_adjacency,
-    build_x_mirror_pairs,
-    clone_mesh_for_editing,
-    compact_orphan_vertices,
-    delete_faces_by_indices,
-    delete_faces_touching_vertices,
     grow_vertex_selection,
+    invert_vertex_selection,
     mesh_topology_signature,
-    recompute_mesh_normals,
+    select_all_vertex_selection,
     shrink_vertex_selection,
     smooth_vertex_selection,
-    split_faces_to_submesh,
-    subdivide_faces_touching_vertices,
 )
 from cdmw.modding.mesh_morph_sliders import (
     MeshMorphSliderDelta,
@@ -189,9 +180,8 @@ from cdmw.modding.static_mesh_replacer import (
     _transformed_replacement_sources,
     build_static_replacement_preview_mesh,
     infer_static_replacement_part_role,
-    source_delta_for_transformed_delta,
-    source_distance_for_transformed_distance,
-    source_point_for_transformed_point,
+    source_affine_for_transformed_preview,
+    source_normal_transform_for_transformed_preview,
     suggest_static_submesh_mappings,
 )
 from cdmw.rendering.model_preview_prepare import MeshPreviewCacheSignature, prepare_model_preview

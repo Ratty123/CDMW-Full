@@ -15,6 +15,7 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
     _alignment_dialog_widgets_live = context['_alignment_dialog_widgets_live']
     _record_runtime_event = context['_record_runtime_event']
     alignment_d3d11_reload_timer = context['alignment_d3d11_reload_timer']
+    alignment_d3d11_preview_host = context.get('alignment_d3d11_preview_host')
     alignment_d3d11_state = context['alignment_d3d11_state']
     alignment_d3d11_status_timer = context['alignment_d3d11_status_timer']
     alignment_d3d11_view_mode_combo = context['alignment_d3d11_view_mode_combo']
@@ -207,6 +208,7 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
     mesh_edit_active_stroke: Dict[str, object] = {}
     mesh_edit_selected_vertices_by_submesh: Dict[int, set[int]] = {}
     mesh_edit_selected_faces_by_submesh: Dict[int, set[int]] = {}
+    mesh_edit_selected_source_indices: set[int] = set()
     morph_slider_profile_root = self.settings_file_path.parent / "mesh_slider_profiles"
     morph_slider_profiles: List[MeshMorphSliderProfile] = []
     morph_slider_deltas: Dict[str, MeshMorphSliderDelta] = {}
@@ -265,7 +267,12 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
                 sync_mesh_edit_preview_settings()
         except NameError:
             pass
-        if previous_raw == current_raw:
+        transition_route = _mesh_edit_raw_preview_transition_route_helper(
+            previous_raw,
+            current_raw,
+            raw_package_active_or_pending=_alignment_d3d11_raw_package_active_or_pending_helper(alignment_d3d11_state),
+        )
+        if not transition_route.changed:
             return
         _record_runtime_event(
             "mesh_edit_preview_mode_transition",
@@ -275,19 +282,33 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
             d3d11_active=bool(_alignment_d3d11_preview_active()),
             path=str(getattr(entry, "path", "") or ""),
         )
-        static_preview_geometry_cache.clear()
-        static_preview_prepared_cache.clear()
-        _alignment_d3d11_invalidate_package_cache("mesh_edit_mode")
-        if current_raw:
+        if transition_route.should_clear_static_preview_caches:
+            static_preview_geometry_cache.clear()
+            static_preview_prepared_cache.clear()
+        if previous_raw and not current_raw:
+            set_mesh_edit_state = getattr(alignment_d3d11_preview_host, "set_mesh_edit_state", None)
+            if callable(set_mesh_edit_state):
+                try:
+                    set_mesh_edit_state(enabled=False, source_submesh_indices=())
+                except Exception:
+                    pass
+        if transition_route.should_invalidate_package_cache:
+            _alignment_d3d11_invalidate_package_cache("mesh_edit_mode")
+        if transition_route.should_stop_raw_package:
+            _alignment_d3d11_reset_request_state_helper(
+                alignment_d3d11_state,
+                clear_active_request_id=False,
+            )
+            _alignment_d3d11_clear_active_package_helper(
+                alignment_d3d11_state,
+                clear_process=False,
+                clear_status=True,
+            )
+            _alignment_d3d11_reset_package_quality_helper(alignment_d3d11_state)
+            _alignment_d3d11_stop_worker()
+        if transition_route.should_queue_static_preview_refresh:
             _queue_static_preview_refresh()
-        else:
-            if _alignment_d3d11_raw_package_active_or_pending_helper(alignment_d3d11_state):
-                _alignment_d3d11_reset_request_state_helper(
-                    alignment_d3d11_state,
-                    clear_active_request_id=False,
-                )
-                _alignment_d3d11_reset_package_quality_helper(alignment_d3d11_state)
-                _alignment_d3d11_stop_worker()
+        if transition_route.should_queue_texture_preview_refresh:
             _queue_texture_preview_refresh()
 
 
@@ -475,13 +496,13 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
 
     alignment_geometry_history_callbacks = create_alignment_geometry_history_callbacks({**context, **globals(), **locals(), '_load_selected_part_controls': (lambda *args, **kwargs: context['_load_selected_part_controls'](*args, **kwargs)), '_morph_slider_refresh_controls': (lambda *args, **kwargs: context['_morph_slider_refresh_controls'](*args, **kwargs)), '_morph_slider_reload_profiles': (lambda *args, **kwargs: context['_morph_slider_reload_profiles'](*args, **kwargs)), '_rebuild_source_part_widgets': (lambda *args, **kwargs: context['_rebuild_source_part_widgets'](*args, **kwargs)), '_refresh_original_reference_preview': (lambda *args, **kwargs: context['_refresh_original_reference_preview'](*args, **kwargs)), '_refresh_texture_row_guidance': (lambda *args, **kwargs: context['_refresh_texture_row_guidance'](*args, **kwargs)), '_refresh_texture_table': (lambda *args, **kwargs: context['_refresh_texture_table'](*args, **kwargs)), '_selected_source_indices_from_tree': (lambda *args, **kwargs: context['_selected_source_indices_from_tree'](*args, **kwargs)), '_update_mapping_status': (lambda *args, **kwargs: context['_update_mapping_status'](*args, **kwargs))})
     (
-        _capture_geometry_history_state, _refresh_geometry_history_buttons, _push_geometry_undo_snapshot, _pop_geometry_undo_snapshot,
+        _capture_geometry_history_state, _refresh_geometry_history_buttons, _push_geometry_undo_snapshot, _push_geometry_sparse_mesh_edit_snapshot, _pop_geometry_undo_snapshot,
         _restore_geometry_history_state, _undo_geometry_change, _reset_geometry_changes, _capture_initial_geometry_snapshot,
         _flush_mapping_edit_refresh,
     ) = static_replacement_section_values(
         alignment_geometry_history_callbacks,
         (
-            "_capture_geometry_history_state", "_refresh_geometry_history_buttons", "_push_geometry_undo_snapshot", "_pop_geometry_undo_snapshot",
+            "_capture_geometry_history_state", "_refresh_geometry_history_buttons", "_push_geometry_undo_snapshot", "_push_geometry_sparse_mesh_edit_snapshot", "_pop_geometry_undo_snapshot",
             "_restore_geometry_history_state", "_undo_geometry_change", "_reset_geometry_changes", "_capture_initial_geometry_snapshot",
             "_flush_mapping_edit_refresh",
         ),

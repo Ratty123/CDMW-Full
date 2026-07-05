@@ -36,7 +36,12 @@ from cdmw.domain.mesh import (
     MeshUvSummary,
     MeshWorkspaceSummary,
 )
-from cdmw.ui.mesh_editor.actions import MESH_EDITOR_ACTIONS, MeshEditorAction, mesh_editor_actions_by_key
+from cdmw.ui.mesh_editor.actions import (
+    MESH_EDITOR_ACTIONS,
+    NATIVE_EDITOR_SESSION_COMMANDS,
+    MeshEditorAction,
+    mesh_editor_actions_by_key,
+)
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
 from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
 from cdmw.ui.native_preview_panel import NativePreviewPanel
@@ -94,6 +99,7 @@ class MeshEditorWorkspace(QFrame):
         self._ui_font_widgets: list[QWidget] = []
         self._updating_state = False
         self._has_editor_target = False
+        self._native_editor_available = True
         self._workspace_summary: MeshWorkspaceSummary | None = None
         self._uv_summary: MeshUvSummary | None = None
         self._embedded_controls_only = bool(embedded_controls_only)
@@ -189,8 +195,10 @@ class MeshEditorWorkspace(QFrame):
         active_selection_mode: str = "",
         undo_count: int = 0,
         redo_count: int = 0,
+        native_editor_available: bool = True,
     ) -> None:
         self._has_editor_target = bool(has_target)
+        self._native_editor_available = bool(native_editor_available)
         self.setEnabled(bool(has_target))
         self._sync_combo(self.mode_combo, str(mode or "object"))
         self._sync_combo(self.selection_combo, str(active_selection_mode or "vertex"))
@@ -204,6 +212,8 @@ class MeshEditorWorkspace(QFrame):
             if action.command == "undo" and int(undo_count or 0) <= 0:
                 enabled = False
             if action.command == "redo" and int(redo_count or 0) <= 0:
+                enabled = False
+            if action.command in NATIVE_EDITOR_SESSION_COMMANDS and not native_editor_available:
                 enabled = False
             for button in (self.button_for_key(action.key), self._uv_action_buttons.get(action.key)):
                 if button is not None:
@@ -1109,6 +1119,7 @@ class MeshEditorWorkspace(QFrame):
             self._uv_action_button(frame, "uv_planar_project", text="Planar"),
             self._uv_action_button(frame, "uv_box_project", text="Box"),
             self._uv_action_button(frame, "uv_cylindrical_project", text="Cylinder"),
+            self._uv_action_button(frame, "uv_auto_unwrap", text="Auto UV"),
             self._uv_action_button(frame, "uv_snap_grid", text="Snap Grid"),
             self._uv_action_button(frame, "uv_snap_pixels", text="Snap Pixel"),
         ]
@@ -1448,6 +1459,7 @@ class MeshEditorWorkspace(QFrame):
         has_parts = bool(self._has_editor_target and summary is not None and part_count)
         has_selection = bool(has_parts and selected_count)
         has_selected_texture = any(str(part.texture or "").strip() for part in selected)
+        native_part_actions_enabled = bool(self._native_editor_available)
         for label_name, value in (
             ("part_selection_summary_label", _part_selection_summary_text(summary)),
             ("part_status_label", _part_selection_status_text(summary)),
@@ -1460,8 +1472,8 @@ class MeshEditorWorkspace(QFrame):
             ("part_select_all_button", has_parts and selected_count < part_count),
             ("part_clear_selection_button", has_selection),
             ("part_invert_selection_button", has_parts),
-            ("part_clone_button", has_selection),
-            ("part_delete_button", has_selection),
+            ("part_clone_button", has_selection and native_part_actions_enabled),
+            ("part_delete_button", has_selection and native_part_actions_enabled),
             ("part_recalculate_normals_button", has_selection),
             ("part_flip_normals_button", has_selection),
             ("open_texture_button", has_selection and has_selected_texture),

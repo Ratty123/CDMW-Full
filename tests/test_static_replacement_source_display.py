@@ -1049,6 +1049,26 @@ def test_selection_highlight_sets_state_aggregates_preview_and_d3d11_routes() ->
     assert fallback_state["d3d11_hidden_source_indices"] == (99,)
     assert fallback_state["d3d11_gizmo_enabled"] is False
 
+    edit_active_state = selection_highlight_sets_state(
+        selected_source_highlights=(3,),
+        selected_target_source_highlights=(),
+        selected_original_highlights=(),
+        selected_target_original_highlights=(),
+        d3d11_active=True,
+        geometry_active=True,
+        texture_tab_active=False,
+        mesh_edit_raw_active=False,
+        preview_gizmo_checked=True,
+        mesh_edit_active=True,
+        selected_source_overlay_ids=(),
+        selected_source_editor_ids=(13,),
+        selected_target_source_editor_ids=(),
+        disabled_source_editor_ids=(),
+        default_d3d11_editor_ids=(7,),
+    )
+    assert edit_active_state["d3d11_selected_indices"] == ()
+    assert edit_active_state["d3d11_gizmo_enabled"] is False
+
     inactive_state = selection_highlight_sets_state(
         selected_source_highlights=(1,),
         selected_target_source_highlights=(2,),

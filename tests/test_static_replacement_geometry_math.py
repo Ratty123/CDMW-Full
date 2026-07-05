@@ -214,6 +214,55 @@ def test_mirror_submesh_x_flips_vertices_normals_faces_and_counts() -> None:
     assert mirrored.face_count == 1
 
 
+def test_mirror_submesh_x_uses_native_affine_transform_before_python_fallback(monkeypatch) -> None:
+    from cdmw.modding import mesh_native_core
+
+    source = SimpleNamespace(
+        vertices=[(2.0, 1.0, 0.0), (4.0, 1.0, 0.0), (3.0, 2.0, 0.0)],
+        normals=[(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+        faces=[(0, 1, 2)],
+    )
+
+    def native_affine(submeshes, **kwargs):
+        assert kwargs["position_matrices_by_index"][0] == (
+            -1.0,
+            0.0,
+            0.0,
+            6.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+        )
+        assert kwargs["normal_matrices_by_index"][0] == (-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        assert kwargs["reverse_face_winding_by_index"] == {0: True}
+        submeshes[0].vertices = [(4.0, 1.0, 0.0), (2.0, 1.0, 0.0), (3.0, 2.0, 0.0)]
+        submeshes[0].normals = [(-1.0, 0.0, 0.0), (-0.0, 1.0, 0.0), (-0.0, 0.0, 1.0)]
+        submeshes[0].faces = [(0, 2, 1)]
+        submeshes[0].vertex_count = 3
+        submeshes[0].face_count = 1
+        return {0}
+
+    monkeypatch.setattr(mesh_native_core, "apply_native_mesh_affine_transform_submeshes", native_affine)
+
+    mirrored = mirror_submesh_x(
+        source,
+        3.0,
+        normalize_vector=lambda _vector: (_ for _ in ()).throw(AssertionError("python mirror fallback")),
+    )
+
+    assert mirrored is not source
+    assert mirrored.vertices == [(4.0, 1.0, 0.0), (2.0, 1.0, 0.0), (3.0, 2.0, 0.0)]
+    assert mirrored.normals == [(-1.0, 0.0, 0.0), (-0.0, 1.0, 0.0), (-0.0, 0.0, 1.0)]
+    assert mirrored.faces == [(0, 2, 1)]
+    assert mirrored.vertex_count == 3
+    assert mirrored.face_count == 1
+
+
 def test_copy_source_part_with_adjustment_scales_offsets_rotates_normals_and_counts() -> None:
     source = SimpleNamespace(
         vertices=[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0)],
@@ -239,3 +288,88 @@ def test_copy_source_part_with_adjustment_scales_offsets_rotates_normals_and_cou
     assert copied.normals == [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
     assert copied.vertex_count == 2
     assert copied.face_count == 2
+
+
+def test_copy_source_part_with_adjustment_uses_native_affine_before_python_loop(monkeypatch) -> None:
+    from cdmw.modding import mesh_native_core
+
+    source = SimpleNamespace(
+        vertices=[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0)],
+        normals=[(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        faces=[(0, 1, 2)],
+    )
+    adjustment = SimpleNamespace(
+        scale_xyz=(2.0, 1.0, 1.0),
+        uniform_scale=1.0,
+        offset_xyz=(1.0, 0.0, 0.0),
+        rotate_xyz_degrees=(0.0, 0.0, 0.0),
+    )
+
+    def native_clone(submesh, **kwargs):
+        assert submesh is source
+        assert kwargs["source_part_adjustment"] is adjustment
+        assert kwargs["mirror_x_around_bounds_center"] is False
+        return SimpleNamespace(
+            vertices=[(0.0, 0.0, 0.0), (4.0, 0.0, 0.0)],
+            normals=[(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            faces=[(0, 1, 2)],
+            vertex_count=2,
+            face_count=1,
+        )
+
+    monkeypatch.setattr(mesh_native_core, "clone_native_mesh_affine_transformed_submesh", native_clone)
+
+    copied = copy_source_part_with_adjustment(
+        source,
+        adjustment,
+        rotate_vector=lambda _vector, _rotation: (_ for _ in ()).throw(AssertionError("python adjustment fallback")),
+        normalize_vector=lambda _vector: (_ for _ in ()).throw(AssertionError("python normal fallback")),
+    )
+
+    assert copied is not source
+    assert copied.vertices == [(0.0, 0.0, 0.0), (4.0, 0.0, 0.0)]
+    assert copied.normals == [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
+    assert copied.vertex_count == 2
+    assert copied.face_count == 1
+
+
+def test_copy_source_part_with_adjustment_can_mirror_in_native_clone(monkeypatch) -> None:
+    from cdmw.modding import mesh_native_core
+
+    source = SimpleNamespace(
+        vertices=[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+        normals=[(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+        faces=[(0, 1, 2)],
+    )
+    adjustment = SimpleNamespace(
+        scale_xyz=(1.0, 1.0, 1.0),
+        uniform_scale=1.0,
+        offset_xyz=(1.0, 0.0, 0.0),
+        rotate_xyz_degrees=(0.0, 0.0, 0.0),
+    )
+
+    def native_clone(submesh, **kwargs):
+        assert submesh is source
+        assert kwargs["source_part_adjustment"] is adjustment
+        assert kwargs["mirror_x_around_bounds_center"] is True
+        return SimpleNamespace(
+            vertices=[(3.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 1.0, 0.0)],
+            normals=[(-1.0, 0.0, 0.0), (-0.0, 1.0, 0.0), (-0.0, 0.0, 1.0)],
+            faces=[(0, 2, 1)],
+            vertex_count=3,
+            face_count=1,
+        )
+
+    monkeypatch.setattr(mesh_native_core, "clone_native_mesh_affine_transformed_submesh", native_clone)
+
+    copied = copy_source_part_with_adjustment(
+        source,
+        adjustment,
+        rotate_vector=lambda _vector, _rotation: (_ for _ in ()).throw(AssertionError("python adjustment fallback")),
+        normalize_vector=lambda _vector: (_ for _ in ()).throw(AssertionError("python mirror fallback")),
+        mirror_x_around_bounds_center=True,
+    )
+
+    assert copied.vertices == [(3.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 1.0, 0.0)]
+    assert copied.normals == [(-1.0, 0.0, 0.0), (-0.0, 1.0, 0.0), (-0.0, 0.0, 1.0)]
+    assert copied.faces == [(0, 2, 1)]

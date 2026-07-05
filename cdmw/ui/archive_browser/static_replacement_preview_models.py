@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 
 from cdmw.models import ModelPreviewData
 from cdmw.modding.mesh_parser import ParsedMesh
@@ -57,8 +57,8 @@ def combine_preview_models(*models: object) -> object | None:
     meshes = []
     for model in valid_models:
         meshes.extend([dataclasses.replace(mesh) for mesh in getattr(model, "meshes", ()) or ()])
-    vertex_count = sum(len(getattr(mesh, "positions", ()) or ()) for mesh in meshes)
-    face_count = sum(len(getattr(mesh, "indices", ()) or ()) // 3 for mesh in meshes)
+    vertex_count = sum(_preview_mesh_vertex_count(mesh) for mesh in meshes)
+    face_count = sum(_preview_mesh_face_count(mesh) for mesh in meshes)
     return dataclasses.replace(
         base,
         summary="Overlay alignment preview",
@@ -67,6 +67,30 @@ def combine_preview_models(*models: object) -> object | None:
         face_count=face_count,
         meshes=meshes,
     )
+
+
+def _descriptor_count(value: object) -> int:
+    if not isinstance(value, dict):
+        return 0
+    try:
+        count = int(value.get("count", 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return count if count > 0 else 0
+
+
+def _preview_mesh_vertex_count(mesh: object) -> int:
+    positions = getattr(mesh, "positions", ()) or ()
+    if positions:
+        return len(positions)
+    return _descriptor_count(getattr(mesh, "positions_binary", None))
+
+
+def _preview_mesh_face_count(mesh: object) -> int:
+    indices = getattr(mesh, "indices", ()) or ()
+    if indices:
+        return len(indices) // 3
+    return _descriptor_count(getattr(mesh, "indices_binary", None)) // 3
 
 
 def combine_optional_preview_models(models: Iterable[object | None]) -> object | None:
@@ -217,10 +241,61 @@ def combine_preview_with_overlay(preview_model: object, overlay_model: object | 
     return combine_preview_models(preview_model, overlay_model) or preview_model
 
 
-def preview_submesh_bounds(submeshes: Sequence[object]) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+def _preview_submesh_native_metadata(submesh_list: Sequence[object]) -> Mapping[str, object] | None:
+    try:
+        from cdmw.modding.mesh_native_core import summarize_native_mesh_submesh_metadata
+
+        report = summarize_native_mesh_submesh_metadata(submesh_list)  # type: ignore[arg-type]
+    except Exception:
+        return None
+    return report if isinstance(report, Mapping) else None
+
+
+def _preview_submesh_metadata_bounds(
+    report: Mapping[str, object] | None,
+) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+    if isinstance(report, Mapping):
+        try:
+            total_vertices = int(report.get("total_vertices", 0))
+            bbox_min = tuple(float(value) for value in tuple(report.get("bbox_min") or ())[:3])
+            bbox_max = tuple(float(value) for value in tuple(report.get("bbox_max") or ())[:3])
+        except (TypeError, ValueError, OverflowError):
+            total_vertices = 0
+            bbox_min = ()
+            bbox_max = ()
+        if total_vertices > 0 and len(bbox_min) == 3 and len(bbox_max) == 3:
+            return (bbox_min[0], bbox_min[1], bbox_min[2]), (bbox_max[0], bbox_max[1], bbox_max[2])
+    return None
+
+
+def _preview_submesh_metadata_count(report: Mapping[str, object] | None, key: str) -> int | None:
+    if not isinstance(report, Mapping):
+        return None
+    try:
+        value = int(report.get(key, 0))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return value if value >= 0 else None
+
+
+def preview_submesh_bounds(
+    submeshes: Sequence[object],
+    *,
+    native_metadata: Mapping[str, object] | None = None,
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    submesh_list = list(submeshes or ())
+    report = (
+        native_metadata
+        if isinstance(native_metadata, Mapping)
+        else _preview_submesh_native_metadata(submesh_list)
+    )
+    native_bounds = _preview_submesh_metadata_bounds(report)
+    if native_bounds is not None:
+        return native_bounds
+
     vertices = [
         vertex
-        for submesh in tuple(submeshes or ())
+        for submesh in submesh_list
         for vertex in (getattr(submesh, "vertices", ()) or ())
     ]
     if not vertices:
@@ -231,16 +306,32 @@ def preview_submesh_bounds(submeshes: Sequence[object]) -> tuple[tuple[float, fl
 
 def parsed_preview_mesh_from_submeshes(source_mesh: object, submeshes: Sequence[object]) -> ParsedMesh:
     submesh_list = list(submeshes or ())
-    bbox_min, bbox_max = preview_submesh_bounds(submesh_list)
+    native_metadata = _preview_submesh_native_metadata(submesh_list)
+    bbox_min, bbox_max = preview_submesh_bounds(submesh_list, native_metadata=native_metadata)
+    total_vertices = _preview_submesh_metadata_count(native_metadata, "total_vertices")
+    total_faces = _preview_submesh_metadata_count(native_metadata, "total_faces")
+    has_uvs = native_metadata.get("has_uvs") if isinstance(native_metadata, Mapping) else None
     return ParsedMesh(
         path=str(getattr(source_mesh, "path", "") or ""),
         format=str(getattr(source_mesh, "format", "") or ""),
         bbox_min=bbox_min,
         bbox_max=bbox_max,
         submeshes=submesh_list,
-        total_vertices=sum(len(getattr(submesh, "vertices", ()) or ()) for submesh in submesh_list),
-        total_faces=sum(len(getattr(submesh, "faces", ()) or ()) for submesh in submesh_list),
-        has_uvs=any(bool(getattr(submesh, "uvs", ()) or ()) for submesh in submesh_list),
+        total_vertices=(
+            total_vertices
+            if total_vertices is not None
+            else sum(len(getattr(submesh, "vertices", ()) or ()) for submesh in submesh_list)
+        ),
+        total_faces=(
+            total_faces
+            if total_faces is not None
+            else sum(len(getattr(submesh, "faces", ()) or ()) for submesh in submesh_list)
+        ),
+        has_uvs=(
+            bool(has_uvs)
+            if isinstance(has_uvs, bool)
+            else any(bool(getattr(submesh, "uvs", ()) or ()) for submesh in submesh_list)
+        ),
         has_bones=False,
     )
 

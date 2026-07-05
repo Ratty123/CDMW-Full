@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping, Sequence
 from collections import Counter
 import ctypes
 import json
+import math
 import os
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 import zlib
 from pathlib import Path
-from typing import Mapping, Sequence
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
@@ -23,11 +25,26 @@ from cdmw.core.archive_binary_preview import build_binary_sidecar_analysis_docum
 from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
 from cdmw.domain.mesh import MESH_EDIT_ACTIONS, MeshEditCommand, MeshEditSelection
 from cdmw.models import ArchiveEntry
+from cdmw.modding.mesh_native_core import (
+    clear_native_mesh_core_fallback_counts,
+    native_mesh_core_available,
+    native_mesh_core_fallback_counts,
+    native_mesh_core_fallback_events,
+)
 from cdmw.modding.animation_parser import parse_paa_animation_clip
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, parse_mesh
 from cdmw.modding.skeleton_parser import parse_pab
 from cdmw.modding.skeleton_variation_parser import parse_pabc_skeleton_variation
 from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
+from cdmw.services.asset_authoring_service import (
+    ASSET_AUTHORING_MESH_HEALTH_SCHEMA,
+    ASSET_AUTHORING_MESH_OPTIMIZATION_SCHEMA,
+    ASSET_AUTHORING_SOURCE_IMAGE_SCHEMA,
+    ASSET_AUTHORING_TANGENT_REPORT_SCHEMA,
+    ASSET_AUTHORING_UV_REPORT_SCHEMA,
+    AssetAuthoringService,
+    asset_authoring_discovery_report,
+)
 from cdmw.services.mesh_service import MeshService
 from cdmw.ui.mesh_editor.native_preview_payloads import (
     mesh_edit_material_override_groups,
@@ -37,13 +54,24 @@ from cdmw.ui.mesh_editor.native_preview_payloads import (
     mesh_to_native_preview,
 )
 from cdmw.ui.mesh_editor.actions import MESH_EDITOR_ACTIONS
-from cdmw.ui.mesh_editor.controller import MeshEditorController
+from cdmw.ui.mesh_editor.controller import MeshEditorController, apply_native_update_to_host
 from cdmw.ui.mesh_editor.native_preview_runtime import mesh_editor_write_native_preview_package
+from cdmw.ui.mesh_editor.static_replacement_adapter import StaticReplacementMeshEditSession
 
 _WM_COPYDATA = 0x004A
 _WM_CLOSE = 0x0010
+_WM_MOUSEMOVE = 0x0200
+_WM_LBUTTONDOWN = 0x0201
+_WM_LBUTTONUP = 0x0202
 _WM_COPYDATA_COMMAND = 0x43444D57
+_MK_LBUTTON = 0x0001
 _HOST_CLASS = "CDMWNativeD3D11PreviewWindow"
+_SYNTHETIC_D3D11_SCENARIOS = frozenset(
+    {
+        "native-mesh-editor-d3d11-delta",
+        "native-mesh-editor-d3d11-payloads",
+    }
+)
 _SYNTHETIC_MESH_FORMATS = ("pac", "pam", "pamlod")
 _DEFAULT_GAME_ROOT = Path(r"C:\games\Steam\steamapps\common\Crimson Desert")
 _REAL_ARCHIVE_RIGGING_SAMPLES = (
@@ -83,6 +111,66 @@ _ADVANCED_AUTHORING_CONFIDENCE_LABELS = ("proven", "inferred", "unknown", "block
 _ADVANCED_AUTHORING_STATE_LABELS = ("blocked", "preview-only", "exportable", "archive-mutable")
 
 
+def _read_i32_descriptor_values(descriptor: object) -> tuple[int, ...]:
+    if not isinstance(descriptor, Mapping):
+        return ()
+    try:
+        path = Path(str(descriptor.get("path") or ""))
+        count = int(descriptor.get("count", 0) or 0)
+        components = int(descriptor.get("components", 1) or 1)
+    except (TypeError, ValueError):
+        return ()
+    if count <= 0 or components <= 0 or not path.is_file():
+        return ()
+    byte_count = count * components * 4
+    try:
+        raw = path.read_bytes()[:byte_count]
+    except OSError:
+        return ()
+    finally:
+        if bool(descriptor.get("delete_after")) and path.name.startswith("cdmw_mesh_preview_delta_"):
+            path.unlink(missing_ok=True)
+    if len(raw) < byte_count:
+        return ()
+    return tuple(int(value) for value in struct.unpack(f"<{count * components}i", raw))
+
+
+def _selection_faces_from_group(group: Mapping[str, object]) -> tuple[int, ...]:
+    faces: list[int] = []
+    for raw_face in tuple(group.get("source_face_indices") or ()):
+        try:
+            faces.append(int(raw_face))
+        except (TypeError, ValueError):
+            continue
+    faces.extend(_read_i32_descriptor_values(group.get("source_face_indices_binary")))
+    try:
+        raw_start = group.get("source_face_start", -1)
+        raw_count = group.get("source_face_count", 0)
+        start = int(raw_start if raw_start is not None else -1)
+        count = int(raw_count if raw_count is not None else 0)
+    except (TypeError, ValueError):
+        start = -1
+        count = 0
+    if start >= 0 and count > 0:
+        faces.extend(range(start, start + count))
+    return tuple(faces)
+
+
+def _selection_edges_from_group(group: Mapping[str, object]) -> tuple[tuple[int, int], ...]:
+    edges: list[tuple[int, int]] = []
+    for raw_edge in tuple(group.get("source_edges") or ()):
+        if not isinstance(raw_edge, Sequence) or isinstance(raw_edge, (str, bytes)) or len(raw_edge) < 2:
+            continue
+        try:
+            edges.append((int(raw_edge[0]), int(raw_edge[1])))
+        except (TypeError, ValueError):
+            continue
+    values = _read_i32_descriptor_values(group.get("source_edges_binary"))
+    for index in range(0, len(values) - 1, 2):
+        edges.append((values[index], values[index + 1]))
+    return tuple(edges)
+
+
 def build_synthetic_mesh(mesh_format: str = "pac") -> ParsedMesh:
     mesh_format = str(mesh_format or "pac").strip().lower()
     if mesh_format not in _SYNTHETIC_MESH_FORMATS:
@@ -113,6 +201,245 @@ def build_synthetic_mesh(mesh_format: str = "pac") -> ParsedMesh:
         total_faces=2,
         has_uvs=True,
     )
+
+
+def build_native_benchmark_mesh(rows: int = 317, columns: int = 318) -> ParsedMesh:
+    row_count = max(2, int(rows))
+    column_count = max(2, int(columns))
+    vertices: list[tuple[float, float, float]] = []
+    uvs: list[tuple[float, float]] = []
+    for row in range(row_count):
+        v = row / max(1, row_count - 1)
+        for column in range(column_count):
+            u = column / max(1, column_count - 1)
+            vertices.append((float(column), float(row), math.sin(u * math.pi) * math.sin(v * math.pi) * 0.05))
+            uvs.append((u, v))
+    faces: list[tuple[int, int, int]] = []
+    for row in range(row_count - 1):
+        row_start = row * column_count
+        next_row_start = (row + 1) * column_count
+        for column in range(column_count - 1):
+            a = row_start + column
+            b = a + 1
+            c = next_row_start + column
+            d = c + 1
+            faces.append((a, b, c))
+            faces.append((b, d, c))
+    vertex_count = len(vertices)
+    face_count = len(faces)
+    submesh = SubMesh(
+        name="native_benchmark_grid",
+        material="benchmark_material",
+        texture="benchmark.dds",
+        vertices=vertices,
+        uvs=uvs,
+        normals=[(0.0, 0.0, 1.0)] * vertex_count,
+        faces=faces,
+        vertex_count=vertex_count,
+        face_count=face_count,
+    )
+    return ParsedMesh(
+        path="tools/native_benchmark_grid.pac",
+        format="pac",
+        bbox_min=(0.0, 0.0, -0.05),
+        bbox_max=(float(column_count - 1), float(row_count - 1), 0.05),
+        submeshes=[submesh],
+        total_vertices=vertex_count,
+        total_faces=face_count,
+        has_uvs=True,
+    )
+
+
+def run_asset_authoring_discovery(output_dir: Path) -> dict[str, object]:
+    report = asset_authoring_discovery_report()
+    report_path = output_dir / "asset_authoring_discovery.json"
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    helpers = report.get("helpers", {})
+    helper_count = len(helpers) if isinstance(helpers, Mapping) else 0
+    return {
+        "ok": bool(report.get("status") == "ok" and helper_count),
+        "report_path": str(report_path),
+        "helper_count": helper_count,
+        "unavailable_helpers": [
+            str(key)
+            for key, value in (helpers.items() if isinstance(helpers, Mapping) else ())
+            if isinstance(value, Mapping) and value.get("status") != "available"
+        ],
+    }
+
+
+def run_asset_authoring_mesh_health(output_dir: Path) -> dict[str, object]:
+    original_mesh = build_synthetic_mesh()
+    edited_mesh = build_synthetic_mesh()
+    submesh = edited_mesh.submeshes[0]
+    submesh.vertices.extend([submesh.vertices[1], (2.0, 2.0, 2.0)])
+    submesh.faces.extend([(0, 0, 1), (0, 1, 99), (0, 1, 2)])
+    submesh.vertex_count = len(submesh.vertices)
+    submesh.face_count = len(submesh.faces)
+    edited_mesh.total_vertices = len(submesh.vertices)
+    edited_mesh.total_faces = len(submesh.faces)
+
+    authoring = AssetAuthoringService()
+    report = authoring.mesh_health_report(edited_mesh, original_mesh=original_mesh)
+    optimization_report = authoring.mesh_optimization_report(
+        edited_mesh,
+        original_mesh=original_mesh,
+        simplify_ratio=0.5,
+        target_error=0.02,
+    )
+    report_path = output_dir / "asset_authoring_mesh_health.json"
+    optimization_path = output_dir / "asset_authoring_mesh_optimization.json"
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    optimization_path.write_text(json.dumps(optimization_report, indent=2, sort_keys=True), encoding="utf-8")
+    totals = report.get("totals", {})
+    topology = report.get("topology", {})
+    topology_changed = isinstance(topology, Mapping) and bool(topology.get("topology_changed"))
+    return {
+        "ok": bool(
+            report.get("schema") == ASSET_AUTHORING_MESH_HEALTH_SCHEMA
+            and isinstance(totals, Mapping)
+            and int(totals.get("duplicate_vertices", 0) or 0) >= 1
+            and int(totals.get("degenerate_faces", 0) or 0) >= 1
+            and int(totals.get("invalid_indices", 0) or 0) >= 1
+            and topology_changed
+            and optimization_report.get("schema") == ASSET_AUTHORING_MESH_OPTIMIZATION_SCHEMA
+            and not bool(optimization_report.get("mutates", True))
+        ),
+        "report_path": str(report_path),
+        "optimization_report_path": str(optimization_path),
+        "totals": totals,
+        "topology_changed": topology_changed,
+        "optimization_status": str(optimization_report.get("status") or ""),
+    }
+
+
+def run_asset_authoring_uv_report(output_dir: Path) -> dict[str, object]:
+    mesh = build_synthetic_mesh()
+    report = AssetAuthoringService().uv_authoring_report(mesh, atlas_size=(1024, 1024), include_native_unwrap=True)
+    report_path = output_dir / "asset_authoring_uv_report.json"
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    bounds = report.get("uv_bounds", {})
+    native_unwrap = report.get("native_unwrap", {})
+    return {
+        "ok": bool(
+            report.get("schema") == ASSET_AUTHORING_UV_REPORT_SCHEMA
+            and int(report.get("island_count", 0) or 0) >= 1
+            and isinstance(bounds, Mapping)
+            and bool(bounds.get("available"))
+        ),
+        "report_path": str(report_path),
+        "island_count": int(report.get("island_count", 0) or 0),
+        "native_unwrap_status": native_unwrap.get("status") if isinstance(native_unwrap, Mapping) else "",
+        "uv_bounds": bounds,
+    }
+
+
+def run_asset_authoring_tangent_report(output_dir: Path) -> dict[str, object]:
+    original_mesh = build_synthetic_mesh()
+    working_mesh = build_synthetic_mesh()
+    authoring = AssetAuthoringService()
+    before = authoring.tangent_authoring_report(original_mesh)
+    service = MeshService()
+    view = service.open_edit_session(working_mesh, session_id="asset-authoring-tangent-report", mode="edit")
+    try:
+        command = service.apply_command(
+            view.session_id,
+            MeshEditCommand(
+                "generate_tangents",
+                selection=MeshEditSelection.from_maps(source_indices=(0,)),
+            ),
+        )
+        after = authoring.tangent_authoring_report(
+            service.working_mesh(view.session_id),
+            original_mesh=original_mesh,
+        )
+    finally:
+        service.close_edit_session(view.session_id)
+
+    report = {
+        **after,
+        "operation": "generate_tangents",
+        "command": _command_summary(command),
+        "before": before,
+        "mutates_archives": False,
+    }
+    report_path = output_dir / "asset_authoring_tangent_report.json"
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    totals = report.get("totals", {})
+    before_totals = before.get("totals", {})
+    return {
+        "ok": bool(
+            report.get("schema") == ASSET_AUTHORING_TANGENT_REPORT_SCHEMA
+            and command.ok
+            and isinstance(totals, Mapping)
+            and int(totals.get("complete_tangent_parts", 0) or 0) >= 1
+            and isinstance(before_totals, Mapping)
+            and int(before_totals.get("missing_tangent_parts", 0) or 0) >= 1
+        ),
+        "report_path": str(report_path),
+        "complete_tangent_parts": (
+            int(totals.get("complete_tangent_parts", 0) or 0) if isinstance(totals, Mapping) else 0
+        ),
+        "missing_before_parts": (
+            int(before_totals.get("missing_tangent_parts", 0) or 0) if isinstance(before_totals, Mapping) else 0
+        ),
+    }
+
+
+def run_asset_authoring_openimageio_report(output_dir: Path) -> dict[str, object]:
+    source = output_dir / "openimageio_source.tga"
+    source.write_bytes(b"source image placeholder")
+    converted = output_dir / "openimageio_source.png"
+    helper = output_dir / "missing-oiiotool.exe"
+    service = AssetAuthoringService()
+    configured_paths = {"openimageio": helper}
+    report = {
+        **service.openimageio_source_report(source, configured_paths),
+        "metadata_command": service.openimageio_metadata_command(source, configured_paths),
+        "convert_command": service.openimageio_convert_command(source, converted, configured_paths),
+        "diff_command": service.openimageio_diff_command(source, converted, configured_paths),
+    }
+    report_path = output_dir / "asset_authoring_openimageio_report.json"
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    return {
+        "ok": bool(
+            report.get("schema") == ASSET_AUTHORING_SOURCE_IMAGE_SCHEMA
+            and report.get("status") == "helper_unavailable"
+            and bool(report.get("openimageio_source_candidate"))
+            and not bool(report.get("can_convert"))
+        ),
+        "report_path": str(report_path),
+        "source_path": str(source),
+        "status": str(report.get("status", "")),
+    }
+
+
+def _write_checker_png(path: Path, *, width: int = 16, height: int = 16) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    def chunk(name: bytes, payload: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(payload))
+            + name
+            + payload
+            + struct.pack(">I", zlib.crc32(name + payload) & 0xFFFFFFFF)
+        )
+
+    rows = bytearray()
+    for y in range(height):
+        rows.append(0)
+        for x in range(width):
+            if ((x // 4) + (y // 4)) % 2:
+                rows.extend((48, 176, 224))
+            else:
+                rows.extend((232, 72, 56))
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk("IHDR".encode("ascii"), struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + chunk("IDAT".encode("ascii"), zlib.compress(bytes(rows), 9))
+        + chunk("IEND".encode("ascii"), b"")
+    )
+    path.write_bytes(png)
 
 
 def _build_malformed_face_mesh(mesh_format: str = "pac") -> ParsedMesh:
@@ -164,6 +491,8 @@ def _coverage_command(action: str) -> MeshEditCommand:
     edge = MeshEditSelection.from_maps(edges_by_submesh={0: ((1, 2),)})
     if action == "set_mode":
         return MeshEditCommand(action, mode="sculpt")
+    if action in {"triangulate_display", "quadrangulate_display"}:
+        return MeshEditCommand(action, selection=vertices, params={"allow_legacy_display_cleanup": True})
     if action == "select":
         return MeshEditCommand(action, selection=face)
     if action == "transform":
@@ -182,7 +511,15 @@ def _coverage_command(action: str) -> MeshEditCommand:
         return MeshEditCommand(action, selection=MeshEditSelection.from_maps(edges_by_submesh={0: ((0, 1), (2, 3))}))
     if action == "fill":
         return MeshEditCommand(action, selection=MeshEditSelection.from_maps(vertices_by_submesh={0: (0, 1, 2)}))
-    if action in {"recalculate_normals", "generate_tangents", "flip_normals", "sharpen_normals", "soften_normals", "copy_normals"}:
+    if action in {
+        "recalculate_normals",
+        "generate_tangents",
+        "flip_normals",
+        "sharpen_normals",
+        "soften_normals",
+        "weighted_normals",
+        "copy_normals",
+    }:
         return MeshEditCommand(action, selection=source)
     if action == "uv_transform":
         return MeshEditCommand(
@@ -300,7 +637,7 @@ def _palette_action_input(action_key: str, command: str) -> tuple[MeshEditSelect
             return MeshEditSelection.from_maps(vertices_by_submesh={0: (0, 2)}), {}
         if action_key == "uv_planar_project":
             return MeshEditSelection.from_maps(source_indices=(0,)), {}
-        if action_key in {"uv_box_project", "uv_cylindrical_project", "uv_pack"}:
+        if action_key in {"uv_box_project", "uv_cylindrical_project", "uv_auto_unwrap", "uv_pack"}:
             return MeshEditSelection.from_maps(source_indices=(0,)), {}
         if action_key == "uv_snap_grid":
             return MeshEditSelection.from_maps(vertices_by_submesh={0: (0,)}), {"offset": (0.08, 0.0)}
@@ -428,14 +765,2434 @@ def run_service_smoke() -> tuple[ParsedMesh, dict[str, object]]:
     }
 
 
-def _command_summary(result: object) -> dict[str, object]:
+def run_long_edit_mesh_tools() -> dict[str, object]:
+    clear_native_mesh_core_fallback_counts()
+    native_available = native_mesh_core_available()
+    tool_results: list[dict[str, object]] = []
+    for action, repeat_count, command_factory in (
+        ("move", 6, lambda: MeshEditCommand(
+            "transform",
+            selection=_long_edit_vertex_selection(),
+            params={"translate": (0.0, 0.0, 0.04)},
+        )),
+        ("grab", 6, lambda: MeshEditCommand(
+            "brush",
+            selection=_long_edit_vertex_selection(),
+            mode="sculpt",
+            params={"tool": "grab", "center": (0.0, 0.0, 0.2), "radius": 3.0, "strength": 0.75, "delta": (0.0, 0.02, 0.04)},
+        )),
+        ("smooth", 6, lambda: MeshEditCommand(
+            "brush",
+            selection=_long_edit_vertex_selection(),
+            mode="sculpt",
+            params={"tool": "smooth", "center": (0.0, 0.0, 0.2), "radius": 3.0, "strength": 0.45, "iterations": 2},
+        )),
+        ("inflate", 6, lambda: MeshEditCommand(
+            "brush",
+            selection=_long_edit_vertex_selection(),
+            mode="sculpt",
+            params={"tool": "inflate", "center": (0.0, 0.0, 0.2), "radius": 3.0, "strength": 0.6, "amount": 0.04},
+        )),
+        ("pinch", 6, lambda: MeshEditCommand(
+            "brush",
+            selection=_long_edit_vertex_selection(),
+            mode="sculpt",
+            params={"tool": "pinch", "center": (0.0, 0.0, 0.2), "radius": 3.0, "strength": 0.65, "amount": 0.08},
+        )),
+    ):
+        tool_results.append(_run_long_vertex_edit_tool(action, repeat_count, command_factory))
+    for action in ("delete", "subdivide", "refine_smooth", "split"):
+        for selection_kind in ("face", "edge", "vertex"):
+            tool_results.append(_run_long_topology_edit_tool(action, selection_kind))
+    fallback_counts = native_mesh_core_fallback_counts()
+    fallback_events = list(native_mesh_core_fallback_events())
+    fallback_ok = not (native_available and fallback_counts)
+    failed = [item for item in tool_results if not item.get("ok")]
     return {
+        "ok": bool(not failed and fallback_ok),
+        "tool_count": len(tool_results),
+        "failed_tools": [str(item.get("tool", "")) for item in failed] + ([] if fallback_ok else ["native_fallback"]),
+        "native_core_available": native_available,
+        "native_fallback_ok": fallback_ok,
+        "native_fallback_counts": fallback_counts,
+        "native_fallback_events": fallback_events,
+        "tools": tool_results,
+    }
+
+
+def run_native_mesh_editor_workflow() -> dict[str, object]:
+    clear_native_mesh_core_fallback_counts()
+    native_available = native_mesh_core_available()
+    service = MeshService()
+    view = service.open_edit_session(_build_long_edit_mesh(), session_id="native-editor-workflow", mode="edit")
+    selection_commands: list[dict[str, object]] = []
+    commands: list[dict[str, object]] = []
+    counts: list[dict[str, object]] = []
+
+    def count_snapshot(label: str) -> None:
+        mesh = service.working_mesh(view.session_id, clone=False)
+        counts.append(
+            {
+                "label": label,
+                "vertices": _mesh_vertex_count(mesh),
+                "faces": _mesh_face_count(mesh),
+                "undo_count": service.session_view(view.session_id).undo_count,
+                "redo_count": service.session_view(view.session_id).redo_count,
+            }
+        )
+
+    def run_command(label: str, command: MeshEditCommand) -> object:
+        started = time.perf_counter()
+        result = service.apply_command(view.session_id, command)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        summary = _command_summary(result)
+        summary["label"] = label
+        summary["elapsed_ms"] = elapsed_ms
+        commands.append(summary)
+        count_snapshot(label)
+        return result
+
+    def run_selection_command(label: str, selection: MeshEditSelection, operation: str) -> object:
+        started = time.perf_counter()
+        result = service.apply_command(
+            view.session_id,
+            MeshEditCommand("select", selection=selection, params={"operation": operation}, mode="edit"),
+        )
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        summary = _command_summary(result)
+        summary["label"] = label
+        summary["elapsed_ms"] = elapsed_ms
+        summary["selection"] = _selection_snapshot(service.session_view(view.session_id).selection)
+        selection_commands.append(summary)
+        return result
+
+    count_snapshot("open")
+    selected_one = MeshEditSelection.from_maps(
+        vertices_by_submesh={0: (0,)},
+        edges_by_submesh={0: ((0, 1),)},
+        faces_by_submesh={0: (0,)},
+        source_indices=(0,),
+    )
+    selected_all = MeshEditSelection.from_maps(
+        vertices_by_submesh={0: (0, 1, 2, 3, 4)},
+        faces_by_submesh={0: (0, 1, 2, 3)},
+        source_indices=(0,),
+    )
+    select_replace = run_selection_command("select_replace", selected_one, "replace")
+    select_grow = run_selection_command("select_grow", selected_one, "grow")
+    select_shrink = run_selection_command("select_shrink", selected_all, "shrink")
+    select_smooth = run_selection_command("select_smooth", selected_all, "smooth")
+    delete = run_command(
+        "delete",
+        MeshEditCommand("delete", selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}), mode="edit"),
+    )
+    subdivide = run_command(
+        "subdivide",
+        MeshEditCommand(
+            "subdivide",
+            selection=MeshEditSelection.from_maps(source_indices=(0,)),
+            params={"max_faces_per_submesh": 512, "recompute_normals": True},
+            mode="edit",
+        ),
+    )
+    refine = run_command(
+        "refine_smooth",
+        MeshEditCommand(
+            "refine_smooth",
+            selection=MeshEditSelection.from_maps(source_indices=(0,)),
+            params={"max_faces_per_submesh": 512, "smooth_iterations": 2, "smooth_strength": 0.45, "recompute_normals": True},
+            mode="edit",
+        ),
+    )
+    vertex_count = len(service.working_mesh(view.session_id, clone=False).submeshes[0].vertices or ())
+    brush = run_command(
+        "brush",
+        MeshEditCommand(
+            "brush",
+            selection=MeshEditSelection.from_maps(vertices_by_submesh={0: tuple(range(vertex_count))}),
+            params={"tool": "smooth", "center": (0.0, 0.0, 0.2), "radius": 3.0, "strength": 0.45, "iterations": 2},
+            mode="sculpt",
+        ),
+    )
+
+    before_undo = _mesh_geometry_signature(service.working_mesh(view.session_id, clone=False))
+    undo_started = time.perf_counter()
+    undo = service.undo(view.session_id)
+    undo_elapsed_ms = (time.perf_counter() - undo_started) * 1000.0
+    undo_summary = _command_summary(undo)
+    undo_summary["label"] = "undo"
+    undo_summary["elapsed_ms"] = undo_elapsed_ms
+    commands.append(undo_summary)
+    count_snapshot("undo")
+    after_undo = _mesh_geometry_signature(service.working_mesh(view.session_id, clone=False))
+
+    redo_started = time.perf_counter()
+    redo = service.redo(view.session_id)
+    redo_elapsed_ms = (time.perf_counter() - redo_started) * 1000.0
+    redo_summary = _command_summary(redo)
+    redo_summary["label"] = "redo"
+    redo_summary["elapsed_ms"] = redo_elapsed_ms
+    commands.append(redo_summary)
+    count_snapshot("redo")
+    after_redo = _mesh_geometry_signature(service.working_mesh(view.session_id, clone=False))
+
+    fallback_counts = native_mesh_core_fallback_counts()
+    fallback_events = list(native_mesh_core_fallback_events())
+    fallback_ok = not (native_available and fallback_counts)
+    command_ok = all(
+        bool(getattr(result, "ok", False))
+        for result in (
+            select_replace,
+            select_grow,
+            select_shrink,
+            select_smooth,
+            delete,
+            subdivide,
+            refine,
+            brush,
+            undo,
+            redo,
+        )
+    )
+    topology_ok = (
+        counts[1]["faces"] < counts[0]["faces"]
+        and counts[2]["faces"] > counts[1]["faces"]
+        and counts[3]["faces"] >= counts[2]["faces"]
+    )
+    undo_redo_ok = after_undo != before_undo and after_redo == before_undo
+    service.close_edit_session(view.session_id)
+    return {
+        "ok": bool(command_ok and topology_ok and undo_redo_ok and fallback_ok),
+        "native_core_available": native_available,
+        "native_fallback_ok": fallback_ok,
+        "native_fallback_counts": fallback_counts,
+        "native_fallback_events": fallback_events,
+        "command_ok": command_ok,
+        "topology_ok": topology_ok,
+        "undo_redo_ok": undo_redo_ok,
+        "selection_commands": selection_commands,
+        "commands": commands,
+        "counts": counts,
+    }
+
+
+def run_native_mesh_editor_benchmark() -> dict[str, object]:
+    clear_native_mesh_core_fallback_counts()
+    native_available = native_mesh_core_available()
+    build_started = time.perf_counter()
+    mesh = build_native_benchmark_mesh()
+    build_elapsed_ms = (time.perf_counter() - build_started) * 1000.0
+    service = MeshService()
+    open_started = time.perf_counter()
+    view = service.open_edit_session(mesh, session_id="native-editor-benchmark", mode="edit")
+    open_elapsed_ms = (time.perf_counter() - open_started) * 1000.0
+    selection_commands: list[dict[str, object]] = []
+    commands: list[dict[str, object]] = []
+    counts: list[dict[str, object]] = []
+
+    def count_snapshot(label: str) -> None:
+        current_view = service.session_view(view.session_id)
+        counts.append(
+            {
+                "label": label,
+                "vertices": current_view.vertex_count,
+                "faces": current_view.face_count,
+                "undo_count": current_view.undo_count,
+                "redo_count": current_view.redo_count,
+            }
+        )
+
+    def run_command(label: str, command: MeshEditCommand) -> object:
+        started = time.perf_counter()
+        result = service.apply_command(view.session_id, command)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        summary = _command_summary(result)
+        summary["label"] = label
+        summary["elapsed_ms"] = elapsed_ms
+        commands.append(summary)
+        count_snapshot(label)
+        return result
+
+    count_snapshot("open")
+    benchmark_vertex_count = service.session_view(view.session_id).vertex_count
+
+    def run_selection_command(label: str, command: MeshEditCommand) -> object:
+        started = time.perf_counter()
+        result = service.apply_command(view.session_id, command)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        summary = _command_summary(result)
+        summary["label"] = label
+        summary["elapsed_ms"] = elapsed_ms
+        summary["selected_vertex_count"] = sum(len(values) for _, values in service.session_view(view.session_id).selection.vertices_by_submesh)
+        selection_commands.append(summary)
+        return result
+
+    select_grow_source = run_selection_command(
+        "select_grow_source_100k",
+        MeshEditCommand(
+            "select",
+            selection=MeshEditSelection.from_maps(source_indices=(0,)),
+            params={"operation": "grow"},
+            mode="edit",
+        ),
+    )
+    select_smooth_local = run_selection_command(
+        "select_smooth_local_512",
+        MeshEditCommand(
+            "select",
+            selection=MeshEditSelection.from_maps(vertices_by_submesh={0: tuple(range(min(512, benchmark_vertex_count)))}),
+            params={"operation": "smooth"},
+            mode="edit",
+        ),
+    )
+    delete = run_command(
+        "delete",
+        MeshEditCommand(
+            "delete",
+            selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+            params={"_include_preview_deltas": False},
+            mode="edit",
+        ),
+    )
+    subdivide = run_command(
+        "subdivide",
+        MeshEditCommand(
+            "subdivide",
+            selection=MeshEditSelection.from_maps(source_indices=(0,)),
+            params={"max_faces_per_submesh": 512, "recompute_normals": True, "_include_preview_deltas": False},
+            mode="edit",
+        ),
+    )
+    refine = run_command(
+        "refine_smooth",
+        MeshEditCommand(
+            "refine_smooth",
+            selection=MeshEditSelection.from_maps(source_indices=(0,)),
+            params={
+                "max_faces_per_submesh": 512,
+                "smooth_iterations": 1,
+                "smooth_strength": 0.35,
+                "recompute_normals": True,
+                "_include_preview_deltas": False,
+            },
+            mode="edit",
+        ),
+    )
+    vertex_count = service.session_view(view.session_id).vertex_count
+    brush_selection = tuple(range(min(32, vertex_count)))
+    brush = run_command(
+        "brush",
+        MeshEditCommand(
+            "brush",
+            selection=MeshEditSelection.from_maps(vertices_by_submesh={0: brush_selection}),
+            params={"tool": "grab", "center": (16.0, 0.0, 0.0), "radius": 8.0, "strength": 0.5, "delta": (0.0, 0.0, 0.05)},
+            mode="sculpt",
+        ),
+    )
+    undo = service.undo(view.session_id)
+    undo_summary = _command_summary(undo)
+    undo_summary["label"] = "undo"
+    commands.append(undo_summary)
+    count_snapshot("undo")
+    redo = service.redo(view.session_id)
+    redo_summary = _command_summary(redo)
+    redo_summary["label"] = "redo"
+    commands.append(redo_summary)
+    count_snapshot("redo")
+
+    fallback_counts = native_mesh_core_fallback_counts()
+    fallback_events = list(native_mesh_core_fallback_events())
+    fallback_ok = not (native_available and fallback_counts)
+    command_ok = all(bool(getattr(result, "ok", False)) for result in (select_grow_source, select_smooth_local, delete, subdivide, refine, brush, undo, redo))
+    benchmark_target_ok = counts[0]["vertices"] >= 100_000 and counts[0]["faces"] >= 200_000
+    topology_ok = (
+        counts[1]["faces"] < counts[0]["faces"]
+        and counts[2]["faces"] > counts[1]["faces"]
+        and counts[3]["faces"] >= counts[2]["faces"]
+    )
+    brush_changed_ok = bool(commands[3].get("affected_submesh_indices"))
+    brush_elapsed_ms = float(commands[3].get("elapsed_ms", 0.0) or 0.0)
+    normal_edit_target_ok = brush_elapsed_ms < 250.0
+    selection_metrics_ok = all(isinstance(item.get("metrics"), Mapping) and "cpp_ms" in item["metrics"] for item in selection_commands)
+    native_roundtrip_metrics_ok = all(
+        isinstance(item.get("metrics"), Mapping)
+        and "native_apply_roundtrip_ms" in item["metrics"]
+        and "native_apply_overhead_ms" in item["metrics"]
+        and "service_total_ms" in item["metrics"]
+        for item in commands[:4]
+    )
+    native_history_metrics_ok = all(
+        isinstance(item.get("metrics"), Mapping)
+        and "native_history_roundtrip_ms" in item["metrics"]
+        and "service_total_ms" in item["metrics"]
+        for item in commands[4:6]
+    )
+    selection_local_elapsed_ms = float(selection_commands[1].get("elapsed_ms", 0.0) or 0.0) if len(selection_commands) > 1 else 0.0
+    selection_local_target_ok = 0.0 < selection_local_elapsed_ms < 250.0
+    service.close_edit_session(view.session_id)
+    return {
+        "ok": bool(
+            command_ok
+            and benchmark_target_ok
+            and topology_ok
+            and brush_changed_ok
+            and normal_edit_target_ok
+            and selection_metrics_ok
+            and native_roundtrip_metrics_ok
+            and native_history_metrics_ok
+            and selection_local_target_ok
+            and fallback_ok
+        ),
+        "native_core_available": native_available,
+        "native_fallback_ok": fallback_ok,
+        "native_fallback_counts": fallback_counts,
+        "native_fallback_events": fallback_events,
+        "build_elapsed_ms": build_elapsed_ms,
+        "open_elapsed_ms": open_elapsed_ms,
+        "command_ok": command_ok,
+        "benchmark_target_ok": benchmark_target_ok,
+        "topology_ok": topology_ok,
+        "brush_changed_ok": brush_changed_ok,
+        "normal_edit_target_ok": normal_edit_target_ok,
+        "normal_edit_elapsed_ms": brush_elapsed_ms,
+        "selection_metrics_ok": selection_metrics_ok,
+        "native_roundtrip_metrics_ok": native_roundtrip_metrics_ok,
+        "native_history_metrics_ok": native_history_metrics_ok,
+        "selection_local_target_ok": selection_local_target_ok,
+        "selection_local_elapsed_ms": selection_local_elapsed_ms,
+        "selection_commands": selection_commands,
+        "commands": commands,
+        "counts": counts,
+    }
+
+
+def _run_mesh_edit_command_worker_qt(
+    service: MeshService,
+    session_id: str,
+    command: MeshEditCommand,
+    *,
+    action_text: str,
+    cancel_after_ms: int | None = None,
+    timeout_seconds: float = 30.0,
+) -> dict[str, object]:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import QCoreApplication, QThread, QTimer
+    from cdmw.workers.mesh_editor_workers import MeshEditCommandWorker
+
+    app = QCoreApplication.instance() or QCoreApplication(["mesh-editor-qt-worker"])
+    worker = MeshEditCommandWorker(1, service, session_id, command, action_text=action_text)
+    thread = QThread()
+    timer = QTimer()
+    timer.setInterval(25)
+    started = time.perf_counter()
+    state: dict[str, object] = {"completed": None, "error": "", "cancelled": "", "finished": False}
+    progress_events: list[dict[str, object]] = []
+    heartbeat_ms: list[float] = []
+    cancel_requested_ms: list[float] = []
+
+    def elapsed_ms() -> float:
+        return (time.perf_counter() - started) * 1000.0
+
+    def on_progress(_request_id: int, percent: int, message: str) -> None:
+        progress_events.append({"elapsed_ms": elapsed_ms(), "percent": int(percent), "message": str(message or "")})
+
+    def on_completed(_request_id: int, result: object) -> None:
+        state["completed"] = _command_summary(result)
+        state["completed_at_ms"] = elapsed_ms()
+
+    def on_error(_request_id: int, message: str) -> None:
+        state["error"] = str(message or "")
+        state["error_at_ms"] = elapsed_ms()
+
+    def on_cancelled(_request_id: int, message: str) -> None:
+        state["cancelled"] = str(message or "")
+        state["cancelled_at_ms"] = elapsed_ms()
+
+    def on_finished() -> None:
+        state["finished"] = True
+        state["finished_at_ms"] = elapsed_ms()
+        timer.stop()
+        thread.quit()
+
+    def request_cancel() -> None:
+        if not cancel_requested_ms:
+            cancel_requested_ms.append(elapsed_ms())
+        worker.stop()
+
+    timer.timeout.connect(lambda: heartbeat_ms.append(elapsed_ms()))
+    worker.moveToThread(thread)
+    thread.started.connect(worker.run)
+    worker.progress_changed.connect(on_progress)
+    worker.completed.connect(on_completed)
+    worker.error.connect(on_error)
+    worker.cancelled.connect(on_cancelled)
+    worker.finished.connect(on_finished)
+
+    dispatch_started = time.perf_counter()
+    timer.start()
+    thread.start()
+    if cancel_after_ms is not None:
+        QTimer.singleShot(max(0, int(cancel_after_ms)), request_cancel)
+    dispatch_return_ms = (time.perf_counter() - dispatch_started) * 1000.0
+    deadline = time.monotonic() + max(0.5, float(timeout_seconds))
+    while not bool(state["finished"]) and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.005)
+    app.processEvents()
+    timed_out = not bool(state["finished"])
+    if timed_out:
+        request_cancel()
+        thread.requestInterruption()
+        thread.quit()
+    thread.wait(5000)
+    timer.stop()
+    total_elapsed_ms = elapsed_ms()
+
+    first_progress_ms = float(progress_events[0]["elapsed_ms"]) if progress_events else None
+    heartbeat_gaps = [heartbeat_ms[index] - heartbeat_ms[index - 1] for index in range(1, len(heartbeat_ms))]
+    max_heartbeat_gap_ms = max(heartbeat_gaps) if heartbeat_gaps else 0.0
+    cancel_requested_at = cancel_requested_ms[0] if cancel_requested_ms else None
+    cancel_terminal_at = state.get("cancelled_at_ms", state.get("finished_at_ms"))
+    cancel_latency_ms = (
+        max(0.0, float(cancel_terminal_at) - float(cancel_requested_at))
+        if cancel_requested_at is not None and cancel_terminal_at is not None
+        else None
+    )
+    completed = state["completed"] if isinstance(state.get("completed"), Mapping) else {}
+    return {
+        "dispatch_return_ms": dispatch_return_ms,
+        "first_progress_ms": first_progress_ms,
+        "heartbeat_count": len(heartbeat_ms),
+        "max_heartbeat_gap_ms": max_heartbeat_gap_ms,
+        "total_elapsed_ms": total_elapsed_ms,
+        "timed_out": timed_out,
+        "completed": dict(completed),
+        "progress_events": progress_events,
+        "error": state.get("error", ""),
+        "cancelled": state.get("cancelled", ""),
+        "cancel_requested_ms": cancel_requested_at,
+        "cancel_latency_ms": cancel_latency_ms,
+    }
+
+
+def run_native_mesh_editor_qt_responsiveness() -> dict[str, object]:
+    clear_native_mesh_core_fallback_counts()
+    native_available = native_mesh_core_available()
+    if not native_available:
+        return {"ok": False, "native_core_available": False, "reason": "native mesh core binary not available"}
+
+    service = MeshService()
+    view = service.open_edit_session(build_native_benchmark_mesh(), session_id="native-editor-qt-responsiveness", mode="edit")
+    command = MeshEditCommand(
+        "subdivide",
+        selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+        params={"max_faces_per_submesh": 512, "recompute_normals": True},
+        mode="edit",
+        label="Subdivide",
+    )
+    worker_run = _run_mesh_edit_command_worker_qt(service, view.session_id, command, action_text="Subdivide")
+    fallback_counts = native_mesh_core_fallback_counts()
+    fallback_events = list(native_mesh_core_fallback_events())
+    completed = worker_run["completed"] if isinstance(worker_run.get("completed"), Mapping) else {}
+    service.close_edit_session(view.session_id)
+    dispatch_ok = float(worker_run["dispatch_return_ms"]) <= 50.0
+    progress_ok = worker_run["first_progress_ms"] is not None and float(worker_run["first_progress_ms"]) <= 100.0
+    heartbeat_ok = int(worker_run["heartbeat_count"]) >= 2 and float(worker_run["max_heartbeat_gap_ms"]) <= 200.0
+    command_ok = bool(completed.get("status") == "ok")
+    fallback_ok = not fallback_counts
+    return {
+        "ok": bool(command_ok and dispatch_ok and progress_ok and heartbeat_ok and fallback_ok and not worker_run["timed_out"]),
+        "native_core_available": native_available,
+        "dispatch_return_ms": worker_run["dispatch_return_ms"],
+        "dispatch_target_ok": dispatch_ok,
+        "first_progress_ms": worker_run["first_progress_ms"],
+        "progress_target_ok": progress_ok,
+        "heartbeat_count": worker_run["heartbeat_count"],
+        "max_heartbeat_gap_ms": worker_run["max_heartbeat_gap_ms"],
+        "qt_heartbeat_ok": heartbeat_ok,
+        "total_elapsed_ms": worker_run["total_elapsed_ms"],
+        "timed_out": worker_run["timed_out"],
+        "command": dict(completed),
+        "command_ok": command_ok,
+        "progress_events": worker_run["progress_events"],
+        "native_fallback_ok": fallback_ok,
+        "native_fallback_counts": fallback_counts,
+        "native_fallback_events": fallback_events,
+        "error": worker_run["error"],
+        "cancelled": worker_run["cancelled"],
+    }
+
+
+def run_native_mesh_editor_qt_cancellation() -> dict[str, object]:
+    clear_native_mesh_core_fallback_counts()
+    native_available = native_mesh_core_available()
+    if not native_available:
+        return {"ok": False, "native_core_available": False, "reason": "native mesh core binary not available"}
+
+    service = MeshService()
+    view = service.open_edit_session(build_native_benchmark_mesh(), session_id="native-editor-qt-cancellation", mode="edit")
+    prewarm = service.apply_command(
+        view.session_id,
+        MeshEditCommand(
+            "brush",
+            selection=MeshEditSelection.from_maps(vertices_by_submesh={0: tuple(range(32))}),
+            params={"tool": "grab", "center": (16.0, 0.0, 0.0), "radius": 8.0, "strength": 0.5, "delta": (0.0, 0.0, 0.05)},
+            mode="sculpt",
+            label="Prewarm Brush",
+        ),
+    )
+    face_count = len(service.working_mesh(view.session_id).submeshes[0].faces)
+    command = MeshEditCommand(
+        "subdivide",
+        selection=MeshEditSelection.from_maps(faces_by_submesh={0: range(face_count)}),
+        params={"recompute_normals": True},
+        mode="edit",
+        label="Subdivide Cancel",
+    )
+    worker_run = _run_mesh_edit_command_worker_qt(
+        service,
+        view.session_id,
+        command,
+        action_text="Subdivide Cancel",
+        cancel_after_ms=150,
+        timeout_seconds=15.0,
+    )
+    fallback_counts = native_mesh_core_fallback_counts()
+    fallback_events = list(native_mesh_core_fallback_events())
+    service.close_edit_session(view.session_id)
+    dispatch_ok = float(worker_run["dispatch_return_ms"]) <= 50.0
+    progress_ok = worker_run["first_progress_ms"] is not None and float(worker_run["first_progress_ms"]) <= 100.0
+    cancel_latency = worker_run["cancel_latency_ms"]
+    cancel_ok = bool(worker_run["cancelled"]) and cancel_latency is not None and float(cancel_latency) <= 500.0
+    fallback_ok = not fallback_counts
+    return {
+        "ok": bool(prewarm.ok and dispatch_ok and progress_ok and cancel_ok and fallback_ok and not worker_run["timed_out"]),
+        "native_core_available": native_available,
+        "prewarm_command": _command_summary(prewarm),
+        "dispatch_return_ms": worker_run["dispatch_return_ms"],
+        "dispatch_target_ok": dispatch_ok,
+        "first_progress_ms": worker_run["first_progress_ms"],
+        "progress_target_ok": progress_ok,
+        "cancel_requested_ms": worker_run["cancel_requested_ms"],
+        "cancel_latency_ms": cancel_latency,
+        "cancel_target_ok": cancel_ok,
+        "heartbeat_count": worker_run["heartbeat_count"],
+        "max_heartbeat_gap_ms": worker_run["max_heartbeat_gap_ms"],
+        "total_elapsed_ms": worker_run["total_elapsed_ms"],
+        "timed_out": worker_run["timed_out"],
+        "command": worker_run["completed"],
+        "progress_events": worker_run["progress_events"],
+        "native_fallback_ok": fallback_ok,
+        "native_fallback_counts": fallback_counts,
+        "native_fallback_events": fallback_events,
+        "error": worker_run["error"],
+        "cancelled": worker_run["cancelled"],
+    }
+
+
+class _NativeD3D11HarnessHost:
+    def __init__(self, hwnd: int, *, status_file: Path | None = None, timeout_seconds: float = 15.0) -> None:
+        self.hwnd = int(hwnd)
+        self.status_file = status_file
+        self.timeout_seconds = float(timeout_seconds)
+        self.calls: list[str] = []
+        self.triangle_calls: list[dict[str, object]] = []
+        self.triangle_events: list[dict[str, object]] = []
+        self.mesh_edit_states: list[dict[str, object]] = []
+
+    def set_mesh_edit_state(self, **kwargs: object) -> bool:
+        self.calls.append("set_mesh_edit_state")
+        self.mesh_edit_states.append(dict(kwargs))
+        return _send_json_command(self.hwnd, {"command": "set_mesh_edit_state", **dict(kwargs)})
+
+    def update_mesh_edit_vertices(self, groups: Sequence[Mapping[str, object]]) -> bool:
+        self.calls.append("update_mesh_edit_vertices")
+        return _send_json_command(self.hwnd, {"command": "update_mesh_edit_vertices", "groups": list(groups or ())})
+
+    def replace_mesh_edit_triangles(
+        self,
+        groups: Sequence[Mapping[str, object]],
+        *,
+        replace_all: bool = False,
+        source_submesh_indices: Sequence[int] | None = None,
+    ) -> bool:
+        self.calls.append("replace_mesh_edit_triangles")
+        sources = [int(index) for index in (source_submesh_indices or ())]
+        self.triangle_calls.append(
+            {
+                "replace_all": bool(replace_all),
+                "source_submesh_indices": sources,
+                "group_count": len(groups or ()),
+            }
+        )
+        ok = _send_json_command(
+            self.hwnd,
+            {
+                "command": "replace_mesh_edit_triangles",
+                "groups": list(groups or ()),
+                "replace_all": bool(replace_all),
+                "source_submesh_indices": sources,
+            },
+        )
+        if ok and self.status_file is not None:
+            event = _wait_for_status(self.status_file, {"mesh_edit_triangles_replaced"}, self.timeout_seconds)
+            if event:
+                self.triangle_events.append(event)
+            self.status_file.unlink(missing_ok=True)
+        return ok
+
+    def set_material_overrides(self, **kwargs: object) -> bool:
+        self.calls.append("set_material_overrides")
+        payload = {"command": "set_material_overrides", **kwargs}
+        return _send_json_command(self.hwnd, payload)
+
+    def set_mesh_edit_selection_groups(self, groups: Sequence[Mapping[str, object]]) -> bool:
+        self.calls.append("set_mesh_edit_selection")
+        return _send_json_command(self.hwnd, {"command": "set_mesh_edit_selection", "groups": list(groups or ())})
+
+
+class _HarnessSignal:
+    def __init__(self) -> None:
+        self.callbacks: list[object] = []
+        self.results: list[object] = []
+
+    def connect(self, callback: object) -> None:
+        self.callbacks.append(callback)
+
+    def emit(self, payload: object) -> None:
+        self.results.clear()
+        for callback in tuple(self.callbacks):
+            self.results.append(callback(payload))  # type: ignore[misc]
+
+
+class _StandaloneStrokeHarnessHost:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.mesh_edit_states: list[dict[str, object]] = []
+        self.vertex_group_counts: list[int] = []
+        self.selection_group_counts: list[int] = []
+        self.mesh_edit_stroke_started = _HarnessSignal()
+        self.mesh_edit_stroke_previewed = _HarnessSignal()
+        self.mesh_edit_stroke_finished = _HarnessSignal()
+        self.mesh_edit_stroke_cancelled = _HarnessSignal()
+        self.mesh_edit_selection_changed = _HarnessSignal()
+
+    def set_mesh_edit_state(self, **kwargs: object) -> bool:
+        self.calls.append("set_mesh_edit_state")
+        self.mesh_edit_states.append(dict(kwargs))
+        return True
+
+    def update_mesh_edit_vertices(self, groups: Sequence[Mapping[str, object]]) -> bool:
+        self.calls.append("update_mesh_edit_vertices")
+        self.vertex_group_counts.append(len(tuple(groups or ())))
+        return True
+
+    def replace_mesh_edit_triangles(
+        self,
+        groups: Sequence[Mapping[str, object]],
+        *,
+        replace_all: bool = False,
+        source_submesh_indices: Sequence[int] | None = None,
+    ) -> bool:
+        _ = groups, replace_all, source_submesh_indices
+        self.calls.append("replace_mesh_edit_triangles")
+        return True
+
+    def set_mesh_edit_selection_groups(self, groups: Sequence[Mapping[str, object]]) -> bool:
+        self.calls.append("set_mesh_edit_selection")
+        self.selection_group_counts.append(len(tuple(groups or ())))
+        return True
+
+
+def _emit_timed_stroke(signal: _HarnessSignal, payload: Mapping[str, object]) -> float:
+    started = time.perf_counter()
+    signal.emit(dict(payload))
+    return max(0.0, (time.perf_counter() - started) * 1000.0)
+
+
+_LEGACY_SCREEN_CAMERA_FIELDS = frozenset({"camera_world", "yaw_degrees", "pitch_degrees", "distance", "vertical_fov_degrees", "pan"})
+
+
+def _matrix_only_screen_payload(payload: Mapping[str, object]) -> dict[str, object]:
+    return {key: value for key, value in payload.items() if key not in _LEGACY_SCREEN_CAMERA_FIELDS}
+
+
+def _project_world_to_screen(
+    matrix: Sequence[object],
+    vertex: Sequence[float],
+    *,
+    viewport_x: float,
+    viewport_y: float,
+    viewport_width: float,
+    viewport_height: float,
+) -> tuple[float, float] | None:
+    if len(matrix) != 16 or len(vertex) < 3 or viewport_width <= 0.0 or viewport_height <= 0.0:
+        return None
+    values = [float(value) for value in matrix]
+    x, y, z = (float(vertex[0]), float(vertex[1]), float(vertex[2]))
+    clip_x = x * values[0] + y * values[4] + z * values[8] + values[12]
+    clip_y = x * values[1] + y * values[5] + z * values[9] + values[13]
+    clip_z = x * values[2] + y * values[6] + z * values[10] + values[14]
+    clip_w = x * values[3] + y * values[7] + z * values[11] + values[15]
+    if not all(math.isfinite(value) for value in (clip_x, clip_y, clip_z, clip_w)) or abs(clip_w) <= 1e-12:
+        return None
+    ndc_x = clip_x / clip_w
+    ndc_y = clip_y / clip_w
+    ndc_z = clip_z / clip_w
+    if not all(math.isfinite(value) for value in (ndc_x, ndc_y, ndc_z)) or not 0.0 <= ndc_z <= 1.0:
+        return None
+    screen_x = viewport_x + (ndc_x * 0.5 + 0.5) * viewport_width
+    screen_y = viewport_y + (0.5 - ndc_y * 0.5) * viewport_height
+    if not math.isfinite(screen_x) or not math.isfinite(screen_y):
+        return None
+    return (screen_x, screen_y)
+
+
+def _projected_face_cluster_for_drag(
+    submesh: object,
+    matrix: Sequence[object],
+    *,
+    viewport_x: float,
+    viewport_y: float,
+    viewport_width: float,
+    viewport_height: float,
+    max_faces: int = 12,
+) -> tuple[int, ...]:
+    vertices = tuple(getattr(submesh, "vertices", ()) or ())
+    faces = tuple(getattr(submesh, "faces", ()) or ())
+    projected: dict[int, tuple[float, float, float, float]] = {}
+    for face_index, face in enumerate(faces):
+        indices = tuple(int(value) for value in tuple(face or ())[:3])
+        if len(indices) < 3 or any(index < 0 or index >= len(vertices) for index in indices):
+            continue
+        center = tuple(
+            sum(float(vertices[index][axis]) for index in indices) / 3.0
+            for axis in range(3)
+        )
+        screen = _project_world_to_screen(
+            matrix,
+            center,
+            viewport_x=viewport_x,
+            viewport_y=viewport_y,
+            viewport_width=viewport_width,
+            viewport_height=viewport_height,
+        )
+        if screen is None:
+            continue
+        screen_x, screen_y = screen
+        if not (viewport_x <= screen_x <= viewport_x + viewport_width and viewport_y <= screen_y <= viewport_y + viewport_height):
+            continue
+        projected[face_index] = (screen_x, screen_y, center[0], center[1])
+    if not projected:
+        return tuple(range(min(max_faces, len(faces))))
+    min_x = min(item[0] for item in projected.values())
+    max_x = max(item[0] for item in projected.values())
+    min_y = min(item[1] for item in projected.values())
+    max_y = max(item[1] for item in projected.values())
+    target = ((min_x + max_x) * 0.5, (min_y + max_y) * 0.5)
+    start_face = min(
+        projected,
+        key=lambda face_index: math.hypot(projected[face_index][0] - target[0], projected[face_index][1] - target[1]),
+    )
+    vertex_to_faces: dict[int, list[int]] = {}
+    for face_index, face in enumerate(faces):
+        for vertex_index in tuple(face or ())[:3]:
+            vertex_to_faces.setdefault(int(vertex_index), []).append(face_index)
+    selected: set[int] = {start_face}
+    frontier = [start_face]
+    while frontier and len(selected) < max_faces:
+        face_index = frontier.pop(0)
+        neighbours: set[int] = set()
+        for vertex_index in tuple(faces[face_index] or ())[:3]:
+            neighbours.update(vertex_to_faces.get(int(vertex_index), ()))
+        for neighbour in sorted(
+            neighbours - selected,
+            key=lambda item: (
+                math.hypot(projected.get(item, (target[0], target[1]))[0] - target[0], projected.get(item, (target[0], target[1]))[1] - target[1]),
+                item,
+            ),
+        ):
+            selected.add(neighbour)
+            frontier.append(neighbour)
+            if len(selected) >= max_faces:
+                break
+    return tuple(sorted(selected))
+
+
+def _screen_source_transform_override_ok(payload: Mapping[str, object]) -> bool:
+    raw_overrides = payload.get("source_submesh_world_transforms")
+    if not isinstance(raw_overrides, Sequence) or isinstance(raw_overrides, (str, bytes, bytearray)):
+        return False
+    for item in raw_overrides:
+        if not isinstance(item, Mapping):
+            continue
+        raw_source = item.get("source_submesh_index")
+        raw_matrix = item.get("world_transform")
+        if not isinstance(raw_source, int):
+            continue
+        if not isinstance(raw_matrix, Sequence) or isinstance(raw_matrix, (str, bytes, bytearray)):
+            continue
+        matrix = tuple(raw_matrix)
+        if len(matrix) == 16 and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in matrix):
+            return True
+    return False
+
+
+def _screen_drag_for_z_delta(delta_z: float, *, start_z: float = 0.0) -> dict[str, object]:
+    start_x = float(start_z) * 100.0
+    end_x = float(start_z + delta_z) * 100.0
+    return {
+        "start_x": start_x,
+        "start_y": 0.0,
+        "end_x": end_x,
+        "end_y": 0.0,
+        "viewport_width": 200.0,
+        "viewport_height": 200.0,
+        "world_view_projection": [
+            0.0, 0.0, 0.5, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.5, 1.0,
+        ],
+    }
+
+
+def run_native_mesh_editor_standalone_stroke() -> dict[str, object]:
+    clear_native_mesh_core_fallback_counts()
+    native_available = native_mesh_core_available()
+    if not native_available:
+        return {"ok": False, "native_core_available": False, "reason": "native mesh core binary not available"}
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QApplication
+
+    from cdmw.ui.mesh_editor import MeshEditorTab
+
+    app = QApplication.instance() or QApplication(["native-mesh-editor-standalone-stroke"])
+    tab = MeshEditorTab(settings=QSettings("CDMWHarness", "NativeMeshEditorStandaloneStroke"))
+    host = _StandaloneStrokeHarnessHost()
+    controller = None
+    try:
+        tab.set_native_preview_host(host)
+        view = tab.open_mesh_session(build_synthetic_mesh(), session_id="native-editor-standalone-stroke", mode="edit")
+        controller = tab.standalone_controller
+        if controller is None:
+            return {"ok": False, "native_core_available": True, "reason": "standalone controller unavailable"}
+        select_result = controller.select(vertices_by_submesh={0: (0, 1)})
+        tab.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
+        tab.set_active_tool_state(mode="edit", active_tool_key="transform_move")
+        before_vertex = tuple(float(value) for value in controller.working_mesh(clone=True).submeshes[0].vertices[0])
+        stroke_id = "standalone-stroke-1"
+        stroke_begin_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.0))
+        stroke_update_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.05))
+        begin_ms = _emit_timed_stroke(
+            host.mesh_edit_stroke_started,
+            {
+                "stroke_id": stroke_id,
+                "tool": "move",
+                "screen_drag": stroke_begin_drag,
+            },
+        )
+        update_ms = _emit_timed_stroke(
+            host.mesh_edit_stroke_previewed,
+            {
+                "stroke_id": stroke_id,
+                "tool": "move",
+                "screen_drag": stroke_update_drag,
+            },
+        )
+        end_ms = _emit_timed_stroke(host.mesh_edit_stroke_finished, {"stroke_id": stroke_id, "tool": "move"})
+        signal_results = {
+            "begin": list(host.mesh_edit_stroke_started.results),
+            "update": list(host.mesh_edit_stroke_previewed.results),
+            "end": list(host.mesh_edit_stroke_finished.results),
+        }
+        app.processEvents()
+        after_vertex = tuple(float(value) for value in controller.working_mesh(clone=True).submeshes[0].vertices[0])
+        after_view = controller.session_view()
+        undo_result = controller.undo()
+        undo_vertex = tuple(float(value) for value in controller.working_mesh(clone=True).submeshes[0].vertices[0])
+        tab.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
+        tab.set_active_tool_state(mode="sculpt", active_tool_key="brush_grab")
+        before_brush_vertex = tuple(float(value) for value in controller.working_mesh(clone=True).submeshes[0].vertices[0])
+        brush_stroke_id = "standalone-brush-stroke-1"
+        brush_center = {"x": before_brush_vertex[0], "y": before_brush_vertex[1], "z": before_brush_vertex[2]}
+        brush_weight = 0.25
+        with tempfile.TemporaryDirectory(prefix="cdmw_standalone_brush_weights_") as brush_weight_dir:
+            brush_weight_root = Path(brush_weight_dir)
+            brush_indices_path = brush_weight_root / "stroke_vertices.bin"
+            brush_weights_path = brush_weight_root / "stroke_weights.bin"
+            brush_indices_path.write_bytes(struct.pack("=ii", 0, 1))
+            brush_weights_path.write_bytes(struct.pack("=ff", brush_weight, 1.0))
+            brush_groups = (
+                {
+                    "source_submesh_index": 0,
+                    "source_vertex_indices_binary": {
+                        "path": str(brush_indices_path),
+                        "count": 2,
+                        "components": 1,
+                        "type": "i32",
+                    },
+                    "source_vertex_weights_binary": {
+                        "path": str(brush_weights_path),
+                        "count": 2,
+                        "components": 1,
+                        "type": "f32",
+                    },
+                },
+            )
+            brush_begin_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.0))
+            brush_update_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.04))
+            brush_begin_ms = _emit_timed_stroke(
+                host.mesh_edit_stroke_started,
+                {
+                    "stroke_id": brush_stroke_id,
+                    "tool": "grab",
+                    "center": brush_center,
+                    "screen_drag": brush_begin_drag,
+                    "amount": 0.0,
+                    "radius": 2.0,
+                    "strength": 1.0,
+                    "groups": brush_groups,
+                },
+            )
+            brush_update_ms = _emit_timed_stroke(
+                host.mesh_edit_stroke_previewed,
+                {
+                    "stroke_id": brush_stroke_id,
+                    "tool": "grab",
+                    "center": brush_center,
+                    "screen_drag": brush_update_drag,
+                    "amount": 0.04,
+                    "radius": 2.0,
+                    "strength": 1.0,
+                    "groups": brush_groups,
+                },
+            )
+            brush_end_ms = _emit_timed_stroke(host.mesh_edit_stroke_finished, {"stroke_id": brush_stroke_id, "tool": "grab"})
+        brush_signal_results = {
+            "begin": list(host.mesh_edit_stroke_started.results),
+            "update": list(host.mesh_edit_stroke_previewed.results),
+            "end": list(host.mesh_edit_stroke_finished.results),
+        }
+        app.processEvents()
+        after_brush_vertex = tuple(float(value) for value in controller.working_mesh(clone=True).submeshes[0].vertices[0])
+        after_brush_view = controller.session_view()
+        brush_metrics = dict(tab.standalone_last_action_metrics)
+        brush_undo_result = controller.undo()
+        brush_undo_vertex = tuple(float(value) for value in controller.working_mesh(clone=True).submeshes[0].vertices[0])
+        metrics = dict(tab.standalone_last_action_metrics)
+        screen_selection_ms = _emit_timed_stroke(
+            host.mesh_edit_selection_changed,
+            {
+                "operation": "replace",
+                "falloff": "smooth",
+                "target_mode": "vertex",
+                "selection_depth_mode": "visible",
+                "screen_brush": {
+                    "x": 175.0,
+                    "y": 175.0,
+                    "radius_pixels": 3.0,
+                    "viewport_width": 200.0,
+                    "viewport_height": 200.0,
+                    "world_view_projection": [
+                        1.0, 0.0, 0.0, 0.0,
+                        0.0, 1.0, 0.0, 0.0,
+                        0.0, 0.0, 0.5, 0.0,
+                        0.0, 0.0, 0.5, 1.0,
+                    ],
+                },
+            },
+        )
+        screen_selection_results = list(host.mesh_edit_selection_changed.results)
+        screen_selection_vertices = sorted(controller.session_view().selection.vertex_map().get(0, ()))
+        edge_screen_selection_ms = _emit_timed_stroke(
+            host.mesh_edit_selection_changed,
+            {
+                "operation": "replace",
+                "falloff": "smooth",
+                "target_mode": "edge",
+                "selection_depth_mode": "visible",
+                "screen_brush": {
+                    "x": 100.0,
+                    "y": 175.0,
+                    "radius_pixels": 3.0,
+                    "viewport_width": 200.0,
+                    "viewport_height": 200.0,
+                    "world_view_projection": [
+                        1.0, 0.0, 0.0, 0.0,
+                        0.0, 1.0, 0.0, 0.0,
+                        0.0, 0.0, 0.5, 0.0,
+                        0.0, 0.0, 0.5, 1.0,
+                    ],
+                },
+            },
+        )
+        edge_screen_selection_results = list(host.mesh_edit_selection_changed.results)
+        screen_selection_edges = sorted(tuple(edge) for edge in controller.session_view().selection.edge_map().get(0, ()))
+        face_screen_selection_ms = _emit_timed_stroke(
+            host.mesh_edit_selection_changed,
+            {
+                "operation": "replace",
+                "falloff": "smooth",
+                "target_mode": "face",
+                "selection_depth_mode": "visible",
+                "screen_brush": {
+                    "x": 62.0,
+                    "y": 138.0,
+                    "radius_pixels": 3.0,
+                    "viewport_width": 200.0,
+                    "viewport_height": 200.0,
+                    "world_view_projection": [
+                        1.0, 0.0, 0.0, 0.0,
+                        0.0, 1.0, 0.0, 0.0,
+                        0.0, 0.0, 0.5, 0.0,
+                        0.0, 0.0, 0.5, 1.0,
+                    ],
+                },
+            },
+        )
+        face_screen_selection_results = list(host.mesh_edit_selection_changed.results)
+        screen_selection_faces = sorted(controller.session_view().selection.face_map().get(0, ()))
+        screen_selection_ok = (
+            screen_selection_results == [True]
+            and edge_screen_selection_results == [True]
+            and face_screen_selection_results == [True]
+            and screen_selection_vertices == [1]
+            and screen_selection_edges == [(0, 1)]
+            and screen_selection_faces == [0]
+        )
+        screen_selection_metrics = dict(tab.standalone_last_action_metrics)
+        fallback_counts = native_mesh_core_fallback_counts()
+        fallback_events = list(native_mesh_core_fallback_events())
+        enabled_states = [state for state in host.mesh_edit_states if bool(state.get("enabled"))]
+        moved = any(abs(after_vertex[index] - before_vertex[index]) > 1e-8 for index in range(3))
+        undo_restored = all(abs(undo_vertex[index] - before_vertex[index]) <= 1e-8 for index in range(3))
+        brush_moved = any(abs(after_brush_vertex[index] - before_brush_vertex[index]) > 1e-8 for index in range(3))
+        brush_undo_restored = all(abs(brush_undo_vertex[index] - before_brush_vertex[index]) <= 1e-8 for index in range(3))
+        brush_weighted_delta_ok = abs((after_brush_vertex[2] - before_brush_vertex[2]) - (0.04 * brush_weight)) <= 1e-8
+        dispatch_times = {"begin_ms": begin_ms, "update_ms": update_ms, "end_ms": end_ms}
+        brush_dispatch_times = {"begin_ms": brush_begin_ms, "update_ms": brush_update_ms, "end_ms": brush_end_ms}
+        dispatch_ok = max((*dispatch_times.values(), *brush_dispatch_times.values())) <= 50.0
+        signals_ok = all(all(result is not False for result in results) for results in (*signal_results.values(), *brush_signal_results.values()))
+        fallback_ok = not fallback_counts
+        screen_payloads_without_legacy_camera_fields_ok = all(
+            _LEGACY_SCREEN_CAMERA_FIELDS.isdisjoint(payload)
+            for payload in (stroke_begin_drag, stroke_update_drag, brush_begin_drag, brush_update_drag)
+        )
+        return {
+            "ok": bool(
+                select_result.ok
+                and moved
+                and undo_result.ok
+                and undo_restored
+                and brush_moved
+                and brush_weighted_delta_ok
+                and brush_undo_result.ok
+                and brush_undo_restored
+                and after_view.undo_count == 1
+                and after_brush_view.undo_count == 1
+                and host.vertex_group_counts
+                and tab.standalone_native_mesh_edit_stroke_id == ""
+                and enabled_states
+                and dispatch_ok
+                and signals_ok
+                and screen_selection_ok
+                and screen_payloads_without_legacy_camera_fields_ok
+                and fallback_ok
+            ),
+            "native_core_available": True,
+            "session_id": view.session_id,
+            "select": _command_summary(select_result),
+            "undo": _command_summary(undo_result),
+            "brush_undo": _command_summary(brush_undo_result),
+            "before_vertex": list(before_vertex),
+            "after_vertex": list(after_vertex),
+            "undo_vertex": list(undo_vertex),
+            "before_brush_vertex": list(before_brush_vertex),
+            "after_brush_vertex": list(after_brush_vertex),
+            "brush_undo_vertex": list(brush_undo_vertex),
+            "moved": moved,
+            "undo_restored": undo_restored,
+            "brush_moved": brush_moved,
+            "brush_weighted_delta_ok": brush_weighted_delta_ok,
+            "brush_undo_restored": brush_undo_restored,
+            "undo_count_after_stroke": after_view.undo_count,
+            "undo_count_after_brush": after_brush_view.undo_count,
+            "host_calls": list(host.calls),
+            "mesh_edit_state": enabled_states[-1] if enabled_states else {},
+            "vertex_group_counts": list(host.vertex_group_counts),
+            "selection_group_counts": list(host.selection_group_counts),
+            "screen_selection_results": screen_selection_results,
+            "screen_selection_vertices": screen_selection_vertices,
+            "edge_screen_selection_results": edge_screen_selection_results,
+            "screen_selection_edges": [list(edge) for edge in screen_selection_edges],
+            "edge_screen_selection_ms": edge_screen_selection_ms,
+            "face_screen_selection_results": face_screen_selection_results,
+            "screen_selection_faces": screen_selection_faces,
+            "face_screen_selection_ms": face_screen_selection_ms,
+            "screen_selection_ms": screen_selection_ms,
+            "screen_selection_metrics": screen_selection_metrics,
+            "screen_selection_ok": screen_selection_ok,
+            "screen_payloads_without_legacy_camera_fields_ok": screen_payloads_without_legacy_camera_fields_ok,
+            "stroke_id_after_finish": tab.standalone_native_mesh_edit_stroke_id,
+            "dispatch_times_ms": dispatch_times,
+            "brush_dispatch_times_ms": brush_dispatch_times,
+            "dispatch_target_ok": dispatch_ok,
+            "signal_results": signal_results,
+            "brush_signal_results": brush_signal_results,
+            "signals_ok": signals_ok,
+            "last_action_metrics": metrics,
+            "brush_last_action_metrics": brush_metrics,
+            "native_fallback_ok": fallback_ok,
+            "native_fallback_counts": fallback_counts,
+            "native_fallback_events": fallback_events,
+        }
+    finally:
+        if controller is not None:
+            try:
+                controller.close_active_session()
+            except Exception:
+                pass
+        tab.deleteLater()
+        app.processEvents()
+
+
+def run_native_mesh_editor_static_replacement_screen_stroke() -> dict[str, object]:
+    clear_native_mesh_core_fallback_counts()
+    native_available = native_mesh_core_available()
+    if not native_available:
+        return {"ok": False, "native_core_available": False, "reason": "native mesh core binary not available"}
+
+    session = StaticReplacementMeshEditSession(session_id="native-editor-static-screen-stroke")
+    session.open(build_synthetic_mesh())
+    try:
+        screen_brush = {
+            "x": 175.0,
+            "y": 175.0,
+            "radius_pixels": 3.0,
+            "viewport_width": 200.0,
+            "viewport_height": 200.0,
+            "world_view_projection": [
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 0.5, 0.0,
+                0.0, 0.0, 0.5, 1.0,
+            ],
+        }
+        source_transform_overrides = [
+            {
+                "source_submesh_index": 0,
+                "world_transform": [
+                    1.0, 0.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0, 0.0,
+                    0.0, 0.0, 1.0, 0.0,
+                    0.01, 0.0, 0.0, 1.0,
+                ],
+            }
+        ]
+        screen_brush["source_submesh_world_transforms"] = source_transform_overrides
+        screen_selection = {
+            "target_mode": "vertex",
+            "selection_depth_mode": "visible",
+            "falloff": "smooth",
+            "screen_brush": screen_brush,
+        }
+        transform_begin_screen_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.02))
+        transform_screen_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.03, start_z=0.02))
+        descriptor_screen_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.02))
+        brush_screen_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.04))
+        transform_begin_screen_drag["source_submesh_world_transforms"] = source_transform_overrides
+        transform_screen_drag["source_submesh_world_transforms"] = source_transform_overrides
+        descriptor_screen_drag["source_submesh_world_transforms"] = source_transform_overrides
+        brush_screen_drag["source_submesh_world_transforms"] = source_transform_overrides
+        before_transform = tuple(float(value) for value in session.controller.working_mesh(clone=True).submeshes[0].vertices[1])
+        transform_begin = session.apply(
+            "transform",
+            screen_drag=transform_begin_screen_drag,
+            _native_screen_selection_payload=screen_selection,
+            stroke_phase="begin",
+            stroke_id="static-transform-stroke-1",
+            recompute_normals=False,
+            record_history=False,
+            _require_native_history_delta=True,
+        )
+        transform = session.apply(
+            "transform",
+            screen_drag=transform_screen_drag,
+            stroke_phase="update",
+            stroke_id="static-transform-stroke-1",
+            recompute_normals=False,
+            record_history=False,
+            _require_native_history_delta=True,
+        )
+        transform_end = session.apply(
+            "transform",
+            stroke_phase="end",
+            stroke_id="static-transform-stroke-1",
+            recompute_normals=False,
+            record_history=False,
+            _require_native_history_delta=True,
+        )
+        after_transform = tuple(float(value) for value in session.controller.working_mesh(clone=True).submeshes[0].vertices[1])
+        before_descriptor_transform = after_transform
+        descriptor_transform = session.apply(
+            "transform",
+            screen_drag=descriptor_screen_drag,
+            _native_selection_payload={"vertices_by_submesh": {0: {"start": 1, "count": 1}}},
+            recompute_normals=False,
+            record_history=False,
+            _require_native_history_delta=True,
+        )
+        after_descriptor_transform = tuple(float(value) for value in session.controller.working_mesh(clone=True).submeshes[0].vertices[1])
+        before_brush = after_descriptor_transform
+        brush = session.apply(
+            "brush",
+            mode="sculpt",
+            tool="grab",
+            screen_drag=brush_screen_drag,
+            screen_brush=screen_brush,
+            target_mode="vertex",
+            selection_depth_mode="visible",
+            strength=1.0,
+            falloff="smooth",
+            recompute_normals=False,
+            record_history=False,
+            _require_native_history_delta=True,
+        )
+        after_brush = tuple(float(value) for value in session.controller.working_mesh(clone=True).submeshes[0].vertices[1])
+        fallback_counts = native_mesh_core_fallback_counts()
+        fallback_ok = not fallback_counts
+        transform_moved = abs(after_transform[2] - before_transform[2] - 0.05) <= 1.0e-8
+        raw_transform_update_count = transform.edit_result.metrics.get("native_stroke_update_count")
+        raw_transform_end_active = transform_end.edit_result.metrics.get("native_stroke_active")
+        transform_update_count = float(raw_transform_update_count if raw_transform_update_count is not None else 0.0)
+        transform_end_active = float(raw_transform_end_active if raw_transform_end_active is not None else 1.0)
+        transform_incremental_drag_ok = (
+            transform_begin_screen_drag.get("start_x") == 0.0
+            and transform_begin_screen_drag.get("end_x") == 2.0
+            and transform_screen_drag.get("start_x") == 2.0
+            and transform_screen_drag.get("end_x") == 5.0
+            and transform_update_count == 2.0
+            and transform_end_active == 0.0
+        )
+        descriptor_transform_moved = abs(after_descriptor_transform[2] - before_descriptor_transform[2] - 0.02) <= 1.0e-8
+        brush_delta_z = after_brush[2] - before_brush[2]
+        brush_moved = 0.0 < brush_delta_z <= 0.04
+        transform_delta_ok = (
+            bool(transform.edit_result.ok)
+            and bool(transform.native_update.vertex_groups)
+            and not transform.native_update.triangle_groups
+            and bool(transform.changed_vertices_by_submesh)
+        )
+        descriptor_transform_delta_ok = (
+            bool(descriptor_transform.edit_result.ok)
+            and bool(descriptor_transform.native_update.vertex_groups)
+            and not descriptor_transform.native_update.triangle_groups
+            and bool(descriptor_transform.changed_vertices_by_submesh)
+        )
+        brush_delta_ok = (
+            bool(brush.edit_result.ok)
+            and bool(brush.native_update.vertex_groups)
+            and not brush.native_update.triangle_groups
+            and bool(brush.changed_vertices_by_submesh)
+        )
+        screen_payloads_without_legacy_camera_fields_ok = all(
+            _LEGACY_SCREEN_CAMERA_FIELDS.isdisjoint(payload)
+            for payload in (transform_screen_drag, descriptor_screen_drag, brush_screen_drag, screen_brush)
+        )
+        screen_payloads_with_source_transform_overrides_ok = all(
+            _screen_source_transform_override_ok(payload)
+            for payload in (transform_screen_drag, descriptor_screen_drag, brush_screen_drag, screen_brush)
+        )
+        return {
+            "ok": bool(
+                transform_moved
+                and transform_incremental_drag_ok
+                and descriptor_transform_moved
+                and brush_moved
+                and transform_delta_ok
+                and descriptor_transform_delta_ok
+                and brush_delta_ok
+                and screen_payloads_without_legacy_camera_fields_ok
+                and screen_payloads_with_source_transform_overrides_ok
+                and fallback_ok
+            ),
+            "native_core_available": True,
+            "transform_command": _command_summary(transform.edit_result),
+            "transform_begin_command": _command_summary(transform_begin.edit_result),
+            "transform_end_command": _command_summary(transform_end.edit_result),
+            "descriptor_transform_command": _command_summary(descriptor_transform.edit_result),
+            "brush_command": _command_summary(brush.edit_result),
+            "before_transform_vertex": list(before_transform),
+            "after_transform_vertex": list(after_transform),
+            "after_descriptor_transform_vertex": list(after_descriptor_transform),
+            "after_brush_vertex": list(after_brush),
+            "brush_delta_z": brush_delta_z,
+            "transform_moved": transform_moved,
+            "transform_incremental_drag_ok": transform_incremental_drag_ok,
+            "transform_begin_screen_drag": dict(transform_begin_screen_drag),
+            "transform_update_screen_drag": dict(transform_screen_drag),
+            "descriptor_transform_moved": descriptor_transform_moved,
+            "brush_moved": brush_moved,
+            "transform_delta_ok": transform_delta_ok,
+            "descriptor_transform_delta_ok": descriptor_transform_delta_ok,
+            "brush_delta_ok": brush_delta_ok,
+            "screen_payloads_without_legacy_camera_fields_ok": screen_payloads_without_legacy_camera_fields_ok,
+            "screen_payloads_with_source_transform_overrides_ok": screen_payloads_with_source_transform_overrides_ok,
+            "transform_vertex_group_count": len(transform.native_update.vertex_groups or ()),
+            "descriptor_transform_vertex_group_count": len(descriptor_transform.native_update.vertex_groups or ()),
+            "brush_vertex_group_count": len(brush.native_update.vertex_groups or ()),
+            "native_fallback_ok": fallback_ok,
+            "native_fallback_counts": fallback_counts,
+            "native_fallback_events": list(native_mesh_core_fallback_events()),
+        }
+    finally:
+        session.close()
+
+
+def run_native_mesh_editor_d3d11_delta(output_dir: Path, *, timeout_seconds: float = 15.0) -> dict[str, object]:
+    clear_native_mesh_core_fallback_counts()
+    if os.name != "nt":
+        return {"ok": False, "native_core_available": native_mesh_core_available(), "reason": "D3D11 harness requires Windows"}
+    host_binary = find_native_d3d11_host()
+    if host_binary is None:
+        return {"ok": False, "native_core_available": native_mesh_core_available(), "reason": "native D3D11 preview host not found"}
+    native_available = native_mesh_core_available()
+    if not native_available:
+        return {"ok": False, "native_core_available": False, "reason": "native mesh core binary not available"}
+
+    mesh = build_synthetic_mesh()
+    texture_path = output_dir / "d3d11_delta_checker.png"
+    _write_checker_png(texture_path)
+    for submesh in mesh.submeshes:
+        if submesh.uvs:
+            submesh.texture = str(texture_path)
+    package_dir = mesh_editor_write_native_preview_package(
+        mesh,
+        output_root=output_dir / "d3d11_delta_package",
+        use_textures=True,
+        backend="d3d11",
+    )
+    status_file = output_dir / "d3d11_delta_status.json"
+    process = subprocess.Popen(
+        [
+            str(host_binary),
+            "--backend",
+            "d3d11",
+            "--preview-package",
+            str(package_dir),
+            "--status-file",
+            str(status_file),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    tab = None
+    controller = MeshEditorController()
+    try:
+        loaded = _wait_for_status(status_file, {"loaded", "resources_loaded"}, timeout_seconds)
+        loaded_ok = loaded.get("event") in {"loaded", "resources_loaded"}
+        hwnd = _wait_for_host_window(process.pid, timeout_seconds)
+        _place_host_window_on_screen1(hwnd)
+        status_file.unlink(missing_ok=True)
+        controller.open_mesh(mesh, session_id="native-editor-d3d11-delta", mode="sculpt")
+        source_transform_overrides = [
+            {
+                "source_submesh_index": 0,
+                "world_transform": [
+                    1.01, 0.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0, 0.0,
+                    0.0, 0.0, 1.0, 0.0,
+                    0.01, 0.0, 0.0, 1.0,
+                ],
+            }
+        ]
+        transform_screen_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.025))
+        transform_screen_drag["source_submesh_world_transforms"] = source_transform_overrides
+        transform_started = time.perf_counter()
+        transform_execution = controller.run_editor_action(
+            "transform_move",
+            selection=MeshEditSelection.from_maps(vertices_by_submesh={0: (0,)}),
+            screen_drag=transform_screen_drag,
+        )
+        transform_elapsed_ms = (time.perf_counter() - transform_started) * 1000.0
+        transform_host = _NativeD3D11HarnessHost(hwnd)
+        transform_update_started = time.perf_counter()
+        transform_update_ok = apply_native_update_to_host(transform_host, transform_execution.native_update)
+        transform_d3d11_update_ms = (time.perf_counter() - transform_update_started) * 1000.0
+        transform_update_event = (
+            _wait_for_status(status_file, {"mesh_edit_vertices_updated", "mesh_edit_triangles_replaced"}, timeout_seconds)
+            if transform_update_ok
+            else {}
+        )
+        status_file.unlink(missing_ok=True)
+        brush_screen_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.05))
+        brush_screen_drag["source_submesh_world_transforms"] = source_transform_overrides
+        action_started = time.perf_counter()
+        execution = controller.run_editor_action(
+            "brush_grab",
+            selection=MeshEditSelection.from_maps(vertices_by_submesh={0: (0, 1, 2, 3)}),
+            strength=0.75,
+            screen_drag=brush_screen_drag,
+        )
+        action_elapsed_ms = (time.perf_counter() - action_started) * 1000.0
+        host = _NativeD3D11HarnessHost(hwnd)
+        update_started = time.perf_counter()
+        update_ok = apply_native_update_to_host(host, execution.native_update)
+        d3d11_update_ms = (time.perf_counter() - update_started) * 1000.0
+        update_event = (
+            _wait_for_status(status_file, {"mesh_edit_vertices_updated", "mesh_edit_triangles_replaced"}, timeout_seconds)
+            if update_ok
+            else {}
+        )
+        status_file.unlink(missing_ok=True)
+        topology_started = time.perf_counter()
+        topology_execution = controller.run_editor_action(
+            "subdivide",
+            selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+            max_faces_per_submesh=512,
+            recompute_normals=True,
+        )
+        topology_elapsed_ms = (time.perf_counter() - topology_started) * 1000.0
+        topology_host = _NativeD3D11HarnessHost(hwnd, status_file=status_file, timeout_seconds=timeout_seconds)
+        topology_update_started = time.perf_counter()
+        topology_update_ok = apply_native_update_to_host(topology_host, topology_execution.native_update)
+        topology_d3d11_update_ms = (time.perf_counter() - topology_update_started) * 1000.0
+        topology_update_event = topology_host.triangle_events[0] if topology_host.triangle_events else {}
+        appended_started = time.perf_counter()
+        appended_execution = controller.run_editor_action(
+            "duplicate",
+            selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+        )
+        appended_elapsed_ms = (time.perf_counter() - appended_started) * 1000.0
+        appended_host = _NativeD3D11HarnessHost(hwnd, status_file=status_file, timeout_seconds=timeout_seconds)
+        appended_update_started = time.perf_counter()
+        appended_update_ok = apply_native_update_to_host(appended_host, appended_execution.native_update)
+        appended_d3d11_update_ms = (time.perf_counter() - appended_update_started) * 1000.0
+        appended_update_event = appended_host.triangle_events[0] if appended_host.triangle_events else {}
+        separated_started = time.perf_counter()
+        separated_execution = controller.run_editor_action(
+            "separate",
+            selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+        )
+        separated_elapsed_ms = (time.perf_counter() - separated_started) * 1000.0
+        separated_host = _NativeD3D11HarnessHost(hwnd, status_file=status_file, timeout_seconds=timeout_seconds)
+        separated_update_started = time.perf_counter()
+        separated_update_ok = apply_native_update_to_host(separated_host, separated_execution.native_update)
+        separated_d3d11_update_ms = (time.perf_counter() - separated_update_started) * 1000.0
+        separated_update_event = separated_host.triangle_events[0] if separated_host.triangle_events else {}
+        separated_sources = separated_host.triangle_calls[0].get("source_submesh_indices") if separated_host.triangle_calls else []
+        separated_new_index = max(separated_execution.edit_result.affected_submesh_indices or (-1,))
+        undo_separate_started = time.perf_counter()
+        undo_separate_execution = controller.run_editor_action("undo")
+        undo_separate_elapsed_ms = (time.perf_counter() - undo_separate_started) * 1000.0
+        undo_separate_host = _NativeD3D11HarnessHost(hwnd, status_file=status_file, timeout_seconds=timeout_seconds)
+        undo_separate_update_started = time.perf_counter()
+        undo_separate_update_ok = apply_native_update_to_host(undo_separate_host, undo_separate_execution.native_update)
+        undo_separate_d3d11_update_ms = (time.perf_counter() - undo_separate_update_started) * 1000.0
+        undo_separate_update_event = undo_separate_host.triangle_events[0] if undo_separate_host.triangle_events else {}
+        undo_separate_sources = (
+            undo_separate_host.triangle_calls[0].get("source_submesh_indices")
+            if undo_separate_host.triangle_calls
+            else []
+        )
+        fallback_counts = native_mesh_core_fallback_counts()
+        fallback_events = list(native_mesh_core_fallback_events())
+        vertex_update_ok = (
+            update_event.get("event") == "mesh_edit_vertices_updated"
+            and int(update_event.get("changed_vertices", 0) or 0) > 0
+        )
+        transform_vertex_update_ok = (
+            transform_update_event.get("event") == "mesh_edit_vertices_updated"
+            and int(transform_update_event.get("changed_vertices", 0) or 0) > 0
+        )
+        transform_delta_ok = (
+            bool(transform_execution.edit_result.ok)
+            and bool(transform_execution.native_update.vertex_groups)
+            and not transform_execution.native_update.triangle_groups
+            and not transform_execution.native_update.replace_all_triangles
+            and transform_host.calls == ["update_mesh_edit_vertices"]
+            and transform_vertex_update_ok
+        )
+        transform_screen_payload_ok = (
+            all(field in transform_screen_drag for field in ("start_x", "start_y", "end_x", "end_y"))
+            and len(tuple(transform_screen_drag.get("world_view_projection") or ())) == 16
+            and "camera_world" not in transform_screen_drag
+            and "delta_x_pixels" not in transform_screen_drag
+        )
+        delta_only_ok = (
+            bool(execution.edit_result.ok)
+            and bool(execution.native_update.vertex_groups)
+            and not execution.native_update.triangle_groups
+            and not execution.native_update.replace_all_triangles
+            and host.calls == ["update_mesh_edit_vertices"]
+            and vertex_update_ok
+        )
+        brush_screen_payload_ok = (
+            all(field in brush_screen_drag for field in ("start_x", "start_y", "end_x", "end_y"))
+            and len(tuple(brush_screen_drag.get("world_view_projection") or ())) == 16
+            and "camera_world" not in brush_screen_drag
+            and "delta_x_pixels" not in brush_screen_drag
+        )
+        screen_payloads_without_legacy_camera_fields_ok = (
+            _LEGACY_SCREEN_CAMERA_FIELDS.isdisjoint(transform_screen_drag)
+            and _LEGACY_SCREEN_CAMERA_FIELDS.isdisjoint(brush_screen_drag)
+        )
+        screen_payloads_with_source_transform_overrides_ok = (
+            _screen_source_transform_override_ok(transform_screen_drag)
+            and _screen_source_transform_override_ok(brush_screen_drag)
+        )
+        dispatch_target_ms = 50.0
+        transform_dispatch_target_ok = 0.0 < transform_elapsed_ms < dispatch_target_ms
+        brush_dispatch_target_ok = 0.0 < action_elapsed_ms < dispatch_target_ms
+        dispatch_target_ok = transform_dispatch_target_ok and brush_dispatch_target_ok
+        topology_delta_ok = (
+            bool(topology_execution.edit_result.ok)
+            and bool(topology_execution.edit_result.topology_changed)
+            and bool(topology_execution.native_update.triangle_groups)
+            and not topology_execution.native_update.vertex_groups
+            and not topology_execution.native_update.replace_all_triangles
+            and "replace_mesh_edit_triangles" in topology_host.calls
+            and "update_mesh_edit_vertices" not in topology_host.calls
+            and bool(topology_host.triangle_calls)
+            and not bool(topology_host.triangle_calls[0].get("replace_all"))
+            and topology_host.triangle_calls[0].get("source_submesh_indices") == [0]
+            and topology_update_event.get("event") == "mesh_edit_triangles_replaced"
+            and int(topology_update_event.get("replaced_batches", 0) or 0) >= 1
+        )
+        appended_delta_ok = (
+            bool(appended_execution.edit_result.ok)
+            and bool(appended_execution.edit_result.topology_changed)
+            and int(appended_execution.edit_result.submesh_count_delta or 0) > 0
+            and bool(appended_execution.native_update.triangle_groups)
+            and not appended_execution.native_update.vertex_groups
+            and not appended_execution.native_update.replace_all_triangles
+            and "replace_mesh_edit_triangles" in appended_host.calls
+            and "update_mesh_edit_vertices" not in appended_host.calls
+            and bool(appended_host.triangle_calls)
+            and not bool(appended_host.triangle_calls[0].get("replace_all"))
+            and appended_host.triangle_calls[0].get("source_submesh_indices") == [1]
+            and appended_update_event.get("event") == "mesh_edit_triangles_replaced"
+            and int(appended_update_event.get("replaced_batches", 0) or 0) >= 1
+        )
+        separated_delta_ok = (
+            bool(separated_execution.edit_result.ok)
+            and bool(separated_execution.edit_result.topology_changed)
+            and int(separated_execution.edit_result.submesh_count_delta or 0) > 0
+            and bool(separated_execution.native_update.triangle_groups)
+            and not separated_execution.native_update.vertex_groups
+            and not separated_execution.native_update.replace_all_triangles
+            and "replace_mesh_edit_triangles" in separated_host.calls
+            and "update_mesh_edit_vertices" not in separated_host.calls
+            and bool(separated_host.triangle_calls)
+            and not bool(separated_host.triangle_calls[0].get("replace_all"))
+            and separated_sources == [0, separated_new_index]
+            and separated_update_event.get("event") == "mesh_edit_triangles_replaced"
+            and int(separated_update_event.get("replaced_batches", 0) or 0) >= 1
+        )
+        undo_separate_delta_ok = (
+            bool(undo_separate_execution.edit_result.ok)
+            and bool(undo_separate_execution.edit_result.topology_changed)
+            and int(undo_separate_execution.edit_result.submesh_count_delta or 0) < 0
+            and bool(undo_separate_execution.native_update.triangle_source_submesh_indices)
+            and not undo_separate_execution.native_update.vertex_groups
+            and not undo_separate_execution.native_update.replace_all_triangles
+            and "replace_mesh_edit_triangles" in undo_separate_host.calls
+            and "update_mesh_edit_vertices" not in undo_separate_host.calls
+            and bool(undo_separate_host.triangle_calls)
+            and not bool(undo_separate_host.triangle_calls[0].get("replace_all"))
+            and sorted(undo_separate_sources) == [0, separated_new_index]
+            and undo_separate_update_event.get("event") == "mesh_edit_triangles_replaced"
+            and int(undo_separate_update_event.get("removed_batches", 0) or 0) >= 1
+        )
+        fallback_ok = not fallback_counts
+        transform_summary = _command_summary(transform_execution.edit_result)
+        transform_metrics = dict(transform_summary.get("metrics", {}) or {})
+        transform_metrics["d3d11_update_ms"] = transform_d3d11_update_ms
+        transform_summary["metrics"] = transform_metrics
+        command_summary = _command_summary(execution.edit_result)
+        command_metrics = dict(command_summary.get("metrics", {}) or {})
+        command_metrics["d3d11_update_ms"] = d3d11_update_ms
+        command_summary["metrics"] = command_metrics
+        topology_summary = _command_summary(topology_execution.edit_result)
+        topology_metrics = dict(topology_summary.get("metrics", {}) or {})
+        topology_metrics["d3d11_update_ms"] = topology_d3d11_update_ms
+        topology_summary["metrics"] = topology_metrics
+        appended_summary = _command_summary(appended_execution.edit_result)
+        appended_metrics = dict(appended_summary.get("metrics", {}) or {})
+        appended_metrics["d3d11_update_ms"] = appended_d3d11_update_ms
+        appended_summary["metrics"] = appended_metrics
+        separated_summary = _command_summary(separated_execution.edit_result)
+        separated_metrics = dict(separated_summary.get("metrics", {}) or {})
+        separated_metrics["d3d11_update_ms"] = separated_d3d11_update_ms
+        separated_summary["metrics"] = separated_metrics
+        undo_separate_summary = _command_summary(undo_separate_execution.edit_result)
+        undo_separate_metrics = dict(undo_separate_summary.get("metrics", {}) or {})
+        undo_separate_metrics["d3d11_update_ms"] = undo_separate_d3d11_update_ms
+        undo_separate_summary["metrics"] = undo_separate_metrics
+        def metrics_include(summary: Mapping[str, object], *keys: str) -> bool:
+            metrics = summary.get("metrics")
+            return isinstance(metrics, Mapping) and all(
+                isinstance(metrics.get(key), (int, float)) and float(metrics[key]) >= 0.0
+                for key in keys
+            )
+
+        native_apply_and_d3d11_metrics_ok = all(
+            metrics_include(
+                summary,
+                "cpp_ms",
+                "native_apply_roundtrip_ms",
+                "native_apply_overhead_ms",
+                "service_total_ms",
+                "d3d11_update_ms",
+            )
+            for summary in (transform_summary, command_summary, topology_summary, appended_summary, separated_summary)
+        )
+        native_history_and_d3d11_metrics_ok = metrics_include(
+            undo_separate_summary,
+            "native_history_roundtrip_ms",
+            "service_total_ms",
+            "d3d11_update_ms",
+        )
+        return {
+            "ok": bool(
+                loaded_ok
+                and hwnd
+                and transform_delta_ok
+                and transform_screen_payload_ok
+                and transform_update_ok
+                and delta_only_ok
+                and brush_screen_payload_ok
+                and screen_payloads_without_legacy_camera_fields_ok
+                and screen_payloads_with_source_transform_overrides_ok
+                and dispatch_target_ok
+                and topology_delta_ok
+                and topology_update_ok
+                and appended_delta_ok
+                and appended_update_ok
+                and separated_delta_ok
+                and separated_update_ok
+                and undo_separate_delta_ok
+                and undo_separate_update_ok
+                and native_apply_and_d3d11_metrics_ok
+                and native_history_and_d3d11_metrics_ok
+                and fallback_ok
+            ),
+            "native_core_available": native_available,
+            "host": str(host_binary),
+            "loaded_status": loaded,
+            "transform_action_elapsed_ms": transform_elapsed_ms,
+            "transform_d3d11_update_ms": transform_d3d11_update_ms,
+            "transform_command": transform_summary,
+            "transform_vertex_group_count": len(transform_execution.native_update.vertex_groups or ()),
+            "transform_triangle_group_count": len(transform_execution.native_update.triangle_groups or ()),
+            "transform_replace_all_triangles": bool(transform_execution.native_update.replace_all_triangles),
+            "transform_host_calls": list(transform_host.calls),
+            "transform_update_event": transform_update_event,
+            "transform_delta_ok": transform_delta_ok,
+            "transform_screen_payload_ok": transform_screen_payload_ok,
+            "transform_dispatch_target_ok": transform_dispatch_target_ok,
+            "action_elapsed_ms": action_elapsed_ms,
+            "d3d11_update_ms": d3d11_update_ms,
+            "command": command_summary,
+            "vertex_group_count": len(execution.native_update.vertex_groups or ()),
+            "triangle_group_count": len(execution.native_update.triangle_groups or ()),
+            "replace_all_triangles": bool(execution.native_update.replace_all_triangles),
+            "host_calls": list(host.calls),
+            "update_event": update_event,
+            "delta_only_ok": delta_only_ok,
+            "brush_screen_payload_ok": brush_screen_payload_ok,
+            "screen_payloads_without_legacy_camera_fields_ok": screen_payloads_without_legacy_camera_fields_ok,
+            "screen_payloads_with_source_transform_overrides_ok": screen_payloads_with_source_transform_overrides_ok,
+            "brush_dispatch_target_ok": brush_dispatch_target_ok,
+            "dispatch_target_ms": dispatch_target_ms,
+            "dispatch_target_ok": dispatch_target_ok,
+            "topology_action_elapsed_ms": topology_elapsed_ms,
+            "topology_d3d11_update_ms": topology_d3d11_update_ms,
+            "topology_command": topology_summary,
+            "topology_triangle_group_count": len(topology_execution.native_update.triangle_groups or ()),
+            "topology_replace_all_triangles": bool(topology_execution.native_update.replace_all_triangles),
+            "topology_host_calls": list(topology_host.calls),
+            "topology_triangle_calls": list(topology_host.triangle_calls),
+            "topology_update_event": topology_update_event,
+            "topology_delta_ok": topology_delta_ok,
+            "appended_action_elapsed_ms": appended_elapsed_ms,
+            "appended_d3d11_update_ms": appended_d3d11_update_ms,
+            "appended_command": appended_summary,
+            "appended_triangle_group_count": len(appended_execution.native_update.triangle_groups or ()),
+            "appended_replace_all_triangles": bool(appended_execution.native_update.replace_all_triangles),
+            "appended_host_calls": list(appended_host.calls),
+            "appended_triangle_calls": list(appended_host.triangle_calls),
+            "appended_update_event": appended_update_event,
+            "appended_delta_ok": appended_delta_ok,
+            "separated_action_elapsed_ms": separated_elapsed_ms,
+            "separated_d3d11_update_ms": separated_d3d11_update_ms,
+            "separated_command": separated_summary,
+            "separated_triangle_group_count": len(separated_execution.native_update.triangle_groups or ()),
+            "separated_replace_all_triangles": bool(separated_execution.native_update.replace_all_triangles),
+            "separated_host_calls": list(separated_host.calls),
+            "separated_triangle_calls": list(separated_host.triangle_calls),
+            "separated_update_event": separated_update_event,
+            "separated_delta_ok": separated_delta_ok,
+            "undo_separate_action_elapsed_ms": undo_separate_elapsed_ms,
+            "undo_separate_d3d11_update_ms": undo_separate_d3d11_update_ms,
+            "undo_separate_command": undo_separate_summary,
+            "undo_separate_triangle_group_count": len(undo_separate_execution.native_update.triangle_groups or ()),
+            "undo_separate_replace_all_triangles": bool(undo_separate_execution.native_update.replace_all_triangles),
+            "undo_separate_host_calls": list(undo_separate_host.calls),
+            "undo_separate_triangle_calls": list(undo_separate_host.triangle_calls),
+            "undo_separate_update_event": undo_separate_update_event,
+            "undo_separate_delta_ok": undo_separate_delta_ok,
+            "native_apply_and_d3d11_metrics_ok": native_apply_and_d3d11_metrics_ok,
+            "native_history_and_d3d11_metrics_ok": native_history_and_d3d11_metrics_ok,
+            "native_fallback_ok": fallback_ok,
+            "native_fallback_counts": fallback_counts,
+            "native_fallback_events": fallback_events,
+        }
+    finally:
+        if controller is not None:
+            controller.close_active_session()
+        _close_process(process)
+
+
+def run_real_archive_mesh_editor_d3d11_edit_smoke(
+    game_root: Path,
+    output_dir: Path,
+    *,
+    side_by_side: bool = False,
+    timeout_seconds: float = 20.0,
+) -> dict[str, object]:
+    clear_native_mesh_core_fallback_counts()
+    if os.name != "nt":
+        return {"ok": False, "read_only": True, "native_core_available": native_mesh_core_available(), "reason": "D3D11 harness requires Windows"}
+    host_binary = find_native_d3d11_host()
+    if host_binary is None:
+        return {"ok": False, "read_only": True, "native_core_available": native_mesh_core_available(), "reason": "native D3D11 preview host not found"}
+    if not native_mesh_core_available():
+        return {"ok": False, "read_only": True, "native_core_available": False, "reason": "native mesh core binary not available"}
+    pamt_path = game_root / "0009" / "0.pamt"
+    if not pamt_path.is_file():
+        return {
+            "ok": False,
+            "read_only": True,
+            "native_core_available": True,
+            "skipped": f"missing PAMT: {pamt_path}",
+            "game_root": str(game_root),
+            "pamt_path": str(pamt_path),
+        }
+
+    entries = parse_archive_pamt(pamt_path)
+    entries_by_path, _entries_by_basename = _archive_entry_indexes(entries)
+    model_path = _REAL_ARCHIVE_RIGGING_SAMPLES[0]
+    model_entry = next(iter(entries_by_path.get(_archive_key(model_path), ())), None)
+    if model_entry is None:
+        return {"ok": False, "read_only": True, "native_core_available": True, "model_path": model_path, "error": "model entry not found"}
+
+    pac_data = _read_archive_payload(model_entry)
+    mesh = parse_mesh(pac_data, model_entry.path)
+    editable = [
+        (index, submesh)
+        for index, submesh in enumerate(mesh.submeshes)
+        if getattr(submesh, "vertices", None) and getattr(submesh, "faces", None)
+    ]
+    if not editable:
+        return {"ok": False, "read_only": True, "native_core_available": True, "model_path": model_entry.path, "error": "PAC parsed with no editable mesh geometry"}
+    submesh_index, submesh = max(editable, key=lambda item: (len(item[1].faces), len(item[1].vertices)))
+    texture_path = output_dir / "real_archive_checker.png"
+    _write_checker_png(texture_path)
+    for preview_submesh in mesh.submeshes:
+        if preview_submesh.uvs:
+            preview_submesh.texture = str(texture_path)
+    package_dir = mesh_editor_write_native_preview_package(
+        mesh,
+        reference_mesh=mesh if side_by_side else None,
+        output_root=output_dir / "real_archive_d3d11_package",
+        use_textures=True,
+        backend="d3d11",
+        display_mode="side_by_side" if side_by_side else "replacement_only",
+    )
+    status_file = output_dir / "real_archive_d3d11_status.json"
+    before_capture_path = output_dir / "real_archive_before.png"
+    selected_before_capture_path = output_dir / "real_archive_selected_before_drag.png"
+    after_capture_path = output_dir / "real_archive_after_drag.png"
+    visual_proof_path = output_dir / "real_archive_visual_edit_proof.png"
+    process = subprocess.Popen(
+        [
+            str(host_binary),
+            "--backend",
+            "d3d11",
+            "--preview-package",
+            str(package_dir),
+            "--status-file",
+            str(status_file),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    controller = MeshEditorController()
+    try:
+        loaded = _wait_for_status(status_file, {"loaded", "resources_loaded"}, timeout_seconds)
+        loaded_ok = loaded.get("event") in {"loaded", "resources_loaded"}
+        hwnd = _wait_for_host_window(process.pid, timeout_seconds)
+        _place_host_window_on_screen1(hwnd)
+        status_file.unlink(missing_ok=True)
+        if not loaded_ok or not hwnd:
+            return {"ok": False, "read_only": True, "native_core_available": True, "model_path": model_entry.path, "error": "D3D11 host did not load real PAC preview"}
+
+        _send_json_command(hwnd, {"command": "capture_frame", "path": str(before_capture_path)})
+        before_capture_event = _wait_for_status(status_file, {"frame_capture"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.mesh_editor import MeshEditorTab
+
+        app = QApplication.instance() or QApplication(["real-archive-mesh-editor-d3d11-edit"])
+        settings = QSettings(str(output_dir / "real_archive_mesh_editor_d3d11_edit.ini"), QSettings.Format.IniFormat)
+        settings.setFallbacksEnabled(False)
+        tab = MeshEditorTab(settings=settings)
+        edit_host = _NativeD3D11HarnessHost(hwnd, status_file=status_file, timeout_seconds=timeout_seconds)
+        tab.set_native_preview_host(edit_host)
+        tab.open_mesh_session(mesh, target_entry=model_entry, session_id="real-archive-d3d11-edit", mode="edit")
+        controller = tab.standalone_controller
+        if controller is None:
+            return {"ok": False, "read_only": True, "native_core_available": True, "model_path": model_entry.path, "error": "MeshEditorTab controller missing"}
+        status_file.unlink(missing_ok=True)
+
+        tab.set_active_tool_state(mode="edit", active_tool_key="transform_move")
+        mesh_edit_state_event = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+
+        projection_probe_start = (700, 360) if side_by_side else (440, 360)
+        projection_probe_down_sent = _send_mouse_message(
+            hwnd,
+            _WM_LBUTTONDOWN,
+            projection_probe_start[0],
+            projection_probe_start[1],
+            wparam=_MK_LBUTTON,
+        )
+        projection_probe_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        projection_payload = projection_probe_status.get("payload", {})
+        projection_drag = (
+            dict(projection_payload.get("screen_drag", {}))
+            if isinstance(projection_payload, Mapping) and isinstance(projection_payload.get("screen_drag"), Mapping)
+            else {}
+        )
+        projection_probe_up_sent = _send_mouse_message(
+            hwnd,
+            _WM_LBUTTONUP,
+            projection_probe_start[0],
+            projection_probe_start[1],
+        )
+        projection_probe_finished_status = _wait_for_status(
+            status_file,
+            {"mesh_edit_stroke_previewed", "mesh_edit_stroke_finished"},
+            timeout_seconds,
+        )
+        status_file.unlink(missing_ok=True)
+        projected_center = None
+        if projection_drag:
+            viewport_x = float(projection_drag.get("viewport_x", 0.0) or 0.0)
+            viewport_y = float(projection_drag.get("viewport_y", 0.0) or 0.0)
+            viewport_width = float(projection_drag.get("viewport_width", 0.0) or 0.0)
+            viewport_height = float(projection_drag.get("viewport_height", 0.0) or 0.0)
+            selected_faces = _projected_face_cluster_for_drag(
+                submesh,
+                tuple(projection_drag.get("world_view_projection") or ()),
+                viewport_x=viewport_x,
+                viewport_y=viewport_y,
+                viewport_width=viewport_width,
+                viewport_height=viewport_height,
+            )
+        else:
+            viewport_x = viewport_y = viewport_width = viewport_height = 0.0
+            selected_faces = tuple(range(min(12, len(submesh.faces))))
+        face_vertices = sorted(
+            {
+                int(vertex_index)
+                for face_index in selected_faces
+                for vertex_index in submesh.faces[face_index]
+            }
+        )
+        before_vertices = [
+            tuple(float(component) for component in mesh.submeshes[submesh_index].vertices[index])
+            for index in face_vertices
+        ]
+        selected_center = (
+            tuple(sum(vertex[axis] for vertex in before_vertices) / len(before_vertices) for axis in range(3))
+            if before_vertices
+            else (0.0, 0.0, 0.0)
+        )
+        if projection_drag:
+            projected_center = _project_world_to_screen(
+                tuple(projection_drag.get("world_view_projection") or ()),
+                selected_center,
+                viewport_x=viewport_x,
+                viewport_y=viewport_y,
+                viewport_width=viewport_width,
+                viewport_height=viewport_height,
+            )
+        selected_projection_ok = projected_center is not None
+        select_result = controller.select(faces_by_submesh={submesh_index: selected_faces}, operation="replace")
+        tab.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
+        select_update = controller.native_update_for_result(select_result)
+        select_update_ok = tab._apply_standalone_native_update(select_update)
+        status_file.unlink(missing_ok=True)
+        _send_json_command(hwnd, {"command": "capture_frame", "path": str(selected_before_capture_path)})
+        selected_before_capture_event = _wait_for_status(status_file, {"frame_capture"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        if selected_projection_ok:
+            mouse_drag_start = (
+                int(round(min(max(projected_center[0], viewport_x), viewport_x + max(viewport_width - 1.0, 0.0)))),
+                int(round(min(max(projected_center[1], viewport_y), viewport_y + max(viewport_height - 1.0, 0.0)))),
+            )
+        else:
+            mouse_drag_start = projection_probe_start
+        mouse_drag_mid = (mouse_drag_start[0] + 16, mouse_drag_start[1])
+        mouse_drag_end = (mouse_drag_start[0] + 32, mouse_drag_start[1])
+        mouse_drag_points = (mouse_drag_mid, mouse_drag_end)
+        action_started = time.perf_counter()
+        mouse_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, mouse_drag_start[0], mouse_drag_start[1], wparam=_MK_LBUTTON)
+        stroke_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        stroke_started_handled = tab._handle_standalone_native_mesh_edit_stroke_started(
+            stroke_started_status.get("payload", {}),
+        )
+        mouse_move_sent = True
+        stroke_preview_statuses: list[dict[str, object]] = []
+        stroke_preview_handled = True
+        edit_update_events: list[dict[str, object]] = []
+        d3d11_update_ms = 0.0
+        for move_x, move_y in mouse_drag_points:
+            mouse_move_sent = bool(
+                mouse_move_sent and _send_mouse_message(hwnd, _WM_MOUSEMOVE, move_x, move_y, wparam=_MK_LBUTTON)
+            )
+            preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
+            status_file.unlink(missing_ok=True)
+            stroke_preview_statuses.append(preview_status)
+            d3d11_update_started = time.perf_counter()
+            preview_handled = tab._handle_standalone_native_mesh_edit_stroke_previewed(
+                preview_status.get("payload", {}),
+            )
+            stroke_preview_handled = bool(stroke_preview_handled and preview_handled)
+            update_event = (
+                _wait_for_status(status_file, {"mesh_edit_vertices_updated", "mesh_edit_triangles_replaced"}, timeout_seconds)
+                if preview_handled
+                else {}
+            )
+            d3d11_update_ms += (time.perf_counter() - d3d11_update_started) * 1000.0
+            status_file.unlink(missing_ok=True)
+            edit_update_events.append(update_event)
+        stroke_preview_status = stroke_preview_statuses[-1] if stroke_preview_statuses else {}
+        edit_update_event = edit_update_events[-1] if edit_update_events else {}
+        edit_result = tab.standalone_last_action_result
+        mouse_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, mouse_drag_end[0], mouse_drag_end[1])
+        stroke_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        stroke_finished_handled = tab._handle_standalone_native_mesh_edit_stroke_finished(
+            stroke_finished_status.get("payload", {}),
+        )
+        action_elapsed_ms = (time.perf_counter() - action_started) * 1000.0
+        _send_json_command(hwnd, {"command": "capture_frame", "path": str(after_capture_path)})
+        after_capture_event = _wait_for_status(status_file, {"frame_capture"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+
+        after_mesh = controller.working_mesh(clone=True)
+        after_vertices = [
+            tuple(float(component) for component in after_mesh.submeshes[submesh_index].vertices[index])
+            for index in face_vertices
+        ]
+        after_selected_center = (
+            tuple(sum(vertex[axis] for vertex in after_vertices) / len(after_vertices) for axis in range(3))
+            if after_vertices
+            else (0.0, 0.0, 0.0)
+        )
+        stroke_preview_payload = stroke_preview_status.get("payload", {})
+        stroke_preview_drag = (
+            dict(stroke_preview_payload.get("screen_drag", {}))
+            if isinstance(stroke_preview_payload, Mapping) and isinstance(stroke_preview_payload.get("screen_drag"), Mapping)
+            else {}
+        )
+        projection_check_drag = stroke_preview_drag or projection_drag
+        projected_after_center = (
+            _project_world_to_screen(
+                tuple(projection_check_drag.get("world_view_projection") or ()),
+                after_selected_center,
+                viewport_x=float(projection_check_drag.get("viewport_x", 0.0) or 0.0),
+                viewport_y=float(projection_check_drag.get("viewport_y", 0.0) or 0.0),
+                viewport_width=float(projection_check_drag.get("viewport_width", 0.0) or 0.0),
+                viewport_height=float(projection_check_drag.get("viewport_height", 0.0) or 0.0),
+            )
+            if projection_check_drag
+            else None
+        )
+        projected_screen_delta = (
+            (
+                projected_after_center[0] - projected_center[0],
+                projected_after_center[1] - projected_center[1],
+            )
+            if projected_center is not None and projected_after_center is not None
+            else None
+        )
+        expected_screen_delta = (mouse_drag_end[0] - mouse_drag_start[0], mouse_drag_end[1] - mouse_drag_start[1])
+        projected_screen_error = (
+            math.hypot(projected_screen_delta[0] - expected_screen_delta[0], projected_screen_delta[1] - expected_screen_delta[1])
+            if projected_screen_delta is not None
+            else float("inf")
+        )
+        projected_drag_tracks_cursor = bool(
+            projected_screen_delta is not None
+            and projected_screen_error <= max(8.0, math.hypot(expected_screen_delta[0], expected_screen_delta[1]) * 0.35)
+        )
+        replacement_viewport_offset_ok = (not side_by_side) or viewport_x > 1.0
+        drag_points_in_replacement_viewport = all(
+            viewport_x <= point[0] <= viewport_x + max(viewport_width - 1.0, 0.0)
+            and viewport_y <= point[1] <= viewport_y + max(viewport_height - 1.0, 0.0)
+            for point in (mouse_drag_start, *mouse_drag_points, mouse_drag_end)
+        )
+        moved = any(
+            any(abs(after[axis] - before[axis]) > 1e-5 for axis in range(3))
+            for before, after in zip(before_vertices, after_vertices)
+        )
+        max_selected_vertex_delta = max(
+            (
+                math.sqrt(sum((after[axis] - before[axis]) * (after[axis] - before[axis]) for axis in range(3)))
+                for before, after in zip(before_vertices, after_vertices)
+            ),
+            default=0.0,
+        )
+        fallback_counts = native_mesh_core_fallback_counts()
+        before_capture_summary = _png_capture_summary(before_capture_path) if before_capture_path.is_file() else {"ok": False, "error": "before capture missing"}
+        selected_before_capture_summary = (
+            _png_capture_summary(selected_before_capture_path)
+            if selected_before_capture_path.is_file()
+            else {"ok": False, "error": "selected-before capture missing"}
+        )
+        after_capture_summary = _png_capture_summary(after_capture_path) if after_capture_path.is_file() else {"ok": False, "error": "after capture missing"}
+        visual_proof_summary = _write_real_archive_visual_edit_proof(
+            selected_before_capture_path,
+            after_capture_path,
+            visual_proof_path,
+            before_center=projected_center,
+            after_center=projected_after_center,
+        )
+        changed_vertices_raw = edit_result.changed_vertices_by_submesh if edit_result is not None else ()
+        if isinstance(changed_vertices_raw, Mapping):
+            changed_vertex_groups = tuple(changed_vertices_raw.values())
+        else:
+            changed_vertex_groups = tuple(values for _submesh, values in tuple(changed_vertices_raw or ()))
+        edit_changed_vertices = 0
+        for values in changed_vertex_groups:
+            if isinstance(values, Mapping):
+                descriptor = values.get("changed_vertices_binary") or values.get("source_vertex_indices_binary")
+                if isinstance(descriptor, Mapping):
+                    edit_changed_vertices += int(descriptor.get("count", 0) or 0)
+                else:
+                    edit_changed_vertices += int(values.get("source_vertex_count", 0) or 0)
+            else:
+                edit_changed_vertices += len(tuple(values or ()))
+        ok = bool(
+            select_result.ok
+            and select_update_ok
+            and edit_result is not None
+            and edit_result.ok
+            and projection_probe_down_sent
+            and projection_probe_up_sent
+            and projection_probe_status.get("event") == "mesh_edit_stroke_started"
+            and projection_probe_finished_status.get("event") in {"mesh_edit_stroke_previewed", "mesh_edit_stroke_finished"}
+            and selected_projection_ok
+            and mouse_down_sent
+            and mouse_move_sent
+            and mouse_up_sent
+            and stroke_started_status.get("event") == "mesh_edit_stroke_started"
+            and len(stroke_preview_statuses) == len(mouse_drag_points)
+            and all(status.get("event") == "mesh_edit_stroke_previewed" for status in stroke_preview_statuses)
+            and stroke_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and stroke_started_handled
+            and stroke_preview_handled
+            and stroke_finished_handled
+            and all(event.get("event") == "mesh_edit_vertices_updated" for event in edit_update_events)
+            and all(int(event.get("changed_vertices", 0) or 0) > 0 for event in edit_update_events)
+            and moved
+            and 0.01 <= max_selected_vertex_delta <= 0.25
+            and projected_drag_tracks_cursor
+            and replacement_viewport_offset_ok
+            and drag_points_in_replacement_viewport
+            and before_capture_summary.get("ok")
+            and selected_before_capture_summary.get("ok")
+            and after_capture_summary.get("ok")
+            and visual_proof_summary.get("ok")
+            and not fallback_counts
+        )
+        return {
+            "ok": ok,
+            "read_only": True,
+            "native_core_available": True,
+            "workflow": "PAMT PAC entry -> native face select -> D3D11 mouse ring drag -> MeshEditorTab native stroke handler -> D3D11 vertex delta -> before/after capture",
+            "display_mode": "side_by_side" if side_by_side else "replacement_only",
+            "game_root": str(game_root),
+            "pamt_path": str(pamt_path),
+            "model_path": model_entry.path,
+            "submesh_index": submesh_index,
+            "selected_face": selected_faces[0] if selected_faces else -1,
+            "selected_face_count": len(selected_faces),
+            "before_vertex_count": len(submesh.vertices),
+            "before_face_count": len(submesh.faces),
+            "selected_face_vertices": face_vertices,
+            "selected_face_before_vertices": [list(vertex) for vertex in before_vertices],
+            "selected_face_after_vertices": [list(vertex) for vertex in after_vertices],
+            "selected_face_moved": moved,
+            "native_changed_vertices": edit_changed_vertices,
+            "select_update_ok": select_update_ok,
+            "edit_update_ok": bool(stroke_preview_handled),
+            "edit_update_event": edit_update_event,
+            "host_calls": list(edit_host.calls),
+            "mesh_edit_state_event": mesh_edit_state_event,
+            "mesh_edit_states": list(edit_host.mesh_edit_states),
+            "projection_probe_down_sent": projection_probe_down_sent,
+            "projection_probe_up_sent": projection_probe_up_sent,
+            "projection_probe_status": projection_probe_status,
+            "projection_probe_finished_status": projection_probe_finished_status,
+            "selected_center": list(selected_center),
+            "selected_projected_screen_center": list(projected_center) if projected_center is not None else None,
+            "selected_projected_after_screen_center": list(projected_after_center) if projected_after_center is not None else None,
+            "selected_projected_screen_delta": list(projected_screen_delta) if projected_screen_delta is not None else None,
+            "expected_screen_delta": list(expected_screen_delta),
+            "selected_projected_screen_error": projected_screen_error,
+            "selected_projected_drag_tracks_cursor": projected_drag_tracks_cursor,
+            "replacement_viewport_offset_ok": replacement_viewport_offset_ok,
+            "drag_points_in_replacement_viewport": drag_points_in_replacement_viewport,
+            "replacement_viewport": {
+                "x": viewport_x,
+                "y": viewport_y,
+                "width": viewport_width,
+                "height": viewport_height,
+            },
+            "selected_projection_ok": selected_projection_ok,
+            "mouse_down_sent": mouse_down_sent,
+            "mouse_move_sent": mouse_move_sent,
+            "mouse_up_sent": mouse_up_sent,
+            "mouse_drag_start": list(mouse_drag_start),
+            "mouse_drag_points": [list(point) for point in mouse_drag_points],
+            "mouse_drag_end": list(mouse_drag_end),
+            "mouse_drag_pixels": math.sqrt(
+                (mouse_drag_end[0] - mouse_drag_start[0]) * (mouse_drag_end[0] - mouse_drag_start[0])
+                + (mouse_drag_end[1] - mouse_drag_start[1]) * (mouse_drag_end[1] - mouse_drag_start[1])
+            ),
+            "max_selected_vertex_delta": max_selected_vertex_delta,
+            "stroke_started_status": stroke_started_status,
+            "stroke_preview_status": stroke_preview_status,
+            "stroke_preview_statuses": stroke_preview_statuses,
+            "stroke_finished_status": stroke_finished_status,
+            "edit_update_events": edit_update_events,
+            "stroke_started_handled": stroke_started_handled,
+            "stroke_preview_handled": stroke_preview_handled,
+            "stroke_finished_handled": stroke_finished_handled,
+            "before_capture_png": str(before_capture_path),
+            "selected_before_capture_png": str(selected_before_capture_path),
+            "after_capture_png": str(after_capture_path),
+            "visual_edit_proof_png": str(visual_proof_path),
+            "before_capture_event": before_capture_event,
+            "selected_before_capture_event": selected_before_capture_event,
+            "after_capture_event": after_capture_event,
+            "before_capture_summary": before_capture_summary,
+            "selected_before_capture_summary": selected_before_capture_summary,
+            "after_capture_summary": after_capture_summary,
+            "visual_edit_proof_summary": visual_proof_summary,
+            "action_elapsed_ms": action_elapsed_ms,
+            "d3d11_update_ms": d3d11_update_ms,
+            "command": _command_summary(edit_result) if edit_result is not None else {},
+            "native_fallback_ok": not fallback_counts,
+            "native_fallback_counts": fallback_counts,
+            "native_fallback_events": list(native_mesh_core_fallback_events()),
+        }
+    finally:
+        if tab is not None:
+            try:
+                tab.close_standalone_session()
+                tab.deleteLater()
+            except Exception:
+                pass
+        elif controller is not None:
+            controller.close_active_session()
+        _close_process(process)
+
+
+def _run_long_vertex_edit_tool(action: str, repeat_count: int, command_factory: object) -> dict[str, object]:
+    service = MeshService()
+    view = service.open_edit_session(_build_long_edit_mesh(), session_id=f"long-edit-{action}", mode="edit")
+    before = service.working_mesh(view.session_id, clone=True)
+    texture_before = _mesh_textures(before)
+    commands: list[dict[str, object]] = []
+    started = time.perf_counter()
+    for _index in range(int(repeat_count)):
+        command = command_factory()
+        result = service.apply_command(view.session_id, command)
+        commands.append(_command_summary(result))
+    elapsed_ms = (time.perf_counter() - started) * 1000.0
+    after = service.working_mesh(view.session_id, clone=True)
+    service.apply_command(view.session_id, MeshEditCommand("set_mode", mode="object"))
+    service.apply_command(view.session_id, MeshEditCommand("set_mode", mode="edit"))
+    toggled = service.working_mesh(view.session_id, clone=True)
+    service.close_edit_session(view.session_id)
+    changed = _mesh_vertices_changed(before, toggled)
+    toggle_persistence_ok = _mesh_geometry_signature(after) == _mesh_geometry_signature(toggled)
+    texture_ok = _mesh_textures(toggled) == texture_before
+    command_ok = all(command["status"] == "ok" for command in commands)
+    return {
+        "tool": action,
+        "ok": bool(command_ok and changed and toggle_persistence_ok and texture_ok),
+        "repeat_count": int(repeat_count),
+        "elapsed_ms": elapsed_ms,
+        "command_ok": command_ok,
+        "changed_vertices": changed,
+        "toggle_persistence_ok": toggle_persistence_ok,
+        "texture_ok": texture_ok,
+        "face_count_before": _mesh_face_count(before),
+        "face_count_after": _mesh_face_count(after),
+        "commands": commands,
+    }
+
+
+def _run_long_topology_edit_tool(action: str, selection_kind: str) -> dict[str, object]:
+    service = MeshService()
+    view = service.open_edit_session(_build_long_edit_mesh(), session_id=f"long-edit-{action}-{selection_kind}", mode="edit")
+    before = service.working_mesh(view.session_id, clone=True)
+    texture_before = _mesh_textures(before)
+    params: dict[str, object] = {"recompute_normals": True}
+    if action in {"subdivide", "refine_smooth"}:
+        params.update({"max_faces_per_submesh": 512, "smooth_iterations": 2, "smooth_strength": 0.45})
+    started = time.perf_counter()
+    selection = _long_edit_split_selection(selection_kind) if action == "split" else _long_edit_topology_selection(selection_kind)
+    result = service.apply_command(
+        view.session_id,
+        MeshEditCommand(action, selection=selection, params=params),
+    )
+    elapsed_ms = (time.perf_counter() - started) * 1000.0
+    after = service.working_mesh(view.session_id, clone=True)
+    service.apply_command(view.session_id, MeshEditCommand("set_mode", mode="object"))
+    service.apply_command(view.session_id, MeshEditCommand("set_mode", mode="edit"))
+    toggled = service.working_mesh(view.session_id, clone=True)
+    service.close_edit_session(view.session_id)
+    before_faces = _mesh_face_count(before)
+    toggled_faces = _mesh_face_count(toggled)
+    before_vertices = _mesh_vertex_count(before)
+    toggled_vertices = _mesh_vertex_count(toggled)
+    if action == "delete":
+        topology_delta_ok = toggled_faces < before_faces
+    elif action == "split":
+        topology_delta_ok = toggled_vertices > before_vertices and toggled_faces == before_faces
+    else:
+        topology_delta_ok = toggled_faces > before_faces
+    toggle_persistence_ok = _mesh_geometry_signature(after) == _mesh_geometry_signature(toggled)
+    texture_ok = _mesh_textures(toggled) == texture_before
+    return {
+        "tool": f"{action}_{selection_kind}",
+        "ok": bool(result.ok and topology_delta_ok and toggle_persistence_ok and texture_ok),
+        "elapsed_ms": elapsed_ms,
+        "command": _command_summary(result),
+        "topology_delta_ok": topology_delta_ok,
+        "toggle_persistence_ok": toggle_persistence_ok,
+        "texture_ok": texture_ok,
+        "face_count_before": before_faces,
+        "face_count_after": toggled_faces,
+        "submesh_count_before": len(before.submeshes),
+        "submesh_count_after": len(toggled.submeshes),
+        "vertex_count_before": before_vertices,
+        "vertex_count_after": toggled_vertices,
+    }
+
+
+def _build_long_edit_mesh() -> ParsedMesh:
+    return ParsedMesh(
+        path="long-edit.pac",
+        format="pac",
+        submeshes=[
+            SubMesh(
+                name="long_edit_patch",
+                material="long_edit_material",
+                texture="harness.dds",
+                vertices=[
+                    (-1.0, -1.0, 0.0),
+                    (1.0, -1.0, 0.0),
+                    (1.0, 1.0, 0.0),
+                    (-1.0, 1.0, 0.0),
+                    (0.0, 0.0, 0.6),
+                ],
+                uvs=[(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0), (0.5, 0.5)],
+                normals=[(0.0, 0.0, 1.0)] * 5,
+                faces=[(0, 1, 4), (1, 2, 4), (2, 3, 4), (3, 0, 4)],
+                vertex_count=5,
+                face_count=4,
+            )
+        ],
+        total_vertices=5,
+        total_faces=4,
+        has_uvs=True,
+    )
+
+
+def _long_edit_vertex_selection() -> MeshEditSelection:
+    return MeshEditSelection.from_maps(vertices_by_submesh={0: (0, 1, 2, 3, 4)})
+
+
+def _long_edit_topology_selection(selection_kind: str) -> MeshEditSelection:
+    if selection_kind == "edge":
+        return MeshEditSelection.from_maps(edges_by_submesh={0: ((0, 1),)})
+    if selection_kind == "vertex":
+        return MeshEditSelection.from_maps(vertices_by_submesh={0: (4,)})
+    return MeshEditSelection.from_maps(faces_by_submesh={0: (0,)})
+
+
+def _long_edit_split_selection(selection_kind: str) -> MeshEditSelection:
+    if selection_kind == "edge":
+        return MeshEditSelection.from_maps(edges_by_submesh={0: ((0, 1),)})
+    if selection_kind == "vertex":
+        return MeshEditSelection.from_maps(vertices_by_submesh={0: (0,)})
+    return MeshEditSelection.from_maps(faces_by_submesh={0: (0,)})
+
+
+def _mesh_textures(mesh: ParsedMesh) -> tuple[str, ...]:
+    return tuple(str(getattr(submesh, "texture", "") or "") for submesh in tuple(mesh.submeshes or ()))
+
+
+def _mesh_face_count(mesh: ParsedMesh) -> int:
+    return sum(len(getattr(submesh, "faces", ()) or ()) for submesh in tuple(mesh.submeshes or ()))
+
+
+def _mesh_vertex_count(mesh: ParsedMesh) -> int:
+    return sum(len(getattr(submesh, "vertices", ()) or ()) for submesh in tuple(mesh.submeshes or ()))
+
+
+def _mesh_geometry_signature(mesh: ParsedMesh) -> tuple[tuple[object, ...], ...]:
+    return tuple(
+        (
+            tuple(tuple(round(float(component), 8) for component in vertex) for vertex in (submesh.vertices or ())),
+            tuple(tuple(int(index) for index in face) for face in (submesh.faces or ())),
+            str(getattr(submesh, "material", "") or ""),
+            str(getattr(submesh, "texture", "") or ""),
+        )
+        for submesh in tuple(mesh.submeshes or ())
+    )
+
+
+def _command_summary(result: object) -> dict[str, object]:
+    summary = {
         "action": getattr(result, "action", ""),
         "status": getattr(result, "status", ""),
         "revision": getattr(result, "revision", 0),
         "affected_submesh_indices": list(getattr(result, "affected_submesh_indices", ())),
         "topology_changed": bool(getattr(result, "topology_changed", False)),
+        "submesh_count_delta": int(getattr(result, "submesh_count_delta", 0) or 0),
     }
+    metrics = getattr(result, "metrics", None)
+    if isinstance(metrics, Mapping) and metrics:
+        summary["metrics"] = {str(key): float(value) for key, value in metrics.items()}
+    return summary
 
 
 def _palette_command_summary(action_key: str, command: str, result: object) -> dict[str, object]:
@@ -553,7 +3310,7 @@ def _selection_pruning_smoke() -> dict[str, object]:
         "ok": bool(
             malformed["vertices_by_submesh"] == {"0": [0, 3]}
             and malformed["edges_by_submesh"] == {"0": [[0, 1]]}
-            and malformed["faces_by_submesh"] == {"0": [1]}
+            and malformed["faces_by_submesh"] == {}
             and loose_edge["edges_by_submesh"] == {"0": [[0, 3]]}
         ),
         "malformed": malformed,
@@ -991,7 +3748,7 @@ def _material_operation_smoke() -> dict[str, object]:
         "ok": bool(
             face_assign.ok
             and face_assign.topology_changed
-            and face_assign.affected_submesh_indices == (1,)
+            and set(face_assign.affected_submesh_indices) == {0, 1}
             and len(submeshes) == 2
             and submeshes[0]["material"] == "harness_material"
             and submeshes[0]["face_count"] == 1
@@ -1001,7 +3758,7 @@ def _material_operation_smoke() -> dict[str, object]:
             and submeshes[1]["overrides"] == {"roughness": 0.4}
             and face_copy.ok
             and face_copy.topology_changed
-            and face_copy.affected_submesh_indices == (2,)
+            and set(face_copy.affected_submesh_indices) == {1, 2}
             and len(copied_submeshes) == 3
             and copied_submeshes[1]["material"] == "harness_material_b"
             and copied_submeshes[1]["face_count"] == 1
@@ -1300,6 +4057,7 @@ def _edge_face_topology_smoke() -> dict[str, object]:
         source_recalc_view.session_id,
         MeshEditCommand("recalculate_normals", selection=MeshEditSelection.from_maps(source_indices=(0,))),
     )
+    source_recalc_submesh = service.working_mesh(source_recalc_view.session_id).submeshes[0]
     source_recalc_normals = [list(normal) for normal in source_recalc_submesh.normals]
     service.close_edit_session(source_recalc_view.session_id)
 
@@ -1652,10 +4410,15 @@ def run_native_smoke(mesh: ParsedMesh, output_dir: Path, *, timeout_seconds: flo
     package_dir = output_dir / "preview_package"
     status_file = output_dir / "native_status.json"
     capture_path = output_dir / "preview.png"
+    texture_path = output_dir / "harness_checker.png"
+    _write_checker_png(texture_path)
+    for submesh in mesh.submeshes:
+        if submesh.uvs:
+            submesh.texture = str(texture_path)
     package_dir = mesh_editor_write_native_preview_package(
         mesh,
         output_root=package_dir,
-        use_textures=False,
+        use_textures=True,
         backend="d3d11",
     )
     process = subprocess.Popen(
@@ -1675,14 +4438,67 @@ def run_native_smoke(mesh: ParsedMesh, output_dir: Path, *, timeout_seconds: flo
         loaded = _wait_for_status(status_file, {"loaded", "resources_loaded"}, timeout_seconds)
         loaded_ok = loaded.get("event") in {"loaded", "resources_loaded"}
         hwnd = _wait_for_host_window(process.pid, timeout_seconds)
+        _place_host_window_on_screen1(hwnd)
+        status_file.unlink(missing_ok=True)
+        texture_status_before_sent = _send_json_command(hwnd, {"command": "get_status"})
+        texture_status_before = _wait_for_status(status_file, {"status"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        mesh_edit_enable_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "brush",
+                "tool": "grab",
+            },
+        )
+        mesh_edit_enable_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        texture_status_enabled_sent = _send_json_command(hwnd, {"command": "get_status"})
+        texture_status_enabled = _wait_for_status(status_file, {"status"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        alignment_transform_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_alignment_transforms",
+                "parts": [
+                    {
+                        "source_submesh_indices": [0],
+                        "translation": [0.01, 0.0, 0.0],
+                        "rotation_degrees": [0.0, 0.0, 0.0],
+                        "scale_xyz": [1.01, 1.0, 1.0],
+                    }
+                ],
+            },
+        )
+        alignment_transform_status = _wait_for_status(status_file, {"alignment_transforms"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        grab_brush_target_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        grab_brush_target_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        grab_brush_target_move_sent = _send_mouse_message(hwnd, _WM_MOUSEMOVE, 472, 360, wparam=_MK_LBUTTON)
+        grab_brush_target_preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        grab_brush_target_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 472, 360)
+        grab_brush_target_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
         commands = [
-            {"command": "set_mesh_edit_state", "enabled": True, "source_submesh_indices": [0], "target_mode": "brush", "tool": "grab"},
             {"command": "set_mesh_edit_selection", "groups": mesh_edit_selection_groups(mesh, MeshEditSelection.from_maps(vertices_by_submesh={0: (0, 1, 2)}))},
             {"command": "update_mesh_edit_vertices", "groups": mesh_edit_vertex_update_groups(mesh, {0: (0, 1, 2)})},
             {"command": "set_material_overrides", **(mesh_edit_material_override_groups(mesh, (0,))[0] if mesh_edit_material_override_groups(mesh, (0,)) else {})},
             {"command": "replace_mesh_edit_triangles", "groups": mesh_edit_triangle_groups(mesh), "replace_all": True},
         ]
         sent = [_send_json_command(hwnd, command) for command in commands]
+        sent.extend((
+            texture_status_before_sent,
+            mesh_edit_enable_sent,
+            texture_status_enabled_sent,
+            alignment_transform_sent,
+            grab_brush_target_down_sent,
+            grab_brush_target_move_sent,
+            grab_brush_target_up_sent,
+        ))
         status_file.unlink(missing_ok=True)
         face_selection_sent = _send_json_command(
             hwnd,
@@ -1711,11 +4527,130 @@ def run_native_smoke(mesh: ParsedMesh, output_dir: Path, *, timeout_seconds: flo
         )
         edge_selection_status = _wait_for_status(status_file, {"mesh_edit_selection_changed"}, timeout_seconds)
         status_file.unlink(missing_ok=True)
+        source_selection_sent = _send_json_command(
+            hwnd,
+            {"command": "set_mesh_edit_selection", "groups": [{"source_submesh_index": 0, "source_selected": True}]},
+        )
+        source_selection_status = _wait_for_status(status_file, {"mesh_edit_selection_changed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        source_screen_selection_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "select_mesh_edit_brush",
+                "target_mode": "source",
+                "operation": "replace",
+                "selection_depth_mode": "xray",
+                "x": 440,
+                "y": 360,
+            },
+        )
+        source_screen_selection_status = _wait_for_status(status_file, {"mesh_edit_selection_changed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
         empty_selection_sent = _send_json_command(
             hwnd,
             {"command": "set_mesh_edit_selection", "groups": []},
         )
         empty_selection_status = _wait_for_status(status_file, {"mesh_edit_selection_changed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        move_screen_selection_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "selection",
+                "tool": "move",
+                "selection_mode": "brush",
+                "radius_pixels": 96,
+            },
+        )
+        move_screen_selection_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        move_screen_selection_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        move_screen_selection_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        move_screen_selection_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 440, 360)
+        move_screen_selection_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        grab_screen_selection_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "selection",
+                "tool": "grab",
+                "selection_mode": "brush",
+                "radius_pixels": 96,
+                "strength": 0.5,
+            },
+        )
+        grab_screen_selection_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        grab_screen_selection_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        grab_screen_selection_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        grab_screen_selection_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 440, 360)
+        grab_screen_selection_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        selected_drag_selection_sent = _send_json_command(
+            hwnd,
+            {"command": "set_mesh_edit_selection", "groups": mesh_edit_selection_groups(mesh, MeshEditSelection.from_maps(vertices_by_submesh={0: (0, 1, 2)}))},
+        )
+        selected_drag_selection_status = _wait_for_status(status_file, {"mesh_edit_selection_changed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        selected_move_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "selection",
+                "tool": "move",
+                "selection_mode": "brush",
+                "radius_pixels": 96,
+            },
+        )
+        selected_move_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        selected_move_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        selected_move_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        selected_move_move_sent = _send_mouse_message(hwnd, _WM_MOUSEMOVE, 472, 360, wparam=_MK_LBUTTON)
+        selected_move_preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        selected_move_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 472, 360)
+        selected_move_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        selected_grab_selection_sent = _send_json_command(
+            hwnd,
+            {"command": "set_mesh_edit_selection", "groups": mesh_edit_selection_groups(mesh, MeshEditSelection.from_maps(vertices_by_submesh={0: (0, 1, 2)}))},
+        )
+        selected_grab_selection_status = _wait_for_status(status_file, {"mesh_edit_selection_changed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        selected_grab_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "selection",
+                "tool": "grab",
+                "selection_mode": "brush",
+                "radius_pixels": 96,
+                "strength": 0.5,
+            },
+        )
+        selected_grab_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        selected_grab_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        selected_grab_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        selected_grab_move_sent = _send_mouse_message(hwnd, _WM_MOUSEMOVE, 472, 360, wparam=_MK_LBUTTON)
+        selected_grab_preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        selected_grab_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 472, 360)
+        selected_grab_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
         status_file.unlink(missing_ok=True)
         edge_brush_state_sent = _send_json_command(
             hwnd,
@@ -1737,6 +4672,189 @@ def run_native_smoke(mesh: ParsedMesh, output_dir: Path, *, timeout_seconds: flo
         )
         edge_brush_status = _wait_for_status(status_file, {"mesh_edit_selection_changed"}, timeout_seconds)
         status_file.unlink(missing_ok=True)
+        drag_selection_sent = _send_json_command(
+            hwnd,
+            {"command": "set_mesh_edit_selection", "groups": [{"source_submesh_index": 0, "source_vertex_indices": [0, 1]}]},
+        )
+        drag_selection_status = _wait_for_status(status_file, {"mesh_edit_selection_changed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        drag_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "selection",
+                "tool": "move",
+                "selection_mode": "brush",
+                "radius_pixels": 96,
+            },
+        )
+        drag_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        stroke_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        stroke_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        stroke_move_sent = _send_mouse_message(hwnd, _WM_MOUSEMOVE, 472, 360, wparam=_MK_LBUTTON)
+        stroke_preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        stroke_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 472, 360)
+        stroke_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        brush_stroke_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "selection",
+                "tool": "grab",
+                "selection_mode": "brush",
+                "radius_pixels": 96,
+                "strength": 0.5,
+            },
+        )
+        brush_stroke_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        brush_stroke_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        brush_stroke_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        brush_stroke_move_sent = _send_mouse_message(hwnd, _WM_MOUSEMOVE, 472, 360, wparam=_MK_LBUTTON)
+        brush_stroke_preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        brush_stroke_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 472, 360)
+        brush_stroke_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        smooth_stroke_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "selection",
+                "tool": "smooth",
+                "selection_mode": "brush",
+                "radius_pixels": 96,
+                "strength": 0.5,
+                "smooth_iterations": 2,
+            },
+        )
+        smooth_stroke_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        smooth_stroke_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        smooth_stroke_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        smooth_stroke_move_sent = _send_mouse_message(hwnd, _WM_MOUSEMOVE, 472, 360, wparam=_MK_LBUTTON)
+        smooth_stroke_preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        smooth_stroke_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 472, 360)
+        smooth_stroke_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        inflate_stroke_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "selection",
+                "tool": "inflate",
+                "selection_mode": "brush",
+                "radius_pixels": 96,
+                "strength": 0.5,
+            },
+        )
+        inflate_stroke_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        inflate_stroke_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        inflate_stroke_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        inflate_stroke_move_sent = _send_mouse_message(hwnd, _WM_MOUSEMOVE, 472, 360, wparam=_MK_LBUTTON)
+        inflate_stroke_preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        inflate_stroke_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 472, 360)
+        inflate_stroke_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        remove_release_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "brush",
+                "tool": "remove",
+                "delete_mode": "release",
+                "selection_mode": "brush",
+                "selection_depth_mode": "xray",
+                "radius_pixels": 96,
+            },
+        )
+        remove_release_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        remove_release_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        remove_release_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        remove_release_move_sent = _send_mouse_message(hwnd, _WM_MOUSEMOVE, 472, 360, wparam=_MK_LBUTTON)
+        remove_release_preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        remove_release_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 472, 360)
+        remove_release_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        remove_live_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "brush",
+                "tool": "remove",
+                "delete_mode": "live",
+                "selection_mode": "brush",
+                "selection_depth_mode": "xray",
+                "radius_pixels": 96,
+            },
+        )
+        remove_live_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        remove_live_down_sent = _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        remove_live_started_status = _wait_for_status(status_file, {"mesh_edit_stroke_started"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        remove_live_move_sent = _send_mouse_message(hwnd, _WM_MOUSEMOVE, 472, 360, wparam=_MK_LBUTTON)
+        remove_live_preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        remove_live_up_sent = _send_mouse_message(hwnd, _WM_LBUTTONUP, 472, 360)
+        remove_live_finished_status = _wait_for_status(status_file, {"mesh_edit_stroke_finished"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        drag_restore_state_sent = _send_json_command(
+            hwnd,
+            {
+                "command": "set_mesh_edit_state",
+                "enabled": True,
+                "source_submesh_indices": [0],
+                "target_mode": "edge",
+                "tool": "vertex",
+                "selection_mode": "brush",
+                "selection_depth_mode": "xray",
+                "radius_pixels": 96,
+            },
+        )
+        drag_restore_state_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        brush_drag_status_before_sent = _send_json_command(hwnd, {"command": "get_status"})
+        brush_drag_status_before = _wait_for_status(status_file, {"status"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        brush_drag_started_at = time.monotonic()
+        brush_drag_messages = [
+            _send_mouse_message(hwnd, _WM_LBUTTONDOWN, 440, 360, wparam=_MK_LBUTTON)
+        ]
+        brush_drag_messages.extend(
+            _send_mouse_message(hwnd, _WM_MOUSEMOVE, 440 + (step * 4), 360, wparam=_MK_LBUTTON)
+            for step in range(1, 61)
+        )
+        brush_drag_messages.append(_send_mouse_message(hwnd, _WM_LBUTTONUP, 684, 360))
+        brush_drag_elapsed_ms = (time.monotonic() - brush_drag_started_at) * 1000.0
+        brush_drag_status_after_sent = _send_json_command(hwnd, {"command": "get_status"})
+        brush_drag_status_after = _wait_for_status(status_file, {"status"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
         created_part_sent = _send_json_command(
             hwnd,
             {
@@ -1755,16 +4873,72 @@ def run_native_smoke(mesh: ParsedMesh, output_dir: Path, *, timeout_seconds: flo
             },
         )
         pruned_part_status = _wait_for_status(status_file, {"mesh_edit_triangles_replaced"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        mesh_edit_disable_sent = _send_json_command(hwnd, {"command": "set_mesh_edit_state", "enabled": False})
+        mesh_edit_disable_status = _wait_for_status(status_file, {"mesh_edit_state"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
+        texture_status_disabled_sent = _send_json_command(hwnd, {"command": "get_status"})
+        texture_status_disabled = _wait_for_status(status_file, {"status"}, timeout_seconds)
+        status_file.unlink(missing_ok=True)
         capture_sent = _send_json_command(hwnd, {"command": "capture_frame", "path": str(capture_path)})
         sent.extend((
             face_selection_sent,
             face_region_sent,
             edge_selection_sent,
+            source_selection_sent,
+            source_screen_selection_sent,
             empty_selection_sent,
+            move_screen_selection_state_sent,
+            move_screen_selection_down_sent,
+            move_screen_selection_up_sent,
+            grab_screen_selection_state_sent,
+            grab_screen_selection_down_sent,
+            grab_screen_selection_up_sent,
+            selected_drag_selection_sent,
+            selected_move_state_sent,
+            selected_move_down_sent,
+            selected_move_move_sent,
+            selected_move_up_sent,
+            selected_grab_selection_sent,
+            selected_grab_state_sent,
+            selected_grab_down_sent,
+            selected_grab_move_sent,
+            selected_grab_up_sent,
             edge_brush_state_sent,
             edge_brush_sent,
+            drag_selection_sent,
+            drag_state_sent,
+            stroke_down_sent,
+            stroke_move_sent,
+            stroke_up_sent,
+            brush_stroke_state_sent,
+            brush_stroke_down_sent,
+            brush_stroke_move_sent,
+            brush_stroke_up_sent,
+            smooth_stroke_state_sent,
+            smooth_stroke_down_sent,
+            smooth_stroke_move_sent,
+            smooth_stroke_up_sent,
+            inflate_stroke_state_sent,
+            inflate_stroke_down_sent,
+            inflate_stroke_move_sent,
+            inflate_stroke_up_sent,
+            remove_release_state_sent,
+            remove_release_down_sent,
+            remove_release_move_sent,
+            remove_release_up_sent,
+            remove_live_state_sent,
+            remove_live_down_sent,
+            remove_live_move_sent,
+            remove_live_up_sent,
+            drag_restore_state_sent,
+            brush_drag_status_before_sent,
+            *brush_drag_messages,
+            brush_drag_status_after_sent,
             created_part_sent,
             pruned_part_sent,
+            mesh_edit_disable_sent,
+            texture_status_disabled_sent,
             capture_sent,
         ))
         captured = _wait_for_file(capture_path, timeout_seconds)
@@ -1775,30 +4949,547 @@ def run_native_smoke(mesh: ParsedMesh, output_dir: Path, *, timeout_seconds: flo
             and int(face_payload.get("selected_face_count", 0) or 0) >= 1
         )
         face_region_payload = dict(face_region_status.get("payload", {}) or {})
+        raw_face_region_screen_region = face_region_payload.get("screen_region")
+        face_region_screen_region = dict(raw_face_region_screen_region) if isinstance(raw_face_region_screen_region, Mapping) else {}
+        face_region_world_view_projection = tuple(face_region_screen_region.get("world_view_projection") or ())
+        face_region_world_view_projection_ok = (
+            len(face_region_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in face_region_world_view_projection)
+        )
         face_region_ok = (
-            int(face_region_payload.get("selected_vertex_count", 0) or 0) >= 3
-            and int(face_region_payload.get("selected_face_count", 0) or 0) >= 1
-            and any(group.get("source_face_indices") for group in tuple(face_region_payload.get("groups") or ()) if isinstance(group, dict))
+            face_region_status.get("event") == "mesh_edit_selection_changed"
+            and str(face_region_payload.get("target_mode") or "").strip().lower() == "face"
+            and str(face_region_payload.get("selection_depth_mode") or "").strip().lower() in {"visible", "xray"}
+            and "groups" not in face_region_payload
+            and "screen_region" in face_region_payload
+            and all(
+                field in face_region_screen_region
+                for field in ("mode", "start_x", "start_y", "end_x", "end_y", "viewport_width", "viewport_height")
+            )
+            and face_region_world_view_projection_ok
         )
         edge_payload = dict(edge_selection_status.get("payload", {}) or {})
         edge_groups = tuple(edge_payload.get("groups") or ())
+        edge_selection_edges = [
+            edge
+            for group in edge_groups
+            if isinstance(group, Mapping)
+            for edge in _selection_edges_from_group(group)
+        ]
         edge_selection_ok = (
             int(edge_payload.get("selected_vertex_count", 0) or 0) >= 4
             and int(edge_payload.get("selected_edge_count", 0) or 0) >= 2
-            and any(tuple(group.get("source_edges") or ()) == ([0, 1], [2, 3]) for group in edge_groups if isinstance(group, dict))
+            and (0, 1) in edge_selection_edges
+            and (2, 3) in edge_selection_edges
+        )
+        source_payload = dict(source_selection_status.get("payload", {}) or {})
+        source_groups = tuple(source_payload.get("groups") or ())
+        source_selected_groups = [group for group in source_groups if isinstance(group, Mapping) and group.get("source_selected") is True]
+        source_selection_compact = bool(source_selected_groups) and all(
+            "source_vertex_indices" not in group
+            and "source_vertex_indices_binary" not in group
+            and "source_vertex_start" not in group
+            and "source_vertex_count" not in group
+            for group in source_selected_groups
+        )
+        source_selection_ok = (
+            int(source_payload.get("selected_vertex_count", 0) or 0) >= len(mesh.submeshes[0].vertices)
+            and source_selection_compact
+        )
+        source_screen_selection_payload = dict(source_screen_selection_status.get("payload", {}) or {})
+        raw_source_screen_brush = source_screen_selection_payload.get("screen_brush")
+        source_screen_brush = dict(raw_source_screen_brush) if isinstance(raw_source_screen_brush, Mapping) else {}
+        source_screen_world_view_projection = tuple(source_screen_brush.get("world_view_projection") or ())
+        source_screen_world_view_projection_ok = (
+            len(source_screen_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in source_screen_world_view_projection)
+        )
+        source_screen_selection_ok = (
+            source_screen_selection_status.get("event") == "mesh_edit_selection_changed"
+            and str(source_screen_selection_payload.get("target_mode") or "").strip().lower() == "source"
+            and str(source_screen_selection_payload.get("selection_depth_mode") or "").strip().lower() == "xray"
+            and "screen_brush" in source_screen_selection_payload
+            and "groups" not in source_screen_selection_payload
+            and all(field in source_screen_brush for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height"))
+            and source_screen_world_view_projection_ok
+        )
+        move_screen_selection_payload = dict(move_screen_selection_started_status.get("payload", {}) or {})
+        raw_move_screen_brush = move_screen_selection_payload.get("screen_brush")
+        move_screen_brush = dict(raw_move_screen_brush) if isinstance(raw_move_screen_brush, Mapping) else {}
+        raw_move_screen_drag = move_screen_selection_payload.get("screen_drag")
+        move_screen_drag = dict(raw_move_screen_drag) if isinstance(raw_move_screen_drag, Mapping) else {}
+        move_screen_selection_world_view_projection = tuple(move_screen_brush.get("world_view_projection") or ())
+        move_screen_selection_world_view_projection_ok = (
+            len(move_screen_selection_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in move_screen_selection_world_view_projection)
+        )
+        move_screen_selection_ok = (
+            move_screen_selection_state_status.get("event") == "mesh_edit_state"
+            and move_screen_selection_started_status.get("event") == "mesh_edit_stroke_started"
+            and move_screen_selection_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and str(move_screen_selection_payload.get("tool") or "").strip().lower() == "move"
+            and str(move_screen_selection_payload.get("target_mode") or "").strip().lower() == "vertex"
+            and "groups" not in move_screen_selection_payload
+            and "screen_brush" in move_screen_selection_payload
+            and "screen_drag" in move_screen_selection_payload
+            and "center" not in move_screen_selection_payload
+            and all(field in move_screen_brush for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height"))
+            and all(field in move_screen_drag for field in ("start_x", "start_y", "end_x", "end_y"))
+            and move_screen_selection_world_view_projection_ok
+        )
+        grab_screen_selection_payload = dict(grab_screen_selection_started_status.get("payload", {}) or {})
+        raw_grab_selection_screen_brush = grab_screen_selection_payload.get("screen_brush")
+        grab_selection_screen_brush = dict(raw_grab_selection_screen_brush) if isinstance(raw_grab_selection_screen_brush, Mapping) else {}
+        raw_grab_selection_screen_drag = grab_screen_selection_payload.get("screen_drag")
+        grab_selection_screen_drag = dict(raw_grab_selection_screen_drag) if isinstance(raw_grab_selection_screen_drag, Mapping) else {}
+        grab_screen_selection_world_view_projection = tuple(grab_selection_screen_brush.get("world_view_projection") or ())
+        grab_screen_selection_world_view_projection_ok = (
+            len(grab_screen_selection_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in grab_screen_selection_world_view_projection)
+        )
+        grab_screen_selection_ok = (
+            grab_screen_selection_state_status.get("event") == "mesh_edit_state"
+            and grab_screen_selection_started_status.get("event") == "mesh_edit_stroke_started"
+            and grab_screen_selection_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and str(grab_screen_selection_payload.get("tool") or "").strip().lower() == "grab"
+            and str(grab_screen_selection_payload.get("target_mode") or "").strip().lower() == "vertex"
+            and "groups" not in grab_screen_selection_payload
+            and "screen_brush" in grab_screen_selection_payload
+            and "screen_drag" in grab_screen_selection_payload
+            and "strength" in grab_screen_selection_payload
+            and "center" not in grab_screen_selection_payload
+            and all(field in grab_selection_screen_brush for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height"))
+            and all(field in grab_selection_screen_drag for field in ("start_x", "start_y", "end_x", "end_y"))
+            and grab_screen_selection_world_view_projection_ok
+        )
+        selected_move_started_payload = dict(selected_move_started_status.get("payload", {}) or {})
+        selected_move_preview_payload = dict(selected_move_preview_status.get("payload", {}) or {})
+        selected_move_resident_selection_ok = (
+            selected_drag_selection_status.get("event") == "mesh_edit_selection_changed"
+            and selected_move_state_status.get("event") == "mesh_edit_state"
+            and selected_move_started_status.get("event") == "mesh_edit_stroke_started"
+            and selected_move_preview_status.get("event") == "mesh_edit_stroke_previewed"
+            and selected_move_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and str(selected_move_started_payload.get("tool") or "").strip().lower() == "move"
+            and str(selected_move_preview_payload.get("tool") or "").strip().lower() == "move"
+            and "groups" not in selected_move_started_payload
+            and "groups" not in selected_move_preview_payload
+            and "screen_drag" in selected_move_started_payload
+            and "screen_drag" in selected_move_preview_payload
+            and "screen_brush" not in selected_move_started_payload
+            and "screen_brush" not in selected_move_preview_payload
+            and "center" not in selected_move_started_payload
+            and "center" not in selected_move_preview_payload
+        )
+        selected_grab_started_payload = dict(selected_grab_started_status.get("payload", {}) or {})
+        selected_grab_preview_payload = dict(selected_grab_preview_status.get("payload", {}) or {})
+        selected_grab_resident_selection_ok = (
+            selected_grab_selection_status.get("event") == "mesh_edit_selection_changed"
+            and selected_grab_state_status.get("event") == "mesh_edit_state"
+            and selected_grab_started_status.get("event") == "mesh_edit_stroke_started"
+            and selected_grab_preview_status.get("event") == "mesh_edit_stroke_previewed"
+            and selected_grab_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and str(selected_grab_started_payload.get("tool") or "").strip().lower() == "grab"
+            and str(selected_grab_preview_payload.get("tool") or "").strip().lower() == "grab"
+            and "groups" not in selected_grab_started_payload
+            and "groups" not in selected_grab_preview_payload
+            and "screen_drag" in selected_grab_started_payload
+            and "screen_drag" in selected_grab_preview_payload
+            and "screen_brush" not in selected_grab_started_payload
+            and "screen_brush" not in selected_grab_preview_payload
+            and "strength" in selected_grab_started_payload
+            and "strength" in selected_grab_preview_payload
+            and "center" not in selected_grab_started_payload
+            and "center" not in selected_grab_preview_payload
         )
         edge_brush_payload = dict(edge_brush_status.get("payload", {}) or {})
-        edge_brush_edges = [
-            tuple(edge)
-            for group in tuple(edge_brush_payload.get("groups") or ())
-            if isinstance(group, dict)
-            for edge in tuple(group.get("source_edges") or ())
-        ]
+        raw_edge_brush_screen_brush = edge_brush_payload.get("screen_brush")
+        edge_brush_screen_brush = dict(raw_edge_brush_screen_brush) if isinstance(raw_edge_brush_screen_brush, Mapping) else {}
+        edge_brush_world_view_projection = tuple(edge_brush_screen_brush.get("world_view_projection") or ())
+        edge_brush_world_view_projection_ok = (
+            len(edge_brush_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in edge_brush_world_view_projection)
+        )
         edge_brush_ok = (
-            int(edge_brush_payload.get("selected_vertex_count", 0) or 0) >= 2
-            and int(edge_brush_payload.get("selected_edge_count", 0) or 0) >= 1
-            and (1, 2) in edge_brush_edges
-            and all(0 <= int(index) < len(mesh.submeshes[0].vertices) for edge in edge_brush_edges for index in edge)
+            edge_brush_status.get("event") == "mesh_edit_selection_changed"
+            and str(edge_brush_payload.get("target_mode") or "").strip().lower() == "edge"
+            and str(edge_brush_payload.get("selection_depth_mode") or "").strip().lower() in {"visible", "xray"}
+            and "groups" not in edge_brush_payload
+            and "screen_brush" in edge_brush_payload
+            and all(
+                field in edge_brush_screen_brush
+                for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height")
+            )
+            and edge_brush_world_view_projection_ok
+        )
+        grab_brush_target_started_payload = dict(grab_brush_target_started_status.get("payload", {}) or {})
+        grab_brush_target_preview_payload = dict(grab_brush_target_preview_status.get("payload", {}) or {})
+        raw_grab_started_screen_brush = grab_brush_target_started_payload.get("screen_brush")
+        grab_started_screen_brush = dict(raw_grab_started_screen_brush) if isinstance(raw_grab_started_screen_brush, Mapping) else {}
+        raw_grab_preview_screen_brush = grab_brush_target_preview_payload.get("screen_brush")
+        grab_preview_screen_brush = dict(raw_grab_preview_screen_brush) if isinstance(raw_grab_preview_screen_brush, Mapping) else {}
+        grab_started_world_view_projection = tuple(grab_started_screen_brush.get("world_view_projection") or ())
+        grab_preview_world_view_projection = tuple(grab_preview_screen_brush.get("world_view_projection") or ())
+        grab_started_world_view_projection_ok = (
+            len(grab_started_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in grab_started_world_view_projection)
+        )
+        grab_preview_world_view_projection_ok = (
+            len(grab_preview_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in grab_preview_world_view_projection)
+        )
+        grab_brush_target_screen_brush_ok = (
+            grab_brush_target_started_status.get("event") == "mesh_edit_stroke_started"
+            and grab_brush_target_preview_status.get("event") == "mesh_edit_stroke_previewed"
+            and grab_brush_target_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and str(grab_brush_target_started_payload.get("tool") or "").strip().lower() == "grab"
+            and str(grab_brush_target_preview_payload.get("tool") or "").strip().lower() == "grab"
+            and str(grab_brush_target_started_payload.get("target_mode") or "").strip().lower() == "brush"
+            and str(grab_brush_target_preview_payload.get("target_mode") or "").strip().lower() == "brush"
+            and "groups" not in grab_brush_target_started_payload
+            and "groups" not in grab_brush_target_preview_payload
+            and "screen_brush" in grab_brush_target_started_payload
+            and "screen_brush" in grab_brush_target_preview_payload
+            and "screen_drag" in grab_brush_target_preview_payload
+            and "center" not in grab_brush_target_started_payload
+            and "center" not in grab_brush_target_preview_payload
+            and all(field in grab_started_screen_brush for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height"))
+            and all(field in grab_preview_screen_brush for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height"))
+            and grab_started_world_view_projection_ok
+            and grab_preview_world_view_projection_ok
+        )
+        stroke_started_payload = dict(stroke_started_status.get("payload", {}) or {})
+        stroke_preview_payload = dict(stroke_preview_status.get("payload", {}) or {})
+        brush_stroke_preview_payload = dict(brush_stroke_preview_status.get("payload", {}) or {})
+        smooth_stroke_preview_payload = dict(smooth_stroke_preview_status.get("payload", {}) or {})
+        inflate_stroke_started_payload = dict(inflate_stroke_started_status.get("payload", {}) or {})
+        inflate_stroke_preview_payload = dict(inflate_stroke_preview_status.get("payload", {}) or {})
+        remove_release_started_payload = dict(remove_release_started_status.get("payload", {}) or {})
+        remove_release_preview_payload = dict(remove_release_preview_status.get("payload", {}) or {})
+        remove_live_started_payload = dict(remove_live_started_status.get("payload", {}) or {})
+        remove_live_preview_payload = dict(remove_live_preview_status.get("payload", {}) or {})
+        raw_stroke_screen_drag = stroke_preview_payload.get("screen_drag")
+        stroke_screen_drag = dict(raw_stroke_screen_drag) if isinstance(raw_stroke_screen_drag, Mapping) else {}
+        raw_brush_screen_drag = brush_stroke_preview_payload.get("screen_drag")
+        brush_screen_drag = dict(raw_brush_screen_drag) if isinstance(raw_brush_screen_drag, Mapping) else {}
+        stroke_camera_world_omitted = "camera_world" not in stroke_screen_drag
+        brush_camera_world_omitted = "camera_world" not in brush_screen_drag
+        raw_smooth_screen_brush = smooth_stroke_preview_payload.get("screen_brush")
+        smooth_screen_brush = dict(raw_smooth_screen_brush) if isinstance(raw_smooth_screen_brush, Mapping) else {}
+        raw_inflate_started_screen_brush = inflate_stroke_started_payload.get("screen_brush")
+        inflate_started_screen_brush = dict(raw_inflate_started_screen_brush) if isinstance(raw_inflate_started_screen_brush, Mapping) else {}
+        raw_inflate_screen_brush = inflate_stroke_preview_payload.get("screen_brush")
+        inflate_screen_brush = dict(raw_inflate_screen_brush) if isinstance(raw_inflate_screen_brush, Mapping) else {}
+        raw_inflate_started_screen_radius = inflate_stroke_started_payload.get("screen_radius")
+        inflate_started_screen_radius = dict(raw_inflate_started_screen_radius) if isinstance(raw_inflate_started_screen_radius, Mapping) else {}
+        raw_inflate_screen_radius = inflate_stroke_preview_payload.get("screen_radius")
+        inflate_screen_radius = dict(raw_inflate_screen_radius) if isinstance(raw_inflate_screen_radius, Mapping) else {}
+        raw_remove_release_started_screen_brush = remove_release_started_payload.get("screen_brush")
+        remove_release_started_screen_brush = dict(raw_remove_release_started_screen_brush) if isinstance(raw_remove_release_started_screen_brush, Mapping) else {}
+        raw_remove_release_screen_brush = remove_release_preview_payload.get("screen_brush")
+        remove_release_screen_brush = dict(raw_remove_release_screen_brush) if isinstance(raw_remove_release_screen_brush, Mapping) else {}
+        raw_remove_live_started_screen_brush = remove_live_started_payload.get("screen_brush")
+        remove_live_started_screen_brush = dict(raw_remove_live_started_screen_brush) if isinstance(raw_remove_live_started_screen_brush, Mapping) else {}
+        raw_remove_live_screen_brush = remove_live_preview_payload.get("screen_brush")
+        remove_live_screen_brush = dict(raw_remove_live_screen_brush) if isinstance(raw_remove_live_screen_brush, Mapping) else {}
+        smooth_world_view_projection = tuple(smooth_screen_brush.get("world_view_projection") or ())
+        smooth_world_view_projection_ok = (
+            len(smooth_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in smooth_world_view_projection)
+        )
+        inflate_world_view_projection = tuple(inflate_screen_brush.get("world_view_projection") or ())
+        inflate_world_view_projection_ok = (
+            len(inflate_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in inflate_world_view_projection)
+        )
+        inflate_started_world_view_projection = tuple(inflate_started_screen_brush.get("world_view_projection") or ())
+        inflate_started_world_view_projection_ok = (
+            len(inflate_started_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in inflate_started_world_view_projection)
+        )
+        inflate_started_radius_camera_world_omitted = "camera_world" not in inflate_started_screen_radius
+        inflate_started_radius_world_view_projection = tuple(inflate_started_screen_radius.get("world_view_projection") or ())
+        inflate_started_radius_world_view_projection_ok = (
+            len(inflate_started_radius_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in inflate_started_radius_world_view_projection)
+        )
+        inflate_radius_camera_world_omitted = "camera_world" not in inflate_screen_radius
+        inflate_radius_world_view_projection = tuple(inflate_screen_radius.get("world_view_projection") or ())
+        inflate_radius_world_view_projection_ok = (
+            len(inflate_radius_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in inflate_radius_world_view_projection)
+        )
+        remove_release_started_world_view_projection = tuple(remove_release_started_screen_brush.get("world_view_projection") or ())
+        remove_release_started_world_view_projection_ok = (
+            len(remove_release_started_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in remove_release_started_world_view_projection)
+        )
+        remove_release_world_view_projection = tuple(remove_release_screen_brush.get("world_view_projection") or ())
+        remove_release_world_view_projection_ok = (
+            len(remove_release_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in remove_release_world_view_projection)
+        )
+        remove_live_started_world_view_projection = tuple(remove_live_started_screen_brush.get("world_view_projection") or ())
+        remove_live_started_world_view_projection_ok = (
+            len(remove_live_started_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in remove_live_started_world_view_projection)
+        )
+        remove_live_world_view_projection = tuple(remove_live_screen_brush.get("world_view_projection") or ())
+        remove_live_world_view_projection_ok = (
+            len(remove_live_world_view_projection) == 16
+            and all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in remove_live_world_view_projection)
+        )
+        screen_payloads_without_legacy_camera_fields_ok = all(
+            _LEGACY_SCREEN_CAMERA_FIELDS.isdisjoint(payload)
+            for payload in (
+                face_region_screen_region,
+                source_screen_brush,
+                move_screen_brush,
+                move_screen_drag,
+                grab_selection_screen_brush,
+                grab_selection_screen_drag,
+                edge_brush_screen_brush,
+                grab_started_screen_brush,
+                grab_preview_screen_brush,
+                stroke_screen_drag,
+                brush_screen_drag,
+                smooth_screen_brush,
+                inflate_started_screen_brush,
+                inflate_screen_brush,
+                inflate_started_screen_radius,
+                inflate_screen_radius,
+                remove_release_started_screen_brush,
+                remove_release_screen_brush,
+                remove_live_started_screen_brush,
+                remove_live_screen_brush,
+            )
+        )
+        screen_payloads_with_source_transform_overrides_ok = (
+            alignment_transform_status.get("event") == "alignment_transforms"
+            and all(
+                _screen_source_transform_override_ok(payload)
+                for payload in (
+                    face_region_screen_region,
+                    source_screen_brush,
+                    move_screen_brush,
+                    move_screen_drag,
+                    grab_selection_screen_brush,
+                    grab_selection_screen_drag,
+                    edge_brush_screen_brush,
+                    grab_started_screen_brush,
+                    grab_preview_screen_brush,
+                    stroke_screen_drag,
+                    brush_screen_drag,
+                    smooth_screen_brush,
+                    inflate_started_screen_brush,
+                    inflate_screen_brush,
+                    inflate_started_screen_radius,
+                    inflate_screen_radius,
+                    remove_release_started_screen_brush,
+                    remove_release_screen_brush,
+                    remove_live_started_screen_brush,
+                    remove_live_screen_brush,
+                )
+            )
+        )
+        stroke_preview_brush_fields = {
+            "amount",
+            "center",
+            "falloff",
+            "invert",
+            "radius",
+            "smooth_iterations",
+            "strength",
+        }
+        stroke_preview_move_metadata_fields = {
+            "delete_mode",
+            "mode",
+            "phase",
+            "scope_mode",
+            "selected_vertex_count",
+        }
+        stroke_compact_preview_ok = (
+            drag_selection_status.get("event") == "mesh_edit_selection_changed"
+            and drag_state_status.get("event") == "mesh_edit_state"
+            and stroke_started_status.get("event") == "mesh_edit_stroke_started"
+            and stroke_preview_status.get("event") == "mesh_edit_stroke_previewed"
+            and stroke_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and drag_restore_state_status.get("event") == "mesh_edit_state"
+            and "groups" not in stroke_started_payload
+            and "groups" not in stroke_preview_payload
+            and "screen_brush" not in stroke_started_payload
+            and "screen_brush" not in stroke_preview_payload
+            and "screen_drag" in stroke_started_payload
+            and "delta" not in stroke_preview_payload
+            and "step_delta" not in stroke_preview_payload
+            and "screen_drag" in stroke_preview_payload
+            and "start_x" in stroke_screen_drag
+            and "end_x" in stroke_screen_drag
+            and stroke_camera_world_omitted
+            and "delta_x_pixels" not in stroke_screen_drag
+            and stroke_preview_brush_fields.isdisjoint(stroke_preview_payload)
+            and stroke_preview_move_metadata_fields.isdisjoint(stroke_preview_payload)
+        )
+        brush_stroke_screen_drag_only_ok = (
+            brush_stroke_state_status.get("event") == "mesh_edit_state"
+            and brush_stroke_started_status.get("event") == "mesh_edit_stroke_started"
+            and brush_stroke_preview_status.get("event") == "mesh_edit_stroke_previewed"
+            and brush_stroke_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and str(brush_stroke_preview_payload.get("tool") or "").strip().lower() == "grab"
+            and "groups" not in brush_stroke_preview_payload
+            and "delta" not in brush_stroke_preview_payload
+            and "step_delta" not in brush_stroke_preview_payload
+            and "screen_drag" in brush_stroke_preview_payload
+            and "start_x" in brush_screen_drag
+            and "end_x" in brush_screen_drag
+            and brush_camera_world_omitted
+            and "delta_x_pixels" not in brush_screen_drag
+            and "strength" in brush_stroke_preview_payload
+            and {"center", "amount", "radius", "falloff", "invert", "smooth_iterations"}.isdisjoint(brush_stroke_preview_payload)
+            and stroke_preview_move_metadata_fields.isdisjoint(brush_stroke_preview_payload)
+        )
+        smooth_stroke_screen_brush_only_ok = (
+            smooth_stroke_state_status.get("event") == "mesh_edit_state"
+            and smooth_stroke_started_status.get("event") == "mesh_edit_stroke_started"
+            and smooth_stroke_preview_status.get("event") == "mesh_edit_stroke_previewed"
+            and smooth_stroke_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and str(smooth_stroke_preview_payload.get("tool") or "").strip().lower() == "smooth"
+            and "groups" not in smooth_stroke_preview_payload
+            and "screen_brush" in smooth_stroke_preview_payload
+            and all(
+                field in smooth_screen_brush
+                for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height")
+            )
+            and smooth_world_view_projection_ok
+            and "screen_drag" not in smooth_stroke_preview_payload
+            and "center" not in smooth_stroke_preview_payload
+            and "smooth_iterations" in smooth_stroke_preview_payload
+            and "strength" in smooth_stroke_preview_payload
+            and {"amount", "radius", "falloff", "invert", "screen_radius"}.isdisjoint(smooth_stroke_preview_payload)
+            and stroke_preview_move_metadata_fields.isdisjoint(smooth_stroke_preview_payload)
+        )
+        inflate_stroke_native_center_ok = (
+            inflate_stroke_state_status.get("event") == "mesh_edit_state"
+            and inflate_stroke_started_status.get("event") == "mesh_edit_stroke_started"
+            and inflate_stroke_preview_status.get("event") == "mesh_edit_stroke_previewed"
+            and inflate_stroke_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and str(inflate_stroke_started_payload.get("tool") or "").strip().lower() == "inflate"
+            and str(inflate_stroke_preview_payload.get("tool") or "").strip().lower() == "inflate"
+            and not tuple(inflate_stroke_started_payload.get("groups") or ())
+            and str(inflate_stroke_started_payload.get("target_mode") or "").strip().lower() == "selection"
+            and str(inflate_stroke_started_payload.get("selection_depth_mode") or "").strip().lower() in {"visible", "xray"}
+            and "center" not in inflate_stroke_started_payload
+            and "center" not in inflate_stroke_preview_payload
+            and "groups" not in inflate_stroke_preview_payload
+            and "screen_brush" in inflate_stroke_started_payload
+            and "screen_brush" in inflate_stroke_preview_payload
+            and "screen_radius" in inflate_stroke_started_payload
+            and "screen_radius" in inflate_stroke_preview_payload
+            and all(
+                field in inflate_started_screen_brush
+                for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height")
+            )
+            and all(
+                field in inflate_screen_brush
+                for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height")
+            )
+            and inflate_started_world_view_projection_ok
+            and inflate_world_view_projection_ok
+            and all(field in inflate_started_screen_radius for field in ("radius_pixels", "viewport_width", "viewport_height"))
+            and all(field in inflate_screen_radius for field in ("radius_pixels", "viewport_width", "viewport_height"))
+            and inflate_started_radius_camera_world_omitted
+            and inflate_started_radius_world_view_projection_ok
+            and inflate_radius_camera_world_omitted
+            and inflate_radius_world_view_projection_ok
+            and "screen_drag" not in inflate_stroke_preview_payload
+            and "strength" in inflate_stroke_preview_payload
+            and "invert" in inflate_stroke_preview_payload
+            and {"amount", "radius", "falloff", "smooth_iterations"}.isdisjoint(inflate_stroke_preview_payload)
+            and stroke_preview_move_metadata_fields.isdisjoint(inflate_stroke_preview_payload)
+        )
+        remove_release_screen_brush_only_ok = (
+            remove_release_state_status.get("event") == "mesh_edit_state"
+            and remove_release_started_status.get("event") == "mesh_edit_stroke_started"
+            and remove_release_preview_status.get("event") == "mesh_edit_stroke_previewed"
+            and remove_release_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and str(remove_release_started_payload.get("tool") or "").strip().lower() == "remove"
+            and str(remove_release_preview_payload.get("tool") or "").strip().lower() == "remove"
+            and str(remove_release_started_payload.get("delete_mode") or "").strip().lower() == "release"
+            and str(remove_release_preview_payload.get("delete_mode") or "").strip().lower() == "release"
+            and str(remove_release_started_payload.get("target_mode") or "").strip().lower() == "face"
+            and str(remove_release_preview_payload.get("target_mode") or "").strip().lower() == "face"
+            and "groups" not in remove_release_started_payload
+            and "groups" not in remove_release_preview_payload
+            and "screen_brush" in remove_release_started_payload
+            and "screen_brush" in remove_release_preview_payload
+            and all(
+                field in remove_release_started_screen_brush
+                for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height")
+            )
+            and all(
+                field in remove_release_screen_brush
+                for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height")
+            )
+            and remove_release_started_world_view_projection_ok
+            and remove_release_world_view_projection_ok
+            and "center" not in remove_release_started_payload
+            and "center" not in remove_release_preview_payload
+            and "screen_radius" not in remove_release_started_payload
+            and "screen_radius" not in remove_release_preview_payload
+            and "screen_drag" not in remove_release_preview_payload
+            and {"amount", "radius", "smooth_iterations", "strength", "invert"}.isdisjoint(remove_release_preview_payload)
+            and {"mode", "phase", "scope_mode", "selected_vertex_count"}.isdisjoint(remove_release_preview_payload)
+        )
+        remove_live_screen_brush_only_ok = (
+            remove_live_state_status.get("event") == "mesh_edit_state"
+            and remove_live_started_status.get("event") == "mesh_edit_stroke_started"
+            and remove_live_preview_status.get("event") == "mesh_edit_stroke_previewed"
+            and remove_live_finished_status.get("event") == "mesh_edit_stroke_finished"
+            and str(remove_live_started_payload.get("tool") or "").strip().lower() == "remove"
+            and str(remove_live_preview_payload.get("tool") or "").strip().lower() == "remove"
+            and str(remove_live_started_payload.get("delete_mode") or "").strip().lower() == "live"
+            and str(remove_live_preview_payload.get("delete_mode") or "").strip().lower() == "live"
+            and str(remove_live_started_payload.get("target_mode") or "").strip().lower() == "face"
+            and str(remove_live_preview_payload.get("target_mode") or "").strip().lower() == "face"
+            and "groups" not in remove_live_started_payload
+            and "groups" not in remove_live_preview_payload
+            and "screen_brush" in remove_live_started_payload
+            and "screen_brush" in remove_live_preview_payload
+            and all(
+                field in remove_live_started_screen_brush
+                for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height")
+            )
+            and all(
+                field in remove_live_screen_brush
+                for field in ("x", "y", "radius_pixels", "viewport_width", "viewport_height")
+            )
+            and remove_live_started_world_view_projection_ok
+            and remove_live_world_view_projection_ok
+            and "center" not in remove_live_started_payload
+            and "center" not in remove_live_preview_payload
+            and "screen_radius" not in remove_live_started_payload
+            and "screen_radius" not in remove_live_preview_payload
+            and "screen_drag" not in remove_live_preview_payload
+            and {"amount", "radius", "smooth_iterations", "strength", "invert"}.isdisjoint(remove_live_preview_payload)
+            and {"mode", "phase", "scope_mode", "selected_vertex_count"}.isdisjoint(remove_live_preview_payload)
+        )
+        brush_drag_selection_event_delta = max(
+            0,
+            int(brush_drag_status_after.get("mesh_edit_selection_event_count", 0) or 0)
+            - int(brush_drag_status_before.get("mesh_edit_selection_event_count", 0) or 0),
+        )
+        brush_drag_event_budget = max(4, int(math.ceil(brush_drag_elapsed_ms / 16.0)) + 3)
+        brush_drag_event_budget_ok = 1 <= brush_drag_selection_event_delta <= brush_drag_event_budget
+        texture_cache_before = int(texture_status_before.get("texture_cache_entries", 0) or 0)
+        texture_cache_enabled = int(texture_status_enabled.get("texture_cache_entries", 0) or 0)
+        texture_cache_disabled = int(texture_status_disabled.get("texture_cache_entries", 0) or 0)
+        texture_toggle_ok = (
+            texture_cache_before > 0
+            and texture_cache_enabled == texture_cache_before
+            and texture_cache_disabled == texture_cache_before
+            and mesh_edit_enable_status.get("event") == "mesh_edit_state"
+            and mesh_edit_disable_status.get("event") == "mesh_edit_state"
+            and int(texture_status_disabled.get("parent_unresponsive_count", 0) or 0) == 0
         )
         created_part_ok = int(created_part_status.get("replaced_batches", 0) or 0) >= 1
         pruned_part_ok = int(pruned_part_status.get("removed_batches", 0) or 0) >= 1
@@ -1819,22 +5510,135 @@ def run_native_smoke(mesh: ParsedMesh, output_dir: Path, *, timeout_seconds: flo
                 and face_selection_ok
                 and face_region_ok
                 and edge_selection_ok
+                and source_selection_ok
+                and source_screen_selection_ok
                 and empty_selection_ok
+                and move_screen_selection_ok
+                and grab_screen_selection_ok
+                and selected_move_resident_selection_ok
+                and selected_grab_resident_selection_ok
                 and edge_brush_ok
+                and grab_brush_target_screen_brush_ok
+                and stroke_compact_preview_ok
+                and brush_stroke_screen_drag_only_ok
+                and smooth_stroke_screen_brush_only_ok
+                and inflate_stroke_native_center_ok
+                and remove_release_screen_brush_only_ok
+                and remove_live_screen_brush_only_ok
+                and screen_payloads_without_legacy_camera_fields_ok
+                and screen_payloads_with_source_transform_overrides_ok
+                and brush_drag_event_budget_ok
+                and texture_toggle_ok
                 and created_part_ok
                 and pruned_part_ok
             ),
             "host": str(host_binary),
             "package_dir": str(package_dir),
             "status_file": str(status_file),
+            "texture_path": str(texture_path),
             "preview_png": str(capture_path),
             "commands_sent": sent,
             "loaded_status": loaded,
+            "mesh_edit_enable_status": mesh_edit_enable_status,
+            "mesh_edit_disable_status": mesh_edit_disable_status,
+            "texture_status_before": texture_status_before,
+            "texture_status_enabled": texture_status_enabled,
+            "texture_status_disabled": texture_status_disabled,
+            "texture_toggle_ok": texture_toggle_ok,
+            "alignment_transform_status": alignment_transform_status,
             "face_selection_status": face_selection_status,
             "face_region_status": face_region_status,
+            "face_region_world_view_projection_ok": face_region_world_view_projection_ok,
             "edge_selection_status": edge_selection_status,
+            "source_selection_status": source_selection_status,
+            "source_selection_ok": source_selection_ok,
+            "source_selection_compact": source_selection_compact,
+            "source_screen_selection_status": source_screen_selection_status,
+            "source_screen_selection_ok": source_screen_selection_ok,
+            "source_screen_selection_world_view_projection_ok": source_screen_world_view_projection_ok,
             "empty_selection_status": empty_selection_status,
+            "move_screen_selection_state_status": move_screen_selection_state_status,
+            "move_screen_selection_started_status": move_screen_selection_started_status,
+            "move_screen_selection_finished_status": move_screen_selection_finished_status,
+            "move_screen_selection_world_view_projection_ok": move_screen_selection_world_view_projection_ok,
+            "move_screen_selection_ok": move_screen_selection_ok,
+            "grab_screen_selection_state_status": grab_screen_selection_state_status,
+            "grab_screen_selection_started_status": grab_screen_selection_started_status,
+            "grab_screen_selection_finished_status": grab_screen_selection_finished_status,
+            "grab_screen_selection_world_view_projection_ok": grab_screen_selection_world_view_projection_ok,
+            "grab_screen_selection_ok": grab_screen_selection_ok,
+            "selected_drag_selection_status": selected_drag_selection_status,
+            "selected_move_state_status": selected_move_state_status,
+            "selected_move_started_status": selected_move_started_status,
+            "selected_move_preview_status": selected_move_preview_status,
+            "selected_move_finished_status": selected_move_finished_status,
+            "selected_move_resident_selection_ok": selected_move_resident_selection_ok,
+            "selected_grab_selection_status": selected_grab_selection_status,
+            "selected_grab_state_status": selected_grab_state_status,
+            "selected_grab_started_status": selected_grab_started_status,
+            "selected_grab_preview_status": selected_grab_preview_status,
+            "selected_grab_finished_status": selected_grab_finished_status,
+            "selected_grab_resident_selection_ok": selected_grab_resident_selection_ok,
             "edge_brush_status": edge_brush_status,
+            "edge_brush_world_view_projection_ok": edge_brush_world_view_projection_ok,
+            "grab_brush_target_started_status": grab_brush_target_started_status,
+            "grab_brush_target_preview_status": grab_brush_target_preview_status,
+            "grab_brush_target_finished_status": grab_brush_target_finished_status,
+            "grab_brush_target_world_view_projection_ok": grab_started_world_view_projection_ok and grab_preview_world_view_projection_ok,
+            "grab_brush_target_screen_brush_ok": grab_brush_target_screen_brush_ok,
+            "drag_selection_status": drag_selection_status,
+            "drag_state_status": drag_state_status,
+            "stroke_started_status": stroke_started_status,
+            "stroke_preview_status": stroke_preview_status,
+            "stroke_finished_status": stroke_finished_status,
+            "brush_stroke_state_status": brush_stroke_state_status,
+            "brush_stroke_started_status": brush_stroke_started_status,
+            "brush_stroke_preview_status": brush_stroke_preview_status,
+            "brush_stroke_finished_status": brush_stroke_finished_status,
+            "stroke_camera_world_omitted": stroke_camera_world_omitted,
+            "brush_stroke_camera_world_omitted": brush_camera_world_omitted,
+            "brush_stroke_screen_drag_only_ok": brush_stroke_screen_drag_only_ok,
+            "smooth_stroke_state_status": smooth_stroke_state_status,
+            "smooth_stroke_started_status": smooth_stroke_started_status,
+            "smooth_stroke_preview_status": smooth_stroke_preview_status,
+            "smooth_stroke_finished_status": smooth_stroke_finished_status,
+            "smooth_stroke_world_view_projection_ok": smooth_world_view_projection_ok,
+            "smooth_stroke_screen_brush_only_ok": smooth_stroke_screen_brush_only_ok,
+            "inflate_stroke_state_status": inflate_stroke_state_status,
+            "inflate_stroke_started_status": inflate_stroke_started_status,
+            "inflate_stroke_preview_status": inflate_stroke_preview_status,
+            "inflate_stroke_finished_status": inflate_stroke_finished_status,
+            "inflate_stroke_started_world_view_projection_ok": inflate_started_world_view_projection_ok,
+            "inflate_stroke_world_view_projection_ok": inflate_world_view_projection_ok,
+            "inflate_started_radius_camera_world_omitted": inflate_started_radius_camera_world_omitted,
+            "inflate_started_radius_world_view_projection_ok": inflate_started_radius_world_view_projection_ok,
+            "inflate_radius_camera_world_omitted": inflate_radius_camera_world_omitted,
+            "inflate_radius_world_view_projection_ok": inflate_radius_world_view_projection_ok,
+            "inflate_stroke_native_center_ok": inflate_stroke_native_center_ok,
+            "screen_payloads_without_legacy_camera_fields_ok": screen_payloads_without_legacy_camera_fields_ok,
+            "screen_payloads_with_source_transform_overrides_ok": screen_payloads_with_source_transform_overrides_ok,
+            "remove_release_state_status": remove_release_state_status,
+            "remove_release_started_status": remove_release_started_status,
+            "remove_release_preview_status": remove_release_preview_status,
+            "remove_release_finished_status": remove_release_finished_status,
+            "remove_release_started_world_view_projection_ok": remove_release_started_world_view_projection_ok,
+            "remove_release_world_view_projection_ok": remove_release_world_view_projection_ok,
+            "remove_release_screen_brush_only_ok": remove_release_screen_brush_only_ok,
+            "remove_live_state_status": remove_live_state_status,
+            "remove_live_started_status": remove_live_started_status,
+            "remove_live_preview_status": remove_live_preview_status,
+            "remove_live_finished_status": remove_live_finished_status,
+            "remove_live_started_world_view_projection_ok": remove_live_started_world_view_projection_ok,
+            "remove_live_world_view_projection_ok": remove_live_world_view_projection_ok,
+            "remove_live_screen_brush_only_ok": remove_live_screen_brush_only_ok,
+            "drag_restore_state_status": drag_restore_state_status,
+            "stroke_compact_preview_ok": stroke_compact_preview_ok,
+            "brush_drag_status_before": brush_drag_status_before,
+            "brush_drag_status_after": brush_drag_status_after,
+            "brush_drag_elapsed_ms": brush_drag_elapsed_ms,
+            "brush_drag_event_budget": brush_drag_event_budget,
+            "brush_drag_selection_event_delta": brush_drag_selection_event_delta,
+            "brush_drag_event_budget_ok": brush_drag_event_budget_ok,
             "created_part_status": created_part_status,
             "pruned_part_status": pruned_part_status,
             "captured": captured,
@@ -1844,9 +5648,62 @@ def run_native_smoke(mesh: ParsedMesh, output_dir: Path, *, timeout_seconds: flo
         _close_process(process)
 
 
-def run_scenario(scenario: str, output_dir: Path, *, game_root: Path | str | None = None) -> dict[str, object]:
+def run_scenario(
+    scenario: str,
+    output_dir: Path,
+    *,
+    game_root: Path | str | None = None,
+    allow_synthetic_d3d11: bool = False,
+) -> dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
-    if scenario == "real-archive-rigging-smoke":
+    if scenario in _SYNTHETIC_D3D11_SCENARIOS and not allow_synthetic_d3d11:
+        result = {
+            "scenario": scenario,
+            "ok": False,
+            "error": (
+                "Synthetic D3D11 checkerboard harness is blocked by default. "
+                "Use real-archive-mesh-editor-d3d11-side-by-side-edit-smoke for visual edit proof, "
+                "or pass --allow-synthetic-d3d11 for protocol-only regression testing."
+            ),
+        }
+        (output_dir / "result.json").write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+        return result
+    if scenario == "asset-authoring-discovery":
+        discovery_result = run_asset_authoring_discovery(output_dir)
+        result = {
+            "scenario": scenario,
+            "ok": bool(discovery_result.get("ok")),
+            "asset_authoring": discovery_result,
+        }
+    elif scenario == "asset-authoring-mesh-health":
+        health_result = run_asset_authoring_mesh_health(output_dir)
+        result = {
+            "scenario": scenario,
+            "ok": bool(health_result.get("ok")),
+            "asset_authoring": health_result,
+        }
+    elif scenario == "asset-authoring-uv-report":
+        uv_result = run_asset_authoring_uv_report(output_dir)
+        result = {
+            "scenario": scenario,
+            "ok": bool(uv_result.get("ok")),
+            "asset_authoring": uv_result,
+        }
+    elif scenario == "asset-authoring-tangent-report":
+        tangent_result = run_asset_authoring_tangent_report(output_dir)
+        result = {
+            "scenario": scenario,
+            "ok": bool(tangent_result.get("ok")),
+            "asset_authoring": tangent_result,
+        }
+    elif scenario == "asset-authoring-openimageio-report":
+        openimageio_result = run_asset_authoring_openimageio_report(output_dir)
+        result = {
+            "scenario": scenario,
+            "ok": bool(openimageio_result.get("ok")),
+            "asset_authoring": openimageio_result,
+        }
+    elif scenario == "real-archive-rigging-smoke":
         real_archive_result = run_real_archive_rigging_smoke(Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT)
         result = {
             "scenario": scenario,
@@ -1880,6 +5737,90 @@ def run_scenario(scenario: str, output_dir: Path, *, game_root: Path | str | Non
             "scenario": scenario,
             "ok": bool(app_result.get("ok")),
             "real_archive_app": app_result,
+        }
+    elif scenario == "real-archive-mesh-editor-d3d11-edit-smoke":
+        edit_result = run_real_archive_mesh_editor_d3d11_edit_smoke(
+            Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+            output_dir,
+        )
+        result = {
+            "scenario": scenario,
+            "ok": bool(edit_result.get("ok")),
+            "real_archive_mesh_editor_d3d11_edit": edit_result,
+        }
+    elif scenario == "real-archive-mesh-editor-d3d11-side-by-side-edit-smoke":
+        edit_result = run_real_archive_mesh_editor_d3d11_edit_smoke(
+            Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+            output_dir,
+            side_by_side=True,
+        )
+        result = {
+            "scenario": scenario,
+            "ok": bool(edit_result.get("ok")),
+            "real_archive_mesh_editor_d3d11_side_by_side_edit": edit_result,
+        }
+    elif scenario == "long-edit-mesh-tools":
+        long_edit_result = run_long_edit_mesh_tools()
+        result = {
+            "scenario": scenario,
+            "ok": bool(long_edit_result.get("ok")),
+            "long_edit": long_edit_result,
+        }
+    elif scenario == "native-mesh-editor-workflow":
+        workflow_result = run_native_mesh_editor_workflow()
+        result = {
+            "scenario": scenario,
+            "ok": bool(workflow_result.get("ok")),
+            "native_mesh_editor_workflow": workflow_result,
+        }
+    elif scenario == "native-mesh-editor-benchmark":
+        benchmark_result = run_native_mesh_editor_benchmark()
+        result = {
+            "scenario": scenario,
+            "ok": bool(benchmark_result.get("ok")),
+            "native_mesh_editor_benchmark": benchmark_result,
+        }
+    elif scenario == "native-mesh-editor-qt-responsiveness":
+        responsiveness_result = run_native_mesh_editor_qt_responsiveness()
+        result = {
+            "scenario": scenario,
+            "ok": bool(responsiveness_result.get("ok")),
+            "native_mesh_editor_qt_responsiveness": responsiveness_result,
+        }
+    elif scenario == "native-mesh-editor-qt-cancellation":
+        cancellation_result = run_native_mesh_editor_qt_cancellation()
+        result = {
+            "scenario": scenario,
+            "ok": bool(cancellation_result.get("ok")),
+            "native_mesh_editor_qt_cancellation": cancellation_result,
+        }
+    elif scenario == "native-mesh-editor-d3d11-delta":
+        d3d11_delta_result = run_native_mesh_editor_d3d11_delta(output_dir)
+        result = {
+            "scenario": scenario,
+            "ok": bool(d3d11_delta_result.get("ok")),
+            "native_mesh_editor_d3d11_delta": d3d11_delta_result,
+        }
+    elif scenario == "native-mesh-editor-d3d11-payloads":
+        d3d11_payload_result = run_native_smoke(build_synthetic_mesh(), output_dir)
+        result = {
+            "scenario": scenario,
+            "ok": bool(d3d11_payload_result.get("ok")),
+            "native_mesh_editor_d3d11_payloads": d3d11_payload_result,
+        }
+    elif scenario == "native-mesh-editor-standalone-stroke":
+        standalone_stroke_result = run_native_mesh_editor_standalone_stroke()
+        result = {
+            "scenario": scenario,
+            "ok": bool(standalone_stroke_result.get("ok")),
+            "native_mesh_editor_standalone_stroke": standalone_stroke_result,
+        }
+    elif scenario == "native-mesh-editor-static-screen-stroke":
+        static_screen_stroke_result = run_native_mesh_editor_static_replacement_screen_stroke()
+        result = {
+            "scenario": scenario,
+            "ok": bool(static_screen_stroke_result.get("ok")),
+            "native_mesh_editor_static_screen_stroke": static_screen_stroke_result,
         }
     else:
         mesh, service_result = run_service_smoke()
@@ -5000,6 +8941,99 @@ def _png_capture_summary(path: Path) -> dict[str, object]:
         return {"ok": False, "error": str(exc)}
 
 
+def _write_real_archive_visual_edit_proof(
+    before_path: Path,
+    after_path: Path,
+    output_path: Path,
+    *,
+    before_center: Sequence[object] | None,
+    after_center: Sequence[object] | None,
+) -> dict[str, object]:
+    try:
+        from PIL import Image, ImageChops, ImageDraw, ImageEnhance
+    except Exception as exc:
+        return {"ok": False, "error": f"Pillow unavailable: {exc}"}
+    try:
+        with Image.open(before_path) as before_raw, Image.open(after_path) as after_raw:
+            before_image = before_raw.convert("RGB")
+            after_image = after_raw.convert("RGB")
+    except OSError as exc:
+        return {"ok": False, "error": str(exc)}
+    if before_image.size != after_image.size:
+        return {
+            "ok": False,
+            "error": "capture sizes differ",
+            "before_size": list(before_image.size),
+            "after_size": list(after_image.size),
+        }
+
+    width, height = before_image.size
+
+    def _point(value: Sequence[object] | None, fallback: tuple[float, float]) -> tuple[float, float]:
+        try:
+            if value is None:
+                return fallback
+            return (float(value[0]), float(value[1]))  # type: ignore[index]
+        except (TypeError, ValueError, OverflowError, IndexError):
+            return fallback
+
+    before_point = _point(before_center, (width * 0.5, height * 0.5))
+    after_point = _point(after_center, before_point)
+    min_x = max(0, int(math.floor(min(before_point[0], after_point[0]) - 180)))
+    max_x = min(width, int(math.ceil(max(before_point[0], after_point[0]) + 180)))
+    min_y = max(0, int(math.floor(min(before_point[1], after_point[1]) - 140)))
+    max_y = min(height, int(math.ceil(max(before_point[1], after_point[1]) + 140)))
+    if max_x - min_x < 80 or max_y - min_y < 80:
+        min_x, min_y, max_x, max_y = 0, 0, width, height
+    crop_box = (min_x, min_y, max_x, max_y)
+    before_crop = before_image.crop(crop_box)
+    after_crop = after_image.crop(crop_box)
+    diff = ImageChops.difference(before_crop, after_crop)
+    diff_mask = diff.convert("L").point(lambda value: 255 if value > 24 else 0)
+    diff_bbox = diff_mask.getbbox()
+    changed_pixels = 0
+    if diff_bbox is not None:
+        changed_pixels = diff_mask.histogram()[255]
+
+    panel_size = (360, 260)
+    before_panel = before_crop.resize(panel_size)
+    after_panel = after_crop.resize(panel_size)
+    diff_panel = ImageEnhance.Brightness(diff).enhance(5.0).resize(panel_size)
+    sheet = Image.new("RGB", (panel_size[0] * 3, panel_size[1] + 28), (15, 18, 22))
+    sheet.paste(before_panel, (0, 28))
+    sheet.paste(after_panel, (panel_size[0], 28))
+    sheet.paste(diff_panel, (panel_size[0] * 2, 28))
+    draw = ImageDraw.Draw(sheet)
+    labels = ("selected before drag", "after drag", "difference")
+    for index, label in enumerate(labels):
+        draw.text((index * panel_size[0] + 10, 8), label, fill=(235, 235, 235))
+    crop_width = max(1, max_x - min_x)
+    crop_height = max(1, max_y - min_y)
+
+    def _mark(point: tuple[float, float], panel_index: int, color: tuple[int, int, int]) -> None:
+        x = panel_index * panel_size[0] + int(round(((point[0] - min_x) / crop_width) * panel_size[0]))
+        y = 28 + int(round(((point[1] - min_y) / crop_height) * panel_size[1]))
+        draw.ellipse((x - 7, y - 7, x + 7, y + 7), outline=color, width=3)
+
+    _mark(before_point, 0, (0, 220, 255))
+    _mark(after_point, 1, (255, 180, 0))
+    _mark(before_point, 2, (0, 220, 255))
+    _mark(after_point, 2, (255, 180, 0))
+    try:
+        sheet.save(output_path)
+    except OSError as exc:
+        return {"ok": False, "error": str(exc)}
+    return {
+        "ok": output_path.is_file() and changed_pixels > 0,
+        "path": str(output_path),
+        "changed_pixel_count": changed_pixels,
+        "diff_bbox": list(diff_bbox) if diff_bbox is not None else None,
+        "crop_box": list(crop_box),
+        "before_center": [before_point[0], before_point[1]],
+        "after_center": [after_point[0], after_point[1]],
+    }
+
+
 def _png_unfilter_scanline(scanline: bytearray, previous: bytearray, channels: int, filter_type: int) -> None:
     for index, value in enumerate(scanline):
         left = scanline[index - channels] if index >= channels else 0
@@ -5062,6 +9096,67 @@ def _find_host_window(pid: int) -> int:
     return matches[0] if matches else 0
 
 
+def _place_host_window_on_screen1(hwnd: int) -> bool:
+    if not hwnd or os.name != "nt":
+        return False
+
+    class Rect(ctypes.Structure):
+        _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+    class MonitorInfoEx(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", ctypes.c_ulong),
+            ("rcMonitor", Rect),
+            ("rcWork", Rect),
+            ("dwFlags", ctypes.c_ulong),
+            ("szDevice", ctypes.c_wchar * 32),
+        ]
+
+    user32 = ctypes.windll.user32
+    monitors: list[tuple[str, bool, Rect]] = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(Rect), ctypes.c_void_p)
+    def enum_monitor(monitor: int, _hdc: int, _rect: object, _data: int) -> bool:
+        info = MonitorInfoEx()
+        info.cbSize = ctypes.sizeof(MonitorInfoEx)
+        if user32.GetMonitorInfoW(ctypes.c_void_p(monitor), ctypes.byref(info)):
+            work = Rect(info.rcWork.left, info.rcWork.top, info.rcWork.right, info.rcWork.bottom)
+            monitors.append((str(info.szDevice), bool(info.dwFlags & 1), work))
+        return True
+
+    try:
+        user32.EnumDisplayMonitors(None, None, enum_monitor, None)
+    except Exception:
+        return False
+    if not monitors:
+        return False
+
+    def monitor_rank(item: tuple[str, bool, Rect]) -> tuple[int, int, int]:
+        device, primary, work = item
+        normalized = device.upper()
+        return (
+            0 if normalized.endswith("DISPLAY1") else 1 if primary else 2,
+            int(work.left),
+            int(work.top),
+        )
+
+    _device, _primary, work = sorted(monitors, key=monitor_rank)[0]
+    current = Rect()
+    try:
+        user32.GetWindowRect(ctypes.c_void_p(hwnd), ctypes.byref(current))
+    except Exception:
+        return False
+    width = max(640, int(current.right - current.left))
+    height = max(480, int(current.bottom - current.top))
+    max_width = max(320, int(work.right - work.left) - 80)
+    max_height = max(240, int(work.bottom - work.top) - 80)
+    width = min(width, max_width)
+    height = min(height, max_height)
+    x = int(work.left) + 40
+    y = int(work.top) + 40
+    return bool(user32.SetWindowPos(ctypes.c_void_p(hwnd), None, x, y, width, height, 0x0040))
+
+
 def _send_json_command(hwnd: int, payload: Mapping[str, object]) -> bool:
     class CopyDataStruct(ctypes.Structure):
         _fields_ = [
@@ -5086,6 +9181,21 @@ def _send_json_command(hwnd: int, payload: Mapping[str, object]) -> bool:
     return bool(sent and result_value.value)
 
 
+def _send_mouse_message(hwnd: int, message: int, x: int, y: int, *, wparam: int = 0) -> bool:
+    lparam = ((int(y) & 0xFFFF) << 16) | (int(x) & 0xFFFF)
+    result_value = ctypes.c_size_t()
+    sent = ctypes.windll.user32.SendMessageTimeoutW(
+        ctypes.c_void_p(hwnd),
+        int(message),
+        int(wparam),
+        int(lparam),
+        0x0002,
+        2000,
+        ctypes.byref(result_value),
+    )
+    return bool(sent)
+
+
 def _close_process(process: subprocess.Popen[bytes]) -> None:
     try:
         hwnd = _find_host_window(process.pid)
@@ -5105,16 +9215,42 @@ def main(argv: Sequence[str] | None = None) -> int:
         choices=(
             "full-suite-smoke",
             "service-smoke",
+            "asset-authoring-discovery",
+            "asset-authoring-mesh-health",
+            "asset-authoring-uv-report",
+            "asset-authoring-tangent-report",
+            "asset-authoring-openimageio-report",
+            "long-edit-mesh-tools",
+            "native-mesh-editor-benchmark",
+            "native-mesh-editor-d3d11-delta",
+            "native-mesh-editor-d3d11-payloads",
+            "native-mesh-editor-qt-cancellation",
+            "native-mesh-editor-qt-responsiveness",
+            "native-mesh-editor-standalone-stroke",
+            "native-mesh-editor-static-screen-stroke",
+            "native-mesh-editor-workflow",
             "real-archive-rigging-smoke",
             "real-archive-animation-binding-smoke",
             "real-archive-sequence-binding-smoke",
             "real-archive-app-workflow-smoke",
+            "real-archive-mesh-editor-d3d11-edit-smoke",
+            "real-archive-mesh-editor-d3d11-side-by-side-edit-smoke",
         ),
     )
     parser.add_argument("--game-root", type=Path, default=_DEFAULT_GAME_ROOT)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument(
+        "--allow-synthetic-d3d11",
+        action="store_true",
+        help="Allow synthetic checkerboard D3D11 protocol harnesses; do not use this for visual edit proof.",
+    )
     args = parser.parse_args(argv)
-    result = run_scenario(args.scenario, args.output, game_root=args.game_root)
+    result = run_scenario(
+        args.scenario,
+        args.output,
+        game_root=args.game_root,
+        allow_synthetic_d3d11=args.allow_synthetic_d3d11,
+    )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result.get("ok") else 1
 

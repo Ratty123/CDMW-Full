@@ -6,10 +6,11 @@ from typing import Callable
 
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
+from cdmw.ui.texture_workflow.asset_authoring_panel import TextureWorkflowAssetAuthoringPanelMixin
 from cdmw.ui.widgets import CollapsibleSection
 
 
-class TextureWorkflowSettingsPanelMixin:
+class TextureWorkflowSettingsPanelMixin(TextureWorkflowAssetAuthoringPanelMixin):
     """Build texture workflow run settings."""
 
     def _build_texture_workflow_settings_section(

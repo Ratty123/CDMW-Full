@@ -335,6 +335,12 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             padding: 1px 3px;
             min-width: 40px;
         }}
+        QDialog#MeshReplacementAlignmentDialog QFrame#ClassicMeshEditPreviewActionBar QToolButton:checked {{
+            color: #0d1117;
+            background: #58a6ff;
+            border: 1px solid #79c0ff;
+            font-weight: 700;
+        }}
         QDialog#MeshReplacementAlignmentDialog QWidget#ClassicMeshEditPreviewOptions QLabel,
         QDialog#MeshReplacementAlignmentDialog QWidget#ClassicMeshEditPreviewOptions QCheckBox {{
             font-size: {hint_font_size}px;

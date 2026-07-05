@@ -145,6 +145,40 @@ def _tangents_usable(vertex_blob: bytes, vertex_count: int) -> bool:
             valid += 1
     return bool(checked > 0 and valid / float(checked) >= 0.80)
 
+
+def _tuple3_or_empty(value: object) -> Tuple[float, float, float]:
+    if not isinstance(value, (tuple, list)) or len(value) < 3:
+        return ()
+    parsed = (_safe_float(value[0]), _safe_float(value[1]), _safe_float(value[2]))
+    if not all(math.isfinite(item) for item in parsed):
+        return ()
+    return parsed
+
+
+def _batch_base_color(batch: object, vertex_blob: bytes) -> Tuple[float, float, float]:
+    color = _tuple3_or_empty(getattr(batch, "preview_base_color", ()))
+    return color if color else _first_vertex_color(vertex_blob)
+
+
+def _batch_bounds(
+    batch: object,
+    vertex_blob: bytes,
+    vertex_count: int,
+) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
+    bounds_min = _tuple3_or_empty(getattr(batch, "preview_bounds_min", ()))
+    bounds_max = _tuple3_or_empty(getattr(batch, "preview_bounds_max", ()))
+    if bounds_min and bounds_max:
+        return bounds_min, bounds_max
+    return _payload_bounds(vertex_blob, vertex_count)
+
+
+def _batch_tangents_usable(batch: object, vertex_blob: bytes, vertex_count: int) -> bool:
+    value = getattr(batch, "tangents_usable", None)
+    if value is not None:
+        return bool(value)
+    return _tangents_usable(vertex_blob, vertex_count)
+
+
 def _lighting_preset_for_settings(settings: ModelPreviewRenderSettings) -> str:
     d3d11_mode = str(getattr(settings, "d3d11_view_mode", "") or "").strip().lower()
     if d3d11_mode in {"game_outdoor", "cd_outdoor", "outdoor_game"}:
@@ -421,7 +455,7 @@ def build_native_preview_payloads(
         vertex_count = int(getattr(batch, "index_count", 0) or 0)
         if vertex_count <= 0 or not vertex_blob:
             continue
-        bounds_min, bounds_max = _payload_bounds(vertex_blob, vertex_count)
+        bounds_min, bounds_max = _batch_bounds(batch, vertex_blob, vertex_count)
         flip_value = resolve_preview_texture_flip_vertical(
             getattr(batch, "preview_texture_flip_vertical", None),
             source_path=str(getattr(prepared, "source_path", "") or ""),
@@ -438,7 +472,7 @@ def build_native_preview_payloads(
                 vertex_count=vertex_count,
                 bounds_min=bounds_min,
                 bounds_max=bounds_max,
-                base_color=_first_vertex_color(vertex_blob),
+                base_color=_batch_base_color(batch, vertex_blob),
                 texture_source=_local_file_url(getattr(batch, "preview_texture_path", "")),
                 normal_texture_source=_local_file_url(getattr(batch, "preview_normal_texture_path", ""))
                 if normal_texture_allowed
@@ -453,7 +487,7 @@ def build_native_preview_payloads(
                 material_texture_inputs=_payload_material_inputs(batch),
                 texture_flip_vertical=bool(flip_value),
                 has_texture_coordinates=bool(getattr(batch, "has_texture_coordinates", False)),
-                tangents_usable=_tangents_usable(vertex_blob, vertex_count),
+                tangents_usable=_batch_tangents_usable(batch, vertex_blob, vertex_count),
             )
         )
     return tuple(payloads)
@@ -464,7 +498,10 @@ __all__ = [
     "NativePreviewBatchPayload",
     "_VERTEX_STRUCT",
     "_batch_has_metal_preview_response",
+    "_batch_base_color",
+    "_batch_bounds",
     "_batch_normal_texture_binding_allowed",
+    "_batch_tangents_usable",
     "_clamp01",
     "_contains_token",
     "_first_vertex_color",

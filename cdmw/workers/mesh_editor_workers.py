@@ -6,20 +6,24 @@ import threading
 import time
 import shutil
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from cdmw.models import ArchiveEntry
+from cdmw.domain.mesh import MeshEditCommand
+from cdmw.models import ArchiveEntry, RunCancelled
 from cdmw.models import ModelPreviewData, ModelPreviewRenderSettings, PreparedModelPreviewData
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.rendering.native_preview_package_writer import write_isolated_d3d11_preview_package
 from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_texture_sources import resolve_mesh_texture_source
 
+_LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangulate_display"})
+
 
 class MeshFileSessionLoadWorker(QObject):
-    loaded = Signal(int, object, object)
+    loaded = Signal(int, object, object, object)
     error = Signal(int, str)
     finished = Signal()
 
@@ -56,7 +60,7 @@ class MeshFileSessionLoadWorker(QObject):
                 mode=self.mode,
             )
             if not self.stop_event.is_set():
-                self.loaded.emit(self.request_id, service, view)
+                self.loaded.emit(self.request_id, service, view, mesh)
         except Exception as exc:
             if not self.stop_event.is_set():
                 self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
@@ -184,4 +188,73 @@ class MeshNativePreviewPackageWorker(QObject):
             self.finished.emit()
 
 
-__all__ = ["MeshFileSessionLoadWorker", "MeshNativePreviewPackageWorker", "MeshTextureSourceResolveWorker"]
+class MeshEditCommandWorker(QObject):
+    progress_changed = Signal(int, int, str)
+    completed = Signal(int, object)
+    cancelled = Signal(int, str)
+    error = Signal(int, str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        request_id: int,
+        service: MeshService,
+        session_id: str,
+        command: MeshEditCommand,
+        *,
+        action_text: str = "",
+    ) -> None:
+        super().__init__()
+        self.request_id = int(request_id)
+        self.service = service
+        self.session_id = str(session_id or "")
+        self.command = command
+        self.action_text = str(action_text or command.label or command.action or "mesh edit")
+        self.stop_event = threading.Event()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            if self.stop_event.is_set():
+                self.cancelled.emit(self.request_id, f"Cancelled {self.action_text}.")
+                return
+            self.progress_changed.emit(self.request_id, 0, f"Applying {self.action_text}...")
+            command = self.command
+            action = str(command.action or "").strip().lower()
+            if action in _LEGACY_DISPLAY_CLEANUP_ACTIONS:
+                raise RuntimeError(
+                    f"{action} is legacy display-shape cleanup and is not available in active Mesh Editor"
+                )
+            if action == "undo":
+                result = self.service.undo(self.session_id)
+            elif action == "redo":
+                result = self.service.redo(self.session_id)
+            else:
+                params = dict(command.params or {})
+                params["stop_event"] = self.stop_event
+                result = self.service.apply_command(self.session_id, replace(command, params=params))
+            if self.stop_event.is_set():
+                self.cancelled.emit(self.request_id, f"Cancelled {self.action_text}.")
+                return
+            self.progress_changed.emit(self.request_id, 100, f"Applied {self.action_text}.")
+            self.completed.emit(self.request_id, result)
+        except RunCancelled:
+            self.cancelled.emit(self.request_id, f"Cancelled {self.action_text}.")
+        except Exception as exc:
+            if not self.stop_event.is_set():
+                self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
+            else:
+                self.cancelled.emit(self.request_id, f"Cancelled {self.action_text}.")
+        finally:
+            self.finished.emit()
+
+
+__all__ = [
+    "MeshFileSessionLoadWorker",
+    "MeshEditCommandWorker",
+    "MeshNativePreviewPackageWorker",
+    "MeshTextureSourceResolveWorker",
+]

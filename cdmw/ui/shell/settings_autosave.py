@@ -14,6 +14,11 @@ class SettingsAutosaveMixin:
             self.dds_staging_root_edit,
             self.output_root_edit,
             self.texconv_path_edit,
+            self.material_maker_project_edit,
+            self.material_maker_export_dir_edit,
+            self.openimageio_source_path_edit,
+            self.openimageio_output_path_edit,
+            self.openimageio_compare_path_edit,
             self.csv_log_path_edit,
             self.chainner_exe_path_edit,
             self.chainner_chain_path_edit,
@@ -130,6 +135,7 @@ class SettingsAutosaveMixin:
         self.paths_section.toggled.connect(self.schedule_settings_save)
         self.archive_locations_section.toggled.connect(self.schedule_settings_save)
         self.settings_section.toggled.connect(self.schedule_settings_save)
+        self.asset_authoring_section.toggled.connect(self.schedule_settings_save)
         self.dds_output_section.toggled.connect(self.schedule_settings_save)
         self.filters_section.toggled.connect(self.schedule_settings_save)
         self.chainner_section.toggled.connect(self.schedule_settings_save)
