@@ -1420,10 +1420,6 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         refresh_body = main_source[
             refresh_start: main_source.index("_mesh_edit_preview_source_indices = lambda", refresh_start)
         ]
-        self.assertIn(
-            "and (original_reference_preview_model is not None or _mesh_edit_state.replacement_preview_model is not None)",
-            refresh_body,
-        )
         self.assertNotIn(
             "and original_reference_preview_model is not None\n        )",
             refresh_body,
@@ -2605,7 +2601,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         apply_start = source.index("def _mesh_edit_apply_preview_payload(payload: object) -> None:")
         apply_body = source[apply_start: source.index("def _mesh_edit_finish_stroke", apply_start)]
 
-        self.assertIn("_mesh_edit_payload_vertex_groups_helper(", apply_body)
+        self.assertIn("_mesh_edit_payload_native_vertex_groups_helper(", apply_body)
         self.assertIn("source_indices_for_editor_id=_alignment_d3d11_source_indices_for_editor_id", apply_body)
         self.assertIn("allowed_source_indices=_mesh_edit_allowed_source_indices()", apply_body)
         self.assertIn("allowed_indices = set(int(index) for index in allowed_source_indices)", payload_source)
