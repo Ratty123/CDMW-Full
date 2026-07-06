@@ -90,13 +90,17 @@ class ShellAppStartupTests(unittest.TestCase):
         icon_filter = object()
         events: list[str] = []
 
-        with patch("cdmw.ui.shell.app_startup.apply_window_data_fonts") as apply_fonts:
+        with (
+            patch("cdmw.ui.shell.app_startup.apply_window_ui_fonts") as apply_ui_fonts,
+            patch("cdmw.ui.shell.app_startup.apply_window_data_fonts") as apply_fonts,
+        ):
             prepare_shell_main_window(window, app, splash, icon_filter, events.append)  # type: ignore[arg-type]
 
         self.assertIs(window._app_window_icon_filter, icon_filter)
         self.assertEqual(["main_window_constructed"], events)
         self.assertIs(window.attached_splash, splash)
         self.assertTrue(window.hold_main_window)
+        apply_ui_fonts.assert_called_once_with(window, app)
         apply_fonts.assert_called_once_with(window)
 
     def test_finish_gui_startup_smoke_only_when_requested(self) -> None:

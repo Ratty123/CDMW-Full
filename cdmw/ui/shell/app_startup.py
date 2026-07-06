@@ -14,7 +14,7 @@ from cdmw.services.settings_service import create_settings
 from cdmw.ui.app_icon import load_app_icon
 from cdmw.ui.shell.icon_controller import AppWindowIconEventFilter
 from cdmw.ui.shell.responsiveness_controller import AutoTreeColumnWidthEventFilter
-from cdmw.ui.shell.theme_controller import apply_app_theme, apply_window_data_fonts
+from cdmw.ui.shell.theme_controller import apply_app_theme, apply_window_data_fonts, apply_window_ui_fonts
 from cdmw.ui.themes import UI_THEME_SCHEMES
 from cdmw.ui.widgets import ensure_app_wheel_guard
 
@@ -69,6 +69,7 @@ def prepare_shell_main_window(
     record_runtime_event("main_window_constructed")
     if not app.windowIcon().isNull():
         window.setWindowIcon(app.windowIcon())
+    apply_window_ui_fonts(window, app)
     apply_window_data_fonts(window)
     window.attach_startup_splash(startup_splash, hold_main_window=True)
 

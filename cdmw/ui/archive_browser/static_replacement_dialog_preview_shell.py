@@ -50,6 +50,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     _populate_combo_options_helper = context.get('_populate_combo_options_helper')
     _rough_control_value_from_settings = context.get('_rough_control_value_from_settings')
     _sync_highlight_sets = context.get('_sync_highlight_sets')
+    _texture_uv_control_text_helper = context.get('_texture_uv_control_text_helper')
     alignment_d3d11_view_state_reset_generation = context.get('alignment_d3d11_view_state_reset_generation')
     alignment_dialog_key = context.get('alignment_dialog_key')
     bool = context.get('bool')
@@ -69,6 +70,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     original_texture_preview_state = context.get('original_texture_preview_state')
     self = context.get('self')
     str = context.get('str')
+    texture_uv_global_transform_state = context.get('texture_uv_global_transform_state') or {}
     tuple = context.get('tuple')
     value = context.get('value')
 
@@ -193,6 +195,17 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_controls_row.addWidget(alignment_preview_settings_button)
     preview_controls_row.addWidget(alignment_use_global_preview_button)
     preview_header.addLayout(preview_controls_row)
+    texture_uv_control_text = _texture_uv_control_text_helper()
+    setup_texture_flip_u_checkbox = QCheckBox(texture_uv_control_text["flip_u_label"])
+    setup_texture_flip_u_checkbox.setObjectName("MeshAlignmentSetupTextureFlipUCheckbox")
+    setup_texture_flip_u_checkbox.setToolTip(texture_uv_control_text["setup_flip_u_tooltip"])
+    setup_texture_flip_u_checkbox.setChecked(bool(texture_uv_global_transform_state.get("flip_u")))
+    setup_texture_flip_v_checkbox = QCheckBox(texture_uv_control_text["flip_v_label"])
+    setup_texture_flip_v_checkbox.setObjectName("MeshAlignmentSetupTextureFlipVCheckbox")
+    setup_texture_flip_v_checkbox.setToolTip(texture_uv_control_text["setup_flip_v_tooltip"])
+    setup_texture_flip_v_checkbox.setChecked(bool(texture_uv_global_transform_state.get("flip_v")))
+    preview_camera_row.addWidget(setup_texture_flip_u_checkbox)
+    preview_camera_row.addWidget(setup_texture_flip_v_checkbox)
     preview_camera_row.addStretch(1)
     preview_camera_row.addWidget(QLabel(alignment_preview_control_text["camera_label"]))
 
@@ -691,6 +704,8 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         previous_dialog_resize_event=locals().get('previous_dialog_resize_event'),
         replacement_only_preview=locals().get('replacement_only_preview'),
         root_layout=locals().get('root_layout'),
+        setup_texture_flip_u_checkbox=locals().get('setup_texture_flip_u_checkbox'),
+        setup_texture_flip_v_checkbox=locals().get('setup_texture_flip_v_checkbox'),
         static_dialog_preview=locals().get('static_dialog_preview'),
         tooltip=locals().get('tooltip'),
     )

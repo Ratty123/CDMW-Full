@@ -140,7 +140,8 @@ def prompt_archive_static_replacement_options(
         preview_panel, preview_performance_label, preview_render_mode_combo, preview_render_settings,
         preview_renderer_combo, preview_rough_spin, preview_shine_spin, preview_splitter,
         preview_stack, preview_support_maps_checkbox, preview_visible_mode_combo, previous_dialog_resize_event,
-        replacement_only_preview, root_layout, static_dialog_preview, tooltip,
+        replacement_only_preview, root_layout, setup_texture_flip_u_checkbox, setup_texture_flip_v_checkbox,
+        static_dialog_preview, tooltip,
     ) = static_replacement_section_values(
         alignment_preview_shell_section,
         (
@@ -166,7 +167,8 @@ def prompt_archive_static_replacement_options(
             "preview_panel", "preview_performance_label", "preview_render_mode_combo", "preview_render_settings",
             "preview_renderer_combo", "preview_rough_spin", "preview_shine_spin", "preview_splitter",
             "preview_stack", "preview_support_maps_checkbox", "preview_visible_mode_combo", "previous_dialog_resize_event",
-            "replacement_only_preview", "root_layout", "static_dialog_preview", "tooltip",
+            "replacement_only_preview", "root_layout", "setup_texture_flip_u_checkbox", "setup_texture_flip_v_checkbox",
+            "static_dialog_preview", "tooltip",
         ),
     )
     alignment_workflow_shell_section = create_alignment_workflow_shell_section({**prompt_shell_context, **locals()})

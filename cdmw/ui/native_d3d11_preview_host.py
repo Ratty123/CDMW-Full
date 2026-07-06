@@ -6,6 +6,8 @@ import json
 import os
 import platform
 import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
@@ -187,6 +189,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
             "all": {**dict(self._view_state), "role": "all"},
         }
         self._last_event_payload: Dict[str, object] = {}
+        self._last_mesh_edit_send_metrics: Dict[str, object] = {}
         self._side_by_side_split_ratio = 0.5
 
     def _host_hwnd(self) -> int:
@@ -233,11 +236,8 @@ class NativeD3D11PreviewHostFrame(QFrame):
         except Exception:
             return
 
-    def _send_host_json_command(self, payload: Mapping[str, object]) -> bool:
-        hwnd = self._host_hwnd()
-        if hwnd <= 0:
-            return False
-
+    @staticmethod
+    def _send_host_json_command_to_hwnd(hwnd: int, sender_hwnd: int, payload: Mapping[str, object]) -> bool:
         class _CopyDataStruct(ctypes.Structure):
             _fields_ = [
                 ("dwData", ctypes.c_size_t),
@@ -249,7 +249,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
             encoded = json.dumps(dict(payload), separators=(",", ":")).encode("utf-8") + b"\0"
             buffer = ctypes.create_string_buffer(encoded)
             cds = _CopyDataStruct(
-                self._WM_COPYDATA_COMMAND,
+                NativeD3D11PreviewHostFrame._WM_COPYDATA_COMMAND,
                 len(encoded),
                 ctypes.cast(buffer, ctypes.c_void_p),
             )
@@ -267,8 +267,8 @@ class NativeD3D11PreviewHostFrame(QFrame):
             user32.SendMessageTimeoutW.restype = ctypes.c_ssize_t
             result = user32.SendMessageTimeoutW(
                 ctypes.c_void_p(hwnd),
-                self._WM_COPYDATA,
-                int(self.winId()),
+                NativeD3D11PreviewHostFrame._WM_COPYDATA,
+                int(sender_hwnd),
                 ctypes.byref(cds),
                 0x0002,
                 750,
@@ -277,6 +277,42 @@ class NativeD3D11PreviewHostFrame(QFrame):
             return bool(result and result_value.value)
         except Exception:
             return False
+
+    def _send_host_json_command(self, payload: Mapping[str, object]) -> bool:
+        hwnd = self._host_hwnd()
+        if hwnd <= 0:
+            return False
+        try:
+            sender_hwnd = int(self.winId())
+        except Exception:
+            return False
+        return self._send_host_json_command_to_hwnd(hwnd, sender_hwnd, payload)
+
+    def _send_host_json_command_async(self, payload: Mapping[str, object], *, cleanup_path: Optional[Path] = None) -> bool:
+        if "_send_host_json_command" in self.__dict__:
+            return self._send_host_json_command(payload)
+        hwnd = self._host_hwnd()
+        if hwnd <= 0:
+            return False
+        try:
+            sender_hwnd = int(self.winId())
+        except Exception:
+            return False
+        payload_copy = dict(payload)
+
+        def _send() -> None:
+            ok = self._send_host_json_command_to_hwnd(hwnd, sender_hwnd, payload_copy)
+            if not ok and cleanup_path is not None:
+                try:
+                    cleanup_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+        threading.Thread(target=_send, name="cdmw-d3d11-mesh-edit-send", daemon=True).start()
+        return True
+
+    def last_mesh_edit_send_metrics(self) -> Dict[str, object]:
+        return dict(self._last_mesh_edit_send_metrics)
 
     def load_package(self, package_dir: Path, status_file: Path, *, reset_view: bool = False) -> bool:
         return self._send_host_json_command(
@@ -748,6 +784,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
             file_command="update_mesh_edit_vertices_file",
             file_prefix="cdmw_mesh_edit_vertices_",
             threshold=self._MESH_EDIT_VERTEX_FILE_THRESHOLD,
+            async_send=True,
         )
 
     def _send_mesh_edit_json_or_file(
@@ -757,15 +794,43 @@ class NativeD3D11PreviewHostFrame(QFrame):
         file_command: str,
         file_prefix: str,
         threshold: int,
+        async_send: bool = False,
     ) -> bool:
+        started = time.perf_counter()
+        command = str(payload.get("command") or "")
+        json_started = time.perf_counter()
         try:
             encoded = json.dumps(dict(payload), separators=(",", ":")).encode("utf-8")
         except (TypeError, ValueError):
+            self._last_mesh_edit_send_metrics = {
+                "command": command,
+                "ok": False,
+                "json_encode_ms": max(0.0, (time.perf_counter() - json_started) * 1000.0),
+                "total_ms": max(0.0, (time.perf_counter() - started) * 1000.0),
+            }
             return False
+        json_encode_ms = max(0.0, (time.perf_counter() - json_started) * 1000.0)
         if len(encoded) <= threshold:
-            return self._send_host_json_command(payload)
+            send_started = time.perf_counter()
+            ok = (
+                self._send_host_json_command_async(payload)
+                if async_send
+                else self._send_host_json_command(payload)
+            )
+            self._last_mesh_edit_send_metrics = {
+                "command": command,
+                "ok": bool(ok),
+                "payload_bytes": len(encoded),
+                "used_file": False,
+                "async_send": bool(async_send),
+                "json_encode_ms": json_encode_ms,
+                "send_ms": max(0.0, (time.perf_counter() - send_started) * 1000.0),
+                "total_ms": max(0.0, (time.perf_counter() - started) * 1000.0),
+            }
+            return ok
         temp_path: Optional[Path] = None
         try:
+            write_started = time.perf_counter()
             with tempfile.NamedTemporaryFile(
                 "wb",
                 suffix=".json",
@@ -774,15 +839,33 @@ class NativeD3D11PreviewHostFrame(QFrame):
             ) as temp_file:
                 temp_file.write(encoded)
                 temp_path = Path(temp_file.name)
-            ok = self._send_host_json_command(
-                {
-                    "command": file_command,
-                    "payload_file": str(temp_path),
-                    "delete_after": True,
-                }
+            write_ms = max(0.0, (time.perf_counter() - write_started) * 1000.0)
+            send_started = time.perf_counter()
+            command_payload = {
+                "command": file_command,
+                "payload_file": str(temp_path),
+                "delete_after": True,
+            }
+            ok = (
+                self._send_host_json_command_async(command_payload, cleanup_path=temp_path)
+                if async_send
+                else self._send_host_json_command(command_payload)
             )
+            send_ms = max(0.0, (time.perf_counter() - send_started) * 1000.0)
             if not ok and temp_path is not None:
                 temp_path.unlink(missing_ok=True)
+            self._last_mesh_edit_send_metrics = {
+                "command": command,
+                "file_command": file_command,
+                "ok": bool(ok),
+                "payload_bytes": len(encoded),
+                "used_file": True,
+                "async_send": bool(async_send),
+                "json_encode_ms": json_encode_ms,
+                "file_write_ms": write_ms,
+                "send_ms": send_ms,
+                "total_ms": max(0.0, (time.perf_counter() - started) * 1000.0),
+            }
             return ok
         except Exception:
             if temp_path is not None:
@@ -790,6 +873,15 @@ class NativeD3D11PreviewHostFrame(QFrame):
                     temp_path.unlink(missing_ok=True)
                 except OSError:
                     pass
+            self._last_mesh_edit_send_metrics = {
+                "command": command,
+                "file_command": file_command,
+                "ok": False,
+                "payload_bytes": len(encoded),
+                "used_file": True,
+                "json_encode_ms": json_encode_ms,
+                "total_ms": max(0.0, (time.perf_counter() - started) * 1000.0),
+            }
             return False
 
     def replace_mesh_edit_triangles(

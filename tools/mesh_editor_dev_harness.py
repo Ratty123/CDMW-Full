@@ -11,6 +11,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import zlib
 from pathlib import Path
@@ -1399,15 +1400,50 @@ class _NativeD3D11HarnessHost:
         self.triangle_calls: list[dict[str, object]] = []
         self.triangle_events: list[dict[str, object]] = []
         self.mesh_edit_states: list[dict[str, object]] = []
+        self.send_metrics: list[dict[str, object]] = []
+
+    def _send(self, payload: Mapping[str, object]) -> bool:
+        encoded = json.dumps(dict(payload), separators=(",", ":")).encode("utf-8")
+        started = time.perf_counter()
+        ok = _send_json_command(self.hwnd, payload)
+        self.send_metrics.append(
+            {
+                "command": str(payload.get("command") or ""),
+                "payload_bytes": len(encoded),
+                "send_ms": max(0.0, (time.perf_counter() - started) * 1000.0),
+                "ok": bool(ok),
+            }
+        )
+        return ok
+
+    def _send_async(self, payload: Mapping[str, object]) -> bool:
+        payload_copy = dict(payload)
+        encoded = json.dumps(payload_copy, separators=(",", ":")).encode("utf-8")
+        started = time.perf_counter()
+
+        def _send_background() -> None:
+            _send_json_command(self.hwnd, payload_copy)
+
+        threading.Thread(target=_send_background, name="cdmw-d3d11-harness-send", daemon=True).start()
+        self.send_metrics.append(
+            {
+                "command": str(payload.get("command") or ""),
+                "payload_bytes": len(encoded),
+                "send_ms": max(0.0, (time.perf_counter() - started) * 1000.0),
+                "ok": True,
+                "async_send": True,
+            }
+        )
+        return True
 
     def set_mesh_edit_state(self, **kwargs: object) -> bool:
         self.calls.append("set_mesh_edit_state")
         self.mesh_edit_states.append(dict(kwargs))
-        return _send_json_command(self.hwnd, {"command": "set_mesh_edit_state", **dict(kwargs)})
+        return self._send({"command": "set_mesh_edit_state", **dict(kwargs)})
 
     def update_mesh_edit_vertices(self, groups: Sequence[Mapping[str, object]]) -> bool:
         self.calls.append("update_mesh_edit_vertices")
-        return _send_json_command(self.hwnd, {"command": "update_mesh_edit_vertices", "groups": list(groups or ())})
+        return self._send_async({"command": "update_mesh_edit_vertices", "groups": list(groups or ())})
 
     def replace_mesh_edit_triangles(
         self,
@@ -1425,8 +1461,7 @@ class _NativeD3D11HarnessHost:
                 "group_count": len(groups or ()),
             }
         )
-        ok = _send_json_command(
-            self.hwnd,
+        ok = self._send(
             {
                 "command": "replace_mesh_edit_triangles",
                 "groups": list(groups or ()),
@@ -1444,11 +1479,11 @@ class _NativeD3D11HarnessHost:
     def set_material_overrides(self, **kwargs: object) -> bool:
         self.calls.append("set_material_overrides")
         payload = {"command": "set_material_overrides", **kwargs}
-        return _send_json_command(self.hwnd, payload)
+        return self._send(payload)
 
     def set_mesh_edit_selection_groups(self, groups: Sequence[Mapping[str, object]]) -> bool:
         self.calls.append("set_mesh_edit_selection")
-        return _send_json_command(self.hwnd, {"command": "set_mesh_edit_selection", "groups": list(groups or ())})
+        return self._send({"command": "set_mesh_edit_selection", "groups": list(groups or ())})
 
 
 class _HarnessSignal:
@@ -1508,6 +1543,37 @@ def _emit_timed_stroke(signal: _HarnessSignal, payload: Mapping[str, object]) ->
     started = time.perf_counter()
     signal.emit(dict(payload))
     return max(0.0, (time.perf_counter() - started) * 1000.0)
+
+
+def _finite_float(value: object, default: float = 0.0) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return result if -float("inf") < result < float("inf") else default
+
+
+def _payload_frame_count(payload: object) -> int:
+    if not isinstance(payload, Mapping):
+        return -1
+    try:
+        return int(payload.get("frame_count", -1) or -1)
+    except (TypeError, ValueError, OverflowError):
+        return -1
+
+
+def _timing_summary(samples: Sequence[Mapping[str, object]], key: str) -> dict[str, float]:
+    values = sorted(_finite_float(sample.get(key), 0.0) for sample in samples)
+    values = [value for value in values if value >= 0.0]
+    if not values:
+        return {"count": 0.0, "max_ms": 0.0, "average_ms": 0.0, "p95_ms": 0.0}
+    p95_index = min(len(values) - 1, int(math.ceil(len(values) * 0.95)) - 1)
+    return {
+        "count": float(len(values)),
+        "max_ms": values[-1],
+        "average_ms": sum(values) / len(values),
+        "p95_ms": values[p95_index],
+    }
 
 
 _LEGACY_SCREEN_CAMERA_FIELDS = frozenset({"camera_world", "yaw_degrees", "pitch_degrees", "distance", "vertical_fov_degrees", "pan"})
@@ -2766,27 +2832,59 @@ def run_real_archive_mesh_editor_d3d11_edit_smoke(
         stroke_preview_statuses: list[dict[str, object]] = []
         stroke_preview_handled = True
         edit_update_events: list[dict[str, object]] = []
+        live_stroke_timings: list[dict[str, object]] = []
         d3d11_update_ms = 0.0
-        for move_x, move_y in mouse_drag_points:
+        previous_frame_count = _payload_frame_count(stroke_started_status.get("payload", {}))
+        for move_index, (move_x, move_y) in enumerate(mouse_drag_points):
             mouse_move_sent = bool(
                 mouse_move_sent and _send_mouse_message(hwnd, _WM_MOUSEMOVE, move_x, move_y, wparam=_MK_LBUTTON)
             )
             preview_status = _wait_for_status(status_file, {"mesh_edit_stroke_previewed"}, timeout_seconds)
             status_file.unlink(missing_ok=True)
             stroke_preview_statuses.append(preview_status)
-            d3d11_update_started = time.perf_counter()
+            send_metric_start = len(edit_host.send_metrics)
+            handler_started = time.perf_counter()
             preview_handled = tab._handle_standalone_native_mesh_edit_stroke_previewed(
                 preview_status.get("payload", {}),
             )
+            handler_ms = max(0.0, (time.perf_counter() - handler_started) * 1000.0)
             stroke_preview_handled = bool(stroke_preview_handled and preview_handled)
+            event_wait_started = time.perf_counter()
             update_event = (
                 _wait_for_status(status_file, {"mesh_edit_vertices_updated", "mesh_edit_triangles_replaced"}, timeout_seconds)
                 if preview_handled
                 else {}
             )
-            d3d11_update_ms += (time.perf_counter() - d3d11_update_started) * 1000.0
+            event_wait_ms = max(0.0, (time.perf_counter() - event_wait_started) * 1000.0) if preview_handled else 0.0
+            d3d11_update_ms += handler_ms + event_wait_ms
             status_file.unlink(missing_ok=True)
             edit_update_events.append(update_event)
+            payload = preview_status.get("payload", {})
+            frame_count = _payload_frame_count(payload)
+            metrics = dict(tab.standalone_last_action_metrics)
+            update_send_metrics = edit_host.send_metrics[send_metric_start:]
+            live_stroke_timings.append(
+                {
+                    "move_index": move_index,
+                    "handled": bool(preview_handled),
+                    "frame_count": frame_count,
+                    "frame_delta": max(0, frame_count - previous_frame_count) if previous_frame_count >= 0 and frame_count >= 0 else -1,
+                    "handler_ms": handler_ms,
+                    "event_wait_ms": event_wait_ms,
+                    "total_update_ms": handler_ms + event_wait_ms,
+                    "service_total_ms": _finite_float(metrics.get("service_total_ms")),
+                    "service_dispatch_ms": _finite_float(metrics.get("service_dispatch_ms")),
+                    "native_apply_roundtrip_ms": _finite_float(metrics.get("native_apply_roundtrip_ms")),
+                    "native_apply_overhead_ms": _finite_float(metrics.get("native_apply_overhead_ms")),
+                    "cpp_ms": _finite_float(metrics.get("cpp_ms")),
+                    "io_serialization_ms": _finite_float(metrics.get("io_serialization_ms")),
+                    "python_apply_ms": _finite_float(metrics.get("python_apply_ms")),
+                    "d3d11_send_ms": sum(_finite_float(item.get("send_ms")) for item in update_send_metrics),
+                    "d3d11_payload_bytes": sum(int(item.get("payload_bytes", 0) or 0) for item in update_send_metrics),
+                    "d3d11_send_count": len(update_send_metrics),
+                }
+            )
+            previous_frame_count = frame_count if frame_count >= 0 else previous_frame_count
         stroke_preview_status = stroke_preview_statuses[-1] if stroke_preview_statuses else {}
         edit_update_event = edit_update_events[-1] if edit_update_events else {}
         edit_result = tab.standalone_last_action_result
@@ -2895,6 +2993,23 @@ def run_real_archive_mesh_editor_d3d11_edit_smoke(
                     edit_changed_vertices += int(values.get("source_vertex_count", 0) or 0)
             else:
                 edit_changed_vertices += len(tuple(values or ()))
+        frame_budget_ms = 1000.0 / 60.0
+        live_stroke_timing_summary = {
+            "frame_budget_ms": frame_budget_ms,
+            "handler": _timing_summary(live_stroke_timings, "handler_ms"),
+            "event_wait": _timing_summary(live_stroke_timings, "event_wait_ms"),
+            "total_update": _timing_summary(live_stroke_timings, "total_update_ms"),
+            "native_apply_roundtrip": _timing_summary(live_stroke_timings, "native_apply_roundtrip_ms"),
+            "cpp": _timing_summary(live_stroke_timings, "cpp_ms"),
+            "io_serialization": _timing_summary(live_stroke_timings, "io_serialization_ms"),
+            "d3d11_send": _timing_summary(live_stroke_timings, "d3d11_send_ms"),
+            "max_payload_bytes": max((int(item.get("d3d11_payload_bytes", 0) or 0) for item in live_stroke_timings), default=0),
+        }
+        live_stroke_frame_budget_ok = bool(
+            live_stroke_timings
+            and all(bool(item.get("handled")) for item in live_stroke_timings)
+            and all(_finite_float(item.get("handler_ms")) <= frame_budget_ms for item in live_stroke_timings)
+        )
         ok = bool(
             select_result.ok
             and select_update_ok
@@ -2992,6 +3107,11 @@ def run_real_archive_mesh_editor_d3d11_edit_smoke(
             "stroke_started_handled": stroke_started_handled,
             "stroke_preview_handled": stroke_preview_handled,
             "stroke_finished_handled": stroke_finished_handled,
+            "live_stroke_timings": live_stroke_timings,
+            "live_stroke_timing_summary": live_stroke_timing_summary,
+            "live_stroke_frame_budget_ok": live_stroke_frame_budget_ok,
+            "live_stroke_frame_budget_ms": frame_budget_ms,
+            "d3d11_send_metrics": list(edit_host.send_metrics),
             "before_capture_png": str(before_capture_path),
             "selected_before_capture_png": str(selected_before_capture_path),
             "after_capture_png": str(after_capture_path),

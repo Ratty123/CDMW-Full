@@ -1994,7 +1994,7 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
         source = Path("tools/mesh_editor_dev_harness.py").read_text(encoding="utf-8")
         self.assertIn("mouse_drag_mid = (mouse_drag_start[0] + 16, mouse_drag_start[1])", source)
         self.assertIn("mouse_drag_points = (mouse_drag_mid, mouse_drag_end)", source)
-        self.assertIn("for move_x, move_y in mouse_drag_points:", source)
+        self.assertIn("for move_index, (move_x, move_y) in enumerate(mouse_drag_points):", source)
         self.assertIn('all(event.get("event") == "mesh_edit_vertices_updated" for event in edit_update_events)', source)
         self.assertIn('"mouse_drag_points": [list(point) for point in mouse_drag_points]', source)
         self.assertIn("selected_before_capture_path = output_dir / \"real_archive_selected_before_drag.png\"", source)
@@ -2002,6 +2002,11 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
         self.assertIn("_write_real_archive_visual_edit_proof(", source)
         self.assertIn('"visual_edit_proof_png": str(visual_proof_path)', source)
         self.assertIn('"visual_edit_proof_summary": visual_proof_summary', source)
+        self.assertIn('"live_stroke_timings": live_stroke_timings', source)
+        self.assertIn('"live_stroke_timing_summary": live_stroke_timing_summary', source)
+        self.assertIn('"live_stroke_frame_budget_ok": live_stroke_frame_budget_ok', source)
+        self.assertIn('"handler_ms": handler_ms', source)
+        self.assertIn('"d3d11_send_ms": sum(_finite_float(item.get("send_ms")) for item in update_send_metrics)', source)
 
     def test_real_archive_mesh_editor_side_by_side_drag_smoke_uses_replacement_viewport(self) -> None:
         source = Path("tools/mesh_editor_dev_harness.py").read_text(encoding="utf-8")

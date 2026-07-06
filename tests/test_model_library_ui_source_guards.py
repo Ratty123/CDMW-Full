@@ -236,6 +236,29 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("self._stop_inline_d3d11_status_timer()", source)
         self.assertNotIn("self._inline_d3d11_status_timer.stop()\n        if process is None:", source)
 
+    def test_inline_d3d11_preview_is_fast_first_and_promotes_after_loaded(self) -> None:
+        source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
+        start_block = source[
+            source.index("def _start_inline_d3d11_process"):
+            source.index("def _check_inline_d3d11_start_timeout")
+        ]
+        loaded_block = source[
+            source.index('if event == "loaded":'):
+            source.index('elif event == "error":')
+        ]
+        task_block = source[
+            source.index("def task(progress: Callable[[str], None]) -> object:"):
+            source.index("def complete(result: object) -> None:")
+        ]
+
+        self.assertNotIn("inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)", start_block)
+        self.assertNotIn("inline_d3d11_preview_host.clear_preview(status_file)", start_block)
+        self.assertIn("high_quality_textures=False", task_block)
+        self.assertIn("self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)", loaded_block)
+        self.assertIn("native_texture_ms", loaded_block)
+        self.assertIn("png_fallback", loaded_block)
+        self.assertIn("texture_cache_hits", loaded_block)
+
     def test_model_library_tab_scans_searches_and_shows_manual_file_urls(self) -> None:
         source = (
             Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
@@ -433,7 +456,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("render_settings=preview_render_settings", source)
         self.assertIn("prepare_model_library_inline_preview(", source)
         self.assertNotIn("prepare_model_library_inline_preview_in_subprocess", source)
-        self.assertIn("high_quality_textures=True", source)
+        self.assertIn("high_quality_textures=False", source)
         self.assertIn("stop_event=stop_event", source)
         self.assertIn("_pending_inline_preview_request = (Path(source_path), dict(payload), bool(reset_orientation))", source)
         self.assertIn("def _after_model_library_task_finished", source)
@@ -560,7 +583,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("extract_root = self._inline_preview_extract_root_for_source(source_path, payload)", task_body)
         self.assertIn("return prepare_model_library_inline_preview(", task_body)
         self.assertNotIn("prepare_model_library_inline_preview_in_subprocess(", task_body)
-        self.assertIn("high_quality_textures=True", task_body)
+        self.assertIn("high_quality_textures=False", task_body)
         self.assertIn("stop_event=stop_event", task_body)
         self.assertNotIn("resolve_importable_model_path(", task_body)
         self.assertNotIn("import_scene_mesh_with_report(", task_body)
@@ -621,19 +644,14 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("return path", local_fast_path)
         self.assertNotIn("path.is_file()", local_fast_path)
 
-    def test_inline_d3d11_host_is_shown_before_hwnd_capture(self) -> None:
+    def test_inline_d3d11_host_is_prepared_before_hwnd_capture_without_early_stack_switch(self) -> None:
         source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
         start = source.index("    def _start_inline_d3d11_process")
         body = source[start: source.index("    def _handle_inline_d3d11_stderr", start)]
 
         command_index = body.index("native_d3d11_renderer_command(")
-        self.assertLess(
-            body.index(
-                "self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)",
-                body.index("self._stop_inline_d3d11_process(cleanup_packages=True)"),
-            ),
-            command_index,
-        )
+        self.assertNotIn("self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)", body)
+        self.assertLess(body.index("self.inline_d3d11_preview_host.setAttribute("), command_index)
         self.assertLess(body.index("self.inline_d3d11_preview_host.show()"), command_index)
         self.assertIn("crash_dir, diagnostic_log = self._inline_d3d11_diagnostic_paths()", body)
         self.assertIn("crash_dir=crash_dir", body)

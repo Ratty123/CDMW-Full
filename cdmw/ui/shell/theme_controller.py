@@ -54,6 +54,43 @@ _DATA_FONT_CLASS_NAMES = (
 )
 
 
+def _install_app_fonts(app: QApplication, app_font: QFont, data_font: QFont) -> None:
+    if not _same_font(app.font(), app_font):
+        app.setFont(app_font)
+    for class_name in _UI_FONT_CLASS_NAMES:
+        app.setFont(app_font, class_name)
+    for class_name in _DATA_FONT_CLASS_NAMES:
+        app.setFont(data_font, class_name)
+
+
+def _apply_ui_fonts_to_widget_tree(root: QWidget, ui_font: QFont) -> None:
+    for widget in (root, *root.findChildren(QWidget)):
+        try:
+            managed = bool(widget.property("_cdmw_global_font_managed"))
+            inherited = int(widget.font().resolveMask()) == 0
+        except RuntimeError:
+            continue
+        if not (managed or inherited):
+            continue
+        if not _same_font(widget.font(), ui_font):
+            widget.setFont(ui_font)
+        widget.setProperty("_cdmw_global_font_managed", True)
+
+
+def _apply_data_fonts_to_widget_tree(root: QWidget, data_font: QFont) -> None:
+    for widget in root.findChildren(QAbstractItemView):
+        if not _same_font(widget.font(), data_font):
+            widget.setFont(data_font)
+    for header in root.findChildren(QHeaderView):
+        if not _same_font(header.font(), data_font):
+            header.setFont(data_font)
+
+
+def _mark_custom_font(widget: object) -> None:
+    if isinstance(widget, QWidget):
+        widget.setProperty("_cdmw_global_font_managed", False)
+
+
 def _resolved_app_fonts(
     app: QApplication,
     settings: QSettings,
@@ -99,12 +136,7 @@ def apply_app_fonts(
         screen_width=screen_width,
         screen_height=screen_height,
     )
-    if not _same_font(app.font(), app_font):
-        app.setFont(app_font)
-    for class_name in _UI_FONT_CLASS_NAMES:
-        app.setFont(app_font, class_name)
-    for class_name in _DATA_FONT_CLASS_NAMES:
-        app.setFont(data_font, class_name)
+    _install_app_fonts(app, app_font, data_font)
     return app_font, data_font
 
 
@@ -117,14 +149,13 @@ def apply_app_theme(
     screen_height: Optional[int] = None,
 ) -> str:
     resolved_theme = theme_key if theme_key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
-    app_font, _data_font, effective_density_key, screen_scale = _resolved_app_fonts(
+    app_font, data_font, effective_density_key, screen_scale = _resolved_app_fonts(
         app,
         settings,
         screen_width=screen_width,
         screen_height=screen_height,
     )
-    if not _same_font(app.font(), app_font):
-        app.setFont(app_font)
+    _install_app_fonts(app, app_font, data_font)
     app.setPalette(build_app_palette(resolved_theme))
     app.setStyleSheet(
         build_app_stylesheet(
@@ -204,24 +235,66 @@ def apply_window_text_highlight_style(window: "MainWindow") -> None:
 def apply_window_data_fonts(window: "MainWindow") -> None:
     log_font = build_monospace_font(window.settings)
     window.log_view.setFont(log_font)
+    _mark_custom_font(window.log_view)
     window.log_view.document().setDefaultFont(log_font)
     window.archive_log_view.setFont(log_font)
+    _mark_custom_font(window.archive_log_view)
     window.archive_log_view.document().setDefaultFont(log_font)
     window.archive_preview_text_edit.apply_font_preferences(log_font, preserve_size=False)
+    _mark_custom_font(window.archive_preview_text_edit)
     window.archive_preview_info_edit.apply_font_preferences(log_font, preserve_size=False)
+    _mark_custom_font(window.archive_preview_info_edit)
     window.archive_preview_details_edit.apply_font_preferences(log_font, preserve_size=False)
+    _mark_custom_font(window.archive_preview_details_edit)
     window.text_search_tab.log_view.setFont(log_font)
+    _mark_custom_font(window.text_search_tab.log_view)
     window.text_search_tab.log_view.document().setDefaultFont(log_font)
     window.text_search_tab.preview_text_edit.apply_font_preferences(log_font, preserve_size=False)
+    _mark_custom_font(window.text_search_tab.preview_text_edit)
     window.replace_assistant_tab.log_view.setFont(log_font)
+    _mark_custom_font(window.replace_assistant_tab.log_view)
     window.replace_assistant_tab.log_view.document().setDefaultFont(log_font)
     window.replace_assistant_tab.preview_details_edit.setFont(log_font)
+    _mark_custom_font(window.replace_assistant_tab.preview_details_edit)
     window.replace_assistant_tab.preview_details_edit.document().setDefaultFont(log_font)
     bold_enabled = _read_bool_setting(window.settings, "appearance/log_font_bold", DEFAULT_UI_LOG_FONT_BOLD)
     window.log_highlighter.set_bold_enabled(bold_enabled)
     window.archive_log_highlighter.set_bold_enabled(bold_enabled)
     window.text_search_tab.log_highlighter.set_bold_enabled(bold_enabled)
     apply_window_text_highlight_style(window)
+
+
+def apply_window_ui_fonts(window: "MainWindow", app: QApplication | None = None) -> tuple[QFont, QFont] | None:
+    app = app or QApplication.instance()
+    if app is None:
+        return None
+    layout_widget = window if isinstance(window, QWidget) else None
+    screen_width, screen_height = available_layout_size_for(layout_widget)
+    ui_font, data_font = apply_app_fonts(
+        app,
+        window.settings,
+        screen_width=screen_width,
+        screen_height=screen_height,
+    )
+    if layout_widget is not None:
+        _apply_ui_fonts_to_widget_tree(layout_widget, ui_font)
+        _apply_data_fonts_to_widget_tree(layout_widget, data_font)
+    else:
+        sync_data = getattr(window, "_apply_data_widget_fonts", None)
+        if callable(sync_data):
+            sync_data(data_font)
+    sync_archive_controls = getattr(window, "_sync_archive_controls_font", None)
+    if callable(sync_archive_controls):
+        sync_archive_controls(ui_font)
+    texture_editor_tab = getattr(window, "texture_editor_tab", None)
+    texture_sync = getattr(texture_editor_tab, "sync_ui_font", None)
+    if callable(texture_sync):
+        texture_sync(ui_font)
+    mesh_editor_tab = getattr(window, "mesh_editor_tab", None)
+    mesh_sync = getattr(mesh_editor_tab, "sync_ui_font", None)
+    if callable(mesh_sync):
+        mesh_sync(ui_font, data_font)
+    return ui_font, data_font
 
 
 class ThemeControllerMixin:
@@ -461,6 +534,8 @@ class ThemeControllerMixin:
             screen_width=screen_width,
             screen_height=screen_height,
         )
+        if isinstance(self, QWidget):
+            _apply_ui_fonts_to_widget_tree(self, ui_font)
         self._apply_data_widget_fonts(data_font)
         self._sync_archive_controls_font(ui_font)
 
@@ -475,12 +550,7 @@ class ThemeControllerMixin:
             archive_controls_group.setFont(archive_controls_font)
 
     def _apply_data_widget_fonts(self, data_font: QFont) -> None:
-        for widget in self.findChildren(QAbstractItemView):
-            if not _same_font(widget.font(), data_font):
-                widget.setFont(data_font)
-        for header in self.findChildren(QHeaderView):
-            if not _same_font(header.font(), data_font):
-                header.setFont(data_font)
+        _apply_data_fonts_to_widget_tree(self, data_font)
 
     def _sync_mesh_editor_appearance(self, app: QApplication) -> None:
         self._sync_mesh_editor_theme()
@@ -573,8 +643,10 @@ class ThemeControllerMixin:
     def _apply_single_text_widget_font(self, widget: QWidget, font: QFont) -> None:
         if hasattr(widget, "apply_font_preferences"):
             widget.apply_font_preferences(font, preserve_size=False)  # type: ignore[attr-defined]
+            _mark_custom_font(widget)
             return
         widget.setFont(font)
+        _mark_custom_font(widget)
         document_getter = getattr(widget, "document", None)
         if callable(document_getter):
             document = document_getter()
@@ -763,6 +835,7 @@ __all__ = [
     "apply_app_theme",
     "apply_app_fonts",
     "apply_window_data_fonts",
+    "apply_window_ui_fonts",
     "apply_window_text_highlight_style",
     "build_monospace_font",
     "read_log_text_style",

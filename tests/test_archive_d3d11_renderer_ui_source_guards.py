@@ -92,7 +92,7 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
     def test_old_renderer_terms_are_purged_from_tracked_sources(self) -> None:
         for root in ("cdmw", "native", "tests", "docs"):
             for path in Path(root).rglob("*"):
-                if not path.is_file() or any(part in {"build", "target", "__pycache__"} for part in path.parts):
+                if not path.is_file() or any(part in {"build", "target", "third_party", "__pycache__"} for part in path.parts):
                     continue
                 if path.suffix.lower() not in {".py", ".md", ".txt", ".csv", ".rs", ".cpp", ".h", ".hpp", ".json", ".toml"}:
                     continue
@@ -132,6 +132,18 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn('quality_tier", "") or "").strip().lower() == "fast"', source)
         self.assertIn("SendMessageTimeoutW", host_source)
         self.assertIn("_kill_archive_isolated_renderer_process_if_running(process)", source)
+
+    def test_native_d3d11_overlay_uses_one_canonical_workspace_grid(self) -> None:
+        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertNotIn("workspace_grid_y_for_view", native_source)
+        grid_start = native_source.index("void draw_workspace_grid(")
+        grid_body = native_source[grid_start: native_source.index("void draw_alignment_axes", grid_start)]
+        self.assertIn("constexpr float grid_y = 0.0f;", grid_body)
+        render_start = native_source.index("void draw_render_view")
+        render_body = native_source[render_start: native_source.index("void draw_side_by_side_splitter_overlay", render_start)]
+        self.assertIn('!(display_mode_ == "overlay" && view.role == PreviewViewRole::Reference)', render_body)
+        self.assertIn("draw_workspace_grid(world_view_projection);", render_body)
 
     def test_model_preview_palette_is_theme_independent(self) -> None:
         constants_source = Path("cdmw/constants.py").read_text(encoding="utf-8")

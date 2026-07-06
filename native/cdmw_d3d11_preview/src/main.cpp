@@ -265,6 +265,9 @@ struct PreviewBatch {
     std::vector<float> cpu_vertices;
     ClothRuntime cloth;
     ComPtr<ID3D11Buffer> vertex_buffer;
+    bool pending_vertex_upload = false;
+    size_t pending_vertex_upload_min = std::numeric_limits<size_t>::max();
+    size_t pending_vertex_upload_max = 0;
     ComPtr<ID3D11ShaderResourceView> base_srv;
     ComPtr<ID3D11ShaderResourceView> normal_srv;
     ComPtr<ID3D11ShaderResourceView> material_srv;
@@ -3576,6 +3579,7 @@ public:
             return;
         }
         step_cloth_simulation();
+        flush_pending_mesh_edit_vertex_uploads();
         if (!first_frame_started_) {
             first_frame_timer_ = std::chrono::steady_clock::now();
             first_frame_started_ = true;
@@ -3631,11 +3635,12 @@ public:
     }
 
     bool process_pending_commands() {
-        if (pending_package_dir_.empty()) return false;
+        bool processed = process_pending_mesh_edit_vertex_update();
+        if (pending_package_dir_.empty()) return processed;
         if (alignment_.drag_active || alignment_.rotation_drag_active) {
             drop_pending_package_reload("alignment_drag_active");
             request_render();
-            return false;
+            return processed;
         }
         fs::path package_dir = pending_package_dir_;
         fs::path status_file = pending_status_file_;
@@ -3645,10 +3650,59 @@ public:
         pending_reset_view_ = false;
         const bool loaded = load_package(package_dir, status_file, reset_view_state);
         request_render();
-        return loaded;
+        return processed || loaded;
     }
 
 private:
+    bool process_pending_mesh_edit_vertex_update() {
+        if (pending_mesh_edit_vertices_payload_.empty() && pending_mesh_edit_vertices_file_.empty()) return false;
+        std::string payload;
+        bool payload_file = false;
+        fs::path file_path;
+        bool delete_after = false;
+        if (!pending_mesh_edit_vertices_file_.empty()) {
+            file_path = pending_mesh_edit_vertices_file_;
+            delete_after = pending_mesh_edit_vertices_delete_after_;
+            pending_mesh_edit_vertices_file_.clear();
+            pending_mesh_edit_vertices_delete_after_ = false;
+            payload_file = true;
+            payload = read_text(file_path);
+        } else {
+            payload.swap(pending_mesh_edit_vertices_payload_);
+        }
+        const int changed_vertices = payload.empty() ? 0 : update_mesh_edit_vertices_from_payload(payload);
+        if (delete_after && !file_path.empty()) {
+            const std::wstring filename = file_path.filename().wstring();
+            if (filename.rfind(L"cdmw_mesh_edit_vertices_", 0) == 0) {
+                std::error_code ec;
+                fs::remove(file_path, ec);
+            }
+        }
+        request_render();
+        std::ostringstream event;
+        event << "{\"event\":\"mesh_edit_vertices_updated\",\"changed_vertices\":" << changed_vertices;
+        if (payload_file) {
+            event << ",\"payload_file\":true";
+        }
+        event << "}";
+        send_json_event(event.str());
+        return true;
+    }
+
+    void queue_mesh_edit_vertices_payload(const std::string& payload) {
+        pending_mesh_edit_vertices_payload_ = payload;
+        pending_mesh_edit_vertices_file_.clear();
+        pending_mesh_edit_vertices_delete_after_ = false;
+        request_render();
+    }
+
+    void queue_mesh_edit_vertices_file(const fs::path& payload_file, bool delete_after) {
+        pending_mesh_edit_vertices_payload_.clear();
+        pending_mesh_edit_vertices_file_ = payload_file;
+        pending_mesh_edit_vertices_delete_after_ = delete_after;
+        request_render();
+    }
+
     bool batch_is_reference(const PreviewBatch& batch) const {
         std::string role = lower_copy(batch.editor_role);
         return role.find("original") != std::string::npos
@@ -4120,31 +4174,13 @@ private:
         context_->PSSetShader(pixel_shader_.Get(), nullptr, 0);
     }
 
-    float workspace_grid_y_for_view(const PreviewRenderView& view) const {
-        bool found = false;
-        float min_y = 0.0f;
-        for (const PreviewBatch& batch : batches_) {
-            if (!batch_visible_in_view(batch, view.role)) continue;
-            for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
-                const DirectX::XMFLOAT3 transformed = transformed_batch_position(batch, position);
-                if (!found) {
-                    min_y = transformed.y;
-                    found = true;
-                } else {
-                    min_y = std::min(min_y, transformed.y);
-                }
-            }
-        }
-        return found ? min_y - 0.035f : 0.0f;
-    }
-
-    void draw_workspace_grid(const PreviewRenderView& view, const DirectX::XMMATRIX& world_view_projection) {
+    void draw_workspace_grid(const DirectX::XMMATRIX& world_view_projection) {
         std::vector<float> vertices;
         vertices.reserve(23u * 4u * 41u);
         constexpr int kGridHalfSteps = 12;
         constexpr float kGridStep = 0.25f;
         constexpr float kMajorEvery = 4.0f;
-        const float grid_y = workspace_grid_y_for_view(view);
+        constexpr float grid_y = 0.0f;
         for (int index = -kGridHalfSteps; index <= kGridHalfSteps; ++index) {
             const float value = static_cast<float>(index) * kGridStep;
             const bool major = std::fmod(std::abs(static_cast<float>(index)), kMajorEvery) < 0.001f;
@@ -5298,8 +5334,8 @@ private:
         const DirectX::XMMATRIX camera_world = world_matrix_for_view_role(view.role);
         const DirectX::XMMATRIX view_projection = view_projection_matrix_for_viewport(view.viewport, distance_for_view_role(view.role));
         const DirectX::XMMATRIX world_view_projection = camera_world * view_projection;
-        if (!view.wireframe && !icon_capture_mode_) {
-            draw_workspace_grid(view, world_view_projection);
+        if (!view.wireframe && !icon_capture_mode_ && !(display_mode_ == "overlay" && view.role == PreviewViewRole::Reference)) {
+            draw_workspace_grid(world_view_projection);
         }
         context_->RSSetViewports(1, &view.viewport);
         context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : (render_tuning_.cull_back_faces && cull_rasterizer_ ? cull_rasterizer_.Get() : rasterizer_.Get()));
@@ -6202,6 +6238,7 @@ private:
         std::ostringstream out;
         if (transform_tool) {
             out << "{\"stroke_id\":" << mesh_edit_.stroke_id
+                << ",\"frame_count\":" << frame_count_
                 << ",\"tool\":\"" << json_escape(tool) << "\""
                 << ",\"screen_drag\":" << mesh_edit_screen_drag_json(mesh_edit_.last_x, mesh_edit_.last_y, x, y);
             if (include_screen_selection) {
@@ -6215,6 +6252,7 @@ private:
             return out.str();
         }
         out << "{\"stroke_id\":" << mesh_edit_.stroke_id
+            << ",\"frame_count\":" << frame_count_
             << ",\"tool\":\"" << json_escape(tool) << "\"";
         if (screen_brush_tool || include_screen_selection) {
             const std::string target_mode = remove_screen_tool ? "face" : (include_screen_selection && mesh_edit_.target_mode == "selection" ? "vertex" : mesh_edit_.target_mode);
@@ -6449,9 +6487,11 @@ private:
             std::vector<UvUpdate> uvs;
         };
         std::vector<ParsedUpdateGroup> groups;
+        std::set<int> group_source_submeshes;
         for (const std::string& group : json_object_array_field(payload, "groups")) {
             const int source_submesh = static_cast<int>(json_float_field(group, "source_submesh_index", -1.0f));
             if (source_submesh < 0) continue;
+            group_source_submeshes.insert(source_submesh);
             const int source_vertex_start = json_int_field(group, "source_vertex_start", 0);
             const int source_vertex_count = json_int_field(group, "source_vertex_count", 0);
             const bool has_source_vertex_values =
@@ -6544,6 +6584,7 @@ private:
         int changed_vertices = 0;
         for (PreviewBatch& batch : batches_) {
             if (!batch.editor_editable || batch_is_reference(batch) || !batch.vertex_buffer || batch.cpu_positions.empty()) continue;
+            if (batch.source_submesh_index >= 0 && group_source_submeshes.find(batch.source_submesh_index) == group_source_submeshes.end()) continue;
             bool batch_changed = false;
             size_t min_changed_vertex = std::numeric_limits<size_t>::max();
             size_t max_changed_vertex = 0;
@@ -6651,35 +6692,56 @@ private:
                     }
                 }
             }
-            if (batch_changed && context_) {
-                const size_t vertex_limit = std::min(
-                    batch.cpu_positions.size(),
-                    batch.cpu_vertices.size() / (kVertexStrideBytes / sizeof(float)));
-                const bool full_buffer_update = min_changed_vertex == 0u && max_changed_vertex + 1u >= vertex_limit;
-                if (min_changed_vertex == std::numeric_limits<size_t>::max() || full_buffer_update) {
-                    context_->UpdateSubresource(batch.vertex_buffer.Get(), 0, nullptr, batch.cpu_vertices.data(), 0, 0);
-                } else {
-                    D3D11_BOX box{};
-                    box.left = static_cast<UINT>(min_changed_vertex * kVertexStrideBytes);
-                    box.right = static_cast<UINT>((max_changed_vertex + 1u) * kVertexStrideBytes);
-                    box.top = 0;
-                    box.bottom = 1;
-                    box.front = 0;
-                    box.back = 1;
-                    context_->UpdateSubresource(
-                        batch.vertex_buffer.Get(),
-                        0,
-                        &box,
-                        batch.cpu_vertices.data() + min_changed_vertex * (kVertexStrideBytes / sizeof(float)),
-                        0,
-                        0);
-                }
+            if (batch_changed && min_changed_vertex != std::numeric_limits<size_t>::max()) {
+                batch.pending_vertex_upload = true;
+                batch.pending_vertex_upload_min = std::min(batch.pending_vertex_upload_min, min_changed_vertex);
+                batch.pending_vertex_upload_max = std::max(batch.pending_vertex_upload_max, max_changed_vertex);
             }
         }
         if (changed_vertices > 0) {
             invalidate_mesh_edit_caches();
         }
         return changed_vertices;
+    }
+
+    void flush_pending_mesh_edit_vertex_uploads() {
+        if (!context_) return;
+        for (PreviewBatch& batch : batches_) {
+            if (!batch.pending_vertex_upload || !batch.vertex_buffer || batch.cpu_vertices.empty()) continue;
+            const size_t vertex_limit = std::min(
+                batch.cpu_positions.size(),
+                batch.cpu_vertices.size() / (kVertexStrideBytes / sizeof(float)));
+            if (vertex_limit == 0) {
+                batch.pending_vertex_upload = false;
+                batch.pending_vertex_upload_min = std::numeric_limits<size_t>::max();
+                batch.pending_vertex_upload_max = 0;
+                continue;
+            }
+            const size_t min_changed_vertex = std::min(batch.pending_vertex_upload_min, vertex_limit - 1u);
+            const size_t max_changed_vertex = std::min(batch.pending_vertex_upload_max, vertex_limit - 1u);
+            const bool full_buffer_update = min_changed_vertex == 0u && max_changed_vertex + 1u >= vertex_limit;
+            if (full_buffer_update) {
+                context_->UpdateSubresource(batch.vertex_buffer.Get(), 0, nullptr, batch.cpu_vertices.data(), 0, 0);
+            } else {
+                D3D11_BOX box{};
+                box.left = static_cast<UINT>(min_changed_vertex * kVertexStrideBytes);
+                box.right = static_cast<UINT>((max_changed_vertex + 1u) * kVertexStrideBytes);
+                box.top = 0;
+                box.bottom = 1;
+                box.front = 0;
+                box.back = 1;
+                context_->UpdateSubresource(
+                    batch.vertex_buffer.Get(),
+                    0,
+                    &box,
+                    batch.cpu_vertices.data() + min_changed_vertex * (kVertexStrideBytes / sizeof(float)),
+                    0,
+                    0);
+            }
+            batch.pending_vertex_upload = false;
+            batch.pending_vertex_upload_min = std::numeric_limits<size_t>::max();
+            batch.pending_vertex_upload_max = 0;
+        }
     }
 
     std::pair<int, int> replace_mesh_edit_triangles_from_payload(const std::string& payload) {
@@ -7709,30 +7771,13 @@ private:
             return true;
         }
         if (command == "update_mesh_edit_vertices") {
-            const int changed_vertices = update_mesh_edit_vertices_from_payload(payload);
-            request_render();
-            std::ostringstream event;
-            event << "{\"event\":\"mesh_edit_vertices_updated\",\"changed_vertices\":" << changed_vertices << "}";
-            send_json_event(event.str());
+            queue_mesh_edit_vertices_payload(payload);
             return true;
         }
         if (command == "update_mesh_edit_vertices_file") {
             const fs::path payload_file = utf8_to_wide(json_string_field(payload, "payload_file"));
             const bool delete_after = json_bool_field(payload, "delete_after", true);
-            const std::string file_payload = payload_file.empty() ? std::string() : read_text(payload_file);
-            const int changed_vertices = file_payload.empty() ? 0 : update_mesh_edit_vertices_from_payload(file_payload);
-            if (delete_after && !payload_file.empty()) {
-                const std::wstring filename = payload_file.filename().wstring();
-                if (filename.rfind(L"cdmw_mesh_edit_vertices_", 0) == 0) {
-                    std::error_code ec;
-                    fs::remove(payload_file, ec);
-                }
-            }
-            request_render();
-            std::ostringstream event;
-            event << "{\"event\":\"mesh_edit_vertices_updated\",\"changed_vertices\":" << changed_vertices
-                  << ",\"payload_file\":true}";
-            send_json_event(event.str());
+            queue_mesh_edit_vertices_file(payload_file, delete_after);
             return true;
         }
         if (command == "replace_mesh_edit_triangles") {
@@ -8873,6 +8918,9 @@ private:
     fs::path pending_package_dir_;
     fs::path pending_status_file_;
     fs::path pending_capture_path_;
+    std::string pending_mesh_edit_vertices_payload_;
+    fs::path pending_mesh_edit_vertices_file_;
+    bool pending_mesh_edit_vertices_delete_after_ = false;
     bool pending_reset_view_ = false;
     std::uint64_t model_generation_ = 0;
     mutable std::uint64_t mesh_edit_cache_generation_ = 0;

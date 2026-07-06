@@ -19,6 +19,8 @@ Use this file to choose the right doc before opening everything.
   - `archive-safety-model.md`: archive mutation safety rules.
   - `asset-authoring-integrations.md`: optional authoring tool integrations and
     where they plug into services/workers.
+  - `mesh-editing-pipeline.md`: mesh parser/rebuilder/editor map, metadata loss
+    risks, and the first no-edit round-trip harness slice.
   - `mesh-editor-skeleton-discovery.md`: read-only reverse-engineering notes for
     Crimson skeleton, animation, sequence, socket, and pose binding. Keep it
     because Mesh Editor rigging/animation smoke tests and future native mesh

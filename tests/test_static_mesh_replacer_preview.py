@@ -2249,8 +2249,10 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         )
 
         vertices = preview.submeshes[0].vertices
+        min_y = min(vertex[1] for vertex in vertices)
         y_span = max(vertex[1] for vertex in vertices) - min(vertex[1] for vertex in vertices)
         z_span = max(vertex[2] for vertex in vertices) - min(vertex[2] for vertex in vertices)
+        self.assertAlmostEqual(0.0, min_y, places=6)
         self.assertLess(y_span, 1e-6)
         self.assertGreater(z_span, 1.9)
 
@@ -2294,10 +2296,137 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         )
 
         vertices = preview.submeshes[0].vertices
+        min_y = min(vertex[1] for vertex in vertices)
         y_span = max(vertex[1] for vertex in vertices) - min(vertex[1] for vertex in vertices)
         z_span = max(vertex[2] for vertex in vertices) - min(vertex[2] for vertex in vertices)
+        self.assertAlmostEqual(0.0, min_y, places=6)
         self.assertLess(y_span, 1e-6)
         self.assertGreater(z_span, 1.9)
+
+    def test_grid_flat_projects_sloped_target_axis_to_grid(self) -> None:
+        original = _mesh(
+            "sloped_target.pac",
+            [
+                SubMesh(
+                    name="target blade",
+                    material="target blade",
+                    vertices=[(0.0, 0.0, 0.0), (8.0, 6.0, 0.0), (0.0, 0.0, 2.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "upright_replacement.obj",
+            [
+                SubMesh(
+                    name="replacement blade",
+                    material="replacement blade",
+                    vertices=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 2.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target blade",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+
+        preview = build_static_replacement_preview_mesh(
+            original,
+            replacement,
+            StaticMeshReplacementOptions(
+                transform=StaticReplacementTransform(alignment_mode="grid_flat", scale_to_original_length=False),
+                submesh_mappings=[mapping],
+            ),
+        )
+
+        vertices = preview.submeshes[0].vertices
+        self.assertAlmostEqual(0.0, min(vertex[1] for vertex in vertices), places=6)
+        self.assertLess(max(vertex[1] for vertex in vertices) - min(vertex[1] for vertex in vertices), 1e-6)
+
+    def test_grid_flat_lowers_elevated_replacement_to_preview_grid(self) -> None:
+        original = _mesh(
+            "flat_target.pac",
+            [
+                SubMesh(
+                    name="target blade",
+                    material="target blade",
+                    vertices=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 2.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "elevated_replacement.obj",
+            [
+                SubMesh(
+                    name="replacement blade",
+                    material="replacement blade",
+                    vertices=[(0.0, 5.0, 0.0), (10.0, 5.0, 0.0), (0.0, 7.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target blade",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+
+        preview = build_static_replacement_preview_mesh(
+            original,
+            replacement,
+            StaticMeshReplacementOptions(
+                transform=StaticReplacementTransform(alignment_mode="grid_flat", scale_to_original_length=False),
+                submesh_mappings=[mapping],
+            ),
+        )
+
+        vertices = preview.submeshes[0].vertices
+        self.assertAlmostEqual(0.0, min(vertex[1] for vertex in vertices), places=6)
+        self.assertLess(max(vertex[1] for vertex in vertices) - min(vertex[1] for vertex in vertices), 1e-6)
+
+    def test_source_affine_for_grid_flat_includes_preview_grid_floor(self) -> None:
+        original = _mesh(
+            "flat_target.pac",
+            [
+                SubMesh(
+                    name="target",
+                    material="target",
+                    vertices=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 2.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "raised_source.obj",
+            [
+                SubMesh(
+                    name="source",
+                    material="source",
+                    vertices=[(0.0, 5.0, 0.0), (10.0, 5.0, 0.0), (0.0, 7.0, 0.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        transform = StaticReplacementTransform(alignment_mode="grid_flat", scale_to_original_length=False)
+        affine = source_affine_for_transformed_preview(
+            original,
+            replacement,
+            transform,
+            0,
+            global_transform_source_indices={0},
+            alignment_basis_mesh=replacement,
+        )
+
+        self.assertIsNotNone(affine)
+        assert affine is not None
+        source = replacement.submeshes[0].vertices[0]
+        displayed_y = affine[4] * source[0] + affine[5] * source[1] + affine[6] * source[2] + affine[7]
+        self.assertAlmostEqual(0.0, displayed_y, places=6)
 
     def test_preview_allows_large_mapped_target_that_export_rejects(self) -> None:
         original = _mesh(

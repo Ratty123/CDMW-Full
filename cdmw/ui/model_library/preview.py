@@ -123,14 +123,11 @@ class ModelLibraryInlinePreviewMixin:
         self._inline_d3d11_status_file = status_file
         self._inline_d3d11_status_mtime = 0.0
         if reuse_process:
-            self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
-            self.inline_d3d11_preview_host.clear_preview(status_file)
             if self.inline_d3d11_preview_host.load_package(package_dir, status_file, reset_view=True):
                 self.inline_d3d11_preview_host.set_render_tuning(render_settings)
                 self._start_inline_d3d11_status_timer()
                 return True
             self._stop_inline_d3d11_process(cleanup_packages=True)
-        self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
         self.inline_d3d11_preview_host.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self.inline_d3d11_preview_host.show()
         self.inline_d3d11_preview_host.update()
@@ -240,13 +237,36 @@ class ModelLibraryInlinePreviewMixin:
         if event == "loaded":
             batch_count = int(payload.get("batch_count", 0) or 0)
             vertex_count = int(payload.get("vertex_count", 0) or 0)
+            native_manifest_ms = float(payload.get("native_manifest_ms", 0.0) or 0.0)
+            native_geometry_ms = float(payload.get("native_geometry_ms", 0.0) or 0.0)
+            native_texture_ms = float(payload.get("native_texture_ms", 0.0) or 0.0)
+            first_frame_ms = float(payload.get("first_frame_ms", 0.0) or 0.0)
+            png_fallback = int(payload.get("png_fallback", 0) or 0)
+            texture_cache_hits = int(payload.get("texture_cache_hits", 0) or 0)
+            texture_failures = int(payload.get("texture_failures", 0) or 0)
             self._cleanup_inline_d3d11_packages(include_active=False)
-            self._set_inline_preview_status(f"Native D3D11 Model Library preview ready: {batch_count:,} batch(es), {vertex_count:,} vertices.")
+            self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
+            self._set_inline_preview_status(
+                f"Native D3D11 Model Library preview ready: {batch_count:,} batch(es), {vertex_count:,} vertices "
+                f"| load manifest {native_manifest_ms:.1f} ms, geometry {native_geometry_ms:.1f} ms, "
+                f"textures {native_texture_ms:.1f} ms, first frame {first_frame_ms:.1f} ms, "
+                f"PNG fallback {png_fallback}, cache hits {texture_cache_hits}."
+            )
             self._record_model_library_preview_event(
                 "model_library_d3d11_loaded",
                 batch_count=batch_count,
                 vertex_count=vertex_count,
+                native_manifest_ms=native_manifest_ms,
+                native_geometry_ms=native_geometry_ms,
+                native_texture_ms=native_texture_ms,
+                first_frame_ms=first_frame_ms,
+                png_fallback=png_fallback,
+                texture_cache_hits=texture_cache_hits,
+                texture_failures=texture_failures,
             )
+            if int(self._pending_icon_generation_request_id) == int(self._inline_preview_request_id):
+                self._pending_icon_generation_request_id = 0
+                QTimer.singleShot(180, self._capture_inline_preview_icon)
         elif event == "error":
             self._set_inline_preview_status(str(payload.get("message", "Native D3D11 preview failed.") or ""), error=True)
             self._record_model_library_preview_event(
@@ -377,7 +397,7 @@ class ModelLibraryInlinePreviewMixin:
                 renderer_backend=renderer_backend,
                 model_name=model_name,
                 request_id=request_id,
-                high_quality_textures=True,
+                high_quality_textures=False,
                 progress=progress,
                 stop_event=stop_event,
             )
@@ -393,6 +413,7 @@ class ModelLibraryInlinePreviewMixin:
             active_renderer = str(result.get("renderer_backend", "") or "").strip().lower()
             renderer_note = " | renderer: Qt preview"
             loaded_renderer_backend = active_renderer or "qt"
+            native_preview_started = False
             if active_renderer == "native_d3d11" and str(result.get("d3d11_package_dir", "") or "").strip():
                 package_dir = Path(str(result.get("d3d11_package_dir", "") or ""))
                 self._record_model_library_preview_event(
@@ -404,8 +425,11 @@ class ModelLibraryInlinePreviewMixin:
                     vertices=int(result.get("vertices", 0) or 0),
                     faces=int(result.get("faces", 0) or 0),
                     textures=int(result.get("textures", 0) or 0),
+                    d3d11_package_ms=float(result.get("d3d11_package_ms", 0.0) or 0.0),
+                    high_quality_textures=False,
                 )
                 if self._start_inline_d3d11_process(package_dir, render_settings=preview_render_settings):
+                    native_preview_started = True
                     loaded_renderer_backend = "native_d3d11"
                     renderer_note = f" | renderer: native D3D11 package ({float(result.get('d3d11_package_ms', 0.0) or 0.0):.1f} ms)"
                 else:
@@ -465,8 +489,9 @@ class ModelLibraryInlinePreviewMixin:
             self._sync_inline_preview_orientation_controls()
             self._update_selection_state()
             if int(self._pending_icon_generation_request_id) == int(request_id):
-                self._pending_icon_generation_request_id = 0
-                QTimer.singleShot(180, self._capture_inline_preview_icon)
+                if not native_preview_started:
+                    self._pending_icon_generation_request_id = 0
+                    QTimer.singleShot(180, self._capture_inline_preview_icon)
 
         def handle_error(message: str) -> None:
             if int(request_id) != int(self._inline_preview_request_id):

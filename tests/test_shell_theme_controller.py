@@ -9,7 +9,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QLabel, QListWidget, QPushButton, QVBoxLayout, QWidget
 
 from cdmw.ui.settings_tab import SettingsTab
-from cdmw.ui.shell.theme_controller import ThemeChangeBusyOverlay, ThemeControllerMixin, apply_app_fonts
+from cdmw.ui.shell.theme_controller import ThemeChangeBusyOverlay, ThemeControllerMixin, apply_app_fonts, apply_window_ui_fonts
 from cdmw.ui.themes import build_app_stylesheet
 
 
@@ -106,6 +106,97 @@ class ShellThemeControllerTests(unittest.TestCase):
             self.assertEqual(11, list_widget.font().pointSize())
         finally:
             parent.deleteLater()
+            app.setFont(previous_font)
+            for class_name in (
+                "QWidget",
+                "QListView",
+                "QListWidget",
+                "QTreeView",
+                "QTreeWidget",
+                "QTableView",
+                "QTableWidget",
+                "QHeaderView",
+            ):
+                app.setFont(previous_font, class_name)
+            app.setStyleSheet(previous_style_sheet)
+
+    def test_apply_window_ui_fonts_updates_startup_widget_tree(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        previous_font = QFont(app.font())
+        previous_style_sheet = app.styleSheet()
+        window = QWidget()
+        try:
+            window.settings = _Settings(  # type: ignore[attr-defined]
+                {
+                    "appearance/ui_font_family": previous_font.family(),
+                    "appearance/ui_font_size": 15,
+                    "appearance/data_font_size": 11,
+                    "appearance/ui_density": "comfortable",
+                }
+            )
+            label = QLabel("Label")
+            list_widget = QListWidget()
+            layout = QVBoxLayout(window)
+            layout.addWidget(label)
+            layout.addWidget(list_widget)
+
+            resolved_fonts = apply_window_ui_fonts(window, app)  # type: ignore[arg-type]
+
+            self.assertIsNotNone(resolved_fonts)
+            ui_font, data_font = resolved_fonts or (QFont(), QFont())
+            self.assertEqual(ui_font.pointSize(), label.font().pointSize())
+            self.assertEqual(data_font.pointSize(), list_widget.font().pointSize())
+        finally:
+            window.deleteLater()
+            app.setFont(previous_font)
+            for class_name in (
+                "QWidget",
+                "QListView",
+                "QListWidget",
+                "QTreeView",
+                "QTreeWidget",
+                "QTableView",
+                "QTableWidget",
+                "QHeaderView",
+            ):
+                app.setFont(previous_font, class_name)
+            app.setStyleSheet(previous_style_sheet)
+
+    def test_custom_text_font_stays_out_of_global_font_sync(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        previous_font = QFont(app.font())
+        previous_style_sheet = app.styleSheet()
+        window = QWidget()
+        try:
+            window.settings = _Settings(  # type: ignore[attr-defined]
+                {
+                    "appearance/ui_font_family": previous_font.family(),
+                    "appearance/ui_font_size": 15,
+                    "appearance/data_font_size": 11,
+                    "appearance/ui_density": "comfortable",
+                }
+            )
+            label = QLabel("Code")
+            layout = QVBoxLayout(window)
+            layout.addWidget(label)
+            apply_window_ui_fonts(window, app)  # type: ignore[arg-type]
+
+            custom_font = QFont(label.font())
+            custom_font.setPointSize(7)
+            ThemeControllerMixin._apply_single_text_widget_font(object(), label, custom_font)  # type: ignore[arg-type]
+            window.settings = _Settings(  # type: ignore[attr-defined]
+                {
+                    "appearance/ui_font_family": previous_font.family(),
+                    "appearance/ui_font_size": 12,
+                    "appearance/data_font_size": 10,
+                    "appearance/ui_density": "comfortable",
+                }
+            )
+            apply_window_ui_fonts(window, app)  # type: ignore[arg-type]
+
+            self.assertEqual(7, label.font().pointSize())
+        finally:
+            window.deleteLater()
             app.setFont(previous_font)
             for class_name in (
                 "QWidget",

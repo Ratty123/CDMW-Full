@@ -1,6 +1,6 @@
 # Test Matrix
 
-Last reviewed: 2026-06-29
+Last reviewed: 2026-07-05
 
 Use the project virtualenv:
 
@@ -43,7 +43,7 @@ Use `%TEMP%` for pytest temp dirs when `.pytest-tmp` is locked.
 ## Mesh Editor Suite
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_dev_harness.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_dev_harness.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario full-suite-smoke --output "$env:TEMP\cdmw-mesh-editor-harness"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-benchmark --output "$env:TEMP\cdmw-native-mesh-editor-benchmark"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-static-screen-stroke --output "$env:TEMP\cdmw-native-mesh-editor-static-screen-stroke"
@@ -63,6 +63,9 @@ archive Mesh Editor D3D11 edit smokes above for visual proof on game geometry,
 and run the Qt harness commands above only when intentionally validating worker
 responsiveness/cancellation. D3D11 harness windows are moved to screen 1 before
 captures and mouse input.
+The side-by-side real archive D3D11 smoke is also the current live-stroke frame
+budget proof: `live_stroke_frame_budget_ok` must be true and the harness should
+report sub-16.7 ms `handler_ms` for live vertex-update dispatch.
 
 Do not use `native-mesh-editor-d3d11-delta` or
 `native-mesh-editor-d3d11-payloads` as visual edit proof. They are synthetic

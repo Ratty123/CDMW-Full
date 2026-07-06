@@ -2175,7 +2175,8 @@ class MeshEditorTab(QWidget):
                 str(key): float(value) for key, value in dict(result.metrics).items()
             }
         if has_native_delta:
-            self._apply_standalone_native_update(native_update)
+            if not self._apply_standalone_native_update(native_update):
+                return False
             if phase != "update":
                 if phase == "end" and stroke_changed:
                     self.current_selection_mode = controller.active_selection_mode

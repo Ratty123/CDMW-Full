@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping as _MappingABC, Sequence as _SequenceABC
+import time
 from types import SimpleNamespace
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
@@ -2693,6 +2694,97 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         if callable(_record_runtime_event):
             _record_runtime_event(event_name, **payload)
 
+    def _mesh_edit_numeric_metrics(raw_metrics: object) -> dict[str, float]:
+        if not isinstance(raw_metrics, _MappingABC):
+            return {}
+        metrics: dict[str, float] = {}
+        for raw_key, raw_value in raw_metrics.items():
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if -float("inf") < value < float("inf"):
+                metrics[str(raw_key)] = value
+        return metrics
+
+    def _mesh_edit_result_metrics(result: object) -> dict[str, float]:
+        edit_result = getattr(result, "edit_result", None)
+        return _mesh_edit_numeric_metrics(getattr(edit_result, "metrics", None))
+
+    def _mesh_edit_last_d3d11_send_metrics() -> dict[str, object]:
+        reader = getattr(alignment_d3d11_preview_host, "last_mesh_edit_send_metrics", None)
+        if not callable(reader):
+            return {}
+        try:
+            raw_metrics = reader()
+        except Exception:
+            return {}
+        return dict(raw_metrics) if isinstance(raw_metrics, _MappingABC) else {}
+
+    def _mesh_edit_payload_frame_count(payload: object) -> int:
+        if not isinstance(payload, _MappingABC):
+            return -1
+        try:
+            return int(payload.get("frame_count", -1) or -1)
+        except (TypeError, ValueError, OverflowError):
+            return -1
+
+    def _mesh_edit_changed_input_count(changed_by_submesh: object) -> int:
+        if not isinstance(changed_by_submesh, _MappingABC):
+            return 0
+        total = 0
+        for raw_vertices in changed_by_submesh.values():
+            if isinstance(raw_vertices, range):
+                total += len(raw_vertices)
+            elif isinstance(raw_vertices, _MappingABC):
+                try:
+                    total += int(raw_vertices.get("changed_vertex_count", raw_vertices.get("source_vertex_count", 0)) or 0)
+                except (TypeError, ValueError, OverflowError):
+                    pass
+            else:
+                try:
+                    total += len(raw_vertices)  # type: ignore[arg-type]
+                except TypeError:
+                    pass
+        return max(0, total)
+
+    def _record_mesh_edit_live_stroke_timing(
+        payload: object,
+        result: object,
+        *,
+        tool: str,
+        phase: object,
+        callback_started: float,
+        edit_apply_ms: float,
+        d3d11_update_ms: float,
+        native_update_applied: bool,
+        changed_by_submesh: object,
+    ) -> None:
+        metrics = _mesh_edit_result_metrics(result)
+        _record_mesh_edit_event(
+            "mesh_edit_live_stroke_timing",
+            stroke_id=_mesh_edit_stroke_id(payload),
+            tool=str(tool or ""),
+            phase=str(phase or ""),
+            d3d11_frame_count=_mesh_edit_payload_frame_count(payload),
+            callback_ms=max(0.0, (time.perf_counter() - callback_started) * 1000.0),
+            edit_apply_ms=max(0.0, float(edit_apply_ms or 0.0)),
+            d3d11_update_ms=max(0.0, float(d3d11_update_ms or 0.0)),
+            native_update_applied=bool(native_update_applied),
+            changed_submesh_count=len(changed_by_submesh) if isinstance(changed_by_submesh, _MappingABC) else 0,
+            changed_vertex_input_count=_mesh_edit_changed_input_count(changed_by_submesh),
+            service_total_ms=float(metrics.get("service_total_ms", 0.0) or 0.0),
+            service_dispatch_ms=float(metrics.get("service_dispatch_ms", 0.0) or 0.0),
+            native_apply_roundtrip_ms=float(metrics.get("native_apply_roundtrip_ms", 0.0) or 0.0),
+            native_apply_overhead_ms=float(metrics.get("native_apply_overhead_ms", 0.0) or 0.0),
+            cpp_ms=float(metrics.get("cpp_ms", 0.0) or 0.0),
+            io_serialization_ms=float(metrics.get("io_serialization_ms", 0.0) or 0.0),
+            python_apply_ms=float(metrics.get("python_apply_ms", 0.0) or 0.0),
+            editor_select_reused=float(metrics.get("editor_select_reused", 0.0) or 0.0),
+            editor_select_inlined=float(metrics.get("editor_select_inlined", 0.0) or 0.0),
+            d3d11_send_metrics=_mesh_edit_last_d3d11_send_metrics(),
+        )
+
     def _mesh_edit_mark_native_preview_stale(message: str, **payload: object) -> None:
         _record_mesh_edit_event("mesh_edit_native_preview_stale", message=message, **payload)
         self.set_status_message(message, error=True)
@@ -3930,6 +4022,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             self.set_status_message(status_message)
 
     def _mesh_edit_apply_preview_payload(payload: object) -> None:
+        callback_started = time.perf_counter()
         if _mesh_edit_state.replacement_mesh_for_mapping is None or not isinstance(payload, Mapping):
             return
         stroke_id = _mesh_edit_stroke_id(payload)
@@ -4124,11 +4217,13 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                         params["vertices_by_submesh"] = selected_vertices
                     else:
                         return
+                    edit_apply_started = time.perf_counter()
                     result = _mesh_editor_apply_static_replacement_edit(
                         _mesh_edit_state.replacement_mesh_for_mapping,
                         "transform",
                         **params,
                     )
+                    edit_apply_ms = max(0.0, (time.perf_counter() - edit_apply_started) * 1000.0)
                 else:
                     params.update(
                         {
@@ -4160,11 +4255,13 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                         params["selection_depth_mode"] = str(payload.get("selection_depth_mode") or "visible")
                     if has_screen_radius:
                         params["screen_radius"] = _native_screen_payload(raw_screen_radius)  # type: ignore[arg-type]
+                    edit_apply_started = time.perf_counter()
                     result = _mesh_editor_apply_static_replacement_edit(
                         _mesh_edit_state.replacement_mesh_for_mapping,
                         "brush",
                         **params,
                     )
+                    edit_apply_ms = max(0.0, (time.perf_counter() - edit_apply_started) * 1000.0)
                 edit_result = getattr(result, "edit_result", None)
                 if edit_result is not None and not bool(getattr(edit_result, "ok", False)):
                     return
@@ -4176,10 +4273,23 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                     _mesh_editor_result_mesh_for_state(result),
                     result.changed_vertices_by_submesh,
                 )
+                native_update_started = time.perf_counter()
                 live_native_update_applied = _mesh_editor_apply_result_native_update(result)
+                d3d11_update_ms = max(0.0, (time.perf_counter() - native_update_started) * 1000.0)
                 if live_native_update_applied:
                     mesh_edit_active_stroke["native_update_applied"] = True
                 changed_by_submesh = _mesh_edit_changed_vertex_groups_for_live_update(result.changed_vertices_by_submesh or {})
+                _record_mesh_edit_live_stroke_timing(
+                    payload,
+                    result,
+                    tool=tool,
+                    phase=params.get("stroke_phase", ""),
+                    callback_started=callback_started,
+                    edit_apply_ms=edit_apply_ms,
+                    d3d11_update_ms=d3d11_update_ms,
+                    native_update_applied=live_native_update_applied,
+                    changed_by_submesh=changed_by_submesh,
+                )
                 if not changed_by_submesh:
                     return
                 if not live_native_update_applied:
@@ -5064,8 +5174,10 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         _refresh_mesh_edit_controls()
         _mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")
         if not edit_enabled:
-            _queue_static_preview_refresh()
-            _queue_texture_preview_refresh()
+            if callable(_queue_texture_preview_refresh):
+                _queue_texture_preview_refresh()
+            if callable(_queue_static_preview_rebuild):
+                _queue_static_preview_rebuild()
 
     mesh_edit_enabled_checkbox.toggled.connect(_mesh_edit_enabled_toggled)
     for widget in (

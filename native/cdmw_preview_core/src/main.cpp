@@ -10023,9 +10023,19 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     }
     package.mesh_parse = parsed.parser;
     package.lod_count = parsed.lod_count;
-    std::vector<TextureBinding> bindings = build_material_bindings(job, index, parsed.meshes, package);
-    append_mesh_reference_bindings(job, index, parsed.meshes, bindings, package);
-    if (bindings.empty()) {
+    std::vector<TextureBinding> bindings;
+    if (job.use_textures) {
+        bindings = build_material_bindings(job, index, parsed.meshes, package);
+        append_mesh_reference_bindings(job, index, parsed.meshes, bindings, package);
+    } else {
+        package.material_index = "disabled";
+        package.material_graph_status = "disabled";
+        package.texture_resolution = "disabled";
+        package.material_output_quality = "disabled";
+        package.material_quality_safe = true;
+        package.notes.push_back("native package emitted geometry-only preview because textures were disabled by job settings");
+    }
+    if (bindings.empty() && job.use_textures) {
         if (package.material_index.empty()) package.material_index = "none";
         package.texture_resolution = "none";
         package.notes.push_back("native package emitted geometry with fallback batch colors because no direct DDS bindings were resolved");

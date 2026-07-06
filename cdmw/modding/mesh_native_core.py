@@ -3,6 +3,7 @@ from __future__ import annotations
 import atexit
 from array import array
 from collections import Counter
+import dataclasses
 import json
 import math
 import os
@@ -2542,15 +2543,17 @@ def _submesh_snapshot_metadata(submesh: object) -> dict[str, object]:
 
 
 def _snapshot_metadata_value(value: object) -> object:
-    if isinstance(value, dict):
-        return dict(value)
-    if isinstance(value, list):
-        return list(value)
-    if isinstance(value, set):
-        return set(value)
-    if isinstance(value, tuple):
-        return tuple(value)
-    return value
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return _snapshot_metadata_value(dataclasses.asdict(value))
+    if isinstance(value, Mapping):
+        return {str(key): _snapshot_metadata_value(item) for key, item in value.items()}
+    if isinstance(value, (list, set, tuple)):
+        return [_snapshot_metadata_value(item) for item in value]
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 def _native_submesh_snapshot_item(

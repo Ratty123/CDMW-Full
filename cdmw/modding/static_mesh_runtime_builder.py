@@ -367,38 +367,14 @@ def _transformed_replacement_sources(
         nonlocal fallback_state
         if fallback_state is not None:
             return fallback_state
-        alignment_bound_sources = [
-            submesh
-            for source_index, submesh in enumerate(basis_sources)
-            if source_index not in exempt_indices and (bound_indices is None or source_index in bound_indices)
-        ] or basis_sources
-        alignment_replacement_mesh = copy.copy(basis_mesh)
-        alignment_replacement_mesh.submeshes = list(alignment_bound_sources)
-        alignment = _compute_anchor_alignment(original_mesh, alignment_replacement_mesh, transform)
-        fit_scale_xyz = (1.0, 1.0, 1.0)
-        fit_offset = (0.0, 0.0, 0.0)
-        if transform.fit_to_original_bbox:
-            src_min, src_max = _mesh_delta_bounds(alignment_bound_sources)
-            dst_min, dst_max = _mesh_delta_bounds(original_mesh.submeshes)
-            src_dims = _dims(src_min, src_max)
-            dst_dims = _dims(dst_min, dst_max)
-            if transform.preserve_aspect_ratio:
-                ratios = [
-                    dst_dims[index] / src_dims[index]
-                    for index in range(3)
-                    if src_dims[index] > 1e-8
-                ]
-                uniform = min(ratios) if ratios else 1.0
-                fit_scale_xyz = (uniform, uniform, uniform)
-            else:
-                fit_scale_xyz = tuple(
-                    dst_dims[index] / src_dims[index] if src_dims[index] > 1e-8 else 1.0
-                    for index in range(3)
-                )
-            src_center = _center(src_min, src_max)
-            dst_center = _center(dst_min, dst_max)
-            fit_offset = tuple(dst_center[index] - src_center[index] * fit_scale_xyz[index] for index in range(3))
-        fallback_state = (alignment, fit_scale_xyz, fit_offset)
+        fallback_state = _global_transform_state(
+            original_mesh,
+            basis_mesh,
+            basis_sources,
+            transform,
+            exempt_indices,
+            bound_indices,
+        )
         return fallback_state
 
     max_preview_faces = _normalized_preview_face_limit(max_source_faces_per_submesh)
@@ -605,6 +581,65 @@ def _mesh_delta_bounds(
     return bbox_min, bbox_max
 
 
+def _global_transform_state(
+    original_mesh: ParsedMesh,
+    basis_mesh: ParsedMesh,
+    basis_sources: Sequence[SubMesh],
+    transform: StaticReplacementTransform,
+    exempt_indices: set[int],
+    bound_indices: set[int] | None,
+    *,
+    include_grid_floor: bool = True,
+) -> tuple[
+    dict[str, tuple[float, float, float] | float],
+    tuple[float, float, float],
+    tuple[float, float, float],
+]:
+    alignment_bound_sources = [
+        submesh
+        for source_index, submesh in enumerate(basis_sources)
+        if source_index not in exempt_indices and (bound_indices is None or source_index in bound_indices)
+    ] or list(basis_sources)
+    alignment_replacement_mesh = copy.copy(basis_mesh)
+    alignment_replacement_mesh.submeshes = list(alignment_bound_sources)
+    alignment = _compute_anchor_alignment(original_mesh, alignment_replacement_mesh, transform)
+    fit_scale_xyz = (1.0, 1.0, 1.0)
+    fit_offset = (0.0, 0.0, 0.0)
+    if transform.fit_to_original_bbox:
+        src_min, src_max = _mesh_delta_bounds(alignment_bound_sources)
+        dst_min, dst_max = _mesh_delta_bounds(original_mesh.submeshes)
+        src_dims = _dims(src_min, src_max)
+        dst_dims = _dims(dst_min, dst_max)
+        if transform.preserve_aspect_ratio:
+            ratios = [
+                dst_dims[index] / src_dims[index]
+                for index in range(3)
+                if src_dims[index] > 1e-8
+            ]
+            uniform = min(ratios) if ratios else 1.0
+            fit_scale_xyz = (uniform, uniform, uniform)
+        else:
+            fit_scale_xyz = tuple(
+                dst_dims[index] / src_dims[index] if src_dims[index] > 1e-8 else 1.0
+                for index in range(3)
+            )
+        src_center = _center(src_min, src_max)
+        dst_center = _center(dst_min, dst_max)
+        fit_offset = tuple(dst_center[index] - src_center[index] * fit_scale_xyz[index] for index in range(3))
+    if include_grid_floor and str(transform.alignment_mode or "").strip().lower() == "grid_flat":
+        min_y: float | None = None
+        for submesh in alignment_bound_sources:
+            if _is_marker_submesh(submesh):
+                continue
+            for vertex in getattr(submesh, "vertices", ()) or ():
+                y = _apply_transform(vertex, transform, fit_scale_xyz, fit_offset, alignment)[1]
+                if math.isfinite(y):
+                    min_y = y if min_y is None else min(min_y, y)
+        if min_y is not None and abs(min_y) > 1.0e-8:
+            fit_offset = (fit_offset[0], fit_offset[1] - min_y, fit_offset[2])
+    return alignment, fit_scale_xyz, fit_offset
+
+
 def _mesh_edit_forward_transformed_delta(
     delta: tuple[float, float, float],
     *,
@@ -650,29 +685,15 @@ def _mesh_edit_forward_transformed_delta(
         for index, submesh in enumerate(basis_sources)
         if index not in exempt_indices and (bound_indices is None or index in bound_indices)
     ] or basis_sources
-    alignment_replacement_mesh = copy.copy(basis_mesh)
-    alignment_replacement_mesh.submeshes = list(alignment_bound_sources)
-    alignment = _compute_anchor_alignment(original_mesh, alignment_replacement_mesh, transform)
-
-    fit_scale_xyz = (1.0, 1.0, 1.0)
-    if transform.fit_to_original_bbox:
-        src_min, src_max = _mesh_delta_bounds(alignment_bound_sources)
-        dst_min, dst_max = _mesh_delta_bounds(original_mesh.submeshes)
-        src_dims = _dims(src_min, src_max)
-        dst_dims = _dims(dst_min, dst_max)
-        if transform.preserve_aspect_ratio:
-            ratios = [
-                dst_dims[index] / src_dims[index]
-                for index in range(3)
-                if src_dims[index] > 1e-8
-            ]
-            uniform = min(ratios) if ratios else 1.0
-            fit_scale_xyz = (uniform, uniform, uniform)
-        else:
-            fit_scale_xyz = tuple(
-                dst_dims[index] / src_dims[index] if src_dims[index] > 1e-8 else 1.0
-                for index in range(3)
-            )
+    alignment, fit_scale_xyz, _fit_offset = _global_transform_state(
+        original_mesh,
+        basis_mesh,
+        alignment_bound_sources,
+        transform,
+        set(),
+        None,
+        include_grid_floor=False,
+    )
 
     source_axis = alignment["source_axis"]
     target_axis = alignment["target_axis"]
@@ -788,38 +809,14 @@ def _mesh_edit_forward_transformed_point(
         return value
 
     bound_indices = None if global_transform_source_indices is None else {int(index) for index in global_transform_source_indices}
-    alignment_bound_sources = [
-        submesh
-        for index, submesh in enumerate(basis_sources)
-        if index not in exempt_indices and (bound_indices is None or index in bound_indices)
-    ] or basis_sources
-    alignment_replacement_mesh = copy.copy(basis_mesh)
-    alignment_replacement_mesh.submeshes = list(alignment_bound_sources)
-    alignment = _compute_anchor_alignment(original_mesh, alignment_replacement_mesh, transform)
-
-    fit_scale_xyz = (1.0, 1.0, 1.0)
-    fit_offset = (0.0, 0.0, 0.0)
-    if transform.fit_to_original_bbox:
-        src_min, src_max = _mesh_delta_bounds(alignment_bound_sources)
-        dst_min, dst_max = _mesh_delta_bounds(original_mesh.submeshes)
-        src_dims = _dims(src_min, src_max)
-        dst_dims = _dims(dst_min, dst_max)
-        if transform.preserve_aspect_ratio:
-            ratios = [
-                dst_dims[index] / src_dims[index]
-                for index in range(3)
-                if src_dims[index] > 1e-8
-            ]
-            uniform = min(ratios) if ratios else 1.0
-            fit_scale_xyz = (uniform, uniform, uniform)
-        else:
-            fit_scale_xyz = tuple(
-                dst_dims[index] / src_dims[index] if src_dims[index] > 1e-8 else 1.0
-                for index in range(3)
-            )
-        src_center = _center(src_min, src_max)
-        dst_center = _center(dst_min, dst_max)
-        fit_offset = tuple(dst_center[index] - src_center[index] * fit_scale_xyz[index] for index in range(3))
+    alignment, fit_scale_xyz, fit_offset = _global_transform_state(
+        original_mesh,
+        basis_mesh,
+        basis_sources,
+        transform,
+        exempt_indices,
+        bound_indices,
+    )
     return _apply_transform(value, transform, fit_scale_xyz, fit_offset, alignment)
 
 

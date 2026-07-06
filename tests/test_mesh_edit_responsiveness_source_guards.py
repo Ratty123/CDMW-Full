@@ -209,6 +209,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             update_body.index("if _native_update_has_payload(update) or self._standalone_native_preview_update_active():"),
         )
         self.assertNotIn("self._refresh_standalone_preview()", update_body)
+        stroke_start = tab_source.index("def _apply_standalone_native_mesh_edit_stroke(")
+        stroke_body = tab_source[stroke_start: tab_source.index("def _standalone_native_mesh_edit_stroke_command(", stroke_start)]
+        self.assertIn("if not self._apply_standalone_native_update(native_update):", stroke_body)
+        self.assertIn(
+            "return False",
+            stroke_body[stroke_body.index("if not self._apply_standalone_native_update(native_update):"):],
+        )
 
     def test_remaining_mesh_clone_and_preview_rebuild_sites_are_classified(self) -> None:
         scan_paths = (
@@ -1365,6 +1372,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         panel_source = _read("cdmw/ui/native_preview_panel.py")
         payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
         mesh_native_source = _read("cdmw/modding/mesh_native_core.py")
+        native_d3d11_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
 
         for source in (bridge_source,):
             self.assertIn('"command": "update_mesh_edit_vertices"', source)
@@ -1373,6 +1381,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             self.assertIn('file_prefix="cdmw_mesh_edit_vertices_"', source)
             self.assertIn('"command": "replace_mesh_edit_triangles"', source)
             self.assertIn("def _send_mesh_edit_json_or_file(", source)
+            self.assertIn("self._last_mesh_edit_send_metrics", source)
+            self.assertIn("def last_mesh_edit_send_metrics(self) -> Dict[str, object]:", source)
+            self.assertIn('"payload_bytes": len(encoded)', source)
+            self.assertIn('"send_ms": max(0.0, (time.perf_counter() - send_started) * 1000.0)', source)
             self.assertIn("def _write_i32_preview_delta(", source)
             self.assertIn("def _compact_nonnegative_indices(", source)
             self.assertIn("def _compact_mesh_edit_selection_group(", source)
@@ -1390,6 +1402,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             self.assertNotIn("for raw_vertex in tuple(raw_vertices or ())", source)
             self.assertNotIn("dict(selected_vertices_by_submesh or {}).items()", source)
             self.assertNotIn("for group in tuple(groups or ())", source)
+
             self.assertNotIn("tuple(source_submesh_indices or ())", source)
             self.assertNotIn("tuple(replacement_submesh_indices or ())", source)
             self.assertNotIn("tuple(original_submesh_indices or ())", source)
@@ -1405,6 +1418,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             self.assertIn('selection_depth_mode: str = "visible"', source)
             self.assertIn('"selection_depth_mode": str(selection_depth_mode or "visible")', source)
             self.assertIn('"smooth_iterations": int(smooth_iterations or 3)', source)
+        self.assertIn('"mesh_edit_live_stroke_timing"', main_source)
+        self.assertIn("_record_mesh_edit_live_stroke_timing(", main_source)
+        self.assertIn("d3d11_send_metrics=_mesh_edit_last_d3d11_send_metrics()", main_source)
+        self.assertIn("service_total_ms=float(metrics.get(\"service_total_ms\", 0.0) or 0.0)", main_source)
+        self.assertIn("native_apply_roundtrip_ms=float(metrics.get(\"native_apply_roundtrip_ms\", 0.0) or 0.0)", main_source)
+        self.assertIn("d3d11_frame_count=_mesh_edit_payload_frame_count(payload)", main_source)
+        self.assertIn('<< ",\\"frame_count\\":" << frame_count_', native_d3d11_source)
         self.assertIn("def _compact_nonnegative_indices(", panel_source)
         self.assertIn('"source_vertex_start": index_range[0]', panel_source)
         self.assertIn('"source_vertex_count": index_range[1]', panel_source)
@@ -1950,8 +1970,19 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('command == "update_mesh_edit_vertices"', source)
         self.assertIn('command == "replace_mesh_edit_triangles"', source)
         self.assertIn("update_mesh_edit_vertices_from_payload", source)
+        self.assertIn("process_pending_mesh_edit_vertex_update()", source)
+        self.assertIn("pending_mesh_edit_vertices_payload_", source)
+        self.assertIn("queue_mesh_edit_vertices_payload(payload);", source)
+        self.assertIn("queue_mesh_edit_vertices_file(payload_file, delete_after);", source)
+        self.assertNotIn("mesh_edit_vertices_queued", source)
+        command_start = source.index('if (command == "update_mesh_edit_vertices")')
+        command_body = source[command_start: source.index('if (command == "replace_mesh_edit_triangles")', command_start)]
+        self.assertIn("queue_mesh_edit_vertices_payload(payload);", command_body)
+        self.assertIn("queue_mesh_edit_vertices_file(payload_file, delete_after);", command_body)
+        self.assertNotIn("update_mesh_edit_vertices_from_payload(payload)", command_body)
+        self.assertNotIn("read_text(payload_file)", command_body)
         update_start = source.index("int update_mesh_edit_vertices_from_payload")
-        update_body = source[update_start: source.index("std::pair<int, int> replace_mesh_edit_triangles_from_payload", update_start)]
+        update_body = source[update_start: source.index("void flush_pending_mesh_edit_vertex_uploads()", update_start)]
         self.assertIn('json_int_field(group, "source_vertex_start", 0)', update_body)
         self.assertIn('json_int_field(group, "source_vertex_count", 0)', update_body)
         self.assertIn("const bool has_source_vertex_values =", update_body)
@@ -1965,14 +1996,24 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("source_vertex_start + static_cast<int>(index)", update_body)
         self.assertIn("struct ParsedUpdateGroup", update_body)
         self.assertIn("std::vector<ParsedUpdateGroup> groups;", update_body)
+        self.assertIn("std::set<int> group_source_submeshes;", update_body)
+        self.assertIn("group_source_submeshes.insert(source_submesh);", update_body)
+        self.assertIn("group_source_submeshes.find(batch.source_submesh_index) == group_source_submeshes.end()", update_body)
         self.assertIn("supports_direct_source_range", update_body)
         self.assertIn("batch.cpu_source_vertices[vertex_index] != static_cast<int>(vertex_index)", update_body)
         self.assertIn("rebuild_batch_source_vertex_lookup(batch)", update_body)
+        self.assertIn("batch.pending_vertex_upload = true;", update_body)
+        self.assertIn("batch.pending_vertex_upload_min = std::min(batch.pending_vertex_upload_min, min_changed_vertex);", update_body)
+        self.assertNotIn("context_->UpdateSubresource", update_body)
         self.assertNotIn("std::map<std::pair<int, int>, DirectX::XMFLOAT3> updates", update_body)
+        self.assertIn("void flush_pending_mesh_edit_vertex_uploads()", source)
+        self.assertIn("flush_pending_mesh_edit_vertex_uploads();", source)
+        flush_body = source[source.index("void flush_pending_mesh_edit_vertex_uploads()"):]
+        self.assertIn("context_->UpdateSubresource", flush_body)
         self.assertNotIn("updates[key] =", update_body)
-        self.assertIn("const bool full_buffer_update = min_changed_vertex == 0u && max_changed_vertex + 1u >= vertex_limit;", update_body)
+        self.assertIn("const bool full_buffer_update = min_changed_vertex == 0u && max_changed_vertex + 1u >= vertex_limit;", flush_body)
         self.assertNotIn("|| max_changed_vertex + 1u >= vertex_limit", update_body)
-        self.assertIn("&box", update_body)
+        self.assertIn("&box", flush_body)
         self.assertIn("replace_mesh_edit_triangles_from_payload", source)
         self.assertIn("if (!delivered) {", source)
         self.assertIn("write_status(args_.status_file, payload);", source)
@@ -2003,7 +2044,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("++stats_.mesh_edit_selection_event_count;", source)
         self.assertIn('if (command == "get_status")', source)
         self.assertIn('loaded_payload_for_event(stats_, "status")', source)
-        self.assertIn("UpdateSubresource(\n                        batch.vertex_buffer.Get(),\n                        0,\n                        &box,", source)
+        self.assertIn("UpdateSubresource(", flush_body)
+        self.assertIn("batch.vertex_buffer.Get()", flush_body)
+        self.assertIn("&box", flush_body)
         self.assertIn("return elapsed_ms >= 16.0;", source)
         self.assertNotIn("return elapsed_ms >= 16.0 || (dx * dx + dy * dy) >= 9;", source)
         self.assertIn('if (command == "clear_mesh_edit_selection")', source)
@@ -2695,11 +2738,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         toggle_body = source[toggle_start:source.index("mesh_edit_enabled_checkbox.toggled.connect", toggle_start)]
         self.assertIn('_mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")', toggle_body)
         self.assertIn("if not edit_enabled:", toggle_body)
-        self.assertIn("_queue_static_preview_refresh()", toggle_body)
+        self.assertIn("if callable(_queue_texture_preview_refresh):", toggle_body)
         self.assertIn("_queue_texture_preview_refresh()", toggle_body)
+        self.assertIn("if callable(_queue_static_preview_rebuild):", toggle_body)
+        self.assertIn("_queue_static_preview_rebuild()", toggle_body)
         self.assertLess(
             toggle_body.index('_mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")'),
-            toggle_body.index("_queue_texture_preview_refresh()"),
+            toggle_body.index("_queue_static_preview_rebuild()"),
         )
         self.assertNotIn("_restore_textured_preview_after_mesh_edit_surface_exit", source)
         self.assertIn("def alignment_d3d11_raw_package_active_or_pending(state: Mapping[str, object]) -> bool:", source)

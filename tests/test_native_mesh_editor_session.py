@@ -1,3 +1,4 @@
+import json
 import struct
 import tempfile
 import unittest
@@ -218,6 +219,28 @@ def _reversed_triangle_mesh() -> ParsedMesh:
 
 
 class NativeMeshEditorSessionBridgeTests(unittest.TestCase):
+    def test_session_store_item_sanitizes_preview_material_parameters_for_json(self) -> None:
+        from cdmw.modding import mesh_native_core
+        from cdmw.models import PreviewMaterialParameterInput
+
+        submesh = _quad_mesh().submeshes[0]
+        submesh.preview_material_parameters = (
+            PreviewMaterialParameterInput(
+                parameter_kind="float",
+                parameter_name="_roughnessFactor",
+                numeric_value=0.5,
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            item = mesh_native_core._native_mesh_session_store_item(submesh, 0, Path(temp_dir) / "mesh")
+
+        self.assertIsNotNone(item)
+        json.dumps({"submeshes": [item]}, allow_nan=False)
+        extra_attrs = item["extra_attrs"]  # type: ignore[index]
+        parameters = extra_attrs["preview_material_parameters"]  # type: ignore[index]
+        self.assertEqual("_roughnessFactor", parameters[0]["parameter_name"])  # type: ignore[index]
+
     def test_resident_live_stroke_coalesces_transform_updates_in_native_history(self) -> None:
         from cdmw.modding import mesh_native_core
 

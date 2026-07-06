@@ -10,6 +10,20 @@ from .editing import (
     MeshEditSelection,
     MeshEditSessionView,
 )
+from .asset import (
+    BinaryLayout,
+    IndexBuffer,
+    MaterialSlot,
+    MeshAsset,
+    MeshAssetSubmesh,
+    MeshFileSection,
+    MeshLod,
+    MeshValidationIssue,
+    MeshValidationResult,
+    MeshVertex,
+    VertexBuffer,
+    validate_mesh_asset_rebuild,
+)
 from .compare import MeshBoundsSummary, MeshCompareSummary, MeshPartCompareSummary, compare_meshes
 from .export_validation import (
     SUPPORTED_GAME_MESH_FORMATS,
@@ -48,6 +62,17 @@ __all__ = [
     "MeshEditResult",
     "MeshEditSelection",
     "MeshEditSessionView",
+    "BinaryLayout",
+    "IndexBuffer",
+    "MaterialSlot",
+    "MeshAsset",
+    "MeshAssetSubmesh",
+    "MeshFileSection",
+    "MeshLod",
+    "MeshValidationIssue",
+    "MeshValidationResult",
+    "MeshVertex",
+    "VertexBuffer",
     "MeshBoundsSummary",
     "MeshCompareSummary",
     "MeshExportValidationIssue",
@@ -83,5 +108,6 @@ __all__ = [
     "summarize_skeleton_bones",
     "summarize_mesh_uvs",
     "summarize_mesh_workspace",
+    "validate_mesh_asset_rebuild",
     "validate_mesh_export",
 ]

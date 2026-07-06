@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 ## Repo Rules
 
@@ -39,6 +39,11 @@ Last updated: 2026-07-05
 
 ## Mesh Runtime Notes
 
+- `ParsedMesh` is still the compatibility parser/export shape. The strict
+  rebuild contract starts in `cdmw.domain.mesh.asset`; use
+  `cdmw.modding.mesh_asset` to convert parser output and
+  `tools/mesh_pipeline.py inspect|roundtrip` for UI-free MeshAsset inspection
+  and no-edit rebuild diff reports.
 - `MeshService` owns edit-session mutation and routes supported native-session
   actions through `cdmw/modding/mesh_native_core.py`.
 - `MeshEditCommandWorker` is the unified async worker for Mesh Editor commands;
@@ -520,8 +525,14 @@ Last updated: 2026-07-05
   events. The harness now writes raw loaded, selected-before-drag, after-drag,
   and `real_archive_visual_edit_proof.png` contact-sheet diff captures so this
   proof is inspectable on actual game geometry instead of a synthetic rectangle.
-  Latest side-by-side visual proof run passed under
-  `%TEMP%\cdmw-real-side-by-side-visual-edit-proof-current`.
+  Latest side-by-side visual proof with the async live D3D11 vertex-update lane
+  passed under `%TEMP%\cdmw-real-archive-mesh-editor-d3d11-60fps-harness-async`:
+  live vertex-update send p95/max was about `0.27 ms`, handler p95/max was about
+  `4.98 ms`, `live_stroke_frame_budget_ok=true`, the projected selected delta
+  remained `(32.00000076,0.00000008)` against expected `(32,0)`, and there were
+  no native fallback events. The applied-update event wait is still about
+  `50.8 ms`, so future performance work should reduce visual apply latency
+  without putting `WM_COPYDATA` waits back on the Qt handler path.
 - `scripts/codex_check.ps1 -Area mesh` intentionally skips interactive D3D11/Qt
   harness cases; use the real archive side-by-side Mesh Editor D3D11 smoke for
   visual proof on game geometry, and run Qt harness scenarios directly only
@@ -583,14 +594,15 @@ Last updated: 2026-07-05
   startup-smoked with `QT_QPA_PLATFORM=offscreen` and
   `CDMW_GUI_STARTUP_SMOKE=1`. Artifact:
   `dist\CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe`,
-  112,112,752 bytes, SHA256
-  `E65ED0336F132D1E992EADAAB3495EB1283B215AA08917A5AAC32DA7A8A9F58F`.
+  112,120,874 bytes, SHA256
+  `1913D716177EA4667C220D4BA960C4712BDC588D194B226CD98A23A08F1C80DF`.
 - Release PyInstaller packaging now treats `native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe`
   as required, alongside the D3D11 and texture native helpers. A 2026-07-05
   `build.bat onefile release` run rebuilt native helpers, validated all 483
   archive members, startup-smoked the packaged EXE, and archive inspection found
-  `native\cdmw-mesh-core.exe`, `native\cdmw-d3d11-preview.exe`, and the other
-  native helpers embedded in the onefile artifact.
+  `native\cdmw-mesh-core.exe` (1,909,760 bytes),
+  `native\cdmw-d3d11-preview.exe` (921,600 bytes), and the other native helpers
+  embedded in the onefile artifact.
 - Full `tests/test_mesh_service_editing.py` now passes: 350 passed on
   2026-07-05 after updating stale legacy-helper/history-snapshot/result-shape
   expectations to the resident native session contract.

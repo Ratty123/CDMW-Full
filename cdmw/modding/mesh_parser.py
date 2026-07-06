@@ -183,6 +183,7 @@ class SubmeshDescriptor:
 class MeshBinaryLayout:
     """Best-effort description of a PAC/PAM/PAMLOD binary mesh layout."""
     format: str = ""
+    layout_confidence: str = "inferred"
     geometry_offset: int = -1
     geometry_size: int = 0
     submesh_descriptors: list[SubmeshDescriptor] = field(default_factory=list)
@@ -1893,6 +1894,7 @@ def inspect_mesh_binary_layout(data: bytes, filename: str = "") -> MeshBinaryLay
     fmt = "pamlod" if ext == ".pamlod" else "pac" if ext == ".pac" else "pam"
     layout = MeshBinaryLayout(format=fmt)
     if not data or len(data) < 4 or data[:4] != PAR_MAGIC:
+        layout.layout_confidence = "fallback_scan"
         layout.warnings.append("Input is missing the PAR mesh header.")
         return layout
 
@@ -1937,6 +1939,7 @@ def _inspect_pam_binary_layout(data: bytes, filename: str) -> MeshBinaryLayout:
     try:
         parsed = parse_pam(data, filename)
     except Exception as exc:
+        layout.layout_confidence = "fallback_scan"
         layout.warnings.append(f"PAM parse failed while inspecting layout: {exc}")
         return layout
 
@@ -1971,6 +1974,7 @@ def _inspect_pamlod_binary_layout(data: bytes, filename: str) -> MeshBinaryLayou
     try:
         parsed = parse_pamlod(data, filename)
     except Exception as exc:
+        layout.layout_confidence = "fallback_scan"
         layout.warnings.append(f"PAMLOD parse failed while inspecting layout: {exc}")
         return layout
     if len(data) >= PAMLOD_GEOM_OFF + 4:
@@ -2009,6 +2013,7 @@ def _inspect_pac_binary_layout(data: bytes, filename: str) -> MeshBinaryLayout:
     try:
         parsed = parse_pac(data, filename)
     except Exception as exc:
+        layout.layout_confidence = "fallback_scan"
         layout.warnings.append(f"PAC parse failed while inspecting layout: {exc}")
         return layout
 
@@ -2016,6 +2021,11 @@ def _inspect_pac_binary_layout(data: bytes, filename: str) -> MeshBinaryLayout:
         _submesh_descriptor_from_parsed(index, submesh)
         for index, submesh in enumerate(parsed.submeshes)
     ]
+    if layout.submesh_descriptors and all(
+        desc.vertex_start_offset >= 0 and desc.index_start_offset >= 0 and desc.vertex_stride > 0
+        for desc in layout.submesh_descriptors
+    ):
+        layout.layout_confidence = "exact"
     layout.material_slots = [
         MaterialSlot(index=index, name=submesh.material or submesh.name, texture=submesh.texture)
         for index, submesh in enumerate(parsed.submeshes)

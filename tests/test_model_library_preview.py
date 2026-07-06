@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import shutil
@@ -6,6 +7,7 @@ import tempfile
 import threading
 import time
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -26,7 +28,7 @@ def _pad4(data: bytes) -> bytes:
     return data + (b"\x00" * ((4 - (len(data) % 4)) % 4))
 
 
-def _write_triangle_gltf(root: Path, *, triangle_count: int = 1) -> Path:
+def _write_triangle_gltf(root: Path, *, triangle_count: int = 1, with_texture: bool = False) -> Path:
     chunks: list[bytes] = []
     views: list[dict[str, object]] = []
 
@@ -53,6 +55,14 @@ def _write_triangle_gltf(root: Path, *, triangle_count: int = 1) -> Path:
     uv_view = add_view(struct.pack(f"<{len(uvs)}f", *uvs), 34962)
     index_view = add_view(struct.pack(f"<{len(indices)}H", *indices), 34963)
     (root / "triangle.bin").write_bytes(b"".join(chunks))
+    materials: list[dict[str, object]] = [{"name": "Body"}]
+    if with_texture:
+        (root / "texture.png").write_bytes(
+            base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+            )
+        )
+        materials = [{"name": "Body", "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}}]
     document = {
         "asset": {"version": "2.0"},
         "buffers": [{"uri": "triangle.bin", "byteLength": sum(len(chunk) for chunk in chunks)}],
@@ -63,7 +73,7 @@ def _write_triangle_gltf(root: Path, *, triangle_count: int = 1) -> Path:
             {"bufferView": uv_view, "componentType": 5126, "count": len(uvs) // 2, "type": "VEC2"},
             {"bufferView": index_view, "componentType": 5123, "count": len(indices), "type": "SCALAR"},
         ],
-        "materials": [{"name": "Body"}],
+        "materials": materials,
         "meshes": [
             {
                 "name": "Triangle",
@@ -76,6 +86,9 @@ def _write_triangle_gltf(root: Path, *, triangle_count: int = 1) -> Path:
         "scenes": [{"nodes": [0]}],
         "scene": 0,
     }
+    if with_texture:
+        document["images"] = [{"uri": "texture.png"}]
+        document["textures"] = [{"source": 0}]
     path = root / "scene.gltf"
     path.write_text(json.dumps(document), encoding="utf-8")
     return path
@@ -112,6 +125,31 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertTrue(writer.called)
             self.assertTrue(writer.call_args.kwargs["high_quality_textures"])
             self.assertTrue(writer.call_args.kwargs["enable_material_combiner"])
+
+    def test_backend_prepares_fast_d3d11_package_from_gltf_zip_with_texture(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            asset_dir = root / "asset"
+            asset_dir.mkdir()
+            _write_triangle_gltf(asset_dir, with_texture=True)
+            archive_path = root / "wolf_like.zip"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for path in asset_dir.rglob("*"):
+                    archive.write(path, path.relative_to(asset_dir).as_posix())
+
+            result = prepare_model_library_inline_preview(
+                archive_path,
+                extract_root=root / "extract",
+                model_name="Zip Texture",
+                high_quality_textures=False,
+            )
+
+            package_dir = Path(str(result["d3d11_package_dir"]))
+            manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(result["vertices"], 3)
+            self.assertGreaterEqual(int(result["textures"]), 1)
+            self.assertFalse(manifest["high_quality_textures"])
+            self.assertGreaterEqual(manifest["texture_manifest"]["texture_count"], 1)
 
     def test_backend_prepares_qt_preview_without_d3d11_package(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

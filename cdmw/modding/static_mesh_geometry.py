@@ -428,8 +428,9 @@ def _grid_flat_target_axis(
     target_axis: tuple[float, float, float],
 ) -> tuple[float, float, float]:
     normalized = _normalize(target_axis)
-    if abs(_dot(normalized, (0.0, 1.0, 0.0))) < 0.85:
-        return normalized
+    horizontal = (normalized[0], 0.0, normalized[2])
+    if _dot(horizontal, horizontal) > 1.0e-8:
+        return _normalize(horizontal)
     vertices = _renderable_mesh_vertices(original_mesh)
     if not vertices:
         return (1.0, 0.0, 0.0)
