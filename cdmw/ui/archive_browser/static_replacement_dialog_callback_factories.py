@@ -7341,7 +7341,9 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
         )
 
     def _load_original_reference_texture_preview() -> None:
-        return
+        callback = context.get("_load_original_reference_texture_preview")
+        if callable(callback) and callback is not _load_original_reference_texture_preview:
+            callback()
 
     _global_transform_values = lambda: _spinbox_transform_values_helper(
             (offset_x_spin, offset_y_spin, offset_z_spin),

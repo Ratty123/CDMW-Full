@@ -70,11 +70,13 @@ from cdmw.core.archive import (
     _infer_model_preview_normal_strength,
     _normalize_model_visible_texture_mode,
     _resolve_model_texture_semantic_details,
+    build_archive_preview_result,
     ensure_archive_preview_source,
     read_archive_entry_data,
     try_decode_text_like_archive_data,
 )
 from cdmw.core.mesh_baseline import read_archive_entry_baseline_data
+from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
 from cdmw.core.archive_modding import (
     ARCHIVE_MESH_EXTENSIONS,
     MeshImportSupplementalFileSpec,

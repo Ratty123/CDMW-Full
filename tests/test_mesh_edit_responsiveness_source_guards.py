@@ -77,7 +77,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def open_mesh_file_session_async(", tab_source)
         file_open_start = tab_source.index("def open_mesh_file_session(")
         file_open_body = tab_source[file_open_start:tab_source.index("def open_mesh_file_session_async(", file_open_start)]
-        self.assertIn("mesh = mesh_service.load_mesh_file(source_path)", file_open_body)
+        self.assertIn("mesh = mesh_service.load_mesh_file(source_path, run_roundtrip=True)", file_open_body)
         self.assertIn("self._show_standalone_session(view, mesh=mesh", file_open_body)
         self.assertNotIn("working_mesh(clone=False)", file_open_body)
         self.assertIn("def start_standalone_native_preview_async(", tab_source)
@@ -87,7 +87,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("class MeshFileSessionLoadWorker(QObject):", worker_source)
         self.assertIn("class MeshNativePreviewPackageWorker(QObject):", worker_source)
         self.assertIn("service = MeshService()", worker_source)
-        self.assertIn("mesh = service.load_mesh_file(self.path)", worker_source)
+        self.assertIn("mesh = service.load_mesh_file(self.path, run_roundtrip=True)", worker_source)
         self.assertIn("view = service.open_edit_session(", worker_source)
         self.assertIn("self.loaded.emit(self.request_id, service, view, mesh)", worker_source)
         self.assertIn("def _handle_standalone_file_loaded(self, request_id: int, mesh_service: MeshService, view: MeshEditSessionView, mesh: ParsedMesh) -> None:", tab_source)
@@ -235,7 +235,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         expected_boundary_or_fallback_sites = [
             ("cdmw/services/mesh_service.py", "mesh=clone_mesh_for_editing(session.working_mesh),"),
             ("cdmw/services/mesh_service.py", "return clone_mesh_for_editing(mesh), clone_mesh_for_editing(mesh)"),
-            ("cdmw/services/mesh_service.py", "return clone_mesh_for_editing(mesh)"),
+            ("cdmw/services/mesh_service.py", "cloned = clone_mesh_for_editing(mesh)"),
             ("cdmw/services/model_library_preview.py", "preview_model = parsed_mesh_to_preview_model(scene_result.mesh)"),
             ("cdmw/modding/mesh_morph_sliders.py", "result = clone_mesh_for_editing(base_mesh)"),
             ("cdmw/ui/archive_browser/mesh_launch_flow.py", "preview_model = parsed_mesh_to_preview_model(scene_import_result.mesh)"),
@@ -1571,6 +1571,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("nx = normal_transform[0] * sx + normal_transform[1] * sy + normal_transform[2] * sz;", preview_native_source)
         self.assertIn("nx /= length;", preview_native_source)
         self.assertIn('x = (x - cx) * normalization_scale;', preview_native_source)
+        self.assertIn('lower_copy(json_string_field(group, "preview_backend")) == "cdmw_mesh_core"', preview_native_source)
+        self.assertIn("source_to_preview_position_for_batch(batch, position)", preview_native_source)
+        self.assertIn("mesh_edit_source_world_transform_for_batch(batch)", preview_native_source)
         self.assertIn("if alignment_d3d11_preview_host.update_mesh_edit_vertices(groups):", main_source)
         self.assertIn("def _mesh_edit_source_indices_from_groups(groups: Iterable[Mapping[str, object]]) -> tuple[int, ...]:", main_source)
         self.assertIn('"mesh_edit_live_vertex_update_failed"', main_source)

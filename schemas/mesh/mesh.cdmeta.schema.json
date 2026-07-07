@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cdmw.local/schemas/mesh/mesh.cdmeta.schema.json",
+  "title": "CDMW Mesh Editor cdmeta sidecar",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "format",
+    "schema_version",
+    "tool_version",
+    "source_format",
+    "asset_id",
+    "parse_confidence",
+    "lods",
+    "import_rules",
+    "rules",
+    "allowed_edit_operations"
+  ],
+  "properties": {
+    "format": { "const": "mesh_roundtrip_manifest_v2" },
+    "schema_version": { "const": 1 },
+    "tool_version": { "const": "cdmw_mesh_roundtrip_manifest_v2" },
+    "source_path": { "type": "string" },
+    "source_format": { "type": "string" },
+    "source_asset_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "source_asset_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "asset_id": { "type": "string" },
+    "parse_confidence": {
+      "enum": ["exact", "inferred", "fallback_scan", "unsupported", "failed"]
+    },
+    "export_path": { "type": "string" },
+    "companion_filename": { "type": "string" },
+    "exported_utc": { "type": "string" },
+    "skeleton_info": { "type": "object" },
+    "material_slots": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/material_slot" }
+    },
+    "unknown_sections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/unknown_section" }
+    },
+    "lods": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/lod" }
+    },
+    "import_rules": { "$ref": "#/$defs/import_rules" },
+    "rules": { "$ref": "#/$defs/import_rules" },
+    "allowed_edit_operations": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "replace_positions_same_count",
+          "replace_normals_same_count",
+          "replace_tangents_same_count",
+          "replace_uv0_same_count",
+          "scale_vertices",
+          "translate_vertices",
+          "rotate_vertices",
+          "recompute_bounds",
+          "preview_submesh_visibility"
+        ]
+      }
+    },
+    "roundtrip_policy": { "type": "object" },
+    "submeshes": {
+      "type": "array",
+      "items": { "type": "object" }
+    }
+  },
+  "$defs": {
+    "material_slot": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["index", "name", "texture"],
+      "properties": {
+        "index": { "type": "integer" },
+        "name": { "type": "string" },
+        "texture": { "type": "string" }
+      }
+    },
+    "unknown_section": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "offset", "size", "index"],
+      "properties": {
+        "name": { "type": "string" },
+        "offset": { "type": "integer" },
+        "size": { "type": "integer", "minimum": 0 },
+        "index": { "type": "integer" }
+      }
+    },
+    "bounds": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 3,
+        "items": { "type": "number" }
+      }
+    },
+    "import_rules": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "allow_position_edit",
+        "allow_normal_edit",
+        "allow_uv_edit",
+        "allow_topology_change",
+        "preserve_bone_weights",
+        "require_source_asset_hash"
+      ],
+      "properties": {
+        "allow_position_edit": { "type": "boolean" },
+        "allow_normal_edit": { "type": "boolean" },
+        "allow_uv_edit": { "type": "boolean" },
+        "allow_topology_change": { "type": "boolean" },
+        "preserve_bone_weights": { "type": "boolean" },
+        "require_source_asset_hash": { "type": "boolean" }
+      }
+    },
+    "lod": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "lod_index",
+        "name",
+        "original_section_offset",
+        "original_section_size",
+        "bounds",
+        "metadata",
+        "submeshes"
+      ],
+      "properties": {
+        "lod_index": { "type": "integer", "minimum": 0 },
+        "name": { "type": "string" },
+        "original_section_offset": { "type": "integer" },
+        "original_section_size": { "type": "integer", "minimum": 0 },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "metadata": { "type": "object" },
+        "submeshes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/submesh" }
+        }
+      }
+    },
+    "submesh": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "submesh_index",
+        "stable_id",
+        "name",
+        "material_slot_index",
+        "material",
+        "texture",
+        "original_vertex_count",
+        "original_index_count",
+        "original_vertex_stride",
+        "original_vertex_offset",
+        "original_index_offset",
+        "original_descriptor_offset",
+        "source_vertex_map",
+        "source_index_map",
+        "bounds",
+        "bone_layout"
+      ],
+      "properties": {
+        "submesh_index": { "type": "integer", "minimum": 0 },
+        "stable_id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "material_slot_index": { "type": "integer" },
+        "material": { "type": "string" },
+        "texture": { "type": "string" },
+        "original_vertex_count": { "type": "integer", "minimum": 0 },
+        "original_index_count": { "type": "integer", "minimum": 0 },
+        "original_vertex_stride": { "type": "integer", "minimum": 0 },
+        "original_vertex_offset": { "type": "integer" },
+        "original_index_offset": { "type": "integer" },
+        "original_descriptor_offset": { "type": "integer" },
+        "source_vertex_map": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 }
+        },
+        "source_index_map": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 }
+        },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "bone_layout": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "unknown_fields": { "type": "object" }
+      }
+    }
+  }
+}

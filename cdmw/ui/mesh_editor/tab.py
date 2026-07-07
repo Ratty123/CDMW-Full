@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import time
-from dataclasses import replace
+from dataclasses import asdict, is_dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable, Mapping, Optional, Sequence
 
-from PySide6.QtCore import QPoint, QProcess, QSettings, QThread, Qt, QTimer, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtCore import QPoint, QProcess, QSettings, QThread, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
+    QFileDialog,
+    QApplication,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -25,13 +28,27 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection, MeshEditSessionView
+from cdmw.domain.mesh import (
+    DEVELOPER_OVERRIDABLE_REBUILD_BLOCKERS,
+    MeshEditCommand,
+    MeshEditResult,
+    MeshEditSelection,
+    MeshEditSessionView,
+)
 from cdmw.models import ModelPreviewData, ModelPreviewRenderSettings, TextureEditorSourceBinding
 from cdmw.modding.mesh_native_core import native_mesh_core_available
 from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.services.mesh_dotnet_experiment import (
+    MeshDotNetExperimentPackage,
+    find_mesh_dotnet_experiment_editor,
+    mesh_dotnet_experiment_command,
+    mesh_dotnet_experiment_output_obj_path,
+    write_mesh_dotnet_experiment_evaluation,
+)
 from cdmw.services.mesh_service import MeshService
+from cdmw.ui.shell.settings_bridge import read_bool_setting
 from cdmw.ui.mesh_editor.action_bar import MeshEditorActionBar
-from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS
+from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS, mesh_editor_actions_by_key
 from cdmw.ui.mesh_editor.controller import (
     MeshEditorActionExecution,
     MeshEditorController,
@@ -39,6 +56,7 @@ from cdmw.ui.mesh_editor.controller import (
     apply_native_update_to_host,
 )
 from cdmw.ui.mesh_editor.native_preview_runtime import (
+    _host_widget_hwnd,
     mesh_editor_native_preview_data,
     mesh_editor_native_preview_command,
     mesh_editor_write_prepared_native_preview_package,
@@ -49,8 +67,14 @@ from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
 from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
 from cdmw.workers.mesh_editor_workers import (
     MeshEditCommandWorker,
+    MeshEditablePackageExportWorker,
+    MeshEditablePackageImportWorker,
+    MeshDotNetExperimentOutputImportWorker,
+    MeshDotNetExperimentPackageWorker,
     MeshFileSessionLoadWorker,
+    MeshExportValidationWorker,
     MeshNativePreviewPackageWorker,
+    MeshRebuildReportWorker,
     MeshTextureSourceResolveWorker,
 )
 
@@ -87,6 +111,8 @@ class MeshEditorTab(QWidget):
     modify_original_requested = Signal(object)
     import_replacement_requested = Signal(object)
     import_preview_requested = Signal(object)
+    preview_rebuilt_asset_requested = Signal(object, object)
+    package_rebuilt_asset_requested = Signal(object, object)
     in_game_swap_requested = Signal(object)
     open_archive_target_requested = Signal(object)
     mesh_action_requested = Signal(object)
@@ -135,6 +161,36 @@ class MeshEditorTab(QWidget):
         self.standalone_action_progress: QProgressDialog | None = None
         self.standalone_action_request_id = 0
         self.standalone_action_text = ""
+        self.standalone_rebuild_report_thread: QThread | None = None
+        self.standalone_rebuild_report_worker: MeshRebuildReportWorker | None = None
+        self.standalone_rebuild_report_progress: QProgressDialog | None = None
+        self.standalone_rebuild_report_request_id = 0
+        self.standalone_validation_thread: QThread | None = None
+        self.standalone_validation_worker: MeshExportValidationWorker | None = None
+        self.standalone_validation_request_id = 0
+        self.standalone_dotnet_package_thread: QThread | None = None
+        self.standalone_dotnet_package_worker: MeshDotNetExperimentPackageWorker | None = None
+        self.standalone_dotnet_package_request_id = 0
+        self.standalone_dotnet_import_thread: QThread | None = None
+        self.standalone_dotnet_import_worker: MeshDotNetExperimentOutputImportWorker | None = None
+        self.standalone_dotnet_import_request_id = 0
+        self.standalone_editable_export_thread: QThread | None = None
+        self.standalone_editable_export_worker: MeshEditablePackageExportWorker | None = None
+        self.standalone_editable_export_request_id = 0
+        self.standalone_editable_import_thread: QThread | None = None
+        self.standalone_editable_import_worker: MeshEditablePackageImportWorker | None = None
+        self.standalone_editable_import_request_id = 0
+        self.standalone_dotnet_editor_process: QProcess | None = None
+        self.standalone_dotnet_experiment_package: MeshDotNetExperimentPackage | None = None
+        self.standalone_dotnet_status_payload: dict[str, object] = {}
+        self.standalone_dotnet_target_controller: MeshEditorController | None = None
+        self.standalone_dotnet_target_embedded = False
+        self.standalone_dotnet_protocol_stdout = ""
+        self.standalone_dotnet_protocol_events: list[dict[str, object]] = []
+        self.embedded_dotnet_editor_button: QPushButton | None = None
+        self.standalone_last_export_validation_report: object | None = None
+        self.standalone_last_rebuild_report: object | None = None
+        self.standalone_last_rebuilt_asset_path: Path | None = None
         self.standalone_last_action_result: MeshEditResult | None = None
         self.standalone_last_action_metrics: dict[str, float] = {}
         self.standalone_native_package_reset_view = True
@@ -267,6 +323,10 @@ class MeshEditorTab(QWidget):
         page = MeshEditorWorkspace(theme_key=self.theme_key, parent=self)
         page.action_requested.connect(self._handle_action_requested)
         page.native_preview_requested.connect(self._start_standalone_native_preview_requested)
+        page.export_editable_package_requested.connect(self._start_standalone_export_editable_package_requested)
+        page.import_edited_package_requested.connect(self._start_standalone_import_edited_package_requested)
+        page.open_editable_package_folder_requested.connect(self._open_standalone_editable_package_folder)
+        page.dotnet_editor_requested.connect(self._start_standalone_dotnet_editor_requested)
         page.texture_edit_requested.connect(self.open_selected_texture_in_editor)
         page.compare_view_requested.connect(self._set_standalone_compare_mode)
         page.skeleton_pose_requested.connect(self._handle_skeleton_pose_request)
@@ -274,12 +334,27 @@ class MeshEditorTab(QWidget):
         page.part_context_action_requested.connect(self._handle_part_context_action)
         page.uv_region_selected.connect(self._handle_uv_region_selection)
         page.uv_lasso_selected.connect(self._handle_uv_lasso_selection)
+        page.validation_report_requested.connect(self._start_standalone_export_validation_requested)
+        page.copy_validation_report_requested.connect(self._copy_standalone_validation_report_requested)
+        page.rebuild_report_requested.connect(self._start_standalone_rebuild_report_requested)
+        page.rebuild_asset_requested.connect(self._start_standalone_rebuild_asset_requested)
+        page.preview_rebuilt_asset_requested.connect(self._preview_standalone_rebuilt_asset_requested)
+        page.package_rebuilt_asset_requested.connect(self._package_standalone_rebuilt_asset_requested)
+        page.save_rebuild_report_requested.connect(self._save_standalone_rebuild_report_requested)
         self.standalone_preview_stack = page.preview_stack
         self.standalone_native_host_frame = page.native_host_frame
         self.standalone_preview = page.preview
         self.standalone_native_host = page.native_host_frame
         self._wire_standalone_native_part_events(self.standalone_native_host)
         self.standalone_native_preview_button = page.native_preview_button
+        self.standalone_run_validation_report_button = page.run_validation_report_button
+        self.standalone_rebuild_asset_button = page.rebuild_asset_button
+        self.standalone_preview_rebuilt_asset_button = page.preview_rebuilt_asset_button
+        self.standalone_package_rebuilt_asset_button = page.package_rebuilt_asset_button
+        self.standalone_export_editable_package_button = page.export_editable_package_button
+        self.standalone_import_edited_package_button = page.import_edited_package_button
+        self.standalone_open_editable_package_folder_button = page.open_editable_package_folder_button
+        self.standalone_dotnet_editor_button = page.dotnet_editor_button
         self.standalone_status_label = page.status_label
         return page
 
@@ -346,6 +421,12 @@ class MeshEditorTab(QWidget):
             ("standalone_texture_source", self.standalone_texture_source_thread, self.standalone_texture_source_worker),
             ("standalone_native_package", self.standalone_native_package_thread, self.standalone_native_package_worker),
             ("standalone_mesh_action", self.standalone_action_thread, self.standalone_action_worker),
+            ("standalone_validation", self.standalone_validation_thread, self.standalone_validation_worker),
+            ("standalone_rebuild_report", self.standalone_rebuild_report_thread, self.standalone_rebuild_report_worker),
+            ("standalone_dotnet_package", self.standalone_dotnet_package_thread, self.standalone_dotnet_package_worker),
+            ("standalone_dotnet_import", self.standalone_dotnet_import_thread, self.standalone_dotnet_import_worker),
+            ("standalone_editable_export", self.standalone_editable_export_thread, self.standalone_editable_export_worker),
+            ("standalone_editable_import", self.standalone_editable_import_thread, self.standalone_editable_import_worker),
         )
 
     def request_shutdown(self) -> None:
@@ -362,6 +443,7 @@ class MeshEditorTab(QWidget):
         self.embedded_builder_host_layout.addWidget(builder)
         self.workspace_stack.setCurrentWidget(self.embedded_builder_host)
         self._install_embedded_merged_mesh_editing(builder)
+        self._wire_embedded_dotnet_button(builder)
         self._sync_state()
 
     def show_empty_state(self, message: str = "") -> None:
@@ -369,6 +451,7 @@ class MeshEditorTab(QWidget):
         self.embedded_workspace = None
         self._embedded_control_tabs = None
         self._embedded_classic_builder = None
+        self.embedded_dotnet_editor_button = None
         while self.embedded_builder_host_layout.count():
             item = self.embedded_builder_host_layout.takeAt(0)
             widget = item.widget()
@@ -420,6 +503,21 @@ class MeshEditorTab(QWidget):
                     break
         self._refresh_embedded_workspace_from_builder()
 
+    def _wire_embedded_dotnet_button(self, builder: QWidget) -> None:
+        dotnet_available = self._dotnet_editor_executable_path() is not None
+        setattr(builder, "_mesh_editor_embedded_start_dotnet", self._start_embedded_dotnet_editor_requested)
+        setattr(builder, "_mesh_editor_embedded_stop_dotnet", self._request_embedded_dotnet_editor_close)
+        setattr(builder, "_mesh_editor_use_embedded_dotnet_viewport", dotnet_available)
+        button = builder.findChild(QPushButton, "MeshAlignmentDotNetExperimentButton")
+        self.embedded_dotnet_editor_button = button
+        if button is None:
+            return
+        if button.property("meshEditorDotNetConnectedTo") != id(self):
+            button.clicked.connect(self._start_embedded_dotnet_editor_requested)
+            button.setProperty("meshEditorDotNetConnectedTo", id(self))
+        button.setToolTip("Edit Mesh starts the .NET viewport automatically. Use this only to restart/open it manually.")
+        button.setEnabled(dotnet_available and not self._dotnet_task_active())
+
     def set_native_preview_host(self, host: object | None) -> None:
         self.standalone_native_host = host if host is not None else getattr(self, "standalone_native_host_frame", None)
         self._wire_standalone_native_part_events(self.standalone_native_host)
@@ -442,6 +540,7 @@ class MeshEditorTab(QWidget):
             ("mesh_edit_stroke_finished", self._handle_standalone_native_mesh_edit_stroke_finished),
             ("mesh_edit_stroke_cancelled", self._handle_standalone_native_mesh_edit_stroke_cancelled),
             ("mesh_edit_selection_changed", self._handle_standalone_native_mesh_edit_selection_changed),
+            ("native_event_received", self._handle_standalone_native_preview_event),
         ):
             signal = getattr(host, signal_name, None)
             connector = getattr(signal, "connect", None)
@@ -824,6 +923,1041 @@ class MeshEditorTab(QWidget):
             except RuntimeError:
                 pass
 
+    def _standalone_editable_package_task_active(self) -> bool:
+        return (
+            self.standalone_editable_export_thread is not None
+            or self.standalone_editable_export_worker is not None
+            or self.standalone_editable_import_thread is not None
+            or self.standalone_editable_import_worker is not None
+        )
+
+    def _open_standalone_editable_package_folder(self) -> bool:
+        raw_dir = str(self.settings.value("mesh_editor/last_editable_package_dir", "") or "").strip()
+        if not raw_dir:
+            self.status_message_requested.emit("No editable mesh package folder has been exported yet.", True)
+            return False
+        package_dir = Path(raw_dir)
+        if not package_dir.is_dir():
+            self.status_message_requested.emit(f"Editable mesh package folder not found: {package_dir}", True)
+            return False
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(package_dir.resolve()))):
+            self.status_message_requested.emit(f"Could not open editable mesh package folder: {package_dir}", True)
+            return False
+        text = f"Opened editable mesh package folder: {package_dir}"
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, False)
+        return True
+
+    def _start_standalone_export_editable_package_requested(self) -> None:
+        controller = self.standalone_controller
+        if controller is None or not controller.active_session_id:
+            self.status_message_requested.emit("Open a mesh session before exporting an editable package.", True)
+            return
+        if (
+            self._standalone_action_worker_active()
+            or self._standalone_validation_worker_active()
+            or self._standalone_rebuild_report_worker_active()
+            or self._standalone_editable_package_task_active()
+        ):
+            self.status_message_requested.emit("Wait for the current Mesh Editor task to finish, or cancel it first.", True)
+            return
+        start_dir = str(self.settings.value("mesh_editor/last_editable_package_dir", "") or "")
+        raw_dir = QFileDialog.getExistingDirectory(self, "Export Editable Mesh Package", start_dir)
+        if not raw_dir:
+            return
+        self._start_standalone_editable_package_export(Path(raw_dir))
+
+    def _start_standalone_editable_package_export(self, output_dir: Path | str) -> bool:
+        controller = self.standalone_controller
+        if controller is None or not controller.active_session_id:
+            self.status_message_requested.emit("Editable package export unavailable: no active session.", True)
+            return False
+        if self._standalone_editable_package_task_active():
+            self.status_message_requested.emit("Editable package export/import is already running.", False)
+            return False
+        self.standalone_editable_export_request_id += 1
+        request_id = self.standalone_editable_export_request_id
+        worker = MeshEditablePackageExportWorker(request_id, controller.mesh_service, controller.active_session_id, output_dir)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._handle_standalone_editable_package_exported)
+        worker.error.connect(self._handle_standalone_editable_package_export_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_editable_package_export_worker(target_thread, target_worker))
+        self.standalone_editable_export_thread = thread
+        self.standalone_editable_export_worker = worker
+        self.standalone_status_label.setText("Exporting editable mesh package...")
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        thread.start(QThread.LowPriority)
+        return True
+
+    def _handle_standalone_editable_package_exported(self, request_id: int, result: object, elapsed_ms: float) -> None:
+        if int(request_id) != int(self.standalone_editable_export_request_id):
+            return
+        package_dir = Path(str(result.get("package_dir", ""))) if isinstance(result, Mapping) else Path()
+        if package_dir:
+            self.settings.setValue("mesh_editor/last_editable_package_dir", str(package_dir))
+        text = f"Editable mesh package exported ({float(elapsed_ms):.1f} ms): {package_dir}"
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, False)
+
+    def _handle_standalone_editable_package_export_error(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_editable_export_request_id):
+            return
+        text = f"Editable mesh package export failed: {message}"
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, True)
+
+    def _cleanup_standalone_editable_package_export_worker(
+        self,
+        thread: QThread,
+        worker: MeshEditablePackageExportWorker,
+    ) -> None:
+        if self.standalone_editable_export_thread is thread:
+            self.standalone_editable_export_thread = None
+        if self.standalone_editable_export_worker is worker:
+            self.standalone_editable_export_worker = None
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+
+    def _cancel_standalone_editable_package_export_worker(self) -> None:
+        worker = self.standalone_editable_export_worker
+        thread = self.standalone_editable_export_thread
+        if worker is None and thread is None:
+            return
+        self.standalone_editable_export_request_id += 1
+        if worker is not None:
+            try:
+                worker.stop()
+            except RuntimeError:
+                pass
+        if thread is not None:
+            try:
+                thread.requestInterruption()
+                thread.quit()
+            except RuntimeError:
+                pass
+
+    def _start_standalone_import_edited_package_requested(self) -> None:
+        controller = self.standalone_controller
+        if controller is None or not controller.active_session_id:
+            self.status_message_requested.emit("Open a mesh session before importing an edited package.", True)
+            return
+        if (
+            self._standalone_action_worker_active()
+            or self._standalone_validation_worker_active()
+            or self._standalone_rebuild_report_worker_active()
+            or self._standalone_editable_package_task_active()
+        ):
+            self.status_message_requested.emit("Wait for the current Mesh Editor task to finish, or cancel it first.", True)
+            return
+        start_dir = str(self.settings.value("mesh_editor/last_editable_package_dir", "") or "")
+        raw_dir = QFileDialog.getExistingDirectory(self, "Import Edited Mesh Package", start_dir)
+        if not raw_dir:
+            return
+        self._start_standalone_edited_package_import(Path(raw_dir))
+
+    def _start_standalone_edited_package_import(self, package_path: Path | str) -> bool:
+        controller = self.standalone_controller
+        if controller is None or not controller.active_session_id:
+            self.status_message_requested.emit("Edited package import unavailable: no active session.", True)
+            return False
+        if self._standalone_editable_package_task_active():
+            self.status_message_requested.emit("Editable package export/import is already running.", False)
+            return False
+        self.standalone_editable_import_request_id += 1
+        request_id = self.standalone_editable_import_request_id
+        worker = MeshEditablePackageImportWorker(request_id, controller.mesh_service, controller.active_session_id, package_path)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._handle_standalone_edited_package_imported)
+        worker.error.connect(self._handle_standalone_edited_package_import_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_edited_package_import_worker(target_thread, target_worker))
+        self.standalone_editable_import_thread = thread
+        self.standalone_editable_import_worker = worker
+        self.standalone_status_label.setText("Importing edited mesh package...")
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        thread.start(QThread.LowPriority)
+        return True
+
+    def _handle_standalone_edited_package_imported(self, request_id: int, view: object, validation: object, elapsed_ms: float) -> None:
+        if int(request_id) != int(self.standalone_editable_import_request_id):
+            return
+        if not isinstance(view, MeshEditSessionView):
+            self.status_message_requested.emit("Edited package import returned an invalid session view.", True)
+            return
+        controller = self.standalone_controller
+        if controller is None:
+            return
+        self.update_editor_session_state(view, active_selection_mode=controller.active_selection_mode)
+        if self.standalone_compare_mode != "source":
+            self._refresh_standalone_preview()
+        blocker_count = len(tuple(getattr(validation, "blockers", ()) or ()))
+        warning_count = len(tuple(getattr(validation, "warnings", ()) or ()))
+        ok = bool(getattr(validation, "ok", False))
+        text = (
+            f"Edited mesh package imported and validated ({float(elapsed_ms):.1f} ms): "
+            f"{'safe to rebuild' if ok else 'rebuild blocked'}"
+            f" ({blocker_count} blockers, {warning_count} warnings)."
+        )
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, not ok)
+
+    def _handle_standalone_edited_package_import_error(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_editable_import_request_id):
+            return
+        text = f"Edited mesh package import failed: {message}"
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, True)
+
+    def _cleanup_standalone_edited_package_import_worker(
+        self,
+        thread: QThread,
+        worker: MeshEditablePackageImportWorker,
+    ) -> None:
+        if self.standalone_editable_import_thread is thread:
+            self.standalone_editable_import_thread = None
+        if self.standalone_editable_import_worker is worker:
+            self.standalone_editable_import_worker = None
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+
+    def _cancel_standalone_edited_package_import_worker(self) -> None:
+        worker = self.standalone_editable_import_worker
+        thread = self.standalone_editable_import_thread
+        if worker is None and thread is None:
+            return
+        self.standalone_editable_import_request_id += 1
+        if worker is not None:
+            try:
+                worker.stop()
+            except RuntimeError:
+                pass
+        if thread is not None:
+            try:
+                thread.requestInterruption()
+                thread.quit()
+            except RuntimeError:
+                pass
+
+    def _dotnet_editor_executable_path(self) -> Path | None:
+        raw = str(self.settings.value("mesh_editor/dotnet_experiment_executable", "") or "").strip()
+        if raw:
+            return Path(raw).expanduser()
+        return find_mesh_dotnet_experiment_editor()
+
+    def _standalone_dotnet_package_worker_active(self) -> bool:
+        return self.standalone_dotnet_package_thread is not None or self.standalone_dotnet_package_worker is not None
+
+    def _dotnet_task_active(self) -> bool:
+        return (
+            self._standalone_dotnet_package_worker_active()
+            or self._standalone_dotnet_import_worker_active()
+            or self._standalone_dotnet_editor_process_running()
+        )
+
+    def _set_dotnet_status(self, message: str, *, error: bool = False) -> None:
+        label = (
+            getattr(self.embedded_workspace, "status_label", None)
+            if self.standalone_dotnet_target_embedded and self.embedded_workspace is not None
+            else self.standalone_status_label
+        )
+        if label is not None:
+            label.setText(message)
+        self.status_message_requested.emit(message, error)
+
+    def _start_standalone_dotnet_editor_requested(self) -> None:
+        controller = self.standalone_controller
+        if controller is None:
+            self.status_message_requested.emit("Mesh .NET editor experiment unavailable: no active session.", True)
+            return
+        self._start_dotnet_editor_requested(controller, embedded=False)
+
+    def _start_embedded_dotnet_editor_requested(self) -> None:
+        controller = self._embedded_builder_controller()
+        if controller is None:
+            self.status_message_requested.emit("Mesh .NET editor experiment unavailable: no embedded edit session.", True)
+            return
+        self._start_dotnet_editor_requested(controller, embedded=True)
+
+    def _start_dotnet_editor_requested(self, controller: MeshEditorController, *, embedded: bool) -> None:
+        executable = self._dotnet_editor_executable_path()
+        self.standalone_dotnet_target_embedded = bool(embedded)
+        if executable is None or not executable.is_file():
+            message = (
+                "Mesh .NET editor experiment is not configured. Set "
+                "mesh_editor/dotnet_experiment_executable, CDMW_MESH_DOTNET_EXPERIMENT_EXE, or build the bundled helper."
+            )
+            self._set_dotnet_status(message, error=True)
+            return
+        if self._standalone_dotnet_package_worker_active():
+            self._set_dotnet_status("Mesh .NET editor package is already preparing.")
+            return
+        if self._standalone_dotnet_editor_process_running():
+            self._set_dotnet_status("Mesh .NET editor experiment is already running.")
+            return
+        session_id = controller.session_view().session_id
+        self.standalone_dotnet_package_request_id += 1
+        request_id = self.standalone_dotnet_package_request_id
+        self.standalone_dotnet_target_controller = controller
+        worker = MeshDotNetExperimentPackageWorker(request_id, controller.mesh_service, session_id)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._handle_standalone_dotnet_package_ready)
+        worker.error.connect(self._handle_standalone_dotnet_package_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_dotnet_package_worker(target_thread, target_worker))
+        self.standalone_dotnet_package_thread = thread
+        self.standalone_dotnet_package_worker = worker
+        self._set_dotnet_status("Preparing Mesh .NET editor experiment package...")
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        thread.start(QThread.LowPriority)
+
+    def _handle_standalone_dotnet_package_ready(self, request_id: int, package_object: object, elapsed_ms: float) -> None:
+        if int(request_id) != int(self.standalone_dotnet_package_request_id):
+            return
+        if not isinstance(package_object, MeshDotNetExperimentPackage):
+            self._set_dotnet_status("Mesh .NET editor package worker returned an invalid package.", error=True)
+            return
+        if self._launch_standalone_dotnet_editor_package(package_object):
+            self.status_message_requested.emit(
+                f"Mesh .NET editor experiment package ready ({float(elapsed_ms):.1f} ms).",
+                False,
+            )
+
+    def _handle_standalone_dotnet_package_error(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_dotnet_package_request_id):
+            return
+        text = f"Mesh .NET editor experiment package failed: {message}"
+        self._set_dotnet_status(text, error=True)
+
+    def _cleanup_standalone_dotnet_package_worker(
+        self,
+        thread: QThread,
+        worker: MeshDotNetExperimentPackageWorker,
+    ) -> None:
+        if self.standalone_dotnet_package_thread is thread:
+            self.standalone_dotnet_package_thread = None
+        if self.standalone_dotnet_package_worker is worker:
+            self.standalone_dotnet_package_worker = None
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+
+    def _cancel_standalone_dotnet_package_worker(self) -> None:
+        worker = self.standalone_dotnet_package_worker
+        thread = self.standalone_dotnet_package_thread
+        if worker is None and thread is None:
+            return
+        self.standalone_dotnet_package_request_id += 1
+        if worker is not None:
+            try:
+                worker.stop()
+            except RuntimeError:
+                pass
+        if thread is not None:
+            try:
+                thread.requestInterruption()
+                thread.quit()
+            except RuntimeError:
+                pass
+
+    def _standalone_dotnet_import_worker_active(self) -> bool:
+        return self.standalone_dotnet_import_thread is not None or self.standalone_dotnet_import_worker is not None
+
+    def _start_standalone_dotnet_output_import(
+        self,
+        package: MeshDotNetExperimentPackage,
+        status_payload: Mapping[str, object],
+    ) -> bool:
+        controller = self.standalone_dotnet_target_controller or self.standalone_controller
+        if controller is None:
+            self.status_message_requested.emit("Mesh .NET editor output import unavailable: no active session.", True)
+            return False
+        if self._standalone_dotnet_import_worker_active():
+            self.status_message_requested.emit("Mesh .NET editor output import is already running.", False)
+            return False
+        self.standalone_dotnet_import_request_id += 1
+        request_id = self.standalone_dotnet_import_request_id
+        worker = MeshDotNetExperimentOutputImportWorker(
+            request_id,
+            controller.mesh_service,
+            controller.session_view().session_id,
+            package,
+            status_payload,
+        )
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._handle_standalone_dotnet_output_imported)
+        worker.error.connect(self._handle_standalone_dotnet_output_import_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_dotnet_import_worker(target_thread, target_worker))
+        self.standalone_dotnet_import_thread = thread
+        self.standalone_dotnet_import_worker = worker
+        self._set_dotnet_status("Importing Mesh .NET editor output...")
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        thread.start(QThread.LowPriority)
+        return True
+
+    def _handle_standalone_dotnet_output_imported(
+        self,
+        request_id: int,
+        view: object,
+        validation: object,
+        elapsed_ms: float,
+    ) -> None:
+        if int(request_id) != int(self.standalone_dotnet_import_request_id):
+            return
+        if not isinstance(view, MeshEditSessionView):
+            self._set_dotnet_status("Mesh .NET editor output import returned an invalid session view.", error=True)
+            return
+        controller = self.standalone_dotnet_target_controller or self.standalone_controller
+        if controller is None:
+            return
+        if self.standalone_dotnet_target_embedded:
+            if not self._sync_embedded_dotnet_imported_mesh(controller):
+                text = "Mesh .NET editor output imported, but embedded preview sync failed."
+                self._set_dotnet_status(text, error=True)
+                return
+            self._refresh_embedded_workspace_from_builder()
+        else:
+            self.update_editor_session_state(view, active_selection_mode=controller.active_selection_mode)
+            if self.standalone_compare_mode != "source":
+                if self._standalone_native_preview_update_active():
+                    if self.standalone_native_package_thread is None:
+                        self.start_standalone_native_preview_async(reset_view=False)
+                else:
+                    self._refresh_standalone_preview()
+        blocker_count = len(tuple(getattr(validation, "blockers", ()) or ()))
+        warning_count = len(tuple(getattr(validation, "warnings", ()) or ()))
+        ok = bool(getattr(validation, "ok", False))
+        evaluation_path = None
+        package = self.standalone_dotnet_experiment_package
+        if package is not None:
+            try:
+                evaluation_path = write_mesh_dotnet_experiment_evaluation(
+                    package,
+                    self.standalone_dotnet_status_payload,
+                    validation_report=validation,
+                )
+            except Exception:
+                evaluation_path = None
+        text = (
+            f"Mesh .NET editor output imported and validated ({float(elapsed_ms):.1f} ms): "
+            f"{'safe to rebuild' if ok else 'rebuild blocked'}"
+            f" ({blocker_count} blockers, {warning_count} warnings)."
+        )
+        if evaluation_path is not None:
+            text += f" Evaluation: {evaluation_path}"
+        self._set_dotnet_status(text, error=not ok)
+
+    def _handle_standalone_dotnet_output_import_error(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_dotnet_import_request_id):
+            return
+        text = f"Mesh .NET editor output import failed: {message}"
+        self._set_dotnet_status(text, error=True)
+
+    def _cleanup_standalone_dotnet_import_worker(
+        self,
+        thread: QThread,
+        worker: MeshDotNetExperimentOutputImportWorker,
+    ) -> None:
+        if self.standalone_dotnet_import_thread is thread:
+            self.standalone_dotnet_import_thread = None
+        if self.standalone_dotnet_import_worker is worker:
+            self.standalone_dotnet_import_worker = None
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+
+    def _sync_embedded_dotnet_imported_mesh(self, controller: MeshEditorController) -> bool:
+        builder = self.active_builder()
+        sync = getattr(builder, "_mesh_editor_embedded_replace_working_mesh", None) if builder is not None else None
+        if not callable(sync):
+            return False
+        try:
+            return bool(sync(controller.working_mesh(clone=True)))
+        except Exception as exc:
+            self.status_message_requested.emit(f"Mesh .NET editor embedded sync failed: {exc}", True)
+            return False
+
+    def _dotnet_target_controller(self) -> MeshEditorController | None:
+        return self.standalone_dotnet_target_controller or self.standalone_controller
+
+    def _connect_dotnet_protocol(self, process: QProcess) -> None:
+        self.standalone_dotnet_protocol_stdout = ""
+        self.standalone_dotnet_protocol_events = []
+        try:
+            process.readyReadStandardOutput.connect(
+                lambda target=process: self._handle_dotnet_protocol_stdout_ready(target)
+            )
+            process.started.connect(self._send_dotnet_session_state)
+        except (AttributeError, RuntimeError, TypeError):
+            pass
+
+    def _handle_dotnet_protocol_stdout_ready(self, process: QProcess) -> None:
+        if self.standalone_dotnet_editor_process is not process:
+            return
+        try:
+            raw = bytes(process.readAllStandardOutput())
+        except (AttributeError, RuntimeError, TypeError):
+            return
+        if not raw:
+            return
+        self.standalone_dotnet_protocol_stdout += raw.decode("utf-8", "replace")
+        while "\n" in self.standalone_dotnet_protocol_stdout:
+            line, self.standalone_dotnet_protocol_stdout = self.standalone_dotnet_protocol_stdout.split("\n", 1)
+            self._handle_dotnet_protocol_line(line.strip())
+
+    def _handle_dotnet_protocol_line(self, line: str) -> bool:
+        if not line:
+            return False
+        try:
+            payload = json.loads(line)
+        except ValueError:
+            self._set_dotnet_status("Mesh .NET editor protocol ignored malformed JSON.", error=True)
+            return False
+        if not isinstance(payload, dict):
+            self._set_dotnet_status("Mesh .NET editor protocol ignored non-object JSON.", error=True)
+            return False
+        return self._handle_dotnet_protocol_event(payload)
+
+    def _handle_dotnet_protocol_event(self, payload: Mapping[str, object]) -> bool:
+        event = str(payload.get("event", payload.get("type", "")) or "").strip().lower()
+        if not event:
+            self._set_dotnet_status("Mesh .NET editor protocol message had no event.", error=True)
+            return False
+        self.standalone_dotnet_protocol_events.append(dict(payload))
+        if not self._dotnet_session_matches(payload):
+            self._send_dotnet_command_result(
+                str(payload.get("command", event) or event),
+                ok=False,
+                status="error",
+                diagnostics=("Stale .NET mesh editor session id.",),
+            )
+            return False
+        if event == "ready":
+            self._send_dotnet_session_state()
+            return True
+        if event == "metrics":
+            metrics = payload.get("metrics", payload)
+            if isinstance(metrics, Mapping):
+                self.standalone_dotnet_status_payload["metrics"] = dict(metrics)
+            return True
+        if event == "select_request":
+            return self._handle_dotnet_select_request(payload)
+        if event in {"stroke_begin", "stroke_update", "stroke_end", "stroke_cancel"}:
+            return self._handle_dotnet_stroke_event(payload, event.removeprefix("stroke_"))
+        if event in {"command_request", "command_requested"}:
+            return self._handle_dotnet_command_request(payload)
+        if event == "save_request":
+            return self._request_embedded_dotnet_editor_close()
+        if event == "error":
+            message = str(payload.get("message", "") or "Mesh .NET editor reported an error.")
+            self._set_dotnet_status(message, error=True)
+            return False
+        return False
+
+    def _dotnet_session_matches(self, payload: Mapping[str, object]) -> bool:
+        raw_session = str(payload.get("session_id", "") or "").strip()
+        if not raw_session:
+            return True
+        controller = self._dotnet_target_controller()
+        if controller is None:
+            return False
+        try:
+            return raw_session == str(controller.session_view().session_id)
+        except Exception:
+            return False
+
+    def _send_dotnet_protocol_message(self, payload: Mapping[str, object]) -> bool:
+        process = self.standalone_dotnet_editor_process
+        if process is None:
+            return False
+        try:
+            if process.state() == QProcess.NotRunning:
+                return False
+            data = (json.dumps(dict(payload), separators=(",", ":"), default=str) + "\n").encode("utf-8")
+            process.write(data)
+            return True
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def _send_dotnet_session_state(self) -> bool:
+        controller = self._dotnet_target_controller()
+        if controller is None:
+            return False
+        try:
+            view = controller.session_view()
+        except Exception:
+            return False
+        actions = sorted(mesh_editor_actions_by_key().keys())
+        selection = view.selection
+        payload = {
+            "event": "session_state",
+            "session_id": view.session_id,
+            "mode": view.mode,
+            "revision": view.revision,
+            "selection_mode": str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "vertex"),
+            "selection": self._dotnet_selection_payload(selection),
+            "submesh_count": view.submesh_count,
+            "vertex_count": view.vertex_count,
+            "face_count": view.face_count,
+            "undo_count": view.undo_count,
+            "redo_count": view.redo_count,
+            "actions": actions,
+            "selection_depth_mode": "visible",
+        }
+        return self._send_dotnet_protocol_message(payload)
+
+    @staticmethod
+    def _dotnet_selection_payload(selection: MeshEditSelection) -> dict[str, object]:
+        return {
+            "vertices_by_submesh": selection.vertices_by_submesh,
+            "edges_by_submesh": selection.edges_by_submesh,
+            "faces_by_submesh": selection.faces_by_submesh,
+            "source_indices": selection.source_indices,
+            "empty": selection.is_empty(),
+        }
+
+    def _send_dotnet_command_result(
+        self,
+        command: str,
+        *,
+        ok: bool,
+        status: str,
+        revision: int | None = None,
+        diagnostics: Sequence[object] = (),
+    ) -> bool:
+        payload: dict[str, object] = {
+            "event": "command_result",
+            "command": command,
+            "ok": bool(ok),
+            "status": status,
+            "diagnostics": [str(item) for item in diagnostics],
+        }
+        if revision is not None:
+            payload["revision"] = int(revision)
+        return self._send_dotnet_protocol_message(payload)
+
+    def _send_dotnet_native_update(
+        self,
+        update: MeshEditorNativeUpdate,
+        *,
+        result: MeshEditResult | None = None,
+    ) -> None:
+        controller = self._dotnet_target_controller()
+        session_id = ""
+        revision = None
+        selection: MeshEditSelection | None = None
+        if controller is not None:
+            try:
+                view = controller.session_view()
+                session_id = view.session_id
+                revision = view.revision
+                selection = view.selection
+            except Exception:
+                pass
+        base: dict[str, object] = {}
+        if session_id:
+            base["session_id"] = session_id
+        if revision is not None:
+            base["revision"] = int(revision)
+        if update.refresh_selection:
+            self._send_dotnet_protocol_message({
+                **base,
+                "event": "selection_update",
+                "selection": self._dotnet_selection_payload(selection or MeshEditSelection()),
+                "selection_groups": update.selection_groups,
+            })
+        if update.vertex_groups:
+            self._send_dotnet_protocol_message({
+                **base,
+                "event": "preview_vertex_update",
+                "vertex_groups": update.vertex_groups,
+            })
+        if update.triangle_groups or update.triangle_source_submesh_indices or update.replace_all_triangles:
+            self._send_dotnet_protocol_message({
+                **base,
+                "event": "preview_triangle_update",
+                "triangle_groups": update.triangle_groups,
+                "triangle_source_submesh_indices": update.triangle_source_submesh_indices,
+                "replace_all_triangles": update.replace_all_triangles,
+                "material_override_groups": update.material_override_groups,
+            })
+        if result is not None:
+            self._send_dotnet_command_result(
+                result.action,
+                ok=str(result.status or "").strip().lower() != "error",
+                status=str(result.status or ""),
+                revision=result.revision,
+                diagnostics=result.diagnostics,
+            )
+
+    def _dotnet_screen_selection_payload(self, payload: Mapping[str, object]) -> dict[str, object]:
+        screen_payload: dict[str, object] = {}
+        raw_screen_brush = payload.get("screen_brush")
+        raw_screen_region = payload.get("screen_region")
+        if isinstance(raw_screen_brush, Mapping):
+            screen_payload["screen_brush"] = self._native_screen_payload(raw_screen_brush)
+        if isinstance(raw_screen_region, Mapping):
+            screen_payload["screen_region"] = self._native_screen_payload(raw_screen_region)
+        if "falloff" in payload:
+            screen_payload["falloff"] = str(payload.get("falloff") or "smooth")
+        if "target_mode" in payload:
+            screen_payload["target_mode"] = str(payload.get("target_mode") or "vertex")
+        depth_mode = str(payload.get("selection_depth_mode", "visible") or "visible").strip().lower()
+        screen_payload["selection_depth_mode"] = "xray" if depth_mode == "xray" else "visible"
+        return screen_payload
+
+    def _apply_dotnet_result_update(
+        self,
+        controller: MeshEditorController,
+        result: MeshEditResult,
+        *,
+        command_name: str = "",
+    ) -> bool:
+        try:
+            update = controller.native_update_for_result(result)
+        except Exception as exc:
+            self._set_dotnet_status(f"Mesh .NET editor command failed: {exc}", error=True)
+            self._send_dotnet_command_result(
+                command_name or result.action,
+                ok=False,
+                status="error",
+                diagnostics=(str(exc),),
+            )
+            return False
+        if self.standalone_dotnet_target_embedded:
+            self._apply_embedded_native_update(update)
+            self._refresh_embedded_workspace_from_builder()
+        elif (
+            update.vertex_groups
+            or update.triangle_groups
+            or update.triangle_source_submesh_indices
+            or update.selection_groups
+            or update.refresh_selection
+            or update.material_override_groups
+            or update.replace_all_triangles
+        ):
+            self._apply_standalone_native_update(update)
+            QTimer.singleShot(0, self._sync_state)
+        self._send_dotnet_native_update(update, result=result)
+        return str(result.status or "").strip().lower() != "error"
+
+    def _handle_dotnet_select_request(self, payload: Mapping[str, object]) -> bool:
+        controller = self._dotnet_target_controller()
+        if controller is None:
+            return False
+        screen_payload = self._dotnet_screen_selection_payload(payload)
+        if not any(key in screen_payload for key in ("screen_brush", "screen_region")):
+            self._send_dotnet_command_result("select", ok=False, status="error", diagnostics=("Missing screen selection payload.",))
+            return False
+        operation = str(payload.get("operation", payload.get("selection_operation", "replace")) or "replace").strip().lower()
+        try:
+            result = controller.apply(
+                "select",
+                selection=MeshEditSelection(),
+                operation=operation,
+                _native_screen_selection_payload=screen_payload,
+            )
+        except Exception as exc:
+            self._set_dotnet_status(f"Mesh .NET editor selection failed: {exc}", error=True)
+            self._send_dotnet_command_result("select", ok=False, status="error", diagnostics=(str(exc),))
+            return False
+        return self._apply_dotnet_result_update(controller, result, command_name="select")
+
+    def _handle_dotnet_stroke_event(self, payload: Mapping[str, object], phase: str) -> bool:
+        controller = self._dotnet_target_controller()
+        if controller is None:
+            return False
+        command = self._standalone_native_mesh_edit_stroke_command(payload, phase)
+        if command is None:
+            self._send_dotnet_command_result("stroke", ok=False, status="error", diagnostics=("Invalid stroke payload.",))
+            return False
+        blocked_command = "transform" if command.action == "transform" else "brush"
+        if self._native_editor_action_blocked(blocked_command, embedded=self.standalone_dotnet_target_embedded):
+            return False
+        try:
+            result = controller.apply(command.action, selection=command.selection, mode=command.mode, **dict(command.params))
+        except Exception as exc:
+            self._set_dotnet_status(f"Mesh .NET editor stroke failed: {exc}", error=True)
+            self._send_dotnet_command_result(command.action, ok=False, status="error", diagnostics=(str(exc),))
+            return False
+        return self._apply_dotnet_result_update(controller, result, command_name=command.action)
+
+    def _handle_dotnet_command_request(self, payload: Mapping[str, object]) -> bool:
+        controller = self._dotnet_target_controller()
+        if controller is None:
+            return False
+        command = str(payload.get("command", payload.get("action", "")) or "").strip().lower()
+        command = command.replace("-", "_")
+        if not command:
+            self._send_dotnet_command_result("command", ok=False, status="error", diagnostics=("Missing command.",))
+            return False
+        if command in {"copy", "paste"}:
+            self._send_dotnet_command_result(
+                command,
+                ok=False,
+                status="disabled",
+                diagnostics=("Mesh clipboard is disabled until metadata-preserving paste is proved; use Duplicate for same-selection copies.",),
+            )
+            return False
+        try:
+            if command == "clear_selection":
+                result = controller.select(source_indices=(), operation="replace")
+            elif command == "select_all":
+                summary = controller.workspace_summary()
+                result = controller.select(source_indices=tuple(part.index for part in summary.parts), operation="all")
+            elif command in {"grow", "shrink", "invert"}:
+                result = controller.apply("select", selection=MeshEditSelection(), operation=command)
+            else:
+                action_key = command
+                aliases = {
+                    "delete_selection": "delete",
+                    "subdivide_selection": "subdivide",
+                    "refine": "refine_smooth",
+                    "duplicate_selection": "duplicate",
+                    "move": "transform_move",
+                    "grab": "brush_grab",
+                    "smooth": "brush_smooth",
+                    "inflate": "brush_inflate",
+                    "pinch": "brush_pinch",
+                }
+                action_key = aliases.get(action_key, action_key)
+                result = controller.apply_editor_action(action_key)
+        except Exception as exc:
+            self._set_dotnet_status(f"Mesh .NET editor command failed: {command}: {exc}", error=True)
+            self._send_dotnet_command_result(command, ok=False, status="error", diagnostics=(str(exc),))
+            return False
+        return self._apply_dotnet_result_update(controller, result, command_name=command)
+
+    def _dotnet_embedded_parent_hwnd(self) -> int:
+        if not self.standalone_dotnet_target_embedded:
+            return 0
+        builder = self.active_builder()
+        if isinstance(builder, QWidget):
+            host = builder.findChild(QWidget, "AlignmentNativeD3D11PreviewHost")
+            hwnd = _host_widget_hwnd(host)
+            if hwnd > 0:
+                return hwnd
+            hwnd = _host_widget_hwnd(builder)
+            if hwnd > 0:
+                return hwnd
+        hwnd = _host_widget_hwnd(self.standalone_native_host)
+        return hwnd if hwnd > 0 else 0
+
+    def _request_embedded_dotnet_editor_close(self) -> bool:
+        if not self.standalone_dotnet_target_embedded or not self._standalone_dotnet_editor_process_running():
+            return False
+        process = self.standalone_dotnet_editor_process
+        if process is None:
+            return False
+        self._send_dotnet_protocol_message({"event": "close_request"})
+        package = self.standalone_dotnet_experiment_package
+        if package is not None:
+            try:
+                (package.package_dir / "dotnet_close_requested.txt").write_text("close\n", encoding="utf-8")
+                self._set_dotnet_status("Closing embedded Mesh .NET editor; importing output after it saves...")
+                return True
+            except OSError:
+                pass
+        try:
+            process.terminate()
+        except RuntimeError:
+            return False
+        self._set_dotnet_status("Closing embedded Mesh .NET editor; importing output after it saves...")
+        return True
+
+    def _cancel_standalone_dotnet_import_worker(self) -> None:
+        worker = self.standalone_dotnet_import_worker
+        thread = self.standalone_dotnet_import_thread
+        if worker is None and thread is None:
+            return
+        self.standalone_dotnet_import_request_id += 1
+        if worker is not None:
+            try:
+                worker.stop()
+            except RuntimeError:
+                pass
+        if thread is not None:
+            try:
+                thread.requestInterruption()
+                thread.quit()
+            except RuntimeError:
+                pass
+
+    def _launch_standalone_dotnet_editor_package(self, package: MeshDotNetExperimentPackage) -> bool:
+        executable = self._dotnet_editor_executable_path()
+        if executable is None or not executable.is_file():
+            self._set_dotnet_status("Mesh .NET editor experiment executable is missing.", error=True)
+            return False
+        embedded_parent_hwnd = self._dotnet_embedded_parent_hwnd()
+        if self.standalone_dotnet_target_embedded and embedded_parent_hwnd <= 0:
+            self._set_dotnet_status("Mesh .NET embedded launch failed: no native parent window handle is available.", error=True)
+            return False
+        try:
+            program, arguments = mesh_dotnet_experiment_command(
+                executable,
+                package,
+                embedded_parent_hwnd=embedded_parent_hwnd,
+            )
+        except Exception as exc:
+            self._set_dotnet_status(f"Mesh .NET editor experiment unavailable: {exc}", error=True)
+            return False
+        process = QProcess(self)
+        process.setProgram(program)
+        process.setArguments(arguments)
+        process.setWorkingDirectory(str(package.package_dir))
+        process.setProcessChannelMode(QProcess.SeparateChannels)
+        try:
+            self._connect_dotnet_protocol(process)
+            process.finished.connect(lambda *_args, target=process, handoff=package: self._handle_standalone_dotnet_editor_finished(target, handoff))
+            process.errorOccurred.connect(lambda _error, target=process: self._handle_standalone_dotnet_editor_error(target))
+        except (AttributeError, RuntimeError, TypeError):
+            pass
+        self.standalone_dotnet_editor_process = process
+        self.standalone_dotnet_experiment_package = package
+        mode = "embedded" if embedded_parent_hwnd > 0 else "standalone"
+        self._set_dotnet_status(f"Mesh .NET editor experiment launching {mode}: {package.package_dir}")
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        process.start()
+        if not self._confirm_dotnet_process_started(process):
+            return False
+        return True
+
+    def _confirm_dotnet_process_started(self, process: QProcess) -> bool:
+        try:
+            if not hasattr(process, "waitForStarted"):
+                return self._standalone_dotnet_editor_process_running()
+            if process.waitForStarted(1500):
+                return True
+        except RuntimeError as exc:
+            self.standalone_dotnet_editor_process = None
+            self._set_dotnet_status(f"Mesh .NET editor launch failed: {exc}", error=True)
+            self.update_editor_action_state(selection_empty=self.current_selection_empty)
+            return False
+        detail = self._dotnet_process_diagnostics(process)
+        self.standalone_dotnet_editor_process = None
+        self._set_dotnet_status(f"Mesh .NET editor launch failed: {detail}", error=True)
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        try:
+            process.deleteLater()
+        except RuntimeError:
+            pass
+        return False
+
+    def _dotnet_process_diagnostics(self, process: QProcess) -> str:
+        pieces: list[str] = []
+        try:
+            error_text = str(process.errorString() or "").strip()
+            if error_text:
+                pieces.append(error_text)
+        except RuntimeError:
+            pass
+        try:
+            stderr = bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()
+            if stderr:
+                pieces.append(stderr[:800])
+        except RuntimeError:
+            pass
+        try:
+            stdout = bytes(process.readAllStandardOutput()).decode("utf-8", errors="replace").strip()
+            if stdout:
+                pieces.append(stdout[:800])
+        except RuntimeError:
+            pass
+        return " | ".join(pieces) if pieces else "process did not start and reported no diagnostics"
+
+    def _standalone_dotnet_editor_process_running(self) -> bool:
+        process = self.standalone_dotnet_editor_process
+        if process is None:
+            return False
+        try:
+            return process.state() != QProcess.NotRunning
+        except RuntimeError:
+            return False
+
+    def _stop_standalone_dotnet_editor_process(self) -> None:
+        process = self.standalone_dotnet_editor_process
+        self.standalone_dotnet_editor_process = None
+        if process is None:
+            return
+        try:
+            running = process.state() != QProcess.NotRunning
+        except RuntimeError:
+            running = False
+        if running:
+            try:
+                process.terminate()
+                if not process.waitForFinished(1000):
+                    process.kill()
+                    process.waitForFinished(1000)
+            except RuntimeError:
+                pass
+        try:
+            process.deleteLater()
+        except RuntimeError:
+            pass
+
+    def _handle_standalone_dotnet_editor_finished(
+        self,
+        process: QProcess,
+        package: MeshDotNetExperimentPackage,
+    ) -> None:
+        if self.standalone_dotnet_editor_process is not process:
+            return
+        self.standalone_dotnet_editor_process = None
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        payload: dict[str, object] = {}
+        if package.status_path.is_file():
+            try:
+                loaded = json.loads(package.status_path.read_text(encoding="utf-8-sig"))
+                if isinstance(loaded, dict):
+                    payload = loaded
+            except ValueError:
+                payload = {"event": "error", "message": "status JSON could not be parsed"}
+        self.standalone_dotnet_status_payload = dict(payload)
+        try:
+            evaluation_path = write_mesh_dotnet_experiment_evaluation(package, payload)
+        except Exception:
+            evaluation_path = None
+        event = str(payload.get("event", "") or "closed").strip().lower()
+        message = str(payload.get("message", "") or "").strip()
+        if event == "error":
+            text = f"Mesh .NET editor experiment error: {message or 'external editor reported an error.'}"
+            if evaluation_path is not None:
+                text += f" Evaluation: {evaluation_path}"
+            self._set_dotnet_status(text, error=True)
+            return
+        output_obj = mesh_dotnet_experiment_output_obj_path(package, payload)
+        if output_obj is not None and self._start_standalone_dotnet_output_import(package, payload):
+            self.status_message_requested.emit(f"Mesh .NET editor experiment closed; importing {output_obj}.", False)
+            return
+        if self.standalone_dotnet_target_embedded:
+            controller = self._dotnet_target_controller()
+            if controller is not None and self._sync_embedded_dotnet_imported_mesh(controller):
+                self._refresh_embedded_workspace_from_builder()
+        output_hint = str(payload.get("edited_package", "") or package.output_dir)
+        text = f"Mesh .NET editor experiment closed. Output package: {output_hint}"
+        if evaluation_path is not None:
+            text += f" Evaluation: {evaluation_path}"
+        self._set_dotnet_status(text)
+
+    def _handle_standalone_dotnet_editor_error(self, process: QProcess) -> None:
+        if self.standalone_dotnet_editor_process is not process:
+            return
+        detail = self._dotnet_process_diagnostics(process)
+        text = f"Mesh .NET editor experiment process error: {detail}"
+        self._set_dotnet_status(text, error=True)
+
     def _standalone_action_worker_active(self) -> bool:
         return self.standalone_action_thread is not None or self.standalone_action_worker is not None
 
@@ -943,6 +2077,379 @@ class MeshEditorTab(QWidget):
             except RuntimeError:
                 pass
 
+    def _standalone_validation_worker_active(self) -> bool:
+        return self.standalone_validation_thread is not None or self.standalone_validation_worker is not None
+
+    def _start_standalone_export_validation_requested(self) -> None:
+        controller = self.standalone_controller
+        if controller is None or not controller.active_session_id:
+            self.status_message_requested.emit("Open a mesh session before running validation.", True)
+            return
+        if (
+            self._standalone_action_worker_active()
+            or self._standalone_validation_worker_active()
+            or self._standalone_rebuild_report_worker_active()
+            or self._standalone_editable_package_task_active()
+            or self._standalone_dotnet_package_worker_active()
+            or self._standalone_dotnet_import_worker_active()
+        ):
+            self.status_message_requested.emit("Wait for the current Mesh Editor task to finish, or cancel it first.", True)
+            return
+        self.standalone_validation_request_id += 1
+        request_id = self.standalone_validation_request_id
+        worker = MeshExportValidationWorker(request_id, controller.mesh_service, controller.active_session_id)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._handle_standalone_export_validation_completed)
+        worker.error.connect(self._handle_standalone_export_validation_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(
+            lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_export_validation_worker(
+                target_thread,
+                target_worker,
+            )
+        )
+        self.standalone_validation_thread = thread
+        self.standalone_validation_worker = worker
+        self.standalone_status_label.setText("Running validation...")
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        self.status_message_requested.emit("Running validation in the background...", False)
+        thread.start(QThread.LowPriority)
+
+    def _handle_standalone_export_validation_completed(self, request_id: int, report: object, elapsed_ms: float) -> None:
+        if int(request_id) != int(self.standalone_validation_request_id):
+            return
+        self.standalone_last_export_validation_report = report
+        self.standalone_workspace.update_export_validation(report)
+        self.standalone_workspace._focus_right_panel("Checks")
+        blocker_count = len(tuple(getattr(report, "blockers", ()) or ()))
+        warning_count = len(tuple(getattr(report, "warnings", ()) or ()))
+        ok = bool(getattr(report, "ok", False))
+        text = (
+            f"Validation finished ({float(elapsed_ms):.1f} ms): "
+            f"{'safe to rebuild' if ok else 'rebuild blocked'} "
+            f"({blocker_count} blockers, {warning_count} warnings)."
+        )
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, not ok)
+
+    def _handle_standalone_export_validation_error(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_validation_request_id):
+            return
+        text = f"Validation failed: {message}"
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, True)
+
+    def _cleanup_standalone_export_validation_worker(
+        self,
+        thread: QThread,
+        worker: MeshExportValidationWorker,
+    ) -> None:
+        if self.standalone_validation_thread is thread:
+            self.standalone_validation_thread = None
+        if self.standalone_validation_worker is worker:
+            self.standalone_validation_worker = None
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
+
+    def _cancel_standalone_export_validation_worker(self) -> None:
+        worker = self.standalone_validation_worker
+        thread = self.standalone_validation_thread
+        if worker is None and thread is None:
+            return
+        self.standalone_validation_request_id += 1
+        if worker is not None:
+            try:
+                worker.stop()
+            except RuntimeError:
+                pass
+        if thread is not None:
+            try:
+                thread.requestInterruption()
+                thread.quit()
+            except RuntimeError:
+                pass
+
+    def _standalone_rebuild_report_worker_active(self) -> bool:
+        return self.standalone_rebuild_report_thread is not None or self.standalone_rebuild_report_worker is not None
+
+    def _start_standalone_rebuild_report_requested(
+        self,
+        *,
+        output_path: Path | str = "",
+        action_text: str = "rebuild report",
+        developer_override: bool = False,
+        developer_override_reason: str = "",
+    ) -> None:
+        controller = self.standalone_controller
+        if controller is None or not controller.active_session_id:
+            self.status_message_requested.emit(f"Open a mesh session before running {action_text}.", True)
+            return
+        if (
+            self._standalone_action_worker_active()
+            or self._standalone_validation_worker_active()
+            or self._standalone_rebuild_report_worker_active()
+        ):
+            self.status_message_requested.emit("Wait for the current Mesh Editor task to finish, or cancel it first.", True)
+            return
+        output_path_text = str(output_path or "").strip()
+        self.standalone_rebuild_report_request_id += 1
+        request_id = self.standalone_rebuild_report_request_id
+        worker = MeshRebuildReportWorker(
+            request_id,
+            controller.mesh_service,
+            controller.active_session_id,
+            action_text=action_text,
+            output_path=output_path_text,
+            developer_override=bool(developer_override and output_path_text),
+            developer_override_reason=developer_override_reason,
+        )
+        thread = QThread(self)
+        progress = QProgressDialog(f"Running {action_text}...", "Cancel", 0, 100, self)
+        progress.setWindowTitle("Mesh Editor")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(250)
+        progress.setAutoClose(False)
+        progress.setAutoReset(False)
+        progress.canceled.connect(self._cancel_standalone_rebuild_report_worker)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.progress_changed.connect(self._handle_standalone_rebuild_report_progress)
+        worker.completed.connect(self._handle_standalone_rebuild_report_completed)
+        worker.cancelled.connect(self._handle_standalone_rebuild_report_cancelled)
+        worker.error.connect(self._handle_standalone_rebuild_report_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(
+            lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_rebuild_report_worker(
+                target_thread,
+                target_worker,
+            )
+        )
+        self.standalone_rebuild_report_thread = thread
+        self.standalone_rebuild_report_worker = worker
+        self.standalone_rebuild_report_progress = progress
+        self.standalone_last_rebuild_report = None
+        self.standalone_last_rebuilt_asset_path = None
+        self.standalone_workspace.update_rebuild_report(None)
+        self._set_rebuild_report_button_enabled(False)
+        self._set_rebuild_asset_button_enabled(False)
+        self._set_save_rebuild_report_button_enabled(False)
+        self.status_message_requested.emit(f"Running {action_text} in the background...", False)
+        thread.start(QThread.LowPriority)
+
+    def _start_standalone_rebuild_asset_requested(self) -> None:
+        developer_override = self._standalone_developer_rebuild_override_allowed()
+        if not (self._standalone_export_validation_ok() or developer_override):
+            self.status_message_requested.emit("Run validation successfully before rebuilding a patched asset.", True)
+            return
+        default_name = f"{Path(self.standalone_mesh_label or 'mesh').stem or 'mesh'}_rebuilt.pac"
+        start_dir = str(self.settings.value("mesh_editor/last_rebuild_asset_dir", "") or "").strip()
+        default_path = str(Path(start_dir) / default_name) if start_dir else default_name
+        target, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Rebuild Patched Mesh Asset",
+            default_path,
+            "Mesh assets (*.pac *.pam *.pamlod);;All files (*)",
+        )
+        if not target:
+            return
+        self.settings.setValue("mesh_editor/last_rebuild_asset_dir", str(Path(target).parent))
+        kwargs: dict[str, object] = {"output_path": target, "action_text": "patched asset rebuild"}
+        if developer_override:
+            kwargs["developer_override"] = True
+            kwargs["developer_override_reason"] = self._standalone_developer_rebuild_override_reason()
+        self._start_standalone_rebuild_report_requested(**kwargs)
+
+    def _handle_standalone_rebuild_report_progress(self, request_id: int, percent: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_rebuild_report_request_id):
+            return
+        progress = self.standalone_rebuild_report_progress
+        if progress is not None:
+            progress.setLabelText(str(message or "Running rebuild report..."))
+            progress.setValue(max(0, min(100, int(percent or 0))))
+        self.standalone_status_label.setText(str(message or "Running rebuild report..."))
+
+    def _handle_standalone_rebuild_report_completed(self, request_id: int, report: object) -> None:
+        if int(request_id) != int(self.standalone_rebuild_report_request_id):
+            return
+        self.standalone_last_rebuild_report = report
+        self.standalone_workspace.update_rebuild_report(report)
+        self.standalone_workspace._focus_right_panel("Rebuild")
+        output_path = str(getattr(report, "output_path", "") or "").strip()
+        self.standalone_last_rebuilt_asset_path = Path(output_path) if output_path else None
+        text = f"Patched asset rebuilt: {output_path}" if output_path else "Rebuild report ready."
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, False)
+
+    def _handle_standalone_rebuild_report_cancelled(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_rebuild_report_request_id):
+            return
+        text = str(message or "Rebuild report cancelled.")
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, False)
+
+    def _handle_standalone_rebuild_report_error(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_rebuild_report_request_id):
+            return
+        text = str(message or "Rebuild report failed.")
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, True)
+
+    def _standalone_rebuilt_asset_handoff_payload(self, *, action: str) -> tuple[ArchiveEntry, Path] | None:
+        target = self._current_target_entry()
+        if not isinstance(target, ArchiveEntry):
+            self.status_message_requested.emit(
+                f"Open Mesh Editor from an archive target before {action} a rebuilt asset.",
+                True,
+            )
+            return None
+        output_path = self.standalone_last_rebuilt_asset_path
+        if output_path is None:
+            raw_output = str(getattr(self.standalone_last_rebuild_report, "output_path", "") or "").strip()
+            output_path = Path(raw_output) if raw_output else None
+        if output_path is None or not output_path.is_file():
+            self.status_message_requested.emit(f"Rebuild a patched asset before {action} it.", True)
+            return None
+        return target, output_path
+
+    def _preview_standalone_rebuilt_asset_requested(self) -> None:
+        payload = self._standalone_rebuilt_asset_handoff_payload(action="previewing")
+        if payload is None:
+            return
+        target, output_path = payload
+        self.preview_rebuilt_asset_requested.emit(target, output_path)
+
+    def _package_standalone_rebuilt_asset_requested(self) -> None:
+        payload = self._standalone_rebuilt_asset_handoff_payload(action="packaging")
+        if payload is None:
+            return
+        target, output_path = payload
+        self.package_rebuilt_asset_requested.emit(target, output_path)
+
+    def _cleanup_standalone_rebuild_report_worker(
+        self,
+        thread: QThread,
+        worker: MeshRebuildReportWorker,
+    ) -> None:
+        if self.standalone_rebuild_report_thread is thread:
+            self.standalone_rebuild_report_thread = None
+        if self.standalone_rebuild_report_worker is worker:
+            self.standalone_rebuild_report_worker = None
+        progress = self.standalone_rebuild_report_progress
+        if progress is not None:
+            progress.close()
+            progress.deleteLater()
+            self.standalone_rebuild_report_progress = None
+        self._set_rebuild_report_button_enabled(self.has_active_standalone_session())
+        self._set_rebuild_asset_button_enabled(self.has_active_standalone_session() and self._standalone_export_validation_ok())
+        self._set_preview_rebuilt_asset_button_enabled(
+            self.has_active_standalone_session() and self.standalone_last_rebuilt_asset_path is not None
+        )
+        self._set_package_rebuilt_asset_button_enabled(
+            self.has_active_standalone_session() and self.standalone_last_rebuilt_asset_path is not None
+        )
+
+    def _cancel_standalone_rebuild_report_worker(self) -> None:
+        worker = self.standalone_rebuild_report_worker
+        thread = self.standalone_rebuild_report_thread
+        if worker is None and thread is None:
+            return
+        if worker is not None:
+            try:
+                worker.stop()
+            except RuntimeError:
+                pass
+        if thread is not None:
+            try:
+                thread.requestInterruption()
+            except RuntimeError:
+                pass
+
+    def _set_rebuild_report_button_enabled(self, enabled: bool) -> None:
+        button = getattr(self.standalone_workspace, "run_rebuild_report_button", None)
+        if button is not None:
+            button.setEnabled(bool(enabled))
+
+    def _set_rebuild_asset_button_enabled(self, enabled: bool) -> None:
+        button = getattr(self.standalone_workspace, "rebuild_asset_button", None)
+        if button is not None:
+            button.setEnabled(bool(enabled))
+
+    def _set_preview_rebuilt_asset_button_enabled(self, enabled: bool) -> None:
+        button = getattr(self.standalone_workspace, "preview_rebuilt_asset_button", None)
+        if button is not None:
+            button.setEnabled(bool(enabled))
+
+    def _set_package_rebuilt_asset_button_enabled(self, enabled: bool) -> None:
+        button = getattr(self.standalone_workspace, "package_rebuilt_asset_button", None)
+        if button is not None:
+            button.setEnabled(bool(enabled))
+
+    def _standalone_export_validation_ok(self) -> bool:
+        return bool(getattr(self.standalone_last_export_validation_report, "ok", False))
+
+    def _standalone_rebuild_allowed(self) -> bool:
+        return self._standalone_export_validation_ok() or self._standalone_developer_rebuild_override_allowed()
+
+    def _standalone_developer_rebuild_override_enabled(self) -> bool:
+        return read_bool_setting(self.settings, "mesh_editor/developer_mode", False) and read_bool_setting(
+            self.settings,
+            "mesh_editor/developer_rebuild_override",
+            False,
+        )
+
+    def _standalone_developer_rebuild_override_reason(self) -> str:
+        reason = str(self.settings.value("mesh_editor/developer_rebuild_override_reason", "") or "").strip()
+        return reason or "Developer-mode unsafe rebuild override."
+
+    def _standalone_developer_rebuild_override_allowed(self) -> bool:
+        if not self._standalone_developer_rebuild_override_enabled():
+            return False
+        blockers = tuple(getattr(self.standalone_last_export_validation_report, "blockers", ()) or ())
+        return bool(blockers) and all(
+            str(getattr(issue, "code", "") or "").strip() in DEVELOPER_OVERRIDABLE_REBUILD_BLOCKERS
+            for issue in blockers
+        )
+
+    def _set_save_rebuild_report_button_enabled(self, enabled: bool) -> None:
+        button = getattr(self.standalone_workspace, "save_rebuild_report_button", None)
+        if button is not None:
+            button.setEnabled(bool(enabled))
+
+    def _save_standalone_rebuild_report_requested(self) -> None:
+        report = self.standalone_last_rebuild_report
+        if report is None:
+            self.status_message_requested.emit("Run a rebuild report before saving it.", True)
+            return
+        default_name = f"{Path(self.standalone_mesh_label or 'mesh').stem or 'mesh'}_rebuild_report.json"
+        target, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Save Rebuild Report",
+            default_name,
+            "JSON files (*.json);;All files (*)",
+        )
+        if not target:
+            return
+        try:
+            saved_path = self._save_standalone_rebuild_report(target)
+        except Exception as exc:
+            self.status_message_requested.emit(f"Rebuild report save failed: {exc}", True)
+            return
+        self.status_message_requested.emit(f"Rebuild report saved: {saved_path}", False)
+
+    def _save_standalone_rebuild_report(self, path: Path | str) -> Path:
+        report = self.standalone_last_rebuild_report
+        if report is None:
+            raise RuntimeError("no rebuild report is available")
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(_rebuild_report_json_payload(report), indent=2) + "\n", encoding="utf-8")
+        return target
+
     def _start_standalone_native_preview_requested(self) -> None:
         if not self.has_active_standalone_session():
             self.status_message_requested.emit("Open a mesh session before starting native D3D11 preview.", True)
@@ -986,7 +2493,7 @@ class MeshEditorTab(QWidget):
         self.close_standalone_session()
         self.standalone_compare_mode = "edited"
         mesh_service = MeshService()
-        mesh = mesh_service.load_mesh_file(source_path)
+        mesh = mesh_service.load_mesh_file(source_path, run_roundtrip=True)
         self.standalone_controller = MeshEditorController(mesh_service=mesh_service)
         loaded_source_skeleton = source_skeleton
         try:
@@ -1119,7 +2626,14 @@ class MeshEditorTab(QWidget):
         self._cancel_standalone_texture_source_resolution()
         self._cancel_standalone_native_package_worker()
         self._cancel_standalone_action_worker()
+        self._cancel_standalone_export_validation_worker()
+        self._cancel_standalone_rebuild_report_worker()
+        self._cancel_standalone_editable_package_export_worker()
+        self._cancel_standalone_edited_package_import_worker()
+        self._cancel_standalone_dotnet_package_worker()
+        self._cancel_standalone_dotnet_import_worker()
         self._stop_standalone_native_preview_process()
+        self._stop_standalone_dotnet_editor_process()
         if self.standalone_controller is not None:
             try:
                 self.standalone_controller.close_active_session()
@@ -1128,6 +2642,8 @@ class MeshEditorTab(QWidget):
         self.standalone_controller = None
         self.standalone_mesh_label = ""
         self.standalone_source_skeleton = None
+        self.standalone_last_rebuild_report = None
+        self.standalone_last_rebuilt_asset_path = None
         self.standalone_file_load_source_skeleton = None
         self.standalone_compare_mode = "edited"
         self.standalone_texture_preview_overrides.clear()
@@ -1137,6 +2653,10 @@ class MeshEditorTab(QWidget):
         self.standalone_native_package_pending_has_reference = False
         self.standalone_native_package_compare_mode = "edited"
         self.standalone_native_package_pending_compare_mode = "edited"
+        self.standalone_dotnet_experiment_package = None
+        self.standalone_dotnet_status_payload = {}
+        self.standalone_dotnet_target_controller = None
+        self.standalone_dotnet_target_embedded = False
         self._reset_standalone_native_status_tracking()
         self.standalone_native_status_timer.stop()
         self._request_standalone_native_part_picking(False)
@@ -1145,6 +2665,7 @@ class MeshEditorTab(QWidget):
         self.standalone_native_status_signature = (0, 0)
         self.standalone_native_status_payload_text = ""
         self.standalone_native_last_status_payload = {}
+        self._set_standalone_native_performance_status(None)
 
     def _poll_standalone_native_preview_status(self) -> None:
         status_file = self.standalone_native_status_file
@@ -1172,6 +2693,7 @@ class MeshEditorTab(QWidget):
         if not isinstance(payload, dict):
             return
         self.standalone_native_last_status_payload = dict(payload)
+        self._set_standalone_native_performance_status(payload)
         event = str(payload.get("event", "") or "").strip().lower()
         if event == "loaded":
             batch_count = int(payload.get("batch_count", 0) or 0)
@@ -1200,6 +2722,41 @@ class MeshEditorTab(QWidget):
             self._request_standalone_native_part_picking(False)
             self.standalone_status_label.setText("Native D3D11 preview closed.")
             self.status_message_requested.emit("Native D3D11 preview closed.", False)
+
+    def _set_standalone_native_performance_status(self, payload: Mapping[str, object] | None) -> None:
+        updater = getattr(self.standalone_workspace, "set_native_performance_status", None)
+        if callable(updater):
+            updater(payload)
+
+    def _handle_standalone_native_preview_event(self, payload: object) -> bool:
+        if isinstance(payload, Mapping) and self._has_standalone_native_performance_payload(payload):
+            self._set_standalone_native_performance_status(payload)
+        return True
+
+    @staticmethod
+    def _has_standalone_native_performance_payload(payload: Mapping[str, object]) -> bool:
+        sources: list[Mapping[str, object]] = [payload]
+        metrics = payload.get("metrics")
+        if isinstance(metrics, Mapping):
+            sources.insert(0, metrics)
+        for source in sources:
+            if any(
+                source.get(key) not in (None, "")
+                for key in (
+                    "current_fps",
+                    "average_fps",
+                    "fps",
+                    "frame_time_ms",
+                    "frame_ms",
+                    "last_frame_ms",
+                    "first_frame_ms",
+                    "gpu_upload_ms",
+                    "gpu_upload_time_ms",
+                    "geometry_upload_ms",
+                )
+            ):
+                return True
+        return False
 
     def _standalone_native_process_running(self) -> bool:
         process = self.standalone_native_process
@@ -1358,6 +2915,7 @@ class MeshEditorTab(QWidget):
         if self.standalone_native_process is not process:
             return
         self.standalone_status_label.setText("Native D3D11 preview process error.")
+        self._set_standalone_native_performance_status(None)
         self._request_standalone_native_part_picking(False)
         updater = getattr(self.standalone_workspace, "set_native_part_picking_status", None)
         if callable(updater):
@@ -1435,6 +2993,10 @@ class MeshEditorTab(QWidget):
         self._refresh_standalone_skeleton_summary(view)
         self._refresh_standalone_compare_summary(view)
         self._refresh_standalone_export_validation(view)
+        rebuild_updater = getattr(self.standalone_workspace, "update_rebuild_report", None)
+        if callable(rebuild_updater):
+            self.standalone_last_rebuild_report = None
+            rebuild_updater(None)
         if view is None:
             self.update_editor_action_state(
                 mode="object",
@@ -1465,12 +3027,27 @@ class MeshEditorTab(QWidget):
             return
         controller = self.standalone_controller
         if view is None or controller is None or controller.active_session_id != view.session_id:
+            self.standalone_last_export_validation_report = None
             updater(None)
             return
         try:
-            updater(controller.export_validation_report())
+            report = controller.export_validation_report()
+            self.standalone_last_export_validation_report = report
+            updater(report)
         except Exception:
+            self.standalone_last_export_validation_report = None
             updater(None)
+
+    def _copy_standalone_validation_report_requested(self) -> None:
+        report = self.standalone_last_export_validation_report
+        if report is None:
+            self.status_message_requested.emit("Run validation before copying a validation report.", True)
+            return
+        payload = _validation_report_json_payload(report)
+        QApplication.clipboard().setText(json.dumps(payload, indent=2, sort_keys=True))
+        text = "Validation report copied to clipboard."
+        self.standalone_status_label.setText(text)
+        self.status_message_requested.emit(text, False)
 
     def _refresh_standalone_workspace_summary(self, view: MeshEditSessionView | None) -> None:
         updater = getattr(self.standalone_workspace, "update_workspace_summary", None)
@@ -1581,7 +3158,16 @@ class MeshEditorTab(QWidget):
             button.setEnabled(has_workflow_target)
         self.standalone_native_preview_button.setEnabled(has_standalone)
         self.action_bar.setVisible(False)
-        self.action_bar.setEnabled(not self._standalone_action_worker_active())
+        task_active = (
+            self._standalone_action_worker_active()
+            or self._standalone_validation_worker_active()
+            or self._standalone_rebuild_report_worker_active()
+            or self._standalone_editable_package_task_active()
+            or self._standalone_dotnet_package_worker_active()
+            or self._standalone_dotnet_import_worker_active()
+            or self._standalone_dotnet_editor_process_running()
+        )
+        self.action_bar.setEnabled(not task_active)
         self.action_bar.update_action_state(
             has_target=has_target,
             selection_empty=self.current_selection_empty,
@@ -1603,6 +3189,31 @@ class MeshEditorTab(QWidget):
                 redo_count=self.current_redo_count,
                 native_editor_available=native_editor_available,
             )
+        dotnet_button = getattr(self, "standalone_dotnet_editor_button", None)
+        if dotnet_button is not None:
+            dotnet_button.setEnabled(has_standalone and not task_active)
+        embedded_dotnet_button = getattr(self, "embedded_dotnet_editor_button", None)
+        if embedded_dotnet_button is not None:
+            embedded_dotnet_button.setEnabled(self.workspace_stack.currentWidget() is self.embedded_builder_host and not task_active)
+        for button_name in (
+            "standalone_run_validation_report_button",
+            "standalone_rebuild_asset_button",
+            "standalone_preview_rebuilt_asset_button",
+            "standalone_package_rebuilt_asset_button",
+            "standalone_export_editable_package_button",
+            "standalone_import_edited_package_button",
+            "standalone_open_editable_package_folder_button",
+        ):
+            button = getattr(self, button_name, None)
+            if button is not None:
+                enabled = has_standalone and not task_active
+                if button_name == "standalone_rebuild_asset_button":
+                    enabled = enabled and self._standalone_rebuild_allowed()
+                elif button_name in {"standalone_preview_rebuilt_asset_button", "standalone_package_rebuilt_asset_button"}:
+                    enabled = enabled and self.standalone_last_rebuilt_asset_path is not None
+                button.setEnabled(enabled)
+        self._set_rebuild_report_button_enabled(has_standalone and not task_active)
+        self._set_rebuild_asset_button_enabled(has_standalone and not task_active and self._standalone_rebuild_allowed())
 
     def _handle_action_requested(self, action: object) -> None:
         if self.has_active_standalone_session():
@@ -1641,6 +3252,7 @@ class MeshEditorTab(QWidget):
             workspace.update_skeleton_summary(None)
             workspace.update_compare_summary(None)
             workspace.update_export_validation(None)
+            workspace.update_rebuild_report(None)
             workspace.update_action_state(has_target=False)
             return
         native_editor_available = self._native_mesh_editor_available()
@@ -1667,6 +3279,7 @@ class MeshEditorTab(QWidget):
                     updater(method())
                 except Exception:
                     updater(None)
+        workspace.update_rebuild_report(None)
         workspace.update_action_state(
             has_target=True,
             selection_empty=bool(view.selection.is_empty()),
@@ -2518,6 +4131,9 @@ class MeshEditorTab(QWidget):
         if self._standalone_action_worker_active():
             self.status_message_requested.emit("Wait for the current Mesh Editor action to finish, or cancel it first.", True)
             return True
+        if self._standalone_rebuild_report_worker_active():
+            self.status_message_requested.emit("Wait for the current rebuild report to finish, or cancel it first.", True)
+            return True
         text = str(getattr(action, "text", "") or getattr(action, "key", "") or "action")
         key = str(getattr(action, "key", "") or "").strip()
         if key in _STANDALONE_NATIVE_TOOL_STATE:
@@ -2849,6 +4465,101 @@ def _mesh_edit_result_with_metric(result: object, key: str, elapsed_ms: float) -
             continue
     metrics[str(key)] = max(0.0, float(elapsed_ms))
     return replace(result, metrics=metrics)
+
+
+def _rebuild_report_json_payload(report: object) -> dict[str, object]:
+    if is_dataclass(report):
+        payload = asdict(report)
+    elif isinstance(report, Mapping):
+        payload = dict(report)
+    else:
+        payload = {
+            key: getattr(report, key)
+            for key in (
+                "mesh_format",
+                "source_asset_hash",
+                "rebuilt_asset_hash",
+                "source_size",
+                "rebuilt_size",
+                "parse_confidence",
+                "validation_status",
+                "byte_identical",
+                "changed_byte_ranges",
+                "edited_lods",
+                "edited_submeshes",
+                "changed_channels",
+                "recomputed_fields",
+                "warnings",
+                "developer_overrides",
+                "edit_operations",
+                "output_path",
+            )
+            if hasattr(report, key)
+        }
+    payload["changed_range_count"] = int(
+        getattr(report, "changed_range_count", len(tuple(payload.get("changed_byte_ranges", ()) or ()))) or 0
+    )
+    return {str(key): _json_safe_report_value(value) for key, value in payload.items()}
+
+
+def _validation_report_json_payload(report: object) -> dict[str, object]:
+    if is_dataclass(report):
+        payload = asdict(report)
+    elif isinstance(report, Mapping):
+        payload = dict(report)
+    else:
+        payload = {
+            key: getattr(report, key)
+            for key in (
+                "mesh_format",
+                "submesh_count",
+                "vertex_count",
+                "face_count",
+                "issues",
+                "parse_confidence",
+                "source_asset_hash",
+                "no_op_roundtrip_status",
+                "no_op_byte_identical",
+                "no_op_unexpected_differences",
+            )
+            if hasattr(report, key)
+        }
+    blockers = tuple(getattr(report, "blockers", ()) or ())
+    warnings = tuple(getattr(report, "warnings", ()) or ())
+    payload["ok"] = bool(getattr(report, "ok", not blockers))
+    payload["blocker_count"] = len(blockers)
+    payload["warning_count"] = len(warnings)
+    result = {str(key): _json_safe_report_value(value) for key, value in payload.items()}
+    issues = result.get("issues")
+    if isinstance(issues, list):
+        for issue in issues:
+            if isinstance(issue, dict) and "severity" in issue:
+                issue["severity"] = _public_validation_severity(issue.get("severity"))
+                issue.setdefault("can_continue", issue["severity"] not in {"error", "fatal"})
+                issue.setdefault("expected", None)
+                issue.setdefault("actual", None)
+                issue.setdefault("lod_index", -1)
+                issue.setdefault("submesh_index", -1)
+    return result
+
+
+def _public_validation_severity(severity: object) -> str:
+    raw = str(severity or "").strip().lower()
+    if raw == "blocker":
+        return "error"
+    return raw if raw in {"info", "warning", "error", "fatal"} else "error"
+
+
+def _json_safe_report_value(value: object) -> object:
+    if is_dataclass(value):
+        return _json_safe_report_value(asdict(value))
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe_report_value(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_json_safe_report_value(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    return value
 
 
 def _mesh_editor_texture_binding_target(value: object) -> tuple[str, int]:

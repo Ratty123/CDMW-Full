@@ -44,6 +44,12 @@ class StaticReplacementMeshEditSession:
     def close(self) -> None:
         self.controller.close_active_session()
 
+    def sync_working_mesh(self) -> ParsedMesh:
+        mesh = self.controller.working_mesh(clone=True)
+        self.mesh = mesh
+        self.submesh_counts = _mesh_counts(mesh)
+        return mesh
+
     def view(self) -> MeshEditSessionView:
         return self.controller.session_view()
 

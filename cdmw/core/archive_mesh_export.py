@@ -204,7 +204,9 @@ def _parse_archive_mesh(entry: ArchiveEntry) -> ParsedMesh:
     from cdmw.core.archive import read_archive_entry_data
 
     data, _decompressed, _note = read_archive_entry_data(entry)
-    return parse_mesh(data, entry.path)
+    mesh = parse_mesh(data, entry.path)
+    setattr(mesh, "_cdmw_original_data", bytes(data))
+    return mesh
 
 
 def _archive_family_graph_payload(family_graph: object) -> Dict[str, object]:

@@ -37,6 +37,13 @@ class AlignmentD3D11StatusPresentation:
     details: str
 
 
+def _float_value(value: object) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def alignment_lit_render_settings(settings: object, fallback_settings: ModelPreviewRenderSettings) -> ModelPreviewRenderSettings:
     return clamp_model_preview_render_settings(
         dataclasses.replace(settings)
@@ -585,9 +592,16 @@ def alignment_d3d11_loaded_timing_presentation(
     native_texture_ms = float(payload.get("native_texture_ms", payload.get("texture_bind_ms", 0.0)) or 0.0)
     native_geometry_ms = float(payload.get("native_geometry_ms", payload.get("geometry_upload_ms", 0.0)) or 0.0)
     native_load_ms = native_manifest_ms + native_texture_ms + native_geometry_ms
+    first_frame_ms = _float_value(payload.get("first_frame_ms"))
+    frame_ms = _float_value(payload.get("frame_time_ms") or payload.get("frame_ms") or first_frame_ms)
+    fps = _float_value(payload.get("current_fps") or payload.get("fps") or payload.get("average_fps"))
+    if fps <= 0.0 and frame_ms > 0.0:
+        fps = 1000.0 / frame_ms
+    frame_text = f"FPS {fps:.1f} - frame {frame_ms:.2f} ms - " if fps > 0.0 and frame_ms > 0.0 else ""
     channel_debug_text = _alignment_d3d11_channel_debug_text(channel_debug)
     summary = (
         f"D3D11 preview loaded - {str(quality_label or '')} - "
+        f"{frame_text}"
         f"{str(state.get('package_quality', 'normal') or 'normal')} package - "
         f"reason {rebuild_reason} - {str(cache_label or '')} - "
         f"native {native_load_ms:.0f} ms - "
@@ -603,7 +617,8 @@ def alignment_d3d11_loaded_timing_presentation(
         f"native_texture_ms {native_texture_ms:.1f}\n"
         f"native_geometry_ms {native_geometry_ms:.1f}\n"
         f"native_load_upload {native_load_ms:.1f} ms\n"
-        f"first_frame {float(payload.get('first_frame_ms', 0.0) or 0.0):.1f} ms\n"
+        f"fps {fps:.1f}\n"
+        f"first_frame {first_frame_ms:.1f} ms\n"
         f"frames {int(payload.get('frame_count', 0) or 0)}\n"
         f"render_suppressed {int(payload.get('render_suppressed_count', 0) or 0)}\n"
         f"parent_health {str(payload.get('parent_health', '') or '')}\n"

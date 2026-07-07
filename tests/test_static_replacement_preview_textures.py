@@ -271,7 +271,7 @@ def test_static_preview_cache_lookup_and_store_respect_live_edit_and_limit() -> 
     assert paired_cache == {}
 
 
-def test_static_preview_refresh_route_state_tracks_direct_source_and_original_readiness() -> None:
+def test_static_preview_refresh_route_state_keeps_import_preview_mapped_and_tracks_original_readiness() -> None:
     route = static_preview_refresh_route_state(
         active_preview_mode="replacement_only",
         mesh_edit_enabled=False,
@@ -285,8 +285,8 @@ def test_static_preview_refresh_route_state_tracks_direct_source_and_original_re
     )
 
     assert route.mesh_edit_direct_source_preview is False
-    assert route.replacement_only_direct_source_preview is True
-    assert route.source_owned_direct_source_preview is True
+    assert route.replacement_only_direct_source_preview is False
+    assert route.source_owned_direct_source_preview is False
     assert route.require_original_reference is True
     assert route.can_build_source_geometry is True
 

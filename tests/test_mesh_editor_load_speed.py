@@ -151,8 +151,10 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
         self.assertEqual(1, len(calls))
         self.assertEqual(0, calls[0]["meshes"][0]["index"])
         self.assertEqual(4, calls[0]["meshes"][0]["source_submesh_index"])
-        self.assertEqual([10, 11, 12], calls[0]["meshes"][0]["source_vertex_indices"])
-        self.assertEqual([100], calls[0]["meshes"][0]["source_face_indices"])
+        self.assertEqual(10, calls[0]["meshes"][0]["source_vertex_start"])
+        self.assertEqual(3, calls[0]["meshes"][0]["source_vertex_count"])
+        self.assertEqual(100, calls[0]["meshes"][0]["source_face_start"])
+        self.assertEqual(1, calls[0]["meshes"][0]["source_face_count"])
         self.assertTrue(calls[0]["identity_output_path"])
         self.assertEqual(3, batches[0].vertex_count)
         self.assertEqual((0.25, 0.5, 0.75), batches[0].base_color)
@@ -489,8 +491,8 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
                         {
                             "index": 0,
                             "source_submesh_index": 4,
-                            "source_vertex_indices": [10, 11, 12],
-                            "source_face_indices": [100],
+                            "source_vertex_indices": [10, 12, 13],
+                            "source_face_indices": [100, 102],
                             "positions": [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
                             "normals": [(0.0, 0.0, 1.0)] * 3,
                             "texture_coordinates": [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],

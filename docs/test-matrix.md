@@ -1,6 +1,6 @@
 # Test Matrix
 
-Last reviewed: 2026-07-05
+Last reviewed: 2026-07-06
 
 Use the project virtualenv:
 
@@ -42,34 +42,59 @@ Use `%TEMP%` for pytest temp dirs when `.pytest-tmp` is locked.
 
 ## Mesh Editor Suite
 
+For user-facing Mesh Editor edit/viewport proof, run the real archive side-by-side
+D3D11 smoke. `codex_check -Area mesh` is the real-game wrapper for that proof.
+Do not substitute `codex_check -Area mesh-unit`, `build_synthetic_mesh`,
+`harness_quad`, or the synthetic D3D11 protocol harnesses; those catch
+regressions but do not prove game geometry renders or edits correctly.
+
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_dev_harness.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
-.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario full-suite-smoke --output "$env:TEMP\cdmw-mesh-editor-harness"
+dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_dev_harness.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
+.\scripts\codex_check.ps1 -Area mesh
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-benchmark --output "$env:TEMP\cdmw-native-mesh-editor-benchmark"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-static-screen-stroke --output "$env:TEMP\cdmw-native-mesh-editor-static-screen-stroke"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-qt-responsiveness --output "$env:TEMP\cdmw-native-mesh-editor-qt"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-qt-cancellation --output "$env:TEMP\cdmw-native-mesh-editor-qt-cancel"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-d3d11-edit-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-d3d11-edit"
-.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-d3d11-side-by-side-edit-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-d3d11-side-by-side"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-rigging-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-rigging"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-animation-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-animation"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-sequence-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-sequence"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-app-workflow-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-app-workflow"
-.\scripts\codex_check.ps1 -Area mesh
+.\scripts\codex_check.ps1 -Area mesh-unit
 ```
 
-`codex_check -Area mesh` skips interactive D3D11/Qt harness cases. Use the real
-archive Mesh Editor D3D11 edit smokes above for visual proof on game geometry,
-and run the Qt harness commands above only when intentionally validating worker
+Protocol-only local smoke, when a real game archive is not available:
+
+```powershell
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario service-smoke --output "$env:TEMP\cdmw-mesh-editor-service-smoke"
+```
+
+Focused editable-package UI worker smoke:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_editor_action_bar.py::MeshEditorActionBarTests::test_mesh_editor_workspace_editable_package_buttons_emit_requests tests/test_mesh_editor_action_bar.py::MeshEditorActionBarTests::test_mesh_editor_tab_opens_last_editable_package_folder tests/test_mesh_editor_action_bar.py::MeshEditorActionBarTests::test_mesh_editor_tab_runs_validation_report_in_background tests/test_mesh_editor_action_bar.py::MeshEditorActionBarTests::test_mesh_editor_tab_copies_validation_report_json tests/test_mesh_editor_action_bar.py::MeshEditorActionBarTests::test_mesh_editable_package_workers_export_and_import_with_validation tests/test_mesh_service_editing.py::MeshServiceEditingTests::test_replace_working_mesh_blocks_obj_sidecar_source_hash_mismatch
+```
+
+Focused patched-asset rebuild UI/service smoke:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_service_editing.py::MeshServiceEditingTests::test_rebuild_asset_writes_validated_output_file tests/test_mesh_service_editing.py::MeshServiceEditingTests::test_rebuild_asset_refuses_original_source_path tests/test_mesh_editor_action_bar.py::MeshEditorActionBarTests::test_mesh_editor_workspace_rebuild_panel_reflects_report tests/test_mesh_editor_action_bar.py::MeshEditorActionBarTests::test_mesh_editor_tab_rebuild_asset_requires_passing_validation_and_output_path tests/test_mesh_editor_action_bar.py::MeshEditorActionBarTests::test_mesh_editor_tab_preview_rebuilt_asset_routes_archive_target_and_output_path tests/test_mesh_editor_action_bar.py::MeshEditorActionBarTests::test_shell_mesh_editor_preview_rebuilt_asset_routes_import_preview_preset tests/test_archive_mesh_export_naming.py::ArchiveMeshExportNamingTests::test_rebuilt_asset_preset_flows_open_mesh_editor_and_schedule_preview_and_patch tests/test_mesh_editor_action_bar.py::MeshEditorActionBarTests::test_mesh_rebuild_report_worker_writes_asset_when_output_path_is_set
+```
+
+`codex_check -Area mesh-unit` skips interactive D3D11/Qt harness cases and is
+synthetic/protocol coverage only. Use `codex_check -Area mesh` or the real
+archive Mesh Editor D3D11 edit smokes above for visual proof on game geometry.
+Run the Qt harness commands above only when intentionally validating worker
 responsiveness/cancellation. D3D11 harness windows are moved to screen 1 before
 captures and mouse input.
 The side-by-side real archive D3D11 smoke is also the current live-stroke frame
 budget proof: `live_stroke_frame_budget_ok` must be true and the harness should
 report sub-16.7 ms `handler_ms` for live vertex-update dispatch.
 
-Do not use `native-mesh-editor-d3d11-delta` or
-`native-mesh-editor-d3d11-payloads` as visual edit proof. They are synthetic
-checkerboard regression harnesses and intentionally do not show game geometry.
+Do not use `native-mesh-editor-d3d11-delta`,
+`native-mesh-editor-d3d11-payloads`, or `full-suite-smoke` as visual edit proof.
+They are synthetic/protocol regression harnesses and intentionally do not show game geometry.
 The harness blocks them by default; pass `--allow-synthetic-d3d11` only for
 protocol-only regression testing.
 
@@ -124,6 +149,10 @@ optimization preflight reports.
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mode onefile -BuildProfile release
 $env:QT_QPA_PLATFORM='offscreen'; $env:CDMW_GUI_STARTUP_SMOKE='1'; .\dist\CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe
+$env:QT_QPA_PLATFORM='offscreen'; $env:CDMW_GUI_STARTUP_SMOKE='1'; $env:CDMW_GUI_STARTUP_SMOKE_TARGET='mesh_editor'; .\dist\CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe
+$env:QT_QPA_PLATFORM='offscreen'; $env:CDMW_GUI_STARTUP_SMOKE='1'; $env:CDMW_GUI_STARTUP_SMOKE_TARGET='mesh_editor'; $env:CDMW_GUI_STARTUP_SMOKE_MESH_ASSET='D:\Byggverkstaden\test_mesh_editor\cd_phm_00_nude_10_0001.pac'; .\dist\CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe
+$env:QT_QPA_PLATFORM='offscreen'; $env:CDMW_GUI_STARTUP_SMOKE='1'; $env:CDMW_GUI_STARTUP_SMOKE_TARGET='mesh_editor'; $env:CDMW_GUI_STARTUP_SMOKE_MESH_ASSET='D:\Byggverkstaden\test_mesh_editor\cd_phm_00_nude_10_0001.pac'; $env:CDMW_GUI_STARTUP_SMOKE_MESH_ASSET_REBUILD='1'; .\dist\CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe
+$env:QT_QPA_PLATFORM='offscreen'; $env:CDMW_GUI_STARTUP_SMOKE='1'; $env:CDMW_GUI_STARTUP_SMOKE_TARGET='mesh_editor'; $env:CDMW_GUI_STARTUP_SMOKE_MESH_ASSET='D:\Byggverkstaden\test_mesh_editor\cd_phm_00_nude_10_0001.pac'; $env:CDMW_GUI_STARTUP_SMOKE_MESH_DOTNET='1'; .\dist\CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe
 ```
 
 ## Notes

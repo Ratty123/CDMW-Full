@@ -7,6 +7,8 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Callable
 
+from cdmw.domain.mesh.skeleton import summarize_mesh_skinning
+
 from cdmw.domain.mesh.asset import (
     BinaryLayout,
     LAYOUT_CONFIDENCE_EXACT,
@@ -45,6 +47,7 @@ def mesh_asset_from_parsed_mesh(
 ) -> MeshAsset:
     source = str(source_path or mesh.path or "").strip()
     fmt = str(mesh.format or "").strip().lower()
+    binary_layout = _binary_layout_from_source(original_data, source, binary_layout)
     material_slots = _material_slots(mesh, binary_layout)
     layout = _binary_layout(binary_layout)
     lods = _lods(mesh, original_data, material_slots, binary_layout)
@@ -52,9 +55,11 @@ def mesh_asset_from_parsed_mesh(
         source_path=source,
         source_format=fmt,
         original_file_hash=hashlib.sha256(original_data).hexdigest() if original_data else "",
+        original_file_size=len(original_data),
         asset_id=_asset_id(source, original_data),
         lods=lods,
         material_slots=material_slots,
+        skeleton_info=mesh_skinning_contract(mesh),
         binary_layout=layout,
         unknown_sections=tuple(section for section in layout.file_sections if section.name != "geometry"),
         metadata={
@@ -68,14 +73,33 @@ def mesh_asset_from_parsed_mesh(
     )
 
 
+def _binary_layout_from_source(
+    original_data: bytes,
+    source_path: str,
+    binary_layout: MeshBinaryLayout | None,
+) -> MeshBinaryLayout | None:
+    if binary_layout is not None or not original_data:
+        return binary_layout
+    try:
+        inspected = inspect_mesh_binary_layout(original_data, source_path)
+    except Exception:
+        return None
+    if inspected.layout_confidence != LAYOUT_CONFIDENCE_FALLBACK_SCAN or inspected.section_ranges:
+        return inspected
+    return None
+
+
 def mesh_asset_to_inspect_dict(asset: MeshAsset) -> dict[str, object]:
     """Return a JSON-safe inspection view without raw vertex byte payloads."""
     return {
         "source_path": asset.source_path,
         "source_format": asset.source_format,
         "original_file_hash": asset.original_file_hash,
+        "original_file_size": asset.original_file_size,
         "asset_id": asset.asset_id,
+        "parse_confidence": asset.parse_confidence,
         "layout_confidence": asset.layout_confidence,
+        "skeleton_info": _json_safe(asset.skeleton_info),
         "material_slots": [asdict(slot) for slot in asset.material_slots],
         "binary_layout": {
             "endian": asset.binary_layout.endian,
@@ -89,6 +113,36 @@ def mesh_asset_to_inspect_dict(asset: MeshAsset) -> dict[str, object]:
         "unknown_sections": [asdict(section) for section in asset.unknown_sections],
         "lods": [_lod_to_dict(lod) for lod in asset.lods],
         "metadata": _json_safe(asset.metadata),
+    }
+
+
+def mesh_skinning_contract(mesh: ParsedMesh) -> dict[str, object]:
+    summary = summarize_mesh_skinning(mesh)
+    return {
+        "skinned": summary.skinned,
+        "skeleton_linked": summary.skeleton_linked,
+        "skeleton_bone_count": summary.skeleton_bone_count,
+        "inferred_bone_count": summary.inferred_bone_count,
+        "max_bone_index": summary.max_bone_index,
+        "weighted_part_count": summary.weighted_part_count,
+        "weighted_vertex_count": summary.weighted_vertex_count,
+        "invalid_row_count": summary.invalid_row_count,
+        "unnormalized_vertex_count": summary.unnormalized_vertex_count,
+        "parts": [
+            {
+                "index": part.index,
+                "name": part.name,
+                "vertex_count": part.vertex_count,
+                "skinned": part.skinned,
+                "weighted_vertex_count": part.weighted_vertex_count,
+                "max_influences": part.max_influences,
+                "max_bone_index": part.max_bone_index,
+                "unique_bone_indices": list(part.unique_bone_indices),
+                "invalid_row_count": part.invalid_row_count,
+                "unnormalized_vertex_count": part.unnormalized_vertex_count,
+            }
+            for part in summary.parts
+        ],
     }
 
 
@@ -132,9 +186,9 @@ def _binary_layout(layout: MeshBinaryLayout | None) -> BinaryLayout:
         for section in getattr(layout, "section_ranges", ()) or ()
     )
     offsets = {
-        "geometry": int(getattr(layout, "geometry_offset", -1) or -1),
-        "vertex_buffer": int(getattr(layout, "vertex_buffer_offset", -1) or -1),
-        "index_buffer": int(getattr(layout, "index_buffer_offset", -1) or -1),
+        "geometry": _int_attr(getattr(layout, "geometry_offset", -1)),
+        "vertex_buffer": _int_attr(getattr(layout, "vertex_buffer_offset", -1)),
+        "index_buffer": _int_attr(getattr(layout, "index_buffer_offset", -1)),
     }
     sizes = {"geometry": int(getattr(layout, "geometry_size", 0) or 0)}
     return BinaryLayout(
@@ -213,6 +267,7 @@ def _submesh_asset(
     )
     indices = tuple(int(index) for face in faces for index in tuple(face or ()))
     source_vertex_map = _source_vertex_map(submesh, len(vertices))
+    original_index_count = int(getattr(submesh, "source_index_count", 0) or len(indices))
     return MeshAssetSubmesh(
         submesh_index=submesh_index,
         stable_id=f"lod{lod_index}_submesh{submesh_index}",
@@ -222,14 +277,14 @@ def _submesh_asset(
         index_buffer=IndexBuffer(
             indices=indices,
             index_format="u16",
-            original_offset=int(getattr(submesh, "source_index_offset", -1) or -1),
-            original_count=int(getattr(submesh, "source_index_count", 0) or len(indices)),
+            original_offset=_int_attr(getattr(submesh, "source_index_offset", -1)),
+            original_count=original_index_count,
         ),
         source_vertex_map=source_vertex_map,
-        source_index_map=tuple(range(len(indices))),
-        original_descriptor_offset=int(getattr(submesh, "source_descriptor_offset", -1) or -1),
+        source_index_map=tuple(range(original_index_count)),
+        original_descriptor_offset=_int_attr(getattr(submesh, "source_descriptor_offset", -1)),
         original_vertex_offset=min((offset for offset in source_offsets if offset >= 0), default=-1),
-        original_index_offset=int(getattr(submesh, "source_index_offset", -1) or -1),
+        original_index_offset=_int_attr(getattr(submesh, "source_index_offset", -1)),
         original_vertex_stride=stride,
         bounds=_bounds(vertices),
         metadata={
@@ -278,6 +333,15 @@ def _source_vertex_map(submesh: SubMesh, vertex_count: int) -> tuple[int, ...]:
         except Exception:
             return tuple(-1 for _ in range(vertex_count))
     return tuple(range(vertex_count))
+
+
+def _int_attr(value: object, default: int = -1) -> int:
+    if isinstance(value, bool):
+        return default
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return default
 
 
 def _raw_record(data: bytes, offset: int, stride: int) -> bytes:
@@ -351,6 +415,7 @@ def _json_safe(value: object) -> object:
 
 
 __all__ = [
+    "mesh_skinning_contract",
     "mesh_asset_from_bytes",
     "mesh_asset_from_parsed_mesh",
     "mesh_asset_to_inspect_dict",

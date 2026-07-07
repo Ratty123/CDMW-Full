@@ -446,6 +446,31 @@ class MeshDeformerTests(unittest.TestCase):
             self.assertEqual("mesh_roundtrip_manifest_v2", json.loads(sidecar_path.read_text(encoding="utf-8"))["format"])
             native.assert_called_once()
 
+    def test_export_obj_python_fallback_keeps_roundtrip_float_precision(self) -> None:
+        submesh = SubMesh(
+            name="precise",
+            material="precise",
+            vertices=[(0.12345678901234567, -0.9876543210987654, 1.0)],
+            uvs=[(0.3333333333333333, 0.9876543210987654)],
+            normals=[(0.5773502691896258, -0.5773502691896258, 0.5773502691896258)],
+            faces=[(0, 0, 0)],
+        )
+        mesh = ParsedMesh(path="character/model/precise.pac", format="pac", submeshes=[submesh], total_vertices=1, total_faces=1)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                mock.patch("cdmw.modding.mesh_exporter._export_obj_native", return_value=False),
+                mock.patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=False),
+            ):
+                obj_path = Path(export_obj(mesh, temp_dir, "precise")[0])
+
+            obj_text = obj_path.read_text(encoding="utf-8")
+
+        self.assertIn(format(submesh.vertices[0][0], ".17g"), obj_text)
+        self.assertIn(format(1.0 - submesh.uvs[0][1], ".17g"), obj_text)
+        self.assertIn(format(submesh.normals[0][0], ".17g"), obj_text)
+        self.assertNotIn("0.123457", obj_text)
+
     def test_obj_export_blocks_python_fallback_when_native_available(self) -> None:
         from cdmw.modding.mesh_native_core import clear_native_mesh_core_fallback_counts, native_mesh_core_fallback_counts
 

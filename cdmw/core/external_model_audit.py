@@ -1632,7 +1632,47 @@ def _fbx_binary_material_inventory(
         for slot in (_unsupported_companion_texture_slot(row) for row in tuple(companion_textures or ()))
         if slot
     )
-    texture_slots = _dedupe_texture_slot_rows(tuple(binary_slots) + companion_slots)
+    merged_binary_slots: list[dict[str, object]] = []
+    for slot in binary_slots:
+        merged = dict(slot)
+        slot_key = str(merged.get("slot_kind", "") or "").strip().lower()
+        texture_name = str(merged.get("texture_name", "") or "").strip().casefold()
+        path_text = str(merged.get("texture_path", "") or "").strip()
+        if slot_key and texture_name and not Path(path_text).is_file():
+            companion = next(
+                (
+                    candidate
+                    for candidate in companion_slots
+                    if str(candidate.get("slot_kind", "") or "").strip().lower() == slot_key
+                    and str(candidate.get("texture_name", "") or "").strip().casefold() == texture_name
+                ),
+                None,
+            )
+            if companion is not None:
+                for key in ("texture_path", "image_format", "resolution", "channel_stats", "color_space"):
+                    merged[key] = companion.get(key, merged.get(key))
+                evidence = tuple(merged.get("evidence", ()) or ()) + ("companion_file_matched_binary_ref",)
+                merged["evidence"] = tuple(item for item in evidence if item)
+        merged_binary_slots.append(merged)
+    companion_keys = {
+        (
+            str(slot.get("slot_kind", "") or "").strip().lower(),
+            str(slot.get("texture_name", "") or "").strip().casefold(),
+        )
+        for slot in merged_binary_slots
+    }
+    texture_slots = _dedupe_texture_slot_rows(
+        tuple(merged_binary_slots)
+        + tuple(
+            slot
+            for slot in companion_slots
+            if (
+                str(slot.get("slot_kind", "") or "").strip().lower(),
+                str(slot.get("texture_name", "") or "").strip().casefold(),
+            )
+            not in companion_keys
+        )
+    )
     material_name = _fbx_binary_material_name(data) or model_path.stem
     classes = _unsupported_companion_material_classes(model_path, texture_slots, material_name=material_name)
     return (

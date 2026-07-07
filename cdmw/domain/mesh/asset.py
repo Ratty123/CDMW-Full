@@ -111,6 +111,7 @@ class MeshAsset:
     source_path: str = ""
     source_format: str = ""
     original_file_hash: str = ""
+    original_file_size: int = 0
     asset_id: str = ""
     lods: tuple[MeshLod, ...] = ()
     material_slots: tuple[MaterialSlot, ...] = ()
@@ -119,6 +120,10 @@ class MeshAsset:
     unknown_sections: tuple[MeshFileSection, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
     layout_confidence: str = LAYOUT_CONFIDENCE_INFERRED
+
+    @property
+    def parse_confidence(self) -> str:
+        return self.layout_confidence
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,6 +224,8 @@ def _validate_submesh(
     edited_vertex_count = len(edited.vertex_buffer.vertices)
     original_index_count = len(original.index_buffer.indices)
     edited_index_count = len(edited.index_buffer.indices)
+    original_source_index_count = _source_index_count(original)
+    edited_source_index_count = _source_index_count(edited)
 
     if not allow_topology_change and original_vertex_count != edited_vertex_count:
         _add(
@@ -242,6 +249,63 @@ def _validate_submesh(
             expected=original_index_count,
             actual=edited_index_count,
         )
+    if not allow_topology_change and original_source_index_count != edited_source_index_count:
+        _add(
+            issues,
+            "error",
+            "SOURCE_INDEX_COUNT_CHANGED",
+            "Submesh source index count changed.",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            expected=original_source_index_count,
+            actual=edited_source_index_count,
+        )
+    original_stride = int(original.original_vertex_stride or 0)
+    edited_stride = int(edited.original_vertex_stride or 0)
+    if original_stride > 0 and edited_stride != original_stride:
+        _add(
+            issues,
+            "error",
+            "VERTEX_STRIDE_CHANGED",
+            "Original vertex stride changed.",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            expected=original_stride,
+            actual=edited_stride if edited_stride > 0 else "missing",
+        )
+    original_raw_records = original.vertex_buffer.raw_vertex_records
+    edited_raw_records = edited.vertex_buffer.raw_vertex_records
+    if original_raw_records and edited_raw_records != original_raw_records:
+        _add(
+            issues,
+            "error",
+            "RAW_VERTEX_RECORDS_CHANGED",
+            "Original raw vertex records were not preserved.",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            expected=len(original_raw_records),
+            actual=len(edited_raw_records) if len(edited_raw_records) != len(original_raw_records) else "changed",
+        )
+    for attr, code, message in (
+        ("original_descriptor_offset", "SOURCE_DESCRIPTOR_OFFSET_CHANGED", "Original descriptor offset changed."),
+        ("original_vertex_offset", "SOURCE_VERTEX_OFFSET_CHANGED", "Original vertex offset changed."),
+        ("original_index_offset", "SOURCE_INDEX_OFFSET_CHANGED", "Original index offset changed."),
+    ):
+        original_value = _known_offset(getattr(original, attr))
+        if original_value is None:
+            continue
+        edited_value = _known_offset(getattr(edited, attr))
+        if edited_value != original_value:
+            _add(
+                issues,
+                "error",
+                code,
+                message,
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                expected=original_value,
+                actual=edited_value if edited_value is not None else "missing",
+            )
 
     for vertex in edited.vertex_buffer.vertices:
         if not _finite_vec3(vertex.position):
@@ -262,6 +326,11 @@ def _validate_submesh(
 
     if len(edited.source_vertex_map) != edited_vertex_count or any(value < 0 for value in edited.source_vertex_map):
         _add(issues, "fatal", "SOURCE_VERTEX_MAP_MISSING", "Each edited vertex must map back to an original source vertex.", lod_index=lod_index, submesh_index=submesh_index)
+    if (
+        len(edited.source_index_map) != edited_source_index_count
+        or any(value < 0 or value >= max(edited_source_index_count, 1) for value in edited.source_index_map)
+    ):
+        _add(issues, "fatal", "SOURCE_INDEX_MAP_MISSING", "Each edited index must map back to an original source index.", lod_index=lod_index, submesh_index=submesh_index)
     if original.unknown_fields != edited.unknown_fields:
         _add(issues, "error", "UNKNOWN_FIELDS_CHANGED", "Unknown submesh fields were not preserved.", lod_index=lod_index, submesh_index=submesh_index)
 
@@ -286,6 +355,20 @@ def _finite_vec3(value: object) -> bool:
         and len(value) >= 3
         and all(isinstance(component, (int, float)) and math.isfinite(float(component)) for component in value[:3])
     )
+
+
+def _source_index_count(submesh: MeshAssetSubmesh) -> int:
+    return int(submesh.index_buffer.original_count or len(submesh.index_buffer.indices))
+
+
+def _known_offset(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return parsed if parsed >= 0 else None
 
 
 def _has_uvs(submesh: MeshAssetSubmesh) -> bool:

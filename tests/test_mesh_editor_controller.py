@@ -1604,6 +1604,28 @@ class MeshEditorControllerTests(unittest.TestCase):
         self.assertTrue(all(mesh.submeshes[0].vertices[index][2] == 0.0 for index in (0, 1, 2, 3)))
         self.assertEqual([0], [group["source_submesh_index"] for group in result.native_update.vertex_groups])
 
+    def test_static_replacement_adapter_syncs_deferred_native_edit_to_python_mesh(self) -> None:
+        from cdmw.modding import mesh_native_core
+
+        if not mesh_native_core.native_mesh_core_available():
+            self.skipTest("native mesh core binary not available")
+
+        mesh = build_synthetic_mesh()
+        session = StaticReplacementMeshEditSession(session_id="static-sync-working-mesh")
+        session.open(mesh)
+        try:
+            result = session.apply("transform", vertices_by_submesh={0: (0,)}, translate=(0.0, 0.0, 0.25))
+            self.assertEqual(1.0, result.edit_result.metrics["python_apply_deferred"])
+            self.assertEqual(0.0, mesh.submeshes[0].vertices[0][2])
+
+            synced = session.sync_working_mesh()
+        finally:
+            session.close()
+
+        self.assertIs(session.mesh, synced)
+        self.assertEqual(((4, 2),), session.submesh_counts)
+        self.assertAlmostEqual(0.25, synced.submeshes[0].vertices[0][2])
+
     def test_static_replacement_adapter_preserves_compact_changed_vertex_range(self) -> None:
         from cdmw.ui.mesh_editor.static_replacement_adapter import _static_result
 

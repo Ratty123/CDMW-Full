@@ -172,7 +172,9 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual(1, len(prepared.batches))
         self.assertEqual("original_reference", prepared.batches[0].editor_role)
         self.assertEqual(2, prepared.batches[0].source_submesh_index)
-        self.assertEqual((10, 11, 12), prepared.batches[0].source_vertex_indices)
+        self.assertEqual((), prepared.batches[0].source_vertex_indices)
+        self.assertEqual(10, prepared.batches[0].source_vertex_range_start)
+        self.assertEqual(3, prepared.batches[0].source_vertex_range_count)
         self.assertFalse(prepared.batches[0].editor_editable)
 
     def test_render_settings_roundtrip_new_diagnostic_controls(self) -> None:

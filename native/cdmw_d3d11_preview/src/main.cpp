@@ -256,6 +256,8 @@ struct PreviewBatch {
     bool editor_editable = true;
     bool prefab_component = false;
     float highlight_strength = 0.0f;
+    float normalization_center[3] = {0.0f, 0.0f, 0.0f};
+    float normalization_scale = 1.0f;
     std::vector<DirectX::XMFLOAT3> cpu_positions;
     std::vector<int> cpu_source_submeshes;
     std::vector<int> cpu_source_vertices;
@@ -1681,6 +1683,11 @@ static float boosted_preview_layer_weight(const PreviewMaterialLayer& layer, int
 
 static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_dir, const std::string& manifest, RendererStats& stats) {
     std::vector<PreviewBatch> batches;
+    const std::vector<float> manifest_normalization_center = json_float_array_field(manifest, "normalization_center");
+    float manifest_normalization_scale = json_float_field(manifest, "normalization_scale", 1.0f);
+    if (!std::isfinite(manifest_normalization_scale) || std::abs(manifest_normalization_scale) <= 1e-8f) {
+        manifest_normalization_scale = 1.0f;
+    }
     for (const std::string& object : objects_with_key(manifest, "vertex_file")) {
         PreviewBatch batch;
         batch.index = json_int_field(object, "index", static_cast<int>(batches.size()));
@@ -1771,6 +1778,10 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         batch.prefab_component = json_bool_field(editor_identity, "prefab_component", false);
         batch.editor_role = lower_copy(json_string_field(editor_identity, "role"));
         batch.editor_editable = json_bool_field(editor_identity, "editable", batch.source_submesh_index >= 0);
+        batch.normalization_center[0] = manifest_normalization_center.size() > 0u ? manifest_normalization_center[0] : 0.0f;
+        batch.normalization_center[1] = manifest_normalization_center.size() > 1u ? manifest_normalization_center[1] : 0.0f;
+        batch.normalization_center[2] = manifest_normalization_center.size() > 2u ? manifest_normalization_center[2] : 0.0f;
+        batch.normalization_scale = manifest_normalization_scale;
         if (batch.editor_role.find("original") != std::string::npos
             || batch.editor_role.find("reference") != std::string::npos) {
             batch.editor_editable = false;
@@ -4069,6 +4080,44 @@ private:
         return transform;
     }
 
+    static bool batch_uses_source_normalization(const PreviewBatch& batch) {
+        constexpr float kEpsilon = 1.0e-6f;
+        return std::abs(batch.normalization_scale - 1.0f) > kEpsilon
+            || std::abs(batch.normalization_center[0]) > kEpsilon
+            || std::abs(batch.normalization_center[1]) > kEpsilon
+            || std::abs(batch.normalization_center[2]) > kEpsilon;
+    }
+
+    static DirectX::XMMATRIX source_to_preview_normalization_transform(const PreviewBatch& batch) {
+        const float scale = (std::isfinite(batch.normalization_scale) && std::abs(batch.normalization_scale) > 1e-8f)
+            ? batch.normalization_scale
+            : 1.0f;
+        return DirectX::XMMatrixScaling(scale, scale, scale)
+            * DirectX::XMMatrixTranslation(
+                -batch.normalization_center[0] * scale,
+                -batch.normalization_center[1] * scale,
+                -batch.normalization_center[2] * scale);
+    }
+
+    static DirectX::XMFLOAT3 source_to_preview_position_for_batch(const PreviewBatch& batch, const DirectX::XMFLOAT3& position) {
+        if (!batch_uses_source_normalization(batch)) {
+            return position;
+        }
+        DirectX::XMVECTOR source = DirectX::XMLoadFloat3(&position);
+        DirectX::XMVECTOR transformed = DirectX::XMVector3TransformCoord(source, source_to_preview_normalization_transform(batch));
+        DirectX::XMFLOAT3 output{};
+        DirectX::XMStoreFloat3(&output, transformed);
+        return output;
+    }
+
+    DirectX::XMMATRIX mesh_edit_source_world_transform_for_batch(const PreviewBatch& batch) const {
+        DirectX::XMMATRIX transform = source_to_preview_normalization_transform(batch);
+        if (alignment_preview_transform_active()) {
+            transform = transform * alignment_preview_transform_for_batch(batch);
+        }
+        return transform;
+    }
+
     DirectX::XMFLOAT3 transformed_batch_position(const PreviewBatch& batch, const DirectX::XMFLOAT3& position) const {
         DirectX::XMVECTOR source = DirectX::XMLoadFloat3(&position);
         DirectX::XMVECTOR transformed = DirectX::XMVector3TransformCoord(source, alignment_preview_transform_for_batch(batch));
@@ -4174,13 +4223,29 @@ private:
         context_->PSSetShader(pixel_shader_.Get(), nullptr, 0);
     }
 
-    void draw_workspace_grid(const DirectX::XMMATRIX& world_view_projection) {
+    float workspace_grid_y_for_view(const PreviewRenderView& view) const {
+        float min_y = std::numeric_limits<float>::infinity();
+        for (const PreviewBatch& batch : batches_) {
+            if (!batch_visible_in_view(batch, view.role)) continue;
+            for (const DirectX::XMFLOAT3& position : batch.cpu_positions) {
+                if (std::isfinite(position.y)) {
+                    min_y = std::min(min_y, position.y);
+                }
+            }
+        }
+        if (!std::isfinite(min_y)) {
+            return 0.0f;
+        }
+        return min_y - 0.035f;
+    }
+
+    void draw_workspace_grid(const PreviewRenderView& view, const DirectX::XMMATRIX& world_view_projection) {
         std::vector<float> vertices;
         vertices.reserve(23u * 4u * 41u);
         constexpr int kGridHalfSteps = 12;
         constexpr float kGridStep = 0.25f;
         constexpr float kMajorEvery = 4.0f;
-        constexpr float grid_y = 0.0f;
+        const float grid_y = workspace_grid_y_for_view(view);
         for (int index = -kGridHalfSteps; index <= kGridHalfSteps; ++index) {
             const float value = static_cast<float>(index) * kGridStep;
             const bool major = std::fmod(std::abs(static_cast<float>(index)), kMajorEvery) < 0.001f;
@@ -5335,7 +5400,7 @@ private:
         const DirectX::XMMATRIX view_projection = view_projection_matrix_for_viewport(view.viewport, distance_for_view_role(view.role));
         const DirectX::XMMATRIX world_view_projection = camera_world * view_projection;
         if (!view.wireframe && !icon_capture_mode_ && !(display_mode_ == "overlay" && view.role == PreviewViewRole::Reference)) {
-            draw_workspace_grid(world_view_projection);
+            draw_workspace_grid(view, world_view_projection);
         }
         context_->RSSetViewports(1, &view.viewport);
         context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : (render_tuning_.cull_back_faces && cull_rasterizer_ ? cull_rasterizer_.Get() : rasterizer_.Get()));
@@ -6127,7 +6192,13 @@ private:
     }
 
     std::string mesh_edit_source_projection_overrides_json() const {
-        if (!alignment_preview_transform_active()) {
+        if (!alignment_preview_transform_active()
+            && std::none_of(batches_.begin(), batches_.end(), [this](const PreviewBatch& batch) {
+                return batch.editor_editable
+                    && !batch_is_reference(batch)
+                    && batch.source_submesh_index >= 0
+                    && batch_uses_source_normalization(batch);
+            })) {
             return "";
         }
         std::ostringstream out;
@@ -6143,7 +6214,7 @@ private:
                 continue;
             }
             DirectX::XMFLOAT4X4 world_transform{};
-            DirectX::XMStoreFloat4x4(&world_transform, alignment_preview_transform_for_batch(batch));
+            DirectX::XMStoreFloat4x4(&world_transform, mesh_edit_source_world_transform_for_batch(batch));
             out << (wrote_any ? "," : ",\"source_submesh_world_transforms\":[")
                 << "{\"source_submesh_index\":" << batch.source_submesh_index
                 << ",\"world_transform\":" << matrix4x4_json(world_transform)
@@ -6482,6 +6553,7 @@ private:
             int source_vertex_start = 0;
             int source_vertex_count = 0;
             bool source_vertex_range = false;
+            bool native_core_source_positions = false;
             std::vector<PositionUpdate> positions;
             std::vector<NormalUpdate> normals;
             std::vector<UvUpdate> uvs;
@@ -6509,6 +6581,9 @@ private:
             const std::string position_space = lower_copy(json_string_field(group, "position_space"));
             const bool source_space_positions = position_space == "source";
             const bool source_affine_positions = position_space == "source_affine";
+            const bool native_core_source_positions =
+                position_space.empty()
+                && lower_copy(json_string_field(group, "preview_backend")) == "cdmw_mesh_core";
             const std::vector<float> position_transform = json_float_array_field(group, "position_transform");
             const std::vector<float> normal_transform = json_float_array_field(group, "normal_transform");
             const std::vector<float> normalization_center = json_float_array_field(group, "normalization_center");
@@ -6522,6 +6597,7 @@ private:
             parsed.source_vertex_start = source_vertex_start;
             parsed.source_vertex_count = source_vertex_count;
             parsed.source_vertex_range = source_vertex_range;
+            parsed.native_core_source_positions = native_core_source_positions;
             for (size_t index = 0; index < count; ++index) {
                 const int source_vertex = source_vertex_range
                     ? source_vertex_start + static_cast<int>(index)
@@ -6656,7 +6732,11 @@ private:
             for (const ParsedUpdateGroup& parsed : groups) {
                 if (supports_direct_source_range(parsed)) {
                     for (const PositionUpdate& update : parsed.positions) {
-                        apply_position_update(static_cast<size_t>(update.source_vertex), update.value);
+                        DirectX::XMFLOAT3 position = update.value;
+                        if (parsed.native_core_source_positions) {
+                            position = source_to_preview_position_for_batch(batch, position);
+                        }
+                        apply_position_update(static_cast<size_t>(update.source_vertex), position);
                     }
                     for (const NormalUpdate& update : parsed.normals) {
                         apply_normal_update(static_cast<size_t>(update.source_vertex), update.value);
@@ -6671,8 +6751,12 @@ private:
                     const std::pair<int, int> key(parsed.source_submesh, update.source_vertex);
                     auto lookup = batch.cpu_source_vertex_lookup.find(key);
                     if (lookup == batch.cpu_source_vertex_lookup.end()) continue;
+                    DirectX::XMFLOAT3 position = update.value;
+                    if (parsed.native_core_source_positions) {
+                        position = source_to_preview_position_for_batch(batch, position);
+                    }
                     for (size_t vertex_index : lookup->second) {
-                        apply_position_update(vertex_index, update.value);
+                        apply_position_update(vertex_index, position);
                     }
                 }
                 for (const NormalUpdate& update : parsed.normals) {
@@ -6830,6 +6914,9 @@ private:
             const std::string position_space = lower_copy(json_string_field(group, "position_space"));
             const bool source_space_positions = position_space == "source";
             const bool source_affine_positions = position_space == "source_affine";
+            const bool native_core_source_positions =
+                position_space.empty()
+                && lower_copy(json_string_field(group, "preview_backend")) == "cdmw_mesh_core";
             const std::vector<float> position_transform = json_float_array_field(group, "position_transform");
             const std::vector<float> normal_transform = json_float_array_field(group, "normal_transform");
             const std::vector<float> normalization_center = json_float_array_field(group, "normalization_center");
@@ -6867,7 +6954,7 @@ private:
                     source_face_identity_count = std::max(source_face_identity_count, source_face + 1);
                 }
             }
-            auto transform_replacement_position = [&](DirectX::XMFLOAT3 position) {
+            auto transform_replacement_position = [&](const PreviewBatch& batch, DirectX::XMFLOAT3 position) {
                 if (source_affine_positions && position_transform.size() >= 12u) {
                     const float sx = position.x;
                     const float sy = position.y;
@@ -6882,6 +6969,8 @@ private:
                     position.x = (position.x - cx) * normalization_scale;
                     position.y = (position.y - cy) * normalization_scale;
                     position.z = (position.z - cz) * normalization_scale;
+                } else if (native_core_source_positions) {
+                    position = source_to_preview_position_for_batch(batch, position);
                 }
                 return position;
             };
@@ -6987,7 +7076,7 @@ private:
                             normals[source_slot * 3u + 1u],
                             normals[source_slot * 3u + 2u]);
                     }
-                    const DirectX::XMFLOAT3 transformed_position = transform_replacement_position(position);
+                    const DirectX::XMFLOAT3 transformed_position = transform_replacement_position(batch, position);
                     normal = transform_replacement_normal(normal);
                     DirectX::XMFLOAT2 uv(0.0f, 0.0f);
                     if (uvs.size() >= (source_slot + 1u) * 2u) {

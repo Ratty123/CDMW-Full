@@ -710,7 +710,8 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
         self.assertIn("mesh_edit_source_projection_overrides_json()", brush_json_body)
         self.assertIn("mesh_edit_source_projection_overrides_json()", region_json_body)
         self.assertIn("alignment_preview_transform_active()", overrides_body)
-        self.assertIn("alignment_preview_transform_for_batch(batch)", overrides_body)
+        self.assertIn("batch_uses_source_normalization(batch)", overrides_body)
+        self.assertIn("mesh_edit_source_world_transform_for_batch(batch)", overrides_body)
         self.assertIn("mesh_edit_source_allowed(batch.source_submesh_index)", overrides_body)
         self.assertIn("source_submesh_world_transforms", overrides_body)
         self.assertIn("world_transform", overrides_body)
@@ -1029,8 +1030,29 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
             result = run_scenario("native-mesh-editor-d3d11-delta", Path(temp_dir))
 
         self.assertFalse(result["ok"])
-        self.assertIn("checkerboard", result["error"])
+        self.assertIn("Synthetic Mesh Editor D3D11", result["error"])
         self.assertIn("real-archive-mesh-editor-d3d11-side-by-side-edit-smoke", result["error"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            full_suite = run_scenario("full-suite-smoke", Path(temp_dir))
+
+        self.assertFalse(full_suite["ok"])
+        self.assertIn("real-archive-mesh-editor-d3d11-side-by-side-edit-smoke", full_suite["error"])
+
+    def test_mesh_editor_harness_defaults_to_real_archive_visual_proof(self) -> None:
+        source = Path("tools/mesh_editor_dev_harness.py").read_text(encoding="utf-8")
+
+        self.assertIn('_REAL_MESH_EDITOR_VISUAL_SCENARIO = "real-archive-mesh-editor-d3d11-side-by-side-edit-smoke"', source)
+        self.assertIn("default=_REAL_MESH_EDITOR_VISUAL_SCENARIO", source)
+
+    def test_codex_mesh_check_runs_real_game_proof_not_synthetic_square(self) -> None:
+        source = Path("scripts/codex_check.ps1").read_text(encoding="utf-8")
+
+        self.assertIn('"mesh", "mesh-unit"', source)
+        self.assertIn('if ($Area -eq "mesh")', source)
+        self.assertIn("real-archive-mesh-editor-d3d11-side-by-side-edit-smoke", source)
+        self.assertIn('Synthetic unit coverage moved to -Area mesh-unit', source)
+        self.assertIn('"mesh-unit" = @(', source)
 
     def test_native_benchmark_mesh_meets_target_counts(self) -> None:
         mesh = build_native_benchmark_mesh()

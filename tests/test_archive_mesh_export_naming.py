@@ -1,7 +1,9 @@
 import unittest
 import tempfile
 import json
+import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from cdmw.core.archive_modding import (
@@ -10,9 +12,43 @@ from cdmw.core.archive_modding import (
     _mesh_export_basename,
     _rewrite_export_mtl_map_kd,
 )
+from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.core.archive_mesh_types import MeshExportResult
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.ui.archive_browser.mesh_launch_flow import ArchiveMeshLaunchFlowMixin
+from cdmw.ui.archive_browser.mesh_patch_flow import ArchiveMeshPatchFlowMixin
+
+
+class _ArchiveMeshPresetFlowShell(ArchiveMeshLaunchFlowMixin, ArchiveMeshPatchFlowMixin):
+    def __init__(self, settings_file_path: Path) -> None:
+        self.settings_file_path = settings_file_path
+        self.texconv_path_edit = SimpleNamespace(text=lambda: "")
+        self.archive_entries_by_normalized_path = {}
+        self.archive_entries_by_basename = {}
+        self.mesh_editor_tab = SimpleNamespace(builder_host=lambda: None)
+        self.opened: list[dict[str, object]] = []
+        self.static_prompts: list[dict[str, object]] = []
+        self.utility_tasks: list[dict[str, object]] = []
+
+    def _open_mesh_editor_for_entry(self, entry: ArchiveEntry, **kwargs: object) -> object:
+        self.opened.append({"entry": entry, **kwargs})
+        return object()
+
+    def _prompt_archive_static_replacement_options(self, entry: ArchiveEntry, scene_path: Path, **kwargs: object) -> None:
+        self.static_prompts.append({"entry": entry, "scene_path": scene_path, **kwargs})
+        callback = kwargs.get("continue_build_callback") or kwargs.get("on_accept")
+        if callable(callback):
+            callback(None, output_mode="patch") if kwargs.get("continue_build_callback") is callback else callback(None)
+
+    def _run_utility_task(self, **kwargs: object) -> None:
+        self.utility_tasks.append(kwargs)
+
+    def append_archive_log(self, message: str) -> None:
+        return
+
+    def set_status_message(self, message: str, *, error: bool = False) -> None:
+        return
 
 
 class ArchiveMeshExportNamingTests(unittest.TestCase):
@@ -149,12 +185,16 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
                     uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
                     normals=[(0.0, 0.0, 1.0)] * 3,
                     faces=[(0, 1, 2)],
+                    bone_indices=[(0,), (1,), (0, 1)],
+                    bone_weights=[(1.0,), (1.0,), (0.5, 0.5)],
                 )
             ],
             total_vertices=3,
             total_faces=1,
             has_uvs=True,
+            has_bones=True,
         )
+        setattr(parsed_mesh, "_cdmw_original_data", b"source pac bytes")
 
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
@@ -174,8 +214,84 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
             payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
 
         self.assertEqual("mesh_roundtrip_manifest_v2", payload["format"])
+        self.assertEqual(1, payload["schema_version"])
+        self.assertEqual("cdmw_mesh_roundtrip_manifest_v2", payload["tool_version"])
         self.assertEqual("character/model/body.pac", payload["source_archive_path"])
+        self.assertEqual(hashlib.sha256(b"source pac bytes").hexdigest(), payload["source_asset_hash"])
+        self.assertEqual(len(b"source pac bytes"), payload["source_asset_size"])
+        self.assertEqual("body", payload["asset_id"])
+        self.assertIn("replace_positions_same_count", payload["allowed_edit_operations"])
+        self.assertFalse(payload["import_rules"]["allow_topology_change"])
+        self.assertEqual("lod0_submesh0", payload["lods"][0]["submeshes"][0]["stable_id"])
+        self.assertEqual(3, payload["lods"][0]["submeshes"][0]["original_vertex_count"])
+        self.assertEqual(3, payload["lods"][0]["submeshes"][0]["original_index_count"])
+        self.assertEqual([0, 1, 2], payload["lods"][0]["submeshes"][0]["source_index_map"])
+        self.assertTrue(payload["skeleton_info"]["skinned"])
+        self.assertEqual(2, payload["skeleton_info"]["inferred_bone_count"])
+        self.assertEqual(2, payload["skeleton_info"]["parts"][0]["max_influences"])
+        self.assertTrue(payload["import_rules"]["preserve_bone_weights"])
         self.assertNotIn("family_graph", payload)
+        schema = json.loads(
+            (Path(__file__).resolve().parents[1] / "schemas" / "mesh" / "mesh.cdmeta.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual("mesh_roundtrip_manifest_v2", schema["properties"]["format"]["const"])
+        self.assertEqual(1, schema["properties"]["schema_version"]["const"])
+        for key in schema["required"]:
+            self.assertIn(key, payload)
+        for key in schema["$defs"]["lod"]["required"]:
+            self.assertIn(key, payload["lods"][0])
+        for key in schema["$defs"]["submesh"]["required"]:
+            self.assertIn(key, payload["lods"][0]["submeshes"][0])
+
+    def test_rebuilt_asset_preset_flows_open_mesh_editor_and_schedule_preview_and_patch(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            rebuilt_path = root / "rebuilt.pac"
+            rebuilt_path.write_bytes(b"pac")
+            entry = ArchiveEntry(
+                path="character/model/body.pac",
+                pamt_path=root / "0.pamt",
+                paz_file=root / "0.paz",
+                offset=0,
+                comp_size=1,
+                orig_size=1,
+                flags=0,
+                paz_index=0,
+            )
+            setup = MeshImportSetupSelection(
+                scene_path=rebuilt_path,
+                import_mode="static_replacement",
+                source_label="Rebuilt asset: rebuilt.pac",
+                placement_review_title="Preview rebuilt asset",
+                placement_context_note="Preview through existing archive workflow.",
+            )
+
+            preview_shell = _ArchiveMeshPresetFlowShell(root / "preview.ini")
+            preview_shell._start_archive_mesh_import_preview(entry, preset_setup=setup)
+            patch_shell = _ArchiveMeshPresetFlowShell(root / "patch.ini")
+            patch_shell._start_archive_mesh_patch(entry, preset_setup=setup)
+
+        self.assertEqual(
+            {
+                "entry": entry,
+                "mode": "external_import",
+                "source_path": rebuilt_path,
+                "source_skeleton": None,
+                "supplemental_files": (),
+                "scene_import_result": None,
+                "activate": True,
+            },
+            preview_shell.opened[0],
+        )
+        self.assertEqual(rebuilt_path, preview_shell.static_prompts[0]["scene_path"])
+        self.assertEqual(rebuilt_path, patch_shell.static_prompts[0]["scene_path"])
+        self.assertEqual("Preview rebuilt asset", patch_shell.static_prompts[0]["dialog_title"])
+        self.assertEqual(1, len(preview_shell.utility_tasks))
+        self.assertEqual(1, len(patch_shell.utility_tasks))
+        self.assertIn("Rebuilding mesh preview for body.pac", str(patch_shell.utility_tasks[0]["status_message"]))
+        self.assertEqual(rebuilt_path, patch_shell.opened[0]["source_path"])
 
 
 if __name__ == "__main__":

@@ -67,8 +67,10 @@ _WM_LBUTTONUP = 0x0202
 _WM_COPYDATA_COMMAND = 0x43444D57
 _MK_LBUTTON = 0x0001
 _HOST_CLASS = "CDMWNativeD3D11PreviewWindow"
+_REAL_MESH_EDITOR_VISUAL_SCENARIO = "real-archive-mesh-editor-d3d11-side-by-side-edit-smoke"
 _SYNTHETIC_D3D11_SCENARIOS = frozenset(
     {
+        "full-suite-smoke",
         "native-mesh-editor-d3d11-delta",
         "native-mesh-editor-d3d11-payloads",
     }
@@ -5781,8 +5783,8 @@ def run_scenario(
             "scenario": scenario,
             "ok": False,
             "error": (
-                "Synthetic D3D11 checkerboard harness is blocked by default. "
-                "Use real-archive-mesh-editor-d3d11-side-by-side-edit-smoke for visual edit proof, "
+                "Synthetic Mesh Editor D3D11 harness is blocked by default. "
+                f"Use {_REAL_MESH_EDITOR_VISUAL_SCENARIO} for visual edit proof, "
                 "or pass --allow-synthetic-d3d11 for protocol-only regression testing."
             ),
         }
@@ -5868,7 +5870,7 @@ def run_scenario(
             "ok": bool(edit_result.get("ok")),
             "real_archive_mesh_editor_d3d11_edit": edit_result,
         }
-    elif scenario == "real-archive-mesh-editor-d3d11-side-by-side-edit-smoke":
+    elif scenario == _REAL_MESH_EDITOR_VISUAL_SCENARIO:
         edit_result = run_real_archive_mesh_editor_d3d11_edit_smoke(
             Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
             output_dir,
@@ -9331,7 +9333,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run Mesh Editor service/native preview harness without starting the app.")
     parser.add_argument(
         "--scenario",
-        default="full-suite-smoke",
+        default=_REAL_MESH_EDITOR_VISUAL_SCENARIO,
         choices=(
             "full-suite-smoke",
             "service-smoke",
@@ -9354,7 +9356,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "real-archive-sequence-binding-smoke",
             "real-archive-app-workflow-smoke",
             "real-archive-mesh-editor-d3d11-edit-smoke",
-            "real-archive-mesh-editor-d3d11-side-by-side-edit-smoke",
+            _REAL_MESH_EDITOR_VISUAL_SCENARIO,
         ),
     )
     parser.add_argument("--game-root", type=Path, default=_DEFAULT_GAME_ROOT)

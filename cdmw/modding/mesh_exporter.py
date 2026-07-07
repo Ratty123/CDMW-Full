@@ -16,16 +16,29 @@ import struct
 import tempfile
 import zlib
 import math
+import hashlib
 from pathlib import Path, PurePath
 from datetime import UTC, datetime
 from typing import Optional
 
+from .mesh_asset import mesh_skinning_contract
 from .mesh_parser import ParsedMesh, SubMesh
 from .logging import get_logger
 
 logger = get_logger("core.mesh_exporter")
 
 _OBJ_ROUNDTRIP_SIDECAR_FORMAT = "mesh_roundtrip_manifest_v2"
+_OBJ_ROUNDTRIP_SCHEMA_VERSION = 1
+_OBJ_ROUNDTRIP_TOOL_VERSION = "cdmw_mesh_roundtrip_manifest_v2"
+_OBJ_ROUNDTRIP_ALLOWED_EDIT_OPERATIONS = (
+    "replace_positions_same_count",
+    "replace_normals_same_count",
+    "replace_uv0_same_count",
+    "scale_vertices",
+    "translate_vertices",
+    "rotate_vertices",
+    "recompute_bounds",
+)
 
 def _obj_roundtrip_sidecar_path(obj_path: str | Path) -> Path:
     return Path(f"{obj_path}.meta.json")
@@ -42,6 +55,309 @@ def _coerce_submesh_source_vertex_map(submesh: SubMesh) -> list[int]:
     return list(range(vertex_count))
 
 
+def _mesh_original_data(mesh: ParsedMesh) -> bytes:
+    original_data = bytes(getattr(mesh, "_cdmw_original_data", b"") or b"")
+    if not original_data:
+        source = Path(str(getattr(mesh, "path", "") or ""))
+        if source.is_file():
+            try:
+                original_data = source.read_bytes()
+            except OSError:
+                original_data = b""
+    return original_data
+
+
+def _source_identity_payload(mesh: ParsedMesh) -> dict[str, object]:
+    original_data = _mesh_original_data(mesh)
+    if not original_data:
+        return {}
+    return {
+        "source_asset_hash": hashlib.sha256(original_data).hexdigest(),
+        "source_asset_size": len(original_data),
+    }
+
+
+def _mesh_asset_id(mesh: ParsedMesh, source_identity: dict[str, object]) -> str:
+    source_path = str(getattr(mesh, "path", "") or "").strip()
+    if source_path:
+        return Path(source_path).stem
+    source_hash = str(source_identity.get("source_asset_hash", "") or "")
+    return source_hash[:16]
+
+
+def _mesh_parse_confidence(mesh: ParsedMesh) -> str:
+    raw = str(getattr(mesh, "_cdmw_mesh_asset_parse_confidence", "") or "").strip()
+    if raw:
+        return raw
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    if not submeshes:
+        return "failed"
+    if all(
+        len(getattr(submesh, "source_vertex_offsets", ()) or ()) == len(getattr(submesh, "vertices", ()) or ())
+        and int(getattr(submesh, "source_vertex_stride", 0) or 0) > 0
+        for submesh in submeshes
+    ):
+        return "exact"
+    return "inferred"
+
+
+def _submesh_bounds(submesh: SubMesh) -> list[list[float]]:
+    vertices = list(getattr(submesh, "vertices", ()) or ())
+    if not vertices:
+        return [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+    return [
+        [float(min(vertex[axis] for vertex in vertices)) for axis in range(3)],
+        [float(max(vertex[axis] for vertex in vertices)) for axis in range(3)],
+    ]
+
+
+def _lod_bounds(submeshes: object) -> list[list[float]]:
+    vertices = [
+        vertex
+        for submesh in tuple(submeshes or ())
+        for vertex in tuple(getattr(submesh, "vertices", ()) or ())
+    ]
+    if not vertices:
+        return [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+    return [
+        [float(min(vertex[axis] for vertex in vertices)) for axis in range(3)],
+        [float(max(vertex[axis] for vertex in vertices)) for axis in range(3)],
+    ]
+
+
+def _mesh_material_slots_payload(mesh: ParsedMesh) -> list[dict[str, object]]:
+    raw_slots = tuple(getattr(mesh, "_cdmw_mesh_asset_material_slots", ()) or getattr(mesh, "material_slots", ()) or ())
+    if raw_slots:
+        return [
+            {
+                "index": _int_attr(getattr(slot, "index", None), index),
+                "name": str(getattr(slot, "name", "") or "").strip(),
+                "texture": str(getattr(slot, "texture", "") or "").strip(),
+            }
+            for index, slot in enumerate(raw_slots)
+        ]
+    return [
+        {
+            "index": index,
+            "name": str(submesh.material or submesh.name or "").strip(),
+            "texture": str(submesh.texture or "").strip(),
+        }
+        for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ()))
+    ]
+
+
+def _mesh_unknown_sections_payload(mesh: ParsedMesh) -> list[dict[str, object]]:
+    raw_sections = tuple(getattr(mesh, "_cdmw_mesh_asset_unknown_sections", ()) or getattr(mesh, "unknown_sections", ()) or ())
+    result: list[dict[str, object]] = []
+    for index, section in enumerate(raw_sections):
+        if isinstance(section, dict):
+            name = str(section.get("name", "") or "").strip()
+            offset = _int_attr(section.get("offset", -1))
+            size = _int_attr(section.get("size", 0), 0)
+            section_index = _int_attr(section.get("index", index), index)
+        elif isinstance(section, (list, tuple)):
+            name = str(section[0] if len(section) > 0 else "").strip()
+            offset = _int_attr(section[1] if len(section) > 1 else -1)
+            size = _int_attr(section[2] if len(section) > 2 else 0, 0)
+            section_index = _int_attr(section[3] if len(section) > 3 else index, index)
+        else:
+            name = str(getattr(section, "name", "") or "").strip()
+            offset = _int_attr(getattr(section, "offset", -1))
+            size = _int_attr(getattr(section, "size", 0), 0)
+            section_index = _int_attr(getattr(section, "index", index), index)
+        if offset < 0 and size <= 0 and not name:
+            continue
+        result.append({"name": name, "offset": offset, "size": size, "index": section_index})
+    return result
+
+
+def _metadata_json_safe(value: object) -> object:
+    if isinstance(value, bytes):
+        return {"byte_count": len(value)}
+    if isinstance(value, dict):
+        return {str(key): _metadata_json_safe(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_metadata_json_safe(item) for item in value]
+    if isinstance(value, set):
+        return sorted((_metadata_json_safe(item) for item in value), key=repr)
+    return value
+
+
+def _submesh_unknown_fields_payload(submesh: SubMesh) -> dict[str, object]:
+    raw_fields = getattr(submesh, "unknown_fields", None)
+    if not isinstance(raw_fields, dict) or not raw_fields:
+        return {}
+    return {"unknown_fields": _metadata_json_safe(raw_fields)}
+
+
+def _submesh_source_index_map(submesh: SubMesh) -> list[int]:
+    source_count = int(getattr(submesh, "source_index_count", 0) or 0)
+    index_count = source_count if source_count > 0 else len(getattr(submesh, "faces", ()) or ()) * 3
+    return list(range(index_count))
+
+
+def _metadata_value(source: object, key: str, default: object = None) -> object:
+    if isinstance(source, dict):
+        return source.get(key, default)
+    return getattr(source, key, default)
+
+
+def _int_attr(value: object, default: int = -1) -> int:
+    if isinstance(value, bool):
+        return default
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _submesh_bone_layout(submesh: SubMesh) -> dict[str, object]:
+    rows = tuple(getattr(submesh, "bone_indices", ()) or ())
+    return {
+        "has_bones": bool(rows or tuple(getattr(submesh, "bone_weights", ()) or ())),
+        "vertex_count": len(rows),
+        "max_influences": max((len(tuple(row or ())) for row in rows), default=0),
+    }
+
+
+def _submesh_raw_vertex_records_payload(submesh: SubMesh, original_data: bytes) -> dict[str, object]:
+    stride = int(getattr(submesh, "source_vertex_stride", 0) or 0)
+    offsets = tuple(int(value) for value in tuple(getattr(submesh, "source_vertex_offsets", ()) or ()))
+    if not original_data or stride <= 0 or not offsets:
+        return {}
+    records = [
+        original_data[offset : offset + stride]
+        for offset in offsets
+        if offset >= 0 and offset + stride <= len(original_data)
+    ]
+    if len(records) != len(offsets):
+        return {}
+    return {
+        "raw_vertex_record_count": len(records),
+        "raw_vertex_record_stride": stride,
+        "raw_vertex_records_sha256": hashlib.sha256(b"".join(records)).hexdigest(),
+    }
+
+
+def _sidecar_source_index_map(submesh: SubMesh, asset_submesh: object | None) -> list[int]:
+    raw_map = _metadata_value(asset_submesh, "source_index_map", ()) if asset_submesh is not None else ()
+    if raw_map:
+        return [int(value) for value in tuple(raw_map or ())]
+    return _submesh_source_index_map(submesh)
+
+
+def _sidecar_submesh_contract(
+    lod_index: int,
+    submesh_index: int,
+    submesh: SubMesh,
+    original_data: bytes,
+    *,
+    asset_submesh: object | None = None,
+) -> dict[str, object]:
+    vertices = tuple(getattr(submesh, "vertices", ()) or ())
+    faces = tuple(getattr(submesh, "faces", ()) or ())
+    source_offsets = tuple(getattr(submesh, "source_vertex_offsets", ()) or ())
+    asset_vertex_offset = _int_attr(_metadata_value(asset_submesh, "original_vertex_offset"), -1)
+    payload = {
+        "submesh_index": submesh_index,
+        "stable_id": str(_metadata_value(asset_submesh, "stable_id", "") or f"lod{lod_index}_submesh{submesh_index}"),
+        "name": str(submesh.name or "").strip(),
+        "material_slot_index": _int_attr(_metadata_value(asset_submesh, "material_slot_index"), submesh_index),
+        "material": str(submesh.material or "").strip(),
+        "texture": str(submesh.texture or "").strip(),
+        "original_vertex_count": len(vertices),
+        "original_index_count": len(faces) * 3,
+        "original_vertex_stride": _int_attr(
+            _metadata_value(asset_submesh, "original_vertex_stride"),
+            int(getattr(submesh, "source_vertex_stride", 0) or 0),
+        ),
+        "original_vertex_offset": asset_vertex_offset if asset_vertex_offset >= 0 else (int(source_offsets[0]) if source_offsets else -1),
+        "original_index_offset": _int_attr(
+            _metadata_value(asset_submesh, "original_index_offset"),
+            _int_attr(getattr(submesh, "source_index_offset", -1)),
+        ),
+        "original_descriptor_offset": _int_attr(
+            _metadata_value(asset_submesh, "original_descriptor_offset"),
+            _int_attr(getattr(submesh, "source_descriptor_offset", -1)),
+        ),
+        "source_vertex_map": _coerce_submesh_source_vertex_map(submesh),
+        "source_index_map": _sidecar_source_index_map(submesh, asset_submesh),
+        "bounds": _metadata_json_safe(_metadata_value(asset_submesh, "bounds")) if asset_submesh is not None else _submesh_bounds(submesh),
+        "bone_layout": _submesh_bone_layout(submesh),
+    }
+    payload.update(_submesh_raw_vertex_records_payload(submesh, original_data))
+    payload.update(_submesh_unknown_fields_payload(submesh))
+    return payload
+
+
+def _sidecar_lods(mesh: ParsedMesh, original_data: bytes) -> list[dict[str, object]]:
+    raw_lods = tuple(getattr(mesh, "lod_levels", ()) or ())
+    source_lods = raw_lods if raw_lods else (tuple(getattr(mesh, "submeshes", ()) or ()),)
+    asset_lods = tuple(getattr(mesh, "_cdmw_mesh_asset_lods", ()) or ())
+    payload: list[dict[str, object]] = []
+    for lod_index, submeshes in enumerate(source_lods):
+        asset_lod = asset_lods[lod_index] if lod_index < len(asset_lods) else None
+        asset_submeshes = tuple(_metadata_value(asset_lod, "submeshes", ()) or ()) if asset_lod is not None else ()
+        lod_payload = {
+            "lod_index": lod_index,
+            "name": str(_metadata_value(asset_lod, "name", "") or f"lod{lod_index}"),
+            "original_section_offset": _int_attr(_metadata_value(asset_lod, "original_section_offset"), -1),
+            "original_section_size": _int_attr(_metadata_value(asset_lod, "original_section_size"), 0),
+            "bounds": _metadata_json_safe(_metadata_value(asset_lod, "bounds", _lod_bounds(submeshes))),
+            "metadata": _metadata_json_safe(_metadata_value(asset_lod, "metadata", {})),
+            "submeshes": [
+                _sidecar_submesh_contract(
+                    lod_index,
+                    submesh_index,
+                    submesh,
+                    original_data,
+                    asset_submesh=asset_submeshes[submesh_index] if submesh_index < len(asset_submeshes) else None,
+                )
+                for submesh_index, submesh in enumerate(tuple(submeshes or ()))
+            ],
+        }
+        payload.append(lod_payload)
+    return payload
+
+
+def _sidecar_import_rules(mesh: ParsedMesh, source_identity: dict[str, object]) -> dict[str, object]:
+    return {
+        "allow_position_edit": True,
+        "allow_normal_edit": True,
+        "allow_uv_edit": True,
+        "allow_topology_change": False,
+        "preserve_bone_weights": bool(getattr(mesh, "has_bones", False)),
+        "require_source_asset_hash": bool(source_identity.get("source_asset_hash")),
+    }
+
+
+def _roundtrip_contract_payload(mesh: ParsedMesh) -> dict[str, object]:
+    original_data = _mesh_original_data(mesh)
+    source_identity = _source_identity_payload(mesh)
+    rules = _sidecar_import_rules(mesh, source_identity)
+    return {
+        "schema_version": _OBJ_ROUNDTRIP_SCHEMA_VERSION,
+        "tool_version": _OBJ_ROUNDTRIP_TOOL_VERSION,
+        **source_identity,
+        "asset_id": _mesh_asset_id(mesh, source_identity),
+        "parse_confidence": _mesh_parse_confidence(mesh),
+        "skeleton_info": mesh_skinning_contract(mesh),
+        "material_slots": _mesh_material_slots_payload(mesh),
+        "unknown_sections": _mesh_unknown_sections_payload(mesh),
+        "lods": _sidecar_lods(mesh, original_data),
+        "import_rules": rules,
+        "rules": rules,
+        "allowed_edit_operations": list(_OBJ_ROUNDTRIP_ALLOWED_EDIT_OPERATIONS),
+    }
+
+
+def _roundtrip_manifest_extra_payload(mesh: ParsedMesh, extra_payload: Optional[dict]) -> dict[str, object]:
+    payload = _roundtrip_contract_payload(mesh)
+    if extra_payload:
+        payload.update(extra_payload)
+    return payload
+
+
 def _build_roundtrip_manifest_payload(
     mesh: ParsedMesh,
     export_path: str,
@@ -49,8 +365,10 @@ def _build_roundtrip_manifest_payload(
     companion_path: str = "",
     extra_payload: Optional[dict] = None,
 ) -> dict:
+    original_data = _mesh_original_data(mesh)
     payload = {
         "format": _OBJ_ROUNDTRIP_SIDECAR_FORMAT,
+        "schema_version": _OBJ_ROUNDTRIP_SCHEMA_VERSION,
         "source_path": str(mesh.path or "").strip(),
         "source_format": str(mesh.format or "").strip(),
         "export_path": Path(export_path).name,
@@ -68,13 +386,15 @@ def _build_roundtrip_manifest_payload(
                 "texture": str(submesh.texture or "").strip(),
                 "vertex_count": len(submesh.vertices),
                 "face_count": len(submesh.faces),
+                "original_vertex_stride": int(getattr(submesh, "source_vertex_stride", 0) or 0),
                 "source_vertex_map": _coerce_submesh_source_vertex_map(submesh),
+                **_submesh_raw_vertex_records_payload(submesh, original_data),
+                **_submesh_unknown_fields_payload(submesh),
             }
             for index, submesh in enumerate(mesh.submeshes)
         ],
     }
-    if extra_payload:
-        payload.update(extra_payload)
+    payload.update(_roundtrip_manifest_extra_payload(mesh, extra_payload))
     return payload
 
 
@@ -96,7 +416,7 @@ def write_roundtrip_manifest(
                 mesh,
                 export_path,
                 companion_path=companion_path,
-                extra_payload=extra_payload,
+                extra_payload=_roundtrip_manifest_extra_payload(mesh, extra_payload),
             ):
                 return sidecar_path
         except Exception:
@@ -136,7 +456,7 @@ def _export_obj_native(
         mtl_filename=os.path.basename(mtl_path),
         scale=scale,
         manifest_path=manifest_path,
-        extra_payload=extra_payload,
+        extra_payload=_roundtrip_manifest_extra_payload(mesh, extra_payload),
     )
 
 
@@ -197,13 +517,15 @@ def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
         lines.append(f"usemtl {mat}")
 
         for x, y, z in sm.vertices:
-            lines.append(f"v {x * scale:.6f} {y * scale:.6f} {z * scale:.6f}")
+            lines.append(
+                f"v {float(x * scale):.17g} {float(y * scale):.17g} {float(z * scale):.17g}"
+            )
 
         for u, v in sm.uvs:
-            lines.append(f"vt {u:.6f} {1.0 - v:.6f}")
+            lines.append(f"vt {float(u):.17g} {float(1.0 - v):.17g}")
 
         for nx, ny, nz in sm.normals:
-            lines.append(f"vn {nx:.4f} {ny:.4f} {nz:.4f}")
+            lines.append(f"vn {float(nx):.17g} {float(ny):.17g} {float(nz):.17g}")
 
         lines.append("s 1")
 

@@ -20,7 +20,7 @@ from cdmw.core.archive_modding import (
     parsed_mesh_to_preview_model,
 )
 from cdmw.core.archive_relationships import SWAP_SCOPE_BODY_HEAD, build_character_swap_plan
-from cdmw.domain.mesh.session import InGameMeshSwapScopeSelection
+from cdmw.domain.mesh.session import InGameMeshSwapScopeSelection, MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
 from cdmw.modding.scene_importer import SceneImportResult
 from cdmw.modding.static_mesh_replacer import StaticMeshReplacementOptions
@@ -277,22 +277,30 @@ class ArchiveMeshLaunchFlowMixin:
             return
         self._start_archive_in_game_mesh_swap(pending_target, entry)
 
-    def _start_archive_mesh_import_preview(self, entry: ArchiveEntry) -> None:
-        scene_path, _selected = QFileDialog.getOpenFileName(
-            self,
-            mesh_import_file_dialog_title(),
-            str(self.settings_file_path.parent),
-            self._archive_mesh_import_file_filter(),
-        )
-        if not scene_path:
-            return
-        setup = self._prompt_archive_mesh_import_setup(
-            entry,
-            Path(scene_path),
-            title=mesh_import_setup_dialog_title(),
-        )
-        if setup is None:
-            return
+    def _start_archive_mesh_import_preview(
+        self,
+        entry: ArchiveEntry,
+        *,
+        preset_setup: Optional[MeshImportSetupSelection] = None,
+    ) -> None:
+        if preset_setup is None:
+            scene_path, _selected = QFileDialog.getOpenFileName(
+                self,
+                mesh_import_file_dialog_title(),
+                str(self.settings_file_path.parent),
+                self._archive_mesh_import_file_filter(),
+            )
+            if not scene_path:
+                return
+            setup = self._prompt_archive_mesh_import_setup(
+                entry,
+                Path(scene_path),
+                title=mesh_import_setup_dialog_title(),
+            )
+            if setup is None:
+                return
+        else:
+            setup = preset_setup
         scene_path_obj = setup.scene_path
         import_mode = setup.import_mode
         self._open_mesh_editor_for_entry(

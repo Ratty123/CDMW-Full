@@ -53,18 +53,10 @@ def static_preview_refresh_route_state(
     preview_controls_ready: bool,
     original_mesh_available: bool,
 ) -> StaticPreviewRefreshRouteState:
-    normalized_mode = str(active_preview_mode or "side_by_side")
     mesh_edit_direct_source_preview = False
     replacement_available = bool(replacement_mesh_available)
-    direct_preview_allowed = replacement_available and not bool(interactive_preview)
-    replacement_only_direct_source_preview = bool(
-        normalized_mode == "replacement_only" and direct_preview_allowed
-    )
-    source_owned_direct_source_preview = bool(
-        complete_external_swap_enabled
-        and normalized_mode in {"side_by_side", "replacement_only"}
-        and direct_preview_allowed
-    )
+    replacement_only_direct_source_preview = False
+    source_owned_direct_source_preview = False
     require_original_reference = bool(not mesh_edit_direct_source_preview or needs_original_material_preview)
     can_build_source_geometry = bool(
         preview_controls_ready and original_mesh_available and replacement_available

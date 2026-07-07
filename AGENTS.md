@@ -79,6 +79,18 @@ Before broad exploration, read:
 
 Use `docs/test-matrix.md`.
 
+## Mesh Editor validation
+
+- For user-facing Mesh Editor viewport/edit proof, use a real game `.pac` mesh:
+  `.\scripts\codex_check.ps1 -Area mesh` or
+  `tools/mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-d3d11-side-by-side-edit-smoke`.
+- If the user supplied a specific PAC, also run the Mesh Editor startup/rebuild
+  smoke against that file.
+- `build_synthetic_mesh`, `harness_quad`, `full-suite-smoke`,
+  `native-mesh-editor-d3d11-delta`, `native-mesh-editor-d3d11-payloads`, and
+  `scripts/codex_check.ps1 -Area mesh-unit` are unit/protocol regression
+  coverage only, not game-mesh visual proof.
+
 ## Final response format
 
 End coding tasks with:

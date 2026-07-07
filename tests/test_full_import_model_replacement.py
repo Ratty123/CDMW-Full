@@ -94,7 +94,9 @@ def test_full_import_backend_preset_is_retained_but_not_launched_from_app_ui() -
     assert "full_import_model_replacement=bool(setup.full_import_model_replacement)" in source
     assert "apply_full_import_model_replacement_preset(options)" in source
     assert "setTabVisible" in source
-    assert "parts_tab, mesh_edit_tab, textures_tab" in source
+    assert "control_tabs.setTabVisible(control_tabs.indexOf(mesh_edit_tab), False)" in source
+    assert "control_tabs.setTabVisible(control_tabs.indexOf(textures_tab), False)" in source
+    assert "for advanced_tab in (parts_tab,):" in source
     assert "def _start_full_import_model_replacement" not in _source(
         "cdmw", "ui", "archive_browser", "mesh_launch_flow.py"
     )

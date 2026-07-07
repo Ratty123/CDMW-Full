@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from typing import Optional
+
+from cdmw.domain.mesh.operations import (
+    MeshEditOperation,
+    mesh_edit_operations_to_dicts,
+    validate_mesh_edit_operations,
+)
 
 from .logging import get_logger
 from .mesh_parser import ParsedMesh, SubMesh
@@ -12,6 +19,7 @@ from .mesh_parser import ParsedMesh, SubMesh
 logger = get_logger("core.mesh_importer")
 
 _OBJ_ROUNDTRIP_SIDECAR_FORMATS = {"obj_meta_v1", "mesh_roundtrip_manifest_v2"}
+_OBJ_ROUNDTRIP_SUPPORTED_SCHEMA_VERSION = 1
 
 
 def _resolve_obj_index(raw_index: str, item_count: int) -> int:
@@ -48,15 +56,172 @@ def _load_obj_roundtrip_sidecar(obj_path: str) -> Optional[dict[str, object]]:
                 payload_format,
             )
             continue
+        schema_version = payload.get("schema_version")
+        if schema_version is not None:
+            try:
+                parsed_schema_version = int(schema_version)
+            except (TypeError, ValueError):
+                parsed_schema_version = -1
+            if parsed_schema_version != _OBJ_ROUNDTRIP_SUPPORTED_SCHEMA_VERSION:
+                raise ValueError(
+                    f"Unsupported OBJ sidecar schema version: {schema_version!r}."
+                )
+        _validate_obj_sidecar_stable_ids(payload)
+        _validate_obj_sidecar_skinning_metadata(payload)
+        _validate_obj_sidecar_source_index_maps(payload)
         logger.info("Loaded OBJ round-trip sidecar: %s", candidate)
         return payload
     return None
+
+
+def _validate_obj_sidecar_stable_ids(payload: dict[str, object]) -> None:
+    raw_lods = payload.get("lods")
+    if raw_lods is None:
+        return
+    if not isinstance(raw_lods, list):
+        raise ValueError("OBJ sidecar lods must be a list.")
+    for raw_lod in raw_lods:
+        if not isinstance(raw_lod, dict):
+            raise ValueError("OBJ sidecar LOD entry must be an object.")
+        raw_submeshes = raw_lod.get("submeshes")
+        if not isinstance(raw_submeshes, list):
+            raise ValueError("OBJ sidecar LOD submeshes must be a list.")
+        for raw_submesh in raw_submeshes:
+            if not isinstance(raw_submesh, dict):
+                raise ValueError("OBJ sidecar submesh entry must be an object.")
+            if not str(raw_submesh.get("stable_id", "") or "").strip():
+                raise ValueError("OBJ sidecar submesh is missing stable_id.")
+
+
+def _validate_obj_sidecar_skinning_metadata(payload: dict[str, object]) -> None:
+    if not _obj_sidecar_declares_skinning(payload):
+        return
+    entries = _obj_sidecar_lod_submesh_entries(payload)
+    if not entries:
+        raise ValueError("OBJ sidecar bone metadata is required for skinned meshes.")
+    weighted_entry_count = 0
+    for submesh_index, entry in enumerate(entries):
+        bone_layout = entry.get("bone_layout")
+        if not isinstance(bone_layout, dict) or "has_bones" not in bone_layout:
+            raise ValueError("OBJ sidecar bone metadata is required for skinned meshes.")
+        if not bool(bone_layout.get("has_bones")):
+            continue
+        weighted_entry_count += 1
+        expected_vertices = _entry_int(entry, "original_vertex_count", "vertex_count")
+        layout_vertices = _entry_int(bone_layout, "vertex_count")
+        if expected_vertices >= 0 and layout_vertices != expected_vertices:
+            raise ValueError(
+                "OBJ sidecar bone metadata vertex count mismatch for submesh "
+                f"{submesh_index}: expected {expected_vertices}, got {layout_vertices}."
+            )
+        if _entry_int(bone_layout, "max_influences") <= 0:
+            raise ValueError("OBJ sidecar bone metadata is missing influence counts for skinned meshes.")
+        source_map = _normalize_obj_sidecar_source_vertex_map(entry, expected_count=layout_vertices)
+        if not source_map or any(value < 0 for value in source_map):
+            raise ValueError("OBJ sidecar source vertex map is required for skinned meshes.")
+    if weighted_entry_count <= 0:
+        raise ValueError("OBJ sidecar bone metadata declares a skinned mesh but has no weighted submeshes.")
+
+
+def _validate_obj_sidecar_source_index_maps(payload: dict[str, object]) -> None:
+    for submesh_index, entry in enumerate(_obj_sidecar_lod_submesh_entries(payload)):
+        expected_indices = _entry_int(entry, "original_index_count")
+        if expected_indices < 0:
+            expected_faces = _entry_int(entry, "face_count")
+            expected_indices = expected_faces * 3 if expected_faces >= 0 else -1
+        if expected_indices <= 0:
+            continue
+        raw_map = entry.get("source_index_map")
+        if not isinstance(raw_map, list):
+            raise ValueError("OBJ sidecar source index map is required for indexed submeshes.")
+        try:
+            source_index_map = [int(value) for value in raw_map]
+        except (TypeError, ValueError):
+            raise ValueError("OBJ sidecar source index map must contain integer entries.") from None
+        if len(source_index_map) != expected_indices:
+            raise ValueError(
+                "OBJ sidecar source index map length mismatch for submesh "
+                f"{submesh_index}: expected {expected_indices}, got {len(source_index_map)}."
+            )
+        if any(value < 0 or value >= expected_indices for value in source_index_map):
+            raise ValueError("OBJ sidecar source index map contains an out-of-range source index.")
+
+
+def _obj_sidecar_declares_skinning(payload: dict[str, object]) -> bool:
+    raw_rules = payload.get("import_rules") or payload.get("rules") or {}
+    if isinstance(raw_rules, dict) and bool(raw_rules.get("preserve_bone_weights")):
+        return True
+    skeleton_info = payload.get("skeleton_info")
+    if isinstance(skeleton_info, dict) and bool(skeleton_info.get("skinned")):
+        return True
+    for entry in _obj_sidecar_lod_submesh_entries(payload):
+        bone_layout = entry.get("bone_layout")
+        if isinstance(bone_layout, dict) and bool(bone_layout.get("has_bones")):
+            return True
+    return False
+
+
+def _obj_sidecar_lod_submesh_entries(payload: dict[str, object]) -> tuple[dict[str, object], ...]:
+    entries: list[dict[str, object]] = []
+    raw_lods = payload.get("lods")
+    if isinstance(raw_lods, list):
+        for raw_lod in raw_lods:
+            if not isinstance(raw_lod, dict):
+                continue
+            raw_submeshes = raw_lod.get("submeshes")
+            if isinstance(raw_submeshes, list):
+                entries.extend(entry for entry in raw_submeshes if isinstance(entry, dict))
+    return tuple(entries)
 
 
 def _normalize_obj_sidecar_texture_name(sidecar_submesh_entry: object) -> str:
     if not isinstance(sidecar_submesh_entry, dict):
         return ""
     return str(sidecar_submesh_entry.get("texture", "") or "").strip()
+
+
+def _obj_sidecar_original_vertex_stride(sidecar_submesh_entry: object) -> int:
+    if not isinstance(sidecar_submesh_entry, dict):
+        return 0
+    return max(0, _entry_int(sidecar_submesh_entry, "original_vertex_stride"))
+
+
+def _obj_sidecar_int(sidecar_submesh_entry: object, *keys: str) -> int:
+    if not isinstance(sidecar_submesh_entry, dict):
+        return -1
+    return _entry_int(sidecar_submesh_entry, *keys)
+
+
+def _obj_sidecar_source_vertex_offsets(sidecar_submesh_entry: object, source_vertex_map: list[int]) -> list[int]:
+    first_offset = _obj_sidecar_int(sidecar_submesh_entry, "original_vertex_offset")
+    stride = _obj_sidecar_original_vertex_stride(sidecar_submesh_entry)
+    if first_offset < 0 or stride <= 0 or not source_vertex_map:
+        return []
+    return [first_offset + source_index * stride if source_index >= 0 else -1 for source_index in source_vertex_map]
+
+
+def _obj_sidecar_original_index_count(sidecar_submesh_entry: object) -> int:
+    count = _obj_sidecar_int(sidecar_submesh_entry, "original_index_count")
+    if count >= 0:
+        return count
+    face_count = _obj_sidecar_int(sidecar_submesh_entry, "face_count")
+    return face_count * 3 if face_count >= 0 else 0
+
+
+def _attach_obj_sidecar_unknown_fields(submesh: SubMesh, sidecar_submesh_entry: object) -> None:
+    if not isinstance(sidecar_submesh_entry, dict):
+        return
+    raw_fields = sidecar_submesh_entry.get("unknown_fields")
+    if isinstance(raw_fields, dict):
+        setattr(submesh, "unknown_fields", dict(raw_fields))
+
+
+def _attach_obj_sidecar_lod_identity(mesh: ParsedMesh, sidecar_payload: dict[str, object] | None) -> None:
+    if not isinstance(sidecar_payload, dict):
+        return
+    raw_lods = sidecar_payload.get("lods")
+    if isinstance(raw_lods, list):
+        setattr(mesh, "_cdmw_mesh_asset_lods", tuple(dict(lod) for lod in raw_lods if isinstance(lod, dict)))
 
 
 def _resolve_obj_material_library_paths(obj_path: Path) -> tuple[Path, ...]:
@@ -134,6 +299,305 @@ def _normalize_obj_sidecar_source_vertex_map(
     return normalized
 
 
+def _obj_sidecar_source_asset_hash(sidecar_payload: Optional[dict[str, object]]) -> str:
+    if not isinstance(sidecar_payload, dict):
+        return ""
+    return str(sidecar_payload.get("source_asset_hash", "") or "").strip().lower()
+
+
+def _obj_sidecar_source_asset_size(sidecar_payload: Optional[dict[str, object]]) -> int:
+    if not isinstance(sidecar_payload, dict):
+        return -1
+    try:
+        return int(sidecar_payload.get("source_asset_size", -1))
+    except (TypeError, ValueError):
+        return -1
+
+
+def _attach_obj_sidecar_source_identity(mesh: ParsedMesh, sidecar_payload: Optional[dict[str, object]]) -> None:
+    setattr(mesh, "_cdmw_imported_from_obj", True)
+    setattr(mesh, "_cdmw_obj_sidecar_present", isinstance(sidecar_payload, dict))
+    if isinstance(sidecar_payload, dict):
+        setattr(mesh, "_cdmw_obj_sidecar_payload", dict(sidecar_payload))
+        setattr(mesh, "_cdmw_sidecar_import_rules", dict(sidecar_payload.get("import_rules") or {}))
+        setattr(mesh, "_cdmw_sidecar_allowed_edit_operations", tuple(sidecar_payload.get("allowed_edit_operations") or ()))
+    source_hash = _obj_sidecar_source_asset_hash(sidecar_payload)
+    source_size = _obj_sidecar_source_asset_size(sidecar_payload)
+    if source_hash:
+        setattr(mesh, "_cdmw_sidecar_source_asset_hash", source_hash)
+    if source_size >= 0:
+        setattr(mesh, "_cdmw_sidecar_source_asset_size", source_size)
+
+
+def _attach_obj_sidecar_warnings(
+    mesh: ParsedMesh,
+    matched_sidecar_entries: list[Optional[dict[str, object]]],
+    material_texture_map: dict[str, str],
+) -> None:
+    warnings: list[dict[str, object]] = []
+    for submesh_index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
+        sidecar_entry = matched_sidecar_entries[submesh_index] if submesh_index < len(matched_sidecar_entries) else None
+        if not isinstance(sidecar_entry, dict):
+            continue
+        expected_material = str(sidecar_entry.get("material", "") or "").strip()
+        actual_material = str(getattr(submesh, "material", "") or "").strip()
+        if expected_material and actual_material and actual_material != expected_material:
+            warnings.append(
+                {
+                    "code": "sidecar_material_name_changed",
+                    "message": (
+                        f"OBJ sidecar material changed for submesh {submesh_index}: "
+                        f"expected {expected_material}, got {actual_material}."
+                    ),
+                    "submesh_index": submesh_index,
+                    "expected": expected_material,
+                    "actual": actual_material,
+                    "blocks_rebuild": True,
+                }
+            )
+        expected_texture = _normalize_obj_sidecar_texture_name(sidecar_entry)
+        actual_texture = str(material_texture_map.get(actual_material, "") or "").strip()
+        if expected_texture and actual_texture and _obj_texture_key(actual_texture) != _obj_texture_key(expected_texture):
+            warnings.append(
+                {
+                    "code": "sidecar_texture_path_changed",
+                    "message": (
+                        f"OBJ sidecar texture changed for submesh {submesh_index}: "
+                        f"expected {expected_texture}, got {actual_texture}."
+                    ),
+                    "submesh_index": submesh_index,
+                    "expected": expected_texture,
+                    "actual": actual_texture,
+                    "blocks_rebuild": True,
+                }
+            )
+    if warnings:
+        setattr(mesh, "_cdmw_sidecar_warnings", tuple(warnings))
+
+
+def _attach_obj_sidecar_edit_operations(
+    mesh: ParsedMesh,
+    matched_sidecar_entries: list[Optional[dict[str, object]]],
+    sidecar_payload: Optional[dict[str, object]],
+    source_name: str,
+) -> None:
+    operations: list[MeshEditOperation] = []
+    for submesh_index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
+        sidecar_entry = matched_sidecar_entries[submesh_index] if submesh_index < len(matched_sidecar_entries) else None
+        if not isinstance(sidecar_entry, dict):
+            continue
+        expected_vertices = _entry_int(sidecar_entry, "original_vertex_count", "vertex_count")
+        actual_vertices = len(tuple(getattr(submesh, "vertices", ()) or ()))
+        if expected_vertices < 0 or actual_vertices != expected_vertices:
+            continue
+        operations.append(
+            MeshEditOperation(
+                "replace_positions_same_count",
+                lod_index=0,
+                submesh_index=submesh_index,
+                vertex_count=actual_vertices,
+                source=source_name,
+            )
+        )
+        if len(tuple(getattr(submesh, "normals", ()) or ())) == actual_vertices:
+            operations.append(
+                MeshEditOperation(
+                    "replace_normals_same_count",
+                    lod_index=0,
+                    submesh_index=submesh_index,
+                    vertex_count=actual_vertices,
+                    source=source_name,
+                )
+            )
+        if len(tuple(getattr(submesh, "uvs", ()) or ())) == actual_vertices:
+            operations.append(
+                MeshEditOperation(
+                    "replace_uv0_same_count",
+                    lod_index=0,
+                    submesh_index=submesh_index,
+                    vertex_count=actual_vertices,
+                    source=source_name,
+                )
+            )
+    if not operations:
+        return
+    allowed_operations: object | None = None
+    if isinstance(sidecar_payload, dict) and "allowed_edit_operations" in sidecar_payload:
+        allowed_operations = sidecar_payload.get("allowed_edit_operations") or ()
+    blockers = tuple(
+        issue
+        for issue in validate_mesh_edit_operations(
+            operations,
+            mesh=mesh,
+            allowed_operations=allowed_operations if isinstance(allowed_operations, list | tuple | set) else None,
+        )
+        if issue.severity == "blocker"
+    )
+    if blockers:
+        raise ValueError(blockers[0].message)
+    setattr(mesh, "_cdmw_edit_operations", mesh_edit_operations_to_dicts(operations))
+
+
+def _obj_texture_key(value: object) -> str:
+    texture = Path(str(value or "").replace("\\", "/").strip()).name.casefold()
+    if texture.endswith(".dds"):
+        texture = texture[:-4]
+    return texture
+
+
+def validate_obj_sidecar_source_identity(mesh: ParsedMesh, original_data: bytes) -> None:
+    if getattr(mesh, "_cdmw_imported_from_obj", False) and not getattr(mesh, "_cdmw_obj_sidecar_present", False):
+        submesh_count = len(getattr(mesh, "submeshes", ()) or ())
+        if submesh_count > 1 or bool(getattr(mesh, "has_bones", False)):
+            raise ValueError("OBJ sidecar is required for non-trivial mesh rebuilds.")
+    sidecar_payload = getattr(mesh, "_cdmw_obj_sidecar_payload", None)
+    if isinstance(sidecar_payload, dict):
+        _validate_obj_sidecar_topology(mesh, sidecar_payload)
+
+    expected_size = getattr(mesh, "_cdmw_sidecar_source_asset_size", -1)
+    try:
+        expected_size = int(expected_size)
+    except (TypeError, ValueError):
+        expected_size = -1
+    if expected_size >= 0 and len(original_data) != expected_size:
+        raise ValueError(
+            f"OBJ sidecar source size mismatch: expected {expected_size} bytes, got {len(original_data)} bytes."
+        )
+
+    expected_hash = str(getattr(mesh, "_cdmw_sidecar_source_asset_hash", "") or "").strip().lower()
+    if not expected_hash:
+        return
+    actual_hash = hashlib.sha256(bytes(original_data or b"")).hexdigest() if original_data else ""
+    if actual_hash != expected_hash:
+        raise ValueError("OBJ sidecar source hash mismatch; re-export from the current source asset before rebuild.")
+    if isinstance(sidecar_payload, dict):
+        _validate_obj_sidecar_raw_vertex_records(sidecar_payload, bytes(original_data or b""))
+
+
+def _validate_obj_sidecar_topology(mesh: ParsedMesh, sidecar_payload: dict[str, object]) -> None:
+    if _obj_sidecar_allows_topology_change(sidecar_payload):
+        return
+    expected_entries = _obj_sidecar_topology_entries(sidecar_payload)
+    if not expected_entries:
+        return
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    if len(submeshes) != len(expected_entries):
+        raise ValueError(
+            f"OBJ sidecar topology changed: expected {len(expected_entries)} submeshes, got {len(submeshes)}."
+        )
+    for submesh_index, (submesh, entry) in enumerate(zip(submeshes, expected_entries)):
+        expected_vertices = _entry_int(entry, "original_vertex_count", "vertex_count")
+        if expected_vertices >= 0:
+            actual_vertices = _effective_source_vertex_count(submesh)
+            if actual_vertices != expected_vertices:
+                raise ValueError(
+                    "OBJ sidecar topology changed for submesh "
+                    f"{submesh_index}: expected {expected_vertices} source vertices, got {actual_vertices}."
+                )
+        expected_indices = _entry_int(entry, "original_index_count")
+        if expected_indices < 0:
+            expected_faces = _entry_int(entry, "face_count")
+            expected_indices = expected_faces * 3 if expected_faces >= 0 else -1
+        if expected_indices >= 0:
+            actual_indices = len(tuple(getattr(submesh, "faces", ()) or ())) * 3
+            if actual_indices != expected_indices:
+                raise ValueError(
+                    "OBJ sidecar topology changed for submesh "
+                    f"{submesh_index}: expected {expected_indices} indices, got {actual_indices}."
+                )
+
+
+def _validate_obj_sidecar_raw_vertex_records(sidecar_payload: dict[str, object], original_data: bytes) -> None:
+    if not original_data:
+        return
+    for submesh_index, entry in enumerate(_obj_sidecar_raw_record_entries(sidecar_payload)):
+        expected_count = _entry_int(entry, "raw_vertex_record_count")
+        expected_hash = str(entry.get("raw_vertex_records_sha256", "") or "").strip().lower()
+        if expected_count < 0 and not expected_hash:
+            continue
+        records = _obj_sidecar_raw_vertex_records(entry, original_data)
+        if expected_count >= 0 and len(records) != expected_count:
+            raise ValueError(
+                "OBJ sidecar raw vertex record count mismatch for submesh "
+                f"{submesh_index}: expected {expected_count}, got {len(records)}."
+            )
+        if expected_hash and hashlib.sha256(b"".join(records)).hexdigest() != expected_hash:
+            raise ValueError(f"OBJ sidecar raw vertex records changed for submesh {submesh_index}.")
+
+
+def _obj_sidecar_raw_record_entries(sidecar_payload: dict[str, object]) -> tuple[dict[str, object], ...]:
+    lod_entries = _obj_sidecar_lod_submesh_entries(sidecar_payload)
+    if lod_entries:
+        return lod_entries
+    raw_submeshes = sidecar_payload.get("submeshes")
+    if isinstance(raw_submeshes, list):
+        return tuple(entry for entry in raw_submeshes if isinstance(entry, dict))
+    return ()
+
+
+def _obj_sidecar_raw_vertex_records(entry: dict[str, object], original_data: bytes) -> list[bytes]:
+    stride = _obj_sidecar_original_vertex_stride(entry)
+    offsets = _obj_sidecar_source_vertex_offsets(entry, _normalize_obj_sidecar_source_vertex_map(entry))
+    if stride <= 0 or not offsets:
+        return []
+    records: list[bytes] = []
+    for offset in offsets:
+        if offset < 0 or offset + stride > len(original_data):
+            return []
+        records.append(original_data[offset : offset + stride])
+    return records
+
+
+def _obj_sidecar_allows_topology_change(sidecar_payload: dict[str, object]) -> bool:
+    raw_rules = sidecar_payload.get("import_rules") or sidecar_payload.get("rules") or {}
+    return isinstance(raw_rules, dict) and bool(raw_rules.get("allow_topology_change"))
+
+
+def _obj_sidecar_topology_entries(sidecar_payload: dict[str, object]) -> tuple[dict[str, object], ...]:
+    raw_submeshes = sidecar_payload.get("submeshes")
+    if isinstance(raw_submeshes, list):
+        entries = tuple(entry for entry in raw_submeshes if isinstance(entry, dict))
+        if entries:
+            return entries
+    entries: list[dict[str, object]] = []
+    raw_lods = sidecar_payload.get("lods")
+    if isinstance(raw_lods, list):
+        for raw_lod in raw_lods:
+            if not isinstance(raw_lod, dict):
+                continue
+            raw_lod_submeshes = raw_lod.get("submeshes")
+            if isinstance(raw_lod_submeshes, list):
+                entries.extend(entry for entry in raw_lod_submeshes if isinstance(entry, dict))
+    return tuple(entries)
+
+
+def _entry_int(entry: dict[str, object], *keys: str) -> int:
+    for key in keys:
+        if key not in entry:
+            continue
+        try:
+            return int(entry.get(key))
+        except (TypeError, ValueError):
+            continue
+    return -1
+
+
+def _effective_source_vertex_count(submesh: SubMesh) -> int:
+    source_map = tuple(getattr(submesh, "source_vertex_map", ()) or ())
+    if source_map:
+        source_vertices: set[int] = set()
+        for value in source_map:
+            try:
+                source_index = int(value)
+            except (TypeError, ValueError):
+                continue
+            if source_index >= 0:
+                source_vertices.add(source_index)
+        if source_vertices:
+            return len(source_vertices)
+    return len(tuple(getattr(submesh, "vertices", ()) or ()))
+
+
 def _match_obj_roundtrip_sidecar_submeshes(
     sidecar_payload: Optional[dict[str, object]],
     submesh_list: list[dict],
@@ -170,6 +634,12 @@ def _match_obj_roundtrip_sidecar_submeshes(
     sidecar_submeshes = [entry for entry in raw_submeshes if isinstance(entry, dict)]
     if not sidecar_submeshes:
         return matched_entries
+    lod_submeshes = list(_obj_sidecar_lod_submesh_entries(sidecar_payload))
+    if len(lod_submeshes) == len(sidecar_submeshes):
+        sidecar_submeshes = [
+            {**sidecar_submesh, **lod_submesh}
+            for sidecar_submesh, lod_submesh in zip(sidecar_submeshes, lod_submeshes)
+        ]
 
     by_name: dict[str, dict[str, object]] = {}
     for sidecar_entry in sidecar_submeshes:
@@ -362,7 +832,8 @@ def import_obj(obj_path: str) -> ParsedMesh:
             if len(local_face) == 3:
                 local_faces.append(tuple(local_face))
 
-        return SubMesh(
+        source_vertex_map = local_source_vertex_map if len(local_source_vertex_map) == len(local_verts) else []
+        submesh = SubMesh(
             name=sm_data["name"],
             material=sm_data["material"],
             texture=_normalize_obj_sidecar_texture_name(sidecar_entry) or material_texture_map.get(sm_data["material"], ""),
@@ -370,12 +841,17 @@ def import_obj(obj_path: str) -> ParsedMesh:
             uvs=local_uvs if len(local_uvs) == len(local_verts) else [],
             normals=local_normals if len(local_normals) == len(local_verts) else [],
             faces=local_faces,
-            source_vertex_map=(
-                local_source_vertex_map if len(local_source_vertex_map) == len(local_verts) else []
-            ),
+            source_vertex_map=source_vertex_map,
+            source_vertex_offsets=_obj_sidecar_source_vertex_offsets(sidecar_entry, source_vertex_map),
+            source_index_offset=_obj_sidecar_int(sidecar_entry, "original_index_offset"),
+            source_index_count=_obj_sidecar_original_index_count(sidecar_entry),
+            source_vertex_stride=_obj_sidecar_original_vertex_stride(sidecar_entry),
+            source_descriptor_offset=_obj_sidecar_int(sidecar_entry, "original_descriptor_offset"),
             vertex_count=len(local_verts),
             face_count=len(local_faces),
         )
+        _attach_obj_sidecar_unknown_fields(submesh, sidecar_entry)
+        return submesh
 
     # Build vertex ranges from the OBJ structure:
     # Vertices between successive 'o' markers belong to that submesh
@@ -511,6 +987,7 @@ def import_obj(obj_path: str) -> ParsedMesh:
             if len(local_face) == 3:
                 local_faces.append(tuple(local_face))
 
+        source_vertex_map = local_source_vertex_map if len(local_source_vertex_map) == len(local_verts) else []
         sm = SubMesh(
             name=sm_data["name"],
             material=sm_data["material"],
@@ -519,12 +996,16 @@ def import_obj(obj_path: str) -> ParsedMesh:
             uvs=local_uvs if len(local_uvs) == len(local_verts) else [],
             normals=local_normals if len(local_normals) == len(local_verts) else [],
             faces=local_faces,
-            source_vertex_map=(
-                local_source_vertex_map if len(local_source_vertex_map) == len(local_verts) else []
-            ),
+            source_vertex_map=source_vertex_map,
+            source_vertex_offsets=_obj_sidecar_source_vertex_offsets(matched_sidecar_entry, source_vertex_map),
+            source_index_offset=_obj_sidecar_int(matched_sidecar_entry, "original_index_offset"),
+            source_index_count=_obj_sidecar_original_index_count(matched_sidecar_entry),
+            source_vertex_stride=_obj_sidecar_original_vertex_stride(matched_sidecar_entry),
+            source_descriptor_offset=_obj_sidecar_int(matched_sidecar_entry, "original_descriptor_offset"),
             vertex_count=len(local_verts),
             face_count=len(local_faces),
         )
+        _attach_obj_sidecar_unknown_fields(sm, matched_sidecar_entry)
         submeshes.append(sm)
 
         v_offset += nv
@@ -539,6 +1020,10 @@ def import_obj(obj_path: str) -> ParsedMesh:
         total_faces=sum(len(s.faces) for s in submeshes),
         has_uvs=any(s.uvs for s in submeshes),
     )
+    _attach_obj_sidecar_source_identity(result, sidecar_payload)
+    _attach_obj_sidecar_lod_identity(result, sidecar_payload)
+    _attach_obj_sidecar_warnings(result, matched_sidecar_entries, material_texture_map)
+    _attach_obj_sidecar_edit_operations(result, matched_sidecar_entries, sidecar_payload, Path(obj_path).name)
 
     if result.submeshes:
         all_v = [v for s in submeshes for v in s.vertices]

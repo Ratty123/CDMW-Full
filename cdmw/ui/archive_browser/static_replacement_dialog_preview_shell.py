@@ -167,6 +167,14 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_mesh_edit_checkbox.setToolTip("Enable viewport mesh editing tools for the current replacement preview.")
     preview_controls_row.addWidget(preview_mesh_edit_checkbox)
     mesh_edit_enabled_checkbox = preview_mesh_edit_checkbox
+    mesh_dotnet_experiment_button = QPushButton(".NET", preview_panel)
+    mesh_dotnet_experiment_button.setObjectName("MeshAlignmentDotNetExperimentButton")
+    mesh_dotnet_experiment_button.setToolTip("Open the current mesh-edit session in the .NET editor experiment.")
+    mesh_dotnet_experiment_button.setMinimumWidth(0)
+    mesh_dotnet_experiment_button.setMaximumWidth(64)
+    mesh_dotnet_experiment_button.setEnabled(False)
+    mesh_dotnet_experiment_button.setVisible(bool(embedded_alignment_builder))
+    preview_controls_row.addWidget(mesh_dotnet_experiment_button)
     hovered_source_part = {"index": -1}
     alignment_d3d11_view_mode_combo = QComboBox()
     _populate_combo_options_helper(
@@ -675,6 +683,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         mesh_edit_control_max_width=locals().get('mesh_edit_control_max_width'),
         mesh_edit_control_min_width=locals().get('mesh_edit_control_min_width'),
         mesh_editor_diagnostics_state=locals().get('mesh_editor_diagnostics_state'),
+        mesh_dotnet_experiment_button=locals().get('mesh_dotnet_experiment_button'),
         object_name=locals().get('object_name'),
         original_dialog_preview=locals().get('original_dialog_preview'),
         overlay_dialog_preview=locals().get('overlay_dialog_preview'),

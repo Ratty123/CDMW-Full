@@ -377,14 +377,15 @@ def test_alignment_d3d11_loaded_timing_presentation_formats_summary_and_details(
     assert presentation.native_load_ms == 6.75
     assert presentation.texture_text == "diffuse:2 roughness:1"
     assert presentation.summary == (
-        "D3D11 preview loaded - Archive Preview parity - archive_parity package - "
-        "reason material - cache hit - native 7 ms - textures diffuse:2 roughness:1"
+        "D3D11 preview loaded - Archive Preview parity - FPS 222.2 - frame 4.50 ms - "
+        "archive_parity package - reason material - cache hit - native 7 ms - textures diffuse:2 roughness:1"
     )
     assert "cache=hit" in presentation.details
     assert "pipeline ready" in presentation.details
     assert "prepare 12.2 ms" in presentation.details
     assert "package 34.5 ms" in presentation.details
     assert "native_load_upload 6.8 ms" in presentation.details
+    assert "fps 222.2" in presentation.details
     assert "frames 6" in presentation.details
     assert "render_suppressed 1" in presentation.details
     assert "parent_health ok" in presentation.details

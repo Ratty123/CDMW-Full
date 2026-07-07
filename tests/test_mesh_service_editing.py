@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 from array import array
+from types import SimpleNamespace
 import threading
 import tempfile
 import unittest
@@ -19,7 +21,9 @@ from cdmw.domain.mesh import (
     MeshEditSelection,
     mesh_animation_clip_from_document,
 )
+from cdmw.domain.mesh.export_validation import validate_mesh_export
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.modding.mesh_importer import MeshRebuildReport
 from cdmw.modding.skeleton_parser import Bone, Skeleton
 from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_service import _add_native_editor_screen_selection_payload
@@ -1135,6 +1139,427 @@ class MeshServiceEditingTests(unittest.TestCase):
             self.assertEqual(2, mesh.total_faces)
             self.assertEqual({}, service._sessions)
 
+    def test_file_session_validation_exposes_mesh_asset_roundtrip_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            mesh_path = Path(temp_dir) / "part.pac"
+            mesh_path.write_bytes(b"PAR original bytes")
+            parsed = _quad_mesh()
+            parsed.path = ""
+            service = MeshService()
+
+            with (
+                patch("cdmw.services.mesh_service.parse_mesh", return_value=parsed),
+                patch(
+                    "cdmw.services.mesh_service.roundtrip_mesh_bytes",
+                    return_value=SimpleNamespace(
+                        report={
+                            "result": "PASS",
+                            "byte_identical": True,
+                            "unexpected_differences": 0,
+                        }
+                    ),
+                ) as roundtrip,
+            ):
+                mesh = service.load_mesh_file(mesh_path, run_roundtrip=True)
+                view = service.open_edit_session(mesh, session_id="roundtrip-status", mode="edit")
+
+            report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+            roundtrip.assert_called_once()
+            self.assertEqual("inferred", report.parse_confidence)
+            self.assertEqual("PASS", report.no_op_roundtrip_status)
+            self.assertIs(report.no_op_byte_identical, True)
+            self.assertEqual(0, report.no_op_unexpected_differences)
+            self.assertTrue(report.source_asset_hash)
+            self.assertTrue(report.ok)
+            self.assertIn("inferred_parse_confidence", {issue.code for issue in report.warnings})
+
+    def test_file_session_uses_mesh_asset_bone_count_for_preserved_skinning_validation(self) -> None:
+        mesh = _quad_mesh()
+        mesh.has_bones = True
+        mesh.submeshes[0].bone_indices = [(0,), (1,), (0, 1), (0,)]
+        mesh.submeshes[0].bone_weights = [(1.0,), (1.0,), (0.6, 0.4), (1.0,)]
+        setattr(mesh, "_cdmw_original_data", b"original")
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "exact")
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", "abc123")
+        setattr(mesh, "_cdmw_mesh_asset_inferred_bone_count", 2)
+        setattr(mesh, "_cdmw_no_op_roundtrip_report", {"result": "PASS", "byte_identical": True, "unexpected_differences": 0})
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="file-skinning-metadata", mode="edit")
+
+        clean = service.validate_export(view.session_id, available_textures=("a.dds",))
+        service.working_mesh(view.session_id, clone=False).submeshes[0].bone_indices[0] = (2,)
+        edited = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        self.assertNotIn("missing_skeleton_metadata", {issue.code for issue in clean.blockers})
+        self.assertTrue(clean.ok)
+        self.assertIn("invalid_bone_index", {issue.code for issue in edited.blockers})
+
+    def test_file_session_validation_blocks_failed_mesh_asset_roundtrip(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "exact")
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", "abc123")
+        setattr(mesh, "_cdmw_original_data", b"original")
+        setattr(
+            mesh,
+            "_cdmw_no_op_roundtrip_report",
+            {"result": "FAIL", "byte_identical": False, "unexpected_differences": 1},
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="roundtrip-failed", mode="edit")
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blockers = {issue.code for issue in report.blockers}
+        self.assertFalse(report.ok)
+        self.assertIn("no_op_roundtrip_not_passed", blockers)
+        self.assertIn("no_op_roundtrip_unexpected_differences", blockers)
+
+    def test_file_session_validation_blocks_fallback_scan_parse_confidence(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "fallback_scan")
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", "abc123")
+        setattr(mesh, "_cdmw_original_data", b"original")
+        setattr(
+            mesh,
+            "_cdmw_no_op_roundtrip_report",
+            {"result": "PASS", "byte_identical": True, "unexpected_differences": 0},
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="fallback-parse-confidence", mode="edit")
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        self.assertFalse(report.ok)
+        self.assertIn("unsafe_parse_confidence", {issue.code for issue in report.blockers})
+
+    def test_replace_working_mesh_preserves_original_contract_and_import_operations(self) -> None:
+        mesh = _quad_mesh()
+        mesh.submeshes[0].source_vertex_map = [0, 1, 2, 3]
+        mesh.has_bones = True
+        mesh.submeshes[0].bone_indices = [(0,), (0,), (1,), (1,)]
+        mesh.submeshes[0].bone_weights = [(1.0,), (1.0,), (1.0,), (1.0,)]
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "exact")
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", "abc123")
+        setattr(mesh, "_cdmw_mesh_asset_inferred_bone_count", 2)
+        setattr(mesh, "_cdmw_original_data", b"original")
+        setattr(mesh, "_cdmw_no_op_roundtrip_report", {"result": "PASS", "byte_identical": True, "unexpected_differences": 0})
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="replace-working-mesh", mode="edit")
+        imported = _quad_mesh()
+        imported.submeshes[0].source_vertex_map = [0, 1, 2, 3]
+        imported.submeshes[0].vertices[0] = (0.25, 0.0, 0.0)
+        setattr(imported, "_cdmw_imported_from_obj", True)
+        setattr(imported, "_cdmw_obj_sidecar_present", True)
+        setattr(
+            imported,
+            "_cdmw_edit_operations",
+            (
+                {
+                    "operation": "replace_positions_same_count",
+                    "lod_index": 0,
+                    "submesh_index": 0,
+                    "vertex_count": 4,
+                    "source": "mesh.obj",
+                },
+            ),
+        )
+
+        updated = service.replace_working_mesh(view.session_id, imported)
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        self.assertEqual(1, updated.revision)
+        self.assertEqual(1, updated.undo_count)
+        working = service.working_mesh(view.session_id, clone=False)
+        self.assertEqual(b"original", getattr(working, "_cdmw_original_data"))
+        self.assertEqual([(0,), (0,), (1,), (1,)], working.submeshes[0].bone_indices)
+        self.assertEqual([(1.0,), (1.0,), (1.0,), (1.0,)], working.submeshes[0].bone_weights)
+        self.assertEqual((0.0, 0.0, 0.0), service.base_mesh(view.session_id, clone=False).submeshes[0].vertices[0])
+        self.assertTrue(report.ok)
+        self.assertEqual("replace_positions_same_count", service._sessions[view.session_id].edit_operations[0]["operation"])
+
+    def test_replace_working_mesh_blocks_obj_sidecar_source_hash_mismatch(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh, "_cdmw_original_data", b"original")
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="replace-working-hash-mismatch", mode="edit")
+        imported = _quad_mesh()
+        setattr(imported, "_cdmw_imported_from_obj", True)
+        setattr(imported, "_cdmw_obj_sidecar_present", True)
+        setattr(imported, "_cdmw_sidecar_source_asset_hash", hashlib.sha256(b"different").hexdigest())
+        setattr(imported, "_cdmw_sidecar_source_asset_size", len(b"original"))
+
+        with self.assertRaisesRegex(ValueError, "source hash mismatch"):
+            service.replace_working_mesh(view.session_id, imported)
+
+    def test_working_mesh_native_clone_preserves_mesh_asset_lod_identity(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh, "_cdmw_original_data", b"original")
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "exact")
+        setattr(
+            mesh,
+            "_cdmw_mesh_asset_lods",
+            (
+                SimpleNamespace(
+                    lod_index=0,
+                    name="lod0",
+                    original_section_offset=62926,
+                    original_section_size=18424,
+                    bounds=((0.0, 0.0, 0.0), (1.0, 1.0, 0.0)),
+                    metadata={"source": "submeshes"},
+                    submeshes=(
+                        SimpleNamespace(
+                            submesh_index=0,
+                            stable_id="lod0_submesh0",
+                            material_slot_index=0,
+                            original_descriptor_offset=169,
+                            original_vertex_offset=229696,
+                            original_index_offset=756176,
+                            original_vertex_stride=40,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="native-clone-lod-identity", mode="edit")
+        native_snapshot = {"kind": "native_submesh_snapshot", "submeshes": []}
+
+        def restore(target: ParsedMesh, _snapshot: object) -> bool:
+            target.path = mesh.path
+            target.format = mesh.format
+            target.submeshes = [_quad_mesh().submeshes[0]]
+            return True
+
+        with (
+            patch("cdmw.services.mesh_service.snapshot_native_mesh_submeshes", return_value=native_snapshot),
+            patch("cdmw.services.mesh_service.restore_native_mesh_submesh_snapshot", side_effect=restore),
+            patch("cdmw.services.mesh_service.dispose_native_mesh_submesh_snapshot"),
+            patch("cdmw.services.mesh_service.clone_mesh_for_editing", side_effect=AssertionError("full clone")),
+        ):
+            cloned = service.working_mesh(view.session_id, clone=True)
+
+        lods = getattr(cloned, "_cdmw_mesh_asset_lods")
+        self.assertEqual(62926, lods[0].original_section_offset)
+        self.assertEqual({"source": "submeshes"}, lods[0].metadata)
+
+    def test_rebuild_report_uses_validated_session_and_original_bytes(self) -> None:
+        mesh = _quad_mesh()
+        mesh.submeshes[0].source_vertex_map = [0, 1, 2, 3]
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "exact")
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", "abc123")
+        setattr(mesh, "_cdmw_original_data", b"original")
+        setattr(
+            mesh,
+            "_cdmw_no_op_roundtrip_report",
+            {"result": "PASS", "byte_identical": True, "unexpected_differences": 0},
+        )
+        setattr(
+            mesh,
+            "_cdmw_edit_operations",
+            (
+                {
+                    "operation": "replace_positions_same_count",
+                    "lod_index": 0,
+                    "submesh_index": 0,
+                    "vertex_count": 4,
+                    "source": "mesh.obj",
+                },
+            ),
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="rebuild-report", mode="edit")
+        base_report = MeshRebuildReport(
+            mesh_format="pac",
+            source_asset_hash="abc123",
+            rebuilt_asset_hash="abc123",
+            source_size=8,
+            rebuilt_size=8,
+            parse_confidence="exact",
+            validation_status="passed",
+            byte_identical=True,
+            changed_byte_ranges=(),
+            output_path="out.pac",
+        )
+
+        with patch(
+            "cdmw.services.mesh_service.rebuild_mesh_with_report",
+            return_value=SimpleNamespace(data=b"original", report=base_report),
+        ) as rebuilt:
+            report = service.rebuild_report(
+                view.session_id,
+                available_textures=("a.dds",),
+                output_path="out.pac",
+            )
+
+        rebuilt.assert_called_once()
+        self.assertEqual(b"original", rebuilt.call_args.args[1])
+        self.assertEqual("passed", rebuilt.call_args.kwargs["validation_status"])
+        self.assertEqual("out.pac", rebuilt.call_args.kwargs["output_path"])
+        self.assertEqual("abc123", report.source_asset_hash)
+        self.assertEqual("out.pac", report.output_path)
+        self.assertIn("missing_tangents", report.warnings)
+        self.assertEqual("replace_positions_same_count", report.edit_operations[0]["operation"])
+
+    def test_rebuild_asset_writes_validated_output_file(self) -> None:
+        mesh = _quad_mesh()
+        mesh.submeshes[0].source_vertex_map = [0, 1, 2, 3]
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "exact")
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", "abc123")
+        setattr(mesh, "_cdmw_original_data", b"original")
+        setattr(
+            mesh,
+            "_cdmw_no_op_roundtrip_report",
+            {"result": "PASS", "byte_identical": True, "unexpected_differences": 0},
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="rebuild-asset", mode="edit")
+        base_report = MeshRebuildReport(
+            mesh_format="pac",
+            source_asset_hash="abc123",
+            rebuilt_asset_hash="def456",
+            source_size=8,
+            rebuilt_size=7,
+            parse_confidence="exact",
+            validation_status="passed",
+            byte_identical=False,
+            changed_byte_ranges=((0, 2),),
+            output_path="",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target = Path(temp_dir) / "rebuilt.pac"
+            with patch(
+                "cdmw.services.mesh_service.rebuild_mesh_with_report",
+                return_value=SimpleNamespace(data=b"rebuilt", report=base_report),
+            ) as rebuilt:
+                report = service.rebuild_asset(view.session_id, target, available_textures=("a.dds",))
+
+            self.assertEqual(b"rebuilt", target.read_bytes())
+
+        rebuilt.assert_called_once()
+        self.assertEqual(str(target), rebuilt.call_args.kwargs["output_path"])
+        self.assertEqual(str(target), report.output_path)
+
+    def test_rebuild_asset_refuses_original_source_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "quad.pac"
+            source.write_bytes(b"original")
+            mesh = _quad_mesh()
+            mesh.path = str(source)
+            mesh.submeshes[0].source_vertex_map = [0, 1, 2, 3]
+            setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "exact")
+            setattr(mesh, "_cdmw_mesh_asset_source_hash", "abc123")
+            setattr(mesh, "_cdmw_original_data", b"original")
+            setattr(
+                mesh,
+                "_cdmw_no_op_roundtrip_report",
+                {"result": "PASS", "byte_identical": True, "unexpected_differences": 0},
+            )
+            service = MeshService()
+            view = service.open_edit_session(mesh, session_id="rebuild-asset-original", mode="edit")
+
+            with patch("cdmw.services.mesh_service.rebuild_mesh_with_report") as rebuilt:
+                with self.assertRaisesRegex(RuntimeError, "must not overwrite"):
+                    service.rebuild_asset(view.session_id, source, available_textures=("a.dds",))
+
+        rebuilt.assert_not_called()
+
+    def test_rebuild_report_blocks_failed_validation_before_rebuild(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "fallback_scan")
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", "abc123")
+        setattr(mesh, "_cdmw_original_data", b"original")
+        setattr(
+            mesh,
+            "_cdmw_no_op_roundtrip_report",
+            {"result": "PASS", "byte_identical": True, "unexpected_differences": 0},
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="rebuild-report-blocked", mode="edit")
+
+        with patch("cdmw.services.mesh_service.rebuild_mesh_with_report") as rebuilt:
+            with self.assertRaisesRegex(RuntimeError, "mesh rebuild blocked"):
+                service.rebuild_report(view.session_id, available_textures=("a.dds",))
+
+        rebuilt.assert_not_called()
+
+    def test_rebuild_asset_developer_override_reports_unsafe_conditions(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "fallback_scan")
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", "abc123")
+        setattr(mesh, "_cdmw_original_data", b"original")
+        setattr(
+            mesh,
+            "_cdmw_no_op_roundtrip_report",
+            {"result": "PASS", "byte_identical": True, "unexpected_differences": 0},
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="rebuild-developer-override", mode="edit")
+        base_report = MeshRebuildReport(
+            mesh_format="pac",
+            source_asset_hash="abc123",
+            rebuilt_asset_hash="def456",
+            source_size=8,
+            rebuilt_size=7,
+            parse_confidence="fallback_scan",
+            validation_status="not_run",
+            byte_identical=False,
+            changed_byte_ranges=((0, 1),),
+            output_path="",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target = Path(temp_dir) / "rebuilt.pac"
+            with patch(
+                "cdmw.services.mesh_service.rebuild_mesh_with_report",
+                return_value=SimpleNamespace(data=b"rebuilt", report=base_report),
+            ) as rebuilt:
+                report = service.rebuild_asset(
+                    view.session_id,
+                    target,
+                    available_textures=("a.dds",),
+                    developer_override=True,
+                    developer_override_reason="Forced rebuild for local testing",
+                )
+
+            self.assertEqual(b"rebuilt", target.read_bytes())
+
+        rebuilt.assert_called_once()
+        self.assertEqual("developer_override", rebuilt.call_args.kwargs["validation_status"])
+        self.assertEqual("developer_override", report.validation_status)
+        self.assertIn("developer_override_blocker:unsafe_parse_confidence", report.warnings)
+        self.assertIn("override_reason=Forced rebuild for local testing", report.developer_overrides)
+        self.assertIn("unsafe_conditions=unsafe_parse_confidence", report.developer_overrides)
+
+    def test_rebuild_asset_developer_override_does_not_bypass_topology_blockers(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "exact")
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", "abc123")
+        setattr(mesh, "_cdmw_original_data", b"original")
+        setattr(
+            mesh,
+            "_cdmw_no_op_roundtrip_report",
+            {"result": "PASS", "byte_identical": True, "unexpected_differences": 0},
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="rebuild-developer-override-blocked", mode="edit")
+        service._sessions[view.session_id].working_mesh.submeshes[0].vertices.append((2.0, 2.0, 0.0))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target = Path(temp_dir) / "rebuilt.pac"
+            with patch("cdmw.services.mesh_service.rebuild_mesh_with_report") as rebuilt:
+                with self.assertRaisesRegex(RuntimeError, "mesh rebuild blocked"):
+                    service.rebuild_asset(
+                        view.session_id,
+                        target,
+                        available_textures=("a.dds",),
+                        developer_override=True,
+                        developer_override_reason="Forced rebuild for local testing",
+                    )
+
+        rebuilt.assert_not_called()
+
     def test_load_mesh_file_rejects_unsupported_extension(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             mesh_path = Path(temp_dir) / "part.txt"
@@ -1197,7 +1622,347 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertIn("missing_referenced_texture", blocker_codes)
         self.assertIn("too_many_bone_influences", blocker_codes)
         self.assertIn("missing_skeleton_metadata", blocker_codes)
+        missing_skeleton = next(issue for issue in report.blockers if issue.code == "missing_skeleton_metadata")
+        self.assertIn("Inferred bone count from vertex weights: 5", missing_skeleton.message)
         self.assertIn("missing_tangents", {issue.code for issue in report.warnings})
+
+    def test_export_validator_reports_import_sidecar_warnings_after_session_clone(self) -> None:
+        mesh = _quad_mesh()
+        setattr(
+            mesh,
+            "_cdmw_sidecar_warnings",
+            (
+                {
+                    "code": "sidecar_material_name_changed",
+                    "message": "OBJ sidecar material changed for submesh 0.",
+                    "submesh_index": 0,
+                    "blocks_rebuild": True,
+                },
+            ),
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-sidecar-warning", mode="edit")
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        warning = next(issue for issue in report.warnings if issue.code == "sidecar_material_name_changed")
+        self.assertEqual("sidecar", warning.category)
+        self.assertEqual(0, warning.submesh_index)
+        blocker = next(issue for issue in report.blockers if issue.code == "sidecar_material_name_changed_blocks_rebuild")
+        self.assertEqual("sidecar", blocker.category)
+        self.assertEqual(0, blocker.submesh_index)
+
+    def test_export_validator_blocks_material_and_texture_changes_against_original_session_mesh(self) -> None:
+        mesh = _quad_mesh()
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-material-texture-changed", mode="edit")
+        edited = service.working_mesh(view.session_id, clone=False)
+        edited.submeshes[0].material = "changed_material"
+        edited.submeshes[0].texture = "changed.dds"
+
+        report = service.validate_export(view.session_id, available_textures=("changed.dds",))
+
+        blocker_codes = {issue.code for issue in report.blockers}
+        self.assertIn("material_slot_changed", blocker_codes)
+        self.assertIn("texture_reference_changed", blocker_codes)
+
+    def test_export_validator_blocks_material_slot_count_changes_against_original_session_mesh(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh, "_cdmw_mesh_asset_material_slots", ("mat_a", "mat_b"))
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-material-slot-count-changed", mode="edit")
+        setattr(service.working_mesh(view.session_id, clone=False), "_cdmw_mesh_asset_material_slots", ("mat_a",))
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "material_slot_count_changed")
+        self.assertEqual("material", blocker.category)
+        self.assertEqual(2, blocker.expected)
+        self.assertEqual(1, blocker.actual)
+
+    def test_export_validator_blocks_unknown_section_changes_against_original_session_mesh(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh, "_cdmw_mesh_asset_unknown_sections", (("section_9", 64, 32),))
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-unknown-section-changed", mode="edit")
+        setattr(service.working_mesh(view.session_id, clone=False), "_cdmw_mesh_asset_unknown_sections", ())
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "unknown_sections_changed")
+        self.assertEqual("metadata", blocker.category)
+        self.assertEqual((("section_9", 64, 32),), blocker.expected)
+        self.assertEqual((), blocker.actual)
+
+    def test_export_validator_blocks_unknown_submesh_field_changes_against_original_session_mesh(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh.submeshes[0], "unknown_fields", {"descriptor_flags": 7})
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-unknown-field-changed", mode="edit")
+        setattr(service.working_mesh(view.session_id, clone=False).submeshes[0], "unknown_fields", {"descriptor_flags": 8})
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "unknown_fields_changed")
+        self.assertEqual("metadata", blocker.category)
+        self.assertEqual({"descriptor_flags": 7}, blocker.expected)
+        self.assertEqual({"descriptor_flags": 8}, blocker.actual)
+        self.assertEqual(0, blocker.submesh_index)
+
+    def test_export_validator_blocks_vertex_stride_changes_against_original_session_mesh(self) -> None:
+        mesh = _quad_mesh()
+        mesh.submeshes[0].source_vertex_stride = 40
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-vertex-stride-changed", mode="edit")
+        service.working_mesh(view.session_id, clone=False).submeshes[0].source_vertex_stride = 48
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "vertex_stride_changed")
+        self.assertEqual("metadata", blocker.category)
+        self.assertEqual(40, blocker.expected)
+        self.assertEqual(48, blocker.actual)
+        self.assertEqual(0, blocker.submesh_index)
+
+    def test_export_validator_blocks_source_offset_changes_against_original_session_mesh(self) -> None:
+        mesh = _quad_mesh()
+        submesh = mesh.submeshes[0]
+        submesh.source_vertex_offsets = [100, 140, 180, 220]
+        submesh.source_index_offset = 500
+        submesh.source_index_count = 6
+        submesh.source_descriptor_offset = 64
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-source-offset-changed", mode="edit")
+        edited = service.working_mesh(view.session_id, clone=False).submeshes[0]
+        edited.source_vertex_offsets = []
+        edited.source_index_offset = -1
+        edited.source_index_count = 3
+        edited.source_descriptor_offset = -1
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+        blockers = {issue.code: issue for issue in report.blockers}
+
+        self.assertEqual((100, 140, 180, 220), blockers["source_vertex_offsets_changed"].expected)
+        self.assertEqual("missing", blockers["source_vertex_offsets_changed"].actual)
+        self.assertEqual(500, blockers["source_index_offset_changed"].expected)
+        self.assertEqual("missing", blockers["source_index_offset_changed"].actual)
+        self.assertEqual(6, blockers["source_index_count_changed"].expected)
+        self.assertEqual(3, blockers["source_index_count_changed"].actual)
+        self.assertEqual(64, blockers["source_descriptor_offset_changed"].expected)
+        self.assertEqual("missing", blockers["source_descriptor_offset_changed"].actual)
+
+    def test_export_validator_reports_topology_count_expected_actual_against_original_session_mesh(self) -> None:
+        mesh = _quad_mesh()
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-topology-counts-changed", mode="edit")
+        edited = service.working_mesh(view.session_id, clone=False).submeshes[0]
+        edited.vertices.append((2.0, 2.0, 0.0))
+        edited.uvs.append((1.0, 1.0))
+        edited.normals.append((0.0, 0.0, 1.0))
+        edited.faces.append((2, 3, 4))
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        vertex_count = next(issue for issue in report.blockers if issue.code == "submesh_vertex_count_changed")
+        index_count = next(issue for issue in report.blockers if issue.code == "submesh_index_count_changed")
+        self.assertEqual(4, vertex_count.expected)
+        self.assertEqual(5, vertex_count.actual)
+        self.assertEqual(0, vertex_count.lod_index)
+        self.assertEqual(6, index_count.expected)
+        self.assertEqual(9, index_count.actual)
+
+    def test_export_validator_blocks_changed_geometry_without_source_vertex_map(self) -> None:
+        mesh = _quad_mesh()
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-changed-geometry-missing-source-map", mode="edit")
+        service.working_mesh(view.session_id, clone=False).submeshes[0].vertices[0] = (0.25, 0.0, 0.0)
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "source_vertex_map_missing")
+        self.assertEqual("topology", blocker.category)
+        self.assertEqual(4, blocker.expected)
+        self.assertEqual(0, blocker.actual)
+        self.assertEqual(0, blocker.lod_index)
+
+    def test_export_validator_blocks_changed_geometry_with_invalid_source_vertex_map(self) -> None:
+        mesh = _quad_mesh()
+        mesh.submeshes[0].source_vertex_map = [0, 1, 2, 3]
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-changed-geometry-invalid-source-map", mode="edit")
+        edited = service.working_mesh(view.session_id, clone=False).submeshes[0]
+        edited.vertices[0] = (0.25, 0.0, 0.0)
+        edited.source_vertex_map[1] = -1
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "source_vertex_map_invalid")
+        self.assertEqual("topology", blocker.category)
+        self.assertEqual("non-negative source vertex ids", blocker.expected)
+        self.assertEqual(0, blocker.submesh_index)
+
+    def test_export_validator_blocks_lod_count_changes_against_original_session_mesh(self) -> None:
+        mesh = _quad_mesh()
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-lod-count-changed", mode="edit")
+        working = service.working_mesh(view.session_id, clone=False)
+        working.lod_levels = [working.submeshes, []]
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "lod_count_changed")
+        self.assertEqual("topology", blocker.category)
+        self.assertEqual(1, blocker.expected)
+        self.assertEqual(2, blocker.actual)
+        self.assertEqual(-1, blocker.lod_index)
+
+    def test_export_validator_blocks_lod_submesh_count_changes_against_original_session_mesh(self) -> None:
+        original = _quad_mesh(two_parts=True)
+        original.lod_levels = [original.submeshes, [original.submeshes[0]]]
+        edited = _quad_mesh(two_parts=True)
+        edited.lod_levels = [edited.submeshes, []]
+
+        report = validate_mesh_export(edited, original_mesh=original, available_textures=("a.dds", "b.dds"))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "lod_submesh_count_changed")
+        self.assertEqual("topology", blocker.category)
+        self.assertEqual(1, blocker.expected)
+        self.assertEqual(0, blocker.actual)
+        self.assertEqual(1, blocker.lod_index)
+
+    def test_export_validator_reports_edit_operation_blockers_after_session_clone(self) -> None:
+        mesh = _quad_mesh()
+        setattr(
+            mesh,
+            "_cdmw_edit_operations",
+            (
+                {
+                    "operation": "topology_replacement",
+                    "lod_index": 0,
+                    "submesh_index": 0,
+                    "vertex_count": 4,
+                    "source": "mesh.obj",
+                },
+            ),
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-operation-blocker", mode="edit")
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "blocked_edit_operation")
+        self.assertEqual("operations", blocker.category)
+        self.assertEqual(0, blocker.submesh_index)
+
+    def test_export_validator_blocks_same_count_operation_without_source_map(self) -> None:
+        mesh = _quad_mesh()
+        setattr(
+            mesh,
+            "_cdmw_edit_operations",
+            (
+                {
+                    "operation": "replace_positions_same_count",
+                    "lod_index": 0,
+                    "submesh_index": 0,
+                    "vertex_count": 4,
+                    "source": "mesh.obj",
+                },
+            ),
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-operation-source-map-blocker", mode="edit")
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "operation_source_map_missing")
+        self.assertEqual("operations", blocker.category)
+        self.assertEqual(0, blocker.submesh_index)
+
+    def test_export_validator_blocks_untracked_channel_change_with_operation_list(self) -> None:
+        mesh = _quad_mesh()
+        mesh.submeshes[0].source_vertex_map = [0, 1, 2, 3]
+        setattr(
+            mesh,
+            "_cdmw_edit_operations",
+            (
+                {
+                    "operation": "replace_positions_same_count",
+                    "lod_index": 0,
+                    "submesh_index": 0,
+                    "vertex_count": 4,
+                    "source": "mesh.obj",
+                },
+            ),
+        )
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-operation-coverage-blocker", mode="edit")
+        service.working_mesh(view.session_id, clone=False).submeshes[0].uvs[0] = (0.5, 0.5)
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "untracked_edit_channel")
+        self.assertEqual("operations", blocker.category)
+        self.assertEqual(0, blocker.submesh_index)
+        self.assertIn("uv0", blocker.message)
+
+    def test_export_validator_requires_operations_for_imported_obj_sidecar_session(self) -> None:
+        mesh = _quad_mesh()
+        setattr(mesh, "_cdmw_imported_from_obj", True)
+        setattr(mesh, "_cdmw_obj_sidecar_present", True)
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-imported-obj-missing-operations", mode="edit")
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        blocker = next(issue for issue in report.blockers if issue.code == "missing_edit_operations")
+        self.assertEqual("operations", blocker.category)
+
+    def test_export_validator_allows_preserved_original_unnormalized_bone_weights(self) -> None:
+        mesh = _quad_mesh()
+        submesh = mesh.submeshes[0]
+        submesh.bone_indices = [(0, 1)] * len(submesh.vertices)
+        submesh.bone_weights = [(0.5, 0.25)] * len(submesh.vertices)
+        mesh.has_bones = True
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-preserved-bone-weights", mode="edit")
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",), skeleton_bone_count=2)
+
+        self.assertTrue(report.ok)
+        self.assertNotIn("unnormalized_bone_weights", {issue.code for issue in report.blockers})
+        self.assertIn("preserved_unnormalized_bone_weights", {issue.code for issue in report.warnings})
+
+    def test_export_validator_blocks_changed_preserved_skinning_data(self) -> None:
+        mesh = _quad_mesh()
+        submesh = mesh.submeshes[0]
+        submesh.bone_indices = [(0,), (1,), (0, 1), (0,)]
+        submesh.bone_weights = [(1.0,), (1.0,), (0.5, 0.5), (1.0,)]
+        mesh.has_bones = True
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-changed-skinning-data", mode="edit")
+        service.working_mesh(view.session_id, clone=False).submeshes[0].bone_weights[2] = (0.25, 0.75)
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",), skeleton_bone_count=2)
+
+        blocker = next(issue for issue in report.blockers if issue.code == "skinning_data_changed")
+        self.assertEqual("skeleton", blocker.category)
+        self.assertEqual(0, blocker.submesh_index)
+
+    def test_export_validator_blocks_changed_unnormalized_bone_weights(self) -> None:
+        mesh = _quad_mesh()
+        submesh = mesh.submeshes[0]
+        submesh.bone_indices = [(0, 1)] * len(submesh.vertices)
+        submesh.bone_weights = [(0.5, 0.25)] * len(submesh.vertices)
+        mesh.has_bones = True
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-changed-bone-weights", mode="edit")
+        service.working_mesh(view.session_id, clone=False).submeshes[0].bone_weights[0] = (0.5, 0.1)
+
+        report = service.validate_export(view.session_id, available_textures=("a.dds",), skeleton_bone_count=2)
+
+        blockers = {issue.code for issue in report.blockers}
+        self.assertFalse(report.ok)
+        self.assertIn("unnormalized_bone_weights", blockers)
 
     def test_export_validator_blocks_pam_topology_changes_against_original_session_mesh(self) -> None:
         mesh = _quad_mesh()
@@ -3508,6 +4273,34 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertEqual((0.0, 0.0, 0.0), service.working_mesh(view.session_id).submeshes[0].vertices[0])
         self.assertTrue(service.redo(view.session_id).ok)
         self.assertEqual((0.0, 0.0, 1.0), service.working_mesh(view.session_id).submeshes[0].vertices[0])
+
+    def test_transform_records_undoable_position_edit_operation(self) -> None:
+        mesh = _quad_mesh()
+        mesh.submeshes[0].source_vertex_map = [0, 1, 2, 3]
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="edit-operation-history", mode="edit")
+        selection = MeshEditSelection.from_maps(vertices_by_submesh={0: (0,)})
+
+        service.apply_command(view.session_id, MeshEditCommand("select", selection=selection))
+        result = service.apply_command(
+            view.session_id,
+            MeshEditCommand("transform", params={"translate": (0.0, 0.0, 1.0)}, label="Move"),
+        )
+        report = service.validate_export(view.session_id, available_textures=("a.dds",))
+
+        self.assertTrue(result.ok)
+        operations = service._sessions[view.session_id].edit_operations
+        operation_names = [operation["operation"] for operation in operations]  # type: ignore[index]
+        self.assertIn("translate_vertices", operation_names)
+        self.assertIn("replace_normals_same_count", operation_names)
+        self.assertEqual(0, operations[0]["submesh_index"])  # type: ignore[index]
+        self.assertNotIn("untracked_edit_channel", {issue.code for issue in report.blockers})
+
+        self.assertTrue(service.undo(view.session_id).ok)
+        self.assertEqual((), service._sessions[view.session_id].edit_operations)
+        self.assertTrue(service.redo(view.session_id).ok)
+        redone_operation_names = [operation["operation"] for operation in service._sessions[view.session_id].edit_operations]  # type: ignore[index]
+        self.assertIn("translate_vertices", redone_operation_names)
 
     def test_select_can_add_subtract_and_toggle_existing_selection(self) -> None:
         service = MeshService()

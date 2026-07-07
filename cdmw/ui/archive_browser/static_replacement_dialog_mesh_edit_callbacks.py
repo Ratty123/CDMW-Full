@@ -13,6 +13,7 @@ from cdmw.modding.static_mesh_replacer import (
 )
 from cdmw.ui.archive_browser.static_replacement_mesh_edit_state import (
     mesh_edit_has_inverse_transform_context as _default_mesh_edit_has_inverse_transform_context,
+    mesh_edit_missing_nonempty_triangle_group_sources,
 )
 from cdmw.ui.archive_browser.static_replacement_sparse_history import (
     clear_mesh_history_snapshot_stack,
@@ -605,6 +606,29 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         except (KeyError, RuntimeError):
             return None
         return session
+
+    def _mesh_editor_sync_static_replacement_session_to_working_mesh(reason: str) -> bool:
+        session = _mesh_editor_fresh_static_replacement_session()
+        if not isinstance(session, StaticReplacementMeshEditSession):
+            return True
+        try:
+            mesh = session.sync_working_mesh()
+        except Exception as exc:
+            _record_mesh_edit_event(
+                "mesh_edit_static_session_sync_failed",
+                reason=str(reason or "mesh_edit.sync"),
+                message=str(exc),
+            )
+            self.set_status_message(
+                "Native Mesh Editor mesh sync failed; reload the D3D11 preview before continuing.",
+                error=True,
+            )
+            return False
+        _mesh_edit_state.replacement_mesh_for_mapping = mesh
+        mesh_edit_native_result_submesh_counts["value"] = ()
+        mesh_edit_preview_model_dirty["value"] = True
+        _mesh_editor_remember_static_replacement_session_mesh()
+        return True
 
     def _mesh_editor_remember_static_replacement_session_mesh() -> None:
         mesh_editor_static_replacement_session_state["mesh"] = _mesh_edit_state.replacement_mesh_for_mapping
@@ -2176,10 +2200,14 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         mesh_edit_selected_vertices_by_submesh.update(pruned_selected_vertices)
         topology_busy = _mesh_edit_worker_active()
         can_edit, reason = _mesh_edit_can_edit_scope()
+        dotnet_owns_input = bool(
+            mesh_edit_enabled_checkbox.isChecked()
+            and getattr(dialog, "_mesh_editor_use_embedded_dotnet_viewport", False)
+        )
         mesh_edit_group.setEnabled(mesh_edit_supported)
         set_toolbar_visible = getattr(classic_mesh_edit_toolbar, "setVisible", None)
         if callable(set_toolbar_visible):
-            set_toolbar_visible(bool(mesh_edit_supported and mesh_edit_enabled_checkbox.isChecked()))
+            set_toolbar_visible(bool(mesh_edit_supported and mesh_edit_enabled_checkbox.isChecked() and not dotnet_owns_input))
         mesh_edit_enabled_checkbox.setEnabled(mesh_edit_supported and not topology_busy)
         if not mesh_edit_supported:
             mesh_edit_enabled_checkbox.blockSignals(True)
@@ -2439,12 +2467,16 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         try:
             from cdmw.modding.mesh_native_core import restore_native_mesh_submeshes_from_mesh
 
-            return restore_native_mesh_submeshes_from_mesh(
+            restored = restore_native_mesh_submeshes_from_mesh(
                 _mesh_edit_state.replacement_mesh_for_mapping,
                 _mesh_edit_state.replacement_mesh_base_for_mapping,
                 source_indices,
                 timeout_seconds=20.0,
             )
+            if restored:
+                _mesh_editor_clear_static_replacement_session()
+                mesh_edit_native_result_submesh_counts["value"] = ()
+            return restored
         except Exception as exc:
             _record_mesh_edit_event(
                 "mesh_edit_native_base_restore_failed",
@@ -2501,6 +2533,29 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             _mesh_editor_result_mesh_for_state(result),
             native_update=native_update,
         )
+
+    def _mesh_editor_embedded_replace_working_mesh(mesh: object) -> bool:
+        if not isinstance(mesh, ParsedMesh):
+            return False
+        session = _mesh_editor_fresh_static_replacement_session()
+        if isinstance(session, StaticReplacementMeshEditSession):
+            session.mesh = mesh
+            session.submesh_counts = tuple(
+                (len(getattr(submesh, "vertices", ()) or ()), len(getattr(submesh, "faces", ()) or ()))
+                for submesh in tuple(getattr(mesh, "submeshes", ()) or ())
+            )
+        _mesh_edit_state.replacement_mesh_for_mapping = mesh
+        mesh_edit_native_result_submesh_counts["value"] = ()
+        _morph_slider_capture_post_edit_deltas()
+        _mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)
+        mesh_edit_revision["value"] = int(mesh_edit_revision.get("value", 0) or 0) + 1
+        _mesh_edit_commit_geometry_preview_state()
+        _sync_source_tree_enabled_checks()
+        _refresh_source_assignment_columns()
+        _refresh_mesh_edit_controls()
+        _mesh_edit_replace_live_triangles_or_queue_rebuild(_mesh_edit_preview_source_indices(), replace_all=True)
+        self.set_status_message("Mesh .NET editor output applied to embedded Mesh Editor preview.")
+        return True
 
     def _mesh_edit_undo() -> None:
         if _mesh_edit_state.replacement_mesh_for_mapping is None or not mesh_edit_undo_stack:
@@ -2602,6 +2657,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         )
         if not source_indices:
             return
+        if not _mesh_editor_sync_static_replacement_session_to_working_mesh("mesh_edit.reset_scope"):
+            return
         restore_deleted_output_by_source: dict[int, bool] = {}
         for source_index in source_indices:
             working_source = _mesh_edit_state.replacement_mesh_for_mapping.submeshes[source_index]
@@ -2649,6 +2706,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             is_base_source_index_editable=_mesh_edit_base_source_index_is_editable,
         )
         if not source_indices:
+            return
+        if not _mesh_editor_sync_static_replacement_session_to_working_mesh("mesh_edit.full_reset"):
             return
         restore_deleted_output_by_source: dict[int, bool] = {}
         for source_index in source_indices:
@@ -3227,6 +3286,20 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 source_indices,
             )
             groups = _mesh_edit_triangle_replace_groups(source_indices)
+            missing_group_sources = mesh_edit_missing_nonempty_triangle_group_sources(
+                _mesh_edit_state.replacement_mesh_for_mapping,
+                requested_source_indices,
+                groups,
+            )
+            if missing_group_sources:
+                _record_mesh_edit_event(
+                    "mesh_edit_live_triangle_replace_missing_groups",
+                    source_indices=missing_group_sources,
+                    requested_source_indices=requested_source_indices,
+                    group_count=len(groups),
+                    replace_all=bool(replace_all),
+                )
+                return False
             if groups or requested_source_indices:
                 if alignment_d3d11_preview_host.replace_mesh_edit_triangles(
                     groups,
@@ -5169,10 +5242,26 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
 
     def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:
         edit_enabled = bool(mesh_edit_enabled_checkbox.isChecked())
+        using_dotnet = bool(getattr(dialog, "_mesh_editor_use_embedded_dotnet_viewport", False))
+        stop_dotnet = getattr(dialog, "_mesh_editor_embedded_stop_dotnet", None)
+        if not edit_enabled and using_dotnet and callable(stop_dotnet):
+            if stop_dotnet():
+                _refresh_mesh_edit_controls()
+                _mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")
+                return
+        if not edit_enabled and not _mesh_editor_sync_static_replacement_session_to_working_mesh("mesh_edit.toggle_off"):
+            return
         if mesh_edit_preview_model_dirty.get("value") and not edit_enabled:
             _mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)
         _refresh_mesh_edit_controls()
         _mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")
+        if edit_enabled:
+            start_dotnet = getattr(dialog, "_mesh_editor_embedded_start_dotnet", None)
+            if bool(getattr(dialog, "_mesh_editor_use_embedded_dotnet_viewport", False)) and callable(start_dotnet):
+                start_dotnet()
+        else:
+            if callable(stop_dotnet):
+                stop_dotnet()
         if not edit_enabled:
             if callable(_queue_texture_preview_refresh):
                 _queue_texture_preview_refresh()
@@ -5231,6 +5320,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         _mesh_editor_action_bar_action_requested=_mesh_editor_action_bar_action_requested,
         _mesh_editor_embedded_apply_native_update=_mesh_editor_embedded_apply_native_update,
         _mesh_editor_embedded_controller=_mesh_editor_embedded_controller,
+        _mesh_editor_embedded_replace_working_mesh=_mesh_editor_embedded_replace_working_mesh,
         _mesh_editor_embedded_run_part_action=_mesh_editor_embedded_run_part_action,
         _mesh_editor_embedded_set_skeleton_bone=_mesh_editor_embedded_set_skeleton_bone,
         _mesh_edit_apply_preview_payload=_mesh_edit_apply_preview_payload,

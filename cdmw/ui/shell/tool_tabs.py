@@ -59,6 +59,8 @@ class ShellToolTabsMixin:
         self.mesh_editor_tab.modify_original_requested.connect(self._mesh_editor_modify_original_requested)
         self.mesh_editor_tab.import_replacement_requested.connect(self._mesh_editor_import_replacement_requested)
         self.mesh_editor_tab.import_preview_requested.connect(self._mesh_editor_import_preview_requested)
+        self.mesh_editor_tab.preview_rebuilt_asset_requested.connect(self._mesh_editor_preview_rebuilt_asset_requested)
+        self.mesh_editor_tab.package_rebuilt_asset_requested.connect(self._mesh_editor_package_rebuilt_asset_requested)
         self.mesh_editor_tab.in_game_swap_requested.connect(self._mesh_editor_in_game_swap_requested)
         self.mesh_editor_tab.open_archive_target_requested.connect(self._mesh_editor_show_archive_target_requested)
         self.mesh_editor_tab.mesh_action_requested.connect(self._mesh_editor_action_requested)

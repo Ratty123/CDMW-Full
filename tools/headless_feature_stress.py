@@ -24,6 +24,7 @@ NATIVE_HELPER_RELATIVE_PATHS = (
     Path("native/cdmw_d3d11_preview/build/Release/cdmw-d3d11-preview.exe"),
 )
 DEFAULT_CACHE_RUNS = 1
+REAL_MESH_EDITOR_VISUAL_SCENARIO = "real-archive-mesh-editor-d3d11-side-by-side-edit-smoke"
 
 
 @dataclass(slots=True)
@@ -233,6 +234,7 @@ def _real_archive_tasks(output_root: Path, game_root: Path | None, *, cycle: int
         "real-archive-animation-binding-smoke",
         "real-archive-sequence-binding-smoke",
         "real-archive-app-workflow-smoke",
+        REAL_MESH_EDITOR_VISUAL_SCENARIO,
     )
     if not game_root or not _resolve(game_root).exists():
         return [
@@ -328,19 +330,19 @@ def build_profile_tasks(args: argparse.Namespace, output_root: Path, *, cycle: i
         )
         return tasks
 
-    mesh_dir = _task_dir(output_root, "mesh-full-suite-smoke", cycle=cycle)
+    mesh_dir = _task_dir(output_root, "mesh-service-protocol-smoke", cycle=cycle)
     texture_dir = _task_dir(output_root, "texture-full-suite-smoke", cycle=cycle)
     tasks.extend(
         [
             _probe_task(output_root, "native-helper-preflight", "native-helper-preflight", cycle=cycle),
             _command_task(
                 output_root,
-                "mesh-full-suite-smoke",
+                "mesh-service-protocol-smoke",
                 [
                     sys.executable,
                     _python_tool("tools", "mesh_editor_dev_harness.py"),
                     "--scenario",
-                    "full-suite-smoke",
+                    "service-smoke",
                     "--output",
                     str(mesh_dir),
                 ],
@@ -374,7 +376,7 @@ def build_profile_tasks(args: argparse.Namespace, output_root: Path, *, cycle: i
             ),
             _codex_check_task(output_root, "responsiveness", cycle=cycle),
             _codex_check_task(output_root, "archive", cycle=cycle),
-            _codex_check_task(output_root, "mesh", cycle=cycle),
+            _codex_check_task(output_root, "mesh-unit", cycle=cycle),
             _codex_check_task(output_root, "texture", cycle=cycle),
         ]
     )

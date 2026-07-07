@@ -1383,7 +1383,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("return false;", preserve_body)
         self.assertNotIn("kDenseMeshEditMaterialPreserveTriangles", source)
         self.assertIn("else if (!dense_topology_overlay)", source)
-        self.assertIn("batch_is_reference(batch) || !batch_visible_in_view(batch, PreviewViewRole::Replacement)", source)
+        self.assertIn("!batch_is_reference(batch)", source)
         self.assertIn("add_thick_line_depth(p[0], depth_z[0], p[1], depth_z[1], 2.4f, 1.0f, 0.48f, 0.12f)", source)
         self.assertIn("mesh_edit_.tool == \"remove\"", source)
         self.assertIn("add_ring(ScreenPoint{static_cast<float>(cursor_x_), static_cast<float>(cursor_y_)}, mesh_edit_.radius_pixels + 2.0f", source)

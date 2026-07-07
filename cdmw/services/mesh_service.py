@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import math
 import os
 import time
@@ -9,6 +10,7 @@ from typing import Iterable, Mapping, Sequence
 from uuid import uuid4
 
 from cdmw.domain.mesh import (
+    DEVELOPER_OVERRIDABLE_REBUILD_BLOCKERS,
     MESH_EDIT_ACTIONS,
     MESH_EDIT_MODES,
     MeshAnimationClip,
@@ -77,7 +79,11 @@ from cdmw.modding.mesh_native_core import (
     transfer_native_mesh_skin_weights_from_source,
     undo_native_mesh_editor_session,
 )
+from cdmw.modding.mesh_asset import mesh_asset_from_parsed_mesh
+from cdmw.modding.mesh_importer import MeshRebuildReport, apply_operation_channels_to_original, rebuild_mesh_with_report
+from cdmw.modding.mesh_obj_importer import validate_obj_sidecar_source_identity
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, is_mesh_file, parse_mesh
+from cdmw.modding.mesh_roundtrip import roundtrip_mesh_bytes
 from cdmw.models import RunCancelled
 
 _PYTHON_MESH_SELECTION_FALLBACK_VERTEX_LIMIT = 10_000
@@ -140,6 +146,7 @@ class _MeshHistorySnapshot:
     mesh: ParsedMesh | None
     mode: str
     selection: MeshEditSelection
+    edit_operations: tuple[object, ...] = ()
     vertex_position_deltas: tuple[_MeshVertexPositionDelta, ...] = ()
     native_submesh_snapshot: Mapping[str, object] | None = None
     native_editor_history: bool = False
@@ -179,6 +186,14 @@ class _MeshEditSession:
     session_id: str
     base_mesh: ParsedMesh
     working_mesh: ParsedMesh
+    original_data: bytes = b""
+    mesh_asset_parse_confidence: str = ""
+    mesh_asset_source_hash: str = ""
+    mesh_asset_inferred_bone_count: int = 0
+    no_op_roundtrip_report: Mapping[str, object] | None = None
+    sidecar_warnings: tuple[object, ...] = ()
+    edit_operations: tuple[object, ...] = ()
+    requires_edit_operations: bool = False
     mode: str = "object"
     selection: MeshEditSelection = field(default_factory=MeshEditSelection)
     skeleton: object | None = None
@@ -207,13 +222,137 @@ class _MeshEditSession:
     redo_stack: list[_MeshHistorySnapshot] = field(default_factory=list)
 
 
+def _attach_mesh_asset_status(mesh: ParsedMesh, original_data: bytes, *, run_roundtrip: bool) -> None:
+    setattr(mesh, "_cdmw_original_data", bytes(original_data or b""))
+    try:
+        asset = mesh_asset_from_parsed_mesh(mesh, original_data, source_path=str(mesh.path or ""))
+    except Exception:
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "failed")
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", "")
+        setattr(mesh, "_cdmw_mesh_asset_inferred_bone_count", 0)
+        setattr(mesh, "_cdmw_mesh_asset_lods", ())
+        setattr(mesh, "_cdmw_mesh_asset_material_slots", ())
+        setattr(mesh, "_cdmw_mesh_asset_unknown_sections", ())
+    else:
+        setattr(mesh, "_cdmw_mesh_asset_parse_confidence", asset.parse_confidence)
+        setattr(mesh, "_cdmw_mesh_asset_source_hash", asset.original_file_hash)
+        setattr(mesh, "_cdmw_mesh_asset_lods", tuple(asset.lods))
+        setattr(mesh, "_cdmw_mesh_asset_material_slots", tuple(asset.material_slots))
+        setattr(mesh, "_cdmw_mesh_asset_unknown_sections", tuple(asset.unknown_sections))
+        skeleton_info = asset.skeleton_info if isinstance(asset.skeleton_info, Mapping) else {}
+        bone_count = _positive_int(skeleton_info.get("skeleton_bone_count")) or _positive_int(
+            skeleton_info.get("inferred_bone_count")
+        )
+        setattr(mesh, "_cdmw_mesh_asset_inferred_bone_count", bone_count)
+    if not run_roundtrip:
+        return
+    try:
+        result = roundtrip_mesh_bytes(
+            original_data,
+            str(mesh.path or ""),
+            parser=lambda _data, _filename: mesh,
+        )
+        setattr(mesh, "_cdmw_no_op_roundtrip_report", dict(result.report))
+    except Exception as exc:
+        setattr(
+            mesh,
+            "_cdmw_no_op_roundtrip_report",
+            {"result": "FAIL", "parse": "FAIL", "rebuild": "NOT_RUN", "error": str(exc)},
+        )
+
+
+def _session_roundtrip_status(session: _MeshEditSession) -> str:
+    report = session.no_op_roundtrip_report
+    if not isinstance(report, Mapping):
+        return "not_run" if session.original_data else ""
+    return str(report.get("result") or "FAIL")
+
+
+def _session_roundtrip_byte_identical(session: _MeshEditSession) -> bool | None:
+    report = session.no_op_roundtrip_report
+    if not isinstance(report, Mapping) or "byte_identical" not in report:
+        return None
+    return bool(report.get("byte_identical"))
+
+
+def _session_roundtrip_unexpected_differences(session: _MeshEditSession) -> int:
+    report = session.no_op_roundtrip_report
+    if not isinstance(report, Mapping):
+        return 0
+    try:
+        return max(0, int(report.get("unexpected_differences") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _positive_int(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    try:
+        number = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return number if number > 0 else 0
+
+
+def _copy_mesh_validation_metadata(source: ParsedMesh, target: ParsedMesh) -> None:
+    for name in (
+        "_cdmw_original_data",
+        "_cdmw_mesh_asset_parse_confidence",
+        "_cdmw_mesh_asset_source_hash",
+        "_cdmw_mesh_asset_inferred_bone_count",
+        "_cdmw_no_op_roundtrip_report",
+        "_cdmw_mesh_asset_lods",
+        "_cdmw_mesh_asset_material_slots",
+        "_cdmw_mesh_asset_unknown_sections",
+        "material_slots",
+        "unknown_sections",
+    ):
+        if hasattr(source, name):
+            setattr(target, name, copy.deepcopy(getattr(source, name)))
+    for source_submesh, target_submesh in zip(tuple(source.submeshes or ()), tuple(target.submeshes or ())):
+        if hasattr(source_submesh, "unknown_fields"):
+            setattr(target_submesh, "unknown_fields", copy.deepcopy(getattr(source_submesh, "unknown_fields")))
+
+
+def _session_validation_skeleton_bone_count(session: _MeshEditSession) -> int | None:
+    if session.skeleton is not None:
+        return len(tuple(getattr(session.skeleton, "bones", ()) or ()))
+    return session.mesh_asset_inferred_bone_count or None
+
+
+def _developer_override_blocker_codes(
+    report: MeshExportValidationReport,
+    *,
+    enabled: bool,
+    output_path: str,
+) -> tuple[str, ...]:
+    if not enabled or not str(output_path or "").strip():
+        return ()
+    codes = tuple(str(issue.code or "").strip() for issue in report.blockers)
+    if codes and all(code in DEVELOPER_OVERRIDABLE_REBUILD_BLOCKERS for code in codes):
+        return codes
+    return ()
+
+
+def _developer_override_report_entries(reason: str, codes: Sequence[str]) -> tuple[str, ...]:
+    if not codes:
+        return ()
+    text = str(reason or "").strip() or "Developer-mode unsafe rebuild override."
+    return (
+        "developer_override=true",
+        f"override_reason={text}",
+        f"unsafe_conditions={', '.join(codes)}",
+    )
+
+
 @dataclass(slots=True)
 class MeshService:
     settings: object | None = None
     max_history: int = 50
     _sessions: dict[str, _MeshEditSession] = field(default_factory=dict)
 
-    def load_mesh_file(self, path: Path | str) -> ParsedMesh:
+    def load_mesh_file(self, path: Path | str, *, run_roundtrip: bool = False) -> ParsedMesh:
         source_path = Path(path).expanduser()
         if not is_mesh_file(str(source_path)):
             raise ValueError(f"Unsupported mesh file type: {source_path.suffix or source_path}")
@@ -224,6 +363,7 @@ class MeshService:
         if not str(mesh.path or "").strip():
             mesh.path = str(source_path)
         refresh_mesh_totals(mesh)
+        _attach_mesh_asset_status(mesh, data, run_roundtrip=run_roundtrip)
         return mesh
 
     def open_edit_session(
@@ -238,11 +378,25 @@ class MeshService:
         mode = _mode(mode)
         session_key = str(session_id or uuid4())
         working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)
+        _copy_mesh_validation_metadata(mesh, working_mesh)
+        _copy_mesh_validation_metadata(mesh, base_mesh)
         refresh_mesh_totals(working_mesh)
         self._sessions[session_key] = _MeshEditSession(
             session_id=session_key,
             base_mesh=base_mesh,
             working_mesh=working_mesh,
+            original_data=bytes(getattr(mesh, "_cdmw_original_data", b"") or b""),
+            mesh_asset_parse_confidence=str(getattr(mesh, "_cdmw_mesh_asset_parse_confidence", "") or ""),
+            mesh_asset_source_hash=str(getattr(mesh, "_cdmw_mesh_asset_source_hash", "") or ""),
+            mesh_asset_inferred_bone_count=_positive_int(getattr(mesh, "_cdmw_mesh_asset_inferred_bone_count", 0)),
+            no_op_roundtrip_report=getattr(mesh, "_cdmw_no_op_roundtrip_report", None),
+            sidecar_warnings=tuple(getattr(mesh, "_cdmw_sidecar_warnings", ()) or ()),
+            edit_operations=tuple(getattr(mesh, "_cdmw_edit_operations", ()) or ()),
+            requires_edit_operations=bool(getattr(mesh, "_cdmw_requires_edit_operations", False))
+            or (
+                bool(getattr(mesh, "_cdmw_imported_from_obj", False))
+                and bool(getattr(mesh, "_cdmw_obj_sidecar_present", False))
+            ),
             mode=mode,
         )
         return self.session_view(session_key)
@@ -292,6 +446,36 @@ class MeshService:
             "session.working_mesh_clone",
             "Python working mesh clone fallback blocked while native mesh core is available",
         )
+
+    def replace_working_mesh(self, session_id: str, mesh: ParsedMesh) -> MeshEditSessionView:
+        session = self._session(session_id)
+        if not isinstance(mesh, ParsedMesh):
+            raise TypeError("mesh must be a ParsedMesh")
+        if session.native_editor_mesh_dirty and not _sync_native_editor_session_to_working_mesh(session):
+            raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
+        if bool(getattr(mesh, "_cdmw_imported_from_obj", False)) and bool(getattr(mesh, "_cdmw_obj_sidecar_present", False)):
+            validate_obj_sidecar_source_identity(mesh, session.original_data)
+        self._push_history(session, prefer_native=True)
+        _clear_history_stack(session.redo_stack)
+        _close_native_editor_session(session)
+        working_mesh = apply_operation_channels_to_original(session.base_mesh, mesh)
+        if session.original_data:
+            setattr(working_mesh, "_cdmw_original_data", session.original_data)
+        if not str(working_mesh.format or "").strip():
+            working_mesh.format = session.base_mesh.format
+        if not str(working_mesh.path or "").strip():
+            working_mesh.path = session.base_mesh.path
+        refresh_mesh_totals(working_mesh)
+        session.working_mesh = working_mesh
+        session.selection = MeshEditSelection()
+        session.sidecar_warnings = tuple(getattr(working_mesh, "_cdmw_sidecar_warnings", ()) or ())
+        session.edit_operations = tuple(getattr(working_mesh, "_cdmw_edit_operations", ()) or ())
+        session.requires_edit_operations = bool(getattr(working_mesh, "_cdmw_requires_edit_operations", False)) or (
+            bool(getattr(working_mesh, "_cdmw_imported_from_obj", False))
+            and bool(getattr(working_mesh, "_cdmw_obj_sidecar_present", False))
+        )
+        session.revision += 1
+        return self.session_view(session_id)
 
     def pose_preview_mesh(self, session_id: str) -> ParsedMesh:
         session = self._session(session_id)
@@ -886,14 +1070,122 @@ class MeshService:
         session = self._session(session_id)
         if session.native_editor_mesh_dirty and not _sync_native_editor_session_to_working_mesh(session):
             raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
-        if skeleton_bone_count is None and session.skeleton is not None:
-            skeleton_bone_count = len(tuple(getattr(session.skeleton, "bones", ()) or ()))
+        if skeleton_bone_count is None:
+            skeleton_bone_count = _session_validation_skeleton_bone_count(session)
         return validate_mesh_export(
             session.working_mesh,
             original_mesh=session.base_mesh,
             available_textures=available_textures,
             skeleton_bone_count=skeleton_bone_count,
+            parse_confidence=session.mesh_asset_parse_confidence,
+            source_asset_hash=session.mesh_asset_source_hash,
+            no_op_roundtrip_status=_session_roundtrip_status(session),
+            no_op_byte_identical=_session_roundtrip_byte_identical(session),
+            no_op_unexpected_differences=_session_roundtrip_unexpected_differences(session),
+            sidecar_warnings=session.sidecar_warnings,
+            edit_operations=session.edit_operations,
+            requires_edit_operations=session.requires_edit_operations,
         )
+
+    def rebuild_report(
+        self,
+        session_id: str,
+        *,
+        available_textures: Iterable[str] | None = None,
+        skeleton_bone_count: int | None = None,
+        output_path: str = "",
+        developer_override: bool = False,
+        developer_override_reason: str = "",
+    ) -> MeshRebuildReport:
+        _result, report = self._rebuild_result(
+            session_id,
+            available_textures=available_textures,
+            skeleton_bone_count=skeleton_bone_count,
+            output_path=output_path,
+            developer_override=developer_override,
+            developer_override_reason=developer_override_reason,
+        )
+        return report
+
+    def rebuild_asset(
+        self,
+        session_id: str,
+        output_path: Path | str,
+        *,
+        available_textures: Iterable[str] | None = None,
+        skeleton_bone_count: int | None = None,
+        developer_override: bool = False,
+        developer_override_reason: str = "",
+    ) -> MeshRebuildReport:
+        target = Path(output_path)
+        if not str(target).strip():
+            raise RuntimeError("mesh rebuild output path is required")
+        session = self._session(session_id)
+        source_text = str(getattr(session.base_mesh, "path", "") or getattr(session.working_mesh, "path", "") or "").strip()
+        if source_text and target.resolve(strict=False) == Path(source_text).resolve(strict=False):
+            raise RuntimeError("mesh rebuild output must not overwrite the original source asset")
+        result, report = self._rebuild_result(
+            session_id,
+            available_textures=available_textures,
+            skeleton_bone_count=skeleton_bone_count,
+            output_path=str(target),
+            developer_override=developer_override,
+            developer_override_reason=developer_override_reason,
+        )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(result.data)
+        return report
+
+    def _rebuild_result(
+        self,
+        session_id: str,
+        *,
+        available_textures: Iterable[str] | None = None,
+        skeleton_bone_count: int | None = None,
+        output_path: str = "",
+        developer_override: bool = False,
+        developer_override_reason: str = "",
+    ):
+        session = self._session(session_id)
+        if not session.original_data:
+            raise RuntimeError("mesh rebuild report requires original source bytes")
+        validation = self.validate_export(
+            session_id,
+            available_textures=available_textures,
+            skeleton_bone_count=skeleton_bone_count,
+        )
+        overridden_blockers: tuple[str, ...] = ()
+        if not validation.ok:
+            overridden_blockers = _developer_override_blocker_codes(
+                validation,
+                enabled=developer_override,
+                output_path=output_path,
+            )
+            if not overridden_blockers:
+                codes = ", ".join(issue.code for issue in validation.blockers[:6]) or "validation blocked rebuild"
+                raise RuntimeError(f"mesh rebuild blocked: {codes}")
+        if session.edit_operations:
+            setattr(session.working_mesh, "_cdmw_edit_operations", tuple(session.edit_operations))
+        result = rebuild_mesh_with_report(
+            session.working_mesh,
+            session.original_data,
+            validation_status="developer_override" if overridden_blockers else "passed",
+            output_path=output_path,
+        )
+        override_entries = _developer_override_report_entries(
+            developer_override_reason,
+            overridden_blockers,
+        )
+        report = replace(
+            result.report,
+            validation_status="developer_override" if overridden_blockers else "passed",
+            warnings=tuple(issue.code for issue in validation.warnings)
+            + tuple(f"developer_override_blocker:{code}" for code in overridden_blockers),
+            developer_overrides=tuple(getattr(result.report, "developer_overrides", ()) or ()) + override_entries,
+            edit_operations=tuple(dict(operation) if isinstance(operation, Mapping) else operation for operation in session.edit_operations),
+            output_path=str(output_path or result.report.output_path or ""),
+        )
+        return result, report
 
     def apply_command(self, session_id: str, command: MeshEditCommand | str) -> MeshEditResult:
         session = self._session(session_id)
@@ -1054,6 +1346,7 @@ class MeshService:
                     mesh=fallback_snapshot.mesh,
                     mode=history_mode,
                     selection=history_selection,
+                    edit_operations=fallback_snapshot.edit_operations,
                     vertex_position_deltas=fallback_snapshot.vertex_position_deltas,
                     native_submesh_snapshot=fallback_snapshot.native_submesh_snapshot,
                 ),
@@ -1142,6 +1435,7 @@ class MeshService:
                             mesh=None,
                             mode=history_mode,
                             selection=history_selection,
+                            edit_operations=tuple(session.edit_operations),
                             native_editor_history=True,
                             native_editor_stroke_id=native_stroke_id,
                         ),
@@ -1190,6 +1484,7 @@ class MeshService:
                 pass
             elif action in MESH_TOPOLOGY_ACTIONS or topology_changed:
                 session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+            _record_session_edit_operations(session, action, edit_command, affected, changed, topology_changed=topology_changed)
         diagnostics = _append_unique_diagnostics(
             diagnostics,
             _native_blocked_fallback_diagnostics(fallback_event_start),
@@ -1364,6 +1659,7 @@ def _snapshot(session: _MeshEditSession, *, prefer_native: bool = False) -> _Mes
                 mesh=None,
                 mode=session.mode,
                 selection=session.selection,
+                edit_operations=tuple(session.edit_operations),
                 native_submesh_snapshot=native_snapshot,
             )
         if not _allow_python_history_snapshot_fallback(session.working_mesh, "history.snapshot"):
@@ -1419,6 +1715,7 @@ def _clone_mesh_for_service_native_snapshot(mesh: ParsedMesh, operation: str, re
             restored_mesh = ParsedMesh()
             if restore_native_mesh_submesh_snapshot(restored_mesh, native_snapshot):
                 refresh_mesh_totals(restored_mesh)
+                _copy_mesh_validation_metadata(mesh, restored_mesh)
                 return restored_mesh
     except Exception:
         pass
@@ -1433,6 +1730,7 @@ def _clone_history_snapshot_for_python_fallback(session: _MeshEditSession) -> _M
         mesh=clone_mesh_for_editing(session.working_mesh),
         mode=session.mode,
         selection=session.selection,
+        edit_operations=tuple(session.edit_operations),
     )
 
 
@@ -1457,7 +1755,9 @@ def _clone_mesh_for_service_python_fallback(
 ) -> ParsedMesh:
     if guard_native_supported and not _allow_python_service_clone_fallback(mesh, operation, reason):
         raise RuntimeError("native mesh clone failed and Python fallback was blocked")
-    return clone_mesh_for_editing(mesh)
+    cloned = clone_mesh_for_editing(mesh)
+    _copy_mesh_validation_metadata(mesh, cloned)
+    return cloned
 
 
 def _service_session_native_clone_supported(mesh: ParsedMesh) -> bool:
@@ -1506,6 +1806,7 @@ def _restore_native_editor_history(
         raise RuntimeError("native mesh editor history is unavailable for this session")
     current_mode = session.mode
     current_selection = session.selection
+    current_edit_operations = tuple(session.edit_operations)
     dirty_at_start = session.native_editor_mesh_dirty
     before_signature = (
         session.native_editor_mesh_dirty_counts
@@ -1547,6 +1848,7 @@ def _restore_native_editor_history(
     affected, changed_vertices_by_submesh = applied
     session.mode = snapshot.mode
     session.selection = snapshot.selection
+    session.edit_operations = tuple(snapshot.edit_operations)
     after_signature = session.native_editor_mesh_dirty_counts if session.native_editor_mesh_dirty else _mesh_structure_signature(session.working_mesh)
     topology_changed, topology_affected, submesh_count_delta = _restore_topology_delta(
         before_signature,
@@ -1565,6 +1867,7 @@ def _restore_native_editor_history(
             mesh=None,
             mode=current_mode,
             selection=current_selection,
+            edit_operations=current_edit_operations,
             native_editor_history=True,
             native_editor_stroke_id=snapshot.native_editor_stroke_id,
         ),
@@ -1582,6 +1885,7 @@ def _restore_native_editor_history(
 def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> _MeshRestoreOutcome:
     current_mode = session.mode
     current_selection = session.selection
+    current_edit_operations = tuple(session.edit_operations)
     before_signature = _mesh_structure_signature(session.working_mesh)
     changed_vertices_by_submesh: dict[int, Sequence[int] | set[int]] = {}
     if snapshot.mesh is not None:
@@ -1597,6 +1901,7 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
             mesh=None,
             mode=current_mode,
             selection=current_selection,
+            edit_operations=current_edit_operations,
             vertex_position_deltas=current_deltas,
         )
         changed_vertices_by_submesh = _changed_vertices_from_deltas(
@@ -1607,6 +1912,7 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
         current_snapshot = _snapshot(session)
     session.mode = snapshot.mode
     session.selection = snapshot.selection
+    session.edit_operations = tuple(snapshot.edit_operations)
     after_signature = _mesh_structure_signature(session.working_mesh)
     topology_changed, affected_submesh_indices, submesh_count_delta = _restore_topology_delta(
         before_signature,
@@ -2656,6 +2962,7 @@ def _native_live_history_snapshot(
         mesh=None,
         mode=mode,
         selection=selection,
+        edit_operations=tuple(session.edit_operations),
         vertex_position_deltas=tuple(deltas),
     )
 
@@ -3669,6 +3976,116 @@ def _records_history(command: MeshEditCommand) -> bool:
     if isinstance(value, str):
         return value.strip().lower() not in {"0", "false", "no", "off"}
     return bool(value)
+
+
+def _record_session_edit_operations(
+    session: _MeshEditSession,
+    action: str,
+    command: MeshEditCommand,
+    affected: Iterable[int],
+    changed: Mapping[int, object] | None,
+    *,
+    topology_changed: bool,
+) -> None:
+    operation_names = _operation_names_for_command(action, command)
+    if not operation_names or topology_changed:
+        return
+    targets = _operation_target_indices(session, affected, changed)
+    if not targets:
+        return
+    existing = [dict(operation) if isinstance(operation, Mapping) else operation for operation in session.edit_operations]
+    for submesh_index in targets:
+        if not 0 <= submesh_index < len(session.working_mesh.submeshes):
+            continue
+        submesh = session.working_mesh.submeshes[submesh_index]
+        target_operations = list(operation_names)
+        if any(name in {"replace_positions_same_count", "translate_vertices", "scale_vertices", "rotate_vertices"} for name in target_operations):
+            if _submesh_channel_changed(session.base_mesh, session.working_mesh, submesh_index, "normals"):
+                target_operations.append("replace_normals_same_count")
+        for operation_name in dict.fromkeys(target_operations):
+            existing.append(
+                {
+                    "operation": operation_name,
+                    "lod_index": 0,
+                    "submesh_index": submesh_index,
+                    "vertex_count": len(submesh.vertices or ()),
+                    "source": str(command.label or action or "Mesh Editor"),
+                    "created_by": "Mesh Editor v2",
+                    "metadata": {"service_action": action},
+                }
+            )
+    session.edit_operations = tuple(existing)
+
+
+def _operation_names_for_command(action: str, command: MeshEditCommand) -> tuple[str, ...]:
+    if action == "transform":
+        params = command.params or {}
+        has_translate = _vector_has_value(params.get("translate", params.get("delta")))
+        has_scale = _vector_has_non_identity_scale(params.get("scale"))
+        has_rotate = _vector_has_value(params.get("rotate", params.get("rotate_degrees")))
+        if has_translate and not has_scale and not has_rotate:
+            return _with_recomputed_normals("translate_vertices", params)
+        if has_scale and not has_translate and not has_rotate:
+            return _with_recomputed_normals("scale_vertices", params)
+        if has_rotate and not has_translate and not has_scale:
+            return _with_recomputed_normals("rotate_vertices", params)
+        return _with_recomputed_normals("replace_positions_same_count", params)
+    if action == "brush":
+        return _with_recomputed_normals("replace_positions_same_count", command.params or {})
+    if action in {"recalculate_normals", "flip_normals", "sharpen_normals", "soften_normals", "weighted_normals", "copy_normals"}:
+        return ("replace_normals_same_count",)
+    if action == "generate_tangents":
+        return ("replace_tangents_same_count",)
+    if action == "uv_transform":
+        return ("replace_uv0_same_count",)
+    return ()
+
+
+def _with_recomputed_normals(operation: str, params: Mapping[str, object]) -> tuple[str, ...]:
+    if _truthy(params.get("recompute_normals", True)):
+        return (operation, "replace_normals_same_count")
+    return (operation,)
+
+
+def _submesh_channel_changed(base_mesh: ParsedMesh, working_mesh: ParsedMesh, submesh_index: int, channel: str) -> bool:
+    if not 0 <= submesh_index < len(base_mesh.submeshes or ()):
+        return False
+    if not 0 <= submesh_index < len(working_mesh.submeshes or ()):
+        return False
+    before = base_mesh.submeshes[submesh_index]
+    after = working_mesh.submeshes[submesh_index]
+    attr = {"normals": "normals", "uv0": "uvs", "tangents": "tangents"}.get(channel, channel)
+    return tuple(getattr(before, attr, ()) or ()) != tuple(getattr(after, attr, ()) or ())
+
+
+def _operation_target_indices(
+    session: _MeshEditSession,
+    affected: Iterable[int],
+    changed: Mapping[int, object] | None,
+) -> tuple[int, ...]:
+    indices = {_coerce_index(value) for value in affected}
+    indices.update(_coerce_index(value) for value in (changed or {}).keys())
+    return tuple(sorted(index for index in indices if index is not None and 0 <= index < len(session.working_mesh.submeshes)))
+
+
+def _vector_has_value(value: object) -> bool:
+    vector = _native_editor_transform_vec3_payload(value, fallback=(0.0, 0.0, 0.0))
+    if not isinstance(vector, (list, tuple)):
+        return False
+    try:
+        return any(abs(float(component)) > 1e-8 for component in vector[:3])
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
+def _vector_has_non_identity_scale(value: object) -> bool:
+    vector = _native_editor_transform_vec3_payload(value, fallback=(1.0, 1.0, 1.0))
+    if not isinstance(vector, (list, tuple)):
+        return False
+    try:
+        return any(abs(float(component) - 1.0) > 1e-8 for component in vector[:3])
+    except (TypeError, ValueError, OverflowError):
+        return False
 
 
 def _append_unique_diagnostics(existing: tuple[str, ...], extra: tuple[str, ...]) -> tuple[str, ...]:

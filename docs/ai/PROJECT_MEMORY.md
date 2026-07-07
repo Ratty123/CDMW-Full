@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 ## Repo Rules
 
@@ -12,8 +12,10 @@ Last updated: 2026-07-06
   under `cdmw/domain/`, and long-running work under `cdmw/workers/`.
 - Do not mutate archives directly from UI code. Archive mutation/export safety
   stays outside normal Mesh Editor UI actions.
-- Use targeted validation first. Run broad `.\scripts\codex_check.ps1 -Area mesh`
-  only at milestone gates, not after every native mesh slice.
+- Use targeted validation first. `.\scripts\codex_check.ps1 -Area mesh` is
+  real-game Mesh Editor proof; broad synthetic/unit coverage is
+  `.\scripts\codex_check.ps1 -Area mesh-unit` and should run only at milestone
+  gates, not after every native mesh slice.
 - Keep `docs/plans/active/` limited to current plans. Superseded, completed,
   handoff, and new-chat bootstrap plans should be deleted rather than left under
   active.
@@ -42,8 +44,151 @@ Last updated: 2026-07-06
 - `ParsedMesh` is still the compatibility parser/export shape. The strict
   rebuild contract starts in `cdmw.domain.mesh.asset`; use
   `cdmw.modding.mesh_asset` to convert parser output and
-  `tools/mesh_pipeline.py inspect|roundtrip` for UI-free MeshAsset inspection
-  and no-edit rebuild diff reports.
+  `tools/mesh_pipeline.py inspect|roundtrip|export|import|validate|rebuild` for
+  UI-free MeshAsset inspection, no-edit rebuild diff reports, sidecar package
+  export/import, validation, and gated rebuild reports. MeshAsset
+  conversion from a parsed mesh inspects original bytes when no layout is
+  supplied, so UI/service file sessions keep PAC LOD section ranges instead of
+  only CLI inspect paths. MeshAsset `skeleton_info` and OBJ sidecars
+  report inferred skinning facts; file-loaded MeshAsset sessions may use the
+  original inferred bone count to validate preserved skinning, but linked
+  skeleton metadata is still required for real skeleton authoring. Use
+  `cdmw.modding.mesh_importer.rebuild_mesh_with_report()` when callers need
+  source/rebuilt hashes, changed byte ranges, and edited-scope metadata; UI
+  paths should go through `MeshService.rebuild_report()` so validation gates the
+  in-memory rebuild first. Final file writes should go through
+  `MeshService.rebuild_asset()`, which uses the same validation gate and refuses
+  to overwrite the original source path. Standalone UI runs both paths through
+  `MeshRebuildReportWorker` from the Rebuild panel, can preview the last rebuilt
+  file through the archive import-preview flow or send it to the archive
+  package/patch flow when an archive target is present, and can save the last
+  report as JSON without rerunning rebuild work.
+  Standalone UI editable-package Export
+  and Import buttons run through `MeshEditablePackageExportWorker` and
+  `MeshEditablePackageImportWorker`; import replaces the working mesh through
+  `MeshService` and reruns validation before rebuild state changes. The adjacent
+  Open button opens `mesh_editor/last_editable_package_dir`. The Checks panel
+  Run button uses `MeshExportValidationWorker` to refresh validation off the UI
+  thread, and Copy copies `standalone_last_export_validation_report` as JSON
+  instead of scraping displayed tree rows.
+- Export validation preserves skinning by default: changed bone indices or bone
+  weights against the original mesh block rebuild unless a later explicit safe
+  skinning operation/rebuild rule is added.
+- Export validation preserves material identity by default: changed material
+  slot counts, material slots, or texture references against the original
+  session mesh block rebuild unless a later explicit safe material
+  operation/rebuild rule is added. OBJ sidecars prefer exact attached MeshAsset
+  material slots when available instead of rebuilding slot metadata from visible
+  submeshes.
+- Export validation preserves unknown metadata by default: changed MeshAsset
+  unknown sections or submesh `unknown_fields` against the original session mesh
+  block rebuild.
+- Export validation preserves original vertex stride by default: changed or
+  dropped submesh source/original vertex stride against the original session
+  mesh blocks rebuild. OBJ sidecar import merges strict LOD metadata into
+  matched submesh entries so native-manifest packages carry stride evidence
+  back into validation.
+- MeshAsset rebuild validation preserves raw vertex records by default: dropped
+  or changed raw records block rebuild so source bytes remain available for
+  metadata-preserving patching.
+- Export validation preserves source offsets by default: changed or dropped
+  source vertex offsets, source index offsets/counts, or source descriptor
+  offsets against the original session mesh block rebuild. OBJ sidecar import
+  reconstructs vertex offsets from original vertex offset, stride, and source
+  vertex map.
+- Imported OBJ rebuilds validate sidecar source hash/size and topology counts;
+  `allow_topology_change=false` still permits OBJ vertex splits only when the
+  source vertex map covers the same original vertices. Skinned OBJ sidecars must
+  include per-submesh `bone_layout` metadata and complete `source_vertex_map`
+  rows at import. Strict LOD sidecars must include a complete inline
+  `source_index_map` for indexed submeshes. OBJ sidecars also carry raw vertex
+  record count/stride/SHA-256 evidence when source bytes and offsets are
+  available; source identity validation recomputes those hashes from the
+  current source asset before rebuild. They also include MeshAsset
+  LOD section identity and unknown-section range evidence when parser layout
+  recovery exposes it, plus JSON-safe unknown submesh fields restored on OBJ import. OBJ material-name and MTL
+  texture-path drift from the sidecar are stored as sidecar warnings and
+  surfaced by export validation. Same-count
+  OBJ sidecar imports also attach explicit Mesh Editor v2 operations for
+  position, normal, and UV0 replacement when the sidecar vertex count still
+  matches; `allowed_edit_operations` can reject those before rebuild. Rebuild
+  reports include the attached operation list and use validated operation
+  targets as edited-scope fallback when original bytes cannot be parsed for
+  channel diffing. Direct rebuilds reject invalid attached operations before
+  running a builder, and operation-required paths block original-to-edited
+  channel changes that are not covered by the attached operation list. When
+  original bytes parse, direct builders receive original mesh data with only
+  validated operation channels copied from the edited mesh. Built-in same-count
+  transform/brush/normal/tangent/UV actions append undoable operation entries.
+  Same-count and transform-style operation validation requires a complete
+  `source_vertex_map` for the target submesh. `MeshService.replace_working_mesh()`
+  rejects OBJ sidecar source hash/size mismatch before mutating the session.
+  Material-name and texture-path sidecar drift remains previewable as warnings
+  but blocks final rebuild by default. Imported OBJ sidecar rebuilds also
+  require an explicit attached operation list.
+- Editable package export now writes `mesh.glb` as the primary interchange and
+  `mesh.obj` as the secondary format. Package import prefers sidecar GLB, falls
+  back to OBJ, and aliases `mesh.cdmeta.json` back to the selected mesh sidecar
+  when external editors keep only the package-level metadata. Visual-only GLB
+  without that sidecar remains blocked from rebuild.
+- Mesh Editor developer rebuild override is settings-only:
+  `mesh_editor/developer_mode=true` plus
+  `mesh_editor/developer_rebuild_override=true`. It can only force a separate
+  output rebuild past parser-confidence/no-op round-trip blockers and writes
+  `developer_overrides` plus `developer_override_blocker:*` warnings into the
+  rebuild report; normal topology/sidecar/skeleton/material/operation blockers
+  still fail closed.
+- The first .NET Mesh Editor experiment path is an external process launched
+  from standalone Mesh Editor or the embedded replacement-builder Mesh Editor
+  toolbar; active follow-up plan is
+  `docs/plans/active/embedded-dotnet-mesh-editor.md`, which embeds that process
+  inside `Edit Mesh`, adds solid/textured display with optional wire overlay,
+  and requires toggling Edit Mesh off to import the .NET-edited mesh before
+  restoring the textured preview. The `.NET` button reads
+  `mesh_editor/dotnet_experiment_executable`,
+  `CDMW_MESH_DOTNET_EXPERIMENT_EXE`, or bundled
+  `cdmw-mesh-dotnet-editor.exe`, then uses
+  `MeshDotNetExperimentPackageWorker` to export an OBJ sidecar handoff package
+  and launches the process with package/status/output/edit-operation paths.
+  `tools/dotnet_mesh_editor_experiment` is the current WinForms wireframe
+  prototype; `build_pyside6_app.ps1` publishes it into
+  `native/cdmw_mesh_dotnet_editor/build/<Config>` for PyInstaller bundling.
+  `MeshService.working_mesh(clone=True)` preserves MeshAsset validation metadata
+  through native-snapshot clones, so .NET handoff sidecars keep PAC LOD section
+  offsets/sizes and do not trip `lod_identity_changed` on reimport.
+  When it exits with edited OBJ output, `MeshDotNetExperimentOutputImportWorker`
+  imports through the sidecar path, replaces the working mesh via
+  `MeshService.replace_working_mesh()`, syncs embedded launches back into the
+  replacement preview, and reruns export validation before rebuild can be
+  enabled. Embedded replacement D3D11 load status surfaces FPS/frame-time when
+  native status reports it. Each run writes `dotnet_evaluation.md`. Python/C++
+  still own parsing, validation, rebuild, and archive/package writes. .NET
+  output import now fails closed when `edit_operations.json` is missing or empty,
+  edge selections include stable descriptors plus `topology_generation`, D3D11
+  reports present/dirty-to-present/device-loss metrics, and release packaging
+  runs `scripts/release_preflight.py` to block generated output or unclassified
+  untracked source.
+  The first embedded .NET slice passes `--embedded --parent-hwnd`, refuses an
+  embedded launch if no Qt preview host HWND is available, runs WinForms
+  borderless as a child window, resizes it to the host, and lets
+  `mesh_editor/use_embedded_dotnet_viewport` start .NET from `Edit Mesh` while
+  preserving the existing D3D11 route as rollback. The WinForms viewport now
+  defaults to solid shaded mesh with optional wire overlay and auto-saves edited
+  embedded sessions on close so the existing output import path can sync the
+  edited mesh back into the builder. The second embedded slice adds an NDJSON
+  protocol over `QProcess` stdin/stdout: .NET sends ready/metrics/selection,
+  stroke, command, save, and error events; Python sends session state,
+  selection updates, preview vertex/triangle updates, command results, and close
+  requests. .NET emits `selection_depth_mode=visible` by default and `xray` only
+  when its X-Ray toggle is on. Live selection/stroke/topology/history commands
+  route back through `MeshEditorController`/`MeshService`; copy/paste is still
+  disabled except for the existing Duplicate command until metadata-preserving
+  paste is proved. If embedded .NET closes without an edited OBJ because live
+  edits were already applied by Python/C++, the builder syncs from the current
+  Python/C++ working mesh instead of restoring the pre-edit preview. .NET
+  applies incoming vertex preview updates, including binary descriptors, and
+  refreshes topology preview groups for display; topology sidecar save remains
+  Python/C++ authoritative.
 - `MeshService` owns edit-session mutation and routes supported native-session
   actions through `cdmw/modding/mesh_native_core.py`.
 - `MeshEditCommandWorker` is the unified async worker for Mesh Editor commands;
@@ -84,7 +229,12 @@ Last updated: 2026-07-06
   falloff.
 - D3D11 Move/Grab `screen_drag`, Inflate/Pinch `screen_radius`, and brush
   `screen_brush` packets carry D3D11 WVP plus active per-source world
-  transforms through Qt/service; resident C++ composes source transforms,
+  transforms through Qt/service. The D3D11 host owns preview-package
+  normalization from `manifest.json`: for native Mesh Core source-space edit
+  groups it applies source-to-preview normalization before updating live
+  vertices/triangles, and it composes source-to-preview normalization before
+  alignment transforms when emitting `source_submesh_world_transforms`;
+  resident C++ composes source transforms,
   derives brush center from native weights when needed, resolves pixel radius/amount, and
   ray-picks/projection-weights from WVP. Current D3D11 packets no longer
   serialize `camera_world`, yaw/pitch, pan, distance, FOV fallback fields, or
@@ -182,6 +332,10 @@ Last updated: 2026-07-06
   `submesh_counts` are missing, including deferred native results with
   `python_apply_deferred=1.0`; active native edits must carry the shared
   count/result shape.
+- Static replacement uses `StaticReplacementMeshEditSession.sync_working_mesh()`
+  only at explicit boundaries such as leaving Edit Mesh or Reset Scope. This
+  hydrates resident native edits back into the compatibility `ParsedMesh` before
+  Python preview/texture rebuilds or base-source resets.
 - Embedded/static replacement callbacks route result mesh storage through the
   deferred-native guard. When `python_apply_deferred=1.0`, callbacks keep the
   resident/native state authoritative and native undo/redo applies D3D11 preview
@@ -335,6 +489,12 @@ Last updated: 2026-07-06
 - Embedded/static Reset Scope and Full Reset require native base-submesh
   restore; Python `copy.deepcopy(base_source)` geometry fallback is disabled in
   active callbacks.
+- Embedded/static Reset Scope first syncs any dirty resident native edit session
+  into Python state, then native-restores the scoped base submeshes and clears
+  the old resident session so a later toggle-off cannot re-export stale pre-reset
+  geometry. Live D3D11 triangle replacement refuses to send empty groups for
+  non-empty sources; missing groups mark the preview stale instead of clearing
+  the mesh in-place.
 - Embedded/static undo and live-stroke base snapshots require native submesh
   snapshots; active callbacks no longer clone full `ParsedMesh` snapshots when
   native snapshotting is unavailable.
@@ -525,23 +685,34 @@ Last updated: 2026-07-06
   events. The harness now writes raw loaded, selected-before-drag, after-drag,
   and `real_archive_visual_edit_proof.png` contact-sheet diff captures so this
   proof is inspectable on actual game geometry instead of a synthetic rectangle.
-  Latest side-by-side visual proof with the async live D3D11 vertex-update lane
-  passed under `%TEMP%\cdmw-real-archive-mesh-editor-d3d11-60fps-harness-async`:
-  live vertex-update send p95/max was about `0.27 ms`, handler p95/max was about
-  `4.98 ms`, `live_stroke_frame_budget_ok=true`, the projected selected delta
-  remained `(32.00000076,0.00000008)` against expected `(32,0)`, and there were
-  no native fallback events. The applied-update event wait is still about
-  `50.8 ms`, so future performance work should reduce visual apply latency
-  without putting `WM_COPYDATA` waits back on the Qt handler path.
-- `scripts/codex_check.ps1 -Area mesh` intentionally skips interactive D3D11/Qt
-  harness cases; use the real archive side-by-side Mesh Editor D3D11 smoke for
-  visual proof on game geometry, and run Qt harness scenarios directly only
-  when validating worker responsiveness/cancellation.
+  Latest side-by-side visual proof passed under
+  `%TEMP%\cdmw-real-archive-mesh-editor-d3d11-side-by-side-codex-check`: live
+  vertex-update send p95/max was about `0.235 ms`, handler p95/max was about
+  `5.95 ms`, native apply roundtrip p95/max was about `4.39 ms`,
+  `live_stroke_frame_budget_ok=true`, the projected selected delta remained
+  `(32.00000076,0.00000008)` against expected `(32,0)`, and there were no native
+  fallback events. The applied-update event wait is still about `50 ms`, so
+  future performance work should reduce visual apply latency without putting
+  `WM_COPYDATA` waits back on the Qt handler path.
+- `scripts/codex_check.ps1 -Area mesh` now runs the real archive side-by-side
+  Mesh Editor D3D11 smoke. Use `scripts/codex_check.ps1 -Area mesh-unit` only
+  for synthetic/unit regression coverage, and run Qt harness scenarios directly
+  only when validating worker responsiveness/cancellation.
+- Project `AGENTS.md` now repeats this: `codex_check -Area mesh-unit`,
+  `build_synthetic_mesh`, `harness_quad`, `full-suite-smoke`, and synthetic
+  D3D11 harnesses are unit/protocol coverage only, not game-mesh visual proof.
 - Do not use `native-mesh-editor-d3d11-delta` or
   `native-mesh-editor-d3d11-payloads` as visual edit proof. They are synthetic
   checkerboard regression harnesses and intentionally do not show game geometry.
   `tools/mesh_editor_dev_harness.py` blocks them unless
   `--allow-synthetic-d3d11` is passed for protocol-only regression testing.
+- `tools/mesh_editor_dev_harness.py` defaults to the real archive side-by-side
+  Mesh Editor D3D11 smoke. `full-suite-smoke` is also blocked unless
+  `--allow-synthetic-d3d11` is passed, so accidental visual-test runs should no
+  longer open the synthetic `harness_quad` square.
+- `scripts/codex_check.ps1 -Area mesh` was changed from synthetic pytest
+  coverage to the same real archive side-by-side proof. The old synthetic broad
+  gate is now explicitly `-Area mesh-unit`.
 - `tools/mesh_editor_dev_harness.py` moves D3D11 harness windows to screen 1
   (`\\.\DISPLAY1`, falling back to primary) before captures and mouse input.
 - Active embedded Mesh Edit no longer wires Python `preview_to_source` helpers
@@ -588,11 +759,12 @@ Last updated: 2026-07-06
   harnesses, static screen stroke, Qt responsiveness/cancellation, and the real
   side-by-side PAC D3D11 visual proof under
   `%TEMP%\cdmw-real-side-by-side-visual-edit-proof-current`.
-- Final mesh gate on 2026-07-05 passed `.\scripts\codex_check.ps1 -Area mesh`
-  with 647 passed / 4 deselected, then release onefile packaging rebuilt native
-  helpers, validated all 483 embedded archive members, and the packaged EXE
-  startup-smoked with `QT_QPA_PLATFORM=offscreen` and
-  `CDMW_GUI_STARTUP_SMOKE=1`. Artifact:
+- Final mesh unit/protocol gate on 2026-07-05 passed the legacy
+  `.\scripts\codex_check.ps1 -Area mesh` path, now
+  `.\scripts\codex_check.ps1 -Area mesh-unit`, with 647 passed / 4 deselected,
+  then release onefile packaging rebuilt native helpers, validated all 483
+  embedded archive members, and the packaged EXE startup-smoked with
+  `QT_QPA_PLATFORM=offscreen` and `CDMW_GUI_STARTUP_SMOKE=1`. Artifact:
   `dist\CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe`,
   112,120,874 bytes, SHA256
   `1913D716177EA4667C220D4BA960C4712BDC588D194B226CD98A23A08F1C80DF`.
@@ -603,9 +775,52 @@ Last updated: 2026-07-06
   `native\cdmw-mesh-core.exe` (1,909,760 bytes),
   `native\cdmw-d3d11-preview.exe` (921,600 bytes), and the other native helpers
   embedded in the onefile artifact.
-- Full `tests/test_mesh_service_editing.py` now passes: 350 passed on
-  2026-07-05 after updating stale legacy-helper/history-snapshot/result-shape
-  expectations to the resident native session contract.
+- Current 2026-07-06 release onefile package after the MeshAsset GLB-first editable-package
+  rebuild, material-slot-count, raw-vertex-record, raw-record-sidecar,
+  material-slot-sidecar, unknown-section-sidecar, unknown-field-sidecar,
+  LOD-identity-sidecar, LOD-section-range, vertex-stride, source-offset,
+  unknown-metadata, native-clone LOD metadata, developer override, and packaged
+  `mesh.cdmeta.json` schema validation gates, real-game smoke guard, and .NET handoff smoke rebuilt native helpers,
+  published the .NET Mesh Editor experiment helper, validated all 485 embedded archive members,
+  startup-smoked cleanly, focused-tested the visible native Performance panel,
+  FPS/frame-time label, and slow-frame log entry,
+  kept active native preview fail-closed for non-finite geometry, passed the
+  legacy mesh unit/protocol gate, now `.\scripts\codex_check.ps1 -Area mesh-unit`,
+  with 700 passed / 4 deselected, passed
+  `.\scripts\codex_check.ps1 -Area smoke` with 8 passed, passed
+  `.\scripts\codex_check.ps1 -Area archive` with 88 passed, passed current Qt
+  responsiveness/cancel harnesses with no native fallback, passed
+  a current real-game side-by-side D3D11 edit smoke on
+  `character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac` from
+  `C:\games\Steam\steamapps\common\Crimson Desert\0009\0.pamt` with no native
+  fallback and live handler p95 about `14.92 ms` under the 16.7 ms frame budget,
+  passed current Qt responsiveness/cancel harnesses with no native fallback
+  (`~0.06 ms` dispatch, first progress under `3 ms`, cancel latency about
+  `31 ms`), and passed the packaged Mesh Editor asset rebuild plus
+  metric-enforced .NET handoff smoke with
+  `QT_QPA_PLATFORM=offscreen`, `CDMW_GUI_STARTUP_SMOKE=1`,
+  `CDMW_GUI_STARTUP_SMOKE_TARGET=mesh_editor`, and
+  `CDMW_GUI_STARTUP_SMOKE_MESH_ASSET=D:\Byggverkstaden\test_mesh_editor\cd_phm_00_nude_10_0001.pac`,
+  plus `CDMW_GUI_STARTUP_SMOKE_MESH_ASSET_REBUILD=1` and
+  `CDMW_GUI_STARTUP_SMOKE_MESH_DOTNET=1`.
+  That smoke opens the Mesh Editor tab, loads the PAC through
+  `open_mesh_file_session()`, and requires validation plus no-op roundtrip
+  `PASS`; the rebuild variant then exports an editable package, imports it back,
+  validates the imported package, and writes a temp rebuilt PAC through the
+  Mesh Editor workers. The .NET variant launches bundled
+  `cdmw-mesh-dotnet-editor.exe` in headless mode through the same package
+  handoff, imports its output, reruns validation, and requires a
+  `replace_positions_same_count` edit operation, positive .NET FPS/frame-time
+  metrics, and a keep/drop `dotnet_evaluation.md`. Artifact:
+  `dist\CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe`,
+  173,980,247 bytes, SHA256
+  `15C1783E16F5BA0D24B364F92DDC63966C1ACFBB92EB31BF65466D6A30807B8F`.
+  Onefile archive inspection found `native\cdmw-mesh-core.exe`,
+  `native\cdmw-d3d11-preview.exe`, `native\cdmw-preview-core.exe`,
+  `native\cd-texture-dx.exe`, `native\cdmw-mesh-dotnet-editor.exe`, and
+  `schemas\mesh\mesh.cdmeta.schema.json`.
+- Full `tests/test_mesh_service_editing.py` now passes: 386 passed on
+  2026-07-06 after LOD identity sidecar preservation.
 - Native texture roundtrip and fast/release onefile package smokes passed on 2026-07-04.
 
 ## Next Useful Slices

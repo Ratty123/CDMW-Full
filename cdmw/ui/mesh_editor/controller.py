@@ -22,6 +22,7 @@ from cdmw.domain.mesh import (
 )
 from cdmw.models import HkxPhysicsOverlayBone, HkxPhysicsOverlayData
 from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.modding.mesh_importer import MeshRebuildReport
 from cdmw.services.mesh_service import MeshService
 from cdmw.ui.mesh_editor.actions import MeshEditorAction, NATIVE_EDITOR_SESSION_COMMANDS, mesh_editor_actions_by_key
 from cdmw.ui.mesh_editor.native_preview_payloads import (
@@ -176,6 +177,24 @@ class MeshEditorController:
             self._session_id(),
             available_textures=available_textures,
             skeleton_bone_count=skeleton_bone_count,
+        )
+
+    def rebuild_report(
+        self,
+        *,
+        available_textures: Iterable[str] | None = None,
+        skeleton_bone_count: int | None = None,
+        output_path: str = "",
+        developer_override: bool = False,
+        developer_override_reason: str = "",
+    ) -> MeshRebuildReport:
+        return self.mesh_service.rebuild_report(
+            self._session_id(),
+            available_textures=available_textures,
+            skeleton_bone_count=skeleton_bone_count,
+            output_path=output_path,
+            developer_override=developer_override,
+            developer_override_reason=developer_override_reason,
         )
 
     def workspace_summary(self) -> MeshWorkspaceSummary:

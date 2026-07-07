@@ -12027,14 +12027,14 @@ ObjExportResult run_obj_export(const JsonValue& root) {
 
         out << "o " << name << "\n";
         out << "usemtl " << material << "\n";
-        out << std::fixed << std::setprecision(6);
+        out << std::defaultfloat << std::setprecision(17);
         for (const Vec3& vertex : vertices) {
             out << "v " << vertex[0] * scale << ' ' << vertex[1] * scale << ' ' << vertex[2] * scale << "\n";
         }
         for (const Vec2& uv : uvs) {
             out << "vt " << uv[0] << ' ' << (1.0 - uv[1]) << "\n";
         }
-        out << std::fixed << std::setprecision(4);
+        out << std::defaultfloat << std::setprecision(17);
         for (const Vec3& normal : normals) {
             out << "vn " << normal[0] << ' ' << normal[1] << ' ' << normal[2] << "\n";
         }

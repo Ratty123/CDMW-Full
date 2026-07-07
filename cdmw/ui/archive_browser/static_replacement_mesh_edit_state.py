@@ -208,6 +208,32 @@ def mesh_edit_source_indices(mesh: object | None, is_source_index_editable: Call
     return tuple(index for index in range(len(submeshes)) if is_source_index_editable(index))
 
 
+def mesh_edit_missing_nonempty_triangle_group_sources(
+    mesh: object | None,
+    source_indices: Iterable[int],
+    groups: Iterable[Mapping[str, object]],
+) -> tuple[int, ...]:
+    if mesh is None:
+        return ()
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    covered: set[int] = set()
+    for group in groups or ():
+        if isinstance(group, Mapping):
+            source_index = mesh_edit_source_index(group.get("source_submesh_index", -1))
+            if source_index >= 0:
+                covered.add(source_index)
+    missing: list[int] = []
+    seen: set[int] = set()
+    for raw_index in source_indices or ():
+        source_index = mesh_edit_source_index(raw_index)
+        if source_index in covered or source_index in seen or source_index < 0 or source_index >= len(submeshes):
+            continue
+        seen.add(source_index)
+        if getattr(submeshes[source_index], "faces", None):
+            missing.append(source_index)
+    return tuple(missing)
+
+
 def mesh_edit_allowed_source_indices(
     mesh: object | None,
     *,
@@ -816,6 +842,7 @@ __all__ = [
     "mesh_edit_source_index",
     "mesh_edit_source_index_is_editable",
     "mesh_edit_source_indices",
+    "mesh_edit_missing_nonempty_triangle_group_sources",
     "mesh_edit_source_to_preview_point",
     "source_geometry_revision_initial_state",
     "mesh_edit_should_restore_deleted_output",

@@ -290,6 +290,52 @@ function Test-NativeOutputsPresent {
     return $true
 }
 
+function Invoke-DotNetMeshEditorBuild {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Release", "Debug")]
+        [string]$Configuration,
+        [switch]$Required
+    )
+
+    $projectPath = Join-Path $scriptDir "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
+    if (-not (Test-Path -LiteralPath $projectPath)) {
+        if ($Required) {
+            throw "Required .NET Mesh Editor experiment project is missing: $projectPath"
+        }
+        return
+    }
+
+    $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+    if ($null -eq $dotnet) {
+        if ($Required) {
+            throw ".NET SDK is required to publish the Mesh Editor experiment helper."
+        }
+        Write-Warning ".NET SDK not found; skipping Mesh Editor experiment helper publish."
+        return
+    }
+
+    $outputDir = Join-Path $scriptDir "native\cdmw_mesh_dotnet_editor\build\$Configuration"
+    New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+    Write-Host "Publishing .NET Mesh Editor experiment helper ($Configuration)..."
+    & $dotnet.Source publish $projectPath -c $Configuration -r win-x64 --self-contained false -p:PublishSingleFile=true -o $outputDir
+    if ($LASTEXITCODE -ne 0) {
+        if ($Required) {
+            throw ".NET Mesh Editor experiment helper publish failed with exit code $LASTEXITCODE."
+        }
+        Write-Warning ".NET Mesh Editor experiment helper publish failed with exit code $LASTEXITCODE."
+        return
+    }
+
+    $exePath = Join-Path $outputDir "cdmw-mesh-dotnet-editor.exe"
+    if (-not (Test-Path -LiteralPath $exePath)) {
+        if ($Required) {
+            throw ".NET Mesh Editor experiment helper publish did not create $exePath."
+        }
+        Write-Warning ".NET Mesh Editor experiment helper publish did not create $exePath."
+    }
+}
+
 function Assert-CleanPythonSitePackages {
     param(
         [Parameter(Mandatory = $true)]
@@ -383,6 +429,15 @@ if (-not (Test-Path -LiteralPath (Join-Path $resolvedVgmstreamRuntimeDir "vgmstr
 }
 Assert-CleanPythonSitePackages -PythonExe $pythonExe
 
+if ($BuildProfile -eq "release") {
+    Write-BuildProgress -Percent 10 -Stage "Release dirty-tree preflight"
+    $releaseInventoryPath = Join-Path $stableBuildDir "release-change-inventory.json"
+    & $pythonExe (Join-Path $scriptDir "scripts\release_preflight.py") --inventory $releaseInventoryPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release preflight blocked packaging. Review $releaseInventoryPath and classify or remove generated/untracked source before release."
+    }
+}
+
 if (-not $SkipNativeBuild) {
     $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
     Write-BuildProgress -Percent 12 -Stage "Building native helpers"
@@ -395,6 +450,7 @@ if (-not $SkipNativeBuild) {
     if ($LASTEXITCODE -ne 0) {
         throw "Native helper build failed with exit code $LASTEXITCODE."
     }
+    Invoke-DotNetMeshEditorBuild -Configuration $nativeConfig -Required:($BuildProfile -eq "release")
     Write-BuildProgress -Percent 20 -Stage "Native helpers ready"
 } else {
     Write-Warning "Skipping native helper build. Release packaging still requires existing native binaries."

@@ -26,10 +26,22 @@ from .asset import (
 )
 from .compare import MeshBoundsSummary, MeshCompareSummary, MeshPartCompareSummary, compare_meshes
 from .export_validation import (
+    DEVELOPER_OVERRIDABLE_REBUILD_BLOCKERS,
     SUPPORTED_GAME_MESH_FORMATS,
     MeshExportValidationIssue,
     MeshExportValidationReport,
     validate_mesh_export,
+)
+from .operations import (
+    BLOCKED_MESH_EDIT_OPERATIONS,
+    SAFE_MESH_EDIT_OPERATIONS,
+    MeshEditOperation,
+    MeshEditOperationIssue,
+    mesh_edit_operation_changed_channel,
+    mesh_edit_operations_from_dicts,
+    mesh_edit_operations_to_dicts,
+    validate_mesh_edit_operation_coverage,
+    validate_mesh_edit_operations,
 )
 from .parts import MeshPartSummary, MeshWorkspaceSummary, summarize_mesh_workspace
 from .skeleton import (
@@ -62,6 +74,8 @@ __all__ = [
     "MeshEditResult",
     "MeshEditSelection",
     "MeshEditSessionView",
+    "MeshEditOperation",
+    "MeshEditOperationIssue",
     "BinaryLayout",
     "IndexBuffer",
     "MaterialSlot",
@@ -97,7 +111,10 @@ __all__ = [
     "MeshUvIslandSummary",
     "MeshUvSummary",
     "MeshWorkspaceSummary",
+    "DEVELOPER_OVERRIDABLE_REBUILD_BLOCKERS",
     "SUPPORTED_GAME_MESH_FORMATS",
+    "SAFE_MESH_EDIT_OPERATIONS",
+    "BLOCKED_MESH_EDIT_OPERATIONS",
     "compare_meshes",
     "selected_mesh_texture_edit_target",
     "mesh_uv_lasso_selection",
@@ -110,4 +127,9 @@ __all__ = [
     "summarize_mesh_workspace",
     "validate_mesh_asset_rebuild",
     "validate_mesh_export",
+    "mesh_edit_operation_changed_channel",
+    "validate_mesh_edit_operation_coverage",
+    "validate_mesh_edit_operations",
+    "mesh_edit_operations_from_dicts",
+    "mesh_edit_operations_to_dicts",
 ]

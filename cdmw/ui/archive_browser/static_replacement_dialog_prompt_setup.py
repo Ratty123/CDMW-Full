@@ -149,9 +149,13 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
             except Exception:
                 pass
             source_format = str(getattr(replacement_mesh_base_for_mapping, "format", "") or "").strip().lower()
+            scene_flip_v = scene_import_normalizes_texture_v(
+                source_format,
+                getattr(replacement_mesh_base_for_mapping, "path", "") or obj_path,
+            )
             if (
                 isinstance(texture_uv_global_transform_state, dict)
-                and source_format in {"obj", "gltf", "glb", "dae"}
+                and scene_flip_v
                 and not bool(texture_uv_global_transform_state.get("flip_v"))
                 and not bool(texture_uv_global_transform_state.get("flip_u"))
                 and int(texture_uv_global_transform_state.get("rotate_degrees") or 0) == 0
@@ -161,7 +165,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
                         "source_material_name": "__global__",
                         "rotate_degrees": 0,
                         "flip_u": False,
-                        "flip_v": False,
+                        "flip_v": True,
                         "offset_u": 0.0,
                         "offset_v": 0.0,
                         "scale_u": 1.0,

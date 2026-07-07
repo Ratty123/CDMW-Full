@@ -102,8 +102,10 @@ def _mesh_to_native_preview_native(
     binary = find_native_mesh_core_binary()
     if binary is None:
         return None
-    mesh_payloads: list[dict[str, object]] = []
     submeshes = getattr(mesh, "submeshes", ()) or ()
+    if _has_non_finite_preview_geometry(mesh, submeshes):
+        return None
+    mesh_payloads: list[dict[str, object]] = []
     pose_mode = pose_skeleton is not None and pose_rotations is not None
     if not pose_mode:
         for submesh_index, submesh in enumerate(submeshes):
@@ -1149,6 +1151,33 @@ def _finite_float_or_none(value: object) -> float | None:
     except (TypeError, ValueError, OverflowError):
         return None
     return parsed if math.isfinite(parsed) else None
+
+
+def _has_non_finite_preview_geometry(mesh: object, submeshes: object) -> bool:
+    if _is_non_finite_number(getattr(mesh, "total_vertices", 0)):
+        return True
+    for submesh in tuple(submeshes or ()):
+        for attr in ("vertices", "normals", "uvs", "tangents", "bitangents"):
+            for vector in tuple(getattr(submesh, attr, ()) or ()):
+                if _vector_has_non_finite_number(vector):
+                    return True
+    return False
+
+
+def _vector_has_non_finite_number(vector: object) -> bool:
+    if not isinstance(vector, (tuple, list)):
+        return False
+    return any(_is_non_finite_number(component) for component in vector)
+
+
+def _is_non_finite_number(value: object) -> bool:
+    if isinstance(value, bool):
+        return False
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return not math.isfinite(parsed)
 
 
 def _nonnegative_int(value: object, fallback: int = 0) -> int:

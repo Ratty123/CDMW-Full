@@ -89,8 +89,31 @@ class HeadlessFeatureStressTests(unittest.TestCase):
         skipped = {task.name: task.skip_reason for task in tasks if task.skip_reason}
         self.assertIn("external-model-audit", skipped)
         self.assertIn("mesh-real-archive-rigging-smoke", skipped)
+        self.assertIn("mesh-real-archive-mesh-editor-d3d11-side-by-side-edit-smoke", skipped)
         self.assertIn("Model root not found", skipped["external-model-audit"])
         self.assertIn("Game root not found", skipped["mesh-real-archive-rigging-smoke"])
+
+    def test_corpus_profile_keeps_square_mesh_out_of_visual_smokes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_root = stress.prepare_output_root(Path(temp_dir) / "out")
+            model_root = Path(temp_dir) / "models"
+            game_root = Path(temp_dir) / "game"
+            model_root.mkdir()
+            game_root.mkdir()
+            tasks = stress.build_profile_tasks(
+                _args(profile="corpus", game_root=game_root, model_root=model_root),
+                output_root,
+            )
+
+        names = [task.name for task in tasks]
+        mesh_argv = [arg for task in tasks if task.name.startswith("mesh-") for arg in task.argv]
+        service = next(task for task in tasks if task.name == "mesh-service-protocol-smoke")
+
+        self.assertIn("service-smoke", service.argv)
+        self.assertNotIn("full-suite-smoke", mesh_argv)
+        self.assertIn("codex-mesh-unit", names)
+        self.assertNotIn("codex-mesh", names)
+        self.assertIn("mesh-real-archive-mesh-editor-d3d11-side-by-side-edit-smoke", names)
 
     def test_import_does_not_start_full_app_or_main_window(self) -> None:
         before = set(sys.modules)

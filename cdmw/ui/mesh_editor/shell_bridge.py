@@ -11,6 +11,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 
 from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
+from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
 from cdmw.modding.scene_importer import SceneImportResult
 from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
@@ -199,6 +200,37 @@ class MeshEditorShellBridgeMixin:
             return
         self._open_mesh_editor_for_entry(entry, mode="external_import", activate=True)
         self._start_archive_mesh_import_preview(entry)
+
+    def _mesh_editor_rebuilt_asset_setup(self, output_path: object, *, action: str) -> Optional[MeshImportSetupSelection]:
+        rebuilt_path = Path(output_path)
+        if not rebuilt_path.is_file():
+            self.set_status_message(f"Rebuilt mesh asset is missing: {rebuilt_path}", error=True)
+            return None
+        return MeshImportSetupSelection(
+            scene_path=rebuilt_path,
+            import_mode="static_replacement",
+            source_label=f"Rebuilt asset: {rebuilt_path.name}",
+            placement_review_title=f"{action} rebuilt asset",
+            placement_context_note=f"{action} the Mesh Editor rebuilt asset through the existing archive workflow.",
+        )
+
+    def _mesh_editor_preview_rebuilt_asset_requested(self, entry: object, output_path: object) -> None:
+        if not isinstance(entry, ArchiveEntry):
+            self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
+            return
+        setup = self._mesh_editor_rebuilt_asset_setup(output_path, action="Preview")
+        if setup is None:
+            return
+        self._start_archive_mesh_import_preview(entry, preset_setup=setup)
+
+    def _mesh_editor_package_rebuilt_asset_requested(self, entry: object, output_path: object) -> None:
+        if not isinstance(entry, ArchiveEntry):
+            self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
+            return
+        setup = self._mesh_editor_rebuilt_asset_setup(output_path, action="Package")
+        if setup is None:
+            return
+        self._start_archive_mesh_patch(entry, preset_setup=setup)
 
     def _mesh_editor_in_game_swap_requested(self, entry: object) -> None:
         if not isinstance(entry, ArchiveEntry):

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import math
+from collections.abc import Iterable, Mapping, Sequence
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
@@ -64,6 +65,8 @@ _LEFT_CATEGORY_LABELS = {
     "material": "Material",
     "history": "History",
 }
+
+_SLOW_FRAME_MS = 1000.0 / 60.0
 _MODE_ACTION_BY_TEXT = {"object": "mode_object", "edit": "mode_edit", "sculpt": "mode_sculpt"}
 _SELECTION_ACTION_BY_TEXT = {"vertex": "select_vertex", "edge": "select_edge", "face": "select_face"}
 _SKELETON_PANEL_BONE_LIMIT = 512
@@ -73,13 +76,24 @@ _SKELETON_PANEL_WEIGHT_LIMIT = 32
 class MeshEditorWorkspace(QFrame):
     action_requested = Signal(object)
     native_preview_requested = Signal()
+    export_editable_package_requested = Signal()
+    import_edited_package_requested = Signal()
+    open_editable_package_folder_requested = Signal()
+    dotnet_editor_requested = Signal()
     texture_edit_requested = Signal()
+    validation_report_requested = Signal()
+    copy_validation_report_requested = Signal()
     compare_view_requested = Signal(str)
     skeleton_pose_requested = Signal(str, object)
     part_selection_requested = Signal(int, str)
     part_context_action_requested = Signal(str, int)
     uv_region_selected = Signal(tuple, tuple, str)
     uv_lasso_selected = Signal(tuple, str)
+    rebuild_report_requested = Signal()
+    rebuild_asset_requested = Signal()
+    preview_rebuilt_asset_requested = Signal()
+    package_rebuilt_asset_requested = Signal()
+    save_rebuild_report_requested = Signal()
 
     def __init__(
         self,
@@ -102,7 +116,12 @@ class MeshEditorWorkspace(QFrame):
         self._native_editor_available = True
         self._workspace_summary: MeshWorkspaceSummary | None = None
         self._uv_summary: MeshUvSummary | None = None
+        self._has_export_validation_report = False
+        self._export_validation_ok = False
+        self._has_rebuild_report = False
+        self._has_rebuilt_asset_output = False
         self._embedded_controls_only = bool(embedded_controls_only)
+        self._last_slow_frame_log_key: tuple[object, ...] | None = None
 
         root = QVBoxLayout(self)
         margin = 0 if embedded_controls_only else 6
@@ -145,9 +164,16 @@ class MeshEditorWorkspace(QFrame):
             "left_tool_pages",
             "right_panels",
             "native_preview_button",
+            "dotnet_editor_button",
             "native_part_pick_status_label",
+            "native_performance_status_label",
             "preview_skeleton_button",
             "preview_pose_button",
+            "run_rebuild_report_button",
+            "rebuild_asset_button",
+            "preview_rebuilt_asset_button",
+            "package_rebuilt_asset_button",
+            "save_rebuild_report_button",
             "pose_preview_button",
             "animation_speed_combo",
             "animation_scrub_slider",
@@ -166,6 +192,8 @@ class MeshEditorWorkspace(QFrame):
             "outliner",
             "properties_tree",
             "validator_tree",
+            "rebuild_tree",
+            "performance_tree",
             "history_list",
             "uv_tree",
             "skeleton_tree",
@@ -222,6 +250,46 @@ class MeshEditorWorkspace(QFrame):
             button = getattr(self, name, None)
             if button is not None:
                 button.setEnabled(bool(has_target))
+        rebuild_button = getattr(self, "run_rebuild_report_button", None)
+        if rebuild_button is not None:
+            rebuild_button.setEnabled(bool(has_target) and not self._embedded_controls_only)
+        rebuild_asset_button = getattr(self, "rebuild_asset_button", None)
+        if rebuild_asset_button is not None:
+            rebuild_asset_button.setEnabled(
+                bool(has_target) and self._export_validation_ok and not self._embedded_controls_only
+            )
+        dotnet_button = getattr(self, "dotnet_editor_button", None)
+        if dotnet_button is not None:
+            dotnet_button.setEnabled(bool(has_target) and not self._embedded_controls_only)
+        for name in (
+            "export_editable_package_button",
+            "import_edited_package_button",
+            "open_editable_package_folder_button",
+        ):
+            button = getattr(self, name, None)
+            if button is not None:
+                button.setEnabled(bool(has_target) and not self._embedded_controls_only)
+        save_button = getattr(self, "save_rebuild_report_button", None)
+        if save_button is not None:
+            save_button.setEnabled(bool(has_target) and self._has_rebuild_report and not self._embedded_controls_only)
+        preview_rebuilt_button = getattr(self, "preview_rebuilt_asset_button", None)
+        if preview_rebuilt_button is not None:
+            preview_rebuilt_button.setEnabled(
+                bool(has_target) and self._has_rebuilt_asset_output and not self._embedded_controls_only
+            )
+        package_rebuilt_button = getattr(self, "package_rebuilt_asset_button", None)
+        if package_rebuilt_button is not None:
+            package_rebuilt_button.setEnabled(
+                bool(has_target) and self._has_rebuilt_asset_output and not self._embedded_controls_only
+            )
+        copy_validation_button = getattr(self, "copy_validation_report_button", None)
+        if copy_validation_button is not None:
+            copy_validation_button.setEnabled(
+                bool(has_target) and self._has_export_validation_report and not self._embedded_controls_only
+            )
+        run_validation_button = getattr(self, "run_validation_report_button", None)
+        if run_validation_button is not None:
+            run_validation_button.setEnabled(bool(has_target) and not self._embedded_controls_only)
         open_texture_button = getattr(self, "open_texture_button", None)
         if open_texture_button is not None:
             self._sync_part_controls()
@@ -977,6 +1045,41 @@ class MeshEditorWorkspace(QFrame):
         self.native_preview_button.setMinimumHeight(28)
         self.native_preview_button.clicked.connect(self.native_preview_requested.emit)
         controls.addWidget(self.native_preview_button)
+        self.export_editable_package_button = QPushButton("Export", frame)
+        self.export_editable_package_button.setObjectName("MeshEditorExportEditablePackageButton")
+        self.export_editable_package_button.setToolTip("Export the current mesh as an editable package with sidecar metadata.")
+        self.export_editable_package_button.setMinimumHeight(28)
+        self.export_editable_package_button.setEnabled(False)
+        self.export_editable_package_button.clicked.connect(self.export_editable_package_requested.emit)
+        controls.addWidget(self.export_editable_package_button)
+        self.import_edited_package_button = QPushButton("Import", frame)
+        self.import_edited_package_button.setObjectName("MeshEditorImportEditedPackageButton")
+        self.import_edited_package_button.setToolTip("Import an edited mesh package and run validation before rebuild.")
+        self.import_edited_package_button.setMinimumHeight(28)
+        self.import_edited_package_button.setEnabled(False)
+        self.import_edited_package_button.clicked.connect(self.import_edited_package_requested.emit)
+        controls.addWidget(self.import_edited_package_button)
+        self.open_editable_package_folder_button = QPushButton("Open", frame)
+        self.open_editable_package_folder_button.setObjectName("MeshEditorOpenEditablePackageFolderButton")
+        self.open_editable_package_folder_button.setToolTip("Open the last editable mesh package folder.")
+        self.open_editable_package_folder_button.setMinimumHeight(28)
+        self.open_editable_package_folder_button.setEnabled(False)
+        self.open_editable_package_folder_button.clicked.connect(self.open_editable_package_folder_requested.emit)
+        controls.addWidget(self.open_editable_package_folder_button)
+        self.dotnet_editor_button = QPushButton(".NET", frame)
+        self.dotnet_editor_button.setObjectName("MeshEditorDotNetExperimentButton")
+        self.dotnet_editor_button.setToolTip("Export the current Mesh Editor package and open it in the configured .NET editor experiment.")
+        self.dotnet_editor_button.setMinimumHeight(28)
+        self.dotnet_editor_button.setEnabled(False)
+        self.dotnet_editor_button.clicked.connect(self.dotnet_editor_requested.emit)
+        controls.addWidget(self.dotnet_editor_button)
+        self.native_performance_status_label = QLabel("FPS: -- | Frame: -- ms", frame)
+        self.native_performance_status_label.setObjectName("MeshEditorNativePerformanceStatus")
+        self.native_performance_status_label.setAccessibleName("Native preview performance")
+        self.native_performance_status_label.setToolTip("Native preview FPS and frame timing.")
+        self.native_performance_status_label.setMinimumWidth(180)
+        self.native_performance_status_label.setProperty("nativePerformanceAvailable", False)
+        controls.addWidget(self.native_performance_status_label)
         self.native_part_pick_status_label = QLabel("Part pick: preview off", frame)
         self.native_part_pick_status_label.setObjectName("MeshEditorNativePartPickStatus")
         self.native_part_pick_status_label.setProperty("nativePartPickingAvailable", False)
@@ -1025,7 +1128,9 @@ class MeshEditorWorkspace(QFrame):
         uv_panel = self._build_uv_panel()
         material_panel = self._build_material_panel()
         compare_panel = self._build_compare_panel()
-        self.validator_tree = self._tree(("Severity", "Code", "Message"), "MeshEditorValidatorPanel")
+        validation_panel = self._build_validation_panel()
+        rebuild_panel = self._build_rebuild_panel()
+        performance_panel = self._build_performance_panel()
         self.history_list = QListWidget(tabs)
         self.history_list.setObjectName("MeshEditorHistoryPanel")
         skeleton_panel = self._build_skeleton_panel()
@@ -1036,7 +1141,9 @@ class MeshEditorWorkspace(QFrame):
             (uv_panel, "UV Map"),
             (material_panel, "Part Actions"),
             (compare_panel, "Review"),
-            (self.validator_tree, "Checks"),
+            (validation_panel, "Checks"),
+            (rebuild_panel, "Rebuild"),
+            (performance_panel, "Performance"),
             (self.history_list, "History"),
         ):
             tabs.addTab(widget, title)
@@ -1044,9 +1151,140 @@ class MeshEditorWorkspace(QFrame):
         self.update_workspace_summary(None)
         self.update_uv_summary(None)
         self.update_export_validation(None)
+        self.update_rebuild_report(None)
+        self.set_native_performance_status(None)
         self.update_compare_summary(None)
         self.update_skeleton_summary(None)
         return tabs
+
+    def _build_performance_panel(self) -> QWidget:
+        frame = QFrame(self)
+        frame.setObjectName("MeshEditorPerformanceFrame")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        self.performance_tree = self._tree(("Metric", "Value"), "MeshEditorPerformancePanel")
+        layout.addWidget(self.performance_tree, 1)
+        return frame
+
+    def _build_validation_panel(self) -> QWidget:
+        frame = QFrame(self)
+        frame.setObjectName("MeshEditorValidationFrame")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        controls = QHBoxLayout()
+        controls.setSpacing(4)
+        self.run_validation_report_button = QToolButton(frame)
+        self.run_validation_report_button.setObjectName("MeshEditorRunValidationReportButton")
+        self.run_validation_report_button.setText("Run")
+        self.run_validation_report_button.setAccessibleName("Run validation")
+        self.run_validation_report_button.setToolTip("Run export validation in the background.")
+        self.run_validation_report_button.setProperty("meshEditorIconKey", "recalculate_normals")
+        self.run_validation_report_button.setIcon(mesh_editor_action_icon("recalculate_normals", self.palette()))
+        self.run_validation_report_button.setIconSize(QSize(18, 18))
+        self.run_validation_report_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.run_validation_report_button.setEnabled(False)
+        self.run_validation_report_button.clicked.connect(self.validation_report_requested.emit)
+        self._ui_font_widgets.append(self.run_validation_report_button)
+        controls.addWidget(self.run_validation_report_button)
+        self.copy_validation_report_button = QToolButton(frame)
+        self.copy_validation_report_button.setObjectName("MeshEditorCopyValidationReportButton")
+        self.copy_validation_report_button.setText("Copy")
+        self.copy_validation_report_button.setAccessibleName("Copy validation report")
+        self.copy_validation_report_button.setToolTip("Copy the current validation report as JSON.")
+        self.copy_validation_report_button.setProperty("meshEditorIconKey", "material_copy")
+        self.copy_validation_report_button.setIcon(mesh_editor_action_icon("material_copy", self.palette()))
+        self.copy_validation_report_button.setIconSize(QSize(18, 18))
+        self.copy_validation_report_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.copy_validation_report_button.setEnabled(False)
+        self.copy_validation_report_button.clicked.connect(self.copy_validation_report_requested.emit)
+        self._ui_font_widgets.append(self.copy_validation_report_button)
+        controls.addWidget(self.copy_validation_report_button)
+        controls.addStretch(1)
+        layout.addLayout(controls)
+        self.validator_tree = self._tree(("Severity", "Code", "Message"), "MeshEditorValidatorPanel")
+        layout.addWidget(self.validator_tree, 1)
+        return frame
+
+    def _build_rebuild_panel(self) -> QWidget:
+        frame = QFrame(self)
+        frame.setObjectName("MeshEditorRebuildReportFrame")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        controls = QHBoxLayout()
+        controls.setSpacing(4)
+        self.run_rebuild_report_button = QToolButton(frame)
+        self.run_rebuild_report_button.setObjectName("MeshEditorRunRebuildReportButton")
+        self.run_rebuild_report_button.setText("Run")
+        self.run_rebuild_report_button.setAccessibleName("Run rebuild report")
+        self.run_rebuild_report_button.setToolTip("Validate and run an in-memory rebuild report in the background.")
+        self.run_rebuild_report_button.setProperty("meshEditorIconKey", "recalculate_normals")
+        self.run_rebuild_report_button.setIcon(mesh_editor_action_icon("recalculate_normals", self.palette()))
+        self.run_rebuild_report_button.setIconSize(QSize(18, 18))
+        self.run_rebuild_report_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.run_rebuild_report_button.setEnabled(False)
+        self.run_rebuild_report_button.clicked.connect(self.rebuild_report_requested.emit)
+        self._ui_font_widgets.append(self.run_rebuild_report_button)
+        controls.addWidget(self.run_rebuild_report_button)
+        self.rebuild_asset_button = QToolButton(frame)
+        self.rebuild_asset_button.setObjectName("MeshEditorRebuildPatchedAssetButton")
+        self.rebuild_asset_button.setText("Rebuild")
+        self.rebuild_asset_button.setAccessibleName("Rebuild patched asset")
+        self.rebuild_asset_button.setToolTip("Write a validated rebuilt asset to a chosen file.")
+        self.rebuild_asset_button.setProperty("meshEditorIconKey", "export")
+        self.rebuild_asset_button.setIcon(mesh_editor_action_icon("export", self.palette()))
+        self.rebuild_asset_button.setIconSize(QSize(18, 18))
+        self.rebuild_asset_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.rebuild_asset_button.setEnabled(False)
+        self.rebuild_asset_button.clicked.connect(self.rebuild_asset_requested.emit)
+        self._ui_font_widgets.append(self.rebuild_asset_button)
+        controls.addWidget(self.rebuild_asset_button)
+        self.preview_rebuilt_asset_button = QToolButton(frame)
+        self.preview_rebuilt_asset_button.setObjectName("MeshEditorPreviewRebuiltAssetButton")
+        self.preview_rebuilt_asset_button.setText("Preview")
+        self.preview_rebuilt_asset_button.setAccessibleName("Preview rebuilt asset")
+        self.preview_rebuilt_asset_button.setToolTip("Preview the last rebuilt asset through the archive import preview flow.")
+        self.preview_rebuilt_asset_button.setProperty("meshEditorIconKey", "select_face")
+        self.preview_rebuilt_asset_button.setIcon(mesh_editor_action_icon("select_face", self.palette()))
+        self.preview_rebuilt_asset_button.setIconSize(QSize(18, 18))
+        self.preview_rebuilt_asset_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.preview_rebuilt_asset_button.setEnabled(False)
+        self.preview_rebuilt_asset_button.clicked.connect(self.preview_rebuilt_asset_requested.emit)
+        self._ui_font_widgets.append(self.preview_rebuilt_asset_button)
+        controls.addWidget(self.preview_rebuilt_asset_button)
+        self.package_rebuilt_asset_button = QToolButton(frame)
+        self.package_rebuilt_asset_button.setObjectName("MeshEditorPackageRebuiltAssetButton")
+        self.package_rebuilt_asset_button.setText("Package")
+        self.package_rebuilt_asset_button.setAccessibleName("Package rebuilt asset")
+        self.package_rebuilt_asset_button.setToolTip("Send the last rebuilt asset to the archive package or patch flow.")
+        self.package_rebuilt_asset_button.setProperty("meshEditorIconKey", "export")
+        self.package_rebuilt_asset_button.setIcon(mesh_editor_action_icon("export", self.palette()))
+        self.package_rebuilt_asset_button.setIconSize(QSize(18, 18))
+        self.package_rebuilt_asset_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.package_rebuilt_asset_button.setEnabled(False)
+        self.package_rebuilt_asset_button.clicked.connect(self.package_rebuilt_asset_requested.emit)
+        self._ui_font_widgets.append(self.package_rebuilt_asset_button)
+        controls.addWidget(self.package_rebuilt_asset_button)
+        self.save_rebuild_report_button = QToolButton(frame)
+        self.save_rebuild_report_button.setObjectName("MeshEditorSaveRebuildReportButton")
+        self.save_rebuild_report_button.setText("Save")
+        self.save_rebuild_report_button.setAccessibleName("Save rebuild report")
+        self.save_rebuild_report_button.setToolTip("Save the last generated rebuild report as JSON.")
+        self.save_rebuild_report_button.setProperty("meshEditorIconKey", "material_copy")
+        self.save_rebuild_report_button.setIcon(mesh_editor_action_icon("material_copy", self.palette()))
+        self.save_rebuild_report_button.setIconSize(QSize(18, 18))
+        self.save_rebuild_report_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.save_rebuild_report_button.setEnabled(False)
+        self.save_rebuild_report_button.clicked.connect(self.save_rebuild_report_requested.emit)
+        self._ui_font_widgets.append(self.save_rebuild_report_button)
+        controls.addWidget(self.save_rebuild_report_button)
+        controls.addStretch(1)
+        layout.addLayout(controls)
+        self.rebuild_tree = self._tree(("Field", "Value"), "MeshEditorRebuildReportPanel")
+        layout.addWidget(self.rebuild_tree, 1)
+        return frame
 
     def _focus_right_panel(self, title: str) -> None:
         tabs = getattr(self, "right_panels", None)
@@ -1489,6 +1727,146 @@ class MeshEditorWorkspace(QFrame):
         label.setText(str(message or "Part pick: unavailable"))
         label.setProperty("nativePartPickingAvailable", bool(available))
 
+    def set_native_performance_status(self, payload: Mapping[str, object] | None) -> None:
+        label = getattr(self, "native_performance_status_label", None)
+        current_fps = self._native_performance_number(payload, "current_fps", "fps")
+        average_fps = self._native_performance_number(payload, "average_fps", "avg_fps")
+        frame_ms = self._native_performance_number(payload, "frame_time_ms", "frame_ms", "last_frame_ms", "first_frame_ms")
+        cpu_ms = self._native_performance_number(payload, "cpu_update_ms", "cpu_ms", "update_ms")
+        gpu_ms = self._native_performance_number(payload, "gpu_upload_ms", "gpu_upload_time_ms", "geometry_upload_ms")
+        draw_calls = self._native_performance_int(payload, "draw_call_count", "draw_calls")
+        vertex_count = self._native_performance_int(payload, "vertex_count", "vertices")
+        index_count = self._native_performance_int(payload, "index_count", "indices")
+        visible_submesh_count = self._native_performance_int(
+            payload,
+            "visible_submesh_count",
+            "visible_submeshes",
+            "submesh_count",
+            "batch_count",
+        )
+        texture_memory = self._native_performance_int(payload, "texture_memory_bytes", "texture_memory_estimate_bytes")
+        if current_fps is None and average_fps is None and frame_ms is not None and frame_ms > 0:
+            current_fps = 1000.0 / frame_ms
+        fps = current_fps if current_fps is not None else average_fps
+        parts = [
+            f"FPS: {fps:.1f}" if fps is not None and fps > 0 else "FPS: --",
+            f"Frame: {frame_ms:.2f} ms" if frame_ms is not None and frame_ms > 0 else "Frame: -- ms",
+        ]
+        if average_fps is not None and average_fps > 0 and current_fps is not None and abs(average_fps - current_fps) >= 0.05:
+            parts[0] = f"{parts[0]} (avg {average_fps:.1f})"
+        if cpu_ms is not None and cpu_ms > 0:
+            parts.append(f"CPU: {cpu_ms:.2f} ms")
+        if gpu_ms is not None and gpu_ms > 0:
+            parts.append(f"GPU: {gpu_ms:.2f} ms")
+        available = bool(
+            (fps is not None and fps > 0)
+            or (frame_ms is not None and frame_ms > 0)
+            or (cpu_ms is not None and cpu_ms > 0)
+            or (gpu_ms is not None and gpu_ms > 0)
+        )
+        if label is not None:
+            label.setText(" | ".join(parts))
+            label.setProperty("nativePerformanceAvailable", available)
+        tree = getattr(self, "performance_tree", None)
+        if tree is not None:
+            tree.clear()
+            rows = (
+                ("Current FPS", self._format_metric(current_fps, "{:.1f}")),
+                ("Average FPS", self._format_metric(average_fps, "{:.1f}")),
+                ("Frame time", self._format_metric(frame_ms, "{:.2f} ms")),
+                ("CPU update", self._format_metric(cpu_ms, "{:.2f} ms")),
+                ("GPU upload", self._format_metric(gpu_ms, "{:.2f} ms")),
+                ("Draw calls", self._format_count(draw_calls)),
+                ("Vertices", self._format_count(vertex_count)),
+                ("Indices", self._format_count(index_count)),
+                ("Visible submeshes", self._format_count(visible_submesh_count)),
+                ("Texture memory", self._format_bytes(texture_memory)),
+            )
+            for metric, value in rows:
+                tree.addTopLevelItem(QTreeWidgetItem((metric, value)))
+        self._log_slow_native_frame(
+            frame_ms=frame_ms,
+            cpu_ms=cpu_ms,
+            gpu_ms=gpu_ms,
+            draw_calls=draw_calls,
+            visible_submesh_count=visible_submesh_count,
+        )
+
+    @staticmethod
+    def _native_performance_number(payload: Mapping[str, object] | None, *keys: str) -> float | None:
+        if not isinstance(payload, Mapping):
+            return None
+        sources: list[Mapping[str, object]] = [payload]
+        metrics = payload.get("metrics")
+        if isinstance(metrics, Mapping):
+            sources.insert(0, metrics)
+        for source in sources:
+            for key in keys:
+                raw = source.get(key)
+                if raw in (None, ""):
+                    continue
+                try:
+                    value = float(raw)
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                if math.isfinite(value):
+                    return value
+        return None
+
+    @classmethod
+    def _native_performance_int(cls, payload: Mapping[str, object] | None, *keys: str) -> int | None:
+        value = cls._native_performance_number(payload, *keys)
+        if value is None or value < 0:
+            return None
+        return int(value)
+
+    @staticmethod
+    def _format_metric(value: float | None, pattern: str) -> str:
+        return pattern.format(value) if value is not None and value > 0 else "--"
+
+    @staticmethod
+    def _format_count(value: int | None) -> str:
+        return f"{value:,}" if value is not None and value >= 0 else "--"
+
+    @staticmethod
+    def _format_bytes(value: int | None) -> str:
+        if value is None or value <= 0:
+            return "--"
+        return f"{value / (1024 * 1024):.1f} MiB"
+
+    def _log_slow_native_frame(
+        self,
+        *,
+        frame_ms: float | None,
+        cpu_ms: float | None,
+        gpu_ms: float | None,
+        draw_calls: int | None,
+        visible_submesh_count: int | None,
+    ) -> None:
+        if frame_ms is None or frame_ms <= _SLOW_FRAME_MS:
+            self._last_slow_frame_log_key = None
+            return
+        key = (
+            round(frame_ms, 2),
+            round(cpu_ms or 0.0, 2),
+            round(gpu_ms or 0.0, 2),
+            draw_calls,
+            visible_submesh_count,
+        )
+        if key == self._last_slow_frame_log_key:
+            return
+        self._last_slow_frame_log_key = key
+        parts = [f"Slow native preview frame: {frame_ms:.2f} ms"]
+        if cpu_ms is not None and cpu_ms > 0:
+            parts.append(f"CPU {cpu_ms:.2f} ms")
+        if gpu_ms is not None and gpu_ms > 0:
+            parts.append(f"GPU {gpu_ms:.2f} ms")
+        if draw_calls is not None:
+            parts.append(f"{draw_calls:,} draw call(s)")
+        if visible_submesh_count is not None:
+            parts.append(f"{visible_submesh_count:,} visible submesh(es)")
+        self.append_log(" | ".join(parts))
+
     def _build_compare_panel(self) -> QWidget:
         frame = QFrame(self)
         frame.setObjectName("MeshEditorComparePanelFrame")
@@ -1565,6 +1943,18 @@ class MeshEditorWorkspace(QFrame):
 
     def update_export_validation(self, report: MeshExportValidationReport | None) -> None:
         self.validator_tree.clear()
+        self._has_export_validation_report = report is not None
+        self._export_validation_ok = bool(report is not None and report.ok)
+        copy_button = getattr(self, "copy_validation_report_button", None)
+        if copy_button is not None:
+            copy_button.setEnabled(
+                self._has_editor_target and self._has_export_validation_report and not self._embedded_controls_only
+            )
+        rebuild_asset_button = getattr(self, "rebuild_asset_button", None)
+        if rebuild_asset_button is not None:
+            rebuild_asset_button.setEnabled(
+                self._has_editor_target and self._export_validation_ok and not self._embedded_controls_only
+            )
         if report is None:
             self.validator_tree.addTopLevelItem(QTreeWidgetItem(("Info", "not_run", "No active export validation.")))
             return
@@ -1573,10 +1963,103 @@ class MeshEditorWorkspace(QFrame):
             f"{report.submesh_count} part(s), {report.vertex_count} vertex/vertices, {report.face_count} face(s)"
         )
         self.validator_tree.addTopLevelItem(QTreeWidgetItem(("OK" if report.ok else "Blocked", "summary", summary)))
+        self._add_validation_status_rows(report)
+        if report.parse_confidence:
+            self.validator_tree.addTopLevelItem(QTreeWidgetItem(("Info", "parse_confidence", report.parse_confidence)))
+        if report.no_op_roundtrip_status:
+            roundtrip_bits = [report.no_op_roundtrip_status]
+            if report.no_op_byte_identical is not None:
+                roundtrip_bits.append("byte-identical yes" if report.no_op_byte_identical else "byte-identical no")
+            roundtrip_bits.append(f"unexpected byte changes {report.no_op_unexpected_differences}")
+            self.validator_tree.addTopLevelItem(QTreeWidgetItem(("Info", "no_op_roundtrip", " | ".join(roundtrip_bits))))
         for issue in report.issues:
             location = _issue_location(issue.submesh_index, issue.vertex_index, issue.face_index)
             message = f"{issue.message}{' ' + location if location else ''}"
             self.validator_tree.addTopLevelItem(QTreeWidgetItem((issue.severity.title(), issue.code, message)))
+
+    def _add_validation_status_rows(self, report: MeshExportValidationReport) -> None:
+        rows = (
+            ("Asset hash match", "present" if report.source_asset_hash else "unknown"),
+            ("Sidecar status", self._validation_status(report, category="sidecar", ok_text="ready")),
+            ("Validation status", "pass" if report.ok else "blocked"),
+            ("Topology status", self._validation_status(report, category="topology", code_terms=("topology", "vertex_count", "index_count"), ok_text="safe")),
+            ("Bone data status", self._validation_status(report, category="skeleton", code_terms=("bone", "skinning"), ok_text="preserved")),
+            ("LOD identity status", self._validation_status(report, code_terms=("lod_identity", "lod_count"), ok_text="preserved")),
+            ("Submesh identity status", self._validation_status(report, code_terms=("submesh", "part_count", "stable_id"), ok_text="preserved")),
+            ("Rebuild allowed", "yes" if report.ok else "no"),
+        )
+        for label, value in rows:
+            self.validator_tree.addTopLevelItem(QTreeWidgetItem(("Status", label, value)))
+
+    @staticmethod
+    def _validation_status(
+        report: MeshExportValidationReport,
+        *,
+        category: str = "",
+        code_terms: Sequence[str] = (),
+        ok_text: str,
+    ) -> str:
+        matches = []
+        category_key = str(category or "").casefold()
+        terms = tuple(str(term).casefold() for term in code_terms)
+        for issue in report.issues:
+            issue_category = str(getattr(issue, "category", "") or "").casefold()
+            issue_code = str(getattr(issue, "code", "") or "").casefold()
+            if (category_key and issue_category == category_key) or any(term in issue_code for term in terms):
+                matches.append(issue)
+        if not matches:
+            return ok_text
+        blockers = sum(1 for issue in matches if str(getattr(issue, "severity", "") or "").casefold() == "blocker")
+        warnings = len(matches) - blockers
+        parts = []
+        if blockers:
+            parts.append(f"{blockers} blocker(s)")
+        if warnings:
+            parts.append(f"{warnings} warning(s)")
+        return ", ".join(parts) or ok_text
+
+    def update_rebuild_report(self, report: object | None) -> None:
+        self.rebuild_tree.clear()
+        self._has_rebuild_report = report is not None
+        self._has_rebuilt_asset_output = bool(str(getattr(report, "output_path", "") or "").strip())
+        save_button = getattr(self, "save_rebuild_report_button", None)
+        if save_button is not None:
+            save_button.setEnabled(
+                self._has_editor_target and self._has_rebuild_report and not self._embedded_controls_only
+            )
+        preview_rebuilt_button = getattr(self, "preview_rebuilt_asset_button", None)
+        if preview_rebuilt_button is not None:
+            preview_rebuilt_button.setEnabled(
+                self._has_editor_target and self._has_rebuilt_asset_output and not self._embedded_controls_only
+            )
+        package_rebuilt_button = getattr(self, "package_rebuilt_asset_button", None)
+        if package_rebuilt_button is not None:
+            package_rebuilt_button.setEnabled(
+                self._has_editor_target and self._has_rebuilt_asset_output and not self._embedded_controls_only
+            )
+        if report is None:
+            self.rebuild_tree.addTopLevelItem(QTreeWidgetItem(("Status", "No rebuild report.")))
+            return
+        rows = (
+            ("Validation", report.validation_status),
+            ("Format", report.mesh_format),
+            ("Parse confidence", report.parse_confidence),
+            ("Source hash", _short_hash(report.source_asset_hash)),
+            ("Rebuilt hash", _short_hash(report.rebuilt_asset_hash)),
+            ("Size", f"{report.source_size} -> {report.rebuilt_size} bytes"),
+            ("Byte identical", "yes" if report.byte_identical else "no"),
+            ("Changed byte ranges", str(report.changed_range_count)),
+            ("Edited LODs", _join_report_values(report.edited_lods)),
+            ("Edited submeshes", _join_report_values(report.edited_submeshes)),
+            ("Changed channels", _join_report_values(report.changed_channels)),
+            ("Recomputed fields", _join_report_values(report.recomputed_fields)),
+            ("Edit operations", _join_report_values(_rebuild_report_operation_names(report))),
+            ("Warnings", _join_report_values(report.warnings)),
+            ("Developer overrides", _join_report_values(getattr(report, "developer_overrides", ()))),
+            ("Output", report.output_path or "not written"),
+        )
+        for label, value in rows:
+            self.rebuild_tree.addTopLevelItem(QTreeWidgetItem((label, str(value or "none"))))
 
     def _build_status_strip(self) -> QWidget:
         frame = QFrame(self)
@@ -1838,6 +2321,26 @@ def _issue_location(submesh_index: int, vertex_index: int, face_index: int) -> s
     if face_index >= 0:
         parts.append(f"face {face_index}")
     return f"({' / '.join(parts)})" if parts else ""
+
+
+def _short_hash(value: str) -> str:
+    text = str(value or "").strip()
+    return text[:12] if text else ""
+
+
+def _join_report_values(values: Iterable[object]) -> str:
+    items = tuple(str(value) for value in tuple(values or ()) if str(value))
+    return ", ".join(items)
+
+
+def _rebuild_report_operation_names(report: object) -> tuple[str, ...]:
+    names: list[str] = []
+    for operation in tuple(getattr(report, "edit_operations", ()) or ()):
+        if isinstance(operation, dict):
+            name = str(operation.get("operation", "") or "").strip()
+            if name:
+                names.append(name)
+    return tuple(names)
 
 
 def _workspace_action_tooltip(action: MeshEditorAction) -> str:

@@ -86,6 +86,7 @@ _EXTRA_SUBMESH_ATTRS = (
     "preview_alpha_mode",
     "preview_double_sided",
     "preview_sidecar_shader_family",
+    "unknown_fields",
     "cdmw_material_authority_profile",
     "cdmw_material_authority_contract",
     "cdmw_source_material_name",

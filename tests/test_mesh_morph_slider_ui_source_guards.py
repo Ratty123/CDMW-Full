@@ -78,7 +78,8 @@ class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
         self.assertIn("def _morph_slider_apply_to_working_mesh", main_source)
         self.assertIn("Bake or reset Morph Sliders before removing faces.", main_source)
         self.assertIn("_morph_slider_mark_topology_changed", main_source)
-        self.assertIn("edited_source_mesh = clone_mesh_for_editing(replacement_mesh_for_mapping)", main_source)
+        self.assertIn("edited_source_mesh = clone_mesh_for_static_replacement_native_first(", main_source)
+        self.assertIn("Python edited source mesh clone fallback blocked while native mesh core is available", main_source)
         self.assertIn("edited_source_mesh: ParsedMesh | None = None", static_source)
         self.assertIn("def _replacement_mesh_from_options", static_source)
 
