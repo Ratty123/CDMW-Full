@@ -507,6 +507,37 @@ class MeshDeformerTests(unittest.TestCase):
         self.assertEqual(sidecar_path, result)
         native.assert_called_once()
 
+    def test_write_roundtrip_manifest_marks_empty_bone_rows_unweighted(self) -> None:
+        weighted = _submesh()
+        weighted.name = "weighted"
+        weighted.bone_indices = [(0,), (0,), (0,), (0,)]
+        weighted.bone_weights = [(1.0,), (1.0,), (1.0,), (1.0,)]
+        unweighted = _submesh()
+        unweighted.name = "empty_rows"
+        unweighted.bone_indices = [(), (), (), ()]
+        unweighted.bone_weights = [(), (), (), ()]
+        mesh = ParsedMesh(
+            path="character/model/mixed_skinning.pac",
+            format="pac",
+            submeshes=[unweighted, weighted],
+            total_vertices=8,
+            total_faces=4,
+            has_bones=True,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            obj_path = Path(temp_dir) / "mixed_skinning.obj"
+            with mock.patch("cdmw.modding.mesh_native_core.write_native_obj_roundtrip_manifest", return_value=False):
+                sidecar_path = write_roundtrip_manifest(mesh, obj_path)
+            payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
+
+        first_layout = payload["lods"][0]["submeshes"][0]["bone_layout"]
+        second_layout = payload["lods"][0]["submeshes"][1]["bone_layout"]
+        self.assertFalse(first_layout["has_bones"])
+        self.assertEqual(0, first_layout["max_influences"])
+        self.assertTrue(second_layout["has_bones"])
+        self.assertEqual(1, second_layout["max_influences"])
+
     def test_live_delete_can_defer_orphan_compaction(self) -> None:
         sm = _submesh()
         sm.uvs = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]

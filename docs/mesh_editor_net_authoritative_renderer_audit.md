@@ -100,19 +100,20 @@ Implemented in this pass:
 - Added local vertex, face, and part click selection in .NET with Replace/Add/Subtract/Toggle operation support, visible/X-Ray picking behavior, and local WPF/GDI overlay updates.
 - Added local vertex, face, edge, and part drag-rectangle selection with Replace/Add/Subtract/Toggle operation support, WPF selection-rectangle overlay, and GDI fallback rectangle drawing.
 - Added local part adjacency inference from submesh bounds and shared/near vertices, enabling local Grow and Shrink for Part/Source selection modes.
-- Added local handling for Clear Selection, Select All, Invert, Grow, and Shrink selection commands for vertex/face/edge/part modes.
-- Added local selection snapshot payload on forwarded command requests so host/native command handling can receive the current .NET selection mirror, including stable edge descriptors and topology generation.
+- Added local selection preview helpers for vertex/face/edge/part modes, but mesh/session command buttons now forward Clear Selection, Select All, Invert, Grow, and Shrink to the host so `MeshService` remains authoritative.
+- Added local selection snapshot payload on forwarded command requests so host/native command handling can receive the current .NET selection mirror, including source indices, edge pairs, stable edge descriptors, and topology generation.
 - Added package-local texture copying into `package/textures/` for every resolved preview texture channel that exists on disk, so the .NET process no longer depends on unstable external preview paths during the edit session.
 - Added DDS header verification and decoding for package-local DDS resources, including width, height, mip count, FourCC/DXGI format key, and decoded status where the header is valid.
 - Added DX10/DXGI DDS mapping for common formats used by real assets: BC1/BC2/BC3/BC4/BC5, R8/RG8, RGBA8, and BGRA8/BGRX8.
 - Updated PyInstaller packaging to bundle the full .NET WPF helper payload directory, not only `cdmw-mesh-dotnet-editor.exe`.
-- Changed embedded Edit Mesh behavior so the .NET viewport starts automatically when the helper is available; the `.NET` button is now a manual restart/open path, not the primary entry point.
+- Changed embedded Edit Mesh behavior so the .NET viewport starts automatically only when `mesh_editor/use_embedded_dotnet_viewport=true`; helper availability is tracked separately and the `.NET` button remains a manual open/restart path.
 - Added immediate QProcess startup verification and stdout/stderr/error diagnostics so .NET launch failures report status instead of appearing to do nothing.
 - Added renderer diagnostics to the ready/metrics protocol payload, including active backend, material count, texture-reference counts, package-local resource counts, decoded resources, DDS resource count, texture-load failures, explicit DDS status, and dynamically selected runtime capabilities.
-- Added explicit D3D11 initialization probing, forced-failure test hook, runtime fallback escalation, hashed/versioned shader extraction folders, shared camera matrix projection for overlays, SRV caching, and explicit D3D11 unbind-before-dispose cleanup.
+- Added explicit D3D11 initialization probing, forced-failure test hook, runtime fallback escalation, hashed/versioned shader extraction folders, SRV caching, and explicit D3D11 unbind-before-dispose cleanup.
+- Added shared `NetViewportCamera` projection/camera semantics for WinForms fallback projection, WPF camera setup, D3D11 shader constants, pointer payload matrices, picking, and overlay projection.
 - Added D3D11 device-lost detection/reset handling for removed/reset/driver-internal errors, forced Present-failure injection, and device-removed reason reporting in renderer metrics.
-- Added D3D11 overlay rendering for wire, X-Ray marker, selected vertices, selected edges, hover edge, selected faces, selected source parts, and selection rectangle.
-- Added explicit frame scheduling/metrics for present time, dirty-to-present latency, and dropped frames.
+- Replaced the embedded D3D11 GDI overlay composition path with D3D11 line/triangle overlay primitives drawn before swap-chain `Present` for wire, X-Ray marker, selected vertices, selected edges, hover edge, selected faces, selected source parts, and selection rectangle.
+- Added explicit frame scheduling/metrics for present time, dirty-to-present latency, dropped frames, frame count, first-frame state, and idle versus active rendering status.
 - Added release dirty-tree preflight through `scripts/release_preflight.py`; release packaging writes `build/release-change-inventory.json` and blocks generated output or unclassified untracked source.
 - Added material debug channel toggles and renderer status parity metadata for base, normal, roughness, metallic, emissive, specular, and final output.
 - Kept host commit/import/material refresh unchanged.
@@ -127,7 +128,7 @@ Implemented in this pass:
 
 ## Target architecture gap
 
-The current code now has local edge topology, stable edge descriptors, topology generation, local vertex/face/edge/part picking, local selection commands, material/texture handoff, common DDS and DX10/DXGI DDS decoding, `cd-texture-dx` DDS fallback, automatic .NET startup for Edit Mesh, packaged .NET helper discovery, explicit D3D11 startup probing/fallback, device-lost reset, D3D11 overlay parity for local selection state, material debug channels, release dirty-tree preflight, and a first custom D3D11/Vortice/HLSL material viewport. WPF remains fallback. Remaining validation is runtime visual QA/golden screenshots for the new .NET D3D11 viewport against real PAC assets and a later true GPU overlay pass if GDI composition over the D3D11 control is not sufficient.
+The current code now has local edge topology, stable edge descriptors, topology generation, local vertex/face/edge/part picking, host-owned selection and transform command routing, shared .NET camera/projection semantics, material/texture handoff, common DDS and DX10/DXGI DDS decoding, `cd-texture-dx` DDS fallback, opt-in .NET startup for Edit Mesh, packaged .NET helper discovery, explicit D3D11 startup probing/fallback, device-lost reset, D3D11-owned overlay primitives for local selection state, material debug channels, release dirty-tree preflight, and a first custom D3D11/Vortice/HLSL material viewport. WPF remains fallback. Remaining validation is runtime visual QA/golden screenshots for the new .NET D3D11 viewport against real PAC assets.
 
 ## Real archive proof
 

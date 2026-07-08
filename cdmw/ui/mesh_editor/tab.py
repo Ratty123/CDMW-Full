@@ -185,6 +185,7 @@ class MeshEditorTab(QWidget):
         self.standalone_dotnet_status_payload: dict[str, object] = {}
         self.standalone_dotnet_target_controller: MeshEditorController | None = None
         self.standalone_dotnet_target_embedded = False
+        self.standalone_dotnet_embedded_state = "closed"
         self.standalone_dotnet_protocol_stdout = ""
         self.standalone_dotnet_protocol_events: list[dict[str, object]] = []
         self.embedded_dotnet_editor_button: QPushButton | None = None
@@ -452,6 +453,7 @@ class MeshEditorTab(QWidget):
         self._embedded_control_tabs = None
         self._embedded_classic_builder = None
         self.embedded_dotnet_editor_button = None
+        self._set_embedded_dotnet_state("closed", active=False)
         while self.embedded_builder_host_layout.count():
             item = self.embedded_builder_host_layout.takeAt(0)
             widget = item.widget()
@@ -503,11 +505,26 @@ class MeshEditorTab(QWidget):
                     break
         self._refresh_embedded_workspace_from_builder()
 
+    def _set_embedded_dotnet_state(self, state: str, *, active: bool = False) -> None:
+        normalized_state = str(state or "closed").strip().lower() or "closed"
+        self.standalone_dotnet_embedded_state = normalized_state
+        builder = self.active_builder()
+        if builder is not None:
+            setattr(builder, "_mesh_editor_embedded_dotnet_state", normalized_state)
+            setattr(builder, "_mesh_editor_embedded_dotnet_active", bool(active))
+
     def _wire_embedded_dotnet_button(self, builder: QWidget) -> None:
         dotnet_available = self._dotnet_editor_executable_path() is not None
+        dotnet_enabled = dotnet_available and read_bool_setting(
+            self.settings,
+            "mesh_editor/use_embedded_dotnet_viewport",
+            False,
+        )
         setattr(builder, "_mesh_editor_embedded_start_dotnet", self._start_embedded_dotnet_editor_requested)
         setattr(builder, "_mesh_editor_embedded_stop_dotnet", self._request_embedded_dotnet_editor_close)
-        setattr(builder, "_mesh_editor_use_embedded_dotnet_viewport", dotnet_available)
+        setattr(builder, "_mesh_editor_dotnet_available", dotnet_available)
+        setattr(builder, "_mesh_editor_use_embedded_dotnet_viewport", dotnet_enabled)
+        self._set_embedded_dotnet_state("closed", active=False)
         button = builder.findChild(QPushButton, "MeshAlignmentDotNetExperimentButton")
         self.embedded_dotnet_editor_button = button
         if button is None:
@@ -515,7 +532,10 @@ class MeshEditorTab(QWidget):
         if button.property("meshEditorDotNetConnectedTo") != id(self):
             button.clicked.connect(self._start_embedded_dotnet_editor_requested)
             button.setProperty("meshEditorDotNetConnectedTo", id(self))
-        button.setToolTip("Edit Mesh starts the .NET viewport automatically. Use this only to restart/open it manually.")
+        if dotnet_enabled:
+            button.setToolTip("Edit Mesh can start the opt-in .NET viewport automatically. Use this to restart/open it manually.")
+        else:
+            button.setToolTip("Open the optional .NET viewport manually. Edit Mesh keeps the native/classic controls unless the opt-in setting is enabled.")
         button.setEnabled(dotnet_available and not self._dotnet_task_active())
 
     def set_native_preview_host(self, host: object | None) -> None:
@@ -1189,6 +1209,8 @@ class MeshEditorTab(QWidget):
         executable = self._dotnet_editor_executable_path()
         self.standalone_dotnet_target_embedded = bool(embedded)
         if executable is None or not executable.is_file():
+            if embedded:
+                self._set_embedded_dotnet_state("failed", active=False)
             message = (
                 "Mesh .NET editor experiment is not configured. Set "
                 "mesh_editor/dotnet_experiment_executable, CDMW_MESH_DOTNET_EXPERIMENT_EXE, or build the bundled helper."
@@ -1205,6 +1227,8 @@ class MeshEditorTab(QWidget):
         self.standalone_dotnet_package_request_id += 1
         request_id = self.standalone_dotnet_package_request_id
         self.standalone_dotnet_target_controller = controller
+        if embedded:
+            self._set_embedded_dotnet_state("launching", active=False)
         worker = MeshDotNetExperimentPackageWorker(request_id, controller.mesh_service, session_id)
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -1237,6 +1261,8 @@ class MeshEditorTab(QWidget):
         if int(request_id) != int(self.standalone_dotnet_package_request_id):
             return
         text = f"Mesh .NET editor experiment package failed: {message}"
+        if self.standalone_dotnet_target_embedded:
+            self._set_embedded_dotnet_state("failed", active=False)
         self._set_dotnet_status(text, error=True)
 
     def _cleanup_standalone_dotnet_package_worker(
@@ -1444,6 +1470,9 @@ class MeshEditorTab(QWidget):
             )
             return False
         if event == "ready":
+            if self.standalone_dotnet_target_embedded:
+                self._set_embedded_dotnet_state("ready", active=True)
+                self.update_editor_action_state(selection_empty=self.current_selection_empty)
             self._send_dotnet_session_state()
             return True
         if event == "metrics":
@@ -1526,6 +1555,138 @@ class MeshEditorTab(QWidget):
             "source_indices": selection.source_indices,
             "empty": selection.is_empty(),
         }
+
+    @classmethod
+    def _dotnet_local_selection_payload_to_selection(cls, payload: Mapping[str, object]) -> MeshEditSelection:
+        raw_selection = payload.get("local_selection")
+        if not isinstance(raw_selection, Mapping):
+            raw_selection = payload.get("selection")
+        if not isinstance(raw_selection, Mapping):
+            return MeshEditSelection()
+        vertices = cls._dotnet_index_map(raw_selection.get("vertices_by_submesh"))
+        faces = cls._dotnet_index_map(raw_selection.get("faces_by_submesh"))
+        edges = cls._dotnet_edge_map(raw_selection.get("edges_by_submesh"))
+        if not edges:
+            edges = cls._dotnet_edge_descriptors(raw_selection.get("edge_descriptors"))
+        sources = cls._dotnet_int_values(
+            raw_selection.get("source_indices", raw_selection.get("sources", ()))
+        )
+        return MeshEditSelection.from_maps(
+            vertices_by_submesh=vertices,
+            edges_by_submesh=edges,
+            faces_by_submesh=faces,
+            source_indices=sources,
+        )
+
+    @classmethod
+    def _dotnet_index_map(cls, value: object) -> dict[int, tuple[int, ...]]:
+        result: dict[int, tuple[int, ...]] = {}
+        for submesh, values in cls._dotnet_map_items(value):
+            indices = tuple(sorted({index for index in cls._dotnet_int_values(values) if index >= 0}))
+            if indices:
+                result[submesh] = indices
+        return result
+
+    @classmethod
+    def _dotnet_edge_map(cls, value: object) -> dict[int, tuple[tuple[int, int], ...]]:
+        result: dict[int, tuple[tuple[int, int], ...]] = {}
+        for submesh, raw_edges in cls._dotnet_map_items(value):
+            pairs = cls._dotnet_edge_pairs(raw_edges)
+            if pairs:
+                result[submesh] = pairs
+        return result
+
+    @classmethod
+    def _dotnet_edge_descriptors(cls, value: object) -> dict[int, tuple[tuple[int, int], ...]]:
+        if isinstance(value, Mapping) or isinstance(value, (str, bytes)):
+            return {}
+        try:
+            items = tuple(value or ())  # type: ignore[arg-type]
+        except TypeError:
+            return {}
+        result: dict[int, set[tuple[int, int]]] = {}
+        for item in items:
+            if not isinstance(item, Mapping):
+                continue
+            submesh = cls._standalone_native_payload_int(
+                item.get("source_submesh_index", item.get("submesh_index", -1)),
+                -1,
+            )
+            a = cls._standalone_native_payload_int(item.get("vertex_a"), -1)
+            b = cls._standalone_native_payload_int(item.get("vertex_b"), -1)
+            if submesh < 0 or a < 0 or b < 0 or a == b:
+                continue
+            pair = (a, b) if a <= b else (b, a)
+            result.setdefault(submesh, set()).add(pair)
+        return {submesh: tuple(sorted(pairs)) for submesh, pairs in sorted(result.items())}
+
+    @classmethod
+    def _dotnet_map_items(cls, value: object) -> tuple[tuple[int, object], ...]:
+        pairs: list[tuple[int, object]] = []
+        if isinstance(value, Mapping):
+            iterable = value.items()
+        elif not isinstance(value, (str, bytes)):
+            try:
+                iterable = tuple(value or ())  # type: ignore[arg-type]
+            except TypeError:
+                iterable = ()
+        else:
+            iterable = ()
+        for item in iterable:
+            if isinstance(value, Mapping):
+                raw_key, raw_values = item
+            else:
+                if isinstance(item, Mapping):
+                    raw_key = item.get("index", item.get("submesh", item.get("submesh_index", -1)))
+                    raw_values = item.get("indices", item.get("values", item.get("edges", ())))
+                else:
+                    try:
+                        item_values = tuple(item or ())  # type: ignore[arg-type]
+                    except TypeError:
+                        continue
+                    if len(item_values) < 2:
+                        continue
+                    raw_key, raw_values = item_values[0], item_values[1]
+            key = cls._standalone_native_payload_int(raw_key, -1)
+            if key >= 0:
+                pairs.append((key, raw_values))
+        return tuple(pairs)
+
+    @classmethod
+    def _dotnet_int_values(cls, value: object) -> tuple[int, ...]:
+        if isinstance(value, Mapping) or isinstance(value, (str, bytes)):
+            return ()
+        try:
+            raw_values = tuple(value or ())  # type: ignore[arg-type]
+        except TypeError:
+            return ()
+        return tuple(cls._standalone_native_payload_int(raw, -1) for raw in raw_values)
+
+    @classmethod
+    def _dotnet_edge_pairs(cls, value: object) -> tuple[tuple[int, int], ...]:
+        if isinstance(value, Mapping) or isinstance(value, (str, bytes)):
+            return ()
+        try:
+            raw_edges = tuple(value or ())  # type: ignore[arg-type]
+        except TypeError:
+            return ()
+        edges: set[tuple[int, int]] = set()
+        for raw_edge in raw_edges:
+            if isinstance(raw_edge, Mapping):
+                a = cls._standalone_native_payload_int(raw_edge.get("vertex_a"), -1)
+                b = cls._standalone_native_payload_int(raw_edge.get("vertex_b"), -1)
+            else:
+                try:
+                    pair_values = tuple(raw_edge or ())[:2]  # type: ignore[arg-type]
+                except TypeError:
+                    continue
+                if len(pair_values) < 2:
+                    continue
+                a = cls._standalone_native_payload_int(pair_values[0], -1)
+                b = cls._standalone_native_payload_int(pair_values[1], -1)
+            if a >= 0 and b >= 0 and a != b:
+                edges.add((a, b) if a <= b else (b, a))
+        return tuple(sorted(edges))
 
     def _send_dotnet_command_result(
         self,
@@ -1710,14 +1871,16 @@ class MeshEditorTab(QWidget):
                 diagnostics=("Mesh clipboard is disabled until metadata-preserving paste is proved; use Duplicate for same-selection copies.",),
             )
             return False
+        local_selection = self._dotnet_local_selection_payload_to_selection(payload)
+        action_selection = local_selection if not local_selection.is_empty() else None
         try:
             if command == "clear_selection":
-                result = controller.select(source_indices=(), operation="replace")
+                result = controller.select(operation="replace")
             elif command == "select_all":
                 summary = controller.workspace_summary()
                 result = controller.select(source_indices=tuple(part.index for part in summary.parts), operation="all")
             elif command in {"grow", "shrink", "invert"}:
-                result = controller.apply("select", selection=MeshEditSelection(), operation=command)
+                result = controller.apply("select", selection=local_selection, operation=command)
             else:
                 action_key = command
                 aliases = {
@@ -1732,7 +1895,19 @@ class MeshEditorTab(QWidget):
                     "pinch": "brush_pinch",
                 }
                 action_key = aliases.get(action_key, action_key)
-                result = controller.apply_editor_action(action_key)
+                params: dict[str, object] = {}
+                if action_key == "transform_move":
+                    if "delta" in payload:
+                        params["delta"] = self._standalone_native_payload_vec3(payload.get("delta"))
+                    elif "translate" in payload:
+                        params["translate"] = self._standalone_native_payload_vec3(payload.get("translate"))
+                    elif "step" in payload:
+                        step = self._standalone_native_payload_float(payload.get("step"), 0.0)
+                        axis = str(payload.get("axis", "x") or "x").strip().lower()
+                        params["delta"] = (step if axis == "x" else 0.0, step if axis == "y" else 0.0, step if axis == "z" else 0.0)
+                    if "axis" in payload:
+                        params["axis"] = str(payload.get("axis") or "").strip().lower()
+                result = controller.apply_editor_action(action_key, selection=action_selection, **params)
         except Exception as exc:
             self._set_dotnet_status(f"Mesh .NET editor command failed: {command}: {exc}", error=True)
             self._send_dotnet_command_result(command, ok=False, status="error", diagnostics=(str(exc),))
@@ -1760,6 +1935,7 @@ class MeshEditorTab(QWidget):
         process = self.standalone_dotnet_editor_process
         if process is None:
             return False
+        self._set_embedded_dotnet_state("closing", active=False)
         self._send_dotnet_protocol_message({"event": "close_request"})
         package = self.standalone_dotnet_experiment_package
         if package is not None:
@@ -1797,10 +1973,13 @@ class MeshEditorTab(QWidget):
     def _launch_standalone_dotnet_editor_package(self, package: MeshDotNetExperimentPackage) -> bool:
         executable = self._dotnet_editor_executable_path()
         if executable is None or not executable.is_file():
+            if self.standalone_dotnet_target_embedded:
+                self._set_embedded_dotnet_state("failed", active=False)
             self._set_dotnet_status("Mesh .NET editor experiment executable is missing.", error=True)
             return False
         embedded_parent_hwnd = self._dotnet_embedded_parent_hwnd()
         if self.standalone_dotnet_target_embedded and embedded_parent_hwnd <= 0:
+            self._set_embedded_dotnet_state("failed", active=False)
             self._set_dotnet_status("Mesh .NET embedded launch failed: no native parent window handle is available.", error=True)
             return False
         try:
@@ -1810,6 +1989,8 @@ class MeshEditorTab(QWidget):
                 embedded_parent_hwnd=embedded_parent_hwnd,
             )
         except Exception as exc:
+            if self.standalone_dotnet_target_embedded:
+                self._set_embedded_dotnet_state("failed", active=False)
             self._set_dotnet_status(f"Mesh .NET editor experiment unavailable: {exc}", error=True)
             return False
         process = QProcess(self)
@@ -1826,6 +2007,8 @@ class MeshEditorTab(QWidget):
         self.standalone_dotnet_editor_process = process
         self.standalone_dotnet_experiment_package = package
         mode = "embedded" if embedded_parent_hwnd > 0 else "standalone"
+        if self.standalone_dotnet_target_embedded:
+            self._set_embedded_dotnet_state("launching", active=False)
         self._set_dotnet_status(f"Mesh .NET editor experiment launching {mode}: {package.package_dir}")
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         process.start()
@@ -1841,11 +2024,15 @@ class MeshEditorTab(QWidget):
                 return True
         except RuntimeError as exc:
             self.standalone_dotnet_editor_process = None
+            if self.standalone_dotnet_target_embedded:
+                self._set_embedded_dotnet_state("failed", active=False)
             self._set_dotnet_status(f"Mesh .NET editor launch failed: {exc}", error=True)
             self.update_editor_action_state(selection_empty=self.current_selection_empty)
             return False
         detail = self._dotnet_process_diagnostics(process)
         self.standalone_dotnet_editor_process = None
+        if self.standalone_dotnet_target_embedded:
+            self._set_embedded_dotnet_state("failed", active=False)
         self._set_dotnet_status(f"Mesh .NET editor launch failed: {detail}", error=True)
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         try:
@@ -1887,6 +2074,8 @@ class MeshEditorTab(QWidget):
 
     def _stop_standalone_dotnet_editor_process(self) -> None:
         process = self.standalone_dotnet_editor_process
+        if self.standalone_dotnet_target_embedded:
+            self._set_embedded_dotnet_state("closed", active=False)
         self.standalone_dotnet_editor_process = None
         if process is None:
             return
@@ -1915,6 +2104,8 @@ class MeshEditorTab(QWidget):
         if self.standalone_dotnet_editor_process is not process:
             return
         self.standalone_dotnet_editor_process = None
+        if self.standalone_dotnet_target_embedded:
+            self._set_embedded_dotnet_state("closed", active=False)
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         payload: dict[str, object] = {}
         if package.status_path.is_file():
@@ -1956,6 +2147,9 @@ class MeshEditorTab(QWidget):
             return
         detail = self._dotnet_process_diagnostics(process)
         text = f"Mesh .NET editor experiment process error: {detail}"
+        if self.standalone_dotnet_target_embedded:
+            self._set_embedded_dotnet_state("failed", active=False)
+        self.update_editor_action_state(selection_empty=self.current_selection_empty)
         self._set_dotnet_status(text, error=True)
 
     def _standalone_action_worker_active(self) -> bool:

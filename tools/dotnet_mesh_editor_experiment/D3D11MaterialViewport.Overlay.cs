@@ -1,62 +1,75 @@
-using System.Drawing.Drawing2D;
-using System.Drawing.Text;
 using System.Numerics;
+using System.Runtime.InteropServices;
+using Vortice.Direct3D;
+using Vortice.Direct3D11;
 
 namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class D3D11MaterialViewport
 {
-    private void DrawD3D11Overlay(Graphics graphics)
+    private void DrawD3D11Overlay()
     {
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        if (_context is null
+            || _device is null
+            || _overlayInputLayout is null
+            || _overlayVertexShader is null
+            || _overlayPixelShader is null
+            || _overlayCameraBuffer is null)
+        {
+            return;
+        }
+        _context.OMSetBlendState(_overlayBlendState);
+        _context.OMSetDepthStencilState(_overlayDepthState);
+        _context.IASetInputLayout(_overlayInputLayout);
+        _context.VSSetShader(_overlayVertexShader);
+        _context.PSSetShader(_overlayPixelShader);
         if (_overlayShowWire || _overlayShowXRay)
         {
-            DrawD3D11WireOverlay(graphics);
+            DrawD3D11WireOverlay();
         }
-        DrawSelectedSourcesOverlay(graphics);
-        DrawSelectedFacesOverlay(graphics);
-        DrawSelectedEdgesOverlay(graphics);
-        DrawSelectedVerticesOverlay(graphics);
-        DrawSelectionRectangleOverlay(graphics);
+        DrawSelectedSourcesOverlay();
+        DrawSelectedFacesOverlay();
+        DrawSelectedEdgesOverlay();
+        DrawSelectedVerticesOverlay();
+        DrawSelectionRectangleOverlay();
         if (_overlayShowXRay)
         {
-            DrawXRayOverlayLabel(graphics);
+            DrawXRayOverlayMarker();
         }
+        _context.OMSetBlendState(_blendState);
+        _context.OMSetDepthStencilState(_depthState);
     }
 
-    private void DrawD3D11WireOverlay(Graphics graphics)
+    private void DrawD3D11WireOverlay()
     {
-        var alpha = _overlayShowXRay ? 125 : 95;
-        using var wirePen = new Pen(System.Drawing.Color.FromArgb(alpha, 120, 170, 220), _overlayShowXRay ? 0.9f : 0.75f);
+        var lines = new List<Vector3>();
         foreach (var edge in _overlayTopology.Edges)
         {
-            if (!TryProjectOverlayEdge(edge, out var a, out var b))
-            {
-                continue;
-            }
-            graphics.DrawLine(wirePen, a, b);
+            AddEdgeLineVertices(edge, lines);
         }
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(120, 170, 220, _overlayShowXRay ? 125 : 95), _camera.WorldViewProjection);
     }
 
-    private void DrawSelectedSourcesOverlay(Graphics graphics)
+    private void DrawSelectedSourcesOverlay()
     {
-        using var sourceFill = new SolidBrush(System.Drawing.Color.FromArgb(_overlayShowXRay ? 64 : 42, 70, 155, 255));
-        using var sourcePen = new Pen(System.Drawing.Color.FromArgb(_overlayShowXRay ? 230 : 185, 70, 155, 255), 1.5f);
+        var triangles = new List<Vector3>();
+        var lines = new List<Vector3>();
         for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
         {
             if (!_overlaySelectedSources.Contains(submeshIndex) && submeshIndex != _overlaySelectedSubmeshIndex)
             {
                 continue;
             }
-            DrawSubmeshFacesOverlay(graphics, submeshIndex, sourceFill, sourcePen);
+            AddSubmeshFaceVertices(submeshIndex, triangles, lines);
         }
+        DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(70, 155, 255, _overlayShowXRay ? 64 : 42), _camera.WorldViewProjection);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(70, 155, 255, _overlayShowXRay ? 230 : 185), _camera.WorldViewProjection);
     }
 
-    private void DrawSelectedFacesOverlay(Graphics graphics)
+    private void DrawSelectedFacesOverlay()
     {
-        using var faceFill = new SolidBrush(System.Drawing.Color.FromArgb(_overlayShowXRay ? 88 : 58, 255, 224, 92));
-        using var facePen = new Pen(System.Drawing.Color.FromArgb(235, 255, 224, 92), 1.8f);
+        var triangles = new List<Vector3>();
+        var lines = new List<Vector3>();
         foreach (var pair in _overlaySelectedFaces)
         {
             if (pair.Key < 0 || pair.Key >= _document.Submeshes.Count)
@@ -70,39 +83,35 @@ internal sealed partial class D3D11MaterialViewport
                 {
                     continue;
                 }
-                if (TryProjectOverlayFace(submesh, submesh.Faces[faceIndex], out var points))
-                {
-                    graphics.FillPolygon(faceFill, points);
-                    graphics.DrawPolygon(facePen, points);
-                }
+                AddFaceVertices(submesh, submesh.Faces[faceIndex], triangles, lines);
             }
         }
+        DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(255, 224, 92, _overlayShowXRay ? 88 : 58), _camera.WorldViewProjection);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(255, 224, 92, 235), _camera.WorldViewProjection);
     }
 
-    private void DrawSelectedEdgesOverlay(Graphics graphics)
+    private void DrawSelectedEdgesOverlay()
     {
-        using var selectedPen = new Pen(System.Drawing.Color.FromArgb(245, 226, 196, 72), 2.0f);
-        using var hoverPen = new Pen(System.Drawing.Color.FromArgb(245, 96, 202, 255), 2.2f);
+        var selected = new List<Vector3>();
+        var hovered = new List<Vector3>();
         foreach (var edge in _overlayTopology.Edges)
         {
-            var selected = _overlaySelectedEdges.Contains(edge.Id);
-            var hovered = edge.Id == _overlayHoverEdgeId;
-            if (!selected && !hovered)
+            if (edge.Id == _overlayHoverEdgeId)
             {
-                continue;
+                AddEdgeLineVertices(edge, hovered);
             }
-            if (!TryProjectOverlayEdge(edge, out var a, out var b))
+            else if (_overlaySelectedEdges.Contains(edge.Id))
             {
-                continue;
+                AddEdgeLineVertices(edge, selected);
             }
-            graphics.DrawLine(hovered ? hoverPen : selectedPen, a, b);
         }
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, selected, OverlayColor(226, 196, 72, 245), _camera.WorldViewProjection);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, hovered, OverlayColor(96, 202, 255, 245), _camera.WorldViewProjection);
     }
 
-    private void DrawSelectedVerticesOverlay(Graphics graphics)
+    private void DrawSelectedVerticesOverlay()
     {
-        using var vertexBrush = new SolidBrush(System.Drawing.Color.FromArgb(235, 255, 230, 88));
-        using var vertexPen = new Pen(System.Drawing.Color.FromArgb(245, 42, 26, 8), 1.0f);
+        var lines = new List<Vector3>();
         foreach (var pair in _overlaySelectedVertices)
         {
             if (pair.Key < 0 || pair.Key >= _document.Submeshes.Count)
@@ -116,34 +125,38 @@ internal sealed partial class D3D11MaterialViewport
                 {
                     continue;
                 }
-                var point = ProjectOverlayVertex(submesh.Vertices[vertexIndex]);
-                var rect = new RectangleF(point.X - 3.5f, point.Y - 3.5f, 7.0f, 7.0f);
-                graphics.FillEllipse(vertexBrush, rect);
-                graphics.DrawEllipse(vertexPen, rect);
+                AddScreenCross(_camera.Project(submesh.Vertices[vertexIndex]), 4.0f, lines);
             }
         }
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(255, 230, 88, 245), Matrix4x4.Identity);
     }
 
-    private void DrawSelectionRectangleOverlay(Graphics graphics)
+    private void DrawSelectionRectangleOverlay()
     {
         if (!_overlaySelectionRectangle.HasValue)
         {
             return;
         }
-        using var rectanglePen = new Pen(System.Drawing.Color.FromArgb(210, 96, 202, 255), 1.0f) { DashStyle = DashStyle.Dash };
-        using var rectangleBrush = new SolidBrush(System.Drawing.Color.FromArgb(36, 96, 202, 255));
-        graphics.FillRectangle(rectangleBrush, _overlaySelectionRectangle.Value);
-        graphics.DrawRectangle(rectanglePen, _overlaySelectionRectangle.Value);
+        var rect = _overlaySelectionRectangle.Value;
+        var triangles = new List<Vector3>();
+        AddScreenQuad(rect.Left, rect.Top, rect.Right, rect.Bottom, triangles);
+        DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(96, 202, 255, 36), Matrix4x4.Identity);
+        var lines = new List<Vector3>();
+        AddScreenRectangle(rect.Left, rect.Top, rect.Right, rect.Bottom, lines);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(96, 202, 255, 210), Matrix4x4.Identity);
     }
 
-    private void DrawXRayOverlayLabel(Graphics graphics)
+    private void DrawXRayOverlayMarker()
     {
-        using var font = new Font(FontFamily.GenericSansSerif, 8.0f, FontStyle.Bold);
-        using var brush = new SolidBrush(System.Drawing.Color.FromArgb(235, 165, 215, 255));
-        graphics.DrawString("X-Ray", font, brush, new PointF(8.0f, 8.0f));
+        var lines = new List<Vector3>();
+        AddScreenLine(8.0f, 8.0f, 32.0f, 24.0f, lines);
+        AddScreenLine(32.0f, 8.0f, 8.0f, 24.0f, lines);
+        AddScreenLine(40.0f, 8.0f, 58.0f, 24.0f, lines);
+        AddScreenLine(58.0f, 8.0f, 40.0f, 24.0f, lines);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(165, 215, 255, 235), Matrix4x4.Identity);
     }
 
-    private void DrawSubmeshFacesOverlay(Graphics graphics, int submeshIndex, Brush fill, Pen outline)
+    private void AddSubmeshFaceVertices(int submeshIndex, List<Vector3> triangles, List<Vector3> lines)
     {
         if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count)
         {
@@ -152,63 +165,137 @@ internal sealed partial class D3D11MaterialViewport
         var submesh = _document.Submeshes[submeshIndex];
         foreach (var face in submesh.Faces)
         {
-            if (TryProjectOverlayFace(submesh, face, out var points))
-            {
-                graphics.FillPolygon(fill, points);
-                graphics.DrawPolygon(outline, points);
-            }
+            AddFaceVertices(submesh, face, triangles, lines);
         }
     }
 
-    private bool TryProjectOverlayEdge(NetEdge edge, out PointF a, out PointF b)
+    private static void AddFaceVertices(ObjSubmesh submesh, ObjFace face, List<Vector3> triangles, List<Vector3> lines)
     {
-        a = default;
-        b = default;
-        if (edge.SubmeshIndex < 0 || edge.SubmeshIndex >= _document.Submeshes.Count)
-        {
-            return false;
-        }
-        var submesh = _document.Submeshes[edge.SubmeshIndex];
-        if (edge.VertexA < 0 || edge.VertexA >= submesh.Vertices.Count || edge.VertexB < 0 || edge.VertexB >= submesh.Vertices.Count)
-        {
-            return false;
-        }
-        a = ProjectOverlayVertex(submesh.Vertices[edge.VertexA]);
-        b = ProjectOverlayVertex(submesh.Vertices[edge.VertexB]);
-        return true;
-    }
-
-    private bool TryProjectOverlayFace(ObjSubmesh submesh, ObjFace face, out PointF[] points)
-    {
-        points = Array.Empty<PointF>();
         if (face.Corners.Length != 3)
         {
-            return false;
+            return;
         }
-        var projected = new PointF[3];
+        var vertices = new Vector3[3];
         for (var index = 0; index < 3; index++)
         {
             var vertexIndex = face.Corners[index].VertexIndex;
             if (vertexIndex < 0 || vertexIndex >= submesh.Vertices.Count)
             {
-                return false;
+                return;
             }
-            projected[index] = ProjectOverlayVertex(submesh.Vertices[vertexIndex]);
+            var vertex = submesh.Vertices[vertexIndex];
+            vertices[index] = new Vector3(vertex.X, vertex.Y, vertex.Z);
         }
-        points = projected;
-        return true;
+        triangles.AddRange(vertices);
+        lines.Add(vertices[0]);
+        lines.Add(vertices[1]);
+        lines.Add(vertices[1]);
+        lines.Add(vertices[2]);
+        lines.Add(vertices[2]);
+        lines.Add(vertices[0]);
     }
 
-    private PointF ProjectOverlayVertex(Vec3 vertex)
+    private void AddEdgeLineVertices(NetEdge edge, List<Vector3> lines)
     {
-        var matrices = BuildCameraMatrices();
-        var clip = Vector4.Transform(new Vector4(vertex.X, vertex.Y, vertex.Z, 1.0f), matrices.WorldViewProjection);
-        if (Math.Abs(clip.W) > 0.000001f)
+        if (edge.SubmeshIndex < 0 || edge.SubmeshIndex >= _document.Submeshes.Count)
         {
-            clip /= clip.W;
+            return;
         }
-        var width = Math.Max(1.0f, _renderWidth > 0 ? _renderWidth : Width);
-        var height = Math.Max(1.0f, _renderHeight > 0 ? _renderHeight : Height);
-        return new PointF((clip.X * 0.5f + 0.5f) * width, (0.5f - clip.Y * 0.5f) * height);
+        var submesh = _document.Submeshes[edge.SubmeshIndex];
+        if (edge.VertexA < 0 || edge.VertexA >= submesh.Vertices.Count || edge.VertexB < 0 || edge.VertexB >= submesh.Vertices.Count)
+        {
+            return;
+        }
+        var a = submesh.Vertices[edge.VertexA];
+        var b = submesh.Vertices[edge.VertexB];
+        lines.Add(new Vector3(a.X, a.Y, a.Z));
+        lines.Add(new Vector3(b.X, b.Y, b.Z));
     }
+
+    private void AddScreenCross(PointF point, float radius, List<Vector3> lines)
+    {
+        AddScreenLine(point.X - radius, point.Y, point.X + radius, point.Y, lines);
+        AddScreenLine(point.X, point.Y - radius, point.X, point.Y + radius, lines);
+    }
+
+    private void AddScreenRectangle(float left, float top, float right, float bottom, List<Vector3> lines)
+    {
+        AddScreenLine(left, top, right, top, lines);
+        AddScreenLine(right, top, right, bottom, lines);
+        AddScreenLine(right, bottom, left, bottom, lines);
+        AddScreenLine(left, bottom, left, top, lines);
+    }
+
+    private void AddScreenQuad(float left, float top, float right, float bottom, List<Vector3> triangles)
+    {
+        var a = ClipFromScreen(left, top);
+        var b = ClipFromScreen(right, top);
+        var c = ClipFromScreen(right, bottom);
+        var d = ClipFromScreen(left, bottom);
+        triangles.Add(a);
+        triangles.Add(b);
+        triangles.Add(c);
+        triangles.Add(a);
+        triangles.Add(c);
+        triangles.Add(d);
+    }
+
+    private void AddScreenLine(float x1, float y1, float x2, float y2, List<Vector3> lines)
+    {
+        lines.Add(ClipFromScreen(x1, y1));
+        lines.Add(ClipFromScreen(x2, y2));
+    }
+
+    private Vector3 ClipFromScreen(float x, float y)
+    {
+        var width = Math.Max(1.0f, _camera.ViewportWidth);
+        var height = Math.Max(1.0f, _camera.ViewportHeight);
+        return new Vector3((2.0f * x / width) - 1.0f, 1.0f - (2.0f * y / height), 0.0f);
+    }
+
+    private unsafe void DrawOverlayPrimitive(PrimitiveTopology topology, IReadOnlyList<Vector3> positions, Vector4 color, Matrix4x4 worldViewProjection)
+    {
+        if (positions.Count == 0 || _device is null || _context is null || _overlayCameraBuffer is null)
+        {
+            return;
+        }
+        var vertices = positions.Select(position => new D3D11OverlayVertex(position)).ToArray();
+        fixed (D3D11OverlayVertex* vertexPtr = vertices)
+        {
+            using var vertexBuffer = _device.CreateBuffer(
+                new BufferDescription((uint)(vertices.Length * Marshal.SizeOf<D3D11OverlayVertex>()), BindFlags.VertexBuffer),
+                new SubresourceData((IntPtr)vertexPtr));
+            var constants = new D3D11OverlayConstants
+            {
+                WorldViewProjection = worldViewProjection,
+                Color = color,
+            };
+            _context.UpdateSubresource(in constants, _overlayCameraBuffer);
+            _context.VSSetConstantBuffer(1u, _overlayCameraBuffer);
+            _context.PSSetConstantBuffer(1u, _overlayCameraBuffer);
+            _context.IASetPrimitiveTopology(topology);
+            _context.IASetVertexBuffer(0u, vertexBuffer, (uint)Marshal.SizeOf<D3D11OverlayVertex>());
+            _context.Draw((uint)vertices.Length, 0);
+        }
+    }
+
+    private static Vector4 OverlayColor(int red, int green, int blue, int alpha)
+    {
+        const float scale = 1.0f / 255.0f;
+        return new Vector4(
+            Math.Clamp(red, 0, 255) * scale,
+            Math.Clamp(green, 0, 255) * scale,
+            Math.Clamp(blue, 0, 255) * scale,
+            Math.Clamp(alpha, 0, 255) * scale);
+    }
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal readonly record struct D3D11OverlayVertex(Vector3 Position);
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct D3D11OverlayConstants
+{
+    public Matrix4x4 WorldViewProjection;
+    public Vector4 Color;
 }

@@ -31,23 +31,25 @@ internal sealed partial class D3D11MaterialViewport : Control
     private ID3D11DepthStencilView? _depthStencilView;
     private ID3D11VertexShader? _vertexShader;
     private ID3D11PixelShader? _pixelShader;
+    private ID3D11VertexShader? _overlayVertexShader;
+    private ID3D11PixelShader? _overlayPixelShader;
     private ID3D11InputLayout? _inputLayout;
+    private ID3D11InputLayout? _overlayInputLayout;
     private ID3D11SamplerState? _samplerState;
     private ID3D11Buffer? _cameraBuffer;
+    private ID3D11Buffer? _overlayCameraBuffer;
     private ID3D11RasterizerState? _rasterizerState;
     private ID3D11BlendState? _blendState;
+    private ID3D11BlendState? _overlayBlendState;
     private ID3D11DepthStencilState? _depthState;
+    private ID3D11DepthStencilState? _overlayDepthState;
     private int _renderWidth;
     private int _renderHeight;
     private bool _renderResourcesDirty = true;
     private bool _geometryDirty = true;
     private Vec3 _center;
     private (Vec3 Min, Vec3 Max) _bounds;
-    private float _yaw;
-    private float _pitch;
-    private float _zoom = 220.0f;
-    private float _panX;
-    private float _panY;
+    private NetViewportCamera _camera;
     private NetEdgeTopology _overlayTopology = NetEdgeTopology.Empty;
     private IReadOnlySet<int> _overlaySelectedEdges = new HashSet<int>();
     private int _overlayHoverEdgeId = -1;
@@ -120,15 +122,11 @@ internal sealed partial class D3D11MaterialViewport : Control
         Invalidate();
     }
 
-    public void UpdateCamera(Vec3 center, (Vec3 Min, Vec3 Max) bounds, float yaw, float pitch, float zoom, float panX, float panY)
+    public void UpdateCamera(NetViewportCamera camera)
     {
-        _center = center;
-        _bounds = bounds;
-        _yaw = yaw;
-        _pitch = pitch;
-        _zoom = zoom;
-        _panX = panX;
-        _panY = panY;
+        _center = camera.Center;
+        _bounds = camera.Bounds;
+        _camera = camera;
         Invalidate();
     }
 
@@ -143,9 +141,9 @@ internal sealed partial class D3D11MaterialViewport : Control
                 throw new InvalidOperationException("D3D11 viewport handle was not created.");
             }
             InitializeDevice();
-            if (_device is null || _context is null || _swapChain is null || _vertexShader is null || _pixelShader is null || _inputLayout is null || _cameraBuffer is null)
+            if (_device is null || _context is null || _swapChain is null || _vertexShader is null || _pixelShader is null || _inputLayout is null || _cameraBuffer is null || _overlayVertexShader is null || _overlayPixelShader is null || _overlayInputLayout is null || _overlayCameraBuffer is null)
             {
-                throw new InvalidOperationException("D3D11 device, shaders, swap chain, or pipeline state did not initialize.");
+                throw new InvalidOperationException("D3D11 device, shaders, swap chain, overlay pipeline, or pipeline state did not initialize.");
             }
             ResizeSwapChainResources();
             RebuildGeometry();
@@ -191,7 +189,6 @@ internal sealed partial class D3D11MaterialViewport : Control
             var presentMs = RenderFrame();
             _consecutiveRenderFailures = 0;
             _deviceResetAttempts = 0;
-            DrawD3D11Overlay(e.Graphics);
             var frameMs = (Stopwatch.GetTimestamp() - frameStart) * 1000.0 / Stopwatch.Frequency;
             FrameRendered?.Invoke(frameMs, presentMs, DeviceRemovedReason);
         }
@@ -242,7 +239,7 @@ internal sealed partial class D3D11MaterialViewport : Control
                 RebuildGeometry();
             }
             LastError = string.Empty;
-            return _renderTargetView is not null && _cameraBuffer is not null;
+            return _renderTargetView is not null && _cameraBuffer is not null && _overlayCameraBuffer is not null;
         }
         catch (Exception ex) when (IsDeviceLostException(ex))
         {
@@ -310,13 +307,21 @@ internal sealed partial class D3D11MaterialViewport : Control
         var shaderPath = ResolveShaderPath();
         Compiler.CompileFromFile(shaderPath, null, null, "VSMain", "vs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var vsBlob, out var vsError).CheckError();
         Compiler.CompileFromFile(shaderPath, null, null, "PSMain", "ps_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var psBlob, out var psError).CheckError();
+        Compiler.CompileFromFile(shaderPath, null, null, "VSOverlay", "vs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var overlayVsBlob, out var overlayVsError).CheckError();
+        Compiler.CompileFromFile(shaderPath, null, null, "PSOverlay", "ps_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var overlayPsBlob, out var overlayPsError).CheckError();
         using (vsBlob)
         using (psBlob)
         using (vsError)
         using (psError)
+        using (overlayVsBlob)
+        using (overlayPsBlob)
+        using (overlayVsError)
+        using (overlayPsError)
         {
             _vertexShader = _device.CreateVertexShader(vsBlob.BufferPointer.ToPointer(), vsBlob.BufferSize, null);
             _pixelShader = _device.CreatePixelShader(psBlob.BufferPointer.ToPointer(), psBlob.BufferSize, null);
+            _overlayVertexShader = _device.CreateVertexShader(overlayVsBlob.BufferPointer.ToPointer(), overlayVsBlob.BufferSize, null);
+            _overlayPixelShader = _device.CreatePixelShader(overlayPsBlob.BufferPointer.ToPointer(), overlayPsBlob.BufferSize, null);
             var elements = new[]
             {
                 new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
@@ -326,6 +331,9 @@ internal sealed partial class D3D11MaterialViewport : Control
                 new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 48, 0),
             };
             _inputLayout = _device.CreateInputLayout(elements, vsBlob);
+            _overlayInputLayout = _device.CreateInputLayout(
+                new[] { new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0) },
+                overlayVsBlob);
         }
     }
 
@@ -379,8 +387,14 @@ internal sealed partial class D3D11MaterialViewport : Control
         _samplerState = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Wrap, TextureAddressMode.Wrap, TextureAddressMode.Wrap));
         _rasterizerState = _device.CreateRasterizerState(new RasterizerDescription(CullMode.None, FillMode.Solid));
         _blendState = _device.CreateBlendState(BlendDescription.Opaque);
+        _overlayBlendState = _device.CreateBlendState(BlendDescription.NonPremultiplied);
         _depthState = _device.CreateDepthStencilState(DepthStencilDescription.Default);
+        var overlayDepthDescription = DepthStencilDescription.Default;
+        overlayDepthDescription.DepthEnable = false;
+        overlayDepthDescription.DepthWriteMask = DepthWriteMask.Zero;
+        _overlayDepthState = _device.CreateDepthStencilState(overlayDepthDescription);
         _cameraBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<D3D11CameraConstants>(), BindFlags.ConstantBuffer));
+        _overlayCameraBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<D3D11OverlayConstants>(), BindFlags.ConstantBuffer));
     }
 
     private void ResizeSwapChainResources()
@@ -618,6 +632,7 @@ internal sealed partial class D3D11MaterialViewport : Control
             _context.IASetIndexBuffer(batch.IndexBuffer, Format.R32_UInt, 0);
             _context.DrawIndexed((uint)batch.IndexCount, 0, 0);
         }
+        DrawD3D11Overlay();
         var syncInterval = string.Equals(Environment.GetEnvironmentVariable("CDMW_MESH_DOTNET_D3D11_NO_VSYNC"), "1", StringComparison.OrdinalIgnoreCase) ? 0u : 1u;
         var presentStart = Stopwatch.GetTimestamp();
         _swapChain.Present(syncInterval, PresentFlags.None);
@@ -670,12 +685,11 @@ internal sealed partial class D3D11MaterialViewport : Control
 
     private D3D11CameraConstants BuildCameraConstants(D3D11MaterialResources materials)
     {
-        var matrices = BuildCameraMatrices();
         return new D3D11CameraConstants
         {
-            WorldViewProjection = matrices.WorldViewProjection,
-            World = matrices.World,
-            CameraPosition = new Vector3(0, 0, -3),
+            WorldViewProjection = _camera.WorldViewProjection,
+            World = _camera.World,
+            CameraPosition = -_camera.Forward * Math.Max(10.0f, _camera.SceneSize * 4.0f + 10.0f),
             MaterialRoughness = 0.45f,
             LightDirection = Vector3.Normalize(new Vector3(-0.35f, -0.55f, -0.65f)),
             MaterialMetallic = 0.0f,
@@ -691,19 +705,6 @@ internal sealed partial class D3D11MaterialViewport : Control
             MaterialHasEmissive = materials.Emissive is null ? 0.0f : 1.0f,
             MaterialDebugMode = _materialDebugMode,
         };
-    }
-
-    private (Matrix4x4 World, Matrix4x4 View, Matrix4x4 Projection, Matrix4x4 WorldViewProjection) BuildCameraMatrices()
-    {
-        var width = Math.Max(1.0f, _renderWidth > 0 ? _renderWidth : Width);
-        var height = Math.Max(1.0f, _renderHeight > 0 ? _renderHeight : Height);
-        var size = Math.Max(_bounds.Max.X - _bounds.Min.X, Math.Max(_bounds.Max.Y - _bounds.Min.Y, _bounds.Max.Z - _bounds.Min.Z));
-        var view = Matrix4x4.CreateLookAt(new Vector3(0, 0, -3.0f), Vector3.Zero, Vector3.UnitY);
-        var projection = Matrix4x4.CreateOrthographicOffCenter(-width / (2.0f * _zoom), width / (2.0f * _zoom), height / (2.0f * _zoom), -height / (2.0f * _zoom), -Math.Max(size * 4.0f, 0.01f), Math.Max(size * 4.0f, 0.01f));
-        var rotation = Matrix4x4.CreateRotationX(_pitch) * Matrix4x4.CreateRotationY(_yaw);
-        var translation = Matrix4x4.CreateTranslation(-_center.X + (_panX / Math.Max(_zoom, 0.001f)), -_center.Y - (_panY / Math.Max(_zoom, 0.001f)), -_center.Z);
-        var world = translation * rotation;
-        return (world, view, projection, world * view * projection);
     }
 
     private static System.Windows.Media.Media3D.Vector3D NormalForCorner(ObjSubmesh submesh, ObjCorner corner, System.Windows.Media.Media3D.Vector3D fallback)
@@ -819,13 +820,19 @@ internal sealed partial class D3D11MaterialViewport : Control
         DisposeBatches();
         ClearTextureCache();
         _blendState?.Dispose();
+        _overlayBlendState?.Dispose();
         _depthState?.Dispose();
+        _overlayDepthState?.Dispose();
         _rasterizerState?.Dispose();
         _cameraBuffer?.Dispose();
+        _overlayCameraBuffer?.Dispose();
         _samplerState?.Dispose();
         _inputLayout?.Dispose();
+        _overlayInputLayout?.Dispose();
         _pixelShader?.Dispose();
+        _overlayPixelShader?.Dispose();
         _vertexShader?.Dispose();
+        _overlayVertexShader?.Dispose();
         _depthStencilView?.Dispose();
         _depthTexture?.Dispose();
         _renderTargetView?.Dispose();
@@ -840,13 +847,19 @@ internal sealed partial class D3D11MaterialViewport : Control
             _device = null;
         }
         _blendState = null;
+        _overlayBlendState = null;
         _depthState = null;
+        _overlayDepthState = null;
         _rasterizerState = null;
         _cameraBuffer = null;
+        _overlayCameraBuffer = null;
         _samplerState = null;
         _inputLayout = null;
+        _overlayInputLayout = null;
         _pixelShader = null;
+        _overlayPixelShader = null;
         _vertexShader = null;
+        _overlayVertexShader = null;
         _depthStencilView = null;
         _depthTexture = null;
         _renderTargetView = null;

@@ -284,6 +284,11 @@ class ArchivePreviewD3D11RuntimeMixin:
             texture_cache_entries=payload.get("texture_cache_entries", 0),
             texture_cache_releases=payload.get("texture_cache_releases", 0),
             texture_failures=payload.get("texture_failures", 0),
+            texture_integrity=payload.get("texture_integrity", ""),
+            device_lost=payload.get("device_lost", False),
+            device_loss_stage=payload.get("device_loss_stage", payload.get("stage", "")),
+            device_loss_hresult=payload.get("device_loss_hresult", ""),
+            device_removed_reason=payload.get("device_removed_reason", ""),
             estimated_texture_bytes=payload.get("estimated_texture_bytes", 0),
             d3d11_process_working_set_bytes=payload.get("process_working_set_bytes", 0),
             d3d11_process_private_bytes=payload.get("process_private_bytes", 0),
@@ -299,8 +304,14 @@ class ArchivePreviewD3D11RuntimeMixin:
             self.archive_d3d11_preview_host.set_render_tuning(self._current_model_preview_render_settings())
             self._cleanup_archive_isolated_renderer_packages(include_active=False)
             self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(payload))
-            self.archive_d3d11_preview_status_label.setText("")
-            self.set_status_message("Isolated D3D11 preview loaded.")
+            texture_integrity = str(payload.get("texture_integrity", "ok") or "ok").strip().lower()
+            if texture_integrity and texture_integrity != "ok":
+                message = f"D3D11 preview loaded with texture integrity={texture_integrity}."
+                self.archive_d3d11_preview_status_label.setText(message)
+                self.set_status_message(message, error=texture_integrity == "missing_required")
+            else:
+                self.archive_d3d11_preview_status_label.setText("")
+                self.set_status_message("Isolated D3D11 preview loaded.")
             self._record_archive_memory_audit("d3d11_loaded", d3d11_payload=payload, log_if_high=True)
         elif event == "loading":
             stage = str(payload.get("stage", "") or "loading")
@@ -317,6 +328,16 @@ class ArchivePreviewD3D11RuntimeMixin:
             )
             self.archive_d3d11_preview_status_label.setText(message)
             self.set_status_message(f"Isolated D3D11 renderer: {message}")
+        elif event == "device_lost":
+            stage = str(payload.get("stage", payload.get("device_loss_stage", "render")) or "render")
+            hresult = str(payload.get("device_loss_hresult", "") or "")
+            removed = str(payload.get("device_removed_reason", "") or "")
+            message = f"Native D3D11 device lost during {stage}."
+            detail = f"{message} hresult={hresult}; removed={removed}".strip()
+            self.archive_d3d11_preview_status_label.setText(message)
+            self.set_status_message(message, error=True)
+            self._set_archive_isolated_renderer_debug(f"Isolated Renderer device lost: {detail}")
+            self._show_archive_d3d11_hard_failure(message)
         elif event == "error":
             message = str(payload.get("message", "") or "Renderer error.")
             discarded_pending = self._discard_archive_d3d11_pending_package(status_file)
@@ -326,8 +347,9 @@ class ArchivePreviewD3D11RuntimeMixin:
             if isinstance(failed_textures_raw, Sequence) and not isinstance(failed_textures_raw, (str, bytes)):
                 for item in tuple(failed_textures_raw)[:8]:
                     if isinstance(item, Mapping):
+                        required = "required" if bool(item.get("required", False)) else "optional"
                         failed_texture_items.append(
-                            f"{item.get('slot', '?')}:{item.get('stage', '?')}:{item.get('hresult', '')}:"
+                            f"{item.get('slot', '?')}:{item.get('source_kind', '?')}:{item.get('stage', '?')}:{item.get('hresult', '')}:{required}:"
                             f"{Path(str(item.get('path', '') or '')).name}"
                         )
             failed_texture_text = (
@@ -347,8 +369,15 @@ class ArchivePreviewD3D11RuntimeMixin:
             else:
                 self._show_archive_d3d11_hard_failure(f"Isolated D3D11 renderer error: {message}")
         elif event == "closed":
-            self.archive_d3d11_preview_status_label.setText("D3D11 preview closed.")
-            self.set_status_message("Isolated D3D11 renderer closed.")
+            if bool(payload.get("device_lost", False)) or str(payload.get("reason", "") or "") == "device_lost":
+                stage = str(payload.get("device_loss_stage", "render") or "render")
+                message = f"Native D3D11 preview closed after device loss during {stage}."
+                self.archive_d3d11_preview_status_label.setText(message)
+                self.set_status_message(message, error=True)
+                self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(payload))
+            else:
+                self.archive_d3d11_preview_status_label.setText("D3D11 preview closed.")
+                self.set_status_message("Isolated D3D11 renderer closed.")
 
     def _handle_archive_isolated_renderer_error(self, error) -> None:
         if not self._archive_isolated_renderer_sender_is_current():
@@ -381,6 +410,7 @@ class ArchivePreviewD3D11RuntimeMixin:
             process_pid=self._archive_qprocess_pid(getattr(self, "archive_isolated_renderer_process", None)),
         )
         self._poll_archive_isolated_renderer_status()
+        last_status_payload = dict(getattr(self, "archive_isolated_renderer_last_status_payload", {}) or {})
         self.archive_isolated_renderer_process = None
         self.archive_isolated_renderer_active_process = None
         self.archive_isolated_renderer_status_timer.stop()
@@ -392,13 +422,21 @@ class ArchivePreviewD3D11RuntimeMixin:
         self.set_status_message(f"Isolated D3D11 renderer exited with code {int(exit_code)}.")
         if int(exit_code) != 0:
             self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
-            self.archive_d3d11_preview_status_label.setText(f"Native D3D11 preview failed to load (exit {int(exit_code)}).")
-            self._set_archive_isolated_renderer_debug(
-                f"Isolated Renderer: process exited with code {int(exit_code)} ({exit_status}).\n"
-                "Defender note: if Windows Defender quarantines this unsigned experimental build, submit the EXE to Microsoft for analysis before allowing it: "
-                "https://www.microsoft.com/wdsi/filesubmission"
-            )
-            self._show_archive_d3d11_hard_failure(f"Native D3D11 preview failed to load (exit {int(exit_code)}).")
+            if bool(last_status_payload.get("device_lost", False)):
+                stage = str(last_status_payload.get("device_loss_stage", last_status_payload.get("stage", "render")) or "render")
+                message = f"Native D3D11 preview stopped after device loss during {stage} (exit {int(exit_code)})."
+                self.archive_d3d11_preview_status_label.setText(message)
+                self.set_status_message(message, error=True)
+                self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(last_status_payload))
+                self._show_archive_d3d11_hard_failure(message)
+            else:
+                self.archive_d3d11_preview_status_label.setText(f"Native D3D11 preview failed to load (exit {int(exit_code)}).")
+                self._set_archive_isolated_renderer_debug(
+                    f"Isolated Renderer: process exited with code {int(exit_code)} ({exit_status}).\n"
+                    "Defender note: if Windows Defender quarantines this unsigned experimental build, submit the EXE to Microsoft for analysis before allowing it: "
+                    "https://www.microsoft.com/wdsi/filesubmission"
+                )
+                self._show_archive_d3d11_hard_failure(f"Native D3D11 preview failed to load (exit {int(exit_code)}).")
 
     def _shutdown_archive_isolated_renderer_host(self) -> None:
         process = getattr(self, "archive_isolated_renderer_process", None)

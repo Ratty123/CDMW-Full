@@ -39,6 +39,8 @@ class ArchiveScanLifecycleMixin:
         self.archive_enhanced_index_activity = "idle"
         self.archive_entry_metadata_signature = ""
         self.archive_entry_metadata_sources = ()
+        self.archive_scan_shard_entry_signatures = {}
+        self.archive_scan_shard_entry_counts = {}
         self.archive_result_filter_signature = ()
         self.archive_structure_filter_state = "idle"
         self.archive_structure_filter_children = {}
@@ -295,22 +297,22 @@ class ArchiveScanLifecycleMixin:
         self.archive_entries = payload.get("entries", []) if isinstance(payload.get("entries"), list) else []
         self.archive_entries_by_normalized_path = (
             payload.get("path_index", {})
-            if isinstance(payload.get("path_index"), dict)
+            if isinstance(payload.get("path_index"), Mapping)
             else {}
         )
         self.archive_entries_by_basename = (
             payload.get("basename_index", {})
-            if isinstance(payload.get("basename_index"), dict)
+            if isinstance(payload.get("basename_index"), Mapping)
             else {}
         )
         self.archive_entries_by_extension = (
             payload.get("extension_index", {})
-            if isinstance(payload.get("extension_index"), dict)
+            if isinstance(payload.get("extension_index"), Mapping)
             else {}
         )
         self.archive_entries_by_role = (
             payload.get("role_index", {})
-            if isinstance(payload.get("role_index"), dict)
+            if isinstance(payload.get("role_index"), Mapping)
             else {}
         )
         extension_counts_payload = payload.get("extension_counts", {})
@@ -326,7 +328,7 @@ class ArchiveScanLifecycleMixin:
                 {
                     str(extension): len(items)
                     for extension, items in self.archive_entries_by_extension.items()
-                    if extension and isinstance(items, list)
+                    if extension
                 }
             )
         self._ensure_archive_extension_index_ready()
@@ -336,6 +338,21 @@ class ArchiveScanLifecycleMixin:
             for row in (payload.get("entry_metadata_sources", ()) or ())
             if isinstance(row, (list, tuple)) and len(row) == 3
         )
+        scan_metadata_payload = payload.get("scan_metadata", {}) if isinstance(payload.get("scan_metadata"), Mapping) else {}
+        raw_shard_signatures = scan_metadata_payload.get("scan_shard_entry_signatures")
+        self.archive_scan_shard_entry_signatures = {
+            str(key): str(value)
+            for key, value in (raw_shard_signatures.items() if isinstance(raw_shard_signatures, Mapping) else ())
+            if str(key)
+        }
+        raw_shard_counts = scan_metadata_payload.get("scan_shard_entry_counts")
+        self.archive_scan_shard_entry_counts = {}
+        if isinstance(raw_shard_counts, Mapping):
+            for key, value in raw_shard_counts.items():
+                try:
+                    self.archive_scan_shard_entry_counts[str(key)] = int(value)
+                except (TypeError, ValueError):
+                    continue
         self.archive_result_filter_signature = tuple(payload.get("result_filter_signature") or self._current_archive_filter_signature())
         performance_settings = self._current_archive_performance_settings()
         saved_filter_state = getattr(self, "archive_startup_saved_filter_state", {}) or {}
@@ -541,6 +558,21 @@ class ArchiveScanLifecycleMixin:
         timings = payload.get("timings", {}) if isinstance(payload.get("timings"), dict) else {}
         timing_summary = str(payload.get("timing_summary", "")).strip()
         scan_metadata = payload.get("scan_metadata", {}) if isinstance(payload.get("scan_metadata"), Mapping) else {}
+        raw_shard_signatures = scan_metadata.get("scan_shard_entry_signatures")
+        self.archive_scan_shard_entry_signatures = {
+            str(key): str(value)
+            for key, value in (raw_shard_signatures.items() if isinstance(raw_shard_signatures, Mapping) else ())
+            if str(key)
+        }
+        raw_shard_counts = scan_metadata.get("scan_shard_entry_counts")
+        shard_entry_counts: Dict[str, int] = {}
+        if isinstance(raw_shard_counts, Mapping):
+            for key, value in raw_shard_counts.items():
+                try:
+                    shard_entry_counts[str(key)] = int(value)
+                except (TypeError, ValueError):
+                    continue
+        self.archive_scan_shard_entry_counts = shard_entry_counts
         stale_count = int(scan_metadata.get("scan_shard_stale_count", 0) or 0)
         rebuilt_count = int(scan_metadata.get("scan_shard_rebuilt_count", 0) or 0)
         if self.archive_entries:

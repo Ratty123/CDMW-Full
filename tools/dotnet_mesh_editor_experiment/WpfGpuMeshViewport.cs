@@ -56,52 +56,35 @@ internal sealed class WpfGpuMeshViewport : IDisposable
         _viewport.Children.Add(_modelVisual);
     }
 
-    public void UpdateCamera(
-        Vec3 center,
-        (Vec3 Min, Vec3 Max) bounds,
-        float yaw,
-        float pitch,
-        float zoom,
-        float panX,
-        float panY,
-        int viewportWidth,
-        int viewportHeight)
+    public void UpdateCamera(NetViewportCamera camera)
     {
-        var width = Math.Max(1, viewportWidth);
-        var height = Math.Max(1, viewportHeight);
+        var width = Math.Max(1.0, camera.ViewportWidth);
+        var height = Math.Max(1.0, camera.ViewportHeight);
         _overlay.Width = width;
         _overlay.Height = height;
-        var forward = new Vector3D(
-            Math.Sin(yaw) * Math.Cos(pitch),
-            Math.Sin(pitch),
-            Math.Cos(yaw) * Math.Cos(pitch));
-        if (forward.LengthSquared < 0.0001)
-        {
-            forward = new Vector3D(0, 0, 1);
-        }
-        forward.Normalize();
-        var right = new Vector3D(Math.Cos(yaw), 0.0, -Math.Sin(yaw));
-        if (right.LengthSquared < 0.0001)
-        {
-            right = new Vector3D(1, 0, 0);
-        }
-        right.Normalize();
-        var up = Vector3D.CrossProduct(right, forward);
-        if (up.LengthSquared < 0.0001)
-        {
-            up = new Vector3D(0, 1, 0);
-        }
-        up.Normalize();
-        var size = Math.Max(bounds.Max.X - bounds.Min.X, Math.Max(bounds.Max.Y - bounds.Min.Y, bounds.Max.Z - bounds.Min.Z));
-        var distance = Math.Max(10.0, size * 4.0 + 10.0);
-        var panWorld = (-panX / Math.Max(zoom, 0.001f)) * right + (panY / Math.Max(zoom, 0.001f)) * up;
-        var target = new Point3D(center.X, center.Y, center.Z) + panWorld;
+        var forward = ToVector3D(camera.Forward, new Vector3D(0, 0, 1));
+        var right = ToVector3D(camera.Right, new Vector3D(1, 0, 0));
+        var up = ToVector3D(camera.Up, new Vector3D(0, 1, 0));
+        var distance = Math.Max(10.0, camera.SceneSize * 4.0 + 10.0);
+        var panWorld = (-camera.PanX / Math.Max(camera.Zoom, 0.001f)) * right + (camera.PanY / Math.Max(camera.Zoom, 0.001f)) * up;
+        var target = new Point3D(camera.Center.X, camera.Center.Y, camera.Center.Z) + panWorld;
         _camera.Position = target - (forward * distance);
         _camera.LookDirection = forward * distance;
         _camera.UpDirection = up;
-        _camera.Width = Math.Max(0.001, width / Math.Max(zoom, 0.001f));
+        _camera.Width = Math.Max(0.001, width / Math.Max(camera.Zoom, 0.001f));
         _camera.NearPlaneDistance = 0.001;
         _camera.FarPlaneDistance = Math.Max(1000.0, distance * 8.0);
+    }
+
+    private static Vector3D ToVector3D(System.Numerics.Vector3 value, Vector3D fallback)
+    {
+        var vector = new Vector3D(value.X, value.Y, value.Z);
+        if (vector.LengthSquared < 0.0001)
+        {
+            return fallback;
+        }
+        vector.Normalize();
+        return vector;
     }
 
     public void UpdateOverlay(

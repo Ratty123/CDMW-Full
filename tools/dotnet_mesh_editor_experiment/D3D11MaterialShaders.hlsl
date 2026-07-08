@@ -29,6 +29,12 @@ Texture2D HeightTexture : register(t5);
 Texture2D EmissiveTexture : register(t6);
 SamplerState MaterialSampler : register(s0);
 
+cbuffer OverlayConstants : register(b1)
+{
+    row_major float4x4 OverlayWorldViewProjection;
+    float4 OverlayColor;
+};
+
 struct VSInput
 {
     float3 Position : POSITION;
@@ -71,6 +77,30 @@ float3 SampleNormal(VSOutput input)
     float3 tangentNormal = NormalTexture.Sample(MaterialSampler, input.TexCoord).xyz * 2.0f - 1.0f;
     float3x3 tbn = float3x3(normalize(input.Tangent), normalize(input.Bitangent), baseNormal);
     return normalize(mul(tangentNormal, tbn));
+}
+
+struct OverlayVSInput
+{
+    float3 Position : POSITION;
+};
+
+struct OverlayVSOutput
+{
+    float4 Position : SV_Position;
+    float4 Color : COLOR0;
+};
+
+OverlayVSOutput VSOverlay(OverlayVSInput input)
+{
+    OverlayVSOutput output;
+    output.Position = mul(float4(input.Position, 1.0f), OverlayWorldViewProjection);
+    output.Color = OverlayColor;
+    return output;
+}
+
+float4 PSOverlay(OverlayVSOutput input) : SV_Target
+{
+    return input.Color;
 }
 
 float4 PSMain(VSOutput input) : SV_Target

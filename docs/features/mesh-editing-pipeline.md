@@ -168,9 +168,14 @@ Status: first safety slice, 2026-07-06.
   source index counts, and source descriptor offsets against the original
   session mesh. OBJ sidecar import reconstructs vertex offsets from the strict
   LOD sidecar's original vertex offset, vertex stride, and source vertex map.
+- Sectionless compact `SkinnedMesh_Box` PAC entries are parsed through a narrow
+  inferred box fallback so the real archive corpus does not silently return an
+  empty `ParsedMesh` for that debug mesh variant.
 - Skinned OBJ sidecars must include per-submesh `bone_layout` metadata and a
-  complete `source_vertex_map` before import. This blocks visual-only OBJ
-  packages from pretending they can preserve bone rows.
+  complete `source_vertex_map` before import. Submeshes with empty bone rows are
+  treated as unweighted within the skinned asset; only submeshes with positive
+  `max_influences` require influence-count preservation. This blocks visual-only
+  OBJ packages from pretending they can preserve bone rows.
 - OBJ import records sidecar warnings when edited OBJ material names or MTL
   texture paths differ from the sidecar. Export validation surfaces those as
   warnings so preview can continue while rebuild/report UI stays explicit about

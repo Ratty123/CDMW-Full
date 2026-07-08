@@ -172,6 +172,19 @@ class MeshEditorDevHarnessTests(unittest.TestCase):
         finally:
             clear_native_mesh_core_fallback_counts()
 
+    def test_dotnet_native_parity_report_scenario_is_non_blocking_scaffold(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_scenario("mesh-dotnet-native-parity-report", Path(temp_dir))
+            self.assertTrue((Path(temp_dir) / "dotnet_native_parity_report.json").is_file())
+
+        self.assertFalse(result["ok"])
+        parity = result["dotnet_native_parity"]
+        self.assertEqual("non_blocking_report", parity["mode"])
+        self.assertEqual("native_python_cpp_d3d11", parity["authority"])
+        self.assertEqual("experiment_only", parity["dotnet_role"])
+        self.assertIn("final", parity["debug_channels"])
+        self.assertTrue(parity["blockers"])
+
     def test_long_edit_mesh_tools_scenario_exercises_all_active_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result = run_scenario("long-edit-mesh-tools", Path(temp_dir))

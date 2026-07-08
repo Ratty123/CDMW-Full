@@ -172,11 +172,12 @@ internal sealed class ExperimentForm : Form
                     return;
                 }
             }
-            if (_viewport.ConsumeRenderRequest())
+            var renderRequested = _viewport.ConsumeRenderRequest();
+            if (renderRequested)
             {
                 _viewport.Invalidate();
             }
-            _fpsLabel.Text = $"FPS: {_viewport.Metrics.AverageFps:0.0} | Frame: {_viewport.Metrics.AverageFrameMs:0.00} ms | Present: {_viewport.Metrics.AveragePresentMs:0.00} ms";
+            _fpsLabel.Text = RendererMetricsText(_viewport.Metrics, _viewport.RendererStatusPayload(), renderRequested);
             if ((DateTime.UtcNow - _lastMetricsProtocolUtc).TotalMilliseconds >= 500)
             {
                 _lastMetricsProtocolUtc = DateTime.UtcNow;
@@ -315,7 +316,7 @@ internal sealed class ExperimentForm : Form
             ButtonRow(ToolButton("Select", "select"), CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink")));
         AddSection(stack, "Transform",
             LabeledControl("Translate step", _translateStep),
-            ButtonRow(StyledActionButton("Move +X", () => TranslateSelected((float)_translateStep.Value)), StyledActionButton("Move -X", () => TranslateSelected(-(float)_translateStep.Value))),
+            ButtonRow(StyledActionButton("Move +X", () => RequestTransformMove((float)_translateStep.Value)), StyledActionButton("Move -X", () => RequestTransformMove(-(float)_translateStep.Value))),
             ButtonRow(ToolButton("Move", "move"), ToolButton("Grab", "grab"), gizmo));
         AddSection(stack, "Brush Tools",
             LabeledControl("Radius", _radius),
@@ -602,20 +603,39 @@ internal sealed class ExperimentForm : Form
         var button = StyledButton(text);
         button.Click += (_, _) =>
         {
-            var targetMode = SelectionTarget();
-            if (_viewport.TryHandleLocalCommand(command, targetMode))
-            {
-                return;
-            }
-            WriteProtocolEvent("command_request", new Dictionary<string, object?>
-            {
-                ["command"] = command,
-                ["target_mode"] = targetMode,
-                ["selection_depth_mode"] = SelectionDepthMode(),
-                ["local_selection"] = _viewport.SelectionSnapshotPayload()
-            });
+            WriteCommandRequest(command);
         };
         return button;
+    }
+
+    private void WriteCommandRequest(string command, Dictionary<string, object?>? extraPayload = null)
+    {
+        var targetMode = SelectionTarget();
+        var payload = new Dictionary<string, object?>
+        {
+            ["command"] = command,
+            ["target_mode"] = targetMode,
+            ["selection_depth_mode"] = SelectionDepthMode(),
+            ["local_selection"] = _viewport.SelectionSnapshotPayload()
+        };
+        if (extraPayload is not null)
+        {
+            foreach (var pair in extraPayload)
+            {
+                payload[pair.Key] = pair.Value;
+            }
+        }
+        WriteProtocolEvent("command_request", payload);
+    }
+
+    private void RequestTransformMove(float deltaX)
+    {
+        WriteCommandRequest("transform_move", new Dictionary<string, object?>
+        {
+            ["axis"] = "x",
+            ["step"] = deltaX,
+            ["delta"] = new[] { deltaX, 0.0f, 0.0f }
+        });
     }
 
     private Dictionary<string, object?> ToolOptionsPayload()
@@ -664,9 +684,24 @@ internal sealed class ExperimentForm : Form
                 ["dirty_to_present_ms"] = metrics.AverageDirtyToPresentMs,
                 ["dropped_frames"] = metrics.DroppedFrames,
                 ["responsiveness_ms"] = metrics.AverageResponsivenessMs,
+                ["frame_count"] = metrics.FrameCount,
+                ["has_rendered_frame"] = metrics.HasRenderedFrame,
                 ["memory_mb"] = Process.GetCurrentProcess().WorkingSet64 / (1024.0 * 1024.0)
             }
         };
+    }
+
+    private static string RendererMetricsText(RenderMetrics metrics, IReadOnlyDictionary<string, object?> renderer, bool renderRequested)
+    {
+        var backend = renderer.TryGetValue("backend", out var rawBackend)
+            ? Convert.ToString(rawBackend, CultureInfo.InvariantCulture)
+            : "unknown";
+        if (!metrics.HasRenderedFrame)
+        {
+            return $"Renderer ready, waiting for first frame | Backend: {backend}";
+        }
+        var state = renderRequested ? "render requested" : "idle";
+        return $"FPS: {metrics.AverageFps:0.0} | Frame: {metrics.AverageFrameMs:0.00} ms | Present: {metrics.AveragePresentMs:0.00} ms | {state} | Backend: {backend}";
     }
 
     private void StartProtocolReader()
@@ -901,8 +936,13 @@ internal sealed class ExperimentForm : Form
         }
         var vertices = JsonSelectionMap(selection, "vertices_by_submesh");
         var faces = JsonSelectionMap(selection, "faces_by_submesh");
+        var edges = JsonEdgeSelectionMap(selection, "edges_by_submesh");
+        if (edges.Count == 0)
+        {
+            edges = JsonEdgeDescriptorSelectionMap(selection, "edge_descriptors");
+        }
         var sources = JsonIntSet(selection, "source_indices");
-        _viewport.UpdateSelection(vertices, faces, sources);
+        _viewport.UpdateSelection(vertices, faces, edges, sources);
         _viewport.Invalidate();
     }
 
@@ -919,6 +959,63 @@ internal sealed class ExperimentForm : Form
     private static Dictionary<int, HashSet<int>> JsonSelectionMap(JsonElement value)
     {
         var result = new Dictionary<int, HashSet<int>>();
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in value.EnumerateObject())
+            {
+                if (int.TryParse(property.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var key) && key >= 0)
+                {
+                    result[key] = JsonIntSet(property.Value);
+                }
+            }
+            return result;
+        }
+        if (value.ValueKind != JsonValueKind.Array)
+        {
+            return result;
+        }
+        foreach (var item in value.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Object)
+            {
+                var key = JsonInt(item, "index", JsonInt(item, "submesh_index", -1));
+                if (key >= 0)
+                {
+                    result[key] = JsonIntSet(item.TryGetProperty("indices", out var indices) ? indices : item);
+                }
+                continue;
+            }
+            if (item.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+            var parts = item.EnumerateArray().ToArray();
+            if (parts.Length >= 2 && parts[0].ValueKind == JsonValueKind.Number && parts[0].TryGetInt32(out var pairKey))
+            {
+                result[pairKey] = JsonIntSet(parts[1]);
+            }
+        }
+        return result;
+    }
+
+    private static Dictionary<int, HashSet<(int A, int B)>> JsonEdgeSelectionMap(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out var value))
+        {
+            return new Dictionary<int, HashSet<(int A, int B)>>();
+        }
+        var result = new Dictionary<int, HashSet<(int A, int B)>>();
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in value.EnumerateObject())
+            {
+                if (int.TryParse(property.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var key) && key >= 0)
+                {
+                    result[key] = JsonEdgePairs(property.Value);
+                }
+            }
+            return result;
+        }
         if (value.ValueKind != JsonValueKind.Array)
         {
             return result;
@@ -930,9 +1027,78 @@ internal sealed class ExperimentForm : Form
                 continue;
             }
             var parts = item.EnumerateArray().ToArray();
-            if (parts.Length >= 2 && parts[0].ValueKind == JsonValueKind.Number && parts[0].TryGetInt32(out var key))
+            if (parts.Length >= 2 && parts[0].ValueKind == JsonValueKind.Number && parts[0].TryGetInt32(out var key) && key >= 0)
             {
-                result[key] = JsonIntSet(parts[1]);
+                result[key] = JsonEdgePairs(parts[1]);
+            }
+        }
+        return result;
+    }
+
+    private static Dictionary<int, HashSet<(int A, int B)>> JsonEdgeDescriptorSelectionMap(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.Array)
+        {
+            return new Dictionary<int, HashSet<(int A, int B)>>();
+        }
+        var result = new Dictionary<int, HashSet<(int A, int B)>>();
+        foreach (var item in value.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+            var submesh = JsonInt(item, "source_submesh_index", JsonInt(item, "submesh_index", -1));
+            var vertexA = JsonInt(item, "vertex_a", -1);
+            var vertexB = JsonInt(item, "vertex_b", -1);
+            if (submesh < 0 || vertexA < 0 || vertexB < 0 || vertexA == vertexB)
+            {
+                continue;
+            }
+            var pair = vertexA <= vertexB ? (vertexA, vertexB) : (vertexB, vertexA);
+            if (!result.TryGetValue(submesh, out var set))
+            {
+                set = new HashSet<(int A, int B)>();
+                result[submesh] = set;
+            }
+            set.Add(pair);
+        }
+        return result;
+    }
+
+    private static HashSet<(int A, int B)> JsonEdgePairs(JsonElement value)
+    {
+        var result = new HashSet<(int A, int B)>();
+        if (value.ValueKind != JsonValueKind.Array)
+        {
+            return result;
+        }
+        foreach (var item in value.EnumerateArray())
+        {
+            int vertexA;
+            int vertexB;
+            if (item.ValueKind == JsonValueKind.Object)
+            {
+                vertexA = JsonInt(item, "vertex_a", -1);
+                vertexB = JsonInt(item, "vertex_b", -1);
+            }
+            else if (item.ValueKind == JsonValueKind.Array)
+            {
+                var values = item.EnumerateArray().ToArray();
+                if (values.Length < 2)
+                {
+                    continue;
+                }
+                vertexA = values[0].ValueKind == JsonValueKind.Number && values[0].TryGetInt32(out var a) ? a : -1;
+                vertexB = values[1].ValueKind == JsonValueKind.Number && values[1].TryGetInt32(out var b) ? b : -1;
+            }
+            else
+            {
+                continue;
+            }
+            if (vertexA >= 0 && vertexB >= 0 && vertexA != vertexB)
+            {
+                result.Add(vertexA <= vertexB ? (vertexA, vertexB) : (vertexB, vertexA));
             }
         }
         return result;
@@ -1064,31 +1230,6 @@ internal sealed class ExperimentForm : Form
         message["event"] = eventName;
         Console.Out.WriteLine(JsonSerializer.Serialize(message));
         Console.Out.Flush();
-    }
-
-    private void TranslateSelected(float deltaX)
-    {
-        var index = _submeshList.SelectedIndex;
-        if (index < 0 || index >= _document.Submeshes.Count)
-        {
-            return;
-        }
-        var submesh = _document.Submeshes[index];
-        var selectedVertices = _viewport.EditableVertexIndicesForSubmesh(index);
-        var targetVertices = selectedVertices.Length > 0
-            ? selectedVertices
-            : Enumerable.Range(0, submesh.Vertices.Count).ToArray();
-        foreach (var i in targetVertices)
-        {
-            var vertex = submesh.Vertices[i];
-            submesh.Vertices[i] = vertex with { X = vertex.X + deltaX };
-        }
-        _editedSubmeshes.Add(index);
-        _viewport.RefreshBounds();
-        _viewport.Invalidate();
-        _statusLabel.Text = selectedVertices.Length > 0
-            ? $"Moved {targetVertices.Length} selected vertex item(s) in submesh {index} by {deltaX:0.####} on X."
-            : $"Moved submesh {index} by {deltaX:0.####} on X.";
     }
 
     private void SaveAndReport()
@@ -1223,6 +1364,7 @@ internal sealed class MeshViewport : Control
     private float _panY;
     private (Vec3 Min, Vec3 Max) _bounds;
     private Vec3 _center;
+    private NetViewportCamera _camera;
     private Point _strokeStart;
     private int _strokeId;
     private bool _editorStrokeActive;
@@ -1320,7 +1462,15 @@ internal sealed class MeshViewport : Control
             ["d3d11_status"] = _d3d11Viewport?.LastError ?? string.Empty,
             ["device_removed_reason"] = _d3d11Viewport?.DeviceRemovedReason ?? string.Empty,
             ["material_debug_mode"] = MaterialDebugModeName(MaterialDebugMode),
-            ["material_parity_contract"] = "base_normal_roughness_metallic_emissive_specular_final",
+            ["material_parity_contract"] = "base_normal_roughness_metallic_emissive_specular_final_experiment_only",
+            ["material_contract_gap"] = new[]
+            {
+                "material layers beyond simple slots",
+                "direct compressed DDS upload parity",
+                "native material category scalar rules",
+                "sidecar tint parity",
+                "normal-y policy parity",
+            },
             ["capabilities"] = ActiveCapabilities(),
             ["material_slots"] = _materials.SlotCount,
             ["texture_references"] = _materials.TextureReferenceCount,
@@ -1331,7 +1481,12 @@ internal sealed class MeshViewport : Control
             ["dds_resources"] = _textureSet.DdsResourceCount,
             ["dds_decoded_resources"] = _textureSet.DdsDecodedCount,
             ["texture_load_failures"] = _textureSet.TextureLoadFailureCount,
-            ["dds_decode"] = _textureSet.DdsDecodedCount > 0 ? "decoded_bc1_bc2_bc3_uncompressed32" : (_textureSet.DdsResourceCount > 0 ? "header_verified_not_sampled" : "not_present_or_unverified"),
+            ["dds_upload_mode"] = "bitmap_rgba_upload",
+            ["native_dds_parity"] = false,
+            ["dds_native_dxgi_upload"] = false,
+            ["dds_upload_format"] = "B8G8R8A8_UNorm",
+            ["dds_decode"] = _textureSet.DdsDecodedCount > 0 ? "bitmap_decode_then_bgra32_upload" : (_textureSet.DdsResourceCount > 0 ? "header_verified_not_sampled" : "not_present_or_unverified"),
+            ["dds_decode_tools"] = new[] { "managed_dds_decoder", "cd-texture-dx.exe", "texconv.exe" },
             ["shader_model"] = _d3d11Viewport is not null ? "hlsl_vs5_ps5_per_pixel_materials" : (_gpuViewport is not null ? "wpf_materials" : "gdi_fallback"),
         };
     }
@@ -1377,9 +1532,11 @@ internal sealed class MeshViewport : Control
         {
             ["vertices_by_submesh"] = SelectionMapPayload(_selectedVertices),
             ["faces_by_submesh"] = SelectionMapPayload(_selectedFaces),
+            ["edges_by_submesh"] = EdgeSelectionMapPayload(_selectedEdges),
             ["edges"] = _selectedEdges.OrderBy(id => id).ToArray(),
             ["edge_descriptors"] = EdgeDescriptorPayloads(_selectedEdges),
             ["topology_generation"] = _edgeTopology.Generation,
+            ["source_indices"] = _selectedSources.OrderBy(id => id).ToArray(),
             ["sources"] = _selectedSources.OrderBy(id => id).ToArray(),
             ["target_mode"] = CurrentTargetMode(),
             ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
@@ -1388,36 +1545,9 @@ internal sealed class MeshViewport : Control
 
     public bool TryHandleLocalCommand(string command, string targetMode)
     {
-        var normalizedCommand = (command ?? string.Empty).Trim().ToLowerInvariant();
-        var normalizedTarget = NormalizeSelectionTarget(targetMode);
-        if (normalizedCommand is not ("clear_selection" or "select_all" or "invert" or "grow" or "shrink"))
-        {
-            return false;
-        }
-        if (normalizedCommand == "clear_selection")
-        {
-            ClearSelectionForTarget(normalizedTarget);
-        }
-        else if (normalizedCommand == "select_all")
-        {
-            SelectAllForTarget(normalizedTarget);
-        }
-        else if (normalizedCommand == "invert")
-        {
-            InvertSelectionForTarget(normalizedTarget);
-        }
-        else if (normalizedCommand == "grow")
-        {
-            GrowSelectionForTarget(normalizedTarget);
-        }
-        else if (normalizedCommand == "shrink")
-        {
-            ShrinkSelectionForTarget(normalizedTarget);
-        }
-        StatusRequested?.Invoke($"Selection {normalizedCommand} applied locally for {normalizedTarget}; selected={SelectionCountForTarget(normalizedTarget)}.");
-        UpdateGpuViewport();
-        Invalidate();
-        return true;
+        _ = command;
+        _ = targetMode;
+        return false;
     }
 
     private static Dictionary<string, int[]> SelectionMapPayload(Dictionary<int, HashSet<int>> selection)
@@ -1425,6 +1555,22 @@ internal sealed class MeshViewport : Control
         return selection
             .OrderBy(pair => pair.Key)
             .ToDictionary(pair => pair.Key.ToString(CultureInfo.InvariantCulture), pair => pair.Value.OrderBy(value => value).ToArray());
+    }
+
+    private Dictionary<string, int[][]> EdgeSelectionMapPayload(IEnumerable<int> edgeIds)
+    {
+        return edgeIds
+            .Select(edgeId => _edgeTopology.EdgeById(edgeId))
+            .Where(edge => edge is not null)
+            .GroupBy(edge => edge!.SubmeshIndex)
+            .OrderBy(group => group.Key)
+            .ToDictionary(
+                group => group.Key.ToString(CultureInfo.InvariantCulture),
+                group => group
+                    .Select(edge => new[] { edge!.VertexA, edge.VertexB })
+                    .OrderBy(pair => pair[0])
+                    .ThenBy(pair => pair[1])
+                    .ToArray());
     }
 
     private Dictionary<string, object?>[] EdgeDescriptorPayloads(IEnumerable<int> edgeIds)
@@ -1900,10 +2046,11 @@ internal sealed class MeshViewport : Control
     private void UpdateGpuViewport()
     {
         RequestFrame();
+        _camera = CurrentCamera();
         if (_d3d11Viewport is not null)
         {
             _d3d11Viewport.MaterialDebugMode = MaterialDebugMode;
-            _d3d11Viewport.UpdateCamera(_center, _bounds, _yaw, _pitch, _zoom, _panX, _panY);
+            _d3d11Viewport.UpdateCamera(_camera);
             _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _selectedSources, SelectedSubmeshIndex, ShowWire, ShowXRay);
             return;
         }
@@ -1912,7 +2059,7 @@ internal sealed class MeshViewport : Control
         {
             return;
         }
-        viewport.UpdateCamera(_center, _bounds, _yaw, _pitch, _zoom, _panX, _panY, Math.Max(1, Width), Math.Max(1, Height));
+        viewport.UpdateCamera(_camera);
         viewport.UpdateOverlay(
             _edgeTopology,
             _selectedEdges,
@@ -1924,7 +2071,21 @@ internal sealed class MeshViewport : Control
             SelectedSubmeshIndex,
             ShowWire,
             ShowXRay,
-            vertex => Project(vertex, MathF.Cos(_yaw), MathF.Sin(_yaw), MathF.Cos(_pitch), MathF.Sin(_pitch)));
+            _camera.Project);
+    }
+
+    private NetViewportCamera CurrentCamera()
+    {
+        return NetViewportCamera.Create(
+            _center,
+            _bounds,
+            _yaw,
+            _pitch,
+            _zoom,
+            _panX,
+            _panY,
+            Math.Max(1, Width),
+            Math.Max(1, Height));
     }
 
     private void RebuildEdgeTopology()
@@ -2038,10 +2199,26 @@ internal sealed class MeshViewport : Control
         }
     }
 
-    public void UpdateSelection(Dictionary<int, HashSet<int>> vertices, Dictionary<int, HashSet<int>> faces, HashSet<int> sources)
+    public void UpdateSelection(
+        Dictionary<int, HashSet<int>> vertices,
+        Dictionary<int, HashSet<int>> faces,
+        Dictionary<int, HashSet<(int A, int B)>> edges,
+        HashSet<int> sources)
     {
         ReplaceSelectionMap(_selectedVertices, vertices);
         ReplaceSelectionMap(_selectedFaces, faces);
+        _selectedEdges.Clear();
+        foreach (var pair in edges)
+        {
+            foreach (var edgePair in pair.Value)
+            {
+                var edge = _edgeTopology.EdgeByVertices(pair.Key, edgePair.A, edgePair.B);
+                if (edge is not null)
+                {
+                    _selectedEdges.Add(edge.Id);
+                }
+            }
+        }
         _selectedSources.Clear();
         foreach (var source in sources)
         {
@@ -2138,12 +2315,12 @@ internal sealed class MeshViewport : Control
         else if (normalized == "top")
         {
             _yaw = 0.0f;
-            _pitch = 1.35f;
+            _pitch = -1.35f;
         }
         else if (normalized == "bottom")
         {
             _yaw = 0.0f;
-            _pitch = -1.35f;
+            _pitch = 1.35f;
         }
         UpdateGpuViewport();
         Invalidate();
@@ -2327,30 +2504,7 @@ internal sealed class MeshViewport : Control
 
     private double[] WorldViewProjection()
     {
-        var width = Math.Max(1.0, Width);
-        var height = Math.Max(1.0, Height);
-        var size = Math.Max(_bounds.Max.X - _bounds.Min.X, Math.Max(_bounds.Max.Y - _bounds.Min.Y, _bounds.Max.Z - _bounds.Min.Z));
-        var sx = 2.0 * _zoom / width;
-        var sy = 2.0 * _zoom / height;
-        var sz = 1.0 / Math.Max(size * 4.0, 0.0001);
-        var cosYaw = Math.Cos(_yaw);
-        var sinYaw = Math.Sin(_yaw);
-        var cosPitch = Math.Cos(_pitch);
-        var sinPitch = Math.Sin(_pitch);
-        var m = new double[16];
-        m[0] = sx * cosYaw;
-        m[8] = -sx * sinYaw;
-        m[12] = sx * (-_center.X * cosYaw + _center.Z * sinYaw) + (2.0 * _panX / width);
-        m[1] = -sy * sinYaw * sinPitch;
-        m[5] = sy * cosPitch;
-        m[9] = -sy * cosYaw * sinPitch;
-        m[13] = sy * (-_center.Y * cosPitch + _center.X * sinYaw * sinPitch + _center.Z * cosYaw * sinPitch) - (2.0 * _panY / height);
-        m[2] = -sz * sinYaw * cosPitch;
-        m[6] = -sz * sinPitch;
-        m[10] = -sz * cosYaw * cosPitch;
-        m[14] = 0.5 + sz * (_center.X * sinYaw * cosPitch + _center.Y * sinPitch + _center.Z * cosYaw * cosPitch);
-        m[15] = 1.0;
-        return m;
+        return CurrentCamera().WorldViewProjectionRowMajorArray();
     }
 
     private void BeginSelectionDrag(Point point, string mode)
@@ -2546,10 +2700,7 @@ internal sealed class MeshViewport : Control
 
     private (int SubmeshIndex, int ItemIndex)? PickVertexAt(Point point)
     {
-        var cosYaw = MathF.Cos(_yaw);
-        var sinYaw = MathF.Sin(_yaw);
-        var cosPitch = MathF.Cos(_pitch);
-        var sinPitch = MathF.Sin(_pitch);
+        var camera = CurrentCamera();
         var bestDistance = 8.0;
         (int SubmeshIndex, int ItemIndex)? best = null;
         for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
@@ -2557,11 +2708,11 @@ internal sealed class MeshViewport : Control
             var submesh = _document.Submeshes[submeshIndex];
             for (var vertexIndex = 0; vertexIndex < submesh.Vertices.Count; vertexIndex++)
             {
-                if (!ShowXRay && !IsVertexFrontFacing(submeshIndex, vertexIndex, cosYaw, sinYaw, cosPitch, sinPitch))
+                if (!ShowXRay && !IsVertexFrontFacing(submeshIndex, vertexIndex, camera))
                 {
                     continue;
                 }
-                var projected = Project(submesh.Vertices[vertexIndex], cosYaw, sinYaw, cosPitch, sinPitch);
+                var projected = camera.Project(submesh.Vertices[vertexIndex]);
                 var dx = point.X - projected.X;
                 var dy = point.Y - projected.Y;
                 var distance = Math.Sqrt((dx * dx) + (dy * dy));
@@ -2577,10 +2728,7 @@ internal sealed class MeshViewport : Control
 
     private (int SubmeshIndex, int ItemIndex)? PickFaceAt(Point point)
     {
-        var cosYaw = MathF.Cos(_yaw);
-        var sinYaw = MathF.Sin(_yaw);
-        var cosPitch = MathF.Cos(_pitch);
-        var sinPitch = MathF.Sin(_pitch);
+        var camera = CurrentCamera();
         var bestScore = double.MaxValue;
         (int SubmeshIndex, int ItemIndex)? best = null;
         for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
@@ -2588,7 +2736,7 @@ internal sealed class MeshViewport : Control
             var submesh = _document.Submeshes[submeshIndex];
             for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
             {
-                if (!ShowXRay && !IsFaceFrontFacing(submeshIndex, faceIndex, cosYaw, sinYaw, cosPitch, sinPitch))
+                if (!ShowXRay && !IsFaceFrontFacing(submeshIndex, faceIndex, camera))
                 {
                     continue;
                 }
@@ -2607,7 +2755,7 @@ internal sealed class MeshViewport : Control
                         valid = false;
                         break;
                     }
-                    points[cornerIndex] = Project(submesh.Vertices[vertexIndex], cosYaw, sinYaw, cosPitch, sinPitch);
+                    points[cornerIndex] = camera.Project(submesh.Vertices[vertexIndex]);
                 }
                 if (!valid || !PointInTriangle(point, points[0], points[1], points[2]))
                 {
@@ -2626,7 +2774,7 @@ internal sealed class MeshViewport : Control
         return best;
     }
 
-    private bool IsVertexFrontFacing(int submeshIndex, int vertexIndex, float cosYaw, float sinYaw, float cosPitch, float sinPitch)
+    private bool IsVertexFrontFacing(int submeshIndex, int vertexIndex, NetViewportCamera camera)
     {
         if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count || vertexIndex < 0)
         {
@@ -2641,7 +2789,7 @@ internal sealed class MeshViewport : Control
         {
             var face = submesh.Faces[faceIndex];
             if (face.Corners.Any(corner => corner.VertexIndex == vertexIndex)
-                && IsFaceFrontFacing(submeshIndex, faceIndex, cosYaw, sinYaw, cosPitch, sinPitch))
+                && IsFaceFrontFacing(submeshIndex, faceIndex, camera))
             {
                 return true;
             }
@@ -2745,10 +2893,7 @@ internal sealed class MeshViewport : Control
 
     private (int SubmeshIndex, int ItemIndex)[] VertexIdsInRectangle(Rectangle rectangle)
     {
-        var cosYaw = MathF.Cos(_yaw);
-        var sinYaw = MathF.Sin(_yaw);
-        var cosPitch = MathF.Cos(_pitch);
-        var sinPitch = MathF.Sin(_pitch);
+        var camera = CurrentCamera();
         var expanded = Rectangle.Inflate(rectangle, 3, 3);
         var result = new List<(int SubmeshIndex, int ItemIndex)>();
         for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
@@ -2756,11 +2901,11 @@ internal sealed class MeshViewport : Control
             var submesh = _document.Submeshes[submeshIndex];
             for (var vertexIndex = 0; vertexIndex < submesh.Vertices.Count; vertexIndex++)
             {
-                if (!ShowXRay && !IsVertexFrontFacing(submeshIndex, vertexIndex, cosYaw, sinYaw, cosPitch, sinPitch))
+                if (!ShowXRay && !IsVertexFrontFacing(submeshIndex, vertexIndex, camera))
                 {
                     continue;
                 }
-                var point = Project(submesh.Vertices[vertexIndex], cosYaw, sinYaw, cosPitch, sinPitch);
+                var point = camera.Project(submesh.Vertices[vertexIndex]);
                 if (expanded.Contains(Point.Round(point)))
                 {
                     result.Add((submeshIndex, vertexIndex));
@@ -2772,10 +2917,7 @@ internal sealed class MeshViewport : Control
 
     private (int SubmeshIndex, int ItemIndex)[] FaceIdsInRectangle(Rectangle rectangle)
     {
-        var cosYaw = MathF.Cos(_yaw);
-        var sinYaw = MathF.Sin(_yaw);
-        var cosPitch = MathF.Cos(_pitch);
-        var sinPitch = MathF.Sin(_pitch);
+        var camera = CurrentCamera();
         var expanded = Rectangle.Inflate(rectangle, 3, 3);
         var result = new List<(int SubmeshIndex, int ItemIndex)>();
         for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
@@ -2783,11 +2925,11 @@ internal sealed class MeshViewport : Control
             var submesh = _document.Submeshes[submeshIndex];
             for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
             {
-                if (!ShowXRay && !IsFaceFrontFacing(submeshIndex, faceIndex, cosYaw, sinYaw, cosPitch, sinPitch))
+                if (!ShowXRay && !IsFaceFrontFacing(submeshIndex, faceIndex, camera))
                 {
                     continue;
                 }
-                if (FaceIntersectsRectangle(submesh, submesh.Faces[faceIndex], expanded, cosYaw, sinYaw, cosPitch, sinPitch))
+                if (FaceIntersectsRectangle(submesh, submesh.Faces[faceIndex], expanded, camera))
                 {
                     result.Add((submeshIndex, faceIndex));
                 }
@@ -2805,7 +2947,7 @@ internal sealed class MeshViewport : Control
             .ToArray();
     }
 
-    private bool FaceIntersectsRectangle(ObjSubmesh submesh, ObjFace face, Rectangle rectangle, float cosYaw, float sinYaw, float cosPitch, float sinPitch)
+    private bool FaceIntersectsRectangle(ObjSubmesh submesh, ObjFace face, Rectangle rectangle, NetViewportCamera camera)
     {
         if (face.Corners.Length != 3)
         {
@@ -2819,7 +2961,7 @@ internal sealed class MeshViewport : Control
             {
                 return false;
             }
-            points[i] = Project(submesh.Vertices[vertexIndex], cosYaw, sinYaw, cosPitch, sinPitch);
+            points[i] = camera.Project(submesh.Vertices[vertexIndex]);
         }
         var center = new PointF((points[0].X + points[1].X + points[2].X) / 3.0f, (points[0].Y + points[1].Y + points[2].Y) / 3.0f);
         return rectangle.Contains(Point.Round(points[0]))
@@ -2833,15 +2975,12 @@ internal sealed class MeshViewport : Control
 
     private int[] EdgeIdsInRectangle(Rectangle rectangle)
     {
-        var cosYaw = MathF.Cos(_yaw);
-        var sinYaw = MathF.Sin(_yaw);
-        var cosPitch = MathF.Cos(_pitch);
-        var sinPitch = MathF.Sin(_pitch);
+        var camera = CurrentCamera();
         var expanded = Rectangle.Inflate(rectangle, 3, 3);
         var result = new List<int>();
         foreach (var edge in _edgeTopology.Edges)
         {
-            if (!ShowXRay && !IsEdgeFrontFacing(edge, cosYaw, sinYaw, cosPitch, sinPitch))
+            if (!ShowXRay && !IsEdgeFrontFacing(edge, camera))
             {
                 continue;
             }
@@ -2854,8 +2993,8 @@ internal sealed class MeshViewport : Control
             {
                 continue;
             }
-            var a = Project(submesh.Vertices[edge.VertexA], cosYaw, sinYaw, cosPitch, sinPitch);
-            var b = Project(submesh.Vertices[edge.VertexB], cosYaw, sinYaw, cosPitch, sinPitch);
+            var a = camera.Project(submesh.Vertices[edge.VertexA]);
+            var b = camera.Project(submesh.Vertices[edge.VertexB]);
             var midpoint = new PointF((a.X + b.X) * 0.5f, (a.Y + b.Y) * 0.5f);
             if (expanded.Contains(Point.Round(a)) || expanded.Contains(Point.Round(b)) || expanded.Contains(Point.Round(midpoint)) || SegmentIntersectsRectangle(a, b, expanded))
             {
@@ -2995,15 +3134,12 @@ internal sealed class MeshViewport : Control
 
     private int PickEdgeAt(Point point)
     {
-        var cosYaw = MathF.Cos(_yaw);
-        var sinYaw = MathF.Sin(_yaw);
-        var cosPitch = MathF.Cos(_pitch);
-        var sinPitch = MathF.Sin(_pitch);
+        var camera = CurrentCamera();
         var bestEdgeId = -1;
         var bestDistance = 9.0;
         foreach (var edge in _edgeTopology.Edges)
         {
-            if (!ShowXRay && !IsEdgeFrontFacing(edge, cosYaw, sinYaw, cosPitch, sinPitch))
+            if (!ShowXRay && !IsEdgeFrontFacing(edge, camera))
             {
                 continue;
             }
@@ -3016,8 +3152,8 @@ internal sealed class MeshViewport : Control
             {
                 continue;
             }
-            var a = Project(submesh.Vertices[edge.VertexA], cosYaw, sinYaw, cosPitch, sinPitch);
-            var b = Project(submesh.Vertices[edge.VertexB], cosYaw, sinYaw, cosPitch, sinPitch);
+            var a = camera.Project(submesh.Vertices[edge.VertexA]);
+            var b = camera.Project(submesh.Vertices[edge.VertexB]);
             var distance = DistanceToSegment(point, a, b);
             if (distance < bestDistance)
             {
@@ -3028,7 +3164,7 @@ internal sealed class MeshViewport : Control
         return bestEdgeId;
     }
 
-    private bool IsEdgeFrontFacing(NetEdge edge, float cosYaw, float sinYaw, float cosPitch, float sinPitch)
+    private bool IsEdgeFrontFacing(NetEdge edge, NetViewportCamera camera)
     {
         if (edge.AdjacentFaces.Count == 0)
         {
@@ -3036,7 +3172,7 @@ internal sealed class MeshViewport : Control
         }
         foreach (var faceIndex in edge.AdjacentFaces)
         {
-            if (IsFaceFrontFacing(edge.SubmeshIndex, faceIndex, cosYaw, sinYaw, cosPitch, sinPitch))
+            if (IsFaceFrontFacing(edge.SubmeshIndex, faceIndex, camera))
             {
                 return true;
             }
@@ -3044,7 +3180,7 @@ internal sealed class MeshViewport : Control
         return false;
     }
 
-    private bool IsFaceFrontFacing(int submeshIndex, int faceIndex, float cosYaw, float sinYaw, float cosPitch, float sinPitch)
+    private bool IsFaceFrontFacing(int submeshIndex, int faceIndex, NetViewportCamera camera)
     {
         if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count)
         {
@@ -3068,7 +3204,7 @@ internal sealed class MeshViewport : Control
             {
                 return false;
             }
-            points[i] = Project(submesh.Vertices[vertexIndex], cosYaw, sinYaw, cosPitch, sinPitch);
+            points[i] = camera.Project(submesh.Vertices[vertexIndex]);
         }
         var area = ((points[1].X - points[0].X) * (points[2].Y - points[0].Y)) - ((points[1].Y - points[0].Y) * (points[2].X - points[0].X));
         return area < -0.01f;
@@ -3130,10 +3266,7 @@ internal sealed class MeshViewport : Control
         using var normalBrush = new SolidBrush(Color.FromArgb(normalAlpha, 79, 112, 152));
         using var selectedBrush = new SolidBrush(Color.FromArgb(190, 225, 190, 58));
         var points = new PointF[3];
-        var cosYaw = MathF.Cos(_yaw);
-        var sinYaw = MathF.Sin(_yaw);
-        var cosPitch = MathF.Cos(_pitch);
-        var sinPitch = MathF.Sin(_pitch);
+        var camera = CurrentCamera();
 
         for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
         {
@@ -3157,7 +3290,7 @@ internal sealed class MeshViewport : Control
                         valid = false;
                         break;
                     }
-                    points[i] = Project(submesh.Vertices[vertexIndex], cosYaw, sinYaw, cosPitch, sinPitch);
+                    points[i] = camera.Project(submesh.Vertices[vertexIndex]);
                 }
                 if (valid)
                 {
@@ -3177,8 +3310,8 @@ internal sealed class MeshViewport : Control
             }
         }
 
-        DrawSelectedEdges(e.Graphics, cosYaw, sinYaw, cosPitch, sinPitch);
-        DrawSelectedVertices(e.Graphics, cosYaw, sinYaw, cosPitch, sinPitch);
+        DrawSelectedEdges(e.Graphics, camera);
+        DrawSelectedVertices(e.Graphics, camera);
         DrawEdgeSelectionRectangle(e.Graphics);
 
         var frameTicks = _clock.ElapsedTicks - started;
@@ -3275,7 +3408,7 @@ internal sealed class MeshViewport : Control
         graphics.DrawRectangle(pen, rectangle);
     }
 
-    private void DrawSelectedEdges(Graphics graphics, float cosYaw, float sinYaw, float cosPitch, float sinPitch)
+    private void DrawSelectedEdges(Graphics graphics, NetViewportCamera camera)
     {
         using var selectedPen = new Pen(Color.FromArgb(245, 255, 224, 92), 2.2f);
         using var hoverPen = new Pen(Color.FromArgb(245, 96, 202, 255), 2.0f);
@@ -3296,13 +3429,13 @@ internal sealed class MeshViewport : Control
             {
                 continue;
             }
-            var a = Project(submesh.Vertices[edge.VertexA], cosYaw, sinYaw, cosPitch, sinPitch);
-            var b = Project(submesh.Vertices[edge.VertexB], cosYaw, sinYaw, cosPitch, sinPitch);
+            var a = camera.Project(submesh.Vertices[edge.VertexA]);
+            var b = camera.Project(submesh.Vertices[edge.VertexB]);
             graphics.DrawLine(hovered ? hoverPen : selectedPen, a, b);
         }
     }
 
-    private void DrawSelectedVertices(Graphics graphics, float cosYaw, float sinYaw, float cosPitch, float sinPitch)
+    private void DrawSelectedVertices(Graphics graphics, NetViewportCamera camera)
     {
         using var brush = new SolidBrush(Color.FromArgb(235, 255, 224, 92));
         using var pen = new Pen(Color.FromArgb(255, 44, 25, 10), 1.0f);
@@ -3315,7 +3448,7 @@ internal sealed class MeshViewport : Control
                 {
                     continue;
                 }
-                var point = Project(submesh.Vertices[vertexIndex], cosYaw, sinYaw, cosPitch, sinPitch);
+                var point = camera.Project(submesh.Vertices[vertexIndex]);
                 var rect = new RectangleF(point.X - 3.0f, point.Y - 3.0f, 6.0f, 6.0f);
                 graphics.FillEllipse(brush, rect);
                 graphics.DrawEllipse(pen, rect);
@@ -3323,19 +3456,6 @@ internal sealed class MeshViewport : Control
         }
     }
 
-    private PointF Project(Vec3 vertex, float cosYaw, float sinYaw, float cosPitch, float sinPitch)
-    {
-        var x = vertex.X - _center.X;
-        var y = vertex.Y - _center.Y;
-        var z = vertex.Z - _center.Z;
-        var rx = x * cosYaw - z * sinYaw;
-        var rz = x * sinYaw + z * cosYaw;
-        var ry = y * cosPitch - rz * sinPitch;
-
-        return new PointF(
-            Width * 0.5f + _panX + rx * _zoom,
-            Height * 0.5f + _panY - ry * _zoom);
-    }
 }
 
 internal sealed class RenderMetrics
@@ -3350,12 +3470,15 @@ internal sealed class RenderMetrics
     public double AverageDirtyToPresentMs { get; private set; }
     public double AverageResponsivenessMs { get; private set; }
     public int DroppedFrames { get; private set; }
+    public int FrameCount { get; private set; }
+    public bool HasRenderedFrame => FrameCount > 0;
     public string DeviceRemovedReason { get; private set; } = string.Empty;
     public double AverageFps => AverageFrameMs > 0.0001 ? 1000.0 / AverageFrameMs : 0.0;
 
     public void Record(double frameMs, double presentMs, double dirtyToPresentMs, string deviceRemovedReason)
     {
         var normalizedFrameMs = Math.Max(0.0, frameMs);
+        FrameCount++;
         _frameMs.Enqueue(normalizedFrameMs);
         _presentMs.Enqueue(Math.Max(0.0, presentMs));
         _dirtyToPresentMs.Enqueue(Math.Max(0.0, dirtyToPresentMs));
@@ -3437,17 +3560,9 @@ internal static class HeadlessRenderer
 
     private static PointF Project(Vec3 vertex, Vec3 center, float yaw, float pitch, float zoom)
     {
-        var x = vertex.X - center.X;
-        var y = vertex.Y - center.Y;
-        var z = vertex.Z - center.Z;
-        var cosYaw = MathF.Cos(yaw);
-        var sinYaw = MathF.Sin(yaw);
-        var rx = x * cosYaw - z * sinYaw;
-        var rz = x * sinYaw + z * cosYaw;
-        var cosPitch = MathF.Cos(pitch);
-        var sinPitch = MathF.Sin(pitch);
-        var ry = y * cosPitch - rz * sinPitch;
-        return new PointF(rx * zoom, -ry * zoom);
+        var bounds = (new Vec3(center.X - 1.0f, center.Y - 1.0f, center.Z - 1.0f), new Vec3(center.X + 1.0f, center.Y + 1.0f, center.Z + 1.0f));
+        var projected = NetViewportCamera.Create(center, bounds, yaw, pitch, zoom, 0.0f, 0.0f, 2, 2).Project(vertex);
+        return new PointF(projected.X - 1.0f, projected.Y - 1.0f);
     }
 }
 
@@ -3952,6 +4067,13 @@ internal sealed class NetEdgeTopology
     public NetEdge? EdgeByStableKey(string stableKey)
     {
         return !string.IsNullOrWhiteSpace(stableKey) && _edgesByStableKey.TryGetValue(stableKey, out var edge) ? edge : null;
+    }
+
+    public NetEdge? EdgeByVertices(int submeshIndex, int vertexA, int vertexB)
+    {
+        var a = Math.Min(vertexA, vertexB);
+        var b = Math.Max(vertexA, vertexB);
+        return Edges.FirstOrDefault(edge => edge.SubmeshIndex == submeshIndex && edge.VertexA == a && edge.VertexB == b);
     }
 
     public static NetEdgeTopology Build(ObjDocument document, int generation = 1)

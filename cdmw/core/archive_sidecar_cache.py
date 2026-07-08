@@ -47,13 +47,57 @@ def _read_archive_entry_data_from_handle(*args, **kwargs):
     return archive_core._read_archive_entry_data_from_handle(*args, **kwargs)
 
 
-_ARCHIVE_SIDECAR_CACHE_SUPPORTED_VERSIONS = {8, 9}
+_ARCHIVE_SIDECAR_CACHE_SUPPORTED_VERSIONS = {8, 9, 10}
 _ARCHIVE_SCAN_IGNORED_TOP_LEVEL_DIRS: frozenset[str] = frozenset({"cdmods"})
 _ARCHIVE_SIDECAR_TEXTURE_ATTR_RE = re.compile(
     r"""\b(?:_path|path|Path|Value|_value|value|File|file|_file|Texture|texture)\s*=\s*(['"])(?P<value>[^'"<>]{1,1024}?\.(?:dds|png|jpg|jpeg|tga|bmp|tif|tiff))\1""",
     re.IGNORECASE,
 )
 _ARCHIVE_TEXTURE_BYTES_RE = re.compile(br"\.(?:dds|png|jpg|jpeg|tga|bmp|tif|tiff)", re.IGNORECASE)
+
+
+def _archive_material_sidecar_entry_indices(entries: Sequence[ArchiveEntry]) -> List[int]:
+    indices: List[int] = []
+    for entry_index, entry in enumerate(entries):
+        entry_basename = PurePosixPath(entry.path.replace("\\", "/")).name.lower()
+        if _is_material_sidecar_extension(entry.extension, entry_basename):
+            indices.append(entry_index)
+    return indices
+
+
+
+def _build_archive_sidecar_entry_cache_signatures(
+    package_root: Path,
+    entries: Sequence[ArchiveEntry],
+) -> Tuple[Tuple[int, Tuple[object, ...]], ...]:
+    sidecar_indices = _archive_material_sidecar_entry_indices(entries)
+    sidecar_entries = [entries[index] for index in sidecar_indices]
+    sidecar_signatures = _build_archive_entry_cache_signatures(package_root, sidecar_entries)
+    return tuple(
+        (int(entry_index), tuple(signature))
+        for entry_index, signature in zip(sidecar_indices, sidecar_signatures)
+    )
+
+
+def _normalize_archive_sidecar_entry_signature_rows(raw_rows: object) -> Optional[Tuple[Tuple[int, Tuple[object, ...]], ...]]:
+    if not isinstance(raw_rows, (list, tuple)):
+        return None
+    rows: List[Tuple[int, Tuple[object, ...]]] = []
+    for raw_row in raw_rows:
+        if not isinstance(raw_row, (list, tuple)) or len(raw_row) != 2:
+            return None
+        raw_index, raw_signature = raw_row
+        if not isinstance(raw_signature, (list, tuple)):
+            return None
+        try:
+            entry_index = int(raw_index)
+        except (TypeError, ValueError):
+            return None
+        if entry_index < 0:
+            return None
+        rows.append((entry_index, tuple(raw_signature)))
+    return tuple(rows)
+
 
 def _extract_archive_sidecar_texture_lookup_paths(sidecar_text: str) -> Tuple[str, ...]:
     if not sidecar_text:
@@ -335,23 +379,43 @@ def _incremental_archive_texture_sidecar_path_rows(
     cached_path_rows: Dict[str, Tuple[int, ...]],
     cached_entry_signatures: object,
     *,
+    cached_sidecar_entry_signatures: bool = False,
     worker_count: Optional[int] = None,
     stop_event: Optional[threading.Event] = None,
     on_log: Optional[Callable[[str], None]] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     timings: Optional[Dict[str, float]] = None,
 ) -> Optional[Dict[str, Tuple[int, ...]]]:
-    if not isinstance(cached_entry_signatures, (list, tuple)):
-        return None
-    try:
-        old_signatures = tuple(tuple(signature) for signature in cached_entry_signatures)
-    except Exception:
-        return None
-    current_signatures = _build_archive_entry_cache_signatures(package_root, entries)
+    if cached_sidecar_entry_signatures:
+        old_signature_rows = _normalize_archive_sidecar_entry_signature_rows(cached_entry_signatures)
+        if old_signature_rows is None:
+            return None
+        current_sidecar_indices = _archive_material_sidecar_entry_indices(entries)
+        current_sidecar_entries = [entries[index] for index in current_sidecar_indices]
+        current_signatures = _build_archive_entry_cache_signatures(package_root, current_sidecar_entries)
+        current_signature_rows = tuple(
+            (int(entry_index), tuple(signature))
+            for entry_index, signature in zip(current_sidecar_indices, current_signatures)
+        )
+    else:
+        if not isinstance(cached_entry_signatures, (list, tuple)):
+            return None
+        try:
+            old_signature_rows = tuple(
+                (old_index, tuple(signature))
+                for old_index, signature in enumerate(cached_entry_signatures)
+            )
+        except Exception:
+            return None
+        current_signatures = _build_archive_entry_cache_signatures(package_root, entries)
+        current_signature_rows = tuple(
+            (current_index, tuple(signature))
+            for current_index, signature in enumerate(current_signatures)
+        )
 
     current_by_signature: Dict[Tuple[object, ...], int] = {}
     duplicate_current_signatures: set[Tuple[object, ...]] = set()
-    for current_index, signature in enumerate(current_signatures):
+    for current_index, signature in current_signature_rows:
         if signature in current_by_signature:
             duplicate_current_signatures.add(signature)
             continue
@@ -361,23 +425,19 @@ def _incremental_archive_texture_sidecar_path_rows(
 
     old_to_current: Dict[int, int] = {}
     reused_current_indices: set[int] = set()
-    for old_index, signature in enumerate(old_signatures):
+    for old_index, signature in old_signature_rows:
         current_index = current_by_signature.get(signature)
         if current_index is None:
             continue
-        old_to_current[old_index] = current_index
+        old_to_current[int(old_index)] = current_index
         reused_current_indices.add(current_index)
 
     changed_sidecar_indices = [
         index
-        for index, entry in enumerate(entries)
-        if _is_material_sidecar_extension(
-            entry.extension,
-            PurePosixPath(entry.path.replace("\\", "/")).name.lower(),
-        )
-        and index not in reused_current_indices
+        for index in _archive_material_sidecar_entry_indices(entries)
+        if index not in reused_current_indices
     ]
-    if old_to_current and not changed_sidecar_indices and len(current_signatures) == len(old_signatures):
+    if old_to_current and not changed_sidecar_indices and len(current_signature_rows) == len(old_signature_rows):
         if on_log is not None:
             on_log("Texture sidecar cache metadata changed, but all sidecar rows remapped without rescanning.")
     elif on_log is not None:
@@ -396,13 +456,16 @@ def _incremental_archive_texture_sidecar_path_rows(
     _record_timing(timings, "incremental_remap_s", merge_started_at)
 
     scan_started_at = time.perf_counter()
-    changed_rows = _build_archive_texture_sidecar_path_rows_for_indices(
-        entries,
-        changed_sidecar_indices,
-        worker_count=worker_count,
-        stop_event=stop_event,
-        on_progress=on_progress,
-    )
+    if changed_sidecar_indices:
+        changed_rows = _build_archive_texture_sidecar_path_rows_for_indices(
+            entries,
+            changed_sidecar_indices,
+            worker_count=worker_count,
+            stop_event=stop_event,
+            on_progress=on_progress,
+        )
+    else:
+        changed_rows = {}
     _record_timing(timings, "incremental_scan_s", scan_started_at)
     for normalized_texture, current_indices in changed_rows.items():
         remapped_rows_lists[normalized_texture].extend(int(index) for index in current_indices)
@@ -570,7 +633,7 @@ def save_archive_texture_sidecar_cache(
         "sources": sources,
         "entry_count": len(entries),
         "entry_signature_format": _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT,
-        "entry_signatures": _build_archive_entry_cache_signatures(package_root, entries),
+        "sidecar_entry_signatures": _build_archive_sidecar_entry_cache_signatures(package_root, entries),
         "path_rows": path_rows,
         "basename_rows": basename_rows,
     }
@@ -715,19 +778,40 @@ def load_archive_texture_sidecar_cache_rows(
                 )
             cache_version = int(data.get("version", 0))
             signature_format = int(data.get("entry_signature_format", 0) or 0)
-            if cache_version >= 9 and signature_format == _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT:
-                incremental_started_at = time.perf_counter()
-                updated_path_rows = _incremental_archive_texture_sidecar_path_rows(
-                    package_root,
-                    entries,
-                    raw_path_rows,
-                    data.get("entry_signatures"),
-                    worker_count=worker_count,
-                    stop_event=stop_event,
-                    on_log=on_log,
-                    on_progress=on_progress,
-                    timings=timings,
+            reusable_signatures_available = False
+            if signature_format == _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT:
+                reusable_signatures_available = bool(
+                    cache_version >= 10 and data.get("sidecar_entry_signatures") is not None
+                    or cache_version >= 9 and data.get("entry_signatures") is not None
                 )
+            if reusable_signatures_available:
+                incremental_started_at = time.perf_counter()
+                updated_path_rows = None
+                if cache_version >= 10 and data.get("sidecar_entry_signatures") is not None:
+                    updated_path_rows = _incremental_archive_texture_sidecar_path_rows(
+                        package_root,
+                        entries,
+                        raw_path_rows,
+                        data.get("sidecar_entry_signatures"),
+                        cached_sidecar_entry_signatures=True,
+                        worker_count=worker_count,
+                        stop_event=stop_event,
+                        on_log=on_log,
+                        on_progress=on_progress,
+                        timings=timings,
+                    )
+                if updated_path_rows is None and cache_version >= 9 and data.get("entry_signatures") is not None:
+                    updated_path_rows = _incremental_archive_texture_sidecar_path_rows(
+                        package_root,
+                        entries,
+                        raw_path_rows,
+                        data.get("entry_signatures"),
+                        worker_count=worker_count,
+                        stop_event=stop_event,
+                        on_log=on_log,
+                        on_progress=on_progress,
+                        timings=timings,
+                    )
                 _record_timing(timings, "incremental_update_s", incremental_started_at)
                 if updated_path_rows is not None:
                     updated_basename_rows = _build_archive_sidecar_basename_rows_from_path_rows(updated_path_rows)

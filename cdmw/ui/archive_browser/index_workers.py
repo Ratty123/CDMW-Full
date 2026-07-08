@@ -43,6 +43,8 @@ class ArchiveIndexWorkerMixin:
             native_archive_acceleration=performance_settings.native_archive_acceleration,
             entry_metadata_signature=self.archive_entry_metadata_signature,
             entry_metadata_sources=self.archive_entry_metadata_sources,
+            shard_entry_signatures=getattr(self, "archive_scan_shard_entry_signatures", {}) or {},
+            shard_entry_counts=getattr(self, "archive_scan_shard_entry_counts", {}) or {},
         )
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -71,20 +73,20 @@ class ArchiveIndexWorkerMixin:
         basename_index = payload.get("basename_index")
         extension_index = payload.get("extension_index")
         role_index = payload.get("role_index")
-        if isinstance(path_index, dict):
+        if isinstance(path_index, Mapping):
             self.archive_entries_by_normalized_path = path_index
-        if isinstance(basename_index, dict):
+        if isinstance(basename_index, Mapping):
             self.archive_entries_by_basename = basename_index
-        if isinstance(extension_index, dict):
+        if isinstance(extension_index, Mapping):
             self.archive_entries_by_extension = extension_index
             self.archive_extension_counts = Counter(
                 {
                     str(extension): len(items)
                     for extension, items in extension_index.items()
-                    if extension and isinstance(items, list)
+                    if extension
                 }
             )
-        if isinstance(role_index, dict):
+        if isinstance(role_index, Mapping):
             self.archive_entries_by_role = role_index
         self.archive_basic_index_state = "ready"
         if (
@@ -155,6 +157,8 @@ class ArchiveIndexWorkerMixin:
             tuple(self.archive_entries),
             entry_metadata_signature=self.archive_entry_metadata_signature,
             entry_metadata_sources=self.archive_entry_metadata_sources,
+            shard_entry_signatures=getattr(self, "archive_scan_shard_entry_signatures", {}) or {},
+            shard_entry_counts=getattr(self, "archive_scan_shard_entry_counts", {}) or {},
         )
         thread = QThread(self)
         worker.moveToThread(thread)

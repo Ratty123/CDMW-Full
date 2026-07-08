@@ -106,7 +106,6 @@ def _validate_obj_sidecar_skinning_metadata(payload: dict[str, object]) -> None:
             raise ValueError("OBJ sidecar bone metadata is required for skinned meshes.")
         if not bool(bone_layout.get("has_bones")):
             continue
-        weighted_entry_count += 1
         expected_vertices = _entry_int(entry, "original_vertex_count", "vertex_count")
         layout_vertices = _entry_int(bone_layout, "vertex_count")
         if expected_vertices >= 0 and layout_vertices != expected_vertices:
@@ -114,8 +113,12 @@ def _validate_obj_sidecar_skinning_metadata(payload: dict[str, object]) -> None:
                 "OBJ sidecar bone metadata vertex count mismatch for submesh "
                 f"{submesh_index}: expected {expected_vertices}, got {layout_vertices}."
             )
-        if _entry_int(bone_layout, "max_influences") <= 0:
+        max_influences = _entry_int(bone_layout, "max_influences")
+        if max_influences < 0:
             raise ValueError("OBJ sidecar bone metadata is missing influence counts for skinned meshes.")
+        if max_influences == 0:
+            continue
+        weighted_entry_count += 1
         source_map = _normalize_obj_sidecar_source_vertex_map(entry, expected_count=layout_vertices)
         if not source_map or any(value < 0 for value in source_map):
             raise ValueError("OBJ sidecar source vertex map is required for skinned meshes.")

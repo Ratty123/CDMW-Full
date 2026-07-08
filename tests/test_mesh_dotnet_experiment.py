@@ -120,6 +120,7 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     d3d_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.cs").read_text(encoding="utf-8")
     d3d_overlay_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
     hlsl_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
+    camera_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "NetViewportCamera.cs").read_text(encoding="utf-8")
     build_script = (root / "build_pyside6_app.ps1").read_text(encoding="utf-8")
 
     assert "D3D11MaterialViewport" in d3d_source
@@ -131,8 +132,15 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "ResolveShaderPath" in d3d_source
     assert "GetManifestResourceStream" in d3d_source
     assert "cdmw-dotnet-mesh-editor-shaders" in d3d_source
-    assert "DrawD3D11Overlay" in d3d_overlay_source
-    assert "ProjectOverlayVertex" in d3d_overlay_source
+    assert "DrawD3D11Overlay()" in d3d_overlay_source
+    assert "DrawD3D11Overlay(e.Graphics)" not in d3d_source
+    assert "ProjectOverlayVertex" not in d3d_overlay_source
+    assert "DrawOverlayPrimitive" in d3d_overlay_source
+    assert "PrimitiveTopology.LineList" in d3d_overlay_source
+    assert "PrimitiveTopology.TriangleList" in d3d_overlay_source
+    assert "Graphics" not in d3d_overlay_source
+    assert "VSOverlay" in hlsl_source
+    assert "PSOverlay" in hlsl_source
     assert "TryInitialize(out string error)" in d3d_source
     assert "CDMW_MESH_DOTNET_FORCE_D3D11_FAILURE" in d3d_source
     assert "CDMW_MESH_DOTNET_FORCE_D3D11_PRESENT_FAILURE" in d3d_source
@@ -143,9 +151,17 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "DrawD3D11WireOverlay" in d3d_overlay_source
     assert "DrawSelectedFacesOverlay" in d3d_overlay_source
     assert "DrawSelectedSourcesOverlay" in d3d_overlay_source
-    assert "DrawXRayOverlayLabel" in d3d_overlay_source
-    assert "BuildCameraMatrices()" in d3d_source
-    assert "matrices.WorldViewProjection" in d3d_overlay_source
+    assert "DrawXRayOverlayMarker" in d3d_overlay_source
+    assert "static NetViewportCamera Create" in camera_source
+    assert "WorldViewProjectionRowMajorArray" in camera_source
+    assert "Vector3.Cross(forward, right)" in camera_source
+    assert "BuildCameraMatrices()" not in d3d_source
+    assert "UpdateCamera(NetViewportCamera camera)" in d3d_source
+    assert "UpdateCamera(NetViewportCamera camera)" in gpu_source
+    assert "_camera.Project" in source
+    assert "_pitch = -1.35f" in source
+    assert "_pitch = 1.35f" in source
+    assert "matrices.WorldViewProjection" not in d3d_overlay_source
     assert "MaterialDebugMode" in d3d_source
     assert "MaterialDebugMode" in hlsl_source
     assert "Material debug" in source
@@ -216,8 +232,14 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "cd-texture-dx.exe" in source
     assert '"dds_resources"]' in source
     assert '"dds_decoded_resources"]' in source
-    assert '"decoded_bc1_bc2_bc3_uncompressed32"' in source
+    assert '"dds_upload_mode"] = "bitmap_rgba_upload"' in source
+    assert '"native_dds_parity"] = false' in source
+    assert '"dds_native_dxgi_upload"] = false' in source
+    assert '"dds_upload_format"] = "B8G8R8A8_UNorm"' in source
+    assert '"bitmap_decode_then_bgra32_upload"' in source
+    assert '"dds_decode_tools"]' in source
     assert '"header_verified_not_sampled"' in source
+    assert '"material_contract_gap"]' in source
     assert "ApplyHeadlessSmokeEdit(document)" in source
     assert "X = vertex.X + 0.001f" in source
     assert "HeadlessRenderer.Measure(document)" in source
@@ -236,7 +258,18 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "\"select_request\"" in source
     assert "\"stroke_begin\"" in source
     assert "\"command_request\"" in source
+    assert "WriteCommandRequest(command);" in source
+    assert "TryHandleLocalCommand(command, targetMode)" not in source
+    assert "RequestTransformMove" in source
+    assert "TranslateSelected" not in source
     assert "\"selection_depth_mode\"" in source
+    assert "\"edges_by_submesh\"" in source
+    assert "\"source_indices\"" in source
+    assert "JsonEdgeSelectionMap" in source
+    assert "EdgeByVertices" in source
+    assert "Renderer ready, waiting for first frame" in source
+    assert "\"has_rendered_frame\"" in source
+    assert "\"frame_count\"" in source
     assert "WorldViewProjection()" in source
     assert "ApplyPreviewVertexUpdate" in source
     assert "ApplyPreviewTriangleUpdate" in source
@@ -306,8 +339,10 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "dotnet_viewport_python_cpp_validation" in source
     assert "native_authoritative_operation_required" in source
     assert "release_preflight.py" in build_script
-    viewport_project = source.split("private PointF Project", 1)[1].split("internal sealed class RenderMetrics", 1)[0]
-    assert "_document.Bounds()" not in viewport_project
+    assert "private PointF Project" not in source
+    assert "MathF.Cos(_yaw)" not in source
+    assert "MathF.Sin(_yaw)" not in source
+    assert "_document.Bounds()" not in camera_source
 
 
 def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, monkeypatch) -> None:

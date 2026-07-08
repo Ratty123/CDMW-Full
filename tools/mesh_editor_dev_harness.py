@@ -68,6 +68,7 @@ _WM_COPYDATA_COMMAND = 0x43444D57
 _MK_LBUTTON = 0x0001
 _HOST_CLASS = "CDMWNativeD3D11PreviewWindow"
 _REAL_MESH_EDITOR_VISUAL_SCENARIO = "real-archive-mesh-editor-d3d11-side-by-side-edit-smoke"
+_DOTNET_NATIVE_PARITY_SCENARIO = "mesh-dotnet-native-parity-report"
 _SYNTHETIC_D3D11_SCENARIOS = frozenset(
     {
         "full-suite-smoke",
@@ -5770,6 +5771,38 @@ def run_native_smoke(mesh: ParsedMesh, output_dir: Path, *, timeout_seconds: flo
         _close_process(process)
 
 
+def run_mesh_dotnet_native_parity_report(output_dir: Path, game_root: Path | str | None = None) -> dict[str, object]:
+    """Create a non-blocking native versus .NET renderer parity report scaffold."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_game_root = Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT
+    debug_channels = ["base", "normal", "roughness", "metallic", "emissive", "final"]
+    native_capture = output_dir / "native_d3d11_capture.png"
+    dotnet_capture = output_dir / "dotnet_d3d11_capture.png"
+    report = {
+        "scenario": _DOTNET_NATIVE_PARITY_SCENARIO,
+        "ok": False,
+        "status": "blocked",
+        "mode": "non_blocking_report",
+        "authority": "native_python_cpp_d3d11",
+        "dotnet_role": "experiment_only",
+        "game_root": str(resolved_game_root),
+        "debug_channels": debug_channels,
+        "native_capture_png": str(native_capture),
+        "dotnet_capture_png": str(dotnet_capture),
+        "native_capture_summary": _png_capture_summary(native_capture) if native_capture.is_file() else {"ok": False, "error": "native capture missing"},
+        "dotnet_capture_summary": _png_capture_summary(dotnet_capture) if dotnet_capture.is_file() else {"ok": False, "error": "dotnet capture missing"},
+        "diff_metrics": {},
+        "blockers": [
+            "real PAC asset, deterministic camera, and .NET capture path must be supplied before parity thresholds can be gated",
+        ],
+    }
+    (output_dir / "dotnet_native_parity_report.json").write_text(
+        json.dumps(report, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return report
+
+
 def run_scenario(
     scenario: str,
     output_dir: Path,
@@ -5880,6 +5913,16 @@ def run_scenario(
             "scenario": scenario,
             "ok": bool(edit_result.get("ok")),
             "real_archive_mesh_editor_d3d11_side_by_side_edit": edit_result,
+        }
+    elif scenario == _DOTNET_NATIVE_PARITY_SCENARIO:
+        parity_result = run_mesh_dotnet_native_parity_report(
+            output_dir,
+            Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+        )
+        result = {
+            "scenario": scenario,
+            "ok": bool(parity_result.get("ok")),
+            "dotnet_native_parity": parity_result,
         }
     elif scenario == "long-edit-mesh-tools":
         long_edit_result = run_long_edit_mesh_tools()
@@ -9357,6 +9400,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "real-archive-app-workflow-smoke",
             "real-archive-mesh-editor-d3d11-edit-smoke",
             _REAL_MESH_EDITOR_VISUAL_SCENARIO,
+            _DOTNET_NATIVE_PARITY_SCENARIO,
         ),
     )
     parser.add_argument("--game-root", type=Path, default=_DEFAULT_GAME_ROOT)

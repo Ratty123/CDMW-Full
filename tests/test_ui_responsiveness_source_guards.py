@@ -861,6 +861,28 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
             texture_editor_ui_shell,
         )
 
+    def test_archive_memory_audit_reports_compact_index_shape(self) -> None:
+        source = _read("cdmw/ui/archive_browser/preview_memory.py")
+        self.assertIn("ArchiveRowIndex", source)
+        self.assertIn("archive_path_index_type", source)
+        self.assertIn("archive_basename_index_type", source)
+        self.assertIn("archive_path_index_value_count", source)
+        self.assertIn("archive_path_index_singleton_count", source)
+        self.assertIn("archive_path_index_multi_count", source)
+        self.assertIn("archive_name_search_token_rows_type", source)
+        self.assertIn("archive_name_search_decoded_token_count", source)
+        self.assertIn("key_count > 10000", source)
+
+    def test_text_only_archive_filters_do_not_start_icon_warmup(self) -> None:
+        source = _read("cdmw/ui/archive_browser/icon_pipeline.py")
+        self.assertIn("def _archive_icon_warmup_should_run(self) -> bool:", source)
+        self.assertIn('".txt"', source)
+        self.assertIn('".xml"', source)
+        self.assertIn('".json"', source)
+        self.assertIn("if extension_filter in text_only_extensions:\n            return False", source)
+        self.assertIn("if not self._archive_icon_warmup_should_run():", source)
+        self.assertIn("self.archive_item_icon_preload_queue.clear()", source)
+
 
 if __name__ == "__main__":
     unittest.main()

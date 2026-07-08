@@ -1394,11 +1394,18 @@ def _load_or_update_archive_name_search_shards(
     item_search_aliases: Optional[Mapping[str, str]],
     *,
     load_name_search_index: bool = True,
+    shard_entry_signatures: Optional[Mapping[str, str]] = None,
+    shard_entry_counts: Optional[Mapping[str, int]] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> Optional[ArchiveNameSearchIndex]:
-    groups = _archive_entry_shard_groups(package_root, entries)
+    groups = _archive_entry_shard_groups(
+        package_root,
+        entries,
+        precomputed_entry_list_signatures=shard_entry_signatures,
+        precomputed_entry_counts=shard_entry_counts,
+    )
     cache_dir = resolve_archive_name_search_shard_cache_dir(package_root, cache_root)
     alias_signature = _archive_name_search_alias_signature(item_search_aliases)
     stale_groups: List[_ArchiveEntryShardGroup] = []
@@ -1502,6 +1509,8 @@ def load_or_update_archive_name_search_shards(
     item_search_aliases: Optional[Mapping[str, str]],
     *,
     load_name_search_index: bool = True,
+    shard_entry_signatures: Optional[Mapping[str, str]] = None,
+    shard_entry_counts: Optional[Mapping[str, int]] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
@@ -1512,6 +1521,8 @@ def load_or_update_archive_name_search_shards(
         entries,
         item_search_aliases,
         load_name_search_index=load_name_search_index,
+        shard_entry_signatures=shard_entry_signatures,
+        shard_entry_counts=shard_entry_counts,
         on_progress=on_progress,
         on_log=on_log,
         stop_event=stop_event,

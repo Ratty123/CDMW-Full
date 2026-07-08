@@ -252,11 +252,21 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("texture manifest empty despite", source)
         self.assertIn("Native D3D11 Texture Failures:", source)
         self.assertIn("texture_failures", native_source)
+        self.assertIn("required_texture_failures", native_source)
+        self.assertIn("texture_integrity", native_source)
         self.assertIn("failed_textures", native_source)
+        self.assertIn("source_kind", native_source)
         self.assertIn("hresult_hex", native_source)
         self.assertIn("error_payload(\"native D3D11 package reload failed\"", native_source)
         self.assertIn("texture_cache_key(path, dds, create_flags)", native_source)
         self.assertIn("live_texture_bytes", native_source)
+        self.assertIn("D3D11 preview loaded with texture integrity=", source)
+        self.assertIn("Native D3D11 Texture Integrity:", source)
+        self.assertIn("device_lost", native_source)
+        self.assertIn("is_device_loss_hresult", native_source)
+        self.assertIn("CDMW_D3D11_PREVIEW_FORCE_PRESENT_FAILURE", native_source)
+        self.assertIn("CDMW_D3D11_PREVIEW_FORCE_RESIZE_FAILURE", native_source)
+        self.assertIn('elif event == "device_lost":', source)
 
 
 if __name__ == "__main__":

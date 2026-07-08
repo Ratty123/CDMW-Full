@@ -121,7 +121,15 @@ Last updated: 2026-07-07
   validated operation channels copied from the edited mesh. Built-in same-count
   transform/brush/normal/tangent/UV actions append undoable operation entries.
   Same-count and transform-style operation validation requires a complete
-  `source_vertex_map` for the target submesh. `MeshService.replace_working_mesh()`
+  `source_vertex_map` for the target submesh. Mixed skinned PAC sidecars may
+  contain unweighted submeshes with empty bone rows; exporter marks those
+  `bone_layout.has_bones=false`, and importer accepts legacy entries with
+  `max_influences=0` while still requiring positive influence counts for
+  actually weighted submeshes. `tools/pac_parser_corpus_harness.py` is the
+  resumable real-archive PAC parser coverage tool; the 2026-07-08 run against
+  `C:\\games\\Steam\\steamapps\\common\\Crimson Desert\\0009\\0.pamt`
+  scanned 12,962 PAC entries in 13 chunks with all entries OK after adding the
+  sectionless compact `SkinnedMesh_Box` fallback. `MeshService.replace_working_mesh()`
   rejects OBJ sidecar source hash/size mismatch before mutating the session.
   Material-name and texture-path sidecar drift remains previewable as warnings
   but blocks final rebuild by default. Imported OBJ sidecar rebuilds also

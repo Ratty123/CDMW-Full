@@ -3,8 +3,9 @@ from __future__ import annotations
 import fnmatch
 import re
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from cdmw.constants import (
     ARCHIVE_AUDIO_EXTENSIONS,
@@ -12,6 +13,14 @@ from cdmw.constants import (
     ARCHIVE_MODEL_EXTENSIONS,
     ARCHIVE_TEXT_EXTENSIONS,
     ARCHIVE_VIDEO_EXTENSIONS,
+)
+from cdmw.core.archive_compact_index import (
+    ArchiveRowIndex,
+    archive_path_key,
+    build_archive_basename_row_index,
+    build_archive_extension_row_index,
+    build_archive_path_row_index,
+    build_archive_role_row_index,
 )
 from cdmw.core.archive_format import (
     _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS,
@@ -1324,50 +1333,33 @@ def order_archive_entries_by_active_overrides(entries: Sequence[ArchiveEntry]) -
     return ordered
 
 
-def build_archive_entry_path_index(entries: Sequence[ArchiveEntry]) -> Dict[str, List[ArchiveEntry]]:
-    index: Dict[str, List[ArchiveEntry]] = {}
-    for archive_entry in entries:
-        normalized_path = archive_entry.path.replace("\\", "/").strip().lower()
-        index.setdefault(normalized_path, []).append(archive_entry)
-    return index
+def build_archive_entry_path_row_index(entries: Sequence[ArchiveEntry]) -> ArchiveRowIndex:
+    return build_archive_path_row_index(entries)
 
 
-def build_archive_entry_basename_index(entries: Sequence[ArchiveEntry]) -> Dict[str, List[ArchiveEntry]]:
-    index: Dict[str, List[ArchiveEntry]] = {}
-    for archive_entry in entries:
-        normalized_path = archive_entry.path.replace("\\", "/").strip()
-        basename = normalized_path.rsplit("/", 1)[-1].strip().lower()
-        if not basename:
-            continue
-        index.setdefault(basename, []).append(archive_entry)
-    for basename, basename_entries in index.items():
-        basename_entries.sort(
-            key=lambda entry: (
-                -str(entry.path or "").replace("\\", "/").strip().count("/"),
-                -len(str(entry.path or "").replace("\\", "/").strip()),
-                str(entry.path or "").replace("\\", "/").strip().lower(),
-            )
-        )
-    return index
+def build_archive_entry_basename_row_index(entries: Sequence[ArchiveEntry]) -> ArchiveRowIndex:
+    return build_archive_basename_row_index(entries)
 
 
-def build_archive_entry_extension_index(entries: Sequence[ArchiveEntry]) -> Dict[str, List[ArchiveEntry]]:
-    index: Dict[str, List[ArchiveEntry]] = {}
-    for archive_entry in entries:
-        extension = normalize_archive_extension_filter(archive_entry.extension)
-        if not extension:
-            continue
-        index.setdefault(extension, []).append(archive_entry)
-    return index
+def build_archive_entry_extension_row_index(entries: Sequence[ArchiveEntry]) -> ArchiveRowIndex:
+    return build_archive_extension_row_index(entries)
 
 
-def build_archive_entry_role_index(entries: Sequence[ArchiveEntry]) -> Dict[str, List[ArchiveEntry]]:
-    index: Dict[str, List[ArchiveEntry]] = {}
-    texture_roles = {"image", "normal", "material", "impostor", "ui"}
-    for archive_entry in entries:
-        role = archive_entry_role(archive_entry)
-        if role:
-            index.setdefault(role, []).append(archive_entry)
-            if role in texture_roles:
-                index.setdefault("texture", []).append(archive_entry)
-    return index
+def build_archive_entry_role_row_index(entries: Sequence[ArchiveEntry]) -> ArchiveRowIndex:
+    return build_archive_role_row_index(entries)
+
+
+def build_archive_entry_path_index(entries: Sequence[ArchiveEntry]) -> ArchiveRowIndex:
+    return build_archive_entry_path_row_index(entries)
+
+
+def build_archive_entry_basename_index(entries: Sequence[ArchiveEntry]) -> ArchiveRowIndex:
+    return build_archive_entry_basename_row_index(entries)
+
+
+def build_archive_entry_extension_index(entries: Sequence[ArchiveEntry]) -> ArchiveRowIndex:
+    return build_archive_entry_extension_row_index(entries)
+
+
+def build_archive_entry_role_index(entries: Sequence[ArchiveEntry]) -> ArchiveRowIndex:
+    return build_archive_entry_role_row_index(entries)

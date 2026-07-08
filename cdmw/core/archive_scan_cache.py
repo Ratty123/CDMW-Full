@@ -49,7 +49,7 @@ _HKX_CONTEXT_MODEL_PREVIEW_CACHE_LIMIT = 16
 _HKX_CONTEXT_MODEL_PREVIEW_CACHE: "OrderedDict[str, ModelPreviewData]" = OrderedDict()
 _ARCHIVE_SCAN_CACHE_LEGACY_DIRNAMES: Tuple[str, ...] = ("cache", "archive_scan_cache")
 _ARCHIVE_SIDECAR_CACHE_MAGIC = b"CTFSIDE1"
-_ARCHIVE_SIDECAR_CACHE_VERSION = 9
+_ARCHIVE_SIDECAR_CACHE_VERSION = 10
 _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT = 1
 _ARCHIVE_DERIVED_INDEX_CACHE_MAGIC = b"CTFDERI1"
 _ARCHIVE_DERIVED_INDEX_CACHE_VERSION = 11
@@ -423,11 +423,11 @@ def _archive_relative_source_path_cached(
     return relative_path
 
 
-def _collect_archive_scan_sources(
+def _collect_archive_scan_sources_and_files(
     package_root: Path,
     *,
     pamt_files: Optional[Sequence[Path]] = None,
-) -> Tuple[Path, List[Tuple[str, int, int]]]:
+) -> Tuple[Path, List[Tuple[str, int, int]], List[Path]]:
     base_dir = _archive_base_dir(package_root)
     files = list(pamt_files) if pamt_files is not None else discover_pamt_files(package_root)
     sources: List[Tuple[str, int, int]] = []
@@ -443,6 +443,18 @@ def _collect_archive_scan_sources(
                 int(getattr(stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000))),
             )
         )
+    return base_dir, sources, files
+
+
+def _collect_archive_scan_sources(
+    package_root: Path,
+    *,
+    pamt_files: Optional[Sequence[Path]] = None,
+) -> Tuple[Path, List[Tuple[str, int, int]]]:
+    base_dir, sources, _files = _collect_archive_scan_sources_and_files(
+        package_root,
+        pamt_files=pamt_files,
+    )
     return base_dir, sources
 
 
@@ -1289,6 +1301,8 @@ def _archive_entry_shard_groups(
     entries: Sequence[ArchiveEntry],
     *,
     include_signatures: bool = True,
+    precomputed_entry_list_signatures: Optional[Mapping[str, str]] = None,
+    precomputed_entry_counts: Optional[Mapping[str, int]] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     stop_event: Optional[threading.Event] = None,
     progress_label: str = "Preparing archive shard metadata",
@@ -1331,8 +1345,20 @@ def _archive_entry_shard_groups(
         group_entries = tuple(group_entries_list)
         entry_list_signature = ""
         if include_signatures:
-            components = _archive_scan_cache_payload_components(package_root, group_entries, base_dir=base_dir)
-            entry_list_signature = str(components.get("entry_list_signature") or "")
+            cached_signature = ""
+            if isinstance(precomputed_entry_list_signatures, Mapping):
+                cached_signature = str(precomputed_entry_list_signatures.get(relative_pamt_path, "") or "").strip()
+            cached_count = -1
+            if isinstance(precomputed_entry_counts, Mapping):
+                try:
+                    cached_count = int(precomputed_entry_counts.get(relative_pamt_path, -1))
+                except (TypeError, ValueError):
+                    cached_count = -1
+            if cached_signature and cached_count == len(group_entries):
+                entry_list_signature = cached_signature
+            else:
+                components = _archive_scan_cache_payload_components(package_root, group_entries, base_dir=base_dir)
+                entry_list_signature = str(components.get("entry_list_signature") or "")
         groups.append(
             _ArchiveEntryShardGroup(
                 relative_pamt_path=relative_pamt_path,
@@ -1365,8 +1391,7 @@ def archive_scan_shard_cache_health(package_root: Path, cache_root: Path, *, dee
         "stale_reasons": [],
     }
     try:
-        base_dir, current_pamt_sources = _collect_archive_scan_sources(package_root)
-        pamt_files = discover_pamt_files(package_root)
+        base_dir, current_pamt_sources, pamt_files = _collect_archive_scan_sources_and_files(package_root)
     except Exception as exc:
         report.update(
             {
@@ -1511,6 +1536,9 @@ def _write_archive_scan_shard_cache(
     relative_pamt_path: str,
     pamt_path: Path,
     entries: Sequence[ArchiveEntry],
+    *,
+    shard_entry_signatures_out: Optional[Dict[str, str]] = None,
+    shard_entry_counts_out: Optional[Dict[str, int]] = None,
 ) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
     components = _archive_scan_cache_payload_components(package_root, entries)
@@ -1534,6 +1562,10 @@ def _write_archive_scan_shard_cache(
         magic=_ARCHIVE_SCAN_SHARD_CACHE_MAGIC,
         payload=payload,
     )
+    if shard_entry_signatures_out is not None:
+        shard_entry_signatures_out[str(relative_pamt_path)] = str(payload.get("entry_list_signature") or "")
+    if shard_entry_counts_out is not None:
+        shard_entry_counts_out[str(relative_pamt_path)] = int(payload.get("entry_count") or 0)
     return cache_path
 
 
@@ -1666,6 +1698,8 @@ def _write_archive_scan_shards_from_entries(
     stop_event: Optional[threading.Event] = None,
     on_log: Optional[Callable[[str], None]] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
+    shard_entry_signatures_out: Optional[Dict[str, str]] = None,
+    shard_entry_counts_out: Optional[Dict[str, int]] = None,
 ) -> Path:
     cache_dir = resolve_archive_scan_shard_cache_dir(package_root, cache_root)
     base_dir = _archive_base_dir(package_root)
@@ -1687,6 +1721,8 @@ def _write_archive_scan_shards_from_entries(
             relative_pamt_path,
             pamt_path,
             grouped_entries.get(relative_pamt_path, ()),
+            shard_entry_signatures_out=shard_entry_signatures_out,
+            shard_entry_counts_out=shard_entry_counts_out,
         )
         if on_progress is not None and (shard_index == 1 or shard_index % 5 == 0 or shard_index == len(files)):
             on_progress(
@@ -1718,12 +1754,13 @@ def load_or_update_archive_scan_shards(
     check_started_at = time.perf_counter()
     cache_root.mkdir(parents=True, exist_ok=True)
     cache_dir = resolve_archive_scan_shard_cache_dir(package_root, cache_root)
-    base_dir, current_pamt_sources = _collect_archive_scan_sources(package_root)
-    pamt_files = discover_pamt_files(package_root)
+    base_dir, current_pamt_sources, pamt_files = _collect_archive_scan_sources_and_files(package_root)
     if not pamt_files:
         raise ValueError(f"No .pamt files were found under {package_root}.")
     pamt_source_by_rel = {str(row[0]): row for row in current_pamt_sources}
     pamt_by_rel = {_archive_relative_source_path(base_dir, pamt_path): pamt_path for pamt_path in pamt_files}
+    scan_shard_entry_signatures: Dict[str, str] = {}
+    scan_shard_entry_counts: Dict[str, int] = {}
 
     if force_refresh:
         if on_log is not None:
@@ -1754,6 +1791,8 @@ def load_or_update_archive_scan_shards(
                     stop_event=stop_event,
                     on_log=on_log,
                     on_progress=on_progress,
+                    shard_entry_signatures_out=scan_shard_entry_signatures,
+                    shard_entry_counts_out=scan_shard_entry_counts,
                 )
                 _record_timing(timings, "scan_shard_write_s", write_started_at)
                 if metadata_out is not None:
@@ -1765,6 +1804,8 @@ def load_or_update_archive_scan_shards(
                             "scan_shard_loaded_count": len(pamt_files),
                             "scan_shard_rebuilt_count": 0,
                             "scan_shard_stale_count": 0,
+                            "scan_shard_entry_signatures": dict(scan_shard_entry_signatures),
+                            "scan_shard_entry_counts": dict(scan_shard_entry_counts),
                         }
                     )
                 if timings is not None:
@@ -1828,6 +1869,8 @@ def load_or_update_archive_scan_shards(
                     stop_event=stop_event,
                 )
                 loaded_entries_by_rel[relative_pamt_path] = shard_entries
+                scan_shard_entry_signatures[relative_pamt_path] = str(_shard_data.get("entry_list_signature") or "")
+                scan_shard_entry_counts[relative_pamt_path] = int(_shard_data.get("entry_count") or len(shard_entries))
             except Exception as exc:
                 stale_rels.append(relative_pamt_path)
                 reason = str(exc).strip() or "changed"
@@ -1867,6 +1910,8 @@ def load_or_update_archive_scan_shards(
                         "scan_shard_loaded_count": len(pamt_files),
                         "scan_shard_rebuilt_count": 0,
                         "scan_shard_stale_count": 0,
+                        "scan_shard_entry_signatures": dict(scan_shard_entry_signatures),
+                        "scan_shard_entry_counts": dict(scan_shard_entry_counts),
                     }
                 )
             if timings is not None:
@@ -1910,6 +1955,8 @@ def load_or_update_archive_scan_shards(
                     relative_pamt_path,
                     pamt_by_rel[relative_pamt_path],
                     shard_entries,
+                    shard_entry_signatures_out=scan_shard_entry_signatures,
+                    shard_entry_counts_out=scan_shard_entry_counts,
                 )
             _record_timing(timings, "scan_shard_write_s", write_started_at)
             if timings is not None:
@@ -1939,6 +1986,8 @@ def load_or_update_archive_scan_shards(
                         "scan_shard_loaded_count": len(pamt_files) - len(stale_rels),
                         "scan_shard_rebuilt_count": len(stale_rels),
                         "scan_shard_stale_count": len(stale_rels),
+                        "scan_shard_entry_signatures": dict(scan_shard_entry_signatures),
+                        "scan_shard_entry_counts": dict(scan_shard_entry_counts),
                     }
                 )
             if on_log is not None:
@@ -1976,6 +2025,8 @@ def load_or_update_archive_scan_shards(
             stop_event=stop_event,
             on_log=on_log,
             on_progress=on_progress,
+            shard_entry_signatures_out=scan_shard_entry_signatures,
+            shard_entry_counts_out=scan_shard_entry_counts,
         )
         _record_timing(timings, "scan_shard_write_s", write_started_at)
         if timings is not None:
@@ -2005,6 +2056,8 @@ def load_or_update_archive_scan_shards(
                 "scan_shard_loaded_count": 0,
                 "scan_shard_rebuilt_count": len(pamt_files),
                 "scan_shard_stale_count": len(pamt_files),
+                "scan_shard_entry_signatures": dict(scan_shard_entry_signatures),
+                "scan_shard_entry_counts": dict(scan_shard_entry_counts),
             }
         )
     if timings is not None:

@@ -2202,7 +2202,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         can_edit, reason = _mesh_edit_can_edit_scope()
         dotnet_owns_input = bool(
             mesh_edit_enabled_checkbox.isChecked()
-            and getattr(dialog, "_mesh_editor_use_embedded_dotnet_viewport", False)
+            and getattr(dialog, "_mesh_editor_embedded_dotnet_active", False)
         )
         mesh_edit_group.setEnabled(mesh_edit_supported)
         set_toolbar_visible = getattr(classic_mesh_edit_toolbar, "setVisible", None)
@@ -5242,9 +5242,9 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
 
     def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:
         edit_enabled = bool(mesh_edit_enabled_checkbox.isChecked())
-        using_dotnet = bool(getattr(dialog, "_mesh_editor_use_embedded_dotnet_viewport", False))
+        dotnet_active = bool(getattr(dialog, "_mesh_editor_embedded_dotnet_active", False))
         stop_dotnet = getattr(dialog, "_mesh_editor_embedded_stop_dotnet", None)
-        if not edit_enabled and using_dotnet and callable(stop_dotnet):
+        if not edit_enabled and dotnet_active and callable(stop_dotnet):
             if stop_dotnet():
                 _refresh_mesh_edit_controls()
                 _mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")

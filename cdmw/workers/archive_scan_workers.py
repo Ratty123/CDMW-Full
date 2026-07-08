@@ -161,6 +161,9 @@ class ArchiveScanWorker(QObject):
     def _build_enhanced_archive_indexes_inline(
         self,
         entries: Sequence[ArchiveEntry],
+        *,
+        shard_entry_signatures: Optional[Mapping[str, str]] = None,
+        shard_entry_counts: Optional[Mapping[str, int]] = None,
     ) -> Dict[str, object]:
         self.log_message.emit("Preparing archive search cache (1/3): item links...")
         self.progress_changed.emit(0, 0, "Preparing archive search cache (1/3): item links...")
@@ -187,6 +190,8 @@ class ArchiveScanWorker(QObject):
             entries,
             item_search_aliases,
             load_name_search_index=True,
+            shard_entry_signatures=shard_entry_signatures,
+            shard_entry_counts=shard_entry_counts,
             on_progress=self.progress_changed.emit,
             on_log=self.log_message.emit,
             stop_event=self.stop_event,
@@ -319,15 +324,29 @@ class ArchiveScanWorker(QObject):
                 for row in (scan_metadata.get("entry_metadata_sources", ()) or ())
                 if isinstance(row, (list, tuple)) and len(row) == 3
             )
+            raw_shard_signatures = scan_metadata.get("scan_shard_entry_signatures")
+            scan_shard_entry_signatures = {
+                str(key): str(value)
+                for key, value in (raw_shard_signatures.items() if isinstance(raw_shard_signatures, Mapping) else ())
+                if str(key)
+            }
+            raw_shard_counts = scan_metadata.get("scan_shard_entry_counts")
+            scan_shard_entry_counts: Dict[str, int] = {}
+            if isinstance(raw_shard_counts, Mapping):
+                for key, value in raw_shard_counts.items():
+                    try:
+                        scan_shard_entry_counts[str(key)] = int(value)
+                    except (TypeError, ValueError):
+                        continue
             item_search_aliases: Dict[str, str] = {}
             item_display_names: Dict[str, str] = {}
             item_exact_display_names: Dict[str, str] = {}
             item_related_display_names: Dict[str, str] = {}
             item_asset_catalog: List[Dict[str, object]] = []
-            path_index: Dict[str, List[ArchiveEntry]] = {}
-            basename_index: Dict[str, List[ArchiveEntry]] = {}
-            extension_index: Dict[str, List[ArchiveEntry]] = {}
-            role_index: Dict[str, List[ArchiveEntry]] = {}
+            path_index: Mapping[str, Sequence[ArchiveEntry]] = {}
+            basename_index: Mapping[str, Sequence[ArchiveEntry]] = {}
+            extension_index: Mapping[str, Sequence[ArchiveEntry]] = {}
+            role_index: Mapping[str, Sequence[ArchiveEntry]] = {}
             extension_counts: Counter[str] = Counter(
                 normalize_archive_extension_filter(entry.extension)
                 for entry in entries
@@ -348,6 +367,8 @@ class ArchiveScanWorker(QObject):
                     entry_metadata_signature=entry_metadata_signature or None,
                     current_sources=entry_metadata_sources or None,
                     load_name_search_index=self.load_name_search_index_cache,
+                    shard_entry_signatures=scan_shard_entry_signatures,
+                    shard_entry_counts=scan_shard_entry_counts,
                     on_log=self.log_message.emit,
                     timings=timings,
                 )
@@ -389,7 +410,11 @@ class ArchiveScanWorker(QObject):
             if build_enhanced_indexes_before_ready:
                 self.log_message.emit("Preparing archive search cache as part of archive cache build.")
                 enhanced_started_at = time.perf_counter()
-                enhanced_payload = self._build_enhanced_archive_indexes_inline(entries)
+                enhanced_payload = self._build_enhanced_archive_indexes_inline(
+                    entries,
+                    shard_entry_signatures=scan_shard_entry_signatures,
+                    shard_entry_counts=scan_shard_entry_counts,
+                )
                 item_search_aliases = dict(enhanced_payload.get("item_search_aliases", {}) or {})
                 item_display_names = dict(enhanced_payload.get("item_display_names", {}) or {})
                 item_exact_display_names = dict(enhanced_payload.get("item_exact_display_names", {}) or {})
@@ -425,6 +450,8 @@ class ArchiveScanWorker(QObject):
                         self.cache_root,
                         entries,
                         force_refresh=self.force_refresh,
+                        shard_entry_signatures=scan_shard_entry_signatures,
+                        shard_entry_counts=scan_shard_entry_counts,
                         on_progress=self.progress_changed.emit,
                         on_log=self.log_message.emit,
                         timings=timings,
@@ -440,10 +467,10 @@ class ArchiveScanWorker(QObject):
                 cached_extension_index = basic_cache.get("extension_index")
                 cached_role_index = basic_cache.get("role_index")
                 if (
-                    isinstance(cached_path_index, dict)
-                    and isinstance(cached_basename_index, dict)
-                    and isinstance(cached_extension_index, dict)
-                    and isinstance(cached_role_index, dict)
+                    isinstance(cached_path_index, Mapping)
+                    and isinstance(cached_basename_index, Mapping)
+                    and isinstance(cached_extension_index, Mapping)
+                    and isinstance(cached_role_index, Mapping)
                 ):
                     path_index = cached_path_index
                     basename_index = cached_basename_index

@@ -7,6 +7,7 @@ import time
 from collections.abc import Mapping
 from typing import Dict, Optional
 
+from cdmw.core.archive_compact_index import ArchiveRowIndex
 from cdmw.models import ArchivePreviewResult
 from cdmw.ui.shell.diagnostics_controller import windows_process_memory_snapshot as _windows_process_memory_snapshot
 
@@ -61,6 +62,55 @@ class ArchivePreviewMemoryAuditMixin:
         item_preload_timer = getattr(self, "archive_item_icon_preload_timer", None)
         preview_core_idle_timer = getattr(self, "archive_preview_core_idle_shutdown_timer", None)
         name_search_index = getattr(self, "archive_name_search_index", None)
+        token_rows = getattr(name_search_index, "token_rows", None)
+
+        def _index_diagnostics(index: object) -> Dict[str, object]:
+            if not isinstance(index, Mapping):
+                return {
+                    "type": type(index).__name__ if index is not None else "",
+                    "value_count": 0,
+                    "singleton_count": 0,
+                    "multi_count": 0,
+                }
+            if isinstance(index, ArchiveRowIndex):
+                return {
+                    "type": type(index).__name__,
+                    "value_count": index.row_ref_count,
+                    "singleton_count": index.singleton_count,
+                    "multi_count": index.multi_count,
+                }
+            key_count = len(index)
+            if key_count > 10000:
+                return {
+                    "type": type(index).__name__,
+                    "value_count": -1,
+                    "singleton_count": -1,
+                    "multi_count": -1,
+                }
+            value_count = 0
+            singleton_count = 0
+            multi_count = 0
+            for values in index.values():
+                try:
+                    count = len(values)
+                except TypeError:
+                    count = 1
+                value_count += count
+                if count <= 1:
+                    singleton_count += 1
+                else:
+                    multi_count += 1
+            return {
+                "type": type(index).__name__,
+                "value_count": value_count,
+                "singleton_count": singleton_count,
+                "multi_count": multi_count,
+            }
+
+        path_index_diag = _index_diagnostics(getattr(self, "archive_entries_by_normalized_path", {}) or {})
+        basename_index_diag = _index_diagnostics(getattr(self, "archive_entries_by_basename", {}) or {})
+        extension_index_diag = _index_diagnostics(getattr(self, "archive_entries_by_extension", {}) or {})
+        role_index_diag = _index_diagnostics(getattr(self, "archive_entries_by_role", {}) or {})
         active_workers = [
             name
             for name, thread in (
@@ -90,8 +140,23 @@ class ArchivePreviewMemoryAuditMixin:
             "archive_basename_index_key_count": len(getattr(self, "archive_entries_by_basename", {}) or {}),
             "archive_extension_index_key_count": len(getattr(self, "archive_entries_by_extension", {}) or {}),
             "archive_role_index_key_count": len(getattr(self, "archive_entries_by_role", {}) or {}),
+            "archive_path_index_type": path_index_diag.get("type", ""),
+            "archive_basename_index_type": basename_index_diag.get("type", ""),
+            "archive_extension_index_type": extension_index_diag.get("type", ""),
+            "archive_role_index_type": role_index_diag.get("type", ""),
+            "archive_path_index_value_count": path_index_diag.get("value_count", 0),
+            "archive_basename_index_value_count": basename_index_diag.get("value_count", 0),
+            "archive_extension_index_value_count": extension_index_diag.get("value_count", 0),
+            "archive_role_index_value_count": role_index_diag.get("value_count", 0),
+            "archive_path_index_singleton_count": path_index_diag.get("singleton_count", 0),
+            "archive_path_index_multi_count": path_index_diag.get("multi_count", 0),
+            "archive_basename_index_singleton_count": basename_index_diag.get("singleton_count", 0),
+            "archive_basename_index_multi_count": basename_index_diag.get("multi_count", 0),
             "archive_basic_index_state": str(getattr(self, "archive_basic_index_state", "") or ""),
             "archive_name_search_token_count": int(getattr(name_search_index, "row_count", 0) or 0),
+            "archive_name_search_token_rows_type": type(token_rows).__name__ if token_rows is not None else "",
+            "archive_name_search_decoded_token_count": int(getattr(token_rows, "decoded_token_count", 0) or 0),
+            "archive_name_search_decoded_row_count": int(getattr(token_rows, "decoded_row_count", 0) or 0),
             "archive_asset_family_cache_entries": len(getattr(self, "archive_asset_family_cache", {}) or {}),
             "archive_active_workers": tuple(active_workers),
             "archive_preview_cache_entries": len(getattr(self, "archive_preview_cache", {}) or {}),

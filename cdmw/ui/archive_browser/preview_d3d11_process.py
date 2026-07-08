@@ -362,14 +362,18 @@ class ArchivePreviewD3D11ProcessMixin:
             for item in tuple(failed_textures_raw)[:8]:
                 if isinstance(item, Mapping):
                     slot = str(item.get("slot", "") or "?")
+                    source_kind = str(item.get("source_kind", "") or "?")
                     stage = str(item.get("stage", "") or "?")
                     hresult = str(item.get("hresult", "") or "")
+                    required = "required" if bool(item.get("required", False)) else "optional"
                     path = Path(str(item.get("path", "") or "")).name
-                    failed_texture_lines.append(f"{slot}:{stage}:{hresult}:{path}")
+                    failed_texture_lines.append(f"{slot}:{source_kind}:{stage}:{hresult}:{required}:{path}")
                 elif str(item).strip():
                     failed_texture_lines.append(str(item).strip())
         failed_texture_text = "; ".join(failed_texture_lines) if failed_texture_lines else "none"
         texture_failure_count = int(payload.get("texture_failures", 0) or 0)
+        required_texture_failure_count = int(payload.get("required_texture_failures", 0) or 0)
+        texture_integrity = str(payload.get("texture_integrity", "ok") or "ok")
         cache_hits = int(payload.get("texture_cache_hits", 0) or 0)
         cache_entries = int(payload.get("texture_cache_entries", 0) or 0)
         texture_bytes = int(payload.get("estimated_texture_bytes", 0) or 0)
@@ -388,6 +392,10 @@ class ArchivePreviewD3D11ProcessMixin:
         sampler_max_anisotropy = int(payload.get("sampler_max_anisotropy", 0) or 0)
         sampler_recreate_count = int(payload.get("sampler_recreate_count", 0) or 0)
         sampler_mip_lod_bias = float(payload.get("sampler_mip_lod_bias", 0.0) or 0.0)
+        device_lost = bool(payload.get("device_lost", False))
+        device_loss_stage = str(payload.get("device_loss_stage", payload.get("stage", "")) or "")
+        device_loss_hresult = str(payload.get("device_loss_hresult", "") or "")
+        device_removed_reason = str(payload.get("device_removed_reason", "") or "")
         material_contract_schema = int(payload.get("material_contract_schema", 0) or 0)
         material_channel_contract_schema = int(payload.get("material_channel_contract_schema", 0) or 0)
         texture_quality_schema = int(payload.get("texture_quality_schema", 0) or 0)
@@ -457,12 +465,14 @@ class ArchivePreviewD3D11ProcessMixin:
             "Native D3D11 Sampler: "
             f"anisotropy={sampler_max_anisotropy}; mip_lod_bias={sampler_mip_lod_bias:.2f}; recreates={sampler_recreate_count}\n"
             "Native D3D11 Preview Contract: "
+            f"device_lost={_yes_no(device_lost)}; stage={device_loss_stage or 'none'}; hresult={device_loss_hresult or 'none'}; removed={device_removed_reason or 'none'}; "
             f"material_schema={material_contract_schema}; material_channel_schema={material_channel_contract_schema}; "
             f"texture_schema={texture_quality_schema}; "
             f"cloth_schema={cloth_runtime_schema}; diagnostic={render_diagnostic_mode}; lighting={lighting_preset}\n"
             + (f"{material_channel_text}\n" if material_channel_text else "")
             +
             f"Native D3D11 Texture Details: {texture_details_text}\n"
+            f"Native D3D11 Texture Integrity: {texture_integrity}; required_failures={required_texture_failure_count:,}\n"
             f"Native D3D11 Texture Failures: {texture_failure_count:,}; {failed_texture_text}\n"
             "Native D3D11 Material Layers: "
             f"active_batches={int(payload.get('material_layer_active', 0) or 0):,}; "

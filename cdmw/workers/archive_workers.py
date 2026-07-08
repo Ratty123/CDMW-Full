@@ -30,6 +30,27 @@ from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
 from cdmw.models import ArchiveEntry, RunCancelled
 
 
+def _normalize_shard_entry_signatures(value: object) -> Dict[str, str]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {str(key): str(item) for key, item in value.items() if str(key)}
+
+
+def _normalize_shard_entry_counts(value: object) -> Dict[str, int]:
+    if not isinstance(value, Mapping):
+        return {}
+    counts: Dict[str, int] = {}
+    for key, item in value.items():
+        key_text = str(key)
+        if not key_text:
+            continue
+        try:
+            counts[key_text] = int(item)
+        except (TypeError, ValueError):
+            continue
+    return counts
+
+
 class ArchiveDerivedIndexCacheWriteWorker(QObject):
     log_message = Signal(str)
     finished = Signal()
@@ -120,6 +141,8 @@ class ArchiveBasicIndexWorker(QObject):
         native_archive_acceleration: bool,
         entry_metadata_signature: str = "",
         entry_metadata_sources: Sequence[Tuple[object, object, object]] = (),
+        shard_entry_signatures: Optional[Mapping[str, str]] = None,
+        shard_entry_counts: Optional[Mapping[str, int]] = None,
     ) -> None:
         super().__init__()
         self.package_root = package_root
@@ -132,6 +155,8 @@ class ArchiveBasicIndexWorker(QObject):
             for row in (entry_metadata_sources or ())
             if isinstance(row, (list, tuple)) and len(row) == 3
         )
+        self.shard_entry_signatures = _normalize_shard_entry_signatures(shard_entry_signatures)
+        self.shard_entry_counts = _normalize_shard_entry_counts(shard_entry_counts)
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -148,6 +173,8 @@ class ArchiveBasicIndexWorker(QObject):
                     self.package_root,
                     self.cache_root,
                     self.entries,
+                    shard_entry_signatures=self.shard_entry_signatures,
+                    shard_entry_counts=self.shard_entry_counts,
                     on_progress=self.progress_changed.emit,
                     on_log=self.log_message.emit,
                     stop_event=self.stop_event,
@@ -161,10 +188,10 @@ class ArchiveBasicIndexWorker(QObject):
                 cached_extension_index = basic_cache.get("extension_index")
                 cached_role_index = basic_cache.get("role_index")
                 if (
-                    isinstance(cached_path_index, dict)
-                    and isinstance(cached_basename_index, dict)
-                    and isinstance(cached_extension_index, dict)
-                    and isinstance(cached_role_index, dict)
+                    isinstance(cached_path_index, Mapping)
+                    and isinstance(cached_basename_index, Mapping)
+                    and isinstance(cached_extension_index, Mapping)
+                    and isinstance(cached_role_index, Mapping)
                 ):
                     elapsed = max(0.0, float(time.perf_counter() - started_at))
                     self.completed.emit(
@@ -242,6 +269,8 @@ class ArchiveEnhancedIndexWorker(QObject):
         *,
         entry_metadata_signature: str = "",
         entry_metadata_sources: Sequence[Tuple[object, object, object]] = (),
+        shard_entry_signatures: Optional[Mapping[str, str]] = None,
+        shard_entry_counts: Optional[Mapping[str, int]] = None,
     ):
         super().__init__()
         self.package_root = package_root
@@ -253,6 +282,8 @@ class ArchiveEnhancedIndexWorker(QObject):
             for row in (entry_metadata_sources or ())
             if isinstance(row, (list, tuple)) and len(row) == 3
         )
+        self.shard_entry_signatures = _normalize_shard_entry_signatures(shard_entry_signatures)
+        self.shard_entry_counts = _normalize_shard_entry_counts(shard_entry_counts)
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -273,6 +304,8 @@ class ArchiveEnhancedIndexWorker(QObject):
                 entry_metadata_signature=self.entry_metadata_signature or None,
                 current_sources=self.entry_metadata_sources or None,
                 load_name_search_index=True,
+                shard_entry_signatures=self.shard_entry_signatures,
+                shard_entry_counts=self.shard_entry_counts,
                 on_progress=self.progress_changed.emit,
                 on_log=self.log_message.emit,
             )
@@ -320,6 +353,8 @@ class ArchiveEnhancedIndexWorker(QObject):
                 self.entries,
                 item_search_aliases,
                 load_name_search_index=True,
+                shard_entry_signatures=self.shard_entry_signatures,
+                shard_entry_counts=self.shard_entry_counts,
                 on_progress=self.progress_changed.emit,
                 on_log=self.log_message.emit,
                 stop_event=self.stop_event,

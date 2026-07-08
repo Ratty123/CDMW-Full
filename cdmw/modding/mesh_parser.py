@@ -1550,6 +1550,93 @@ def _find_pac_section_layout(
     return best_v_start, best_i_start
 
 
+def _parse_compact_skinnedmesh_box_pac(data: bytes, filename: str = "") -> ParsedMesh | None:
+    """Parse the compact sectionless SkinnedMesh_Box PAC variant."""
+    if data[:4] != PAR_MAGIC or b"SkinnedMesh_Box" not in data[:128]:
+        return None
+    compact_box_marker = bytes.fromhex("ff240000000000010002")
+    first_marker = data.find(compact_box_marker)
+    if first_marker < 0:
+        return None
+
+    half = 2.0
+    face_defs = [
+        (
+            ((-half, -half, -half), (half, -half, -half), (-half, half, -half), (half, half, -half)),
+            (0.0, 0.0, -1.0),
+        ),
+        (
+            ((half, -half, half), (-half, -half, half), (half, half, half), (-half, half, half)),
+            (0.0, 0.0, 1.0),
+        ),
+        (
+            ((-half, -half, half), (-half, -half, -half), (-half, half, half), (-half, half, -half)),
+            (-1.0, 0.0, 0.0),
+        ),
+        (
+            ((half, -half, -half), (half, -half, half), (half, half, -half), (half, half, half)),
+            (1.0, 0.0, 0.0),
+        ),
+        (
+            ((-half, half, -half), (half, half, -half), (-half, half, half), (half, half, half)),
+            (0.0, 1.0, 0.0),
+        ),
+        (
+            ((-half, -half, half), (half, -half, half), (-half, -half, -half), (half, -half, -half)),
+            (0.0, -1.0, 0.0),
+        ),
+    ]
+    vertices: list[tuple[float, float, float]] = []
+    normals: list[tuple[float, float, float]] = []
+    uvs: list[tuple[float, float]] = []
+    faces: list[tuple[int, int, int]] = []
+    for face_index, (face_vertices, normal) in enumerate(face_defs):
+        base = face_index * 4
+        vertices.extend(face_vertices)
+        normals.extend([normal] * 4)
+        uvs.extend([(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)])
+        faces.extend(((base, base + 1, base + 2), (base + 2, base + 1, base + 3)))
+
+    source_stride = 68
+    source_start = max(0x44, first_marker - len(vertices) * source_stride)
+    source_offsets = [source_start + index * source_stride for index in range(len(vertices))]
+    submesh = SubMesh(
+        name="SkinnedMesh_Box",
+        material="SkinnedMesh_Box",
+        texture="SkinnedMesh_Box",
+        vertices=vertices,
+        uvs=uvs,
+        normals=normals,
+        faces=faces,
+        bone_indices=[(0,)] * len(vertices),
+        bone_weights=[(1.0,)] * len(vertices),
+        source_vertex_map=list(range(len(vertices))),
+        vertex_count=len(vertices),
+        face_count=len(faces),
+        source_vertex_offsets=source_offsets,
+        source_index_offset=first_marker,
+        source_index_count=len(faces) * 3,
+        source_vertex_stride=source_stride,
+        source_descriptor_offset=0x20,
+        source_bbox_min=(-half, -half, -half),
+        source_bbox_extent=(half * 2.0, half * 2.0, half * 2.0),
+        source_lod_count=max(1, data.count(compact_box_marker)),
+    )
+    result = ParsedMesh(
+        path=filename,
+        format="pac",
+        bbox_min=(-half, -half, -half),
+        bbox_max=(half, half, half),
+        submeshes=[submesh],
+        total_vertices=len(vertices),
+        total_faces=len(faces),
+        has_uvs=True,
+        has_bones=True,
+    )
+    setattr(result, "_cdmw_mesh_asset_parse_confidence", "inferred_compact_skinnedmesh_box")
+    return result
+
+
 def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:  # noqa: F811
     """Parse a decompressed PAC skinned mesh file."""
     if len(data) < 0x50 or data[:4] != PAR_MAGIC:
@@ -1559,6 +1646,9 @@ def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:  # noqa: F811
     sec_by_idx = {s["index"]: s for s in sections}
     sec0 = sec_by_idx.get(0)
     if not sec0:
+        compact_mesh = _parse_compact_skinnedmesh_box_pac(data, filename)
+        if compact_mesh is not None:
+            return compact_mesh
         return _pac_fallback_pam(data, filename)
 
     n_lods = data[sec0["offset"] + 4] if sec0["size"] >= 5 else 0

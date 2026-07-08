@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
 
+from cdmw.core.archive_compact_index import ArchiveRowIndex, append_archive_row_id, compact_archive_rows_mapping
 from cdmw.core.archive import (
     archive_browser_sort_is_active,
     build_archive_entry_basename_index,
@@ -25,6 +26,7 @@ from cdmw.models import ArchiveEntry
 ARCHIVE_ACCELERATOR_PROTOCOL = 1
 ARCHIVE_ACCELERATOR_BACKEND_ID = "cdmw_archive_accelerator_0.1"
 ARCHIVE_ACCELERATOR_BINARY_NAME = "cdmw-archive-accelerator.exe" if os.name == "nt" else "cdmw-archive-accelerator"
+_ARCHIVE_ACCELERATOR_VERSION_CACHE: dict[tuple[str, int, int], int | None] = {}
 
 
 def find_native_archive_accelerator() -> Path | None:
@@ -63,6 +65,19 @@ def _native_diagnostic_args() -> list[str]:
     return args
 
 
+def _archive_accelerator_cache_key(binary: Path) -> tuple[str, int, int] | None:
+    try:
+        resolved = binary.expanduser().resolve()
+        stat_result = resolved.stat()
+        return (
+            str(resolved),
+            int(stat_result.st_size),
+            int(getattr(stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000))),
+        )
+    except OSError:
+        return None
+
+
 def _archive_accelerator_version(binary: Path, *, timeout_seconds: float = 2.0) -> Optional[int]:
     try:
         completed = subprocess.run(
@@ -90,7 +105,13 @@ def _archive_accelerator_version(binary: Path, *, timeout_seconds: float = 2.0) 
 def _native_archive_accelerator_ready(binary: Optional[Path]) -> bool:
     if binary is None:
         return False
-    protocol = _archive_accelerator_version(binary)
+    cache_key = _archive_accelerator_cache_key(binary)
+    if cache_key is None:
+        protocol = _archive_accelerator_version(binary)
+    else:
+        if cache_key not in _ARCHIVE_ACCELERATOR_VERSION_CACHE:
+            _ARCHIVE_ACCELERATOR_VERSION_CACHE[cache_key] = _archive_accelerator_version(binary)
+        protocol = _ARCHIVE_ACCELERATOR_VERSION_CACHE.get(cache_key)
     return protocol == ARCHIVE_ACCELERATOR_PROTOCOL
 
 
@@ -468,10 +489,10 @@ def _decode_native_browser_state(report: Mapping[str, object], entries: Sequence
     }
 
 
-def _decode_row_index(rows: object, entries: Sequence[ArchiveEntry]) -> dict[str, list[ArchiveEntry]]:
+def _decode_row_index(rows: object, entries: Sequence[ArchiveEntry], *, name: str = "") -> ArchiveRowIndex:
     if not isinstance(rows, list):
         raise ValueError("native derived index rows are missing")
-    decoded: dict[str, list[ArchiveEntry]] = {}
+    decoded: dict[str, object] = {}
     entry_count = len(entries)
     for row in rows:
         if not isinstance(row, list) or len(row) < 2:
@@ -480,16 +501,14 @@ def _decode_row_index(rows: object, entries: Sequence[ArchiveEntry]) -> dict[str
         raw_indexes = row[1]
         if not key or not isinstance(raw_indexes, list):
             continue
-        values: list[ArchiveEntry] = []
         for raw_index in raw_indexes:
             try:
                 index = int(raw_index)
             except (TypeError, ValueError):
                 continue
             if 0 <= index < entry_count:
-                values.append(entries[index])
-        decoded[key] = values
-    return decoded
+                append_archive_row_id(decoded, key, index)
+    return ArchiveRowIndex(entries, compact_archive_rows_mapping(decoded), name=name)
 
 
 def build_archive_basic_indexes_accelerated(
@@ -499,10 +518,10 @@ def build_archive_basic_indexes_accelerated(
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     stop_event: object = None,
 ) -> tuple[
-    dict[str, list[ArchiveEntry]],
-    dict[str, list[ArchiveEntry]],
-    dict[str, list[ArchiveEntry]],
-    dict[str, list[ArchiveEntry]],
+    Mapping[str, Sequence[ArchiveEntry]],
+    Mapping[str, Sequence[ArchiveEntry]],
+    Mapping[str, Sequence[ArchiveEntry]],
+    Mapping[str, Sequence[ArchiveEntry]],
     bool,
 ]:
     binary = find_native_archive_accelerator() if native_enabled else None
@@ -545,9 +564,9 @@ def build_archive_basic_indexes_accelerated(
                         and int(report.get("entry_count") or -1) == len(entries)
                     ):
                         return (
-                            _decode_row_index(report.get("path_rows"), entries),
-                            _decode_row_index(report.get("basename_rows"), entries),
-                            _decode_row_index(report.get("extension_rows"), entries),
+                            _decode_row_index(report.get("path_rows"), entries, name="path"),
+                            _decode_row_index(report.get("basename_rows"), entries, name="basename"),
+                            _decode_row_index(report.get("extension_rows"), entries, name="extension"),
                             build_archive_entry_role_index(entries),
                             True,
                         )

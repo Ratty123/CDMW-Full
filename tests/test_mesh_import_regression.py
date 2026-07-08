@@ -19,7 +19,7 @@ from cdmw.modding.mesh_importer import (
     import_obj,
 )
 from cdmw.modding.mesh_obj_importer import validate_obj_sidecar_source_identity
-from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, parse_pac
 
 
 class MeshImportRegressionTests(unittest.TestCase):
@@ -53,6 +53,30 @@ class MeshImportRegressionTests(unittest.TestCase):
             has_uvs=any(bool(submesh.uvs) for submesh in submeshes),
             has_bones=any(bool(submesh.bone_indices) for submesh in submeshes),
         )
+
+    def test_parse_compact_skinnedmesh_box_pac_recovers_debug_geometry(self) -> None:
+        data = bytearray(0x700)
+        data[:4] = b"PAR "
+        data[0x2A : 0x2A + len(b"SkinnedMesh_Box")] = b"SkinnedMesh_Box"
+        data[0x6A4 : 0x6A4 + len(bytes.fromhex("ff240000000000010002"))] = bytes.fromhex("ff240000000000010002")
+
+        mesh = parse_pac(bytes(data), "character/skinnedmesh_box.pac")
+
+        self.assertEqual("pac", mesh.format)
+        self.assertEqual(1, len(mesh.submeshes))
+        self.assertEqual(24, mesh.total_vertices)
+        self.assertEqual(12, mesh.total_faces)
+        self.assertTrue(mesh.has_bones)
+        self.assertEqual((-2.0, -2.0, -2.0), mesh.bbox_min)
+        self.assertEqual((2.0, 2.0, 2.0), mesh.bbox_max)
+        submesh = mesh.submeshes[0]
+        self.assertEqual("SkinnedMesh_Box", submesh.name)
+        self.assertEqual(list(range(24)), submesh.source_vertex_map)
+        self.assertEqual(24, len(submesh.source_vertex_offsets))
+        self.assertEqual(68, submesh.source_vertex_stride)
+        self.assertEqual(36, submesh.source_index_count)
+        self.assertEqual(24, len(submesh.bone_indices))
+        self.assertEqual(24, len(submesh.bone_weights))
 
     def test_named_partial_pac_import_empties_unmentioned_original_submeshes(self) -> None:
         original = self._mesh(
@@ -441,6 +465,105 @@ class MeshImportRegressionTests(unittest.TestCase):
             mesh = import_obj(str(obj_path))
 
             self.assertTrue(getattr(mesh, "_cdmw_obj_sidecar_present"))
+
+    def test_obj_import_accepts_mixed_skinned_sidecar_with_unweighted_bone_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            obj_path = Path(temp_dir) / "mixed_skinning.obj"
+            obj_path.write_text(
+                "\n".join(
+                    [
+                        "# source_path: character/model/example_weapon.pac",
+                        "# source_format: pac",
+                        "o StaticBlade",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "f 1 2 3",
+                        "o WeightedGuard",
+                        "v 0 0 1",
+                        "v 1 0 1",
+                        "v 0 1 1",
+                        "f 4 5 6",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            sidecar_submeshes = [
+                {
+                    "index": 0,
+                    "name": "StaticBlade",
+                    "material": "StaticBlade",
+                    "texture": "",
+                    "vertex_count": 3,
+                    "face_count": 1,
+                    "original_vertex_count": 3,
+                    "original_index_count": 3,
+                    "source_vertex_map": [0, 1, 2],
+                    "source_index_map": [0, 1, 2],
+                },
+                {
+                    "index": 1,
+                    "name": "WeightedGuard",
+                    "material": "WeightedGuard",
+                    "texture": "",
+                    "vertex_count": 3,
+                    "face_count": 1,
+                    "original_vertex_count": 3,
+                    "original_index_count": 3,
+                    "source_vertex_map": [0, 1, 2],
+                    "source_index_map": [0, 1, 2],
+                },
+            ]
+            Path(f"{obj_path}.meta.json").write_text(
+                json.dumps(
+                    {
+                        "format": "mesh_roundtrip_manifest_v2",
+                        "schema_version": 1,
+                        "source_path": "character/model/example_weapon.pac",
+                        "source_format": "pac",
+                        "import_rules": {"preserve_bone_weights": True},
+                        "skeleton_info": {"skinned": True},
+                        "submeshes": sidecar_submeshes,
+                        "lods": [
+                            {
+                                "lod_index": 0,
+                                "submeshes": [
+                                    {
+                                        "stable_id": "lod0_submesh0",
+                                        "original_vertex_count": 3,
+                                        "original_index_count": 3,
+                                        "source_vertex_map": [0, 1, 2],
+                                        "source_index_map": [0, 1, 2],
+                                        "bone_layout": {
+                                            "has_bones": True,
+                                            "vertex_count": 3,
+                                            "max_influences": 0,
+                                        },
+                                    },
+                                    {
+                                        "stable_id": "lod0_submesh1",
+                                        "original_vertex_count": 3,
+                                        "original_index_count": 3,
+                                        "source_vertex_map": [0, 1, 2],
+                                        "source_index_map": [0, 1, 2],
+                                        "bone_layout": {
+                                            "has_bones": True,
+                                            "vertex_count": 3,
+                                            "max_influences": 1,
+                                        },
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            mesh = import_obj(str(obj_path))
+
+            self.assertTrue(getattr(mesh, "_cdmw_obj_sidecar_present"))
+            self.assertEqual(2, len(mesh.submeshes))
 
     def test_obj_import_warns_when_sidecar_material_or_texture_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

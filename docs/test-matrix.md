@@ -61,6 +61,7 @@ dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.cspro
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-animation-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-animation"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-sequence-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-sequence"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-app-workflow-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-app-workflow"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario mesh-dotnet-native-parity-report --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-dotnet-native-parity"
 .\scripts\codex_check.ps1 -Area mesh-unit
 ```
 
@@ -69,6 +70,17 @@ Protocol-only local smoke, when a real game archive is not available:
 ```powershell
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario service-smoke --output "$env:TEMP\cdmw-mesh-editor-service-smoke"
 ```
+
+Chunked PAC parser corpus compatibility, for proving real archive parser coverage
+without long connector/process runs:
+
+```powershell
+.\.venv\Scripts\python.exe tools\pac_parser_corpus_harness.py --pamt "C:\games\Steam\steamapps\common\Crimson Desert\0009\0.pamt" --out "$env:TEMP\cdmw-pac-parser-corpus-0009" --chunk-size 1000 --chunk-index 0 --chunk-count 1 --fail-on-issue
+```
+
+Repeat with the next `--chunk-index` until `summary.json` reports
+`all_entries_scanned=true` and `parser_compatibility_ready_for_scanned_entries=true`.
+Use `--force` to regenerate a chunk after parser changes.
 
 Focused editable-package UI worker smoke:
 

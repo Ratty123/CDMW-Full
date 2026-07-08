@@ -56,6 +56,11 @@ static constexpr DWORD kIdleWaitMs = 50;
 static constexpr double kParentHealthCheckMs = 1000.0;
 static constexpr double kParentHangExitMs = 30000.0;
 static constexpr UINT kParentHealthTimeoutMs = 750;
+static constexpr int kMinSupportedPreviewSchemaVersion = 1;
+static constexpr int kMaxSupportedPreviewSchemaVersion = 10;
+static constexpr int kSupportedMaterialContractSchemaVersion = 2;
+static constexpr int kSupportedMaterialChannelContractSchemaVersion = 2;
+static constexpr int kSupportedTextureQualitySchemaVersion = 1;
 
 struct Args {
     std::wstring backend = L"d3d11";
@@ -506,6 +511,17 @@ struct RendererStats {
     std::vector<std::string> texture_details;
     std::vector<std::string> failed_textures;
     int texture_failures = 0;
+    int required_texture_failures = 0;
+    std::string texture_integrity = "ok";
+    bool device_lost = false;
+    std::string device_loss_stage;
+    std::string device_loss_hresult;
+    std::string device_removed_reason;
+    int present_failure_count = 0;
+    int resize_failure_count = 0;
+    std::string resize_failure_hresult;
+    std::string resize_failure_reason;
+    int manifest_schema_version = 0;
     int material_contract_schema = 0;
     int material_channel_contract_schema = 0;
     int texture_quality_schema = 0;
@@ -1847,10 +1863,31 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
     stats.pbd_hint_count = std::max(0, json_int_field(manifest, "pbd_hint_count", 0));
     stats.pbd_soft_hint_count = std::max(0, json_int_field(manifest, "pbd_soft_hint_count", 0));
     stats.pbd_cloth_hint_count = std::max(0, json_int_field(manifest, "pbd_cloth_hint_count", 0));
+    stats.manifest_schema_version = std::max(0, json_int_field(manifest, "schema_version", 0));
     stats.material_contract_schema = std::max(0, json_int_field(manifest, "material_contract_schema", 0));
     stats.material_channel_contract_schema = std::max(0, json_int_field(manifest, "material_channel_contract_schema", 0));
     stats.texture_quality_schema = std::max(0, json_int_field(manifest, "texture_quality_schema", 0));
     stats.cloth_runtime_schema = std::max(0, json_int_field(manifest, "cloth_runtime_schema", 0));
+    if (stats.manifest_schema_version < kMinSupportedPreviewSchemaVersion || stats.manifest_schema_version > kMaxSupportedPreviewSchemaVersion) {
+        stats.skipped.push_back("unsupported manifest schema_version");
+        batches.clear();
+        return batches;
+    }
+    if (stats.material_contract_schema != 0 && stats.material_contract_schema != kSupportedMaterialContractSchemaVersion) {
+        stats.skipped.push_back("unsupported material_contract_schema");
+        batches.clear();
+        return batches;
+    }
+    if (stats.material_channel_contract_schema != 0 && stats.material_channel_contract_schema != kSupportedMaterialChannelContractSchemaVersion) {
+        stats.skipped.push_back("unsupported material_channel_contract_schema");
+        batches.clear();
+        return batches;
+    }
+    if (stats.texture_quality_schema != 0 && stats.texture_quality_schema != kSupportedTextureQualitySchemaVersion) {
+        stats.skipped.push_back("unsupported texture_quality_schema");
+        batches.clear();
+        return batches;
+    }
     stats.render_diagnostic_mode = json_string_field(manifest, "d3d11_view_mode");
     if (stats.render_diagnostic_mode.empty()) {
         stats.render_diagnostic_mode = json_string_field(manifest, "render_diagnostic_mode");
@@ -2088,10 +2125,25 @@ static std::string hresult_hex(HRESULT hr) {
     return out.str();
 }
 
+static bool is_device_loss_hresult(HRESULT hr) {
+    return hr == DXGI_ERROR_DEVICE_REMOVED
+        || hr == DXGI_ERROR_DEVICE_RESET
+        || hr == DXGI_ERROR_DRIVER_INTERNAL_ERROR;
+}
+
+static bool env_flag_enabled(const char* name) {
+    if (name == nullptr || name[0] == '\0') return false;
+    char value[16] = {};
+    DWORD length = GetEnvironmentVariableA(name, value, static_cast<DWORD>(sizeof(value)));
+    if (length == 0 || length >= sizeof(value)) return false;
+    std::string text = lower_copy(value);
+    return text == "1" || text == "true" || text == "yes" || text == "on";
+}
+
 static std::string failed_texture_json(const std::string& item) {
     std::vector<std::string> parts;
     size_t start = 0;
-    while (parts.size() < 5) {
+    while (parts.size() < 7) {
         const size_t pos = item.find('|', start);
         if (pos == std::string::npos) {
             parts.push_back(item.substr(start));
@@ -2100,14 +2152,25 @@ static std::string failed_texture_json(const std::string& item) {
         parts.push_back(item.substr(start, pos - start));
         start = pos + 1;
     }
-    while (parts.size() < 5) parts.push_back("");
+    while (parts.size() < 7) parts.push_back("");
+    const bool expanded = !parts[5].empty() || !parts[6].empty();
+    const std::string slot = parts[0];
+    const std::string source_kind = expanded ? parts[1] : "legacy";
+    const std::string path = expanded ? parts[2] : parts[1];
+    const std::string stage = expanded ? parts[3] : parts[2];
+    const std::string hresult = expanded ? parts[4] : parts[3];
+    const std::string required = expanded ? parts[5] : "false";
+    const std::string message = expanded ? parts[6] : parts[4];
+    const bool required_slot = lower_copy(required) == "required" || lower_copy(required) == "true";
     std::ostringstream out;
     out << "{"
-        << "\"slot\":\"" << json_escape(parts[0]) << "\","
-        << "\"path\":\"" << json_escape(parts[1]) << "\","
-        << "\"stage\":\"" << json_escape(parts[2]) << "\","
-        << "\"hresult\":\"" << json_escape(parts[3]) << "\","
-        << "\"message\":\"" << json_escape(parts[4]) << "\""
+        << "\"slot\":\"" << json_escape(slot) << "\","
+        << "\"source_kind\":\"" << json_escape(source_kind) << "\","
+        << "\"path\":\"" << json_escape(path) << "\","
+        << "\"stage\":\"" << json_escape(stage) << "\","
+        << "\"hresult\":\"" << json_escape(hresult) << "\","
+        << "\"required\":" << (required_slot ? "true" : "false") << ","
+        << "\"message\":\"" << json_escape(message) << "\""
         << "}";
     return out.str();
 }
@@ -2151,6 +2214,7 @@ static std::string loaded_payload_for_event(const RendererStats& stats, const st
            << "\"backend\":\"D3D11\","
            << "\"batch_count\":" << stats.batch_count << ","
            << "\"vertex_count\":" << stats.vertex_count << ","
+           << "\"schema_version\":" << stats.manifest_schema_version << ","
            << "\"textures\":" << slot_counts_json(stats.textures_loaded) << ","
            << "\"png_fallback\":" << stats.png_fallback << ","
            << "\"texture_cache_hits\":" << stats.texture_cache_hits << ","
@@ -2207,7 +2271,17 @@ static std::string loaded_payload_for_event(const RendererStats& stats, const st
            << "\"texture_cache_bytes\":" << stats.texture_cache_bytes << ","
            << "\"live_texture_bytes\":" << stats.live_texture_bytes << ","
            << "\"texture_failures\":" << stats.texture_failures << ","
+           << "\"required_texture_failures\":" << stats.required_texture_failures << ","
+           << "\"texture_integrity\":\"" << json_escape(stats.texture_integrity) << "\","
            << "\"failed_textures\":" << failed_textures_json(stats.failed_textures) << ","
+           << "\"device_lost\":" << (stats.device_lost ? "true" : "false") << ","
+           << "\"device_loss_stage\":\"" << json_escape(stats.device_loss_stage) << "\","
+           << "\"device_loss_hresult\":\"" << json_escape(stats.device_loss_hresult) << "\","
+           << "\"device_removed_reason\":\"" << json_escape(stats.device_removed_reason) << "\","
+           << "\"present_failure_count\":" << stats.present_failure_count << ","
+           << "\"resize_failure_count\":" << stats.resize_failure_count << ","
+           << "\"resize_failure_hresult\":\"" << json_escape(stats.resize_failure_hresult) << "\","
+           << "\"resize_failure_reason\":\"" << json_escape(stats.resize_failure_reason) << "\","
            << "\"process_working_set_bytes\":" << stats.process_working_set_bytes << ","
            << "\"process_private_bytes\":" << stats.process_private_bytes << ","
            << "\"frame_count\":" << stats.frame_count << ","
@@ -2244,7 +2318,17 @@ static std::string error_payload(const std::string& message, const RendererStats
         << "\"batch_count\":" << stats.batch_count << ","
         << "\"vertex_count\":" << stats.vertex_count << ","
         << "\"texture_failures\":" << stats.texture_failures << ","
+        << "\"required_texture_failures\":" << stats.required_texture_failures << ","
+        << "\"texture_integrity\":\"" << json_escape(stats.texture_integrity) << "\","
         << "\"failed_textures\":" << failed_textures_json(stats.failed_textures) << ","
+        << "\"device_lost\":" << (stats.device_lost ? "true" : "false") << ","
+        << "\"device_loss_stage\":\"" << json_escape(stats.device_loss_stage) << "\","
+        << "\"device_loss_hresult\":\"" << json_escape(stats.device_loss_hresult) << "\","
+        << "\"device_removed_reason\":\"" << json_escape(stats.device_removed_reason) << "\","
+        << "\"present_failure_count\":" << stats.present_failure_count << ","
+        << "\"resize_failure_count\":" << stats.resize_failure_count << ","
+        << "\"resize_failure_hresult\":\"" << json_escape(stats.resize_failure_hresult) << "\","
+        << "\"resize_failure_reason\":\"" << json_escape(stats.resize_failure_reason) << "\","
         << "\"texture_bind_ms\":" << stats.texture_ms << ","
         << "\"geometry_upload_ms\":" << stats.geometry_ms << ","
         << "\"texture_cache_entries\":" << stats.texture_cache_entries << ","
@@ -2255,6 +2339,26 @@ static std::string error_payload(const std::string& message, const RendererStats
         << "\"texture_cache_bytes\":" << stats.texture_cache_bytes << ","
         << "\"live_texture_bytes\":" << stats.live_texture_bytes << ","
         << "\"skipped\":" << skipped_json(stats.skipped)
+        << "}";
+    return out.str();
+}
+
+static std::string device_lost_payload(const RendererStats& stats, const std::string& stage) {
+    std::ostringstream out;
+    out << "{"
+        << "\"event\":\"device_lost\","
+        << "\"backend\":\"D3D11\","
+        << "\"message\":\"Native D3D11 device lost during " << json_escape(stage) << "\","
+        << "\"stage\":\"" << json_escape(stage) << "\","
+        << "\"device_lost\":true,"
+        << "\"device_loss_hresult\":\"" << json_escape(stats.device_loss_hresult) << "\","
+        << "\"device_removed_reason\":\"" << json_escape(stats.device_removed_reason) << "\","
+        << "\"frame_count\":" << stats.frame_count << ","
+        << "\"render_request_count\":" << stats.render_request_count << ","
+        << "\"present_failure_count\":" << stats.present_failure_count << ","
+        << "\"resize_failure_count\":" << stats.resize_failure_count << ","
+        << "\"resize_failure_hresult\":\"" << json_escape(stats.resize_failure_hresult) << "\","
+        << "\"resize_failure_reason\":\"" << json_escape(stats.resize_failure_reason) << "\""
         << "}";
     return out.str();
 }
@@ -2288,6 +2392,10 @@ static std::string closed_payload(const RendererStats& stats, const std::string&
         << "\"event\":\"closed\","
         << "\"backend\":\"D3D11\","
         << "\"reason\":\"" << json_escape(reason) << "\","
+        << "\"device_lost\":" << (stats.device_lost ? "true" : "false") << ","
+        << "\"device_loss_stage\":\"" << json_escape(stats.device_loss_stage) << "\","
+        << "\"device_loss_hresult\":\"" << json_escape(stats.device_loss_hresult) << "\","
+        << "\"device_removed_reason\":\"" << json_escape(stats.device_removed_reason) << "\","
         << "\"texture_cache_entries\":" << stats.texture_cache_entries << ","
         << "\"texture_cache_releases\":" << stats.texture_cache_releases << ","
         << "\"estimated_texture_bytes\":" << stats.estimated_texture_bytes << ","
@@ -3040,13 +3148,18 @@ public:
     }
 
     void request_render() {
+        if (device_lost_) return;
         ++render_request_count_;
         stats_.render_request_count = render_request_count_;
         render_requested_ = true;
     }
 
     bool should_render() const {
-        return render_requested_ || !first_frame_reported_ || cloth_preview_active();
+        return !device_lost_ && (render_requested_ || !first_frame_reported_ || cloth_preview_active());
+    }
+
+    bool device_lost() const {
+        return device_lost_;
     }
 
     std::string capture_back_buffer_to_png(const fs::path& output) {
@@ -3184,7 +3297,18 @@ public:
         if (released_batches || released_srv_entries || released_texture_info_entries || released_texture_bytes) {
             ++texture_cache_releases_;
         }
+        const RendererStats previous_stats = stats_;
         stats_ = RendererStats{};
+        if (reason_text == "device_lost") {
+            stats_.device_lost = previous_stats.device_lost;
+            stats_.device_loss_stage = previous_stats.device_loss_stage;
+            stats_.device_loss_hresult = previous_stats.device_loss_hresult;
+            stats_.device_removed_reason = previous_stats.device_removed_reason;
+            stats_.present_failure_count = previous_stats.present_failure_count;
+            stats_.resize_failure_count = previous_stats.resize_failure_count;
+            stats_.resize_failure_hresult = previous_stats.resize_failure_hresult;
+            stats_.resize_failure_reason = previous_stats.resize_failure_reason;
+        }
         update_runtime_stats();
         cdmw_native_diag::event(
             "model_resources_released",
@@ -3208,6 +3332,7 @@ public:
             cdmw_native_diag::event("package_load_error", {{"reason", "package directory missing"}, {"package_dir", cdmw_native_diag::path_to_utf8(package_dir)}});
             return false;
         }
+        device_lost_ = false;
         args_.preview_package = package_dir;
         if (!status_file.empty()) {
             args_.status_file = status_file;
@@ -3584,9 +3709,10 @@ public:
     }
 
     void render() {
-        if (!context_ || !swap_chain_) return;
+        if (!context_ || !swap_chain_ || device_lost_) return;
         if (!resize_if_needed()) {
-            render_requested_ = false;
+            render_requested_ = !device_lost_;
+            if (render_requested_ && hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
             return;
         }
         step_cloth_simulation();
@@ -3614,7 +3740,20 @@ public:
             pending_capture_path_.clear();
             capture_event = capture_back_buffer_to_png(capture_path);
         }
-        swap_chain_->Present(1, 0);
+        HRESULT present_hr = env_flag_enabled("CDMW_D3D11_PREVIEW_FORCE_PRESENT_FAILURE")
+            ? DXGI_ERROR_DEVICE_REMOVED
+            : swap_chain_->Present(1, 0);
+        if (FAILED(present_hr)) {
+            if (is_device_loss_hresult(present_hr)) {
+                handle_device_loss("Present", present_hr);
+            } else {
+                handle_render_failure("Present", present_hr);
+            }
+            if (!capture_event.empty()) {
+                send_json_event(capture_event);
+            }
+            return;
+        }
         ValidateRect(hwnd_, nullptr);
         if (!icon_capture_mode_) {
             draw_alignment_overlay_gdi();
@@ -3665,6 +3804,62 @@ public:
     }
 
 private:
+    void unbind_render_outputs_for_device_loss() {
+        if (!context_) return;
+        ID3D11ShaderResourceView* null_srvs[kTotalSrvCount] = {};
+        context_->PSSetShaderResources(0, kTotalSrvCount, null_srvs);
+        ID3D11RenderTargetView* null_target = nullptr;
+        context_->OMSetRenderTargets(1, &null_target, nullptr);
+        context_->Flush();
+        render_target_.Reset();
+        depth_view_.Reset();
+    }
+
+    void handle_device_loss(const char* stage, HRESULT hr) {
+        const std::string stage_text = stage && stage[0] ? stage : "render";
+        device_lost_ = true;
+        render_requested_ = false;
+        stats_.device_lost = true;
+        stats_.device_loss_stage = stage_text;
+        stats_.device_loss_hresult = hresult_hex(hr);
+        HRESULT removed_reason = device_ ? device_->GetDeviceRemovedReason() : hr;
+        stats_.device_removed_reason = hresult_hex(removed_reason);
+        if (stage_text == "Present") {
+            ++stats_.present_failure_count;
+        } else if (stage_text == "ResizeBuffers") {
+            if (stats_.resize_failure_hresult.empty()) {
+                ++stats_.resize_failure_count;
+                stats_.resize_failure_hresult = hresult_hex(hr);
+            }
+            stats_.resize_failure_reason = "device_lost";
+        }
+        update_runtime_stats();
+        unbind_render_outputs_for_device_loss();
+        const std::string payload = device_lost_payload(stats_, stage_text);
+        write_status(args_.status_file, payload);
+        send_json_event(payload);
+        cdmw_native_diag::event(
+            "d3d11_device_lost",
+            {
+                {"stage", stage_text},
+                {"hresult", stats_.device_loss_hresult},
+                {"device_removed_reason", stats_.device_removed_reason},
+                {"frame_count", std::to_string(frame_count_)},
+                {"render_request_count", std::to_string(render_request_count_)}
+            });
+    }
+
+    void handle_render_failure(const char* stage, HRESULT hr) {
+        const std::string stage_text = stage && stage[0] ? stage : "render";
+        stats_.skipped.push_back(stage_text + " failed:" + hresult_hex(hr));
+        update_runtime_stats();
+        write_status(args_.status_file, error_payload("native D3D11 render failed during " + stage_text, stats_));
+        cdmw_native_diag::event(
+            "d3d11_render_failed",
+            {{"stage", stage_text}, {"hresult", hresult_hex(hr)}, {"frame_count", std::to_string(frame_count_)}});
+        render_requested_ = false;
+    }
+
     bool process_pending_mesh_edit_vertex_update() {
         if (pending_mesh_edit_vertices_payload_.empty() && pending_mesh_edit_vertices_file_.empty()) return false;
         std::string payload;
@@ -8147,20 +8342,36 @@ private:
         if (next_width == width_ && next_height == height_) {
             return true;
         }
-        width_ = next_width;
-        height_ = next_height;
         if (context_) {
             ID3D11RenderTargetView* null_target = nullptr;
             context_->OMSetRenderTargets(1, &null_target, nullptr);
         }
         render_target_.Reset();
         depth_view_.Reset();
-        HRESULT hr = swap_chain_->ResizeBuffers(0, static_cast<UINT>(width_), static_cast<UINT>(height_), DXGI_FORMAT_UNKNOWN, 0);
+        HRESULT hr = env_flag_enabled("CDMW_D3D11_PREVIEW_FORCE_RESIZE_FAILURE")
+            ? DXGI_ERROR_DEVICE_RESET
+            : swap_chain_->ResizeBuffers(0, static_cast<UINT>(next_width), static_cast<UINT>(next_height), DXGI_FORMAT_UNKNOWN, 0);
         if (FAILED(hr)) {
-            stats_.skipped.push_back("swap chain resize failed");
+            ++stats_.resize_failure_count;
+            stats_.resize_failure_hresult = hresult_hex(hr);
+            stats_.resize_failure_reason = "resize_buffers_failed";
+            stats_.skipped.push_back("swap chain resize failed:" + hresult_hex(hr));
+            cdmw_native_diag::event(
+                "d3d11_resize_failed",
+                {{"hresult", hresult_hex(hr)}, {"width", std::to_string(next_width)}, {"height", std::to_string(next_height)}});
+            if (is_device_loss_hresult(hr)) {
+                handle_device_loss("ResizeBuffers", hr);
+            }
             return false;
         }
-        return create_render_targets();
+        width_ = next_width;
+        height_ = next_height;
+        if (!create_render_targets()) {
+            stats_.resize_failure_reason = "create_render_targets_failed";
+            stats_.skipped.push_back("swap chain resize render-target recreation failed");
+            return false;
+        }
+        return true;
     }
 
     bool create_pipeline() {
@@ -8737,27 +8948,34 @@ private:
         auto texture_start = std::chrono::steady_clock::now();
         for (PreviewBatch& batch : batches) {
             batch.live_texture_bytes = 0;
-            load_batch_texture(batch.base_dds, batch.base_png, batch.base_srv, "base", stats, batch.live_texture_bytes);
-            load_batch_texture(batch.normal_dds, batch.normal_png, batch.normal_srv, "normal", stats, batch.live_texture_bytes);
-            load_batch_texture(batch.material_dds, L"", batch.material_srv, "material", stats, batch.live_texture_bytes);
-            load_batch_texture(batch.occlusion_dds, batch.occlusion_png, batch.occlusion_srv, "occlusion", stats, batch.live_texture_bytes);
-            load_batch_texture(batch.roughness_dds, batch.roughness_png, batch.roughness_srv, "roughness", stats, batch.live_texture_bytes);
-            load_batch_texture(batch.metalness_dds, batch.metalness_png, batch.metalness_srv, "metalness", stats, batch.live_texture_bytes);
-            load_batch_texture(batch.specular_dds, batch.specular_png, batch.specular_srv, "specular", stats, batch.live_texture_bytes);
-            load_batch_texture(batch.detail_dds, L"", batch.detail_srv, "detail", stats, batch.live_texture_bytes);
-            load_batch_texture(batch.height_dds, batch.height_png, batch.height_srv, "height", stats, batch.live_texture_bytes);
-            load_batch_texture(batch.emissive_dds, batch.emissive_png, batch.emissive_srv, "emissive", stats, batch.live_texture_bytes);
+            load_batch_texture(batch.base_dds, batch.base_png, batch.base_srv, "base", true, stats, batch.live_texture_bytes);
+            load_batch_texture(batch.normal_dds, batch.normal_png, batch.normal_srv, "normal", false, stats, batch.live_texture_bytes);
+            load_batch_texture(batch.material_dds, L"", batch.material_srv, "material", true, stats, batch.live_texture_bytes);
+            load_batch_texture(batch.occlusion_dds, batch.occlusion_png, batch.occlusion_srv, "occlusion", false, stats, batch.live_texture_bytes);
+            load_batch_texture(batch.roughness_dds, batch.roughness_png, batch.roughness_srv, "roughness", false, stats, batch.live_texture_bytes);
+            load_batch_texture(batch.metalness_dds, batch.metalness_png, batch.metalness_srv, "metalness", false, stats, batch.live_texture_bytes);
+            load_batch_texture(batch.specular_dds, batch.specular_png, batch.specular_srv, "specular", false, stats, batch.live_texture_bytes);
+            load_batch_texture(batch.detail_dds, L"", batch.detail_srv, "detail", false, stats, batch.live_texture_bytes);
+            load_batch_texture(batch.height_dds, batch.height_png, batch.height_srv, "height", false, stats, batch.live_texture_bytes);
+            load_batch_texture(batch.emissive_dds, batch.emissive_png, batch.emissive_srv, "emissive", false, stats, batch.live_texture_bytes);
             for (int layer_index = 0; layer_index < batch.material_layer_count; ++layer_index) {
                 PreviewMaterialLayer& layer = batch.material_layers[static_cast<size_t>(layer_index)];
-                load_batch_texture(layer.diffuse_dds, L"", layer.diffuse_srv, "layer_base", stats, batch.live_texture_bytes);
-                load_batch_texture(layer.mask_dds, L"", layer.mask_srv, "detail", stats, batch.live_texture_bytes);
-                load_batch_texture(layer.material_dds, L"", layer.material_srv, "material", stats, batch.live_texture_bytes);
-                load_batch_texture(layer.normal_dds, L"", layer.normal_srv, "normal", stats, batch.live_texture_bytes);
-                load_batch_texture(layer.height_dds, L"", layer.height_srv, "height", stats, batch.live_texture_bytes);
+                load_batch_texture(layer.diffuse_dds, L"", layer.diffuse_srv, "layer_base", true, stats, batch.live_texture_bytes);
+                load_batch_texture(layer.mask_dds, L"", layer.mask_srv, "detail", false, stats, batch.live_texture_bytes);
+                load_batch_texture(layer.material_dds, L"", layer.material_srv, "material", true, stats, batch.live_texture_bytes);
+                load_batch_texture(layer.normal_dds, L"", layer.normal_srv, "normal", false, stats, batch.live_texture_bytes);
+                load_batch_texture(layer.height_dds, L"", layer.height_srv, "height", false, stats, batch.live_texture_bytes);
             }
         }
         stats.texture_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - texture_start).count();
+        if (stats.required_texture_failures > 0) {
+            stats.texture_integrity = "missing_required";
+        } else if (stats.texture_failures > 0) {
+            stats.texture_integrity = "degraded";
+        } else {
+            stats.texture_integrity = "ok";
+        }
         update_runtime_stats(stats);
         cdmw_native_diag::event(
             "upload_batches",
@@ -8772,6 +8990,8 @@ private:
                 {"dds_height", std::to_string(stats.dds_uploaded.height)},
                 {"png_fallback", std::to_string(stats.png_fallback)},
                 {"texture_failures", std::to_string(stats.texture_failures)},
+                {"required_texture_failures", std::to_string(stats.required_texture_failures)},
+                {"texture_integrity", stats.texture_integrity},
                 {"texture_cache_entries", std::to_string(stats.texture_cache_entries)},
                 {"texture_cache_releases", std::to_string(stats.texture_cache_releases)},
                 {"estimated_texture_bytes", std::to_string(stats.estimated_texture_bytes)},
@@ -8787,6 +9007,7 @@ private:
         const std::wstring& png_fallback,
         ComPtr<ID3D11ShaderResourceView>& target,
         const char* slot,
+        bool required_slot,
         RendererStats& stats,
         std::uint64_t& bound_texture_bytes) {
         const std::string slot_name(slot);
@@ -8820,9 +9041,10 @@ private:
             const std::string path_text = wide_to_utf8(dds_path);
             const std::string hr_text = hresult_hex(load_hr);
             const std::string stage_text = fail_stage.empty() ? "dds" : fail_stage;
-            stats.failed_textures.push_back(slot_name + "|" + path_text + "|" + stage_text + "|" + hr_text + "|DDS upload failed");
+            if (required_slot) ++stats.required_texture_failures;
+            stats.failed_textures.push_back(slot_name + "|dds|" + path_text + "|" + stage_text + "|" + hr_text + "|" + (required_slot ? "required" : "optional") + "|DDS upload failed");
             stats.skipped.push_back(slot_name + " DDS upload failed:" + path_text + ":" + hr_text);
-            cdmw_native_diag::event("dds_upload_failed", {{"slot", slot_name}, {"path", path_text}, {"stage", stage_text}, {"hresult", hr_text}});
+            cdmw_native_diag::event("dds_upload_failed", {{"slot", slot_name}, {"path", path_text}, {"stage", stage_text}, {"hresult", hr_text}, {"required", required_slot ? "true" : "false"}});
         }
         if (!png_fallback.empty() && fs::is_regular_file(fs::path(png_fallback))) {
             HRESULT load_hr = S_OK;
@@ -8841,9 +9063,10 @@ private:
             const std::string path_text = wide_to_utf8(png_fallback);
             const std::string hr_text = hresult_hex(load_hr);
             const std::string stage_text = fail_stage.empty() ? "wic" : fail_stage;
-            stats.failed_textures.push_back(slot_name + "|" + path_text + "|" + stage_text + "|" + hr_text + "|PNG fallback failed");
+            if (required_slot) ++stats.required_texture_failures;
+            stats.failed_textures.push_back(slot_name + "|png|" + path_text + "|" + stage_text + "|" + hr_text + "|" + (required_slot ? "required" : "optional") + "|PNG fallback failed");
             stats.skipped.push_back(slot_name + " PNG fallback failed:" + path_text + ":" + hr_text);
-            cdmw_native_diag::event("png_fallback_failed", {{"slot", slot_name}, {"path", path_text}, {"stage", stage_text}, {"hresult", hr_text}});
+            cdmw_native_diag::event("png_fallback_failed", {{"slot", slot_name}, {"path", path_text}, {"stage", stage_text}, {"hresult", hr_text}, {"required", required_slot ? "true" : "false"}});
         }
     }
 
@@ -8970,6 +9193,7 @@ private:
     bool first_frame_started_ = false;
     bool first_frame_reported_ = false;
     bool render_requested_ = true;
+    bool device_lost_ = false;
     std::uint64_t frame_count_ = 0;
     std::uint64_t render_request_count_ = 0;
     std::uint64_t render_suppressed_count_ = 0;
@@ -9217,6 +9441,10 @@ static int run_host(const Args& args) {
                 const bool window_renderable = IsWindowVisible(hwnd) && !IsIconic(hwnd);
                 if (parent_renderable && window_renderable) {
                     renderer.render();
+                    if (renderer.device_lost()) {
+                        close_reason = "device_lost";
+                        running = false;
+                    }
                 } else {
                     renderer.note_render_suppressed(parent_renderable ? "window_not_visible" : "parent_not_renderable");
                     MsgWaitForMultipleObjects(0, nullptr, FALSE, kIdleWaitMs, QS_ALLINPUT);
@@ -9230,7 +9458,7 @@ static int run_host(const Args& args) {
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
     write_status(args.status_file, closed_payload(stats, close_reason));
     cdmw_native_diag::event("clean_shutdown", {{"reason", close_reason}});
-    return 0;
+    return close_reason == "device_lost" ? 6 : 0;
 }
 
 int wmain(int argc, wchar_t** argv) {

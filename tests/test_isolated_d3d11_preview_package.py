@@ -3204,8 +3204,19 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         render_block = source[
             source.index("void render() {") : source.index("bool process_pending_commands", source.index("void render() {"))
         ]
-        self.assertIn("swap_chain_->Present(1, 0);", render_block)
+        self.assertIn("HRESULT present_hr", render_block)
+        self.assertIn("swap_chain_->Present(1, 0)", render_block)
+        self.assertIn("is_device_loss_hresult(present_hr)", render_block)
+        self.assertIn("handle_device_loss(\"Present\", present_hr)", render_block)
+        self.assertIn("render_requested_ = !device_lost_;", render_block)
         self.assertIn("write_status(args_.status_file, loaded_payload(stats_));", render_block)
+        resize_block = source[
+            source.index("bool resize_if_needed()") : source.index("bool create_pipeline()", source.index("bool resize_if_needed()"))
+        ]
+        self.assertIn("CDMW_D3D11_PREVIEW_FORCE_RESIZE_FAILURE", resize_block)
+        self.assertIn("resize_failure_hresult", resize_block)
+        self.assertIn("handle_device_loss(\"ResizeBuffers\", hr)", resize_block)
+        self.assertNotIn("width_ = next_width;\n        height_ = next_height;\n        if (context_)", resize_block)
         self.assertIn("native_unhandled_exception", Path("native/common/native_diagnostics.h").read_text(encoding="utf-8"))
         self.assertIn('if (contains_text(descriptor, "gloss") || contains_text(descriptor, "smoothness")) score -= 220;', source)
 

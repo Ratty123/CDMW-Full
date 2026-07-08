@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple
 from PySide6.QtCore import QRectF, Qt, QThread, QTimer
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
-from cdmw.core.archive import load_archive_item_icon_thumbnail_cache
+from cdmw.core.archive import load_archive_item_icon_thumbnail_cache, normalize_archive_extension_filter
 from cdmw.workers.archive_workers import ArchiveItemIconWarmupWorker
 
 @dataclass(frozen=True, slots=True)
@@ -347,7 +347,42 @@ class ArchiveIconPipelineMixin:
             )
         )
 
+    def _archive_icon_warmup_should_run(self) -> bool:
+        if not getattr(self, "archive_item_asset_catalog", None):
+            return False
+        if not self._is_tool_visible_or_current(self.archive_browser_tab):
+            return False
+        text_only_extensions = {
+            ".txt",
+            ".xml",
+            ".json",
+            ".ini",
+            ".cfg",
+            ".lua",
+            ".hkx",
+            ".hkt",
+            ".html",
+            ".csv",
+            ".log",
+            ".md",
+            ".yaml",
+            ".yml",
+        }
+        try:
+            extension_filter = normalize_archive_extension_filter(self._combo_value(self.archive_extension_filter_combo))
+        except Exception:
+            extension_filter = ""
+        if extension_filter in text_only_extensions:
+            return False
+        return True
+
     def _schedule_archive_asset_catalog_icon_preload(self, delay_ms: int = 900) -> None:
+        if not self._archive_icon_warmup_should_run():
+            self.archive_item_icon_preload_pending_after_ready = False
+            self.archive_item_icon_preload_timer.stop()
+            self.archive_item_icon_preload_queue.clear()
+            self.archive_item_icon_preload_next_index = 0
+            return
         if not self._archive_browser_background_work_allowed():
             self.archive_item_icon_preload_pending_after_ready = bool(self.archive_item_asset_catalog)
             return

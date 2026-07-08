@@ -5,18 +5,22 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
+from cdmw.core import archive_accelerator as archive_accel, archive_scan_cache
 from cdmw.core.archive import (
     _ARCHIVE_BASIC_INDEX_CACHE_MAGIC,
     _ARCHIVE_DERIVED_INDEX_CACHE_MAGIC,
     _ARCHIVE_SCAN_CACHE_MAGIC,
     _ARCHIVE_SIDECAR_CACHE_MAGIC,
+    _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT,
     _collect_archive_scan_sources,
     _collect_archive_scan_sources_from_entries,
     _deserialize_archive_derived_index_cache_payload_from_path,
+    _deserialize_cache_payload_from_path,
     _read_archive_name_search_shard_meta,
     _write_archive_name_search_shard_meta,
     _write_raw_pickle_cache_payload_to_path,
     _write_native_name_search_index_binary,
+    _build_archive_entry_cache_signatures,
     build_archive_entry_basename_index,
     build_archive_entry_extension_index,
     build_archive_entry_path_index,
@@ -88,6 +92,42 @@ def _sidecar_text(texture_path: str, *, extra: str = "") -> bytes:
 
 
 class ArchiveCacheTests(unittest.TestCase):
+    def test_native_archive_accelerator_readiness_is_memoized_by_file_stamp(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            binary = Path(temp_dir) / "cdmw-archive-accelerator"
+            binary.write_bytes(b"native helper")
+            archive_accel._ARCHIVE_ACCELERATOR_VERSION_CACHE.clear()
+            try:
+                with mock.patch.object(
+                    archive_accel,
+                    "_archive_accelerator_version",
+                    return_value=archive_accel.ARCHIVE_ACCELERATOR_PROTOCOL,
+                ) as version:
+                    self.assertTrue(archive_accel._native_archive_accelerator_ready(binary))
+                    self.assertTrue(archive_accel._native_archive_accelerator_ready(binary))
+                    self.assertEqual(version.call_count, 1)
+
+                    binary.write_bytes(b"native helper changed")
+                    self.assertTrue(archive_accel._native_archive_accelerator_ready(binary))
+                    self.assertEqual(version.call_count, 2)
+            finally:
+                archive_accel._ARCHIVE_ACCELERATOR_VERSION_CACHE.clear()
+
+    def test_native_archive_accelerator_readiness_none_is_false_without_version_call(self) -> None:
+        archive_accel._ARCHIVE_ACCELERATOR_VERSION_CACHE.clear()
+        with mock.patch.object(
+            archive_accel,
+            "_archive_accelerator_version",
+            side_effect=AssertionError("None accelerator must not launch --version"),
+        ):
+            self.assertFalse(archive_accel._native_archive_accelerator_ready(None))
+
+    def test_native_archive_accelerator_readiness_missing_binary_falls_back_to_uncached_version_check(self) -> None:
+        archive_accel._ARCHIVE_ACCELERATOR_VERSION_CACHE.clear()
+        with mock.patch.object(archive_accel, "_archive_accelerator_version", return_value=None) as version:
+            self.assertFalse(archive_accel._native_archive_accelerator_ready(Path("definitely-missing-accelerator")))
+            self.assertEqual(version.call_count, 1)
+
     def test_item_icon_thumbnail_cache_round_trip_and_converter_miss(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -229,6 +269,45 @@ class ArchiveCacheTests(unittest.TestCase):
 
             self.assertEqual(entries, [])
             self.assertTrue(any("Skipped missing archive index" in line for line in logs))
+
+    def test_load_or_update_archive_scan_shards_discovers_pamt_files_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+
+            with mock.patch(
+                "cdmw.core.archive_scan_cache.discover_pamt_files",
+                wraps=archive_scan_cache.discover_pamt_files,
+            ) as discover:
+                loaded_entries, _source, _cache_dir = load_or_update_archive_scan_shards(
+                    root,
+                    cache_root,
+                    shard_scan_func=lambda _path: entries,
+                )
+
+            self.assertEqual([entry.path for entry in loaded_entries], ["character/model/a.pac"])
+            self.assertEqual(discover.call_count, 1)
+
+    def test_archive_scan_shard_cache_health_discovers_pamt_files_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            load_or_update_archive_scan_shards(root, cache_root, shard_scan_func=lambda _path: entries)
+
+            with mock.patch(
+                "cdmw.core.archive_scan_cache.discover_pamt_files",
+                wraps=archive_scan_cache.discover_pamt_files,
+            ) as discover:
+                health = archive_scan_shard_cache_health(root, cache_root, deep=True)
+
+            self.assertEqual("healthy", health["status"])
+            self.assertEqual(discover.call_count, 1)
 
     def test_archive_scan_cache_v2_is_rejected_after_native_scan_scope_fix(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -506,6 +585,130 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertEqual((payload or {}).get("rebuilt_shards"), 1)
             self.assertTrue(resolve_archive_basic_index_shard_cache_dir(root, cache_root).is_dir())
 
+    def test_basic_index_shard_clean_load_does_not_prune_cache_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            load_or_update_archive_basic_index_shards(root, cache_root, entries)
+
+            with mock.patch(
+                "cdmw.core.archive_index_cache.prune_archive_cache_root",
+                side_effect=AssertionError("clean basic index load must not prune"),
+            ):
+                payload = load_or_update_archive_basic_index_shards(root, cache_root, entries)
+
+            self.assertTrue((payload or {}).get("cache_loaded"))
+            self.assertEqual((payload or {}).get("rebuilt_shards"), 0)
+
+    def test_basic_index_shard_rebuild_still_prunes_cache_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries_v1 = [_entry("character/model/a.pac", pamt, paz, data)]
+            load_or_update_archive_basic_index_shards(root, cache_root, entries_v1)
+            entries_v2 = [
+                _entry("character/model/a.pac", pamt, paz, data),
+                _entry("character/model/b.pac", pamt, paz, data),
+            ]
+
+            with mock.patch(
+                "cdmw.core.archive_index_cache.prune_archive_cache_root",
+                return_value={"removed_files": 0, "removed_bytes": 0},
+            ) as prune:
+                payload = load_or_update_archive_basic_index_shards(root, cache_root, entries_v2)
+
+            self.assertEqual((payload or {}).get("rebuilt_shards"), 1)
+            prune.assert_called_once()
+
+    def test_basic_index_shards_use_scan_shard_signatures_without_rehashing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            load_or_update_archive_scan_shards(root, cache_root, shard_scan_func=lambda _path: entries, metadata_out=scan_metadata)
+            load_or_update_archive_basic_index_shards(root, cache_root, entries)
+
+            with mock.patch(
+                "cdmw.core.archive_scan_cache._archive_scan_cache_payload_components",
+                side_effect=AssertionError("scan shard signatures should be reused"),
+            ):
+                payload = load_or_update_archive_basic_index_shards(
+                    root,
+                    cache_root,
+                    entries,
+                    shard_entry_signatures=scan_metadata.get("scan_shard_entry_signatures") or {},
+                    shard_entry_counts=scan_metadata.get("scan_shard_entry_counts") or {},
+                )
+
+            self.assertTrue((payload or {}).get("cache_loaded"))
+
+    def test_basic_index_shards_fall_back_when_scan_shard_count_mismatches(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            load_or_update_archive_scan_shards(root, cache_root, shard_scan_func=lambda _path: entries, metadata_out=scan_metadata)
+            load_or_update_archive_basic_index_shards(root, cache_root, entries)
+
+            with mock.patch(
+                "cdmw.core.archive_scan_cache._archive_scan_cache_payload_components",
+                wraps=archive_scan_cache._archive_scan_cache_payload_components,
+            ) as payload_components:
+                payload = load_or_update_archive_basic_index_shards(
+                    root,
+                    cache_root,
+                    entries,
+                    shard_entry_signatures=scan_metadata.get("scan_shard_entry_signatures") or {},
+                    shard_entry_counts={"0000/0.pamt": 999},
+                )
+
+            self.assertTrue((payload or {}).get("cache_loaded"))
+            self.assertGreaterEqual(payload_components.call_count, 1)
+
+    def test_name_search_shards_use_scan_shard_signatures_without_rehashing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            data = b"a"
+            pamt, paz = _write_entry_files(root, "0000", data)
+            entries = [_entry("character/model/a.pac", pamt, paz, data)]
+            scan_metadata: dict[str, object] = {}
+            load_or_update_archive_scan_shards(root, cache_root, shard_scan_func=lambda _path: entries, metadata_out=scan_metadata)
+            load_or_update_archive_name_search_shards(
+                root,
+                cache_root,
+                entries,
+                {},
+                shard_entry_signatures=scan_metadata.get("scan_shard_entry_signatures") or {},
+                shard_entry_counts=scan_metadata.get("scan_shard_entry_counts") or {},
+            )
+
+            with mock.patch(
+                "cdmw.core.archive_scan_cache._archive_scan_cache_payload_components",
+                side_effect=AssertionError("scan shard signatures should be reused"),
+            ):
+                loaded_index = load_or_update_archive_name_search_shards(
+                    root,
+                    cache_root,
+                    entries,
+                    {},
+                    shard_entry_signatures=scan_metadata.get("scan_shard_entry_signatures") or {},
+                    shard_entry_counts=scan_metadata.get("scan_shard_entry_counts") or {},
+                )
+
+            self.assertIsNotNone(loaded_index)
+
     def test_paz_only_change_reuses_scan_and_basic_shards(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -592,6 +795,71 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertEqual(path_rows.get("character/texture/a.dds"), (0,))
             self.assertFalse(any("out of date" in line.lower() for line in logs))
 
+    def test_sidecar_cache_v10_payload_stores_only_sidecar_signatures(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            sidecar_data = _sidecar_text("character/texture/a.dds")
+            model_data = b"model"
+            pamt_a, paz_a = _write_entry_files(root, "0000", sidecar_data)
+            pamt_b, paz_b = _write_entry_files(root, "0001", model_data)
+            entries = [
+                _entry("character/modelproperty/a.pami", pamt_a, paz_a, sidecar_data),
+                _entry("character/model/a.pac", pamt_b, paz_b, model_data),
+            ]
+            cache_path = save_archive_texture_sidecar_cache(
+                root,
+                cache_root,
+                entries,
+                path_rows={"character/texture/a.dds": (0,)},
+            )
+
+            raw_payload = _deserialize_cache_payload_from_path(
+                cache_path,
+                magic=_ARCHIVE_SIDECAR_CACHE_MAGIC,
+                invalid_message="Texture sidecar cache header is not recognized.",
+            )
+
+            self.assertEqual(raw_payload.get("version"), 10)
+            self.assertNotIn("entry_signatures", raw_payload)
+            self.assertEqual(len(raw_payload.get("sidecar_entry_signatures") or ()), 1)
+            self.assertEqual((raw_payload.get("sidecar_entry_signatures") or [(-1,)])[0][0], 0)
+
+    def test_sidecar_cache_v10_ignores_non_sidecar_entry_changes_for_incremental_load(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "cache"
+            sidecar_data = _sidecar_text("character/texture/a.dds")
+            model_data = b"model"
+            pamt_a, paz_a = _write_entry_files(root, "0000", sidecar_data)
+            pamt_b, paz_b = _write_entry_files(root, "0001", model_data)
+            entries = [
+                _entry("character/modelproperty/a.pami", pamt_a, paz_a, sidecar_data),
+                _entry("character/model/a.pac", pamt_b, paz_b, model_data),
+            ]
+            save_archive_texture_sidecar_cache(
+                root,
+                cache_root,
+                entries,
+                path_rows={"character/texture/a.dds": (0,)},
+            )
+            changed_model_data = b"model changed"
+            paz_b.write_bytes(changed_model_data)
+            entries[1].comp_size = len(changed_model_data)
+            entries[1].orig_size = len(changed_model_data)
+
+            logs: list[str] = []
+            with mock.patch(
+                "cdmw.core.archive_sidecar_cache._build_archive_texture_sidecar_path_rows_for_indices",
+                side_effect=AssertionError("non-sidecar change must not rescan sidecars"),
+            ):
+                loaded = load_archive_texture_sidecar_cache_rows(root, cache_root, entries, on_log=logs.append)
+
+            self.assertIsNotNone(loaded)
+            path_rows, _basename_rows = loaded or ({}, {})
+            self.assertEqual(path_rows.get("character/texture/a.dds"), (0,))
+            self.assertTrue(any("remapped without rescanning" in line for line in logs))
+
     def test_sidecar_cache_stale_metadata_refreshes_when_payload_matches(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -628,13 +896,23 @@ class ArchiveCacheTests(unittest.TestCase):
                 _entry("character/modelproperty/a.pami", pamt_a, paz_a, data_a),
                 _entry("character/modelproperty/b.pami", pamt_b, paz_b, data_b),
             ]
-            save_archive_texture_sidecar_cache(
-                root,
-                cache_root,
-                entries,
-                path_rows={
-                    "character/texture/a.dds": (0,),
-                    "character/texture/b.dds": (1,),
+            cache_root.mkdir(parents=True, exist_ok=True)
+            _base, old_sources = _collect_archive_scan_sources_from_entries(root, entries)
+            _write_raw_pickle_cache_payload_to_path(
+                resolve_archive_sidecar_cache_path(root, cache_root),
+                magic=_ARCHIVE_SIDECAR_CACHE_MAGIC,
+                payload={
+                    "version": 9,
+                    "created_at": 1.0,
+                    "sources": old_sources,
+                    "entry_count": len(entries),
+                    "entry_signature_format": _ARCHIVE_SIDECAR_ENTRY_SIGNATURE_FORMAT,
+                    "entry_signatures": _build_archive_entry_cache_signatures(root, entries),
+                    "path_rows": {
+                        "character/texture/a.dds": (0,),
+                        "character/texture/b.dds": (1,),
+                    },
+                    "basename_rows": {"a.dds": (0,), "b.dds": (1,)},
                 },
             )
 

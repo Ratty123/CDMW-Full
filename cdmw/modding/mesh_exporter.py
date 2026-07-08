@@ -212,12 +212,30 @@ def _int_attr(value: object, default: int = -1) -> int:
 
 
 def _submesh_bone_layout(submesh: SubMesh) -> dict[str, object]:
-    rows = tuple(getattr(submesh, "bone_indices", ()) or ())
+    index_rows = tuple(getattr(submesh, "bone_indices", ()) or ())
+    weight_rows = tuple(getattr(submesh, "bone_weights", ()) or ())
+    row_count = max(len(index_rows), len(weight_rows))
+    max_influences = 0
+    for row_index in range(row_count):
+        index_row = index_rows[row_index] if row_index < len(index_rows) else ()
+        weight_row = weight_rows[row_index] if row_index < len(weight_rows) else ()
+        max_influences = max(max_influences, _bone_row_width(index_row), _bone_row_width(weight_row))
     return {
-        "has_bones": bool(rows or tuple(getattr(submesh, "bone_weights", ()) or ())),
-        "vertex_count": len(rows),
-        "max_influences": max((len(tuple(row or ())) for row in rows), default=0),
+        "has_bones": max_influences > 0,
+        "vertex_count": row_count,
+        "max_influences": max_influences,
     }
+
+
+def _bone_row_width(value: object) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, (str, bytes)):
+        return 1 if value else 0
+    try:
+        return len(tuple(value))  # type: ignore[arg-type]
+    except TypeError:
+        return 1
 
 
 def _submesh_raw_vertex_records_payload(submesh: SubMesh, original_data: bytes) -> dict[str, object]:

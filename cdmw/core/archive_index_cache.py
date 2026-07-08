@@ -5,6 +5,15 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional, Tuple
 
+from cdmw.core.archive_compact_index import (
+    ArchiveRowIndex,
+    append_archive_row_id,
+    archive_basename_key,
+    archive_path_key,
+    compact_archive_row_ids,
+    compact_archive_rows_mapping,
+)
+
 from cdmw.core.archive_filtering import archive_entry_identity_key, archive_entry_role
 from cdmw.core.archive_format import normalize_archive_extension_filter
 from cdmw.core.archive_name_search import (
@@ -60,10 +69,37 @@ def format_byte_size(value: int) -> str:
 
 _ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {10, 11}
 
+def _row_ids_as_tuple(value: object) -> Tuple[int, ...]:
+    compacted = compact_archive_row_ids(value)
+    if compacted is None:
+        return ()
+    if isinstance(compacted, int):
+        return (int(compacted),)
+    return tuple(int(row_id) for row_id in compacted)
+
+
 def _encode_archive_entry_index_rows(
     index: Mapping[str, Sequence[ArchiveEntry]],
     entries: Sequence[ArchiveEntry],
 ) -> List[Tuple[str, Tuple[int, ...]]]:
+    row_items = getattr(index, "row_items", None)
+    if callable(row_items):
+        entry_count = len(entries)
+        rows: List[Tuple[str, Tuple[int, ...]]] = []
+        for key, row_ids in row_items():
+            normalized_key = str(key or "")
+            if not normalized_key:
+                continue
+            valid_row_ids = tuple(
+                int(row_id)
+                for row_id in _row_ids_as_tuple(row_ids)
+                if 0 <= int(row_id) < entry_count
+            )
+            if valid_row_ids:
+                rows.append((normalized_key, valid_row_ids))
+        rows.sort(key=lambda row: row[0])
+        return rows
+
     entry_indexes_by_id = {id(entry): entry_index for entry_index, entry in enumerate(entries)}
     entry_indexes_by_identity: Dict[Tuple[str, str, int, int], int] = {}
     rows: List[Tuple[str, Tuple[int, ...]]] = []
@@ -83,14 +119,17 @@ def _encode_archive_entry_index_rows(
     return rows
 
 
-def _decode_archive_entry_index_rows(
+def _decode_archive_entry_index_row_ids(
     rows: object,
-    entries: Sequence[ArchiveEntry],
-) -> Dict[str, List[ArchiveEntry]]:
+    entry_count: int,
+    *,
+    row_offset: int = 0,
+) -> dict[str, int | tuple[int, ...]]:
     if not isinstance(rows, (list, tuple)):
         raise ValueError("Archive path lookup cache rows are invalid.")
-    decoded: Dict[str, List[ArchiveEntry]] = {}
-    entry_count = len(entries)
+    decoded: dict[str, object] = {}
+    entry_count = int(entry_count)
+    row_offset = int(row_offset)
     for row in rows:
         if not isinstance(row, (list, tuple)) or len(row) != 2:
             continue
@@ -98,52 +137,91 @@ def _decode_archive_entry_index_rows(
         raw_indexes = row[1]
         if not key or not isinstance(raw_indexes, (list, tuple)):
             continue
-        values: List[ArchiveEntry] = []
         for raw_index in raw_indexes:
             try:
-                entry_index = int(raw_index)
+                entry_index = row_offset + int(raw_index)
             except (TypeError, ValueError):
                 continue
             if 0 <= entry_index < entry_count:
-                values.append(entries[entry_index])
+                append_archive_row_id(decoded, key, entry_index)
+    return compact_archive_rows_mapping(decoded)
+
+
+def _decode_archive_entry_index_rows(
+    rows: object,
+    entries: Sequence[ArchiveEntry],
+) -> Dict[str, List[ArchiveEntry]]:
+    decoded_row_ids = _decode_archive_entry_index_row_ids(rows, len(entries))
+    decoded: Dict[str, List[ArchiveEntry]] = {}
+    entry_count = len(entries)
+    for key, row_ids in decoded_row_ids.items():
+        values = [entries[row_id] for row_id in _row_ids_as_tuple(row_ids) if 0 <= row_id < entry_count]
         if values:
             decoded[key] = values
     return decoded
 
 
 def _sort_archive_basename_index_values(index: Dict[str, List[ArchiveEntry]]) -> Dict[str, List[ArchiveEntry]]:
+    """Compatibility sorter for legacy ArchiveEntry basename indexes."""
     for basename_entries in index.values():
         basename_entries.sort(
             key=lambda entry: (
                 -str(entry.path or "").replace("\\", "/").strip().count("/"),
                 -len(str(entry.path or "").replace("\\", "/").strip()),
-                str(entry.path or "").replace("\\", "/").strip().lower(),
+                archive_path_key(getattr(entry, "path", "")),
             )
         )
     return index
 
 
-def _merge_archive_entry_index_rows(
-    target: Dict[str, List[ArchiveEntry]],
-    rows: object,
+def _sort_archive_basename_row_ids(
+    rows_by_key: Mapping[str, object],
     entries: Sequence[ArchiveEntry],
+) -> dict[str, int | tuple[int, ...]]:
+    sorted_rows: dict[str, int | tuple[int, ...]] = {}
+    entry_count = len(entries)
+    for key, raw_ids in rows_by_key.items():
+        row_ids = [row_id for row_id in _row_ids_as_tuple(raw_ids) if 0 <= row_id < entry_count]
+        if not row_ids:
+            continue
+        row_ids.sort(
+            key=lambda row_id: (
+                -str(entries[row_id].path or "").replace("\\", "/").strip().count("/"),
+                -len(str(entries[row_id].path or "").replace("\\", "/").strip()),
+                archive_path_key(getattr(entries[row_id], "path", "")),
+            )
+        )
+        if len(row_ids) == 1:
+            sorted_rows[str(key)] = int(row_ids[0])
+        else:
+            sorted_rows[str(key)] = tuple(int(row_id) for row_id in row_ids)
+    return sorted_rows
+
+
+def _merge_archive_entry_index_rows(
+    target: dict[str, object],
+    rows: object,
+    entry_count: int,
+    *,
+    row_offset: int = 0,
 ) -> None:
-    decoded = _decode_archive_entry_index_rows(rows, entries)
-    for key, values in decoded.items():
-        target.setdefault(key, []).extend(values)
+    decoded = _decode_archive_entry_index_row_ids(rows, entry_count, row_offset=row_offset)
+    for key, row_ids in decoded.items():
+        for row_id in _row_ids_as_tuple(row_ids):
+            append_archive_row_id(target, key, row_id)
 
 
 def _archive_basic_index_shard_cache_path(cache_dir: Path, relative_pamt_path: str) -> Path:
     return cache_dir / f"{_archive_scan_shard_id(relative_pamt_path)}.bin"
 
 
-def _archive_index_row_mapping_to_rows(rows: Mapping[str, Sequence[int]]) -> List[Tuple[str, Tuple[int, ...]]]:
+def _archive_index_row_mapping_to_rows(rows: Mapping[str, object]) -> List[Tuple[str, Tuple[int, ...]]]:
     encoded: List[Tuple[str, Tuple[int, ...]]] = []
     for key, values in rows.items():
         normalized_key = str(key or "")
         if not normalized_key:
             continue
-        row_indexes = tuple(int(value) for value in values)
+        row_indexes = _row_ids_as_tuple(values)
         if row_indexes:
             encoded.append((normalized_key, row_indexes))
     encoded.sort(key=lambda row: row[0])
@@ -167,11 +245,11 @@ def _build_archive_basic_index_shard_row_payload(
     for entry_index, archive_entry in enumerate(entries):
         if entry_index == 0 or entry_index % 4096 == 0:
             raise_if_cancelled(stop_event)
-        normalized_path = archive_entry.path.replace("\\", "/").strip()
-        normalized_path_lower = normalized_path.lower()
+        normalized_path = str(getattr(archive_entry, "path", "") or "").replace("\\", "/").strip()
+        normalized_path_lower = archive_path_key(getattr(archive_entry, "path", ""))
         if normalized_path_lower:
             path_rows[normalized_path_lower].append(entry_index)
-        basename = normalized_path.rsplit("/", 1)[-1].strip().lower()
+        basename = archive_basename_key(normalized_path)
         if basename:
             basename_rows[basename].append(entry_index)
         extension = normalize_archive_extension_filter(archive_entry.extension)
@@ -255,6 +333,8 @@ def load_or_update_archive_basic_index_shards(
     entries: Sequence[ArchiveEntry],
     *,
     force_refresh: bool = False,
+    shard_entry_signatures: Optional[Mapping[str, str]] = None,
+    shard_entry_counts: Optional[Mapping[str, int]] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     on_log: Optional[Callable[[str], None]] = None,
     timings: Optional[Dict[str, float]] = None,
@@ -267,16 +347,18 @@ def load_or_update_archive_basic_index_shards(
     groups = _archive_entry_shard_groups(
         package_root,
         entries,
+        precomputed_entry_list_signatures=shard_entry_signatures,
+        precomputed_entry_counts=shard_entry_counts,
         on_progress=on_progress,
         stop_event=stop_event,
         progress_label="Preparing path lookup shard metadata",
     )
     if timings is not None:
         timings["basic_index_cache_check_s"] = max(0.0, float(time.perf_counter() - check_started_at))
-    path_index: Dict[str, List[ArchiveEntry]] = {}
-    basename_index: Dict[str, List[ArchiveEntry]] = {}
-    extension_index: Dict[str, List[ArchiveEntry]] = {}
-    role_index: Dict[str, List[ArchiveEntry]] = {}
+    path_rows_by_key: dict[str, object] = {}
+    basename_rows_by_key: dict[str, object] = {}
+    extension_rows_by_key: dict[str, object] = {}
+    role_rows_by_key: dict[str, object] = {}
     loaded_count = 0
     rebuilt_count = 0
     load_started_at = time.perf_counter()
@@ -314,13 +396,16 @@ def load_or_update_archive_basic_index_shards(
                         float(timings.get("basic_index_cache_write_s", 0.0) or 0.0)
                         + max(0.0, float(time.perf_counter() - write_started_at))
                     )
-        _merge_archive_entry_index_rows(path_index, data.get("path_rows"), group.entries)
-        _merge_archive_entry_index_rows(basename_index, data.get("basename_rows"), group.entries)
-        _merge_archive_entry_index_rows(extension_index, data.get("extension_rows"), group.entries)
-        _merge_archive_entry_index_rows(role_index, data.get("role_rows"), group.entries)
+        _merge_archive_entry_index_rows(path_rows_by_key, data.get("path_rows"), len(entries), row_offset=group.start_index)
+        _merge_archive_entry_index_rows(basename_rows_by_key, data.get("basename_rows"), len(entries), row_offset=group.start_index)
+        _merge_archive_entry_index_rows(extension_rows_by_key, data.get("extension_rows"), len(entries), row_offset=group.start_index)
+        _merge_archive_entry_index_rows(role_rows_by_key, data.get("role_rows"), len(entries), row_offset=group.start_index)
         if on_progress is not None and (index == 1 or index % 20 == 0 or index == total_groups):
             on_progress(index, max(total_groups, 1), f"Loading path lookup shards... {index:,} / {total_groups:,}")
-    _sort_archive_basename_index_values(basename_index)
+    path_index = ArchiveRowIndex(entries, compact_archive_rows_mapping(path_rows_by_key), name="path")
+    basename_index = ArchiveRowIndex(entries, _sort_archive_basename_row_ids(basename_rows_by_key, entries), name="basename")
+    extension_index = ArchiveRowIndex(entries, compact_archive_rows_mapping(extension_rows_by_key), name="extension")
+    role_index = ArchiveRowIndex(entries, compact_archive_rows_mapping(role_rows_by_key), name="role")
     _record_timing(timings, "basic_index_cache_load_s", load_started_at)
     if on_log is not None:
         if rebuilt_count:
@@ -330,15 +415,16 @@ def load_or_update_archive_basic_index_shards(
             )
         else:
             on_log("Loaded archive path lookup shards from cache.")
-    prune_report = prune_archive_cache_root(
-        cache_root,
-        protected_paths=archive_cache_protected_paths(package_root, cache_root),
-    )
-    if on_log is not None and prune_report.get("removed_files"):
-        on_log(
-            "Archive cache pruned: "
-            f"{prune_report.get('removed_files', 0)} files, {format_byte_size(int(prune_report.get('removed_bytes', 0) or 0))}."
+    if rebuilt_count:
+        prune_report = prune_archive_cache_root(
+            cache_root,
+            protected_paths=archive_cache_protected_paths(package_root, cache_root),
         )
+        if on_log is not None and prune_report.get("removed_files"):
+            on_log(
+                "Archive cache pruned: "
+                f"{prune_report.get('removed_files', 0)} files, {format_byte_size(int(prune_report.get('removed_bytes', 0) or 0))}."
+            )
     return {
         "path_index": path_index,
         "basename_index": basename_index,
@@ -496,16 +582,35 @@ def load_archive_basic_index_cache(
                 return None
         if on_progress is not None:
             on_progress(0, 4, "Loading path lookup cache... 0 / 4 parts")
-        path_index = _decode_archive_entry_index_rows(data.get("path_rows"), entries)
+        path_index = ArchiveRowIndex(
+            entries,
+            _decode_archive_entry_index_row_ids(data.get("path_rows"), len(entries)),
+            name="path",
+        )
         if on_progress is not None:
             on_progress(1, 4, "Loading path lookup cache... 1 / 4 parts")
-        basename_index = _decode_archive_entry_index_rows(data.get("basename_rows"), entries)
+        basename_index = ArchiveRowIndex(
+            entries,
+            _sort_archive_basename_row_ids(
+                _decode_archive_entry_index_row_ids(data.get("basename_rows"), len(entries)),
+                entries,
+            ),
+            name="basename",
+        )
         if on_progress is not None:
             on_progress(2, 4, "Loading path lookup cache... 2 / 4 parts")
-        extension_index = _decode_archive_entry_index_rows(data.get("extension_rows"), entries)
+        extension_index = ArchiveRowIndex(
+            entries,
+            _decode_archive_entry_index_row_ids(data.get("extension_rows"), len(entries)),
+            name="extension",
+        )
         if on_progress is not None:
             on_progress(3, 4, "Loading path lookup cache... 3 / 4 parts")
-        role_index = _decode_archive_entry_index_rows(data.get("role_rows"), entries)
+        role_index = ArchiveRowIndex(
+            entries,
+            _decode_archive_entry_index_row_ids(data.get("role_rows"), len(entries)),
+            name="role",
+        )
         if on_progress is not None:
             on_progress(4, 4, "Loading path lookup cache... 4 / 4 parts")
         payload = {
@@ -639,6 +744,8 @@ def load_archive_derived_index_cache(
     entry_metadata_signature: Optional[str] = None,
     current_sources: Optional[Sequence[Tuple[str, int, int]]] = None,
     load_name_search_index: bool = True,
+    shard_entry_signatures: Optional[Mapping[str, str]] = None,
+    shard_entry_counts: Optional[Mapping[str, int]] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     on_log: Optional[Callable[[str], None]] = None,
     timings: Optional[Dict[str, float]] = None,
@@ -800,6 +907,8 @@ def load_archive_derived_index_cache(
                                     entries,
                                     aliases_for_shards,
                                     load_name_search_index=True,
+                                    shard_entry_signatures=shard_entry_signatures,
+                                    shard_entry_counts=shard_entry_counts,
                                     on_progress=on_progress,
                                     on_log=on_log,
                                 )
@@ -810,6 +919,8 @@ def load_archive_derived_index_cache(
                                 entries,
                                 aliases_for_shards,
                                 load_name_search_index=True,
+                                shard_entry_signatures=shard_entry_signatures,
+                                shard_entry_counts=shard_entry_counts,
                                 on_progress=on_progress,
                                 on_log=on_log,
                             )
