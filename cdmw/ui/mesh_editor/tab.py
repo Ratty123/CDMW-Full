@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import time
 from dataclasses import asdict, is_dataclass, replace
 from pathlib import Path
@@ -43,7 +44,10 @@ from cdmw.services.mesh_dotnet_experiment import (
     find_mesh_dotnet_experiment_editor,
     mesh_dotnet_experiment_command,
     mesh_dotnet_experiment_output_obj_path,
+    resolve_mesh_dotnet_experiment_editor,
     write_mesh_dotnet_experiment_evaluation,
+    write_mesh_dotnet_launch_diagnostics,
+    write_mesh_dotnet_launch_manifest,
 )
 from cdmw.services.mesh_service import MeshService
 from cdmw.ui.shell.settings_bridge import read_bool_setting
@@ -108,6 +112,7 @@ class MeshEditorTab(QWidget):
     """
 
     status_message_requested = Signal(str, bool)
+    runtime_event_requested = Signal(str, dict)
     modify_original_requested = Signal(object)
     import_replacement_requested = Signal(object)
     import_preview_requested = Signal(object)
@@ -188,6 +193,12 @@ class MeshEditorTab(QWidget):
         self.standalone_dotnet_embedded_state = "closed"
         self.standalone_dotnet_protocol_stdout = ""
         self.standalone_dotnet_protocol_events: list[dict[str, object]] = []
+        self.standalone_dotnet_stdout_tail = ""
+        self.standalone_dotnet_stderr_tail = ""
+        self.standalone_dotnet_last_program = ""
+        self.standalone_dotnet_last_arguments: list[str] = []
+        self.standalone_dotnet_last_working_directory = ""
+        self.standalone_dotnet_last_parent_hwnd = 0
         self.embedded_dotnet_editor_button: QPushButton | None = None
         self.standalone_last_export_validation_report: object | None = None
         self.standalone_last_rebuild_report: object | None = None
@@ -514,7 +525,8 @@ class MeshEditorTab(QWidget):
             setattr(builder, "_mesh_editor_embedded_dotnet_active", bool(active))
 
     def _wire_embedded_dotnet_button(self, builder: QWidget) -> None:
-        dotnet_available = self._dotnet_editor_executable_path() is not None
+        dotnet_executable = self._dotnet_editor_executable_path(log=False)
+        dotnet_available = dotnet_executable is not None and dotnet_executable.is_file()
         dotnet_enabled = dotnet_available and read_bool_setting(
             self.settings,
             "mesh_editor/use_embedded_dotnet_viewport",
@@ -1166,11 +1178,72 @@ class MeshEditorTab(QWidget):
             except RuntimeError:
                 pass
 
-    def _dotnet_editor_executable_path(self) -> Path | None:
+    def _record_mesh_dotnet_event(self, event: str, **payload: object) -> None:
+        event_name = str(event or "").strip()
+        if not event_name:
+            return
+        normalized = {str(key): self._json_safe_runtime_value(value) for key, value in payload.items()}
+        builder = self.active_builder()
+        for target in (builder, self.parent()):
+            recorder = getattr(target, "_record_runtime_event", None) if target is not None else None
+            if callable(recorder):
+                try:
+                    recorder(event_name, **normalized)
+                    return
+                except TypeError:
+                    try:
+                        recorder(event_name, normalized)
+                        return
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+        try:
+            self.runtime_event_requested.emit(event_name, normalized)
+        except RuntimeError:
+            pass
+
+    @staticmethod
+    def _json_safe_runtime_value(value: object) -> object:
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, Mapping):
+            return {str(key): MeshEditorTab._json_safe_runtime_value(item) for key, item in value.items()}
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return [MeshEditorTab._json_safe_runtime_value(item) for item in tuple(value)]
+        return str(value)
+
+    def _dotnet_editor_executable_resolution(self, *, log: bool = True) -> object:
+        raw = str(self.settings.value("mesh_editor/dotnet_experiment_executable", "") or "").strip()
+        resolution = resolve_mesh_dotnet_experiment_editor(raw)
+        if log:
+            self._record_mesh_dotnet_event("mesh_dotnet_executable_resolved", **resolution.as_event_payload())
+        return resolution
+
+    def _dotnet_editor_executable_path(self, *, log: bool = True) -> Path | None:
         raw = str(self.settings.value("mesh_editor/dotnet_experiment_executable", "") or "").strip()
         if raw:
-            return Path(raw).expanduser()
-        return find_mesh_dotnet_experiment_editor()
+            path = Path(raw).expanduser()
+            if log:
+                self._record_mesh_dotnet_event(
+                    "mesh_dotnet_executable_resolved",
+                    configured_path=raw,
+                    env_path=os.environ.get("CDMW_MESH_DOTNET_EXPERIMENT_EXE", "").strip(),
+                    frozen_root=str(getattr(sys, "_MEIPASS", "") or ""),
+                    exe_root=str(Path(sys.executable).resolve().parent) if getattr(sys, "frozen", False) else "",
+                    resolved_path=str(path),
+                    exists=path.exists(),
+                    is_file=path.is_file(),
+                    source="configured_path",
+                )
+            return path
+        path = find_mesh_dotnet_experiment_editor()
+        if log:
+            resolution = self._dotnet_editor_executable_resolution(log=False)
+            self._record_mesh_dotnet_event("mesh_dotnet_executable_resolved", **resolution.as_event_payload())
+        return path
 
     def _standalone_dotnet_package_worker_active(self) -> bool:
         return self.standalone_dotnet_package_thread is not None or self.standalone_dotnet_package_worker is not None
@@ -1216,7 +1289,16 @@ class MeshEditorTab(QWidget):
                 "Mesh .NET editor experiment is not configured. Set "
                 "mesh_editor/dotnet_experiment_executable, CDMW_MESH_DOTNET_EXPERIMENT_EXE, or build the bundled helper."
             )
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_process_start_failed",
+                embedded=bool(embedded),
+                program=str(executable or ""),
+                qprocess_error="missing_executable",
+                qprocess_error_string=message,
+            )
             self._set_dotnet_status(message, error=True)
+            if embedded:
+                self._notify_embedded_dotnet_launch_failed("mesh_dotnet_missing_executable", diagnostics=message)
             return
         if self._standalone_dotnet_package_worker_active():
             self._set_dotnet_status("Mesh .NET editor package is already preparing.")
@@ -1230,6 +1312,13 @@ class MeshEditorTab(QWidget):
         self.standalone_dotnet_target_controller = controller
         if embedded:
             self._set_embedded_dotnet_state("launching", active=False)
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_package_start",
+            request_id=request_id,
+            session_id=session_id,
+            embedded=bool(embedded),
+            executable=str(executable),
+        )
         worker = MeshDotNetExperimentPackageWorker(request_id, controller.mesh_service, session_id)
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -1250,8 +1339,26 @@ class MeshEditorTab(QWidget):
         if int(request_id) != int(self.standalone_dotnet_package_request_id):
             return
         if not isinstance(package_object, MeshDotNetExperimentPackage):
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_package_error",
+                request_id=request_id,
+                embedded=bool(self.standalone_dotnet_target_embedded),
+                elapsed_ms=float(elapsed_ms),
+                error="package worker returned an invalid package",
+            )
             self._set_dotnet_status("Mesh .NET editor package worker returned an invalid package.", error=True)
             return
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_package_ready",
+            request_id=request_id,
+            embedded=bool(self.standalone_dotnet_target_embedded),
+            package_dir=str(package_object.package_dir),
+            mesh_path=str(package_object.mesh_path),
+            metadata_path=str(package_object.cdmeta_path),
+            status_path=str(package_object.status_path),
+            edit_operations_path=str(package_object.edit_operations_path),
+            elapsed_ms=float(elapsed_ms),
+        )
         if self._launch_standalone_dotnet_editor_package(package_object):
             self.status_message_requested.emit(
                 f"Mesh .NET editor experiment package ready ({float(elapsed_ms):.1f} ms).",
@@ -1262,9 +1369,17 @@ class MeshEditorTab(QWidget):
         if int(request_id) != int(self.standalone_dotnet_package_request_id):
             return
         text = f"Mesh .NET editor experiment package failed: {message}"
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_package_error",
+            request_id=request_id,
+            embedded=bool(self.standalone_dotnet_target_embedded),
+            error=str(message),
+        )
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("failed", active=False)
         self._set_dotnet_status(text, error=True)
+        if self.standalone_dotnet_target_embedded:
+            self._notify_embedded_dotnet_launch_failed("mesh_dotnet_package_error", diagnostics=str(message))
 
     def _cleanup_standalone_dotnet_package_worker(
         self,
@@ -1433,6 +1548,32 @@ class MeshEditorTab(QWidget):
     def _dotnet_target_controller(self) -> MeshEditorController | None:
         return self.standalone_dotnet_target_controller or self.standalone_controller
 
+    def _notify_embedded_dotnet_ready(self) -> None:
+        builder = self.active_builder()
+        callback = getattr(builder, "_mesh_editor_embedded_dotnet_ready", None) if builder is not None else None
+        if callable(callback):
+            try:
+                callback()
+            except Exception as exc:
+                self._record_mesh_dotnet_event("mesh_dotnet_ready_callback_error", error=str(exc))
+
+    def _notify_embedded_dotnet_launch_failed(self, reason: str, *, diagnostics: str = "") -> None:
+        if self.standalone_dotnet_target_embedded:
+            self._set_embedded_dotnet_state("failed", active=False)
+        builder = self.active_builder()
+        callback = getattr(builder, "_mesh_editor_embedded_dotnet_failed", None) if builder is not None else None
+        if callable(callback):
+            try:
+                callback(str(reason or "mesh_edit_dotnet_fallback"), str(diagnostics or ""))
+                return
+            except Exception as exc:
+                self._record_mesh_dotnet_event("mesh_dotnet_failed_callback_error", reason=reason, error=str(exc))
+        if self.standalone_dotnet_target_embedded:
+            controller = self._dotnet_target_controller()
+            if controller is not None:
+                self._sync_embedded_dotnet_imported_mesh(controller)
+            self._finalize_embedded_dotnet_import(str(reason or "mesh_edit_dotnet_fallback"))
+
     def _connect_dotnet_protocol(self, process: QProcess) -> None:
         self.standalone_dotnet_protocol_stdout = ""
         self.standalone_dotnet_protocol_events = []
@@ -1486,8 +1627,15 @@ class MeshEditorTab(QWidget):
             )
             return False
         if event == "ready":
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_process_ready",
+                embedded=bool(self.standalone_dotnet_target_embedded),
+                package_dir=str(getattr(self.standalone_dotnet_experiment_package, "package_dir", "") or ""),
+                status_path=str(getattr(self.standalone_dotnet_experiment_package, "status_path", "") or ""),
+            )
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("ready", active=True)
+                self._notify_embedded_dotnet_ready()
                 self.update_editor_action_state(selection_empty=self.current_selection_empty)
             self._send_dotnet_session_state()
             return True
@@ -1945,6 +2093,91 @@ class MeshEditorTab(QWidget):
         hwnd = _host_widget_hwnd(self.standalone_native_host)
         return hwnd if hwnd > 0 else 0
 
+    def _dotnet_process_stream_tails(self, process: QProcess) -> tuple[str, str]:
+        stdout = self.standalone_dotnet_stdout_tail
+        stderr = self.standalone_dotnet_stderr_tail
+        try:
+            raw_stdout = bytes(process.readAllStandardOutput()).decode("utf-8", errors="replace").strip()
+            if raw_stdout:
+                stdout = raw_stdout[-2000:]
+                self.standalone_dotnet_stdout_tail = stdout
+        except (AttributeError, RuntimeError):
+            pass
+        try:
+            raw_stderr = bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()
+            if raw_stderr:
+                stderr = raw_stderr[-2000:]
+                self.standalone_dotnet_stderr_tail = stderr
+        except (AttributeError, RuntimeError):
+            pass
+        return stdout, stderr
+
+    def _dotnet_process_event_payload(
+        self,
+        process: QProcess | None,
+        *,
+        package: MeshDotNetExperimentPackage | None = None,
+        qprocess_error: object = None,
+    ) -> dict[str, object]:
+        stdout_tail = self.standalone_dotnet_stdout_tail
+        stderr_tail = self.standalone_dotnet_stderr_tail
+        if process is not None:
+            stdout_tail, stderr_tail = self._dotnet_process_stream_tails(process)
+        process_state = "unknown"
+        error_value = qprocess_error
+        error_string = ""
+        exit_code: object = ""
+        exit_status: object = ""
+        if process is not None:
+            try:
+                process_state = str(process.state())
+            except (AttributeError, RuntimeError):
+                pass
+            try:
+                if error_value is None:
+                    error_value = process.error()
+            except (AttributeError, RuntimeError):
+                pass
+            try:
+                error_string = str(process.errorString() or "")
+            except (AttributeError, RuntimeError):
+                pass
+            try:
+                exit_code = int(process.exitCode())
+            except (AttributeError, RuntimeError):
+                pass
+            try:
+                exit_status = str(process.exitStatus())
+            except (AttributeError, RuntimeError):
+                pass
+        status_payload: dict[str, object] = {}
+        target_package = package or self.standalone_dotnet_experiment_package
+        if target_package is not None and target_package.status_path.is_file():
+            try:
+                loaded = json.loads(target_package.status_path.read_text(encoding="utf-8-sig"))
+                if isinstance(loaded, dict):
+                    status_payload = loaded
+            except (OSError, ValueError):
+                status_payload = {"event": "error", "message": "status JSON could not be parsed"}
+        return {
+            "program": self.standalone_dotnet_last_program,
+            "arguments": tuple(self.standalone_dotnet_last_arguments),
+            "working_directory": self.standalone_dotnet_last_working_directory,
+            "embedded": bool(self.standalone_dotnet_target_embedded),
+            "parent_hwnd": int(self.standalone_dotnet_last_parent_hwnd or 0),
+            "process_state": process_state,
+            "qprocess_error": str(error_value or ""),
+            "qprocess_error_string": error_string,
+            "exit_code": exit_code,
+            "exit_status": exit_status,
+            "stderr_tail": stderr_tail,
+            "stdout_tail": stdout_tail,
+            "status_path": str(target_package.status_path) if target_package is not None else "",
+            "status_event": str(status_payload.get("event", "") or ""),
+            "status_message": str(status_payload.get("message", "") or ""),
+            "package_dir": str(target_package.package_dir) if target_package is not None else "",
+        }
+
     def _request_embedded_dotnet_editor_close(self) -> bool:
         if not self.standalone_dotnet_target_embedded or not self._standalone_dotnet_editor_process_running():
             return False
@@ -1989,14 +2222,34 @@ class MeshEditorTab(QWidget):
     def _launch_standalone_dotnet_editor_package(self, package: MeshDotNetExperimentPackage) -> bool:
         executable = self._dotnet_editor_executable_path()
         if executable is None or not executable.is_file():
+            message = "Mesh .NET editor experiment executable is missing."
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_process_start_failed",
+                embedded=bool(self.standalone_dotnet_target_embedded),
+                program=str(executable or ""),
+                qprocess_error="missing_executable",
+                qprocess_error_string=message,
+                package_dir=str(package.package_dir),
+                status_path=str(package.status_path),
+            )
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
-            self._set_dotnet_status("Mesh .NET editor experiment executable is missing.", error=True)
+                self._notify_embedded_dotnet_launch_failed("mesh_dotnet_missing_executable", diagnostics=message)
+            self._set_dotnet_status(message, error=True)
             return False
         embedded_parent_hwnd = self._dotnet_embedded_parent_hwnd()
         if self.standalone_dotnet_target_embedded and embedded_parent_hwnd <= 0:
+            message = "Mesh .NET embedded launch failed: no native parent window handle is available."
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_embedded_parent_hwnd_unavailable",
+                embedded=True,
+                parent_hwnd=embedded_parent_hwnd,
+                package_dir=str(package.package_dir),
+                status_path=str(package.status_path),
+            )
             self._set_embedded_dotnet_state("failed", active=False)
-            self._set_dotnet_status("Mesh .NET embedded launch failed: no native parent window handle is available.", error=True)
+            self._set_dotnet_status(message, error=True)
+            self._notify_embedded_dotnet_launch_failed("mesh_dotnet_parent_hwnd_unavailable", diagnostics=message)
             return False
         try:
             program, arguments = mesh_dotnet_experiment_command(
@@ -2005,10 +2258,41 @@ class MeshEditorTab(QWidget):
                 embedded_parent_hwnd=embedded_parent_hwnd,
             )
         except Exception as exc:
+            message = f"Mesh .NET editor experiment unavailable: {exc}"
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_process_start_failed",
+                embedded=bool(self.standalone_dotnet_target_embedded),
+                program=str(executable),
+                qprocess_error="command_build_failed",
+                qprocess_error_string=str(exc),
+                package_dir=str(package.package_dir),
+                status_path=str(package.status_path),
+            )
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
-            self._set_dotnet_status(f"Mesh .NET editor experiment unavailable: {exc}", error=True)
+                self._notify_embedded_dotnet_launch_failed("mesh_dotnet_command_error", diagnostics=str(exc))
+            self._set_dotnet_status(message, error=True)
             return False
+        self.standalone_dotnet_stdout_tail = ""
+        self.standalone_dotnet_stderr_tail = ""
+        self.standalone_dotnet_last_program = str(program)
+        self.standalone_dotnet_last_arguments = [str(argument) for argument in tuple(arguments or ())]
+        self.standalone_dotnet_last_working_directory = str(package.package_dir)
+        self.standalone_dotnet_last_parent_hwnd = int(embedded_parent_hwnd or 0)
+        try:
+            write_mesh_dotnet_launch_manifest(
+                package,
+                executable=program,
+                arguments=arguments,
+                embedded=bool(self.standalone_dotnet_target_embedded),
+                parent_hwnd=embedded_parent_hwnd,
+            )
+        except Exception as exc:
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_launch_manifest_write_failed",
+                package_dir=str(package.package_dir),
+                error=str(exc),
+            )
         process = QProcess(self)
         process.setProgram(program)
         process.setArguments(arguments)
@@ -2017,16 +2301,19 @@ class MeshEditorTab(QWidget):
         try:
             self._connect_dotnet_protocol(process)
             process.finished.connect(lambda *_args, target=process, handoff=package: self._handle_standalone_dotnet_editor_finished(target, handoff))
-            process.errorOccurred.connect(lambda _error, target=process: self._handle_standalone_dotnet_editor_error(target))
+            process.errorOccurred.connect(lambda error, target=process: self._handle_standalone_dotnet_editor_error(target, error))
         except (AttributeError, RuntimeError, TypeError):
             pass
         self.standalone_dotnet_editor_process = process
         self.standalone_dotnet_experiment_package = package
+        configured_payload = self._dotnet_process_event_payload(process, package=package)
+        self._record_mesh_dotnet_event("mesh_dotnet_process_configured", **configured_payload)
         mode = "embedded" if embedded_parent_hwnd > 0 else "standalone"
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("launching", active=False)
         self._set_dotnet_status(f"Mesh .NET editor experiment launching {mode}: {package.package_dir}")
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
+        self._record_mesh_dotnet_event("mesh_dotnet_process_start", **configured_payload)
         process.start()
         if not self._confirm_dotnet_process_started(process):
             return False
@@ -2035,20 +2322,44 @@ class MeshEditorTab(QWidget):
     def _confirm_dotnet_process_started(self, process: QProcess) -> bool:
         try:
             if not hasattr(process, "waitForStarted"):
-                return self._standalone_dotnet_editor_process_running()
+                started = self._standalone_dotnet_editor_process_running()
+                if started:
+                    self._record_mesh_dotnet_event("mesh_dotnet_process_started", **self._dotnet_process_event_payload(process))
+                return started
             if process.waitForStarted(1500):
+                self._record_mesh_dotnet_event("mesh_dotnet_process_started", **self._dotnet_process_event_payload(process))
                 return True
         except RuntimeError as exc:
-            self.standalone_dotnet_editor_process = None
+            payload = self._dotnet_process_event_payload(process)
+            payload["qprocess_error"] = "RuntimeError"
+            payload["qprocess_error_string"] = str(exc)
+            self._record_mesh_dotnet_event("mesh_dotnet_process_start_failed", **payload)
+            package = self.standalone_dotnet_experiment_package
+            if package is not None:
+                try:
+                    write_mesh_dotnet_launch_diagnostics(package, payload)
+                except Exception:
+                    pass
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
+                self._notify_embedded_dotnet_launch_failed("mesh_dotnet_process_start_failed", diagnostics=str(exc))
+            self.standalone_dotnet_editor_process = None
             self._set_dotnet_status(f"Mesh .NET editor launch failed: {exc}", error=True)
             self.update_editor_action_state(selection_empty=self.current_selection_empty)
             return False
         detail = self._dotnet_process_diagnostics(process)
-        self.standalone_dotnet_editor_process = None
+        payload = self._dotnet_process_event_payload(process)
+        self._record_mesh_dotnet_event("mesh_dotnet_process_start_failed", **payload)
+        package = self.standalone_dotnet_experiment_package
+        if package is not None:
+            try:
+                write_mesh_dotnet_launch_diagnostics(package, payload)
+            except Exception:
+                pass
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("failed", active=False)
+            self._notify_embedded_dotnet_launch_failed("mesh_dotnet_process_start_failed", diagnostics=detail)
+        self.standalone_dotnet_editor_process = None
         self._set_dotnet_status(f"Mesh .NET editor launch failed: {detail}", error=True)
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         try:
@@ -2058,25 +2369,12 @@ class MeshEditorTab(QWidget):
         return False
 
     def _dotnet_process_diagnostics(self, process: QProcess) -> str:
+        payload = self._dotnet_process_event_payload(process)
         pieces: list[str] = []
-        try:
-            error_text = str(process.errorString() or "").strip()
-            if error_text:
-                pieces.append(error_text)
-        except RuntimeError:
-            pass
-        try:
-            stderr = bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()
-            if stderr:
-                pieces.append(stderr[:800])
-        except RuntimeError:
-            pass
-        try:
-            stdout = bytes(process.readAllStandardOutput()).decode("utf-8", errors="replace").strip()
-            if stdout:
-                pieces.append(stdout[:800])
-        except RuntimeError:
-            pass
+        for key in ("qprocess_error_string", "stderr_tail", "stdout_tail", "status_message"):
+            value = str(payload.get(key, "") or "").strip()
+            if value:
+                pieces.append(value[:800])
         return " | ".join(pieces) if pieces else "process did not start and reported no diagnostics"
 
     def _standalone_dotnet_editor_process_running(self) -> bool:
@@ -2119,6 +2417,8 @@ class MeshEditorTab(QWidget):
     ) -> None:
         if self.standalone_dotnet_editor_process is not process:
             return
+        process_payload = self._dotnet_process_event_payload(process, package=package)
+        self._record_mesh_dotnet_event("mesh_dotnet_process_finished", **process_payload)
         self.standalone_dotnet_editor_process = None
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("closed", active=False)
@@ -2143,6 +2443,8 @@ class MeshEditorTab(QWidget):
             if evaluation_path is not None:
                 text += f" Evaluation: {evaluation_path}"
             self._set_dotnet_status(text, error=True)
+            if self.standalone_dotnet_target_embedded:
+                self._notify_embedded_dotnet_launch_failed("mesh_dotnet_status_error", diagnostics=message or text)
             return
         output_obj = mesh_dotnet_experiment_output_obj_path(package, payload)
         if output_obj is not None and self._start_standalone_dotnet_output_import(package, payload):
@@ -2159,17 +2461,22 @@ class MeshEditorTab(QWidget):
             text += f" Evaluation: {evaluation_path}"
         self._set_dotnet_status(text)
 
-    def _handle_standalone_dotnet_editor_error(self, process: QProcess) -> None:
+    def _handle_standalone_dotnet_editor_error(self, process: QProcess, qprocess_error: object = None) -> None:
         if self.standalone_dotnet_editor_process is not process:
             return
         detail = self._dotnet_process_diagnostics(process)
+        payload = self._dotnet_process_event_payload(process, qprocess_error=qprocess_error)
+        self._record_mesh_dotnet_event("mesh_dotnet_process_error", **payload)
+        package = self.standalone_dotnet_experiment_package
+        if package is not None:
+            try:
+                write_mesh_dotnet_launch_diagnostics(package, payload)
+            except Exception:
+                pass
         text = f"Mesh .NET editor experiment process error: {detail}"
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("failed", active=False)
-            controller = self._dotnet_target_controller()
-            if controller is not None:
-                self._sync_embedded_dotnet_imported_mesh(controller)
-            self._finalize_embedded_dotnet_import("dotnet_process_error")
+            self._notify_embedded_dotnet_launch_failed("mesh_edit_dotnet_fallback", diagnostics=detail)
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         self._set_dotnet_status(text, error=True)
 

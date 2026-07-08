@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.ui.archive_browser.static_replacement_d3d11_mapping import (
     alignment_default_d3d11_editor_ids,
     alignment_d3d11_display_model,
@@ -206,6 +207,57 @@ def test_alignment_d3d11_display_model_falls_back_to_replacement_workspace() -> 
 
     assert getattr(replacement_only, "role") == "replacement_preview"
     assert invalid_replacement is None
+
+
+def test_alignment_d3d11_display_model_clears_external_import_overlays_by_default() -> None:
+    original = ModelPreviewData(
+        physics_overlay=object(),
+        meshes=[ModelPreviewMesh(positions=[(0.0, 0.0, 0.0)], indices=[0, 0, 0])],
+    )
+    replacement = ModelPreviewData(
+        meshes=[ModelPreviewMesh(positions=[(1.0, 0.0, 0.0)], indices=[0, 0, 0])]
+    )
+
+    display = alignment_d3d11_display_model(
+        replacement,
+        original,
+        active_preview_mode="side_by_side",
+        tag_workspace_model=lambda model, _role, **_kwargs: model,
+        combine_preview_models=lambda *models, **kwargs: SimpleNamespace(models=models, kwargs=kwargs),
+        clone_model=lambda model: model,
+        external_import=True,
+        preserve_overlays=True,
+        show_physics_overlay=True,
+    )
+
+    assert isinstance(display, ModelPreviewData)
+    assert display.physics_overlay is None
+
+
+def test_alignment_d3d11_display_model_preserves_explicit_non_external_overlays() -> None:
+    overlay = object()
+    original = ModelPreviewData(
+        physics_overlay=overlay,
+        meshes=[ModelPreviewMesh(positions=[(0.0, 0.0, 0.0)], indices=[0, 0, 0])],
+    )
+    replacement = ModelPreviewData(
+        meshes=[ModelPreviewMesh(positions=[(1.0, 0.0, 0.0)], indices=[0, 0, 0])]
+    )
+
+    display = alignment_d3d11_display_model(
+        replacement,
+        original,
+        active_preview_mode="side_by_side",
+        tag_workspace_model=lambda model, _role, **_kwargs: model,
+        combine_preview_models=lambda *models, **kwargs: SimpleNamespace(models=models, kwargs=kwargs),
+        clone_model=lambda model: model,
+        external_import=False,
+        preserve_overlays=True,
+        show_physics_overlay=True,
+    )
+
+    assert isinstance(display, ModelPreviewData)
+    assert display.physics_overlay is overlay
 
 
 def test_alignment_default_d3d11_editor_ids_prefer_transform_selection() -> None:

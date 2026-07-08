@@ -8076,6 +8076,8 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
     mesh_edit_enabled_checkbox = context.get('mesh_edit_enabled_checkbox')
     mesh_edit_tab = context.get('mesh_edit_tab')
     modify_original_clone_mode = context.get('modify_original_clone_mode')
+    scene_import_result = context.get('scene_import_result')
+    source_skeleton = context.get('source_skeleton')
     original_reference_preview_model = context.get('original_reference_preview_model')
     original_reference_texture_preview_state = context.get('original_reference_texture_preview_state')
     parts_tab = context.get('parts_tab')
@@ -8494,6 +8496,12 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         )
         return _combine_preview_models(original_shifted, replacement_shifted)
 
+    def _preview_overlay_present(preview_model: object) -> bool:
+        return bool(
+            getattr(preview_model, "physics_overlay", None) is not None
+            or getattr(preview_model, "cloth_preview", None) is not None
+        )
+
     def _queue_alignment_d3d11_preview(
         model: object,
         *,
@@ -8551,6 +8559,13 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             package_quality=queued_package_quality,
             transform_generation=int(transform_generation or 0),
             modify_original_clone=modify_original_clone_mode,
+            external_import=bool(scene_import_result is not None and not modify_original_clone_mode),
+            source_skeleton_present=source_skeleton is not None,
+            original_physics_overlay_present=_preview_overlay_present(original_reference_preview_model),
+            replacement_physics_overlay_present=False,
+            combined_physics_overlay_present=_preview_overlay_present(model),
+            preserve_overlays=False,
+            show_physics_overlay=bool(getattr(preview_render_settings, "show_physics_overlay", False)),
         )
         live_frame_available = _alignment_d3d11_live_frame_available()
         if not live_frame_available:

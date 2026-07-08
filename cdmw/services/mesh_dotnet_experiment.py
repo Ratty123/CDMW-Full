@@ -9,7 +9,7 @@ import shutil
 import sys
 import tempfile
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from uuid import uuid4
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -38,6 +38,21 @@ class MeshDotNetExperimentPackage:
     output_dir: Path
     edit_operations_path: Path
     launch_manifest_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class MeshDotNetExecutableResolution:
+    configured_path: str
+    env_path: str
+    frozen_root: str
+    exe_root: str
+    resolved_path: str
+    exists: bool
+    is_file: bool
+    source: str
+
+    def as_event_payload(self) -> dict[str, object]:
+        return asdict(self)
 
 
 def _repo_root() -> Path:
@@ -220,35 +235,131 @@ def default_mesh_dotnet_experiment_editor_path(*, release: bool = True) -> Path:
     return _repo_root() / "native" / "cdmw_mesh_dotnet_editor" / "build" / config / MESH_DOTNET_EXPERIMENT_BINARY_NAME
 
 
-def find_mesh_dotnet_experiment_editor() -> Path | None:
-    env_path = os.environ.get("CDMW_MESH_DOTNET_EXPERIMENT_EXE", "").strip()
-    candidates = [Path(env_path).expanduser()] if env_path else []
-    frozen_root = Path(str(getattr(sys, "_MEIPASS", ""))) if getattr(sys, "_MEIPASS", "") else None
-    exe_root = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else None
+def _mesh_dotnet_candidate_paths(
+    *,
+    configured_path: Path | None = None,
+    env_path: str = "",
+    frozen_root: Path | None = None,
+    exe_root: Path | None = None,
+) -> list[tuple[str, Path]]:
+    candidates: list[tuple[str, Path]] = []
+    if configured_path is not None:
+        candidates.append(("configured_path", configured_path.expanduser()))
+    if env_path:
+        candidates.append(("env_path", Path(env_path).expanduser()))
     if frozen_root is not None:
-        candidates.extend([
-            frozen_root / "native" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
-            frozen_root / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Release" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
-            frozen_root / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Debug" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
-        ])
+        candidates.extend(
+            [
+                ("frozen_root_flat", frozen_root / "native" / MESH_DOTNET_EXPERIMENT_BINARY_NAME),
+                (
+                    "frozen_root_release",
+                    frozen_root / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Release" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
+                ),
+                (
+                    "frozen_root_debug",
+                    frozen_root / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Debug" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
+                ),
+            ]
+        )
     if exe_root is not None:
-        candidates.extend([
-            exe_root / "native" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
-            exe_root / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Release" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
-            exe_root / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Debug" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
-        ])
+        candidates.extend(
+            [
+                ("exe_root_flat", exe_root / "native" / MESH_DOTNET_EXPERIMENT_BINARY_NAME),
+                (
+                    "exe_root_release",
+                    exe_root / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Release" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
+                ),
+                (
+                    "exe_root_debug",
+                    exe_root / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Debug" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
+                ),
+            ]
+        )
     candidates.extend(
         [
-            _repo_root() / "tools" / "dotnet_mesh_editor_experiment" / "bin" / "Release" / "net8.0-windows" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
-            _repo_root() / "tools" / "dotnet_mesh_editor_experiment" / "bin" / "Debug" / "net8.0-windows" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
-            default_mesh_dotnet_experiment_editor_path(release=True),
-            default_mesh_dotnet_experiment_editor_path(release=False),
+            (
+                "source_release",
+                _repo_root()
+                / "tools"
+                / "dotnet_mesh_editor_experiment"
+                / "bin"
+                / "Release"
+                / "net8.0-windows"
+                / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
+            ),
+            (
+                "source_debug",
+                _repo_root()
+                / "tools"
+                / "dotnet_mesh_editor_experiment"
+                / "bin"
+                / "Debug"
+                / "net8.0-windows"
+                / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
+            ),
+            ("native_release", default_mesh_dotnet_experiment_editor_path(release=True)),
+            ("native_debug", default_mesh_dotnet_experiment_editor_path(release=False)),
         ]
     )
-    for candidate in candidates:
+    return candidates
+
+
+def resolve_mesh_dotnet_experiment_editor(
+    configured_path: Path | str | None = None,
+) -> MeshDotNetExecutableResolution:
+    raw_configured = str(configured_path or "").strip()
+    configured = Path(raw_configured).expanduser() if raw_configured else None
+    env_path = os.environ.get("CDMW_MESH_DOTNET_EXPERIMENT_EXE", "").strip()
+    frozen_root = Path(str(getattr(sys, "_MEIPASS", ""))) if getattr(sys, "_MEIPASS", "") else None
+    exe_root = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else None
+    first_existing: tuple[str, Path] | None = None
+    for source, candidate in _mesh_dotnet_candidate_paths(
+        configured_path=configured,
+        env_path=env_path,
+        frozen_root=frozen_root,
+        exe_root=exe_root,
+    ):
+        if candidate.exists() and first_existing is None:
+            first_existing = (source, candidate)
         if candidate.is_file():
-            return candidate
-    return None
+            return MeshDotNetExecutableResolution(
+                configured_path=raw_configured,
+                env_path=env_path,
+                frozen_root=str(frozen_root or ""),
+                exe_root=str(exe_root or ""),
+                resolved_path=str(candidate),
+                exists=True,
+                is_file=True,
+                source=source,
+            )
+    if first_existing is not None:
+        source, candidate = first_existing
+        return MeshDotNetExecutableResolution(
+            configured_path=raw_configured,
+            env_path=env_path,
+            frozen_root=str(frozen_root or ""),
+            exe_root=str(exe_root or ""),
+            resolved_path=str(candidate),
+            exists=True,
+            is_file=False,
+            source=source,
+        )
+    missing = configured or (Path(env_path).expanduser() if env_path else None)
+    return MeshDotNetExecutableResolution(
+        configured_path=raw_configured,
+        env_path=env_path,
+        frozen_root=str(frozen_root or ""),
+        exe_root=str(exe_root or ""),
+        resolved_path=str(missing or ""),
+        exists=False,
+        is_file=False,
+        source="missing",
+    )
+
+
+def find_mesh_dotnet_experiment_editor() -> Path | None:
+    resolution = resolve_mesh_dotnet_experiment_editor()
+    return Path(resolution.resolved_path) if resolution.is_file and resolution.resolved_path else None
 
 
 def build_mesh_dotnet_experiment_package(
@@ -296,6 +407,7 @@ def build_mesh_dotnet_experiment_package(
         edit_operations_path=edit_operations_path,
         launch_manifest_path=launch_manifest_path,
     )
+    created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     launch_manifest_path.write_text(
         json.dumps(
             {
@@ -303,6 +415,18 @@ def build_mesh_dotnet_experiment_package(
                 "authority": "python_cpp_mesh_editor_v2",
                 "parser_authority": "cdmw_python_cpp",
                 "rebuild_authority": "cdmw_python_cpp",
+                "executable": "",
+                "arguments": [],
+                "embedded": False,
+                "parent_hwnd": 0,
+                "created_at": created_at,
+                "launch": {
+                    "executable": "",
+                    "arguments": [],
+                    "embedded": False,
+                    "parent_hwnd": 0,
+                    "created_at": created_at,
+                },
                 "input": {
                     "mesh": mesh_path.name,
                     "metadata": cdmeta_path.name,
@@ -356,6 +480,49 @@ def mesh_dotnet_experiment_command(
         str(executable),
         args,
     )
+
+
+def write_mesh_dotnet_launch_manifest(
+    package: MeshDotNetExperimentPackage,
+    *,
+    executable: Path | str,
+    arguments: Sequence[object],
+    embedded: bool,
+    parent_hwnd: int,
+) -> Path:
+    payload: dict[str, object] = {}
+    if package.launch_manifest_path.is_file():
+        try:
+            loaded = json.loads(package.launch_manifest_path.read_text(encoding="utf-8-sig"))
+            if isinstance(loaded, dict):
+                payload = loaded
+        except (OSError, ValueError):
+            payload = {}
+    created_at = str(payload.get("created_at", "") or "").strip()
+    if not created_at:
+        created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    launch = {
+        "executable": str(executable),
+        "arguments": [str(argument) for argument in tuple(arguments or ())],
+        "embedded": bool(embedded),
+        "parent_hwnd": int(parent_hwnd or 0),
+        "created_at": created_at,
+    }
+    payload.update(launch)
+    payload["launch"] = launch
+    package.launch_manifest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return package.launch_manifest_path
+
+
+def write_mesh_dotnet_launch_diagnostics(
+    package: MeshDotNetExperimentPackage,
+    payload: Mapping[str, object],
+) -> Path:
+    path = package.package_dir / "dotnet_launch_diagnostics.json"
+    diagnostics = dict(payload or {})
+    diagnostics.setdefault("created_at", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    path.write_text(json.dumps(diagnostics, indent=2, default=str), encoding="utf-8")
+    return path
 
 
 def mesh_dotnet_experiment_evaluation_path(package: MeshDotNetExperimentPackage) -> Path:
@@ -594,13 +761,17 @@ def _dotnet_recommendation(
 
 __all__ = [
     "MESH_DOTNET_EXPERIMENT_BINARY_NAME",
+    "MeshDotNetExecutableResolution",
     "MeshDotNetExperimentPackage",
     "build_mesh_dotnet_experiment_package",
     "default_mesh_dotnet_experiment_editor_path",
     "find_mesh_dotnet_experiment_editor",
+    "resolve_mesh_dotnet_experiment_editor",
     "import_mesh_dotnet_experiment_output",
     "mesh_dotnet_experiment_command",
     "mesh_dotnet_experiment_evaluation_path",
     "mesh_dotnet_experiment_output_obj_path",
     "write_mesh_dotnet_experiment_evaluation",
+    "write_mesh_dotnet_launch_diagnostics",
+    "write_mesh_dotnet_launch_manifest",
 ]

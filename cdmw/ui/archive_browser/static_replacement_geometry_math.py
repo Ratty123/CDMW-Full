@@ -14,12 +14,18 @@ PartTransformValues = tuple[tuple[float, ...], tuple[float, ...], tuple[float, .
 GlobalTransformValues = tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]
 
 
-@dataclass(frozen=True)
-class AppendedPartWorkAreaFit:
+@dataclass(frozen=True, slots=True)
+class WorkAreaPlacementFit:
     source_center: Vector3
     target_center: Vector3
     scale: float
     notes: tuple[str, ...]
+    translation: Vector3 = (0.0, 0.0, 0.0)
+    up_axis: int = 1
+    ground_plane: float = 0.0
+
+
+AppendedPartWorkAreaFit = WorkAreaPlacementFit
 
 
 def part_bbox(vertices: Sequence[Vector3]) -> Bounds3:
@@ -204,36 +210,72 @@ def vertices_for_source_indices(mesh: object, source_indices: Sequence[int]) -> 
     return vertices
 
 
+def external_import_work_area_fit(
+    source_vertices: Sequence[Vector3],
+    reference_vertices: Sequence[Vector3],
+    *,
+    up_axis: int,
+    ground_plane: float = 0.0,
+) -> WorkAreaPlacementFit | None:
+    if not source_vertices:
+        return None
+    axis = max(0, min(2, int(up_axis)))
+    source_bounds = part_bbox(source_vertices)
+    source_min, source_max = source_bounds
+    source_center = part_bbox_center(source_bounds)
+    source_diag = max(part_bbox_diagonal(source_bounds), 1e-8)
+    reference_bounds = part_bbox(reference_vertices) if reference_vertices else None
+    reference_center = part_bbox_center(reference_bounds) if reference_bounds is not None else (0.0, 0.0, 0.0)
+    reference_diag = max(part_bbox_diagonal(reference_bounds), 1e-8) if reference_bounds is not None else 1.0
+    scale = 1.0
+    if source_diag > reference_diag * 2.5:
+        scale = max(0.001, min(100.0, (reference_diag * 1.15) / source_diag))
+    elif source_diag < reference_diag * 0.02:
+        scale = max(0.001, min(100.0, (reference_diag * 0.12) / source_diag))
+    target_center = list(reference_center)
+    if reference_bounds is None:
+        target_center = [0.0, 0.0, 0.0]
+    target_center[axis] = float(ground_plane) - ((float(source_min[axis]) - float(source_center[axis])) * scale)
+    target_center_tuple = (target_center[0], target_center[1], target_center[2])
+    translation = tuple(target_center_tuple[index] - float(source_center[index]) for index in range(3))
+    horizontal_axes = tuple(index for index in range(3) if index != axis)
+    needs_recenter = any(
+        abs(float(target_center_tuple[index]) - float(source_center[index])) > max(reference_diag * 0.02, 1e-5)
+        for index in horizontal_axes
+    )
+    original_bottom = float(source_min[axis])
+    needs_bottom_align = abs(original_bottom - float(ground_plane)) > 1e-5
+    if not needs_recenter and not needs_bottom_align and abs(scale - 1.0) <= 1e-8:
+        return None
+    notes: list[str] = []
+    if needs_recenter:
+        notes.append("centered in the current asset work area")
+    if needs_bottom_align:
+        notes.append("bottom-aligned to the preview grid")
+    if abs(scale - 1.0) > 1e-8:
+        notes.append(f"scaled {scale:.4g}x for preview control")
+    return WorkAreaPlacementFit(
+        source_center=source_center,
+        target_center=target_center_tuple,
+        scale=scale,
+        notes=tuple(notes),
+        translation=translation,
+        up_axis=axis,
+        ground_plane=float(ground_plane),
+    )
+
+
 def appended_part_work_area_fit(
     source_vertices: Sequence[Vector3],
     reference_vertices: Sequence[Vector3],
 ) -> AppendedPartWorkAreaFit | None:
     if not source_vertices or not reference_vertices:
         return None
-    source_bounds = part_bbox(source_vertices)
-    reference_bounds = part_bbox(reference_vertices)
-    source_center = part_bbox_center(source_bounds)
-    reference_center = part_bbox_center(reference_bounds)
-    source_diag = max(part_bbox_diagonal(source_bounds), 1e-8)
-    reference_diag = max(part_bbox_diagonal(reference_bounds), 1e-8)
-    needs_recenter = math.dist(source_center, reference_center) > max(reference_diag * 0.02, 1e-5)
-    scale = 1.0
-    if source_diag > reference_diag * 2.5:
-        scale = max(0.001, min(100.0, (reference_diag * 1.15) / source_diag))
-    elif source_diag < reference_diag * 0.02:
-        scale = max(0.001, min(100.0, (reference_diag * 0.12) / source_diag))
-    if not needs_recenter and abs(scale - 1.0) <= 1e-8:
-        return None
-    notes: list[str] = []
-    if needs_recenter:
-        notes.append("centered in the current asset work area")
-    if abs(scale - 1.0) > 1e-8:
-        notes.append(f"scaled {scale:.4g}x for preview control")
-    return AppendedPartWorkAreaFit(
-        source_center=source_center,
-        target_center=reference_center,
-        scale=scale,
-        notes=tuple(notes),
+    return external_import_work_area_fit(
+        source_vertices,
+        reference_vertices,
+        up_axis=1,
+        ground_plane=0.0,
     )
 
 
@@ -430,6 +472,7 @@ def _copy_source_part_with_adjustment_native(submesh: object, adjustment: object
 
 __all__ = [
     "AppendedPartWorkAreaFit",
+    "WorkAreaPlacementFit",
     "Bounds3",
     "GlobalTransformValues",
     "PartTransformValues",
@@ -438,6 +481,7 @@ __all__ = [
     "appended_part_work_area_fit",
     "center_offset_for_bounds",
     "copy_source_part_with_adjustment",
+    "external_import_work_area_fit",
     "fit_uniform_scale_for_bounds",
     "global_fast_preview_transform_delta",
     "global_transform_values",

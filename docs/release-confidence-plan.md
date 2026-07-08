@@ -54,8 +54,9 @@ one is required.
   Editor action-bar tests passed: 353 passed.
 - Alignment dialog and Mesh Edit responsiveness source guards passed: 149
   passed.
-- Release dirty-tree preflight passed after classifying the new preview-frame
-  source and prefab JSON feature doc as required source/docs.
+- Release dirty-tree preflight passes with untracked test files classified as
+  non-runtime source/docs; generated output and untracked runtime source still
+  block release packaging.
 - `build.bat onedir release` produced
   `dist/CrimsonDesertModWorkbench-0.10.0-alpha.2-windows/CrimsonDesertModWorkbench.exe`
   14,414,778 bytes, SHA256

@@ -516,6 +516,7 @@ def test_release_preflight_blocks_generated_and_unclassified_source() -> None:
         [
             "?? tools/dotnet_mesh_editor_experiment/bin/Release/app.dll",
             "?? cdmw/new_feature.py",
+            "?? tests/test_new_feature.py",
             " M cdmw/services/mesh_service.py",
             "?? notes.tmp",
         ]
@@ -523,7 +524,10 @@ def test_release_preflight_blocks_generated_and_unclassified_source() -> None:
 
     assert inventory["generated_output"] == ["tools/dotnet_mesh_editor_experiment/bin/Release/app.dll"]
     assert inventory["unclassified_untracked_source"] == ["cdmw/new_feature.py"]
-    assert inventory["required_source_or_docs"] == ["cdmw/services/mesh_service.py"]
+    assert inventory["required_source_or_docs"] == [
+        "cdmw/services/mesh_service.py",
+        "tests/test_new_feature.py",
+    ]
     assert release_blockers(inventory) == ["generated_output_present", "unclassified_untracked_source_present"]
 
 

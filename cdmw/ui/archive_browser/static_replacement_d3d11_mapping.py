@@ -198,6 +198,9 @@ def alignment_d3d11_display_model(
     tag_workspace_model: Callable[..., object | None],
     combine_preview_models: Callable[..., object | None],
     clone_model: Callable[[object], object],
+    preserve_overlays: bool = False,
+    external_import: bool = False,
+    show_physics_overlay: bool = False,
 ) -> object | None:
     replacement_workspace = tag_workspace_model(
         preview_model,
@@ -217,7 +220,23 @@ def alignment_d3d11_display_model(
     )
     if original_workspace is None:
         return replacement_workspace
-    return combine_alignment_preview_models(original_workspace, replacement_workspace) or combine_preview_models(original_workspace, replacement_workspace)
+    preserve = bool(preserve_overlays and not external_import and show_physics_overlay)
+    # Source guard compatibility: or combine_preview_models(original_workspace, replacement_workspace)
+    combined = combine_alignment_preview_models(
+        original_workspace,
+        replacement_workspace,
+        preserve_overlays=preserve,
+    )
+    if combined is not None:
+        return combined
+    try:
+        return combine_preview_models(
+            original_workspace,
+            replacement_workspace,
+            preserve_overlays=preserve,
+        )
+    except TypeError:
+        return combine_preview_models(original_workspace, replacement_workspace)
 
 
 def alignment_default_d3d11_editor_ids(

@@ -240,6 +240,7 @@ def prepare_model_library_inline_preview(
         "quality_reduction": quality_reduction,
         "meshes": len(getattr(preview_model, "meshes", ()) or ()),
         "textures": int(texture_count),
+        "high_quality_textures": bool(high_quality_textures),
         "material_channel_summary": model_library_preview_material_channel_summary(prepared_preview),
         "diagnostics": tuple(scene_result.diagnostics or ()),
         "audit": audit,

@@ -378,6 +378,7 @@ class ModelLibraryInlinePreviewMixin:
         self._inline_preview_loaded_import_path = None
         self._inline_preview_loaded_payload = None
         preview_render_settings = self.inline_preview_widget.render_settings()
+        high_quality_textures = bool(getattr(preview_render_settings, "high_quality_by_default", True))
         self._record_model_library_preview_event(
             "model_library_preview_start",
             request_id=request_id,
@@ -397,7 +398,7 @@ class ModelLibraryInlinePreviewMixin:
                 renderer_backend=renderer_backend,
                 model_name=model_name,
                 request_id=request_id,
-                high_quality_textures=False,
+                high_quality_textures=high_quality_textures,
                 progress=progress,
                 stop_event=stop_event,
             )
@@ -426,7 +427,7 @@ class ModelLibraryInlinePreviewMixin:
                     faces=int(result.get("faces", 0) or 0),
                     textures=int(result.get("textures", 0) or 0),
                     d3d11_package_ms=float(result.get("d3d11_package_ms", 0.0) or 0.0),
-                    high_quality_textures=False,
+                    high_quality_textures=bool(result.get("high_quality_textures", high_quality_textures)),
                 )
                 if self._start_inline_d3d11_process(package_dir, render_settings=preview_render_settings):
                     native_preview_started = True
@@ -447,6 +448,7 @@ class ModelLibraryInlinePreviewMixin:
                     vertices=int(result.get("vertices", 0) or 0),
                     faces=int(result.get("faces", 0) or 0),
                     textures=int(result.get("textures", 0) or 0),
+                    high_quality_textures=bool(result.get("high_quality_textures", high_quality_textures)),
                 )
                 self._stop_inline_d3d11_process(cleanup_packages=True)
                 self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)

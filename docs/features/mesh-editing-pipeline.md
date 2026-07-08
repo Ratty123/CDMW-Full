@@ -285,6 +285,21 @@ Status: first safety slice, 2026-07-06.
   no-op save.
   `build_pyside6_app.ps1` publishes it into
   `native/cdmw_mesh_dotnet_editor/build/<Config>` so PyInstaller can bundle it.
+- Embedded .NET launch diagnostics are persisted through Mesh Editor runtime
+  events and the handoff package. Failed launches record executable resolution,
+  package paths, parent HWND, process state, QProcess error details, exit
+  status, stdout/stderr tails, status JSON summary, and
+  `dotnet_launch_diagnostics.json` before native/classic fallback starts.
+- External static replacement/import previews clear inherited reference
+  skeleton and physics overlay metadata by default. Overlays are preserved only
+  through explicit diagnostic/overlay paths.
+- Initial external imports and appended parts share the same work-area fit
+  helper. External imports are centered against the reference/work area and
+  bottom-aligned to the Y-up D3D11 preview grid, while Modify Original clones
+  keep their existing coordinates.
+- Model Library D3D11 preview derives high-quality texture packaging from the
+  active render setting and logs the actual value instead of forcing low-quality
+  packages.
 
 ## Current Test Coverage
 

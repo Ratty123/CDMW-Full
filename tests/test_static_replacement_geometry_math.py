@@ -8,6 +8,7 @@ from cdmw.ui.archive_browser.static_replacement_geometry_math import (
     appended_part_work_area_fit,
     center_offset_for_bounds,
     copy_source_part_with_adjustment,
+    external_import_work_area_fit,
     fit_uniform_scale_for_bounds,
     global_fast_preview_transform_delta,
     global_transform_values,
@@ -147,6 +148,49 @@ def test_reference_vertices_for_appended_part_prefers_target_original_then_all()
         (2.0, 2.0, 2.0),
     ]
     assert reference_vertices_for_appended_part(None, target_index=0, original_index=0) == []
+
+
+def test_external_import_work_area_fit_bottom_aligns_mesh_below_grid() -> None:
+    fit = external_import_work_area_fit(
+        ((1.0, -5.0, 1.0), (3.0, -2.0, 3.0)),
+        ((0.0, 0.0, 0.0), (4.0, 4.0, 4.0)),
+        up_axis=1,
+        ground_plane=0.0,
+    )
+
+    assert fit is not None
+    transformed = transformed_vertices_for_work_area(((1.0, -5.0, 1.0), (3.0, -2.0, 3.0)), fit)
+    assert min(vertex[1] for vertex in transformed) == 0.0
+    assert "bottom-aligned to the preview grid" in fit.notes
+
+
+def test_external_import_work_area_fit_bottom_aligns_mesh_above_grid() -> None:
+    fit = external_import_work_area_fit(
+        ((1.0, 5.0, 1.0), (3.0, 8.0, 3.0)),
+        ((0.0, 0.0, 0.0), (4.0, 4.0, 4.0)),
+        up_axis=1,
+        ground_plane=0.0,
+    )
+
+    assert fit is not None
+    transformed = transformed_vertices_for_work_area(((1.0, 5.0, 1.0), (3.0, 8.0, 3.0)), fit)
+    assert min(vertex[1] for vertex in transformed) == 0.0
+
+
+def test_external_import_work_area_fit_scales_extreme_tiny_and_huge_meshes() -> None:
+    tiny = external_import_work_area_fit(
+        ((0.0, 0.0, 0.0), (0.001, 0.001, 0.001)),
+        ((0.0, 0.0, 0.0), (10.0, 10.0, 10.0)),
+        up_axis=1,
+    )
+    huge = external_import_work_area_fit(
+        ((0.0, 0.0, 0.0), (1000.0, 1000.0, 1000.0)),
+        ((0.0, 0.0, 0.0), (10.0, 10.0, 10.0)),
+        up_axis=1,
+    )
+
+    assert tiny is not None and tiny.scale > 1.0
+    assert huge is not None and huge.scale < 1.0
 
 
 def test_appended_part_work_area_fit_recenters_and_scales_outlier_sources() -> None:

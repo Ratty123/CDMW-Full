@@ -9,6 +9,7 @@ from cdmw.ui.archive_browser.static_replacement_preview_models import (
     apply_source_selection_overlay_model_state,
     apply_source_selection_overlay_mesh_state,
     clear_preview_mesh_textures,
+    clear_preview_model_overlays,
     clone_preview_model,
     combine_alignment_preview_models,
     combine_optional_preview_models,
@@ -125,6 +126,51 @@ def test_combine_preview_models_clones_meshes_and_updates_counts() -> None:
     assert combined.meshes[0] is not first.meshes[0]
     assert combined.meshes[1] is not second.meshes[0]
     assert combine_preview_models(object()) is None
+
+
+def test_combine_preview_models_clears_physics_and_skeleton_overlays_by_default() -> None:
+    original = ModelPreviewData(
+        physics_overlay=object(),
+        cloth_preview=object(),
+        meshes=[ModelPreviewMesh(positions=[(0.0, 0.0, 0.0)], indices=[0, 0, 0])],
+    )
+    replacement = ModelPreviewData(
+        meshes=[ModelPreviewMesh(positions=[(1.0, 0.0, 0.0)], indices=[0, 0, 0])]
+    )
+
+    combined = combine_alignment_preview_models(original, replacement)
+
+    assert isinstance(combined, ModelPreviewData)
+    assert combined.physics_overlay is None
+    assert combined.cloth_preview is None
+
+
+def test_combine_alignment_preview_models_can_preserve_explicit_overlays() -> None:
+    overlay = object()
+    original = ModelPreviewData(
+        physics_overlay=overlay,
+        meshes=[ModelPreviewMesh(positions=[(0.0, 0.0, 0.0)], indices=[0, 0, 0])],
+    )
+    replacement = ModelPreviewData(
+        meshes=[ModelPreviewMesh(positions=[(1.0, 0.0, 0.0)], indices=[0, 0, 0])]
+    )
+
+    combined = combine_alignment_preview_models(original, replacement, preserve_overlays=True)
+
+    assert isinstance(combined, ModelPreviewData)
+    assert combined.physics_overlay is overlay
+
+
+def test_clear_preview_model_overlays_does_not_mutate_source_model() -> None:
+    overlay = object()
+    model = ModelPreviewData(physics_overlay=overlay, cloth_preview=object())
+
+    cleared = clear_preview_model_overlays(model)
+
+    assert isinstance(cleared, ModelPreviewData)
+    assert cleared.physics_overlay is None
+    assert cleared.cloth_preview is None
+    assert model.physics_overlay is overlay
 
 
 def test_combine_alignment_preview_models_uses_original_frame_authority() -> None:

@@ -5327,6 +5327,39 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         _refresh_mesh_edit_controls()
         _apply_alignment_dialog_responsive_layout()
 
+    def _start_mesh_edit_fallback(reason: str) -> None:
+        if dialog is not None:
+            setattr(dialog, "_mesh_editor_embedded_dotnet_active", False)
+        _record_mesh_edit_event(
+            "mesh_edit_dotnet_fallback",
+            reason=str(reason or "mesh_edit_dotnet_fallback"),
+            dotnet_state=str(getattr(dialog, "_mesh_editor_embedded_dotnet_state", "") or ""),
+        )
+        _mesh_edit_apply_preview_mode_transition(str(reason or "mesh_edit_dotnet_fallback"))
+        _refresh_mesh_edit_controls()
+
+    def _mesh_editor_embedded_dotnet_ready() -> None:
+        if dialog is not None:
+            setattr(dialog, "_mesh_editor_embedded_dotnet_state", "ready")
+            setattr(dialog, "_mesh_editor_embedded_dotnet_active", True)
+        _record_mesh_edit_event("mesh_dotnet_process_ready", reason="embedded_callback")
+        _refresh_mesh_edit_controls()
+
+    def _mesh_editor_embedded_dotnet_failed(reason: str = "", diagnostics: str = "") -> None:
+        if dialog is not None:
+            setattr(dialog, "_mesh_editor_embedded_dotnet_state", "failed")
+            setattr(dialog, "_mesh_editor_embedded_dotnet_active", False)
+        summary = str(diagnostics or "").strip()
+        if summary:
+            self.set_status_message(f"Mesh .NET launch failed, using native/classic fallback: {summary}", error=True)
+        else:
+            self.set_status_message("Mesh .NET launch failed, using native/classic fallback.", error=True)
+        _start_mesh_edit_fallback("mesh_edit_dotnet_fallback")
+
+    if dialog is not None:
+        setattr(dialog, "_mesh_editor_embedded_dotnet_ready", _mesh_editor_embedded_dotnet_ready)
+        setattr(dialog, "_mesh_editor_embedded_dotnet_failed", _mesh_editor_embedded_dotnet_failed)
+
     def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:
         edit_enabled = bool(mesh_edit_enabled_checkbox.isChecked())
         dotnet_active = bool(getattr(dialog, "_mesh_editor_embedded_dotnet_active", False))
@@ -5339,16 +5372,24 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             if not _mesh_editor_finalize_edit_mode_exit("mesh_edit_toggle", mesh_changed=True):
                 return
             return
-        _refresh_mesh_edit_controls()
-        _mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")
         start_dotnet = getattr(dialog, "_mesh_editor_embedded_start_dotnet", None)
-        if bool(getattr(dialog, "_mesh_editor_use_embedded_dotnet_viewport", False)) and callable(start_dotnet):
+        dotnet_enabled = bool(getattr(dialog, "_mesh_editor_use_embedded_dotnet_viewport", False))
+        dotnet_available = bool(getattr(dialog, "_mesh_editor_dotnet_available", False))
+        if dotnet_enabled and dotnet_available and callable(start_dotnet):
+            setattr(dialog, "_mesh_editor_embedded_dotnet_state", "launching")
+            setattr(dialog, "_mesh_editor_embedded_dotnet_active", False)
+            self.set_status_message("Launching embedded Mesh .NET editor...", error=False)
+            _refresh_mesh_edit_controls()
             start_dotnet()
-        elif not bool(getattr(dialog, "_mesh_editor_dotnet_available", False)):
+            return
+        if not dotnet_available:
             self.set_status_message(
                 "Mesh .NET editor helper unavailable; using native/classic Mesh Editor controls.",
                 error=True,
             )
+            _start_mesh_edit_fallback("mesh_edit_dotnet_unavailable")
+            return
+        _start_mesh_edit_fallback("mesh_edit_dotnet_disabled")
 
     mesh_edit_enabled_checkbox.toggled.connect(_mesh_edit_enabled_toggled)
     for widget in (
@@ -5402,6 +5443,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         _mesh_editor_action_bar_action_requested=_mesh_editor_action_bar_action_requested,
         _mesh_editor_embedded_apply_native_update=_mesh_editor_embedded_apply_native_update,
         _mesh_editor_embedded_controller=_mesh_editor_embedded_controller,
+        _mesh_editor_embedded_dotnet_failed=_mesh_editor_embedded_dotnet_failed,
+        _mesh_editor_embedded_dotnet_ready=_mesh_editor_embedded_dotnet_ready,
         _mesh_editor_embedded_finalize_dotnet_import=_mesh_editor_embedded_finalize_dotnet_import,
         _mesh_editor_embedded_replace_working_mesh=_mesh_editor_embedded_replace_working_mesh,
         _mesh_editor_embedded_run_part_action=_mesh_editor_embedded_run_part_action,

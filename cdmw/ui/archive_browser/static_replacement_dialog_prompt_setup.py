@@ -8,6 +8,11 @@ from types import SimpleNamespace
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
     install_static_replacement_prompt_dependencies,
 )
+from cdmw.ui.archive_browser.static_replacement_geometry_math import (
+    external_import_work_area_fit,
+    part_bbox,
+    transformed_vertices_for_work_area,
+)
 from cdmw.ui.archive_browser.static_replacement_sparse_history import (
     clone_mesh_for_static_replacement_native_first,
 )
@@ -45,6 +50,23 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
     _set_replacement_preview_model = context['_set_replacement_preview_model']
     _set_texture_sets = context['_set_texture_sets']
     texture_uv_global_transform_state = context.get('texture_uv_global_transform_state')
+
+    def _mesh_vertices(mesh: object) -> list[tuple[float, float, float]]:
+        return [
+            vertex
+            for submesh in tuple(getattr(mesh, "submeshes", ()) or ())
+            for vertex in tuple(getattr(submesh, "vertices", ()) or ())
+        ]
+
+    def _apply_work_area_fit(mesh: object, fit: object) -> None:
+        for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+            vertices = tuple(getattr(submesh, "vertices", ()) or ())
+            if not vertices:
+                continue
+            submesh.vertices = transformed_vertices_for_work_area(vertices, fit)
+            submesh.vertex_count = len(submesh.vertices)
+            submesh.face_count = len(getattr(submesh, "faces", ()) or ())
+        refresh_parsed_mesh_totals(mesh)
 
     alignment_setup_failed = False
     alignment_setup_error = ""
@@ -129,6 +151,35 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         )
         if replacement_mesh_for_mapping is None:
             raise RuntimeError("Native replacement setup working clone failed.")
+        is_external_scene_import = isinstance(scene_import_result, SceneImportResult) and not bool(modify_original_clone_mode)
+        source_vertices = _mesh_vertices(replacement_mesh_base_for_mapping)
+        reference_vertices = _mesh_vertices(original_mesh_for_mapping)
+        placement_fit = (
+            external_import_work_area_fit(
+                source_vertices,
+                reference_vertices,
+                up_axis=1,
+                ground_plane=0.0,
+            )
+            if is_external_scene_import
+            else None
+        )
+        if placement_fit is not None:
+            _apply_work_area_fit(replacement_mesh_base_for_mapping, placement_fit)
+            _apply_work_area_fit(replacement_mesh_for_mapping, placement_fit)
+        _record_runtime_event(
+            "mesh_external_import_work_area_fit",
+            source_bounds=part_bbox(source_vertices) if source_vertices else (),
+            reference_bounds=part_bbox(reference_vertices) if reference_vertices else (),
+            translation=getattr(placement_fit, "translation", ()),
+            scale=float(getattr(placement_fit, "scale", 1.0) or 1.0),
+            up_axis=int(getattr(placement_fit, "up_axis", 1) or 1),
+            ground_plane=float(getattr(placement_fit, "ground_plane", 0.0) or 0.0),
+            notes=tuple(getattr(placement_fit, "notes", ()) or ()),
+            applied=placement_fit is not None,
+            modify_original_clone=modify_original_clone_mode,
+            source_path=str(getattr(replacement_mesh_base_for_mapping, "path", "") or obj_path),
+        )
         _alignment_startup_step(alignment_startup_text["preview_meshes"])
         original_reference_preview_model = parsed_mesh_to_preview_model(original_mesh_for_mapping)
         replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)

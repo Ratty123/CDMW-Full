@@ -53,7 +53,13 @@ def clear_preview_mesh_textures(mesh: object) -> None:
             setattr(mesh, attribute_name, "")
 
 
-def combine_preview_models(*models: object) -> object | None:
+def clear_preview_model_overlays(model: object) -> object:
+    if not isinstance(model, ModelPreviewData):
+        return model
+    return dataclasses.replace(model, physics_overlay=None, cloth_preview=None)
+
+
+def combine_preview_models(*models: object, preserve_overlays: bool = False) -> object | None:
     valid_models = [model for model in models if isinstance(model, ModelPreviewData)]
     if not valid_models:
         return None
@@ -63,7 +69,7 @@ def combine_preview_models(*models: object) -> object | None:
         meshes.extend([dataclasses.replace(mesh) for mesh in getattr(model, "meshes", ()) or ()])
     vertex_count = sum(_preview_mesh_vertex_count(mesh) for mesh in meshes)
     face_count = sum(_preview_mesh_face_count(mesh) for mesh in meshes)
-    return dataclasses.replace(
+    combined = dataclasses.replace(
         base,
         summary="Overlay alignment preview",
         mesh_count=len(meshes),
@@ -71,6 +77,7 @@ def combine_preview_models(*models: object) -> object | None:
         face_count=face_count,
         meshes=meshes,
     )
+    return combined if preserve_overlays else clear_preview_model_overlays(combined)
 
 
 def combine_alignment_preview_models(
@@ -78,13 +85,14 @@ def combine_alignment_preview_models(
     replacement_model: object,
     *,
     frame_authority: str = "original",
+    preserve_overlays: bool = False,
 ) -> object | None:
     if not isinstance(original_model, ModelPreviewData) and not isinstance(replacement_model, ModelPreviewData):
         return None
     if not isinstance(original_model, ModelPreviewData):
-        return combine_preview_models(replacement_model)
+        return combine_preview_models(replacement_model, preserve_overlays=preserve_overlays)
     if not isinstance(replacement_model, ModelPreviewData):
-        return combine_preview_models(original_model)
+        return combine_preview_models(original_model, preserve_overlays=preserve_overlays)
     meshes = [
         dataclasses.replace(mesh)
         for model in (original_model, replacement_model)
@@ -105,6 +113,7 @@ def combine_alignment_preview_models(
         face_count=face_count,
         meshes=meshes,
     )
+    combined = combined if preserve_overlays else clear_preview_model_overlays(combined)
     return apply_alignment_preview_frame(combined, frame)
 
 
@@ -501,6 +510,7 @@ __all__ = [
     "apply_source_selection_overlay_model_state",
     "apply_source_selection_overlay_mesh_state",
     "clear_preview_mesh_textures",
+    "clear_preview_model_overlays",
     "clone_preview_model",
     "combine_alignment_preview_models",
     "combine_optional_preview_models",
