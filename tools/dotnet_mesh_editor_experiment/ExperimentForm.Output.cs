@@ -1,0 +1,138 @@
+using System.Diagnostics;
+using System.IO;
+using System.Text.Json;
+
+namespace Cdmw.MeshEditorExperiment;
+
+internal sealed partial class ExperimentForm
+{
+    private static void WriteProtocolEvent(string eventName, Dictionary<string, object?>? payload = null)
+    {
+        var message = payload is null
+            ? new Dictionary<string, object?>()
+            : new Dictionary<string, object?>(payload);
+        message["event"] = eventName;
+        Console.Out.WriteLine(JsonSerializer.Serialize(message));
+        Console.Out.Flush();
+    }
+
+    private void SaveAndReport()
+    {
+        SaveOutput(_options, _document, _editedSubmeshes, _viewport.Metrics);
+        _saved = true;
+        _statusLabel.Text = $"Saved edited package: {_options.OutputDir}";
+    }
+
+    public static void SaveOutput(
+        LaunchOptions options,
+        ObjDocument document,
+        IEnumerable<int> editedSubmeshIndices,
+        RenderMetrics metrics)
+    {
+        Directory.CreateDirectory(options.OutputDir);
+        var outputObj = Path.Combine(options.OutputDir, "mesh.obj");
+        document.Save(outputObj, options.MeshPath);
+        var outputSidecar = outputObj + ".meta.json";
+        if (File.Exists(options.MetadataPath))
+        {
+            File.Copy(options.MetadataPath, outputSidecar, overwrite: true);
+        }
+        WriteEditOperations(options, document, editedSubmeshIndices);
+        WriteStatus(
+            options,
+            "saved",
+            "Mesh .NET editor experiment saved edited package.",
+            metrics,
+            outputObj);
+    }
+
+    public static void WriteStatus(
+        LaunchOptions options,
+        string eventName,
+        string message,
+        RenderMetrics? metrics,
+        string? editedMeshPath = null,
+        Dictionary<string, object?>? rendererStatus = null)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            ["event"] = eventName,
+            ["message"] = message,
+            ["edited_package"] = options.OutputDir,
+            ["edited_mesh"] = editedMeshPath ?? Path.Combine(options.OutputDir, "mesh.obj"),
+            ["edit_operations"] = options.EditOperationsPath,
+            ["authority_contract"] = "dotnet_viewport_python_cpp_validation",
+            ["parser_authority"] = "cdmw_python_cpp",
+            ["rebuild_authority"] = "cdmw_python_cpp",
+            ["archive_write_authority"] = "cdmw_python_cpp",
+            ["renderer"] = rendererStatus ?? new Dictionary<string, object?>
+            {
+                ["backend"] = "not_reported",
+            },
+            ["metrics"] = new Dictionary<string, object?>
+            {
+                ["average_fps"] = metrics?.AverageFps,
+                ["frame_time_ms"] = metrics?.AverageFrameMs,
+                ["present_time_ms"] = metrics?.AveragePresentMs,
+                ["dirty_to_present_ms"] = metrics?.AverageDirtyToPresentMs,
+                ["dropped_frames"] = metrics?.DroppedFrames,
+                ["responsiveness_ms"] = metrics?.AverageResponsivenessMs,
+                ["memory_mb"] = Process.GetCurrentProcess().WorkingSet64 / (1024.0 * 1024.0),
+                ["packaging_complexity"] = "external .NET WinForms process; parser/rebuilder stay in Python/C++",
+                ["maintenance_complexity"] = "UI-only prototype bridge",
+                ["crash_behavior"] = eventName == "error" ? "error" : "no crash reported"
+            }
+        };
+        File.WriteAllText(
+            options.StatusPath,
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }),
+            Utf8NoBom);
+    }
+
+    public static int[] ApplyHeadlessSmokeEdit(ObjDocument document)
+    {
+        if (document.Submeshes.Count == 0 || document.Submeshes[0].Vertices.Count == 0)
+        {
+            return Array.Empty<int>();
+        }
+        var submesh = document.Submeshes[0];
+        for (var i = 0; i < submesh.Vertices.Count; i++)
+        {
+            var vertex = submesh.Vertices[i];
+            submesh.Vertices[i] = vertex with { X = vertex.X + 0.001f };
+        }
+        return new[] { 0 };
+    }
+
+    private static void WriteEditOperations(
+        LaunchOptions options,
+        ObjDocument document,
+        IEnumerable<int> editedSubmeshIndices)
+    {
+        var operations = editedSubmeshIndices
+            .Where(index => index >= 0 && index < document.Submeshes.Count)
+            .OrderBy(index => index)
+            .Select(index => new Dictionary<string, object?>
+            {
+                ["operation"] = "replace_positions_same_count",
+                ["lod_index"] = 0,
+                ["submesh_index"] = index,
+                ["vertex_count"] = document.Submeshes[index].Vertices.Count,
+                ["source"] = "mesh.obj",
+                ["created_by"] = "CDMW .NET Mesh Editor Experiment",
+                ["metadata"] = new Dictionary<string, object?>
+                {
+                    ["authority_contract"] = "dotnet_viewport_python_cpp_validation",
+                    ["viewport_authority"] = "dotnet_local_interaction_state",
+                    ["validation_authority"] = "cdmw_python_cpp",
+                    ["native_authoritative_operation_required"] = true
+                }
+            })
+            .ToArray();
+        var payload = new Dictionary<string, object?> { ["operations"] = operations };
+        File.WriteAllText(
+            options.EditOperationsPath,
+            JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }),
+            Utf8NoBom);
+    }
+}

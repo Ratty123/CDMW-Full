@@ -876,7 +876,7 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
         dds_info = None
         try:
             dds_info = parse_dds(dds_path)
-        except Exception:
+        except (OSError, ValueError):
             dds_info = None
         preview_path = ensure_dds_display_preview_png(
             resolved_texconv_path,
@@ -928,7 +928,7 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
             if submesh_name and not current_material_name:
                 mesh.material_name = submesh_name
             assigned_count += 1
-        except Exception:
+        except (OSError, RuntimeError, ValueError):
             continue
 
     if not global_visible_bindings and unresolved_meshes and fallback_visible_bindings:
@@ -972,7 +972,7 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
                     if submesh_name and not current_material_name:
                         mesh.material_name = submesh_name
                     assigned_count += 1
-                except Exception:
+                except (OSError, RuntimeError, ValueError):
                     continue
         else:
             binding_index = 0
@@ -991,7 +991,7 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
                     if submesh_name and not current_material_name:
                         mesh.material_name = submesh_name
                     assigned_count += 1
-                except Exception:
+                except (OSError, RuntimeError, ValueError):
                     continue
 
     if assigned_count <= 0:
@@ -1112,7 +1112,7 @@ def _apply_mesh_import_local_support_texture_overrides(
         dds_info = None
         try:
             dds_info = parse_dds(dds_path)
-        except Exception:
+        except (OSError, ValueError):
             dds_info = None
         preview_path = ensure_dds_display_preview_png(
             resolved_texconv_path,
@@ -1131,7 +1131,7 @@ def _apply_mesh_import_local_support_texture_overrides(
     ) -> bool:
         try:
             preview_path = _preview_path_for_dds(override_path)
-        except Exception:
+        except (OSError, RuntimeError, ValueError):
             return False
         if slot_name == "normal":
             mesh.preview_normal_texture_path = preview_path
@@ -1262,7 +1262,7 @@ def _apply_mesh_import_local_texture_overrides(
             dds_info = None
             try:
                 dds_info = parse_dds(override_path)
-            except Exception:
+            except (OSError, ValueError):
                 dds_info = None
             preview_path = ensure_dds_display_preview_png(
                 resolved_texconv_path,
@@ -1916,7 +1916,7 @@ def _build_selected_sidecar_texture_bindings(
             continue
         try:
             text = read_sidecar_text(resolved_path)
-        except Exception:
+        except OSError:
             continue
         parsed_bindings = parse_texture_sidecar_bindings(text, sidecar_path=resolved_path.name)
         if not parsed_bindings:
@@ -1931,7 +1931,8 @@ def _build_selected_sidecar_texture_bindings(
                 classification = classify_texture_binding(binding.parameter_name, binding.texture_path)
                 texture_role = classification.slot_label or classification.slot_kind
                 visualization_state = classification.visual_state
-            except Exception:
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+                # Best effort: sidecar binding text remains useful without role classification.
                 pass
             normalized_texture_path = normalize_texture_reference_for_sidecar_lookup(binding.texture_path)
             key = (
@@ -2088,7 +2089,7 @@ def _collect_original_mesh_sidecar_texts(
     for sidecar_entry in _find_archive_model_sidecar_entries(entry, dict(archive_entries_by_basename)):
         try:
             sidecar_data, _decompressed, _note = read_archive_entry_data(sidecar_entry)
-        except Exception:
+        except (OSError, RuntimeError, ValueError):
             continue
         sidecar_text = try_decode_text_like_archive_data(sidecar_data)
         if sidecar_text:
@@ -2416,11 +2417,11 @@ def _summarize_crimson_companion_supplemental_files(supplemental_files: Sequence
             decode_prefab,
             parse_pami_material_instances,
         )
-    except Exception:
+    except ImportError:
         return ()
     try:
         from cdmw.rendering.material_channels import parse_crimson_material_definition_text
-    except Exception:
+    except ImportError:
         parse_crimson_material_definition_text = None  # type: ignore[assignment]
 
     lines: List[str] = ["Crimson companion metadata:"]
@@ -2461,6 +2462,7 @@ def _summarize_crimson_companion_supplemental_files(supplemental_files: Sequence
                     f"  {path.name}: material technique={definition.technique or '-'}, params={len(definition.parameters)}, groups={len(definition.parameter_groups)}; policy={policy}"
                 )
             except Exception as exc:
+                # User-visible metadata path: report parser failures in the preview summary.
                 lines.append(f"  {path.name}: material definition parse failed ({exc}); policy={policy}")
         else:
             lines.append(f"  {path.name}: policy={policy}")
@@ -2561,7 +2563,7 @@ def _apply_generated_static_texture_previews(
         dds_info = None
         try:
             dds_info = parse_dds(dds_path)
-        except Exception:
+        except (OSError, ValueError):
             dds_info = None
         preview_path = ensure_dds_display_preview_png(resolved_texconv_path, dds_path, dds_info=dds_info)
         preview_cache[cache_key] = preview_path
@@ -2622,7 +2624,7 @@ def _apply_generated_static_texture_previews(
             source_material_by_target.setdefault(target_material_name.strip().lower(), source_material_name)
         try:
             preview_path = _preview_path_for_payload(payload)
-        except Exception:
+        except (OSError, RuntimeError, ValueError):
             continue
         slot_kind = str(getattr(mapping, "slot_kind", "") or "").strip().lower()
         if slot_kind == "base" and target_material_name:
@@ -2667,7 +2669,7 @@ def _apply_generated_static_texture_previews(
             continue
         try:
             preview_path = _preview_path_for_payload(payload)
-        except Exception:
+        except (OSError, RuntimeError, ValueError):
             continue
         slot_kind = str(getattr(mapping, "slot_kind", "") or "").strip().lower()
         source_name = getattr(getattr(mapping, "source_path", None), "name", "") or PurePosixPath(payload.target_path).name
@@ -3291,6 +3293,7 @@ def build_mesh_import_preview(
                     pac_xml_profile_cache_path=str(getattr(static_replacement_options, "pac_xml_profile_cache_path", "") or ""),
                 )
             except Exception as exc:
+                # User-visible: texture replacement is optional for mesh import preview and is summarized below.
                 generated_payloads = []
                 texture_replacement_report = None
                 summary_lines.append(f"Static texture replacement failed: {exc}")
@@ -3425,6 +3428,7 @@ def build_mesh_import_preview(
                 if paired_baseline.message:
                     summary_lines.append(f"Paired LOD donor: {paired_baseline.message}")
             except Exception as exc:
+                # User-visible: paired LOD rebuild is optional and failure is preserved in summary text.
                 summary_lines.append(f"Paired PAMLOD rebuild could not be prepared: {exc}")
 
     import_diffs, import_issues, auto_fix_result, validation_summary_lines = _build_mesh_import_validation(

@@ -2346,6 +2346,49 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         self.assertAlmostEqual(0.0, min(vertex[1] for vertex in vertices), places=6)
         self.assertLess(max(vertex[1] for vertex in vertices) - min(vertex[1] for vertex in vertices), 1e-6)
 
+    def test_grid_flat_flattens_diagonal_imported_source_to_preview_grid(self) -> None:
+        original = _mesh(
+            "flat_target.pac",
+            [
+                SubMesh(
+                    name="target blade",
+                    material="target blade",
+                    vertices=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 0.0, 2.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        replacement = _mesh(
+            "diagonal_import.obj",
+            [
+                SubMesh(
+                    name="replacement blade",
+                    material="replacement blade",
+                    vertices=[(0.0, 0.0, 0.0), (10.0, 5.0, 0.0), (0.0, 0.0, 2.0)],
+                    faces=[(0, 1, 2)],
+                )
+            ],
+        )
+        mapping = StaticSubmeshMapping(
+            target_submesh_index=0,
+            target_submesh_name="target blade",
+            source_submesh_indices=[0],
+            target_material_slot_index=0,
+        )
+
+        preview = build_static_replacement_preview_mesh(
+            original,
+            replacement,
+            StaticMeshReplacementOptions(
+                transform=StaticReplacementTransform(alignment_mode="grid_flat", scale_to_original_length=False),
+                submesh_mappings=[mapping],
+            ),
+        )
+
+        vertices = preview.submeshes[0].vertices
+        self.assertAlmostEqual(0.0, min(vertex[1] for vertex in vertices), places=6)
+        self.assertLess(max(vertex[1] for vertex in vertices) - min(vertex[1] for vertex in vertices), 1e-6)
+
     def test_grid_flat_lowers_elevated_replacement_to_preview_grid(self) -> None:
         original = _mesh(
             "flat_target.pac",

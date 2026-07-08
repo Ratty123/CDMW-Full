@@ -162,7 +162,7 @@ def alignment_transform_reset_state(
         state["scale_link"] = True
         state["scale"] = (1.0, 1.0, 1.0)
     elif kind == "placement":
-        state["alignment_mode"] = "manual" if bool(modify_original_clone_mode) else "grid_flat"
+        state["alignment_mode"] = "grid_flat"
         state["scale_to_length"] = not bool(modify_original_clone_mode)
         state["flip_direction"] = False
         state["offset"] = (0.0, 0.0, 0.0)

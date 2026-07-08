@@ -179,8 +179,9 @@ Last updated: 2026-07-08
   output import now fails closed when `edit_operations.json` is missing or empty,
   edge selections include stable descriptors plus `topology_generation`, D3D11
   reports present/dirty-to-present/device-loss metrics, and release packaging
-  runs `scripts/release_preflight.py` to block generated output or unclassified
-  untracked source.
+  runs `scripts/release_preflight.py` to classify untracked project source/docs
+  under known repo roots and block generated output or unclassified untracked
+  source.
   The first embedded .NET slice passes `--embedded --parent-hwnd`, refuses an
   embedded launch if no Qt preview host HWND is available, runs WinForms
   borderless as a child window, resizes it to the host, and lets

@@ -1278,6 +1278,50 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertTrue(report.ok)
         self.assertEqual("replace_positions_same_count", service._sessions[view.session_id].edit_operations[0]["operation"])
 
+    def test_replace_working_mesh_preserves_selection_for_same_topology_import(self) -> None:
+        mesh = _quad_mesh(two_parts=True)
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="replace-preserve-selection", mode="edit")
+        selection = MeshEditSelection.from_maps(
+            vertices_by_submesh={0: {0, 2}},
+            faces_by_submesh={0: {1}},
+            source_indices={1},
+        )
+        service._sessions[view.session_id].selection = selection
+        imported = _quad_mesh(two_parts=True)
+        imported.submeshes[0].vertices[0] = (0.25, 0.0, 0.0)
+
+        updated = service.replace_working_mesh(view.session_id, imported)
+
+        self.assertEqual(selection, updated.selection)
+        self.assertEqual(selection, service.session_view(view.session_id).selection)
+        self.assertFalse(hasattr(service.working_mesh(view.session_id, clone=False), "_cdmw_selection_diagnostics"))
+
+    def test_replace_working_mesh_clears_selection_with_diagnostic_for_topology_change(self) -> None:
+        mesh = _quad_mesh()
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="replace-clear-selection", mode="edit")
+        service._sessions[view.session_id].selection = MeshEditSelection.from_maps(
+            vertices_by_submesh={0: {0, 2}},
+            faces_by_submesh={0: {1}},
+        )
+        imported = _quad_mesh()
+        imported.submeshes[0].vertices.append((2.0, 2.0, 0.0))
+        imported.submeshes[0].vertex_count = len(imported.submeshes[0].vertices)
+        imported.total_vertices = len(imported.submeshes[0].vertices)
+
+        updated = service.replace_working_mesh(view.session_id, imported)
+        working = service.working_mesh(view.session_id, clone=False)
+
+        self.assertTrue(updated.selection.is_empty())
+        self.assertTrue(service.session_view(view.session_id).selection.is_empty())
+        diagnostics = tuple(getattr(working, "_cdmw_selection_diagnostics", ()) or ())
+        self.assertTrue(diagnostics)
+        self.assertIn("selection_cleared_after_external_import", diagnostics[0])
+        self.assertIn("topology changed", diagnostics[0])
+        self.assertEqual(1, updated.undo_count)
+        self.assertEqual(1, updated.revision)
+
     def test_replace_working_mesh_blocks_obj_sidecar_source_hash_mismatch(self) -> None:
         mesh = _quad_mesh()
         setattr(mesh, "_cdmw_original_data", b"original")

@@ -15,6 +15,8 @@ from cdmw.ui.archive_browser.filters import (
     archive_browser_entry_category as ui_archive_browser_entry_category,
     build_archive_category_entry_index as ui_build_archive_category_entry_index,
 )
+from cdmw.ui.archive_browser.filter_workers import _record_archive_filter_worker_lifecycle
+from cdmw.ui.archive_browser.workers import _record_archive_worker_lifecycle
 
 
 def _entry(path: str) -> ArchiveEntry:
@@ -60,6 +62,47 @@ class ArchiveBrowserFilterTests(unittest.TestCase):
     def test_ui_filter_module_preserves_legacy_helper_imports(self) -> None:
         self.assertIs(ui_archive_browser_entry_category, archive_browser_entry_category)
         self.assertIs(ui_build_archive_category_entry_index, build_archive_category_entry_index)
+
+    def test_archive_worker_lifecycle_helpers_emit_explicit_reasons(self) -> None:
+        class Recorder:
+            def __init__(self) -> None:
+                self.events: list[tuple[str, dict[str, object]]] = []
+
+            def _record_runtime_event(self, event: str, **fields: object) -> None:
+                self.events.append((event, fields))
+
+        archive_recorder = Recorder()
+        filter_recorder = Recorder()
+
+        _record_archive_worker_lifecycle(
+            archive_recorder,
+            "archive_preview_worker_cancelled",
+            reason="cancelled_by_new_request",
+        )
+        _record_archive_filter_worker_lifecycle(
+            filter_recorder,
+            "archive_filter_result_ignored",
+            reason="stale_result_ignored",
+        )
+
+        self.assertEqual("archive_preview_worker_cancelled", archive_recorder.events[0][0])
+        self.assertEqual("cancelled_by_new_request", archive_recorder.events[0][1]["reason"])
+        self.assertEqual("archive_filter_result_ignored", filter_recorder.events[0][0])
+        self.assertEqual("stale_result_ignored", filter_recorder.events[0][1]["reason"])
+
+    def test_archive_worker_sources_name_cancellation_and_failure_states(self) -> None:
+        workers_source = Path("cdmw/ui/archive_browser/workers.py").read_text(encoding="utf-8")
+        filter_source = Path("cdmw/ui/archive_browser/filter_workers.py").read_text(encoding="utf-8")
+        combined = workers_source + "\n" + filter_source
+
+        for reason in (
+            "cancelled_by_new_request",
+            "cancelled_by_filter_change",
+            "cancelled_by_shutdown",
+            "stale_result_ignored",
+            "worker_failed",
+        ):
+            self.assertIn(reason, combined)
 
 
 if __name__ == "__main__":

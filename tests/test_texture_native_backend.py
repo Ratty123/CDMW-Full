@@ -230,6 +230,52 @@ class NativeTextureBackendTests(unittest.TestCase):
             for preview_path in results.values():
                 self.assertTrue(texture_native.native_texture_report_sidecar_path(preview_path).is_file())
 
+    def test_directxtex_batch_preview_records_structured_failure_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            binary_path = root / "cd-texture-dx.exe"
+            binary_path.write_bytes(b"fake")
+            dds_path = root / "failed.dds"
+            dds_path.write_bytes(_minimal_bc_dds(b"DXT1"))
+            texture_native.directxtex_texture_failure_reports(clear=True)
+
+            def fake_run(_command, **_kwargs):
+                return 1, "", "decode failed: unsupported data"
+
+            with patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=binary_path):
+                with patch("cdmw.core.texture_native.run_process_with_cancellation", side_effect=fake_run):
+                    results = texture_native.ensure_directxtex_dds_preview_pngs(
+                        ({"dds_path": str(dds_path), "slot_kind": "base", "max_dimension": 512},)
+                    )
+
+            reports = texture_native.directxtex_texture_failure_reports(clear=True)
+
+        self.assertEqual({}, results)
+        self.assertTrue(reports)
+        self.assertEqual("failed", reports[-1]["status"])
+        self.assertEqual("directxtex", reports[-1]["backend"])
+        self.assertEqual("batch-preview-json", reports[-1]["operation"])
+        self.assertEqual(1, reports[-1]["returncode"])
+        self.assertIn("decode failed", reports[-1]["stderr_summary"])
+        self.assertTrue(reports[-1]["fallback_available"])
+
+    def test_texconv_preview_report_unknown_metadata_is_not_clean_decoded(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dds_path = root / "unknown.dds"
+            preview_path = root / "unknown.png"
+            dds_path.write_bytes(b"not a valid dds")
+            preview_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+
+            with patch("cdmw.core.texture_native.inspect_dds_native_path", side_effect=ValueError("bad header")):
+                report = texture_native.texconv_preview_report(dds_path, preview_path)
+
+        self.assertEqual("decoded_with_unknown_metadata", report["status"])
+        self.assertFalse(report["metadata_verified"])
+        self.assertEqual("", report["format"])
+        self.assertEqual(0, report["width"])
+        self.assertEqual(0, report["height"])
+
     def test_directxtex_batch_encode_uses_one_helper_command(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

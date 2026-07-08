@@ -26,19 +26,25 @@ class MeshReplacementPartsOutlinerTree(QTreeWidget):
         source_item = self._drag_source_item or self.currentItem()
         try:
             position = event.position().toPoint() if hasattr(event, "position") else event.pos()
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError):
+            # Best effort: malformed or already-disposed Qt drop events should
+            # resolve to no item instead of crashing the outliner drag path.
             position = QPoint()
         target_item = self.itemAt(position)
         self._drag_source_item = None
         if handler is not None and handler(source_item, target_item):
             try:
                 event.acceptProposedAction()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError):
+                # Best effort: synthetic tests and disposed Qt events may not
+                # expose acceptProposedAction, but the handler already consumed.
                 pass
             return
         try:
             event.ignore()
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError):
+            # Best effort: missing ignore support should not make a rejected
+            # internal drop crash the editor UI.
             pass
 
 

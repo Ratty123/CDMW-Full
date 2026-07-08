@@ -97,7 +97,7 @@ def _mesh_to_native_preview_native(
             write_native_pose_preview_geometry_blob,
             write_native_preview_geometry_blob,
         )
-    except Exception:
+    except ImportError:
         return None
     binary = find_native_mesh_core_binary()
     if binary is None:
@@ -461,7 +461,7 @@ def _mesh_edit_triangle_groups_native(mesh: ParsedMesh, source_submesh_indices: 
         return {}
     try:
         from cdmw.modding.mesh_native_core import build_native_mesh_preview_triangle_groups
-    except Exception:
+    except ImportError:
         return {}
     native_groups = build_native_mesh_preview_triangle_groups(mesh, source_indices=source_submesh_indices)
     if native_groups is None:
@@ -680,7 +680,7 @@ def _mesh_edit_selection_groups_native(
 ) -> list[dict[str, object]] | None:
     try:
         from cdmw.modding.mesh_native_core import build_native_mesh_selection_groups
-    except Exception:
+    except ImportError:
         return None
     return build_native_mesh_selection_groups(
         mesh,
@@ -909,7 +909,7 @@ def _mesh_edit_vertex_update_groups_native(mesh: ParsedMesh, changed_vertices_by
             build_native_mesh_preview_vertex_update_groups,
             invalidate_native_mesh_session_submeshes,
         )
-    except Exception:
+    except ImportError:
         return {}
     requested: dict[int, object] = {}
     for raw_submesh_index, raw_indices in changed_vertices_by_submesh.items():
@@ -1064,7 +1064,7 @@ def _consume_native_vertex_update_group(
 def _record_native_preview_fallback(mesh: ParsedMesh, operation: str, reason: str, **details: object) -> None:
     try:
         from cdmw.modding.mesh_native_core import record_native_mesh_core_fallback
-    except Exception:
+    except ImportError:
         return
     record_native_mesh_core_fallback(
         operation,
@@ -1080,11 +1080,11 @@ def _native_mesh_core_available_for_preview() -> bool:
         return False
     try:
         from cdmw.modding.mesh_native_core import native_mesh_core_available
-    except Exception:
+    except ImportError:
         return False
     try:
         return bool(native_mesh_core_available())
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         return False
 
 

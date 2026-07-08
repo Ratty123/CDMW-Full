@@ -16,6 +16,8 @@ from cdmw.services.mesh_dotnet_experiment import (
     mesh_dotnet_experiment_command,
     mesh_dotnet_experiment_evaluation_path,
     mesh_dotnet_experiment_output_obj_path,
+    mesh_dotnet_material_parity_warnings,
+    mesh_dotnet_renderer_blockers,
     write_mesh_dotnet_experiment_evaluation,
 )
 from cdmw.workers import mesh_editor_workers
@@ -115,7 +117,12 @@ def test_dotnet_experiment_packaging_scripts_publish_and_bundle_helper() -> None
 
 def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     root = Path(__file__).resolve().parents[1]
-    source = (root / "tools" / "dotnet_mesh_editor_experiment" / "Program.cs").read_text(encoding="utf-8")
+    dotnet_root = root / "tools" / "dotnet_mesh_editor_experiment"
+    source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(dotnet_root.glob("*.cs"))
+        if path.name != "Cdmw.MeshEditorExperiment.GlobalUsings.g.cs"
+    )
     gpu_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "WpfGpuMeshViewport.cs").read_text(encoding="utf-8")
     d3d_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.cs").read_text(encoding="utf-8")
     d3d_overlay_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
@@ -235,6 +242,11 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert '"dds_upload_mode"] = "bitmap_rgba_upload"' in source
     assert '"native_dds_parity"] = false' in source
     assert '"dds_native_dxgi_upload"] = false' in source
+    assert '"renderer_blocked"]' in source
+    assert '"blocked_renderer_unavailable"' in source
+    assert "ProductionD3D11Required" in source
+    assert "DeveloperRendererFallback" in source
+    assert "developer-renderer-fallback" in source
     assert '"dds_upload_format"] = "B8G8R8A8_UNorm"' in source
     assert '"bitmap_decode_then_bgra32_upload"' in source
     assert '"dds_decode_tools"]' in source
@@ -309,8 +321,12 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "EditableVertexIndicesForSubmesh" in source
     assert "SetCameraPreset" in source
     assert "RotateYawDegrees" in source
-    assert "_confirm_dotnet_process_started" in (root / "cdmw" / "ui" / "mesh_editor" / "tab.py").read_text(encoding="utf-8")
-    assert "_dotnet_process_diagnostics" in (root / "cdmw" / "ui" / "mesh_editor" / "tab.py").read_text(encoding="utf-8")
+    tab_source = (root / "cdmw" / "ui" / "mesh_editor" / "tab.py").read_text(encoding="utf-8")
+    assert "_confirm_dotnet_process_started" in tab_source
+    assert "_dotnet_process_diagnostics" in tab_source
+    assert "mesh_dotnet_renderer_blockers" in tab_source
+    assert "mesh_dotnet_material_parity_warnings" in tab_source
+    assert "mesh_editor/developer_renderer_fallback" in tab_source
     assert "NetEdgeTopology.Build" in source
     assert "stable_edge_descriptors" in source
     assert "edge_descriptors" in source
@@ -384,6 +400,10 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
     assert package.original_asset_hash_path.read_text(encoding="utf-8") == "abc123"
     launch = json.loads(package.launch_manifest_path.read_text(encoding="utf-8"))
     assert launch["format"] == "cdmw_mesh_dotnet_experiment_handoff_v1"
+    assert launch["interchange_format"] == "obj_sidecar"
+    assert launch["metadata_risk"] is True
+    assert launch["requires_edit_operations"] is True
+    assert launch["output"]["edit_operations_required"] is True
     assert launch["parser_authority"] == "cdmw_python_cpp"
     assert launch["rebuild_authority"] == "cdmw_python_cpp"
     assert launch["input"]["metadata"] == "mesh.cdmeta.json"
@@ -424,6 +444,49 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
     assert "--embedded" in embedded_args
     assert "--parent-hwnd" in embedded_args
     assert "12345" in embedded_args
+    _program, developer_args = mesh_dotnet_experiment_command(
+        "C:/tools/MeshEditorExperiment.exe",
+        package,
+        embedded_parent_hwnd=12345,
+        developer_renderer_fallback=True,
+    )
+    assert "--developer-renderer-fallback" in developer_args
+
+
+def test_dotnet_renderer_status_blocks_degraded_embedded_production_backend() -> None:
+    payload = {"renderer": {"backend": "wpf_viewport3d_gpu"}}
+
+    blockers = mesh_dotnet_renderer_blockers(payload, embedded=True, developer_override=False)
+
+    assert blockers == ("embedded production .NET renderer cannot use degraded backend: wpf_viewport3d_gpu",)
+    assert mesh_dotnet_renderer_blockers(payload, embedded=True, developer_override=True) == ()
+
+
+def test_dotnet_renderer_status_blocks_missing_material_parity_when_required() -> None:
+    payload = {
+        "renderer": {
+            "backend": "d3d11_vortice_shader",
+            "native_dds_parity": False,
+            "dds_native_dxgi_upload": False,
+            "dds_upload_mode": "bitmap_rgba_upload",
+            "material_contract_gap": ["direct compressed DDS upload parity"],
+        }
+    }
+
+    warnings = mesh_dotnet_material_parity_warnings(payload)
+    blockers = mesh_dotnet_renderer_blockers(payload, require_material_parity=True)
+
+    assert "native DDS parity is not available" in warnings
+    assert "native DXGI DDS upload is not available" in warnings
+    assert blockers
+    assert blockers[0].startswith("material parity incomplete:")
+    assert mesh_dotnet_renderer_blockers(payload, require_material_parity=True, developer_override=True) == ()
+
+
+def test_dotnet_renderer_status_blocks_explicit_renderer_unavailable() -> None:
+    payload = {"renderer": {"backend": "blocked_renderer_unavailable", "renderer_block_reason": "D3D11 failed"}}
+
+    assert mesh_dotnet_renderer_blockers(payload) == ("blocked_renderer_unavailable: D3D11 failed",)
 
 
 def test_dotnet_experiment_output_import_uses_output_obj_sidecar_and_operations(
@@ -516,6 +579,7 @@ def test_release_preflight_blocks_generated_and_unclassified_source() -> None:
         [
             "?? tools/dotnet_mesh_editor_experiment/bin/Release/app.dll",
             "?? cdmw/new_feature.py",
+            "?? scratch/new_feature.py",
             "?? tests/test_new_feature.py",
             " M cdmw/services/mesh_service.py",
             "?? notes.tmp",
@@ -523,8 +587,9 @@ def test_release_preflight_blocks_generated_and_unclassified_source() -> None:
     )
 
     assert inventory["generated_output"] == ["tools/dotnet_mesh_editor_experiment/bin/Release/app.dll"]
-    assert inventory["unclassified_untracked_source"] == ["cdmw/new_feature.py"]
+    assert inventory["unclassified_untracked_source"] == ["scratch/new_feature.py"]
     assert inventory["required_source_or_docs"] == [
+        "cdmw/new_feature.py",
         "cdmw/services/mesh_service.py",
         "tests/test_new_feature.py",
     ]

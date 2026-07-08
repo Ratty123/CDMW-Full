@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import atexit
 from array import array
-from collections import Counter
 import dataclasses
 import json
 import math
@@ -20,111 +19,65 @@ from uuid import uuid4
 
 from cdmw.core.common import ProcessTimeoutExpired, hidden_subprocess_kwargs, raise_if_cancelled, run_process_with_cancellation
 from cdmw.modding.mesh_deformer import MeshFaceDeleteResult, MeshPartSplitResult, _EXTRA_SUBMESH_ATTRS, recompute_submesh_normals
+from cdmw.modding.mesh_native_core_blend_helpers import (
+    _apply_vertex_aligned_topology_result,
+    _blend_bone_assignment,
+    _clear_vertex_aligned_topology_result,
+    _copy_blend_bone_lists,
+    _copy_blend_scalar_list,
+    _copy_blend_tuple_list,
+    _copy_with_blend_default,
+    _edge_list,
+    _int_list,
+    _mirror_pairs_json,
+    _tuple_value,
+    _vertex_blends,
+    _vertex_weights_json,
+)
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.modding.mesh_native_core_constants import (
+    Face,
+    NATIVE_MESH_CORE_BACKEND_ID,
+    NATIVE_MESH_CORE_BINARY_NAME,
+    NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR,
+    Vec2,
+    Vec3,
+    _NATIVE_MATERIAL_REPORT_ATTRS,
+    _NATIVE_MESH_EDITOR_NORMAL_OPERATIONS,
+    _NATIVE_MESH_SESSION_TOKEN_ATTR,
+    _NATIVE_PREVIEW_MATERIAL_OVERRIDE_KEYS,
+    _TRANSIENT_NATIVE_SUBMESH_ATTRS,
+)
+from cdmw.modding import mesh_native_core_diagnostics as _native_mesh_core_diagnostics
+from cdmw.modding import mesh_native_core_temp_paths as _native_mesh_core_temp_paths
+from cdmw.modding.mesh_native_core_payload_helpers import (
+    _copy_vertex_aligned_list,
+    _face_count_json,
+    _face_json,
+    _face_json_with_source_indices,
+    _finite_float,
+    _finite_float_sequence,
+    _finite_vec2_list_or_none,
+    _finite_vec3_list_or_none,
+    _index,
+    _iter_valid_submesh_indices,
+    _native_uv_transform_payload,
+    _remap_vertex_aligned_list,
+    _same_vec3,
+    _same_vec3_tuple,
+    _sorted_unique_valid_submesh_indices,
+    _source_part_adjustment_payload,
+    _source_part_adjustment_pivot_vertices,
+    _valid_face_triplet,
+    _vec2,
+    _vec2_json,
+    _vec3,
+    _vec3_json,
+)
 from cdmw.models import RunCancelled
-
-NATIVE_MESH_CORE_BINARY_NAME = "cdmw-mesh-core.exe" if os.name == "nt" else "cdmw-mesh-core"
-NATIVE_MESH_CORE_BACKEND_ID = "cdmw_mesh_core_0.1"
-_NATIVE_MESH_EDITOR_NORMAL_OPERATIONS = frozenset(
-    {
-        "recalculate_normals",
-        "weighted_normals",
-        "flip_normals",
-        "sharpen_normals",
-        "soften_normals",
-        "copy_normals",
-    }
-)
-_NATIVE_MATERIAL_REPORT_ATTRS = (
-    "texture_slots",
-    "preview_color",
-    "preview_role",
-    "preview_texture_path",
-    "preview_texture_name",
-    "preview_texture_dds_path",
-    "preview_texture_flip_vertical",
-    "preview_texture_brightness",
-    "preview_texture_contrast",
-    "preview_texture_saturation",
-    "preview_texture_gamma",
-    "preview_texture_tint",
-    "preview_texture_uv_scale",
-    "preview_base_texture_default_path",
-    "preview_base_texture_default_name",
-    "preview_vertex_color_mean",
-    "preview_vertex_alpha_mean",
-    "preview_vertex_alpha_min",
-    "preview_vertex_color_count",
-    "preview_normal_texture_path",
-    "preview_normal_texture_name",
-    "preview_normal_texture_dds_path",
-    "preview_normal_texture_strength",
-    "preview_material_texture_path",
-    "preview_material_texture_name",
-    "preview_material_texture_dds_path",
-    "preview_material_texture_type",
-    "preview_material_texture_subtype",
-    "preview_material_texture_packed_channels",
-    "preview_material_texture_inputs",
-    "preview_material_parameters",
-    "preview_material_texture_default_path",
-    "preview_material_texture_default_name",
-    "preview_height_texture_path",
-    "preview_height_texture_name",
-    "preview_height_texture_dds_path",
-    "preview_alpha_mode",
-    "preview_double_sided",
-    "preview_sidecar_shader_family",
-    "cdmw_material_authority_profile",
-    "cdmw_material_authority_contract",
-    "cdmw_source_material_name",
-    "cdmw_target_material_name",
-    "cdmw_target_material_slot_index",
-    "cdmw_material_slot_kind",
-    "cdmw_source_texture_set_key",
-    "cdmw_material_route_status",
-    "cdmw_material_route_reason",
-    "preview_native_material_overrides",
-    "cdmw_mesh_edit_material_source_submesh_index",
-)
-_NATIVE_PREVIEW_MATERIAL_OVERRIDE_KEYS = (
-    "texture_brightness",
-    "roughness",
-    "metalness",
-    "specular",
-    "height_scale",
-    "emissive_intensity",
-    "emissive_color",
-    "contrast",
-    "saturation",
-    "gamma",
-    "tint_color",
-)
-
-Vec3 = tuple[float, float, float]
-Vec2 = tuple[float, float]
-Face = tuple[int, int, int]
 
 _native_mesh_core_session_cache_lock = threading.RLock()
 _native_mesh_core_session_cache: dict[tuple[str, int], tuple[tuple[object, ...], str]] = {}
-_native_mesh_core_fallback_lock = threading.RLock()
-_native_mesh_core_fallback_counts: Counter[str] = Counter()
-_native_mesh_core_fallback_events: list[dict[str, object]] = []
-_NATIVE_MESH_CORE_FALLBACK_EVENT_LIMIT = 64
-NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR = "cdmw_native_mesh_history_vertex_delta"
-_TRANSIENT_NATIVE_SUBMESH_ATTRS = frozenset(
-    {
-        "cdmw_native_preview_triangle_group",
-        "cdmw_native_preview_vertex_update_group",
-        NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR,
-    }
-)
-_NATIVE_MESH_SESSION_TOKEN_ATTR = "_cdmw_native_mesh_session_token"
-_native_preview_delta_paths_lock = threading.RLock()
-_native_preview_delta_paths: set[Path] = set()
-_native_preview_delta_dirs: set[Path] = set()
-
-
 def _new_native_sparse_vertex_snapshot_id(role: str) -> str:
     return f"py-sparse-vertices-{role}-{uuid4().hex}"
 
@@ -135,88 +88,31 @@ def _clear_native_mesh_core_session_cache() -> None:
 
 
 def clear_native_mesh_core_fallback_counts() -> None:
-    with _native_mesh_core_fallback_lock:
-        _native_mesh_core_fallback_counts.clear()
-        _native_mesh_core_fallback_events.clear()
+    _native_mesh_core_diagnostics.clear_native_mesh_core_fallback_counts()
 
 
 def native_mesh_core_fallback_counts() -> dict[str, int]:
-    with _native_mesh_core_fallback_lock:
-        return dict(_native_mesh_core_fallback_counts)
+    return _native_mesh_core_diagnostics.native_mesh_core_fallback_counts()
 
 
 def native_mesh_core_fallback_events() -> tuple[dict[str, object], ...]:
-    with _native_mesh_core_fallback_lock:
-        return tuple(dict(event) for event in _native_mesh_core_fallback_events)
+    return _native_mesh_core_diagnostics.native_mesh_core_fallback_events()
 
 
 def record_native_mesh_core_fallback(operation: object, reason: object = "", **details: object) -> None:
-    operation_text = str(operation or "unknown").strip() or "unknown"
-    event: dict[str, object] = {
-        "operation": operation_text,
-        "reason": str(reason or "unspecified").strip() or "unspecified",
-    }
-    for raw_key, raw_value in details.items():
-        if raw_value is None:
-            continue
-        key = str(raw_key or "").strip()
-        if key:
-            event[key] = _native_mesh_core_fallback_detail(raw_value)
-    with _native_mesh_core_fallback_lock:
-        _native_mesh_core_fallback_counts[operation_text] += 1
-        _native_mesh_core_fallback_events.append(event)
-        if len(_native_mesh_core_fallback_events) > _NATIVE_MESH_CORE_FALLBACK_EVENT_LIMIT:
-            del _native_mesh_core_fallback_events[:-_NATIVE_MESH_CORE_FALLBACK_EVENT_LIMIT]
+    _native_mesh_core_diagnostics.record_native_mesh_core_fallback(operation, reason, **details)
 
 
 def _native_preview_delta_output_path(suffix: str = ".bin") -> str:
-    with tempfile.NamedTemporaryFile(prefix="cdmw_mesh_preview_delta_", suffix=suffix, delete=False) as handle:
-        path = Path(handle.name)
-    with _native_preview_delta_paths_lock:
-        _native_preview_delta_paths.add(path)
-    return str(path)
+    return _native_mesh_core_temp_paths.native_preview_delta_output_path(suffix)
 
 
 def _native_preview_delta_output_dir() -> str:
-    path = Path(tempfile.mkdtemp(prefix="cdmw_mesh_editor_delta_"))
-    with _native_preview_delta_paths_lock:
-        _native_preview_delta_dirs.add(path)
-    return str(path)
+    return _native_mesh_core_temp_paths.native_preview_delta_output_dir()
 
 
 def _cleanup_native_preview_delta_paths() -> None:
-    with _native_preview_delta_paths_lock:
-        paths = tuple(_native_preview_delta_paths)
-        dirs = tuple(_native_preview_delta_dirs)
-        _native_preview_delta_paths.clear()
-        _native_preview_delta_dirs.clear()
-    for path in paths:
-        for candidate in (
-            path,
-            Path(str(path) + ".source_indices.bin"),
-            Path(str(path) + ".source_vertices.bin"),
-            Path(str(path) + ".source_edges.bin"),
-            Path(str(path) + ".source_faces.bin"),
-            Path(str(path) + ".normals.bin"),
-            Path(str(path) + ".uvs.bin"),
-            Path(str(path) + ".indices.bin"),
-        ):
-            try:
-                candidate.unlink(missing_ok=True)
-            except OSError:
-                pass
-    for path in dirs:
-        shutil.rmtree(path, ignore_errors=True)
-
-
-def _native_mesh_core_fallback_detail(value: object) -> object:
-    if isinstance(value, set):
-        return sorted(_native_mesh_core_fallback_detail(item) for item in value)
-    try:
-        json.dumps(value, allow_nan=False)
-    except (TypeError, ValueError):
-        return str(value)
-    return value
+    _native_mesh_core_temp_paths.cleanup_native_preview_delta_paths()
 
 
 def _native_mesh_core_count_hint(mesh: object, attr: str) -> int:
@@ -11056,237 +10952,6 @@ def _native_preview_vertex_update_group(value: object, submesh_index: int) -> di
     return group
 
 
-def _apply_vertex_aligned_topology_result(
-    submesh: object,
-    copy_indices: list[int],
-    vertex_blends: Mapping[int, tuple[int, int, float]],
-    old_vertex_count: int,
-    *,
-    skip_normals: bool = False,
-    skip_uvs: bool = False,
-    skip_tangents: bool = False,
-    skip_tangent_signs: bool = False,
-    skip_bones: bool = False,
-    skip_source_vertex_map: bool = False,
-    skip_source_vertex_offsets: bool = False,
-) -> None:
-    if not skip_uvs:
-        submesh.uvs = _copy_blend_tuple_list(submesh.uvs, copy_indices, vertex_blends, old_vertex_count, size=2)  # type: ignore[attr-defined]
-    if not skip_normals:
-        submesh.normals = _copy_blend_tuple_list(submesh.normals, copy_indices, vertex_blends, old_vertex_count, size=3)  # type: ignore[attr-defined]
-    if not skip_tangents:
-        submesh.tangents = _copy_blend_tuple_list(submesh.tangents, copy_indices, vertex_blends, old_vertex_count, size=3)  # type: ignore[attr-defined]
-    if not skip_tangent_signs and getattr(submesh, "tangent_signs", None):
-        setattr(submesh, "tangent_signs", _copy_blend_scalar_list(getattr(submesh, "tangent_signs"), copy_indices, vertex_blends, old_vertex_count))
-    if not skip_bones:
-        submesh.bone_indices, submesh.bone_weights = _copy_blend_bone_lists(  # type: ignore[attr-defined]
-            submesh.bone_indices,
-            submesh.bone_weights,
-            copy_indices,
-            vertex_blends,
-            old_vertex_count,
-        )
-    if not skip_source_vertex_map:
-        submesh.source_vertex_map = _copy_with_blend_default(submesh.source_vertex_map, copy_indices, vertex_blends, old_vertex_count, -1)  # type: ignore[attr-defined]
-    if not skip_source_vertex_offsets:
-        submesh.source_vertex_offsets = _copy_with_blend_default(submesh.source_vertex_offsets, copy_indices, vertex_blends, old_vertex_count, -1)  # type: ignore[attr-defined]
-
-
-def _clear_vertex_aligned_topology_result(submesh: object) -> None:
-    submesh.uvs = []  # type: ignore[attr-defined]
-    submesh.normals = []  # type: ignore[attr-defined]
-    submesh.tangents = []  # type: ignore[attr-defined]
-    if hasattr(submesh, "tangent_signs"):
-        setattr(submesh, "tangent_signs", [])
-    submesh.bone_indices = []  # type: ignore[attr-defined]
-    submesh.bone_weights = []  # type: ignore[attr-defined]
-    submesh.source_vertex_map = []  # type: ignore[attr-defined]
-    submesh.source_vertex_offsets = []  # type: ignore[attr-defined]
-
-
-def _copy_blend_tuple_list(
-    values: object,
-    copy_indices: list[int],
-    vertex_blends: Mapping[int, tuple[int, int, float]],
-    old_vertex_count: int,
-    *,
-    size: int,
-) -> list[tuple[float, ...]]:
-    if not isinstance(values, list) or len(values) != old_vertex_count:
-        return []
-    result: list[tuple[float, ...]] = []
-    for new_index, old_index in enumerate(copy_indices):
-        if 0 <= old_index < old_vertex_count:
-            result.append(_tuple_value(values[old_index], size))
-            continue
-        blend = vertex_blends.get(new_index)
-        if blend is None:
-            return []
-        left, right, factor = blend
-        if not (0 <= left < old_vertex_count and 0 <= right < old_vertex_count):
-            return []
-        left_values = _tuple_value(values[left], size)
-        right_values = _tuple_value(values[right], size)
-        result.append(tuple(left_values[index] + (right_values[index] - left_values[index]) * factor for index in range(size)))
-    return result
-
-
-def _copy_blend_scalar_list(
-    values: object,
-    copy_indices: list[int],
-    vertex_blends: Mapping[int, tuple[int, int, float]],
-    old_vertex_count: int,
-) -> list[float]:
-    if not isinstance(values, list) or len(values) != old_vertex_count:
-        return []
-    result: list[float] = []
-    for new_index, old_index in enumerate(copy_indices):
-        if 0 <= old_index < old_vertex_count:
-            result.append(_finite_float(values[old_index], 1.0))
-            continue
-        blend = vertex_blends.get(new_index)
-        if blend is None:
-            return []
-        left, right, factor = blend
-        if not (0 <= left < old_vertex_count and 0 <= right < old_vertex_count):
-            return []
-        left_value = _finite_float(values[left], 1.0)
-        right_value = _finite_float(values[right], 1.0)
-        result.append(left_value + (right_value - left_value) * factor)
-    return result
-
-
-def _copy_with_blend_default(
-    values: object,
-    copy_indices: list[int],
-    vertex_blends: Mapping[int, tuple[int, int, float]],
-    old_vertex_count: int,
-    default: object,
-) -> list[object]:
-    if not isinstance(values, list) or len(values) != old_vertex_count:
-        return []
-    result: list[object] = []
-    for new_index, old_index in enumerate(copy_indices):
-        if 0 <= old_index < old_vertex_count:
-            result.append(values[old_index])
-        elif new_index in vertex_blends:
-            result.append(default)
-        else:
-            return []
-    return result
-
-
-def _copy_blend_bone_lists(
-    bone_indices: object,
-    bone_weights: object,
-    copy_indices: list[int],
-    vertex_blends: Mapping[int, tuple[int, int, float]],
-    old_vertex_count: int,
-) -> tuple[list[tuple[int, ...]], list[tuple[float, ...]]]:
-    if (
-        not isinstance(bone_indices, list)
-        or not isinstance(bone_weights, list)
-        or len(bone_indices) != old_vertex_count
-        or len(bone_weights) != old_vertex_count
-    ):
-        return [], []
-    result_indices: list[tuple[int, ...]] = []
-    result_weights: list[tuple[float, ...]] = []
-    for new_index, old_index in enumerate(copy_indices):
-        if 0 <= old_index < old_vertex_count:
-            result_indices.append(tuple(int(value) for value in tuple(bone_indices[old_index] or ())))
-            result_weights.append(tuple(float(value) for value in tuple(bone_weights[old_index] or ())))
-            continue
-        blend = vertex_blends.get(new_index)
-        if blend is None:
-            return [], []
-        blended = _blend_bone_assignment(bone_indices, bone_weights, blend[0], blend[1], old_vertex_count, blend[2])
-        if blended is None:
-            return [], []
-        indices, weights = blended
-        result_indices.append(indices)
-        result_weights.append(weights)
-    return result_indices, result_weights
-
-
-def _blend_bone_assignment(
-    bone_indices: list[object],
-    bone_weights: list[object],
-    left: int,
-    right: int,
-    old_vertex_count: int,
-    factor: float,
-) -> tuple[tuple[int, ...], tuple[float, ...]] | None:
-    if not (0 <= left < old_vertex_count and 0 <= right < old_vertex_count):
-        return None
-    try:
-        left_indices = tuple(int(value) for value in tuple(bone_indices[left] or ()))
-        right_indices = tuple(int(value) for value in tuple(bone_indices[right] or ()))
-        left_weights = tuple(float(value) for value in tuple(bone_weights[left] or ()))
-        right_weights = tuple(float(value) for value in tuple(bone_weights[right] or ()))
-    except (TypeError, ValueError, OverflowError):
-        return None
-    factor = max(0.0, min(1.0, factor))
-    weights_by_bone: dict[int, float] = {}
-    for bone, weight in zip(left_indices, left_weights):
-        if bone >= 0 and weight > 0.0:
-            weights_by_bone[bone] = weights_by_bone.get(bone, 0.0) + weight * (1.0 - factor)
-    for bone, weight in zip(right_indices, right_weights):
-        if bone >= 0 and weight > 0.0:
-            weights_by_bone[bone] = weights_by_bone.get(bone, 0.0) + weight * factor
-    if not weights_by_bone:
-        return (), ()
-    strongest = sorted(weights_by_bone.items(), key=lambda item: (-item[1], item[0]))[:4]
-    total = sum(weight for _bone, weight in strongest)
-    if total <= 0.0:
-        return (), ()
-    return tuple(bone for bone, _weight in strongest), tuple(weight / total for _bone, weight in strongest)
-
-
-def _tuple_value(value: object, size: int) -> tuple[float, ...]:
-    if not isinstance(value, (tuple, list)):
-        return tuple(0.0 for _index in range(size))
-    items = tuple(value)
-    return tuple(_finite_float(items[index], 0.0) if index < len(items) else 0.0 for index in range(size))
-
-
-def _int_list(value: object) -> list[int]:
-    if not isinstance(value, list):
-        return []
-    return [parsed for raw in value for parsed in [_index(raw)] if parsed is not None]
-
-
-def _edge_list(value: object) -> list[tuple[int, int]]:
-    if not isinstance(value, list):
-        return []
-    result: list[tuple[int, int]] = []
-    for item in value:
-        if not isinstance(item, (tuple, list)) or len(item) < 2:
-            continue
-        left = _index(item[0])
-        right = _index(item[1])
-        if left is None or right is None or left == right:
-            continue
-        result.append((left, right) if left <= right else (right, left))
-    return result
-
-
-def _vertex_blends(value: object) -> dict[int, tuple[int, int, float]]:
-    if not isinstance(value, list):
-        return {}
-    result: dict[int, tuple[int, int, float]] = {}
-    for item in value:
-        if not isinstance(item, Mapping):
-            continue
-        index = _index(item.get("index"))
-        left = _index(item.get("left"))
-        right = _index(item.get("right"))
-        if index is None or left is None or right is None:
-            continue
-        result[index] = (left, right, max(0.0, min(1.0, _finite_float(item.get("factor"), 0.5))))
-    return result
-
-
 def _copy_vertex_indices_from_report_item(item: Mapping[str, object], output_vertex_count: int) -> list[int] | None:
     raw_copy_binary = item.get("copy_vertex_indices_binary")
     if isinstance(raw_copy_binary, Mapping):
@@ -11314,42 +10979,6 @@ def _vertex_blends_from_report_item(item: Mapping[str, object]) -> dict[int, tup
             for (index, left, right), factor in zip(indices, factors)
         }
     return _vertex_blends(item.get("vertex_blends"))
-
-
-def _mirror_pairs_json(value: object, submesh_index: int) -> list[list[int]]:
-    if not isinstance(value, Mapping):
-        return []
-    pairs = value.get(submesh_index, value.get(str(submesh_index)))
-    if not isinstance(pairs, Mapping):
-        return []
-    result: list[list[int]] = []
-    for raw_index, raw_mirror in pairs.items():
-        index = _index(raw_index)
-        mirror = _index(raw_mirror)
-        if index is not None and mirror is not None and index >= 0 and mirror >= 0:
-            result.append([index, mirror])
-    return result
-
-
-def _vertex_weights_json(value: object) -> list[list[float]]:
-    if value is None:
-        return []
-    items = value.items() if isinstance(value, Mapping) else value
-    result: list[list[float]] = []
-    try:
-        iterator = iter(items)  # type: ignore[arg-type]
-    except TypeError:
-        return []
-    for item in iterator:
-        try:
-            raw_index, raw_weight = item  # type: ignore[misc]
-        except (TypeError, ValueError):
-            continue
-        index = _index(raw_index)
-        if index is None or index < 0:
-            continue
-        result.append([float(index), max(0.0, min(1.0, _finite_float(raw_weight, 0.0)))])
-    return result
 
 
 def _vertex_weights_binary_payloads(sidecar_root: Path | None, value: object) -> dict[str, object] | None:
@@ -12447,336 +12076,6 @@ def _run_native_mesh_core_job(
 
 atexit.register(shutdown_native_mesh_core_service)
 atexit.register(_cleanup_native_preview_delta_paths)
-
-
-def _valid_face_triplet(face: object, vertex_count: int) -> tuple[int, int, int] | None:
-    if not isinstance(face, (tuple, list)) or len(face) < 3:
-        return None
-    raw_a = face[0]
-    raw_b = face[1]
-    raw_c = face[2]
-    if (
-        isinstance(raw_a, int)
-        and not isinstance(raw_a, bool)
-        and isinstance(raw_b, int)
-        and not isinstance(raw_b, bool)
-        and isinstance(raw_c, int)
-        and not isinstance(raw_c, bool)
-    ):
-        a = raw_a
-        b = raw_b
-        c = raw_c
-    else:
-        parsed_a = _index(raw_a)
-        parsed_b = _index(raw_b)
-        parsed_c = _index(raw_c)
-        if parsed_a is None or parsed_b is None or parsed_c is None:
-            return None
-        a = parsed_a
-        b = parsed_b
-        c = parsed_c
-    if 0 <= a < vertex_count and 0 <= b < vertex_count and 0 <= c < vertex_count:
-        return a, b, c
-    return None
-
-
-def _face_count_json(faces: object, vertex_count: int) -> int:
-    if not isinstance(faces, list):
-        return 0
-    count = 0
-    for face in faces:
-        if not isinstance(face, (tuple, list)) or len(face) < 3:
-            continue
-        raw_a = face[0]
-        raw_b = face[1]
-        raw_c = face[2]
-        if (
-            isinstance(raw_a, int)
-            and not isinstance(raw_a, bool)
-            and isinstance(raw_b, int)
-            and not isinstance(raw_b, bool)
-            and isinstance(raw_c, int)
-            and not isinstance(raw_c, bool)
-        ):
-            a = raw_a
-            b = raw_b
-            c = raw_c
-        else:
-            parsed = _valid_face_triplet(face, vertex_count)
-            if parsed is None:
-                continue
-            a, b, c = parsed
-        if 0 <= a < vertex_count and 0 <= b < vertex_count and 0 <= c < vertex_count:
-            count += 1
-    return count
-
-
-def _face_json(faces: object, vertex_count: int) -> list[list[int]]:
-    result: list[list[int]] = []
-    if not isinstance(faces, list):
-        return result
-    append = result.append
-    for face in faces:
-        parsed = _valid_face_triplet(face, vertex_count)
-        if parsed is not None:
-            append([parsed[0], parsed[1], parsed[2]])
-    return result
-
-
-def _face_json_with_source_indices(faces: object, vertex_count: int) -> tuple[list[list[int]], list[int]]:
-    result: list[list[int]] = []
-    source_indices: list[int] = []
-    if not isinstance(faces, list):
-        return result, source_indices
-    append = result.append
-    source_append = source_indices.append
-    for face_index, face in enumerate(faces):
-        parsed = _valid_face_triplet(face, vertex_count)
-        if parsed is not None:
-            append([parsed[0], parsed[1], parsed[2]])
-            source_append(face_index)
-    return result, source_indices
-
-
-def _remap_vertex_aligned_list(values: object, index_map: list[int]) -> list[object]:
-    if not isinstance(values, list) or len(values) != len(index_map):
-        return []
-    size = max((index for index in index_map if index >= 0), default=-1) + 1
-    result: list[object] = [None] * size
-    for old_index, new_index in enumerate(index_map):
-        if 0 <= new_index < size and result[new_index] is None:
-            result[new_index] = values[old_index]
-    return [] if any(item is None for item in result) else result
-
-
-def _copy_vertex_aligned_list(values: object, remap: list[int]) -> list[object]:
-    if not isinstance(values, list) or not remap:
-        return []
-    if max(remap, default=-1) >= len(values):
-        return []
-    return [values[old_index] for old_index in remap]
-
-
-def _vec3_json(value: object, fallback: float = 0.0) -> list[float]:
-    parsed = _vec3(value, fallback=fallback)
-    return [parsed[0], parsed[1], parsed[2]]
-
-
-def _vec2_json(value: object, fallback: float = 0.0) -> list[float]:
-    parsed = _vec2(value, fallback=fallback)
-    return [parsed[0], parsed[1]]
-
-
-def _native_uv_transform_payload(value: Mapping[str, object]) -> dict[str, object] | None:
-    if not isinstance(value, Mapping):
-        return None
-    payload = {
-        "offset": _vec2_json(value.get("offset", (0.0, 0.0))),
-        "scale": _vec2_json(value.get("scale", (1.0, 1.0)), fallback=1.0),
-        "rotate": _finite_float(value.get("rotate", value.get("rotate_degrees", 0.0)), 0.0),
-        "flip_u": bool(value.get("flip_u", False)),
-        "flip_v": bool(value.get("flip_v", False)),
-        "pivot": _vec2_json(value.get("pivot", (0.0, 0.0))),
-    }
-    for key in ("input_bounds_min", "input_bounds_max", "input_clamp_min", "input_clamp_max"):
-        if key in value:
-            payload[key] = _vec2_json(value.get(key))
-    if "clamp_input_uv" in value:
-        payload["clamp_input_uv"] = bool(value.get("clamp_input_uv"))
-    for key in ("projection", "plane", "axis"):
-        text = str(value.get(key, "") or "").strip().lower()
-        if text:
-            payload[key] = text
-    if bool(value.get("initialize_missing_uvs")):
-        payload["initialize_missing_uvs"] = True
-    if bool(value.get("normalize")):
-        payload["normalize"] = True
-        payload["target_min"] = _vec2_json(value.get("target_min", value.get("normalize_min", (0.0, 0.0))))
-        payload["target_max"] = _vec2_json(value.get("target_max", value.get("normalize_max", (1.0, 1.0))), fallback=1.0)
-    if bool(value.get("pack")):
-        payload["pack"] = True
-        payload["pack_columns"] = max(0, _index(value.get("pack_columns")) or 0)
-        payload["padding"] = max(0.0, _finite_float(value.get("padding", value.get("pack_padding", 0.02)), 0.02))
-    for key in ("align_u", "align_v"):
-        if key in value and value.get(key) is not None:
-            raw_align = value.get(key)
-            if isinstance(raw_align, str):
-                payload[key] = raw_align.strip().lower()
-            else:
-                payload[key] = _finite_float(raw_align, 0.0)
-    raw_snap_step = value.get("snap_step")
-    if raw_snap_step is not None:
-        snap_step = _vec2_json(raw_snap_step)
-        if snap_step[0] > 0.0 and snap_step[1] > 0.0:
-            payload["snap"] = True
-            payload["snap_step"] = snap_step
-    return payload
-
-
-def _finite_vec3_list_or_none(values: object) -> list[list[float]] | None:
-    result: list[list[float]] = []
-    try:
-        raw_values = tuple(values or ())
-    except TypeError:
-        return None
-    for value in raw_values:
-        if not isinstance(value, (tuple, list)) or len(value) < 3:
-            return None
-        try:
-            parsed = (float(value[0]), float(value[1]), float(value[2]))
-        except (TypeError, ValueError, OverflowError):
-            return None
-        if not all(math.isfinite(component) for component in parsed):
-            return None
-        result.append([parsed[0], parsed[1], parsed[2]])
-    return result
-
-
-def _finite_vec2_list_or_none(values: object) -> list[list[float]] | None:
-    result: list[list[float]] = []
-    try:
-        raw_values = tuple(values or ())
-    except TypeError:
-        return None
-    for value in raw_values:
-        if not isinstance(value, (tuple, list)) or len(value) < 2:
-            return None
-        try:
-            parsed = (float(value[0]), float(value[1]))
-        except (TypeError, ValueError, OverflowError):
-            return None
-        if not all(math.isfinite(component) for component in parsed):
-            return None
-        result.append([parsed[0], parsed[1]])
-    return result
-
-
-def _vec3(value: object, *, fallback: float = 0.0) -> Vec3:
-    if not isinstance(value, (tuple, list)) or len(value) < 3:
-        return (fallback, fallback, fallback)
-    return (
-        _finite_float(value[0], fallback),
-        _finite_float(value[1], fallback),
-        _finite_float(value[2], fallback),
-    )
-
-
-def _vec2(value: object, *, fallback: float = 0.0) -> Vec2:
-    if not isinstance(value, (tuple, list)) or len(value) < 2:
-        return (fallback, fallback)
-    return (
-        _finite_float(value[0], fallback),
-        _finite_float(value[1], fallback),
-    )
-
-
-def _finite_float(value: object, fallback: float) -> float:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return fallback
-    return parsed if math.isfinite(parsed) else fallback
-
-
-def _finite_float_sequence(value: object, *, expected_count: int) -> tuple[float, ...] | None:
-    try:
-        items = tuple(value or ())  # type: ignore[arg-type]
-    except TypeError:
-        return None
-    if len(items) != expected_count:
-        return None
-    result: list[float] = []
-    for item in items:
-        try:
-            parsed = float(item)  # type: ignore[arg-type]
-        except (TypeError, ValueError, OverflowError):
-            return None
-        if not math.isfinite(parsed):
-            return None
-        result.append(parsed)
-    return tuple(result)
-
-
-def _source_part_adjustment_payload(value: object) -> dict[str, object] | None:
-    if value is None:
-        return None
-
-    def raw_field(name: str, fallback: object = None) -> object:
-        if isinstance(value, Mapping):
-            return value.get(name, fallback)
-        return getattr(value, name, fallback)
-
-    def vec3_field(name: str, fallback: tuple[float, float, float]) -> tuple[float, float, float] | None:
-        raw = raw_field(name, None)
-        if raw is None:
-            return fallback
-        parsed = _finite_float_sequence(raw, expected_count=3)
-        return parsed if parsed is not None else None
-
-    scale = vec3_field("scale_xyz", (1.0, 1.0, 1.0))
-    offset = vec3_field("offset_xyz", (0.0, 0.0, 0.0))
-    rotation = vec3_field("rotate_xyz_degrees", (0.0, 0.0, 0.0))
-    if scale is None or offset is None or rotation is None:
-        return None
-    payload: dict[str, object] = {
-        "scale_xyz": list(scale),
-        "uniform_scale": _finite_float(raw_field("uniform_scale", 1.0), 1.0),
-        "offset_xyz": list(offset),
-        "rotate_xyz_degrees": list(rotation),
-    }
-    pivot = vec3_field("pivot", (0.0, 0.0, 0.0)) if raw_field("pivot", None) is not None else None
-    if pivot is not None:
-        payload["pivot"] = list(pivot)
-    return payload
-
-
-def _source_part_adjustment_pivot_vertices(value: object) -> tuple[object, ...]:
-    if value is None:
-        return ()
-    raw = value.get("pivot_vertices") if isinstance(value, Mapping) else getattr(value, "pivot_vertices", None)
-    try:
-        return tuple(raw or ())  # type: ignore[arg-type]
-    except TypeError:
-        return ()
-
-
-def _same_vec3(left: Vec3, right: Vec3) -> bool:
-    return abs(left[0] - right[0]) <= 1e-8 and abs(left[1] - right[1]) <= 1e-8 and abs(left[2] - right[2]) <= 1e-8
-
-
-def _same_vec3_tuple(left: tuple[Vec3, ...], right: tuple[Vec3, ...]) -> bool:
-    return len(left) == len(right) and all(_same_vec3(left_item, right_item) for left_item, right_item in zip(left, right))
-
-
-def _index(value: object) -> int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, float) and (not math.isfinite(value) or not value.is_integer()):
-        return None
-    try:
-        index = int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError, OverflowError):
-        return None
-    return index
-
-
-def _iter_valid_submesh_indices(mesh: ParsedMesh, values: object, *, all_when_none: bool = False) -> Iterable[int]:
-    if values is None:
-        if all_when_none:
-            yield from range(len(mesh.submeshes))
-        return
-    try:
-        iterator = iter(values or ())  # type: ignore[arg-type]
-    except TypeError:
-        return
-    for raw_value in iterator:
-        index = _index(raw_value)
-        if index is not None and 0 <= index < len(mesh.submeshes):
-            yield index
-
-
-def _sorted_unique_valid_submesh_indices(mesh: ParsedMesh, values: object, *, all_when_none: bool = False) -> tuple[int, ...]:
-    return tuple(sorted(set(_iter_valid_submesh_indices(mesh, values, all_when_none=all_when_none))))
 
 
 __all__ = [

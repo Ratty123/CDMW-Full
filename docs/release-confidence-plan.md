@@ -54,13 +54,13 @@ one is required.
   Editor action-bar tests passed: 353 passed.
 - Alignment dialog and Mesh Edit responsiveness source guards passed: 149
   passed.
-- Release dirty-tree preflight passes with untracked test files classified as
-  non-runtime source/docs; generated output and untracked runtime source still
-  block release packaging.
+- Release dirty-tree preflight classifies untracked project source/docs under
+  known repo roots; generated output and untracked source outside those roots
+  still block release packaging.
 - `build.bat onedir release` produced
   `dist/CrimsonDesertModWorkbench-0.10.0-alpha.2-windows/CrimsonDesertModWorkbench.exe`
-  14,414,778 bytes, SHA256
-  `C7ACB5B8F7224D6491E076FBE199B72AED4A611AECB6313174739EF2217365EF`.
+  14,462,895 bytes, SHA256
+  `EB7180A38330E48725D33F78839A73F8FFDE9A85F53218892293F86426BCF1A9`.
 - Packaged onedir startup smoke passed with `QT_QPA_PLATFORM=offscreen` and
   `CDMW_GUI_STARTUP_SMOKE=1`.
 

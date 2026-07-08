@@ -412,6 +412,13 @@ def build_mesh_dotnet_experiment_package(
         json.dumps(
             {
                 "format": "cdmw_mesh_dotnet_experiment_handoff_v1",
+                "interchange_format": "obj_sidecar",
+                "metadata_risk": True,
+                "metadata_risk_reasons": [
+                    "OBJ does not carry the full native PAC mesh metadata contract.",
+                    "Python/C++ validation and edit operations remain authoritative before rebuild.",
+                ],
+                "requires_edit_operations": True,
                 "authority": "python_cpp_mesh_editor_v2",
                 "parser_authority": "cdmw_python_cpp",
                 "rebuild_authority": "cdmw_python_cpp",
@@ -437,6 +444,7 @@ def build_mesh_dotnet_experiment_package(
                 "output": {
                     "directory": output_dir.name,
                     "edit_operations": str(edit_operations_path.relative_to(package_dir)),
+                    "edit_operations_required": True,
                     "status": status_path.name,
                     "evaluation": "dotnet_evaluation.md",
                 },
@@ -454,6 +462,7 @@ def mesh_dotnet_experiment_command(
     package: MeshDotNetExperimentPackage,
     *,
     embedded_parent_hwnd: int = 0,
+    developer_renderer_fallback: bool = False,
 ) -> tuple[str, list[str]]:
     executable = Path(executable_path)
     if not str(executable).strip():
@@ -476,6 +485,8 @@ def mesh_dotnet_experiment_command(
     ]
     if int(embedded_parent_hwnd or 0) > 0:
         args.extend(["--embedded", "--parent-hwnd", str(int(embedded_parent_hwnd))])
+    if bool(developer_renderer_fallback):
+        args.append("--developer-renderer-fallback")
     return (
         str(executable),
         args,
@@ -679,6 +690,54 @@ def _load_dotnet_edit_operations(path: Path) -> tuple[object, ...]:
     return mesh_edit_operations_from_dicts(payload)
 
 
+def _dotnet_renderer_payload(status_payload: Mapping[str, object] | None) -> Mapping[str, object]:
+    payload = status_payload or {}
+    renderer = payload.get("renderer")
+    if isinstance(renderer, Mapping):
+        return renderer
+    if "backend" in payload or "native_dds_parity" in payload or "dds_native_dxgi_upload" in payload:
+        return payload
+    return {}
+
+
+def mesh_dotnet_material_parity_warnings(status_payload: Mapping[str, object] | None) -> tuple[str, ...]:
+    renderer = _dotnet_renderer_payload(status_payload)
+    warnings: list[str] = []
+    if renderer.get("native_dds_parity") is False:
+        warnings.append("native DDS parity is not available")
+    if renderer.get("dds_native_dxgi_upload") is False:
+        warnings.append("native DXGI DDS upload is not available")
+    upload_mode = str(renderer.get("dds_upload_mode", "") or "").strip().lower()
+    if upload_mode and upload_mode != "native_dxgi_upload":
+        warnings.append(f"DDS upload mode is {upload_mode}")
+    gap = renderer.get("material_contract_gap")
+    if isinstance(gap, Sequence) and not isinstance(gap, (str, bytes)) and tuple(gap):
+        warnings.append("material contract gaps are present")
+    return tuple(warnings)
+
+
+def mesh_dotnet_renderer_blockers(
+    status_payload: Mapping[str, object] | None,
+    *,
+    embedded: bool = False,
+    developer_override: bool = False,
+    require_material_parity: bool = False,
+) -> tuple[str, ...]:
+    renderer = _dotnet_renderer_payload(status_payload)
+    backend = str(renderer.get("backend", "") or "").strip().lower()
+    blockers: list[str] = []
+    block_reason = str(renderer.get("renderer_block_reason", "") or "").strip()
+    if backend == "blocked_renderer_unavailable" or renderer.get("renderer_blocked") is True:
+        blockers.append(f"blocked_renderer_unavailable{': ' + block_reason if block_reason else ''}")
+    if bool(embedded) and not bool(developer_override) and backend in {"winforms_gdi_fallback", "wpf_viewport3d_gpu"}:
+        blockers.append(f"embedded production .NET renderer cannot use degraded backend: {backend}")
+    if bool(require_material_parity) and not bool(developer_override):
+        warnings = mesh_dotnet_material_parity_warnings(status_payload)
+        if warnings:
+            blockers.append("material parity incomplete: " + "; ".join(warnings))
+    return tuple(blockers)
+
+
 def _metrics_mapping(payload: Mapping[str, object], *keys: str) -> Mapping[str, object]:
     for key in keys:
         raw_value = payload.get(key)
@@ -771,6 +830,8 @@ __all__ = [
     "mesh_dotnet_experiment_command",
     "mesh_dotnet_experiment_evaluation_path",
     "mesh_dotnet_experiment_output_obj_path",
+    "mesh_dotnet_material_parity_warnings",
+    "mesh_dotnet_renderer_blockers",
     "write_mesh_dotnet_experiment_evaluation",
     "write_mesh_dotnet_launch_diagnostics",
     "write_mesh_dotnet_launch_manifest",

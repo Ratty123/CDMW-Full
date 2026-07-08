@@ -42,6 +42,9 @@ ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_OPEN = (
 ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_setup.py"
 )
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP_HELPERS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_setup_helpers.py"
+)
 ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_STATE_CALLBACKS = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_state_callbacks.py"
 )
@@ -68,6 +71,27 @@ ARCHIVE_STATIC_REPLACEMENT_DIALOG_HELPERS = (
 )
 ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_callback_factories.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_MESH_DIAGNOSTICS_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_mesh_diagnostics_callbacks.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_SOURCE_MIX_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_source_mix_callbacks.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_TEXTURE_DETAIL_UV_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_texture_detail_uv_callbacks.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_ACCEPT_DISPATCH_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_accept_dispatch_callbacks.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_CUSTOM_ICON_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_custom_icon_callbacks.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_SOURCE_ROLE_TREE_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_source_role_tree_callbacks.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_MANUAL_PROFILE_CALLBACKS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_manual_profile_callbacks.py"
 )
 ARCHIVE_STATIC_REPLACEMENT_DIALOG_TEXTURE_CALLBACKS = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_texture_callbacks.py"
@@ -171,6 +195,9 @@ ARCHIVE_STATIC_REPLACEMENT_D3D11_WATCHDOG_STATE = (
 ARCHIVE_STATIC_REPLACEMENT_D3D11_PRESENTATION_STATE = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_d3d11_presentation_state.py"
 )
+ARCHIVE_STATIC_REPLACEMENT_D3D11_LOADING_DETAILS = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_d3d11_loading_details.py"
+)
 ARCHIVE_STATIC_REPLACEMENT_PREVIEW_LIMITS = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_preview_limits.py"
 )
@@ -182,6 +209,9 @@ ARCHIVE_STATIC_REPLACEMENT_PREVIEW_MATERIALS = (
 )
 ARCHIVE_STATIC_REPLACEMENT_PREVIEW_MODELS = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_preview_models.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_PREVIEW_SELECTION_OVERLAY = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_preview_selection_overlay.py"
 )
 ARCHIVE_STATIC_REPLACEMENT_ORIGINAL_PREVIEW_MODELS = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_original_preview_models.py"
@@ -389,6 +419,22 @@ def _legacy_nested_source(path: Path) -> str:
     return "\n".join(f"    {line}" if line else line for line in path.read_text(encoding="utf-8").splitlines())
 
 
+def _callback_factory_source() -> str:
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (
+            ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES,
+            ARCHIVE_STATIC_REPLACEMENT_DIALOG_MESH_DIAGNOSTICS_CALLBACKS,
+            ARCHIVE_STATIC_REPLACEMENT_DIALOG_SOURCE_MIX_CALLBACKS,
+            ARCHIVE_STATIC_REPLACEMENT_DIALOG_TEXTURE_DETAIL_UV_CALLBACKS,
+            ARCHIVE_STATIC_REPLACEMENT_DIALOG_ACCEPT_DISPATCH_CALLBACKS,
+            ARCHIVE_STATIC_REPLACEMENT_DIALOG_CUSTOM_ICON_CALLBACKS,
+            ARCHIVE_STATIC_REPLACEMENT_DIALOG_SOURCE_ROLE_TREE_CALLBACKS,
+            ARCHIVE_STATIC_REPLACEMENT_DIALOG_MANUAL_PROFILE_CALLBACKS,
+        )
+    )
+
+
 def _native_preview_package_source() -> str:
     return "\n".join(
         (
@@ -419,9 +465,11 @@ def _main_window_source() -> str:
             ARCHIVE_STATIC_REPLACEMENT_D3D11_RUNTIME_STATE.read_text(encoding="utf-8"),
             ARCHIVE_STATIC_REPLACEMENT_D3D11_WATCHDOG_STATE.read_text(encoding="utf-8"),
             ARCHIVE_STATIC_REPLACEMENT_D3D11_PRESENTATION_STATE.read_text(encoding="utf-8"),
+            ARCHIVE_STATIC_REPLACEMENT_D3D11_LOADING_DETAILS.read_text(encoding="utf-8"),
             ARCHIVE_STATIC_REPLACEMENT_SOURCE_DISPLAY.read_text(encoding="utf-8"),
             ARCHIVE_STATIC_REPLACEMENT_PREVIEW_MAPPING.read_text(encoding="utf-8"),
             ARCHIVE_STATIC_REPLACEMENT_PREVIEW_MATERIALS.read_text(encoding="utf-8"),
+            ARCHIVE_STATIC_REPLACEMENT_PREVIEW_SELECTION_OVERLAY.read_text(encoding="utf-8"),
             ARCHIVE_STATIC_REPLACEMENT_PREVIEW_TEXTURES.read_text(encoding="utf-8"),
             ARCHIVE_STATIC_REPLACEMENT_PREVIEW_STATUS_STATE.read_text(encoding="utf-8"),
             ARCHIVE_STATIC_REPLACEMENT_PREVIEW_CACHE.read_text(encoding="utf-8"),
@@ -441,6 +489,7 @@ def _main_window_source() -> str:
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SHELL),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_OPEN),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP),
+            _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP_HELPERS),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_STATE_CALLBACKS),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_TRANSFORM),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS),
@@ -454,6 +503,13 @@ def _main_window_source() -> str:
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_UI_SECTIONS),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES),
+            _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_MESH_DIAGNOSTICS_CALLBACKS),
+            _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_SOURCE_MIX_CALLBACKS),
+            _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_TEXTURE_DETAIL_UV_CALLBACKS),
+            _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_ACCEPT_DISPATCH_CALLBACKS),
+            _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_CUSTOM_ICON_CALLBACKS),
+            _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_SOURCE_ROLE_TREE_CALLBACKS),
+            _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_MANUAL_PROFILE_CALLBACKS),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_TEXTURE_CALLBACKS),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_ROUTING_CALLBACKS),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_SOURCE_PART_MUTATION_CALLBACKS),
@@ -804,7 +860,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('QLabel(alignment_setup_options_control_text["alignment_mode_label"])', source)
         self.assertIn('QCheckBox(alignment_setup_options_control_text["scale_to_length"])', source)
         self.assertIn('QCheckBox(alignment_setup_options_control_text["flip_direction"])', source)
-        self.assertIn('"alignment_mode"] = "manual" if bool(modify_original_clone_mode) else "grid_flat"', transform_control_source)
+        self.assertIn('"alignment_mode"] = "grid_flat"', transform_control_source)
+        self.assertNotIn('"alignment_mode"] = "manual" if bool(modify_original_clone_mode) else "grid_flat"', transform_control_source)
         self.assertIn("alignment_mode_combo.findData(alignment_mode)", source)
         self.assertIn('alignment_mode=str(alignment_mode_combo.currentData() or "grid_flat")', source)
         self.assertIn('alignment_mode: str = "grid_flat"', static_source)
@@ -1217,8 +1274,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("\n                alignment_d3d11_stop_worker()", source)
         self.assertIn("clone_model(original_reference_model)", d3d11_mapping_source)
         self.assertIn('"original_reference"', d3d11_mapping_source)
-        self.assertIn("combine_alignment_preview_models(original_workspace, replacement_workspace)", d3d11_mapping_source)
-        self.assertIn("or combine_preview_models(original_workspace, replacement_workspace)", d3d11_mapping_source)
+        self.assertIn("combined = combine_alignment_preview_models(", d3d11_mapping_source)
+        self.assertIn("preserve_overlays=preserve", d3d11_mapping_source)
+        self.assertIn("return combine_preview_models(original_workspace, replacement_workspace)", d3d11_mapping_source)
         self.assertNotIn("legacy_preview_fallback_checkbox", source)
         self.assertNotIn("_toggle_legacy_preview_fallback", source)
         self.assertIn('alignment_preview_settings_button = QPushButton(alignment_preview_control_text["settings_button"])', source)
@@ -1680,7 +1738,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
     def test_modify_original_texture_tuning_is_separate_from_import_mesh_material_authority(self) -> None:
         workflow_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_WORKFLOW_SHELL.read_text(encoding="utf-8")
         ui_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_UI_SECTIONS.read_text(encoding="utf-8")
-        callbacks_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        callbacks_source = _callback_factory_source()
         remaining_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS.read_text(encoding="utf-8")
         manual_profile_source = ARCHIVE_STATIC_REPLACEMENT_MANUAL_MATERIAL_PROFILE.read_text(encoding="utf-8")
 
@@ -1867,7 +1925,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
 
     def test_modify_original_clone_uses_exact_geometry_preview_and_target_highlight(self) -> None:
         source = _main_window_source() + "\n" + _archive_mesh_import_sources()
-        callback_factory_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        callback_factory_source = _callback_factory_source()
         prompt_shell_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SHELL.read_text(encoding="utf-8")
         prompt_setup_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP.read_text(encoding="utf-8")
         prompt_state_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_STATE_CALLBACKS.read_text(encoding="utf-8")
@@ -2653,7 +2711,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def _alignment_preview_selected_source_face_limit", source)
         self.assertIn("def _alignment_preview_background_source_face_limit", source)
         self.assertIn("return 35_000", source)
-        self.assertIn("needs_recenter = math.dist(source_center, reference_center)", geometry_math_source)
+        self.assertIn("horizontal_axes = tuple(index for index in range(3) if index != axis)", geometry_math_source)
+        self.assertIn("needs_recenter = any(", geometry_math_source)
         self.assertIn("centered in the current asset work area", geometry_math_source)
         self.assertIn("scaled {scale:.4g}x for preview control", geometry_math_source)
         self.assertIn("appended_source_indices.update", source)
@@ -2989,7 +3048,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("source_material_plan_refresh_timer.timeout.connect(_run_source_material_plan_refresh)", source)
         self.assertIn("_safe_stop_alignment_timer(material_edit_refresh_timer)", source)
         self.assertIn("_safe_stop_alignment_timer(source_material_plan_refresh_timer)", source)
-        callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        callback_source = _callback_factory_source()
         material_refresh_start = callback_source.index("def _run_material_edit_refresh() -> None:")
         material_refresh_end = callback_source.index("return SimpleNamespace(", material_refresh_start)
         material_refresh_block = callback_source[material_refresh_start:material_refresh_end]
@@ -3118,7 +3177,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('confidence="source-role-preview"', preview_textures_source)
         self.assertIn('overrides["emissive_intensity"] = emissive_intensity', preview_textures_source)
         self.assertIn('overrides["emissive_color"] = color_hex', preview_textures_source)
-        selected_part_callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        selected_part_callback_source = _callback_factory_source()
         glow_color_start = selected_part_callback_source.index("def _set_selected_source_glow_color")
         glow_color_end = selected_part_callback_source.index("def _selected_part_target_index", glow_color_start)
         glow_color_block = selected_part_callback_source[glow_color_start:glow_color_end]
@@ -3443,7 +3502,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
     def test_mesh_editor_builder_uses_embedded_host_and_live_preview_state(self) -> None:
         prompt_shell = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SHELL.read_text(encoding="utf-8")
         prompt_setup = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP.read_text(encoding="utf-8")
-        callbacks = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        callbacks = _callback_factory_source()
         remaining = ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS.read_text(encoding="utf-8")
 
         self.assertIn("embedded_alignment_builder = embedded_host is not None", prompt_shell)
@@ -4307,12 +4366,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("source_component_index != 0", native_apply_block)
         self.assertIn('raw_index = identity.get("source_submesh_index", batch.get("index", -1))', native_apply_block)
         self.assertNotIn('identity.get("source_local_submesh_index"', native_apply_block)
-        sidecar_lookup_start = source.index('sidecar_bindings = ()')
-        sidecar_lookup_end = source.index(
-            '_alignment_startup_step(alignment_startup_text["asset_compatibility"])',
-            sidecar_lookup_start,
-        )
-        sidecar_lookup_block = source[sidecar_lookup_start:sidecar_lookup_end]
+        prompt_setup_helper_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP_HELPERS.read_text(encoding="utf-8")
+        self.assertIn("build_static_replacement_prompt_sidecar_context(", source)
+        sidecar_lookup_start = prompt_setup_helper_source.index('sidecar_bindings')
+        sidecar_lookup_end = prompt_setup_helper_source.index("return SimpleNamespace(", sidecar_lookup_start)
+        sidecar_lookup_block = prompt_setup_helper_source[sidecar_lookup_start:sidecar_lookup_end]
         self.assertIn("archive_entries_by_basename=texture_entries_by_basename_for_alignment", sidecar_lookup_block)
         self.assertIn("source_display_label_cache: Dict[int, str] = {}", source)
         source_display_source = ARCHIVE_STATIC_REPLACEMENT_SOURCE_DISPLAY.read_text(encoding="utf-8")
@@ -4322,7 +4380,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("needs_static_refresh = _preview_mode_needs_static_refresh(mode)", source)
         self.assertIn("mode_route = _alignment_preview_mode_route_helper(", source)
         self.assertIn("if mode_route.should_queue_static_preview_refresh:", source)
-        preview_mode_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        preview_mode_source = _callback_factory_source()
         preview_mode_start = preview_mode_source.index("def _set_preview_mode() -> None:")
         preview_mode_end = preview_mode_source.index("_set_preview_renderer=_set_preview_renderer", preview_mode_start)
         preview_mode_block = preview_mode_source[preview_mode_start:preview_mode_end]
@@ -4377,7 +4435,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
 
     def test_alignment_dialog_routes_visible_dds_contract_and_prune_intent(self) -> None:
         source = _main_window_source()
-        callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        callback_source = _callback_factory_source()
         static_source = _static_replacer_source()
         authority_controls_source = ARCHIVE_STATIC_REPLACEMENT_MATERIAL_AUTHORITY_CONTROLS.read_text(encoding="utf-8")
         archive_source = _archive_modding_source()
@@ -4878,7 +4936,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
 
     def test_alignment_live_preview_uses_virtual_sidecar_texture_contract(self) -> None:
         source = _main_window_source()
-        callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        callback_source = _callback_factory_source()
         virtual_contract_source = ARCHIVE_STATIC_REPLACEMENT_VIRTUAL_TEXTURE_CONTRACT.read_text(encoding="utf-8")
         self.assertIn("alignment_virtual_texture_contract: Dict[str, object]", source)
         self.assertIn("def _alignment_virtual_contract_rows(", source)
@@ -5187,7 +5245,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("preview_scale=preview_scale", source)
 
     def test_modify_original_preview_model_waits_for_transform_controls(self) -> None:
-        callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        callback_source = _callback_factory_source()
         preview_start = callback_source.index("def create_alignment_preview_model_callbacks")
         preview_source = callback_source[preview_start:]
 
@@ -5218,7 +5276,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
     def test_alignment_setup_failure_does_not_mount_partial_builder(self) -> None:
         prompt_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT.read_text(encoding="utf-8")
         setup_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP.read_text(encoding="utf-8")
-        callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        callback_source = _callback_factory_source()
 
         self.assertIn("alignment_setup_failed = False", setup_source)
         self.assertIn("traceback.format_exception(type(exc), exc, exc.__traceback__)", setup_source)
@@ -5247,7 +5305,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
 
     def test_alignment_glow_callbacks_are_noop_safe_when_source_parts_missing(self) -> None:
         dialog_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_UI_SECTIONS.read_text(encoding="utf-8")
-        callback_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        callback_source = _callback_factory_source()
         routing_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_ROUTING_CALLBACKS.read_text(encoding="utf-8")
         remaining_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS.read_text(encoding="utf-8")
 
@@ -5421,7 +5479,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("source_selection_overlay_editor_id_map: Dict[int, int] = {}", source)
         self.assertIn("def _build_selected_source_highlight_overlay_model", source)
         self.assertIn("def _append_selected_source_highlight_overlay", source)
-        preview_models_source = ARCHIVE_STATIC_REPLACEMENT_PREVIEW_MODELS.read_text(encoding="utf-8")
+        preview_models_source = (
+            ARCHIVE_STATIC_REPLACEMENT_PREVIEW_MODELS.read_text(encoding="utf-8")
+            + "\n"
+            + ARCHIVE_STATIC_REPLACEMENT_PREVIEW_SELECTION_OVERLAY.read_text(encoding="utf-8")
+        )
         self.assertIn("replacement_source_selection_overlay", preview_models_source)
         self.assertIn("mesh.source_submesh_index = source_selection_overlay_editor_id(source_index)", preview_models_source)
         self.assertIn("preview_index_by_source[source_index] = int(overlay_offset) + local_index", preview_models_source)
@@ -5523,7 +5585,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         )
 
     def test_alignment_d3d11_callbacks_fallback_to_preview_shell_settings(self) -> None:
-        source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES.read_text(encoding="utf-8")
+        source = _callback_factory_source()
         self.assertIn("def _current_alignment_preview_render_settings_value():", source)
         self.assertIn("if callable(_get_preview_render_settings):\n            return _get_preview_render_settings()", source)
         self.assertNotIn("set_render_tuning(_current_alignment_preview_render_settings())", source)

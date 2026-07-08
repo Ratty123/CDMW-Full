@@ -484,8 +484,10 @@ class ArchiveRenderLifecycleMixin:
             return
         try:
             self.archive_tree.viewport().update()
-        except Exception:
-            pass
+        except Exception as exc:
+            recorder = getattr(self, "_record_runtime_event", None)
+            if callable(recorder):
+                recorder("archive_browser_viewport_update_failed", reason="worker_failed", error=str(exc))
         QTimer.singleShot(max(0, int(delay_ms)), self._handle_archive_browser_first_visible_paint)
 
     def _schedule_archive_post_ready_background_work(self, delay_ms: Optional[int] = None) -> None:

@@ -15,33 +15,46 @@ from cdmw.workers.archive_preview_native import NATIVE_PREVIEW_CORE_MODEL_EXTENS
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker, _ArchivePreviewWorkerPayload
 
 
+def _record_archive_worker_lifecycle(target: object, event: str, **fields: object) -> None:
+    recorder = getattr(target, "_record_runtime_event", None)
+    if callable(recorder):
+        try:
+            recorder(str(event), **fields)
+        except Exception:
+            return
+
+
 class ArchiveWorkerLifecycleMixin:
     """Small archive-browser worker stop helpers owned outside the shell window."""
 
     def _stop_archive_sidecar_worker(self) -> None:
         if self.archive_sidecar_worker is not None:
+            _record_archive_worker_lifecycle(self, "archive_worker_cancelled", reason="cancelled_by_shutdown", worker="sidecar")
             try:
                 self.archive_sidecar_worker.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                _record_archive_worker_lifecycle(self, "archive_worker_failed", reason="worker_failed", worker="sidecar", error=str(exc))
 
     def _stop_archive_derived_cache_worker(self) -> None:
         self.archive_derived_cache_write_pending = False
         if self.archive_derived_cache_worker is not None:
+            _record_archive_worker_lifecycle(self, "archive_worker_cancelled", reason="cancelled_by_shutdown", worker="derived_cache")
             try:
                 self.archive_derived_cache_worker.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                _record_archive_worker_lifecycle(self, "archive_worker_failed", reason="worker_failed", worker="derived_cache", error=str(exc))
         if self.archive_enhanced_index_worker is not None:
+            _record_archive_worker_lifecycle(self, "archive_worker_cancelled", reason="cancelled_by_shutdown", worker="enhanced_index")
             try:
                 self.archive_enhanced_index_worker.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                _record_archive_worker_lifecycle(self, "archive_worker_failed", reason="worker_failed", worker="enhanced_index", error=str(exc))
         if self.archive_structure_filter_worker is not None:
+            _record_archive_worker_lifecycle(self, "archive_worker_cancelled", reason="cancelled_by_shutdown", worker="structure_filter")
             try:
                 self.archive_structure_filter_worker.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                _record_archive_worker_lifecycle(self, "archive_worker_failed", reason="worker_failed", worker="structure_filter", error=str(exc))
 
 
 class ArchivePreviewWorkerMixin:
@@ -169,6 +182,14 @@ class ArchivePreviewWorkerMixin:
 
         if self.archive_preview_thread is not None:
             self.pending_archive_preview_request = (request_id, entry, include_loose_preview_assets)
+            _record_archive_worker_lifecycle(
+                self,
+                "archive_preview_worker_cancelled",
+                reason="cancelled_by_new_request",
+                request_id=request_id,
+                previous_request_id=self.archive_preview_request_id,
+                path=getattr(entry, "path", ""),
+            )
             if self.archive_preview_worker is not None:
                 self.archive_preview_worker.stop()
             return
@@ -348,6 +369,14 @@ class ArchivePreviewWorkerMixin:
             preview_core_service_recycle_reason=native_preview_diagnostics.get("service_recycle_reason", ""),
         )
         if self._shutting_down or request_id != self.archive_preview_request_id:
+            _record_archive_worker_lifecycle(
+                self,
+                "archive_preview_result_ignored",
+                reason="cancelled_by_shutdown" if self._shutting_down else "stale_result_ignored",
+                request_id=request_id,
+                current_request_id=self.archive_preview_request_id,
+                source=source,
+            )
             return
         try:
             if isinstance(payload, ArchivePreviewResult):
@@ -405,6 +434,14 @@ class ArchivePreviewWorkerMixin:
             message=message,
         )
         if self._shutting_down or request_id != self.archive_preview_request_id:
+            _record_archive_worker_lifecycle(
+                self,
+                "archive_preview_worker_failed",
+                reason="cancelled_by_shutdown" if self._shutting_down else "stale_result_ignored",
+                request_id=request_id,
+                current_request_id=self.archive_preview_request_id,
+                message=str(message),
+            )
             return
         self._stop_archive_preview_loading_indicator(success=False)
         self._write_crash_report(
@@ -424,6 +461,13 @@ class ArchivePreviewWorkerMixin:
         self.archive_preview_thread = None
         self.archive_preview_worker = None
         if self._shutting_down:
+            _record_archive_worker_lifecycle(
+                self,
+                "archive_preview_worker_cancelled",
+                reason="cancelled_by_shutdown",
+                pending=bool(self.pending_archive_preview_request),
+                scheduled=bool(self.scheduled_archive_preview_request),
+            )
             self.pending_archive_preview_request = None
             self.scheduled_archive_preview_request = None
             return

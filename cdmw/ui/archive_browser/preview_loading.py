@@ -166,25 +166,29 @@ class ArchivePreviewLoadingMixin:
         request_id = int(getattr(self, "archive_preview_loading_request_id", 0) or 0)
         has_fast_result = str(getattr(getattr(self, "current_archive_preview_result", None), "quality_tier", "") or "").strip().lower() == "fast"
         preview_phase = "full_after_fast" if has_fast_result or self.archive_preview_quick_result_active else "initial"
+        recorder = getattr(self, "_record_runtime_event", None)
         if self.archive_preview_worker is not None:
             try:
                 self.archive_preview_worker.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                if callable(recorder):
+                    recorder("archive_preview_worker_failed", reason="worker_failed", request_id=request_id, error=str(exc))
         if self.archive_preview_thread is not None:
             try:
                 self.archive_preview_thread.requestInterruption()
-            except Exception:
-                pass
+            except Exception as exc:
+                if callable(recorder):
+                    recorder("archive_preview_worker_failed", reason="worker_failed", request_id=request_id, error=str(exc))
             try:
                 self.archive_preview_thread.quit()
-            except Exception:
-                pass
+            except Exception as exc:
+                if callable(recorder):
+                    recorder("archive_preview_worker_failed", reason="worker_failed", request_id=request_id, error=str(exc))
         try:
             shutdown_native_preview_core_service()
-        except Exception:
-            pass
-        recorder = getattr(self, "_record_runtime_event", None)
+        except Exception as exc:
+            if callable(recorder):
+                recorder("archive_preview_core_shutdown_failed", reason="worker_failed", request_id=request_id, error=str(exc))
         if callable(recorder):
             recorder(
                 "archive_preview_stalled",

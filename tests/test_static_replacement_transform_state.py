@@ -446,8 +446,9 @@ def test_alignment_transform_reset_state_routes_placement_mode() -> None:
         "scale": (1.0, 1.0, 1.0),
         "queue_rebuild": True,
     }
-    assert alignment_transform_reset_state("placement", modify_original_clone_mode=True)["alignment_mode"] == "manual"
-    assert alignment_transform_reset_state("placement", modify_original_clone_mode=True)["scale_to_length"] is False
+    modify_original_state = alignment_transform_reset_state("placement", modify_original_clone_mode=True)
+    assert modify_original_state["alignment_mode"] == "grid_flat"
+    assert modify_original_state["scale_to_length"] is False
 
 
 def test_alignment_rotation_nudge_value_applies_direction_and_step() -> None:

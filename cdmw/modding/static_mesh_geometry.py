@@ -197,8 +197,8 @@ def _compute_anchor_alignment(
     if alignment_mode in {"auto_fit", "auto_fit_original", "preserve_original", "bbox_center", "center", "auto_flat_original", "flat_original", "grid_flat"}:
         source_anchor = transform.source_anchor or _mesh_center_anchor(replacement_mesh)
         target_anchor = transform.target_anchor or _mesh_center_anchor(original_mesh)
-        source_axis = transform.source_axis or _axis_vector(_dominant_axis(replacement_mesh))
-        target_axis = transform.target_axis or _axis_vector(_dominant_axis(original_mesh))
+        source_axis = transform.source_axis or _default_alignment_axis(replacement_mesh, alignment_mode)
+        target_axis = transform.target_axis or _default_alignment_axis(original_mesh, alignment_mode)
         if transform.flip_source_axis:
             source_axis = (-source_axis[0], -source_axis[1], -source_axis[2])
         if transform.flip_target_axis:
@@ -276,7 +276,11 @@ def _auto_roll_angle(
     force_grid_flat: bool = False,
 ) -> float:
     if prefer_flat_normal:
-        source_flat_normal = _axis_aligned_flat_normal_vector(replacement_mesh, source_axis)
+        source_flat_normal = (
+            _axis_aligned_flat_normal_vector(replacement_mesh, source_axis)
+            if _axis_is_nearly_cardinal(source_axis)
+            else None
+        )
         if source_flat_normal is None:
             source_flat_normal = _flat_normal_axis_vector(replacement_mesh, source_axis)
         target_flat_normal = None if force_grid_flat else _flat_normal_axis_vector(original_mesh, target_axis)
@@ -300,6 +304,66 @@ def _renderable_mesh_vertices(mesh: ParsedMesh) -> list[tuple[float, float, floa
     ]
 
 
+def _default_alignment_axis(
+    mesh: ParsedMesh,
+    alignment_mode: str,
+) -> tuple[float, float, float]:
+    if str(alignment_mode or "").strip().lower() == "grid_flat":
+        principal_axis = _principal_axis_vector(mesh)
+        if principal_axis is not None:
+            return principal_axis
+    return _axis_vector(_dominant_axis(mesh))
+
+
+def _principal_axis_vector(mesh: ParsedMesh) -> tuple[float, float, float] | None:
+    vertices = _renderable_mesh_vertices(mesh)
+    if len(vertices) < 2:
+        return None
+    center = _centroid(vertices)
+    cxx = cxy = cxz = cyy = cyz = czz = 0.0
+    for vertex in vertices:
+        x = float(vertex[0]) - center[0]
+        y = float(vertex[1]) - center[1]
+        z = float(vertex[2]) - center[2]
+        cxx += x * x
+        cxy += x * y
+        cxz += x * z
+        cyy += y * y
+        cyz += y * z
+        czz += z * z
+    scale = 1.0 / float(len(vertices))
+    cxx *= scale
+    cxy *= scale
+    cxz *= scale
+    cyy *= scale
+    cyz *= scale
+    czz *= scale
+    if not all(math.isfinite(value) for value in (cxx, cxy, cxz, cyy, cyz, czz)):
+        return None
+    if cxx + cyy + czz <= 1.0e-12:
+        return None
+    bmin, bmax = _bbox(vertices)
+    dims = _dims(bmin, bmax)
+    axis = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))[max(range(3), key=lambda index: dims[index])]
+    for _ in range(32):
+        next_axis = (
+            cxx * axis[0] + cxy * axis[1] + cxz * axis[2],
+            cxy * axis[0] + cyy * axis[1] + cyz * axis[2],
+            cxz * axis[0] + cyz * axis[1] + czz * axis[2],
+        )
+        length = math.sqrt(_dot(next_axis, next_axis))
+        if length <= 1.0e-12 or not math.isfinite(length):
+            return None
+        next_axis = (next_axis[0] / length, next_axis[1] / length, next_axis[2] / length)
+        if _dot(next_axis, axis) < 0.0:
+            next_axis = (-next_axis[0], -next_axis[1], -next_axis[2])
+        if 1.0 - abs(_dot(next_axis, axis)) <= 1.0e-8:
+            axis = next_axis
+            break
+        axis = next_axis
+    return _canonical_axis_sign(axis)
+
+
 def _axis_aligned_secondary_axis_vector(
     vertices: list[tuple[float, float, float]],
     primary_axis: tuple[float, float, float],
@@ -319,6 +383,11 @@ def _canonical_axis_sign(axis: tuple[float, float, float]) -> tuple[float, float
     if axis[dominant_index] < 0.0:
         return (-axis[0], -axis[1], -axis[2])
     return axis
+
+
+def _axis_is_nearly_cardinal(axis: tuple[float, float, float], threshold: float = 0.995) -> bool:
+    normalized = _normalize(axis)
+    return max(abs(normalized[0]), abs(normalized[1]), abs(normalized[2])) >= threshold
 
 
 def _projected_principal_plane_axes(

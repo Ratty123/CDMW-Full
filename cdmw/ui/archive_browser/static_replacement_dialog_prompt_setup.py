@@ -11,7 +11,11 @@ from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
 from cdmw.ui.archive_browser.static_replacement_geometry_math import (
     external_import_work_area_fit,
     part_bbox,
-    transformed_vertices_for_work_area,
+)
+from cdmw.ui.archive_browser.static_replacement_dialog_prompt_setup_helpers import (
+    apply_static_replacement_work_area_fit as _apply_work_area_fit,
+    build_static_replacement_prompt_sidecar_context,
+    static_replacement_prompt_mesh_vertices as _mesh_vertices,
 )
 from cdmw.ui.archive_browser.static_replacement_sparse_history import (
     clone_mesh_for_static_replacement_native_first,
@@ -51,23 +55,6 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
     _set_texture_sets = context['_set_texture_sets']
     texture_uv_global_transform_state = context.get('texture_uv_global_transform_state')
 
-    def _mesh_vertices(mesh: object) -> list[tuple[float, float, float]]:
-        return [
-            vertex
-            for submesh in tuple(getattr(mesh, "submeshes", ()) or ())
-            for vertex in tuple(getattr(submesh, "vertices", ()) or ())
-        ]
-
-    def _apply_work_area_fit(mesh: object, fit: object) -> None:
-        for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
-            vertices = tuple(getattr(submesh, "vertices", ()) or ())
-            if not vertices:
-                continue
-            submesh.vertices = transformed_vertices_for_work_area(vertices, fit)
-            submesh.vertex_count = len(submesh.vertices)
-            submesh.face_count = len(getattr(submesh, "faces", ()) or ())
-        refresh_parsed_mesh_totals(mesh)
-
     alignment_setup_failed = False
     alignment_setup_error = ""
     alignment_setup_traceback = ""
@@ -78,42 +65,20 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
             original_mesh_for_mapping = parse_mesh(original_data, entry.path)
         else:
             original_mesh_for_mapping = original_mesh
-        sidecar_bindings = ()
-        sidecar_text_values: Tuple[str, ...] = ()
-        sidecar_texts_by_normalized_path: Dict[str, Tuple[str, ...]] = {}
-        sidecar_texts_by_basename: Dict[str, Tuple[str, ...]] = {}
-        try:
-            _alignment_startup_step(alignment_startup_text["material_sidecar"])
-            (
-                texture_entries_by_normalized_path_for_alignment,
-                texture_entries_by_basename_for_alignment,
-            ) = _alignment_texture_lookup_indexes()
-            (
-                sidecar_bindings,
-                _sidecar_paths,
-                sidecar_texts_by_normalized_path,
-                sidecar_texts_by_basename,
-            ) = _extract_archive_model_sidecar_texture_references(
-                entry,
-                archive_entries_by_basename=texture_entries_by_basename_for_alignment,
-            )
-            deduped_sidecar_texts: List[str] = []
-            seen_sidecar_texts: set[str] = set()
-            for sidecar_index, values in enumerate(sidecar_texts_by_normalized_path.values()):
-                if sidecar_index and sidecar_index % 24 == 0:
-                    _alignment_startup_step(alignment_startup_text["sidecar_texture_references"])
-                for text in values:
-                    normalized_text = str(text or "")
-                    if not normalized_text.strip() or normalized_text in seen_sidecar_texts:
-                        continue
-                    seen_sidecar_texts.add(normalized_text)
-                    deduped_sidecar_texts.append(normalized_text)
-            sidecar_text_values = tuple(deduped_sidecar_texts)
-        except Exception:
-            sidecar_bindings = ()
-            sidecar_text_values = ()
-            sidecar_texts_by_normalized_path = {}
-            sidecar_texts_by_basename = {}
+        sidecar_context = build_static_replacement_prompt_sidecar_context(
+            entry=entry,
+            alignment_startup_step=_alignment_startup_step,
+            alignment_startup_text=alignment_startup_text,
+            alignment_texture_lookup_indexes=_alignment_texture_lookup_indexes,
+            extract_archive_model_sidecar_texture_references=_extract_archive_model_sidecar_texture_references,
+            record_runtime_event=_record_runtime_event,
+            dialog_title=dialog_title,
+            modify_original_clone_mode=modify_original_clone_mode,
+        )
+        sidecar_bindings = sidecar_context.sidecar_bindings
+        sidecar_text_values = sidecar_context.sidecar_text_values
+        sidecar_texts_by_normalized_path = sidecar_context.sidecar_texts_by_normalized_path
+        sidecar_texts_by_basename = sidecar_context.sidecar_texts_by_basename
         _alignment_startup_step(alignment_startup_text["asset_compatibility"])
         (
             texture_entries_by_normalized_path_for_alignment,
@@ -472,15 +437,6 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         undo_geometry_button = alignment_source_parts_outliner_section.undo_geometry_button
         value = alignment_source_parts_outliner_section.value
         values = alignment_source_parts_outliner_section.values
-
-
-
-
-
-
-
-
-
 
         alignment_mesh_geometry_preview_section = create_alignment_mesh_geometry_preview_section({
             **context,

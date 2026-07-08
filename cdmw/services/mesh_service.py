@@ -455,6 +455,8 @@ class MeshService:
             raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
         if bool(getattr(mesh, "_cdmw_imported_from_obj", False)) and bool(getattr(mesh, "_cdmw_obj_sidecar_present", False)):
             validate_obj_sidecar_source_identity(mesh, session.original_data)
+        previous_mesh = session.working_mesh
+        previous_selection = session.selection
         self._push_history(session, prefer_native=True)
         _clear_history_stack(session.redo_stack)
         _close_native_editor_session(session)
@@ -466,8 +468,15 @@ class MeshService:
         if not str(working_mesh.path or "").strip():
             working_mesh.path = session.base_mesh.path
         refresh_mesh_totals(working_mesh)
+        preserved_selection, selection_diagnostics = _selection_after_working_mesh_replace(
+            previous_mesh,
+            working_mesh,
+            previous_selection,
+        )
+        if selection_diagnostics:
+            setattr(working_mesh, "_cdmw_selection_diagnostics", selection_diagnostics)
         session.working_mesh = working_mesh
-        session.selection = MeshEditSelection()
+        session.selection = preserved_selection
         session.sidecar_warnings = tuple(getattr(working_mesh, "_cdmw_sidecar_warnings", ()) or ())
         session.edit_operations = tuple(getattr(working_mesh, "_cdmw_edit_operations", ()) or ())
         session.requires_edit_operations = bool(getattr(working_mesh, "_cdmw_requires_edit_operations", False)) or (
@@ -3570,6 +3579,39 @@ def _combine_selection_values(left: set[object], right: set[object], mode: str) 
             else:
                 result.add(value)
     return result
+
+
+def _selection_after_working_mesh_replace(
+    previous_mesh: ParsedMesh,
+    working_mesh: ParsedMesh,
+    selection: MeshEditSelection,
+) -> tuple[MeshEditSelection, tuple[str, ...]]:
+    if selection.is_empty():
+        return MeshEditSelection(), ()
+    if _mesh_topology_signature(previous_mesh) != _mesh_topology_signature(working_mesh):
+        return (
+            MeshEditSelection(),
+            ("selection_cleared_after_external_import: topology changed; previous selection cannot be mapped safely",),
+        )
+    preserved = _prune_selection_to_mesh(working_mesh, selection)
+    if preserved.is_empty() and not selection.is_empty():
+        return (
+            MeshEditSelection(),
+            ("selection_cleared_after_external_import: previous selection is invalid on imported mesh",),
+        )
+    if preserved != selection:
+        return (
+            preserved,
+            ("selection_pruned_after_external_import: invalid selection members were removed",),
+        )
+    return preserved, ()
+
+
+def _mesh_topology_signature(mesh: ParsedMesh) -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (len(tuple(submesh.vertices or ())), len(tuple(submesh.faces or ())))
+        for submesh in tuple(mesh.submeshes or ())
+    )
 
 
 def _prune_selection_to_mesh(mesh: ParsedMesh, selection: MeshEditSelection) -> MeshEditSelection:

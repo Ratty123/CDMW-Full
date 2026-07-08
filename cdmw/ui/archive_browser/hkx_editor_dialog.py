@@ -1,7 +1,5 @@
 """HKX editor dialog for archive browser entries."""
-
 from __future__ import annotations
-
 import dataclasses
 import math
 import re
@@ -10,7 +8,6 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
-
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QTextCursor
 from PySide6.QtWidgets import (
@@ -40,7 +37,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
 from cdmw.core.archive import (
     build_archive_preview_result,
     parse_socket_bone_data_xml,
@@ -785,6 +781,7 @@ class ArchiveHkxEditorDialogMixin:
         try:
             hkx_attachment_graph, _hkx_attachment_references = self._archive_asset_family_graph_for_entry(entry)
         except Exception:
+            # Best effort: placement-chain evidence is optional for HKX inspection.
             hkx_attachment_graph = AssetFamilyGraph(
                 root_path=entry.path,
                 family_key=PurePosixPath(entry.path.replace("\\", "/")).stem,
@@ -957,6 +954,7 @@ class ArchiveHkxEditorDialogMixin:
                     socket_entry.path,
                 )
             except Exception as exc:
+                # User-visible: socket XML read/parse failures are shown in the placement panel.
                 placement_socket_summary.setText(
                     f"Selected chain: {chain_text}\nCould not read socket XML: {exc}"
                 )
@@ -1143,7 +1141,8 @@ class ArchiveHkxEditorDialogMixin:
                     show_physics_simulation_preview=False,
                 )
             )
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            # Best effort: embedded HKX preview starts with default render settings if setup fails.
             pass
         hkx_preview_layout.addWidget(hkx_link_preview_widget, stretch=1)
         workspace_splitter.addWidget(hkx_preview_panel)
@@ -1212,7 +1211,8 @@ class ArchiveHkxEditorDialogMixin:
                     combo_item = section_combo.model().item(section_index)
                     if combo_item is not None:
                         combo_item.setEnabled(False)
-                except Exception:
+                except (AttributeError, RuntimeError, TypeError, ValueError):
+                    # Best effort: unavailable section state is still enforced by navigation handling.
                     pass
             nav_item = QListWidgetItem(section_title)
             nav_item.setData(Qt.ItemDataRole.UserRole, section_index)
@@ -1335,7 +1335,7 @@ class ArchiveHkxEditorDialogMixin:
             hkx_preview_panel.setVisible(visible)
             try:
                 has_existing_preview = isinstance(_current_hkx_link_preview_model(), ModelPreviewData)
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
                 has_existing_preview = False
             hkx_preview_refresh_button.setVisible(bool(visible and has_existing_preview and not hkx_link_preview_state.get("loaded")))
             preview_toggle_button.setText("Hide 3D" if visible else "Show 3D")
@@ -1805,7 +1805,8 @@ class ArchiveHkxEditorDialogMixin:
         def _format_xml_from_root(root: ET.Element) -> str:
             try:
                 ET.indent(root, space="  ")
-            except Exception:
+            except (AttributeError, TypeError, ValueError):
+                # Best effort: formatting should not block XML serialization.
                 pass
             return ET.tostring(root, encoding="unicode")
 
@@ -1887,7 +1888,7 @@ class ArchiveHkxEditorDialogMixin:
 
         try:
             archive_preview_original_settings = self.archive_model_preview.render_settings()
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             archive_preview_original_settings = None
         try:
             archive_preview_original_bones_visible = (
@@ -1895,7 +1896,7 @@ class ArchiveHkxEditorDialogMixin:
                 if hasattr(self.archive_model_preview, "physics_overlay_bones_visible")
                 else None
             )
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             archive_preview_original_bones_visible = None
 
         def _enable_hkx_preview_overlay(preview: object) -> None:
@@ -1916,14 +1917,15 @@ class ArchiveHkxEditorDialogMixin:
                             show_physics_simulation_preview=False,
                         )
                     )
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                # Best effort: overlay previews keep their existing render settings if sync fails.
                 pass
 
         def _current_hkx_link_preview_model() -> Optional[ModelPreviewData]:
             active_archive_preview = self._active_archive_model_preview_widget() or self.archive_model_preview
             try:
                 widget_model = active_archive_preview.current_model_preview()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
                 widget_model = None
             if isinstance(widget_model, ModelPreviewData) and getattr(widget_model, "meshes", None):
                 return widget_model
@@ -1939,7 +1941,7 @@ class ArchiveHkxEditorDialogMixin:
                 return None
             try:
                 preview_model = hkx_link_preview_widget.current_model_preview()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
                 preview_model = None
             return preview_model if isinstance(preview_model, ModelPreviewData) else None
 
@@ -1952,7 +1954,7 @@ class ArchiveHkxEditorDialogMixin:
                 graph, _references = self._archive_asset_family_graph_for_entry(entry)
                 evidence_count = len(tuple(getattr(graph, "attachment_evidence", ()) or ()))
                 summary_text = str(getattr(graph, "summary", "") or "").strip()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
                 evidence_count = 0
                 summary_text = ""
             hkx_preview_placement_state["evidence_count"] = evidence_count
@@ -2263,6 +2265,7 @@ class ArchiveHkxEditorDialogMixin:
                         hkx_link_preview_widget.set_physics_overlay_bones_visible(hkx_preview_skeleton_checkbox.isChecked())
                     _enable_hkx_preview_overlay(hkx_link_preview_widget)
                 except Exception as exc:
+                    # User-visible: embedded preview load/display failures are reported in-panel.
                     hkx_link_preview_state["loaded"] = False
                     hkx_preview_status_label.setText(f"Could not display the embedded 3D preview: {exc}")
                     return
@@ -2295,13 +2298,13 @@ class ArchiveHkxEditorDialogMixin:
                     continue
                 try:
                     preview_model = preview.current_model_preview()
-                except Exception:
+                except (AttributeError, RuntimeError, TypeError, ValueError):
                     preview_model = None
                 include_bones = True
                 if hasattr(preview, "physics_overlay_bones_visible"):
                     try:
                         include_bones = bool(preview.physics_overlay_bones_visible())
-                    except Exception:
+                    except (AttributeError, RuntimeError, TypeError, ValueError):
                         include_bones = True
                 target_ids.update(_hkx_preview_target_ids_from_model(preview_model, include_bones=include_bones))
             return target_ids
@@ -2324,6 +2327,7 @@ class ArchiveHkxEditorDialogMixin:
                     hkx_link_preview_widget.set_physics_overlay_bones_visible(hkx_preview_skeleton_checkbox.isChecked())
                 _enable_hkx_preview_overlay(hkx_link_preview_widget)
             except Exception as exc:
+                # User-visible: preview model handoff failures are reported in-panel.
                 hkx_link_preview_state["loaded"] = False
                 hkx_preview_status_label.setText(f"Could not load the embedded HKX 3D preview: {exc}")
                 return False
@@ -3365,7 +3369,7 @@ class ArchiveHkxEditorDialogMixin:
                     continue
                 try:
                     preview_model = preview.current_model_preview()
-                except Exception:
+                except (AttributeError, RuntimeError, TypeError, ValueError):
                     preview_model = None
                 if not isinstance(preview_model, ModelPreviewData):
                     continue
@@ -3669,7 +3673,7 @@ class ArchiveHkxEditorDialogMixin:
                         source_path_hint=source_hint,
                     ):
                         selected_widgets.append("embedded" if preview is hkx_link_preview_widget else "main")
-                except Exception:
+                except (AttributeError, RuntimeError, TypeError, ValueError):
                     continue
             selected = bool(selected_widgets)
             if selected:
@@ -7126,16 +7130,16 @@ class ArchiveHkxEditorDialogMixin:
                 if archive_preview_original_settings is not None:
                     try:
                         self.archive_model_preview.set_render_settings(archive_preview_original_settings)
-                    except Exception:
+                    except (AttributeError, RuntimeError, TypeError, ValueError):
                         pass
                 if archive_preview_original_bones_visible is not None and hasattr(self.archive_model_preview, "set_physics_overlay_bones_visible"):
                     try:
                         self.archive_model_preview.set_physics_overlay_bones_visible(bool(archive_preview_original_bones_visible))
-                    except Exception:
+                    except (AttributeError, RuntimeError, TypeError, ValueError):
                         pass
                 try:
                     hkx_link_preview_widget.clear_model("HKX editor 3D preview closed.", release_gl=True)
-                except Exception:
+                except (AttributeError, RuntimeError, TypeError, ValueError):
                     pass
 
             dialog.finished.connect(_disconnect_hkx_overlay_selection_bridge)
@@ -7236,7 +7240,7 @@ class ArchiveHkxEditorDialogMixin:
             try:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 output_path.write_text(editor.toPlainText(), encoding="utf-8")
-            except Exception as exc:
+            except (OSError, UnicodeError) as exc:
                 QMessageBox.warning(dialog, "Export Edited HKX XML", f"Could not export edited HKX XML:\n{exc}")
                 self.set_status_message(f"Edited HKX XML export failed: {exc}", error=True)
                 return

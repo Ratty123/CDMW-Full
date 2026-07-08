@@ -32,7 +32,16 @@ SOURCE_SUFFIXES = {
     ".toml",
     ".xml",
 }
-UNTRACKED_NON_RUNTIME_PREFIXES = ("tests/",)
+UNTRACKED_PROJECT_SOURCE_PREFIXES = (
+    "cdmw/",
+    "docs/",
+    "native/",
+    "pyinstaller_hooks/",
+    "schemas/",
+    "scripts/",
+    "tests/",
+    "tools/",
+)
 
 
 def classify_git_status(lines: Iterable[str]) -> dict[str, list[str]]:
@@ -52,7 +61,7 @@ def classify_git_status(lines: Iterable[str]) -> dict[str, list[str]]:
             path = path.split(" -> ", 1)[1]
         if _is_generated(path):
             inventory["generated_output"].append(path)
-        elif status == "??" and _is_non_runtime_source(path):
+        elif status == "??" and _is_project_source(path):
             inventory["required_source_or_docs"].append(path)
         elif status == "??" and Path(path).suffix.lower() in SOURCE_SUFFIXES:
             inventory["unclassified_untracked_source"].append(path)
@@ -77,10 +86,10 @@ def _is_generated(path: str) -> bool:
     return any(normalized == prefix.rstrip("/") or normalized.startswith(prefix) for prefix in GENERATED_PREFIXES)
 
 
-def _is_non_runtime_source(path: str) -> bool:
+def _is_project_source(path: str) -> bool:
     normalized = path.replace("\\", "/")
     return Path(normalized).suffix.lower() in SOURCE_SUFFIXES and any(
-        normalized.startswith(prefix) for prefix in UNTRACKED_NON_RUNTIME_PREFIXES
+        normalized.startswith(prefix) for prefix in UNTRACKED_PROJECT_SOURCE_PREFIXES
     )
 
 

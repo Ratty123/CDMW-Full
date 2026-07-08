@@ -69,13 +69,13 @@ class MeshEditorShellBridgeMixin:
         source_skeleton = getattr(request, "source_skeleton", None)
         try:
             source_path_key = str(Path(source_path).expanduser().resolve()).replace("\\", "/").lower() if source_path else ""
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             source_path_key = str(source_path or "").replace("\\", "/").strip().lower()
         supplemental = []
         for path in tuple(getattr(request, "supplemental_files", ()) or ()):
             try:
                 supplemental.append(str(Path(path).expanduser().resolve()).replace("\\", "/").lower())
-            except Exception:
+            except (OSError, RuntimeError, TypeError, ValueError):
                 supplemental.append(str(path or "").replace("\\", "/").strip().lower())
         parts = {
             "target": self._archive_entry_identity_key(target_entry) if isinstance(target_entry, ArchiveEntry) else self._mesh_editor_entry_key(target_entry),

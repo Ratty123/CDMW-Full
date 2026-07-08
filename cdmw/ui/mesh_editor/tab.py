@@ -44,6 +44,8 @@ from cdmw.services.mesh_dotnet_experiment import (
     find_mesh_dotnet_experiment_editor,
     mesh_dotnet_experiment_command,
     mesh_dotnet_experiment_output_obj_path,
+    mesh_dotnet_material_parity_warnings,
+    mesh_dotnet_renderer_blockers,
     resolve_mesh_dotnet_experiment_editor,
     write_mesh_dotnet_experiment_evaluation,
     write_mesh_dotnet_launch_diagnostics,
@@ -95,12 +97,12 @@ _LEGACY_SCREEN_CAMERA_FIELDS = frozenset(
 
 try:  # pragma: no cover - import guard keeps source tests light.
     from cdmw.models import ArchiveEntry
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     ArchiveEntry = object  # type: ignore[assignment]
 
 try:  # pragma: no cover
     from cdmw.modding.scene_importer import SceneImportResult
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     SceneImportResult = object  # type: ignore[assignment]
 
 
@@ -649,7 +651,7 @@ class MeshEditorTab(QWidget):
             view = controller.session_view()
             source_indices = tuple(int(index) for index in view.selection.source_indices)
             selection_empty = bool(view.selection.is_empty())
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             source_indices = ()
             selection_empty = True
         target = target_mode if not selection_empty else ("selection" if tool in {"move", "vertex"} else "brush")
@@ -814,7 +816,8 @@ class MeshEditorTab(QWidget):
         process.setArguments(arguments)
         try:
             process.setWorkingDirectory(str(Path(__file__).resolve().parents[3]))
-        except Exception:
+        except (OSError, RuntimeError):
+            # Best effort: QProcess can still start with its inherited working directory.
             pass
         process.setProcessChannelMode(QProcess.SeparateChannels)
         try:
@@ -1195,8 +1198,10 @@ class MeshEditorTab(QWidget):
                         recorder(event_name, normalized)
                         return
                     except Exception:
+                        # Best effort: runtime-event sinks are optional diagnostics.
                         pass
                 except Exception:
+                    # Best effort: a broken parent/builder recorder must not fail UI work.
                     pass
         try:
             self.runtime_event_requested.emit(event_name, normalized)
@@ -1418,6 +1423,8 @@ class MeshEditorTab(QWidget):
         package: MeshDotNetExperimentPackage,
         status_payload: Mapping[str, object],
     ) -> bool:
+        if not self._handle_dotnet_renderer_status(status_payload, source_event="output_import"):
+            return False
         controller = self.standalone_dotnet_target_controller or self.standalone_controller
         if controller is None:
             self.status_message_requested.emit("Mesh .NET editor output import unavailable: no active session.", True)
@@ -1495,7 +1502,8 @@ class MeshEditorTab(QWidget):
                     self.standalone_dotnet_status_payload,
                     validation_report=validation,
                 )
-            except Exception:
+            except Exception as exc:
+                self._record_mesh_dotnet_event("mesh_dotnet_evaluation_write_failed", error=str(exc))
                 evaluation_path = None
         text = (
             f"Mesh .NET editor output imported and validated ({float(elapsed_ms):.1f} ms): "
@@ -1627,6 +1635,11 @@ class MeshEditorTab(QWidget):
             )
             return False
         if event == "ready":
+            if not self._handle_dotnet_renderer_status(payload, source_event="ready"):
+                return False
+            renderer = payload.get("renderer")
+            if isinstance(renderer, Mapping):
+                self.standalone_dotnet_status_payload["renderer"] = dict(renderer)
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_process_ready",
                 embedded=bool(self.standalone_dotnet_target_embedded),
@@ -1643,6 +1656,11 @@ class MeshEditorTab(QWidget):
             metrics = payload.get("metrics", payload)
             if isinstance(metrics, Mapping):
                 self.standalone_dotnet_status_payload["metrics"] = dict(metrics)
+                renderer = metrics.get("renderer", payload.get("renderer"))
+                if isinstance(renderer, Mapping):
+                    self.standalone_dotnet_status_payload["renderer"] = dict(renderer)
+                    if not self._handle_dotnet_renderer_status({"renderer": renderer}, source_event="metrics", emit_warning=False):
+                        return False
             return True
         if event == "select_request":
             return self._handle_dotnet_select_request(payload)
@@ -1667,7 +1685,7 @@ class MeshEditorTab(QWidget):
             return False
         try:
             return raw_session == str(controller.session_view().session_id)
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
 
     def _send_dotnet_protocol_message(self, payload: Mapping[str, object]) -> bool:
@@ -1689,7 +1707,7 @@ class MeshEditorTab(QWidget):
             return False
         try:
             view = controller.session_view()
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
         actions = sorted(mesh_editor_actions_by_key().keys())
         selection = view.selection
@@ -1888,7 +1906,7 @@ class MeshEditorTab(QWidget):
                 session_id = view.session_id
                 revision = view.revision
                 selection = view.selection
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
                 pass
         base: dict[str, object] = {}
         if session_id:
@@ -2219,6 +2237,54 @@ class MeshEditorTab(QWidget):
             except RuntimeError:
                 pass
 
+    def _dotnet_developer_renderer_fallback_allowed(self) -> bool:
+        return read_bool_setting(self.settings, "mesh_editor/developer_mode", False) and read_bool_setting(
+            self.settings,
+            "mesh_editor/developer_renderer_fallback",
+            False,
+        )
+
+    def _dotnet_status_blockers(self, status_payload: Mapping[str, object]) -> tuple[str, ...]:
+        return mesh_dotnet_renderer_blockers(
+            status_payload,
+            embedded=bool(self.standalone_dotnet_target_embedded),
+            developer_override=self._dotnet_developer_renderer_fallback_allowed(),
+            require_material_parity=bool(self.standalone_dotnet_target_embedded),
+        )
+
+    def _handle_dotnet_renderer_status(
+        self,
+        status_payload: Mapping[str, object],
+        *,
+        source_event: str,
+        emit_warning: bool = True,
+    ) -> bool:
+        blockers = self._dotnet_status_blockers(status_payload)
+        if blockers:
+            text = "Mesh .NET renderer blocked: " + "; ".join(blockers)
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_renderer_blocked",
+                source_event=str(source_event or ""),
+                embedded=bool(self.standalone_dotnet_target_embedded),
+                blockers=tuple(blockers),
+            )
+            self._set_dotnet_status(text, error=True)
+            if self.standalone_dotnet_target_embedded:
+                self._notify_embedded_dotnet_launch_failed("mesh_dotnet_renderer_blocked", diagnostics=text)
+            return False
+        if emit_warning:
+            warnings = mesh_dotnet_material_parity_warnings(status_payload)
+            if warnings:
+                text = "Mesh .NET material preview is not authoritative: " + "; ".join(warnings)
+                self._record_mesh_dotnet_event(
+                    "mesh_dotnet_material_parity_warning",
+                    source_event=str(source_event or ""),
+                    embedded=bool(self.standalone_dotnet_target_embedded),
+                    warnings=tuple(warnings),
+                )
+                self._set_dotnet_status(text, error=False)
+        return True
+
     def _launch_standalone_dotnet_editor_package(self, package: MeshDotNetExperimentPackage) -> bool:
         executable = self._dotnet_editor_executable_path()
         if executable is None or not executable.is_file():
@@ -2256,6 +2322,7 @@ class MeshEditorTab(QWidget):
                 executable,
                 package,
                 embedded_parent_hwnd=embedded_parent_hwnd,
+                developer_renderer_fallback=self._dotnet_developer_renderer_fallback_allowed(),
             )
         except Exception as exc:
             message = f"Mesh .NET editor experiment unavailable: {exc}"
@@ -2338,8 +2405,8 @@ class MeshEditorTab(QWidget):
             if package is not None:
                 try:
                     write_mesh_dotnet_launch_diagnostics(package, payload)
-                except Exception:
-                    pass
+                except Exception as diag_exc:
+                    self._record_mesh_dotnet_event("mesh_dotnet_launch_diagnostics_write_failed", error=str(diag_exc))
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
                 self._notify_embedded_dotnet_launch_failed("mesh_dotnet_process_start_failed", diagnostics=str(exc))
@@ -2354,8 +2421,8 @@ class MeshEditorTab(QWidget):
         if package is not None:
             try:
                 write_mesh_dotnet_launch_diagnostics(package, payload)
-            except Exception:
-                pass
+            except Exception as diag_exc:
+                self._record_mesh_dotnet_event("mesh_dotnet_launch_diagnostics_write_failed", error=str(diag_exc))
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("failed", active=False)
             self._notify_embedded_dotnet_launch_failed("mesh_dotnet_process_start_failed", diagnostics=detail)
@@ -2434,17 +2501,20 @@ class MeshEditorTab(QWidget):
         self.standalone_dotnet_status_payload = dict(payload)
         try:
             evaluation_path = write_mesh_dotnet_experiment_evaluation(package, payload)
-        except Exception:
+        except Exception as exc:
+            self._record_mesh_dotnet_event("mesh_dotnet_evaluation_write_failed", error=str(exc))
             evaluation_path = None
         event = str(payload.get("event", "") or "closed").strip().lower()
         message = str(payload.get("message", "") or "").strip()
-        if event == "error":
+        if event in {"error", "blocked_renderer_unavailable"}:
             text = f"Mesh .NET editor experiment error: {message or 'external editor reported an error.'}"
             if evaluation_path is not None:
                 text += f" Evaluation: {evaluation_path}"
             self._set_dotnet_status(text, error=True)
             if self.standalone_dotnet_target_embedded:
                 self._notify_embedded_dotnet_launch_failed("mesh_dotnet_status_error", diagnostics=message or text)
+            return
+        if not self._handle_dotnet_renderer_status(payload, source_event="process_finished"):
             return
         output_obj = mesh_dotnet_experiment_output_obj_path(package, payload)
         if output_obj is not None and self._start_standalone_dotnet_output_import(package, payload):
@@ -2471,8 +2541,8 @@ class MeshEditorTab(QWidget):
         if package is not None:
             try:
                 write_mesh_dotnet_launch_diagnostics(package, payload)
-            except Exception:
-                pass
+            except Exception as diag_exc:
+                self._record_mesh_dotnet_event("mesh_dotnet_launch_diagnostics_write_failed", error=str(diag_exc))
         text = f"Mesh .NET editor experiment process error: {detail}"
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("failed", active=False)
@@ -3025,6 +3095,7 @@ class MeshEditorTab(QWidget):
                 mode=str(mode or "object"),
             )
         except Exception:
+            # Cleanup only: opening failures must propagate to the caller.
             self.standalone_controller = None
             raise
         self.standalone_source_skeleton = loaded_source_skeleton
@@ -3317,10 +3388,12 @@ class MeshEditorTab(QWidget):
         try:
             path_index = path_provider() if callable(path_provider) else {}
         except Exception:
+            # Best effort: archive texture index providers are optional lookup accelerators.
             path_index = {}
         try:
             basename_index = basename_provider() if callable(basename_provider) else {}
         except Exception:
+            # Best effort: basename lookup fallback must not block Mesh Editor startup.
             basename_index = {}
         return path_index or {}, basename_index or {}
 
@@ -3556,7 +3629,8 @@ class MeshEditorTab(QWidget):
             report = controller.export_validation_report()
             self.standalone_last_export_validation_report = report
             updater(report)
-        except Exception:
+        except Exception as exc:
+            self._record_runtime_event("mesh_editor_export_validation_refresh_failed", error=str(exc))
             self.standalone_last_export_validation_report = None
             updater(None)
 
@@ -3582,6 +3656,7 @@ class MeshEditorTab(QWidget):
         try:
             updater(controller.workspace_summary())
         except Exception:
+            # Best effort: standalone workspace summary is derived UI state.
             updater(None)
 
     def _refresh_standalone_uv_summary(self, view: MeshEditSessionView | None) -> None:
@@ -3595,6 +3670,7 @@ class MeshEditorTab(QWidget):
         try:
             updater(controller.uv_summary())
         except Exception:
+            # Best effort: standalone UV summary is derived UI state.
             updater(None)
 
     def _refresh_standalone_skeleton_summary(self, view: MeshEditSessionView | None) -> None:
@@ -3608,6 +3684,7 @@ class MeshEditorTab(QWidget):
         try:
             updater(controller.skeleton_summary())
         except Exception:
+            # Best effort: standalone skeleton summary is derived UI state.
             updater(None)
 
     def _refresh_standalone_compare_summary(self, view: MeshEditSessionView | None) -> None:
@@ -3621,6 +3698,7 @@ class MeshEditorTab(QWidget):
         try:
             updater(controller.compare_summary())
         except Exception:
+            # Best effort: standalone compare summary is derived UI state.
             updater(None)
 
     def _current_target_entry(self) -> Optional[ArchiveEntry]:
@@ -3631,7 +3709,7 @@ class MeshEditorTab(QWidget):
     def _native_mesh_editor_available(self) -> bool:
         try:
             return bool(native_mesh_core_available())
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             return False
 
     def _native_editor_action_blocked(self, command: str, *, embedded: bool = False) -> bool:
@@ -3751,6 +3829,7 @@ class MeshEditorTab(QWidget):
         try:
             controller = getter()
         except Exception:
+            # Best effort: embedded builder controller lookup is optional UI state sync.
             return None
         return controller if isinstance(controller, MeshEditorController) else None
 
@@ -3763,7 +3842,7 @@ class MeshEditorTab(QWidget):
         if controller is not None:
             try:
                 view = controller.session_view()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
                 view = None
         if controller is None or view is None:
             if hasattr(workspace, "status_label"):
@@ -3800,6 +3879,7 @@ class MeshEditorTab(QWidget):
                 try:
                     updater(method())
                 except Exception:
+                    # Best effort: workspace side panels are derived status only.
                     updater(None)
         workspace.update_rebuild_report(None)
         workspace.update_action_state(
@@ -3818,7 +3898,8 @@ class MeshEditorTab(QWidget):
         if callable(sender):
             try:
                 return bool(sender(update))
-            except Exception:
+            except Exception as exc:
+                self._record_runtime_event("mesh_editor_embedded_native_update_failed", error=str(exc))
                 return False
         return False
 
@@ -3933,6 +4014,7 @@ class MeshEditorTab(QWidget):
             try:
                 setter(summary.pose.selected_bone_index)
             except Exception:
+                # Best effort: builder bone selection mirroring is optional UI sync.
                 pass
         self._refresh_embedded_workspace_from_builder()
         selected = summary.pose.selected_bone_name or "bone"
@@ -4716,7 +4798,7 @@ class MeshEditorTab(QWidget):
         if bool(getattr(action, "requires_selection", False)):
             try:
                 return not controller.session_view().selection.is_empty()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
                 return False
         return True
 

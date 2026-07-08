@@ -9,460 +9,29 @@ from cdmw.ui.archive_browser.static_replacement_sparse_history import (
 )
 
 
-def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    List = context.get('List')
-    ModelPreviewData = context.get('ModelPreviewData')
-    Path = context.get('Path')
-    QApplication = context.get('QApplication')
-    QPlainTextEdit = context.get('QPlainTextEdit')
-    QProcess = context.get('QProcess')
-    _alignment_d3d11_preview_active = context.get('_alignment_d3d11_preview_active')
-    _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
-    _alignment_preview_source_face_limit = context.get('_alignment_preview_source_face_limit')
-    _mesh_edit_raw_preview_active = context.get('_mesh_edit_raw_preview_active')
-    _mesh_editor_diagnostics_append_safe_value_helper = context.get('_mesh_editor_diagnostics_append_safe_value_helper')
-    _mesh_editor_diagnostics_copied_status_helper = context.get('_mesh_editor_diagnostics_copied_status_helper')
-    _mesh_editor_diagnostics_manifest_lines = context.get('_mesh_editor_diagnostics_manifest_lines')
-    _mesh_editor_diagnostics_model_lines = context.get('_mesh_editor_diagnostics_model_lines')
-    _mesh_editor_diagnostics_record_text_helper = context.get('_mesh_editor_diagnostics_record_text_helper')
-    _mesh_editor_diagnostics_source_mesh_lines = context.get('_mesh_editor_diagnostics_source_mesh_lines')
-    _mesh_editor_diagnostics_text_widget_helper = context.get('_mesh_editor_diagnostics_text_widget_helper')
-    _source_index_is_enabled_renderable = context.get('_source_index_is_enabled_renderable')
-    alignment_d3d11_preview_status_label = context.get('alignment_d3d11_preview_status_label')
-    alignment_d3d11_state = context.get('alignment_d3d11_state')
-    embedded_alignment_builder = context.get('embedded_alignment_builder')
-    entry = context.get('entry')
-    find_native_d3d11_host = context.get('find_native_d3d11_host')
-    highlighted_source_indices = context.get('highlighted_source_indices')
-    json = context.get('json')
-    mesh_edit_enabled_checkbox = context.get('mesh_edit_enabled_checkbox')
-    mesh_edit_scope_combo = context.get('mesh_edit_scope_combo')
-    mesh_edit_show_vertices_checkbox = context.get('mesh_edit_show_vertices_checkbox')
-    mesh_edit_tool_combo = context.get('mesh_edit_tool_combo')
-    mesh_editor_diagnostics_state = context.get('mesh_editor_diagnostics_state')
-    obj_path = context.get('obj_path')
-    preview_mode_combo = context.get('preview_mode_combo')
-    preview_performance_label = context.get('preview_performance_label')
-    preview_render_mode_combo = context.get('preview_render_mode_combo')
-    preview_renderer_combo = context.get('preview_renderer_combo')
-    preview_visible_mode_combo = context.get('preview_visible_mode_combo')
-    replacement_mesh_base_for_mapping = context.get('replacement_mesh_base_for_mapping')
-    replacement_mesh_for_mapping = context.get('replacement_mesh_for_mapping')
-    replacement_preview_model = context.get('replacement_preview_model')
-    selected_source_part = context.get('selected_source_part')
-    self = context.get('self')
-    texture_files_for_mapping = context.get('texture_files_for_mapping') or ()
-    texture_sets = context.get('texture_sets') or {}
-    time = context.get('time')
-    prompt_shell_context = context.get('prompt_shell_context')
-
-    def _live_value(name: str, fallback: object = None) -> object:
-        if isinstance(prompt_shell_context, dict) and name in prompt_shell_context:
-            return prompt_shell_context.get(name)
-        return context.get(name, fallback)
-
-    def _widget_value(name: str, method: str, default: object = "") -> object:
-        callback = getattr(_live_value(name), method, None)
-        if not callable(callback):
-            return default
-        return callback()
-
-    def _callback_value(name: str, default: object = False) -> object:
-        callback = _live_value(name)
-        if not callable(callback):
-            return default
-        return callback()
-
-    def _selected_source_index() -> int:
-        current = _live_value("selected_source_part", selected_source_part)
-        getter = getattr(current, "get", None)
-        if not callable(getter):
-            return -1
-        return int(getter("index", -1))
-
-    def _highlighted_source_indices() -> tuple[int, ...]:
-        values = _live_value("highlighted_source_indices", highlighted_source_indices) or ()
-        return tuple(sorted(int(index) for index in values))
-
-    def _current_texture_sets() -> object:
-        getter = _live_value("_get_texture_sets")
-        if callable(getter):
-            return getter()
-        return _live_value("texture_sets", texture_sets) or {}
-
-    def _mesh_edit_tab_active() -> bool:
-        active_callback = _live_value("_alignment_mesh_edit_tab_active", _alignment_mesh_edit_tab_active)
-        if not callable(active_callback):
-            return False
-        return bool(active_callback())
-
-    def _mesh_edit_enabled_checked() -> bool:
-        is_checked = getattr(_live_value("mesh_edit_enabled_checkbox", mesh_edit_enabled_checkbox), "isChecked", None)
-        if not callable(is_checked):
-            return False
-        try:
-            return bool(is_checked())
-        except RuntimeError:
-            return False
-
-    def _refresh_mesh_editor_diagnostics(*, auto: bool = False) -> None:
-        text_widget = _mesh_editor_diagnostics_text_widget_helper(mesh_editor_diagnostics_state)
-        if not isinstance(text_widget, QPlainTextEdit):
-            return
-        current_d3d11_state = _live_value("alignment_d3d11_state", alignment_d3d11_state)
-        if not callable(getattr(current_d3d11_state, "get", None)):
-            current_d3d11_state = {}
-        lines: List[str] = []
-
-        lines.append("Mesh Editor Replacement Diagnostics")
-        lines.append(f"updated: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append("")
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "target", lambda: str(getattr(entry, "path", "") or getattr(entry, "basename", "") or ""))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "source", lambda: str(obj_path))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "embedded_builder", lambda: bool(embedded_alignment_builder))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "native_host", lambda: str(find_native_d3d11_host() or "missing"))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "preview_mode", lambda: str(_widget_value("preview_mode_combo", "currentData") or ""))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "renderer", lambda: str(_widget_value("preview_renderer_combo", "currentData") or ""))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "render_diagnostic_mode", lambda: str(_widget_value("preview_render_mode_combo", "currentData") or ""))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "visible_texture_mode", lambda: str(_widget_value("preview_visible_mode_combo", "currentData") or ""))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "d3d11_active", lambda: bool(_callback_value("_alignment_d3d11_preview_active")))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "d3d11_status_label", lambda: _widget_value("alignment_d3d11_preview_status_label", "text"))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "preview_timing_label", lambda: _widget_value("preview_performance_label", "text"))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_tab_active", _mesh_edit_tab_active)
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_enabled", _mesh_edit_enabled_checked)
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_raw_preview_active", lambda: bool(_callback_value("_mesh_edit_raw_preview_active")))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_show_vertices", lambda: bool(_widget_value("mesh_edit_show_vertices_checkbox", "isChecked", False)))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_tool", lambda: str(_widget_value("mesh_edit_tool_combo", "currentData") or ""))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "mesh_edit_scope", lambda: str(_widget_value("mesh_edit_scope_combo", "currentData") or ""))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "source_face_limit", lambda: int(_callback_value("_alignment_preview_source_face_limit", 0)))
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "selected_source", _selected_source_index)
-        _mesh_editor_diagnostics_append_safe_value_helper(lines, "highlighted_sources", _highlighted_source_indices)
-        lines.append("")
-        lines.append("D3D11 state")
-        for key in (
-            "request_id",
-            "preview_loaded",
-            "resources_loaded",
-            "preview_pipeline_stage",
-            "package_quality",
-            "replacement_only_direct_source_preview",
-            "source_owned_direct_source_preview",
-            "force_direct_source_preview",
-            "active_package_quality",
-            "active_package_display_mode",
-            "last_cache_event",
-            "last_cache_reason",
-            "last_rebuild_reason",
-            "active_package_cache_key",
-            "prepare_ms",
-            "package_ms",
-            "loading_percent",
-            "loading_stage",
-            "loading_message",
-        ):
-            lines.append(f"  {key}: {current_d3d11_state.get(key)}")
-        lines.append(f"  active_package: {current_d3d11_state.get('active_package')}")
-        lines.append(f"  status_file: {current_d3d11_state.get('status_file')}")
-        process = current_d3d11_state.get("process")
-        if isinstance(process, QProcess):
-            lines.append(f"  process_state: {process.state()}")
-            lines.append(f"  process_program: {process.program()}")
-            lines.append(f"  process_start_arguments: {' '.join(process.arguments())}")
-        lines.append("")
-        lines.append("Source geometry")
-        try:
-            lines.extend(
-                _mesh_editor_diagnostics_source_mesh_lines(
-                    "replacement_mesh_for_mapping",
-                    _live_value("replacement_mesh_for_mapping", replacement_mesh_for_mapping),
-                    enabled_predicate=_source_index_is_enabled_renderable,
-                )
-            )
-            lines.extend(
-                _mesh_editor_diagnostics_source_mesh_lines(
-                    "replacement_mesh_base_for_mapping",
-                    _live_value("replacement_mesh_base_for_mapping", replacement_mesh_base_for_mapping),
-                    limit=6,
-                    enabled_predicate=_source_index_is_enabled_renderable,
-                )
-            )
-        except NameError as exc:
-            lines.append(f"source geometry unavailable: {exc}")
-        lines.append("")
-        lines.append("Preview model")
-        try:
-            lines.extend(_mesh_editor_diagnostics_model_lines("replacement_preview_model", _live_value("replacement_preview_model", replacement_preview_model)))
-        except NameError as exc:
-            lines.append(f"preview model unavailable: {exc}")
-        queued_model = current_d3d11_state.get("queued_model")
-        pending_model = current_d3d11_state.get("pending_model")
-        if isinstance(queued_model, ModelPreviewData):
-            lines.extend(_mesh_editor_diagnostics_model_lines("queued_d3d11_model", queued_model, limit=8))
-        if isinstance(pending_model, ModelPreviewData):
-            lines.extend(_mesh_editor_diagnostics_model_lines("pending_d3d11_model", pending_model, limit=8))
-        lines.append("")
-        lines.append("Material groups")
-        try:
-            texture_file_count = len(_live_value("texture_files_for_mapping", texture_files_for_mapping) or ())
-        except NameError:
-            texture_file_count = 0
-        try:
-            current_texture_sets = _current_texture_sets()
-            lines.append(f"  texture_files_for_mapping={texture_file_count:,} texture_sets={len(current_texture_sets):,}")
-            for index, texture_set in enumerate(list(current_texture_sets.values())[:18]):
-                slots = getattr(texture_set, "slots", {}) or {}
-                slot_text = []
-                for slot_name, slot in sorted(slots.items()):
-                    source_path = getattr(slot, "source_path", "")
-                    slot_text.append(
-                        f"{slot_name}:{Path(str(source_path)).name if source_path else '-'}"
-                        f":{str(getattr(slot, 'semantic_subtype', '') or '-')}"
-                    )
-                lines.append(
-                    f"  set[{index:02d}] mat={str(getattr(texture_set, 'material_name', '') or '-')[:70]} "
-                    f"slots={', '.join(slot_text) or '-'} "
-                    f"spec={getattr(texture_set, 'specular_factor', None)} gloss={getattr(texture_set, 'glossiness_factor', None)}"
-                )
-        except NameError as exc:
-            lines.append(f"  material groups unavailable: {exc}")
-        lines.append("")
-        lines.append("Active package manifest")
-        lines.extend(_mesh_editor_diagnostics_manifest_lines(current_d3d11_state.get("active_package")))
-        lines.append("")
-        lines.append("Latest native status")
-        status_payload_text = str(current_d3d11_state.get("status_payload_text", "") or "").strip()
-        if status_payload_text:
-            try:
-                status_payload = json.loads(status_payload_text)
-                lines.append(json.dumps(status_payload, indent=2, sort_keys=True)[:12000])
-            except Exception:
-                lines.append(status_payload_text[:12000])
-        else:
-            lines.append("no status payload yet")
-
-        text = "\n".join(lines)
-        if not _mesh_editor_diagnostics_record_text_helper(mesh_editor_diagnostics_state, text, auto=auto):
-            return
-        try:
-            cursor_position = int(text_widget.textCursor().position())
-            text_widget.setPlainText(text)
-            cursor = text_widget.textCursor()
-            cursor.setPosition(max(0, min(cursor_position, len(text))))
-            text_widget.setTextCursor(cursor)
-        except RuntimeError:
-            pass
-
-    def _copy_mesh_editor_diagnostics() -> None:
-        text_widget = _mesh_editor_diagnostics_text_widget_helper(mesh_editor_diagnostics_state)
-        if not isinstance(text_widget, QPlainTextEdit):
-            return
-        QApplication.clipboard().setText(text_widget.toPlainText())
-        self.set_status_message(_mesh_editor_diagnostics_copied_status_helper())
-
-    return SimpleNamespace(
-        _refresh_mesh_editor_diagnostics=_refresh_mesh_editor_diagnostics,
-        _copy_mesh_editor_diagnostics=_copy_mesh_editor_diagnostics,
-    )
+from cdmw.ui.archive_browser.static_replacement_dialog_mesh_diagnostics_callbacks import (
+    create_alignment_mesh_diagnostics_callbacks,
+)
 
 
-def create_alignment_source_mix_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    ARCHIVE_MESH_EXTENSIONS = context.get('ARCHIVE_MESH_EXTENSIONS')
-    ArchiveEntry = context.get('ArchiveEntry')
-    List = context.get('List')
-    Mapping = context.get('Mapping')
-    MeshImportSetupSelection = context.get('MeshImportSetupSelection')
-    Path = context.get('Path')
-    QFileDialog = context.get('QFileDialog')
-    QMessageBox = context.get('QMessageBox')
-    QTimer = context.get('QTimer')
-    SCENE_TEXTURE_SOURCE_EXTENSIONS = context.get('SCENE_TEXTURE_SOURCE_EXTENSIONS')
-    SourceMixCandidate = context.get('SourceMixCandidate')
-    _alignment_source_mix_loose_added_message_helper = context.get('_alignment_source_mix_loose_added_message_helper')
-    _alignment_source_mix_loose_scan_status_helper = context.get('_alignment_source_mix_loose_scan_status_helper')
-    _alignment_source_mix_reopening_archive_status_helper = context.get('_alignment_source_mix_reopening_archive_status_helper')
-    _alignment_source_mix_reopening_loose_status_helper = context.get('_alignment_source_mix_reopening_loose_status_helper')
-    _alignment_source_mix_reopening_mod_archive_status_helper = context.get('_alignment_source_mix_reopening_mod_archive_status_helper')
-    dialog = context.get('dialog')
-    entry = context.get('entry')
-    import_scene_mesh_with_report = context.get('import_scene_mesh_with_report')
-    scan_loose_folder_source = context.get('scan_loose_folder_source')
-    scan_mod_archive_source = context.get('scan_mod_archive_source')
-    self = context.get('self')
-    source_mix_control_text = context.get('source_mix_control_text')
-    source_mix_status_label = context.get('source_mix_status_label')
-
-    def _choose_loaded_archive_mesh_source_for_alignment() -> None:
-        entries_by_extension = getattr(self, "archive_entries_by_extension", {}) or {}
-        mesh_entries: List[ArchiveEntry] = []
-        if isinstance(entries_by_extension, Mapping):
-            for extension in sorted(ARCHIVE_MESH_EXTENSIONS):
-                mesh_entries.extend(
-                    candidate
-                    for candidate in tuple(entries_by_extension.get(extension, ()) or ())
-                    if isinstance(candidate, ArchiveEntry)
-                )
-        source_entries = mesh_entries or (getattr(self, "archive_entries", ()) or ())
-        if not source_entries:
-            QMessageBox.information(
-                dialog,
-                source_mix_control_text["add_archive"],
-                source_mix_control_text["no_loaded_archive_sources"],
-            )
-            return
-        selected_source = self._choose_archive_mesh_source_dialog(
-            dialog,
-            title=source_mix_control_text["add_archive"],
-            entries=source_entries,
-            prompt=source_mix_control_text["archive_source_prompt"],
-            allowed_extensions=tuple(sorted(ARCHIVE_MESH_EXTENSIONS)),
-            excluded_entry=entry,
-        )
-        if not isinstance(selected_source, ArchiveEntry):
-            return
-        source_mix_status_label.setText(_alignment_source_mix_reopening_archive_status_helper(selected_source.path))
-        dialog.reject()
-        QTimer.singleShot(
-            0,
-            lambda target_entry=entry, selected_source=selected_source: self._start_archive_in_game_mesh_swap(
-                target_entry,
-                selected_source,
-            ),
-        )
-
-    def _add_loose_source_folder_for_alignment() -> None:
-        selected_dir = QFileDialog.getExistingDirectory(
-            dialog,
-            source_mix_control_text["add_loose"],
-            str(self._suggest_workspace_base_dir()),
-        )
-        if not selected_dir:
-            return
-        try:
-            candidates = scan_loose_folder_source(Path(selected_dir))
-        except Exception as exc:
-            QMessageBox.warning(dialog, source_mix_control_text["add_loose"], str(exc))
-            return
-        mesh_candidates = [
-            candidate
-            for candidate in candidates
-            if candidate.extension in ARCHIVE_MESH_EXTENSIONS
-            and isinstance(candidate.source_path, Path)
-            and candidate.source_path.is_file()
-        ]
-        mesh_count = sum(1 for candidate in candidates if candidate.extension in ARCHIVE_MESH_EXTENSIONS)
-        supplemental_count = sum(
-            1
-            for candidate in candidates
-            if candidate.extension in set(SCENE_TEXTURE_SOURCE_EXTENSIONS)
-            or candidate.extension in {".xml", ".pami", ".pac_xml", ".pam_xml", ".pamlod_xml", ".app_xml", ".prefabdata_xml"}
-        )
-        source_mix_status_label.setText(
-            _alignment_source_mix_loose_scan_status_helper(
-                selected_dir,
-                mesh_count=mesh_count,
-                supplemental_count=supplemental_count,
-            )
-        )
-        if mesh_candidates:
-            selected_candidate = self._choose_archive_mesh_source_dialog(
-                dialog,
-                title=source_mix_control_text["use_loose_mesh_title"],
-                candidates=mesh_candidates,
-                prompt=source_mix_control_text["loose_source_prompt"],
-                allowed_extensions=tuple(sorted(ARCHIVE_MESH_EXTENSIONS)),
-            )
-            if isinstance(selected_candidate, SourceMixCandidate):
-                source_candidate = selected_candidate
-                source_path = source_candidate.source_path
-                if isinstance(source_path, Path):
-                    try:
-                        source_scene_result = import_scene_mesh_with_report(source_path)
-                    except Exception as exc:
-                        QMessageBox.warning(dialog, source_mix_control_text["use_loose_mesh_title"], str(exc))
-                        return
-                    supplemental_paths = (
-                        tuple(source_scene_result.discovered_texture_files)
-                        + tuple(source_scene_result.extracted_embedded_files)
-                        + tuple(getattr(source_scene_result, "discovered_supplemental_files", ()) or ())
-                    )
-                    source_mix_status_label.setText(_alignment_source_mix_reopening_loose_status_helper(source_path))
-                    dialog.reject()
-                    QTimer.singleShot(
-                        0,
-                        lambda target_entry=entry, selected_source=source_path, scene_result=source_scene_result, source_supplementals=supplemental_paths: self._start_archive_mesh_patch(
-                            target_entry,
-                            preset_setup=MeshImportSetupSelection(
-                                scene_path=selected_source,
-                                import_mode="static_replacement",
-                                supplemental_files=tuple(source_supplementals),
-                                scene_import_result=scene_result,
-                                source_label=f"{source_mix_control_text['loose_source_label_prefix']}{selected_source}",
-                                placement_review_title=source_mix_control_text["loose_placement_review_title"],
-                                placement_context_note=source_mix_control_text["loose_placement_context_note"],
-                            ),
-                        ),
-                    )
-                    return
-        QMessageBox.information(
-            dialog,
-            source_mix_control_text["loose_added_title"],
-            _alignment_source_mix_loose_added_message_helper(
-                selected_dir,
-                mesh_count=mesh_count,
-                supplemental_count=supplemental_count,
-            ),
-        )
-
-    def _choose_mod_archive_mesh_source_for_alignment() -> None:
-        selected_path, _selected_filter = QFileDialog.getOpenFileName(
-            dialog,
-            source_mix_control_text["add_mod_archive"],
-            str(self._suggest_workspace_base_dir()),
-            source_mix_control_text["mod_archive_file_filter"],
-        )
-        if not selected_path:
-            return
-        try:
-            candidates = scan_mod_archive_source(Path(selected_path))
-        except Exception as exc:
-            QMessageBox.warning(dialog, source_mix_control_text["add_mod_archive"], str(exc))
-            return
-        mesh_candidates = [candidate for candidate in candidates if candidate.extension in ARCHIVE_MESH_EXTENSIONS and isinstance(candidate.source_archive_entry, ArchiveEntry)]
-        if not mesh_candidates:
-            QMessageBox.information(
-                dialog,
-                source_mix_control_text["add_mod_archive"],
-                source_mix_control_text["no_mod_archive_mesh_entries"],
-            )
-            return
-        selected_candidate = self._choose_archive_mesh_source_dialog(
-            dialog,
-            title=source_mix_control_text["use_mod_archive_mesh_title"],
-            candidates=mesh_candidates,
-            prompt=source_mix_control_text["mod_archive_source_prompt"],
-            allowed_extensions=tuple(sorted(ARCHIVE_MESH_EXTENSIONS)),
-        )
-        if not isinstance(selected_candidate, SourceMixCandidate):
-            return
-        source_candidate = selected_candidate
-        source_entry = source_candidate.source_archive_entry
-        if not isinstance(source_entry, ArchiveEntry):
-            return
-        source_mix_status_label.setText(_alignment_source_mix_reopening_mod_archive_status_helper(source_entry.path))
-        dialog.reject()
-        QTimer.singleShot(
-            0,
-            lambda target_entry=entry, selected_source=source_entry: self._start_archive_in_game_mesh_swap(
-                target_entry,
-                selected_source,
-            ),
-        )
-
-    return SimpleNamespace(
-        _choose_loaded_archive_mesh_source_for_alignment=_choose_loaded_archive_mesh_source_for_alignment,
-        _add_loose_source_folder_for_alignment=_add_loose_source_folder_for_alignment,
-        _choose_mod_archive_mesh_source_for_alignment=_choose_mod_archive_mesh_source_for_alignment,
-    )
+from cdmw.ui.archive_browser.static_replacement_dialog_source_mix_callbacks import (
+    create_alignment_source_mix_callbacks,
+)
+from cdmw.ui.archive_browser.static_replacement_dialog_texture_detail_uv_callbacks import (
+    create_alignment_texture_detail_uv_callbacks,
+)
+from cdmw.ui.archive_browser.static_replacement_dialog_accept_dispatch_callbacks import (
+    create_alignment_accept_dispatch_callbacks,
+)
+from cdmw.ui.archive_browser.static_replacement_dialog_custom_icon_callbacks import (
+    create_alignment_custom_icon_callbacks,
+)
+from cdmw.ui.archive_browser.static_replacement_dialog_source_role_tree_callbacks import (
+    create_alignment_source_role_tree_callbacks,
+)
+from cdmw.ui.archive_browser.static_replacement_dialog_manual_profile_callbacks import (
+    create_manual_material_profile_runtime_callbacks,
+)
 
 
 def create_material_authority_adjustment_callbacks(context: dict[str, object]) -> SimpleNamespace:
@@ -607,7 +176,8 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
         if callable(getter):
             try:
                 current = getter()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                # Best effort: material authority can still use the captured texture-set fallback.
                 current = None
             if current:
                 return current
@@ -621,7 +191,8 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
         if callable(getter):
             try:
                 model = getter()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                # Best effort: preview-material inspection falls back to context state below.
                 model = None
         if model is None:
             model = context.get('replacement_preview_model')
@@ -664,7 +235,8 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
                 modify_original_clone_mode,
                 original_texture_preview_state,
             )
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            # Best effort: this only affects explanatory inactive-reason text.
             pass
         current_texture_sets = _current_texture_sets_for_material_authority()
         return _material_authority_preview_inactive_reason_helper(
@@ -938,261 +510,7 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
     )
 
 
-def create_alignment_source_role_tree_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    QMenu = context.get('QMenu')
-    QPoint = context.get('QPoint')
-    _add_source_tree_item = context.get('_add_source_tree_item')
-    _alignment_part_clipboard_can_paste = context.get('_alignment_part_clipboard_can_paste')
-    _apply_source_part_preview_changes = context.get('_apply_source_part_preview_changes')
-    _delete_selected_source_parts = context.get('_delete_selected_source_parts')
-    _finish_source_tree_population = context.get('_finish_source_tree_population')
-    _load_selected_part_controls = context.get('_load_selected_part_controls')
-    _paste_alignment_part_clipboard_as_replacement_source = context.get('_paste_alignment_part_clipboard_as_replacement_source')
-    _push_geometry_undo_snapshot = context.get('_push_geometry_undo_snapshot')
-    _queue_material_edit_refresh = context.get('_queue_material_edit_refresh')
-    _refresh_parts_outliner = context.get('_refresh_parts_outliner')
-    _refresh_source_assignment_columns = context.get('_refresh_source_assignment_columns')
-    _selected_source_index = context.get('_selected_source_index')
-    _selected_source_indices_from_tree = context.get('_selected_source_indices_from_tree')
-    _set_source_role_override_value = context.get('_set_source_role_override_value')
-    _source_index_from_tree_item = context.get('_source_index_from_tree_item')
-    _source_part_context_menu_text_helper = context.get('_source_part_context_menu_text_helper')
-    _source_part_role_action_state_helper = context.get('_source_part_role_action_state_helper')
-    _source_tree_context_menu_selection_state_helper = context.get('_source_tree_context_menu_selection_state_helper')
-    _source_tree_context_selection_clear_multi_indices_helper = context.get('_source_tree_context_selection_clear_multi_indices_helper')
-    _source_tree_context_selection_multi_indices_helper = context.get('_source_tree_context_selection_multi_indices_helper')
-    _source_tree_context_selection_set_right_press_helper = context.get('_source_tree_context_selection_set_right_press_helper')
-    _source_tree_population_chunk_policy_helper = context.get('_source_tree_population_chunk_policy_helper')
-    _source_tree_population_loading_text_helper = context.get('_source_tree_population_loading_text_helper')
-    _source_tree_population_next_index_helper = context.get('_source_tree_population_next_index_helper')
-    _source_tree_population_set_next_index_helper = context.get('_source_tree_population_set_next_index_helper')
-    original_part_clipboard_action_text = context.get('original_part_clipboard_action_text')
-    pos = context.get('pos')
-    replacement_mesh_for_mapping = context.get('replacement_mesh_for_mapping')
-    role_value = context.get('role_value')
-    source_items_by_index = context.get('source_items_by_index')
-    source_parts_apply_state = context.get('source_parts_apply_state')
-    source_tree = context.get('source_tree')
-    source_tree_context_selection_state = context.get('source_tree_context_selection_state')
-    source_tree_population_state = context.get('source_tree_population_state')
-    source_tree_population_timer = context.get('source_tree_population_timer')
-    source_tree_progress_label = context.get('source_tree_progress_label')
-    time = context.get('time')
-    undo_label = context.get('undo_label')
 
-    def _late_callback(name: str, captured: object) -> object:
-        if callable(captured):
-            return captured
-        candidate = context.get(name)
-        return candidate if callable(candidate) else None
-
-    def _apply_source_role_selection(source_index: int, role_value: str, undo_label: str = "Change source role") -> None:
-        role_action_state = _late_callback(
-            "_source_part_role_action_state_helper",
-            _source_part_role_action_state_helper,
-        )
-        if not callable(role_action_state):
-            return
-        action_state = role_action_state(
-            source_index=source_index,
-            role_value=role_value,
-            undo_label=undo_label,
-        )
-        if not action_state.available:
-            return
-        set_role_override = _late_callback("_set_source_role_override_value", _set_source_role_override_value)
-        if not callable(set_role_override):
-            return
-        push_undo = _late_callback("_push_geometry_undo_snapshot", _push_geometry_undo_snapshot)
-        if callable(push_undo):
-            push_undo(action_state.undo_label)
-        set_role_override(action_state.source_index, action_state.normalized_role)
-        refresh_assignment_columns = _late_callback("_refresh_source_assignment_columns", _refresh_source_assignment_columns)
-        if callable(refresh_assignment_columns):
-            refresh_assignment_columns(lightweight=True)
-        refresh_outliner = _late_callback("_refresh_parts_outliner", _refresh_parts_outliner)
-        if callable(refresh_outliner):
-            refresh_outliner()
-        load_controls = _late_callback("_load_selected_part_controls", _load_selected_part_controls)
-        if callable(load_controls):
-            load_controls()
-        queue_material_edit = _late_callback("_queue_material_edit_refresh", _queue_material_edit_refresh)
-        if callable(queue_material_edit):
-            queue_material_edit(
-                refresh_plan=action_state.refresh_plan,
-                force_plan=action_state.force_plan,
-                refresh_preview=action_state.refresh_preview,
-                reason=action_state.refresh_reason,
-            )
-
-    def _show_replacement_sources_context_menu(
-        pos: QPoint,
-        *,
-        global_pos: object = None,
-        source_index_override: int = -1,
-    ) -> None:
-        source_index_from_item = _late_callback("_source_index_from_tree_item", _source_index_from_tree_item)
-        selected_indices_from_tree = _late_callback(
-            "_selected_source_indices_from_tree",
-            _selected_source_indices_from_tree,
-        )
-        preserved_indices_for_menu = _late_callback(
-            "_source_tree_context_selection_multi_indices_helper",
-            _source_tree_context_selection_multi_indices_helper,
-        )
-        menu_selection_state = _late_callback(
-            "_source_tree_context_menu_selection_state_helper",
-            _source_tree_context_menu_selection_state_helper,
-        )
-        selected_source_index = _late_callback("_selected_source_index", _selected_source_index)
-        context_menu_text = _late_callback(
-            "_source_part_context_menu_text_helper",
-            _source_part_context_menu_text_helper,
-        )
-        if (
-            QMenu is None
-            or source_tree is None
-            or not callable(source_index_from_item)
-            or not callable(selected_indices_from_tree)
-            or not callable(preserved_indices_for_menu)
-            or not callable(menu_selection_state)
-            or not callable(selected_source_index)
-            or not callable(context_menu_text)
-        ):
-            return
-        item = None
-        try:
-            source_index_override = int(source_index_override)
-        except (TypeError, ValueError):
-            source_index_override = -1
-        if source_index_override >= 0 and isinstance(source_items_by_index, dict):
-            item = source_items_by_index.get(source_index_override)
-        if item is None:
-            item = source_tree.itemAt(pos)
-        clicked_source_index = source_index_override if source_index_override >= 0 else source_index_from_item(item)
-        selected_source_indices = selected_indices_from_tree(include_fallback=False)
-        preserved_multi_indices = preserved_indices_for_menu(
-            source_tree_context_selection_state
-        )
-        context_selection = menu_selection_state(
-            clicked_source_index=clicked_source_index,
-            selected_source_indices=selected_source_indices,
-            preserved_multi_indices=preserved_multi_indices,
-            clicked_item_selected=bool(item is not None and item.isSelected()),
-        )
-        selected_source_indices = list(context_selection.selected_source_indices)
-        if item is not None:
-            if context_selection.select_clicked_item:
-                source_tree.clearSelection()
-                item.setSelected(True)
-                if context_selection.clear_multi_indices:
-                    clear_multi_indices = _late_callback(
-                        "_source_tree_context_selection_clear_multi_indices_helper",
-                        _source_tree_context_selection_clear_multi_indices_helper,
-                    )
-                    if callable(clear_multi_indices):
-                        clear_multi_indices(source_tree_context_selection_state)
-            source_tree.setCurrentItem(item)
-        source_index = selected_source_index()
-        delete_source_indices = selected_source_indices or selected_indices_from_tree(include_fallback=True)
-        try:
-            menu_parent = source_tree.window() or source_tree
-        except RuntimeError:
-            menu_parent = source_tree
-        menu = QMenu(menu_parent)
-        source_part_context_menu_text = context_menu_text()
-        delete_action = menu.addAction(source_part_context_menu_text["delete_selected_parts"])
-        delete_action.setEnabled(bool(delete_source_indices))
-        apply_action = menu.addAction(source_part_context_menu_text["apply"])
-        apply_action.setEnabled(bool(source_parts_apply_state.get("pending")))
-        menu.addSeparator()
-        paste_action = menu.addAction(original_part_clipboard_action_text["paste_replacement_source"])
-        clipboard_can_paste = _late_callback(
-            "_alignment_part_clipboard_can_paste",
-            _alignment_part_clipboard_can_paste,
-        )
-        paste_action.setEnabled(bool(callable(clipboard_can_paste) and clipboard_can_paste()))
-        menu.addSeparator()
-        glow_role_action = menu.addAction(source_part_context_menu_text["set_role_glow"])
-        auto_role_action = menu.addAction(source_part_context_menu_text["set_role_auto"])
-        glow_role_action.setEnabled(source_index >= 0)
-        auto_role_action.setEnabled(source_index >= 0)
-        chosen = menu.exec(global_pos if global_pos is not None else source_tree.viewport().mapToGlobal(pos))
-        if chosen is delete_action:
-            delete_parts = _late_callback("_delete_selected_source_parts", _delete_selected_source_parts)
-            if callable(delete_parts):
-                delete_parts(delete_source_indices)
-        elif chosen is apply_action:
-            apply_changes = _late_callback("_apply_source_part_preview_changes", _apply_source_part_preview_changes)
-            if callable(apply_changes):
-                apply_changes()
-        elif chosen is paste_action:
-            paste_source = _late_callback(
-                "_paste_alignment_part_clipboard_as_replacement_source",
-                _paste_alignment_part_clipboard_as_replacement_source,
-            )
-            if callable(paste_source):
-                paste_source()
-        elif chosen is glow_role_action and source_index >= 0:
-            _apply_source_role_selection(source_index, "glow", "Set source role glow")
-        elif chosen is auto_role_action and source_index >= 0:
-            _apply_source_role_selection(source_index, "", "Clear source role")
-        set_right_press = _late_callback(
-            "_source_tree_context_selection_set_right_press_helper",
-            _source_tree_context_selection_set_right_press_helper,
-        )
-        if callable(set_right_press):
-            set_right_press(source_tree_context_selection_state, False)
-
-    def _show_replacement_sources_context_menu_for_viewport(source_index: int, global_pos: object) -> None:
-        if QPoint is None or source_tree is None:
-            return
-        try:
-            source_index = int(source_index)
-        except (TypeError, ValueError):
-            return
-        if source_index < 0:
-            return
-        item = source_items_by_index.get(source_index) if isinstance(source_items_by_index, dict) else None
-        local_pos = source_tree.visualItemRect(item).center() if item is not None else source_tree.viewport().rect().center()
-        _show_replacement_sources_context_menu(
-            local_pos,
-            global_pos=global_pos,
-            source_index_override=source_index,
-        )
-
-    def _populate_source_tree_chunk() -> None:
-        if replacement_mesh_for_mapping is None:
-            source_tree_population_timer.stop()
-            _finish_source_tree_population()
-            return
-        total = len(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())
-        start = _source_tree_population_next_index_helper(source_tree_population_state)
-        chunk_policy = _source_tree_population_chunk_policy_helper()
-        deadline = time.perf_counter() + chunk_policy.time_budget_seconds
-        added = 0
-        while start < total and added < chunk_policy.row_limit and time.perf_counter() < deadline:
-            source = replacement_mesh_for_mapping.submeshes[start]
-            if start not in source_items_by_index:
-                _add_source_tree_item(start, source)
-            start += 1
-            added += 1
-        _source_tree_population_set_next_index_helper(source_tree_population_state, start)
-        source_tree_progress_label.setText(
-            _source_tree_population_loading_text_helper(min(start, total), total)
-        )
-        if start >= total:
-            source_tree_population_timer.stop()
-            _finish_source_tree_population()
-        else:
-            source_tree_population_timer.start()
-
-    return SimpleNamespace(
-        _apply_source_role_selection=_apply_source_role_selection,
-        _show_replacement_sources_context_menu=_show_replacement_sources_context_menu,
-        _show_replacement_sources_context_menu_for_viewport=_show_replacement_sources_context_menu_for_viewport,
-        _populate_source_tree_chunk=_populate_source_tree_chunk,
-    )
 
 def create_alignment_selected_part_control_callbacks(context: dict[str, object]) -> SimpleNamespace:
     Qt = context.get('Qt')
@@ -1380,7 +698,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
             _set_double_spin_value_silently_helper(spin, float(value))
             try:
                 _sync_part_slider_from_spin(spin)
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                # Best effort: slider mirrors the authoritative spin value.
                 pass
 
     def _material_live_values(material_state: object) -> dict[str, object]:
@@ -1414,7 +733,8 @@ def create_alignment_selected_part_control_callbacks(context: dict[str, object])
                     **values,
                 )
             )
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            # Best effort: native material override preview can fall back to normal refresh.
             return False
 
     def _active_mesh_edit_material_tuning_mutation_blocked() -> bool:
@@ -3034,226 +2354,6 @@ def create_alignment_source_tree_selection_callbacks(context: dict[str, object])
         _clear_part_selections_when_leaving_geometry=_clear_part_selections_when_leaving_geometry,
     )
 
-def create_alignment_texture_detail_uv_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    Path = context.get('Path')
-    Qt = context.get('Qt')
-    _dds_detail_refresh_route_state_helper = context.get('_dds_detail_refresh_route_state_helper')
-    _dds_detail_resolved_thumbnail_state_helper = context.get('_dds_detail_resolved_thumbnail_state_helper')
-    _default_texture_uv_transform_state = context.get('_default_texture_uv_transform_state')
-    _queue_texture_uv_preview_refresh = context.get('_queue_texture_uv_preview_refresh')
-    _read_preview_pixmap = context.get('_read_preview_pixmap')
-    _resolve_dds_detail_preview_path_helper = context.get('_resolve_dds_detail_preview_path_helper')
-    _texture_transform_controls_set_loading_helper = context.get('_texture_transform_controls_set_loading_helper')
-    _texture_uv_transform_control_load_state_helper = context.get('_texture_uv_transform_control_load_state_helper')
-    _texture_uv_transform_control_save_state_helper = context.get('_texture_uv_transform_control_save_state_helper')
-    _texture_uv_transform_key = context.get('_texture_uv_transform_key')
-    _texture_uv_transform_materials_state_helper = context.get('_texture_uv_transform_materials_state_helper')
-    _texture_uv_transform_reset_state_helper = context.get('_texture_uv_transform_reset_state_helper')
-    dds_detail_thumbnail_label = context.get('dds_detail_thumbnail_label')
-    enabled = context.get('enabled')
-    ensure_dds_display_preview_png = context.get('ensure_dds_display_preview_png')
-    item = context.get('item')
-    material_key = context.get('material_key')
-    material_plan_control_text = context.get('material_plan_control_text')
-    parse_dds = context.get('parse_dds')
-    queue_preview = context.get('queue_preview')
-    raw_path = context.get('raw_path')
-    self = context.get('self')
-    slot_kind = context.get('slot_kind')
-    texture_overrides_dirty = context.get('texture_overrides_dirty')
-    texture_sets = context.get('texture_sets')
-    texture_transform_controls_loading = context.get('texture_transform_controls_loading')
-    texture_transform_flip_u_checkbox = context.get('texture_transform_flip_u_checkbox')
-    texture_transform_flip_v_checkbox = context.get('texture_transform_flip_v_checkbox')
-    texture_transform_group = context.get('texture_transform_group')
-    texture_transform_material_combo = context.get('texture_transform_material_combo')
-    texture_transform_offset_u_spin = context.get('texture_transform_offset_u_spin')
-    texture_transform_offset_v_spin = context.get('texture_transform_offset_v_spin')
-    texture_transform_reset_button = context.get('texture_transform_reset_button')
-    texture_transform_rotate_combo = context.get('texture_transform_rotate_combo')
-    texture_transform_scale_u_spin = context.get('texture_transform_scale_u_spin')
-    texture_transform_scale_v_spin = context.get('texture_transform_scale_v_spin')
-    texture_uv_transform_state = context.get('texture_uv_transform_state')
-
-    def _apply_dds_detail_thumbnail_state(thumbnail_state: object, pixmap: Optional[QPixmap] = None) -> None:
-        if bool(getattr(thumbnail_state, "show_pixmap", False)) and pixmap is not None and not pixmap.isNull():
-            scaled = pixmap.scaled(
-                dds_detail_thumbnail_label.size(),
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation,
-            )
-            dds_detail_thumbnail_label.setPixmap(scaled)
-            dds_detail_thumbnail_label.setToolTip(str(getattr(thumbnail_state, "tooltip", "")))
-            return
-        dds_detail_thumbnail_label.clear()
-        dds_detail_thumbnail_label.setText(str(getattr(thumbnail_state, "text", "")))
-        dds_detail_thumbnail_label.setToolTip(str(getattr(thumbnail_state, "tooltip", "")))
-
-    def _resolve_dds_detail_preview_path(raw_path: object, slot_kind: object = "base") -> tuple[Optional[Path], str]:
-        texconv_text = self.texconv_path_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-        return _resolve_dds_detail_preview_path_helper(
-            raw_path,
-            slot_kind,
-            texconv_path=texconv_path,
-            parse_dds_file=parse_dds,
-            ensure_dds_display_preview=ensure_dds_display_preview_png,
-        )
-
-    def _refresh_dds_detail_thumbnail(item: Optional[QTreeWidgetItem]) -> None:
-        route_state = _dds_detail_refresh_route_state_helper(
-            has_item=item is not None,
-            preview_source=item.data(0, Qt.UserRole + 4) if item is not None else None,
-            slot_kind=(item.data(0, Qt.UserRole + 6) if item is not None else "base") or "base",
-            control_text=material_plan_control_text,
-        )
-        if not route_state.should_resolve:
-            _apply_dds_detail_thumbnail_state(route_state.thumbnail)
-            return
-        preview_path, status_text = _resolve_dds_detail_preview_path(
-            route_state.preview_source,
-            route_state.slot_kind,
-        )
-        pixmap = _read_preview_pixmap(preview_path) if preview_path is not None else None
-        thumbnail_state = _dds_detail_resolved_thumbnail_state_helper(
-            preview_path=preview_path,
-            status_text=status_text,
-            pixmap_readable=bool(pixmap is not None and not pixmap.isNull()),
-            control_text=material_plan_control_text,
-        )
-        _apply_dds_detail_thumbnail_state(thumbnail_state, pixmap)
-
-    def _set_texture_transform_controls_enabled(enabled: bool) -> None:
-        for widget in (
-            texture_transform_material_combo,
-            texture_transform_rotate_combo,
-            texture_transform_flip_u_checkbox,
-            texture_transform_flip_v_checkbox,
-            texture_transform_offset_u_spin,
-            texture_transform_offset_v_spin,
-            texture_transform_scale_u_spin,
-            texture_transform_scale_v_spin,
-            texture_transform_reset_button,
-        ):
-            widget.setEnabled(bool(enabled))
-
-    def _load_texture_transform_controls(material_key: str) -> None:
-        load_state = _texture_uv_transform_control_load_state_helper(
-            texture_uv_transform_state,
-            material_key,
-            _default_texture_uv_transform_state(material_key),
-            transform_key=_texture_uv_transform_key,
-        )
-        _texture_transform_controls_set_loading_helper(
-            texture_transform_controls_loading,
-            active=True,
-            key=str(load_state["key"]),
-        )
-        values = load_state["values"]  # type: ignore[assignment]
-        rotation = int(values["rotate_degrees"])
-        rotation_index = texture_transform_rotate_combo.findData(rotation)
-        texture_transform_rotate_combo.setCurrentIndex(max(0, rotation_index))
-        texture_transform_flip_u_checkbox.setChecked(bool(values["flip_u"]))
-        texture_transform_flip_v_checkbox.setChecked(bool(values["flip_v"]))
-        texture_transform_offset_u_spin.setValue(float(values["offset_u"]))
-        texture_transform_offset_v_spin.setValue(float(values["offset_v"]))
-        texture_transform_scale_u_spin.setValue(float(values["scale_u"]))
-        texture_transform_scale_v_spin.setValue(float(values["scale_v"]))
-        _texture_transform_controls_set_loading_helper(
-            texture_transform_controls_loading,
-            active=False,
-        )
-
-    def _save_texture_transform_controls(
-        _signal_value: object = None,
-        *,
-        queue_preview: bool = True,
-    ) -> bool:
-        save_state = _texture_uv_transform_control_save_state_helper(
-            texture_uv_transform_state,
-            texture_transform_controls_loading,
-            material_name=texture_transform_material_combo.currentText().strip(),
-            rotate_degrees=texture_transform_rotate_combo.currentData() or 0,
-            flip_u=texture_transform_flip_u_checkbox.isChecked(),
-            flip_v=texture_transform_flip_v_checkbox.isChecked(),
-            offset_u=texture_transform_offset_u_spin.value(),
-            offset_v=texture_transform_offset_v_spin.value(),
-            scale_u=texture_transform_scale_u_spin.value(),
-            scale_v=texture_transform_scale_v_spin.value(),
-            queue_preview=queue_preview,
-        )
-        if not bool(save_state["saved"]):
-            return False
-        if save_state["queue_preview"]:
-            _queue_texture_uv_preview_refresh()
-        elif save_state["mark_dirty"]:
-            texture_overrides_dirty["dirty"] = True
-        return True
-
-    def _sync_texture_transform_materials() -> None:
-        previous_key = str(texture_transform_material_combo.currentData() or "")
-        sync_state = _texture_uv_transform_materials_state_helper(
-            texture_sets,
-            texture_uv_transform_state,
-            previous_key,
-            transform_key=_texture_uv_transform_key,
-            default_state_for_material=_default_texture_uv_transform_state,
-        )
-        texture_transform_material_combo.blockSignals(True)
-        texture_transform_material_combo.clear()
-        for material_name, key in tuple(sync_state["choices"]):  # type: ignore[arg-type]
-            texture_transform_material_combo.addItem(material_name, key)
-        target_index = texture_transform_material_combo.findData(str(sync_state["selected_key"]))
-        texture_transform_material_combo.setCurrentIndex(max(0, target_index))
-        texture_transform_material_combo.blockSignals(False)
-        has_materials = bool(sync_state["has_materials"])
-        texture_transform_group.setVisible(bool(has_materials))
-        _set_texture_transform_controls_enabled(has_materials)
-        if has_materials:
-            selected_key = str(texture_transform_material_combo.currentData() or "")
-            selected_material = texture_transform_material_combo.currentText().strip()
-            _texture_transform_controls_set_loading_helper(
-                texture_transform_controls_loading,
-                active=False,
-                key=selected_key,
-            )
-            _load_texture_transform_controls(selected_material)
-        else:
-            _texture_transform_controls_set_loading_helper(
-                texture_transform_controls_loading,
-                active=False,
-                key="",
-            )
-
-    def _handle_texture_transform_material_changed(_index: int) -> None:
-        material_name = texture_transform_material_combo.currentText().strip()
-        _load_texture_transform_controls(material_name)
-
-    def _reset_selected_texture_transform() -> None:
-        material_name = texture_transform_material_combo.currentText().strip()
-        reset_state = _texture_uv_transform_reset_state_helper(
-            texture_uv_transform_state,
-            material_name,
-            _default_texture_uv_transform_state(material_name),
-            transform_key=_texture_uv_transform_key,
-        )
-        if not reset_state["reset"]:
-            return
-        _load_texture_transform_controls(material_name)
-        _queue_texture_uv_preview_refresh()
-
-    return SimpleNamespace(
-        _apply_dds_detail_thumbnail_state=_apply_dds_detail_thumbnail_state,
-        _resolve_dds_detail_preview_path=_resolve_dds_detail_preview_path,
-        _refresh_dds_detail_thumbnail=_refresh_dds_detail_thumbnail,
-        _set_texture_transform_controls_enabled=_set_texture_transform_controls_enabled,
-        _load_texture_transform_controls=_load_texture_transform_controls,
-        _save_texture_transform_controls=_save_texture_transform_controls,
-        _sync_texture_transform_materials=_sync_texture_transform_materials,
-        _handle_texture_transform_material_changed=_handle_texture_transform_material_changed,
-        _reset_selected_texture_transform=_reset_selected_texture_transform,
-    )
-
 def create_alignment_accept_build_callbacks(context: dict[str, object]) -> SimpleNamespace:
     List = context.get('List')
     Mapping = context.get('Mapping')
@@ -3398,6 +2498,7 @@ def create_alignment_accept_build_callbacks(context: dict[str, object]) -> Simpl
         try:
             on_accept(options)
         except Exception as exc:
+            # User-visible: the external accept handler owns final build validation and persistence.
             self.set_status_message(_alignment_accept_handler_failed_status_helper(exc), error=True)
             QMessageBox.warning(dialog, _alignment_builder_warning_title_helper(), str(exc))
 
@@ -3625,715 +2726,12 @@ def create_alignment_accept_build_callbacks(context: dict[str, object]) -> Simpl
     )
 
 
-def create_alignment_accept_dispatch_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    QMessageBox = context.get('QMessageBox')
-    QTimer = context.get('QTimer')
-    _alignment_build_accept_route_helper = context.get('_alignment_build_accept_route_helper')
-    _alignment_build_accept_running_helper = context.get('_alignment_build_accept_running_helper')
-    _alignment_build_accept_set_running_helper = context.get('_alignment_build_accept_set_running_helper')
-    _alignment_build_callback_result_route_helper = context.get('_alignment_build_callback_result_route_helper')
-    _alignment_build_failed_status_helper = context.get('_alignment_build_failed_status_helper')
-    _alignment_build_mod_warning_title_helper = context.get('_alignment_build_mod_warning_title_helper')
-    _alignment_build_options_route_helper = context.get('_alignment_build_options_route_helper')
-    _alignment_build_started_status_helper = context.get('_alignment_build_started_status_helper')
-    _alignment_build_status_reset_helper = context.get('_alignment_build_status_reset_helper')
-    _alignment_dialog_mark_accepted_helper = context.get('_alignment_dialog_mark_accepted_helper')
-    _apply_alignment_build_status_view = context.get('_apply_alignment_build_status_view')
-    _build_static_options_from_dialog = context.get('_build_static_options_from_dialog')
-    _dispatch_alignment_accept = context.get('_dispatch_alignment_accept')
-    _finish_alignment_build_state = context.get('_finish_alignment_build_state')
-    _set_alignment_build_status = context.get('_set_alignment_build_status')
-    build_accept_state = context.get('build_accept_state')
-    continue_build_callback = context.get('continue_build_callback')
-    dialog = context.get('dialog')
-    dialog_accepted_state = context.get('dialog_accepted_state')
-    import_button = context.get('import_button')
-    on_accept = context.get('on_accept')
-    replacement_export_allowed = context.get('replacement_export_allowed')
-    self = context.get('self')
-    continue_build_available = callable(continue_build_callback)
-
-    def _accept_static_options() -> None:
-        accept_route = _alignment_build_accept_route_helper(
-            continue_build=continue_build_available,
-            running=_alignment_build_accept_running_helper(build_accept_state),
-        )
-        if accept_route.should_ignore:
-            return
-        if accept_route.should_mark_running:
-            _alignment_build_accept_set_running_helper(build_accept_state, True)
-        if accept_route.should_disable_import:
-            import_button.setEnabled(False)
-            _set_alignment_build_status("Preparing mesh replacement build options...")
-        if accept_route.should_schedule_status_paint:
-            QTimer.singleShot(25, _accept_static_options_after_status_paint)
-            return
-        if accept_route.should_run_immediately:
-            _accept_static_options_after_status_paint()
-
-    def _accept_static_options_after_status_paint() -> None:
-        if not callable(_build_static_options_from_dialog):
-            exc = TypeError("Build Mod options builder is unavailable.")
-            QMessageBox.warning(
-                dialog,
-                _alignment_build_mod_warning_title_helper(),
-                str(exc),
-            )
-            _finish_alignment_build_state(_alignment_build_failed_status_helper(exc), False)
-            return
-        try:
-            static_options = _build_static_options_from_dialog(
-                show_messages=True,
-                include_edited_source_mesh=True,
-            )
-        except Exception as exc:
-            QMessageBox.warning(
-                dialog,
-                _alignment_build_mod_warning_title_helper(),
-                str(exc),
-            )
-            _finish_alignment_build_state(_alignment_build_failed_status_helper(exc), False)
-            return
-        options_route = _alignment_build_options_route_helper(
-            options_available=static_options is not None,
-            continue_build=continue_build_available,
-        )
-        if options_route.should_reset_build_status:
-            _apply_alignment_build_status_view(
-                _alignment_build_status_reset_helper(
-                    build_accept_state,
-                    export_allowed=bool(replacement_export_allowed["allowed"]),
-                )
-            )
-        if static_options is None:
-            return
-        dialog._static_mappings = list(static_options.submesh_mappings or [])  # type: ignore[attr-defined]
-        dialog._static_options = static_options  # type: ignore[attr-defined]
-        if options_route.should_collect_build_settings:
-            _set_alignment_build_status("Collecting mesh replacement mod build settings...")
-            if not callable(continue_build_callback):
-                exc = TypeError("Build Mod callback is unavailable.")
-                QMessageBox.warning(
-                    dialog,
-                    _alignment_build_mod_warning_title_helper(),
-                    str(exc),
-                )
-                _finish_alignment_build_state(_alignment_build_failed_status_helper(exc), False)
-                started = False
-            else:
-                try:
-                    started = bool(
-                        continue_build_callback(
-                            static_options,
-                            dialog,
-                            _set_alignment_build_status,
-                            _finish_alignment_build_state,
-                            "loose",
-                        )
-                    )
-                except Exception as exc:
-                    QMessageBox.warning(
-                        dialog,
-                        _alignment_build_mod_warning_title_helper(),
-                        str(exc),
-                    )
-                    _finish_alignment_build_state(_alignment_build_failed_status_helper(exc), False)
-                    started = False
-            callback_route = _alignment_build_callback_result_route_helper(started)
-            if callback_route.should_reset_build_status:
-                _apply_alignment_build_status_view(
-                    _alignment_build_status_reset_helper(
-                        build_accept_state,
-                        export_allowed=bool(replacement_export_allowed["allowed"]),
-                    )
-                )
-            if callback_route.should_report_started:
-                self.set_status_message(_alignment_build_started_status_helper())
-            return
-        if options_route.should_accept_dialog:
-            _alignment_dialog_mark_accepted_helper(dialog_accepted_state)
-            dialog.accept()
-            if on_accept is not None:
-                QTimer.singleShot(0, lambda options=static_options: _dispatch_alignment_accept(options))
-
-    return SimpleNamespace(
-        _accept_static_options=_accept_static_options,
-        _accept_static_options_after_status_paint=_accept_static_options_after_status_paint,
-    )
 
 
-def create_manual_material_profile_runtime_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    Dict = context.get('Dict')
-    Mapping = context.get('Mapping')
-    Optional = context.get('Optional')
-    QCheckBox = context.get('QCheckBox')
-    QComboBox = context.get('QComboBox')
-    QDoubleSpinBox = context.get('QDoubleSpinBox')
-    QMessageBox = context.get('QMessageBox')
-    QSpinBox = context.get('QSpinBox')
-    Sequence = context.get('Sequence')
-    _coerce_manual_profile_values = context.get('_coerce_manual_profile_values')
-    _complete_external_swap_enabled = context.get('_complete_external_swap_enabled')
-    _delete_manual_material_profile_preset_helper = context.get('_delete_manual_material_profile_preset_helper')
-    _manual_material_profile_control_effect_states_helper = context.get('_manual_material_profile_control_effect_states_helper')
-    _manual_material_profile_delete_question_helper = context.get('_manual_material_profile_delete_question_helper')
-    _manual_material_profile_dirty_state_helper = context.get('_manual_material_profile_dirty_state_helper')
-    _manual_material_profile_panel_state_helper = context.get('_manual_material_profile_panel_state_helper')
-    _manual_material_profile_preset_from_fields_helper = context.get('_manual_material_profile_preset_from_fields_helper')
-    _manual_material_profile_preset_metadata_helper = context.get('_manual_material_profile_preset_metadata_helper')
-    _manual_material_profile_preset_names_helper = context.get('_manual_material_profile_preset_names_helper')
-    _manual_material_profile_saved_message_helper = context.get('_manual_material_profile_saved_message_helper')
-    _manual_material_profile_token_helper = context.get('_manual_material_profile_token_helper')
-    _modify_original_manual_texture_tuning_values_helper = context.get('_modify_original_manual_texture_tuning_values_helper')
-    _modify_original_texture_tuning_enabled = context.get('_modify_original_texture_tuning_enabled')
-    _queue_texture_preview_refresh = context.get('_queue_texture_preview_refresh')
-    _refresh_output_impact_review = context.get('_refresh_output_impact_review')
-    _save_manual_profile_presets = context.get('_save_manual_profile_presets')
-    _selected_manual_material_profile_preset_helper = context.get('_selected_manual_material_profile_preset_helper')
-    _upsert_manual_material_profile_preset_helper = context.get('_upsert_manual_material_profile_preset_helper')
-    complete_swap_material_profile_combo = context.get('complete_swap_material_profile_combo')
-    complete_swap_profile_store_path = context.get('complete_swap_profile_store_path')
-    dialog = context.get('dialog')
-    json = context.get('json')
-    manual_profile_apply_button = context.get('manual_profile_apply_button')
-    manual_profile_change_status = context.get('manual_profile_change_status')
-    manual_profile_control_text = context.get('manual_profile_control_text')
-    manual_profile_control_tooltips = context.get('manual_profile_control_tooltips')
-    manual_profile_controls = context.get('manual_profile_controls')
-    manual_profile_default_values = context.get('manual_profile_default_values')
-    manual_profile_dirty = context.get('manual_profile_dirty')
-    manual_profile_effect_widgets = context.get('manual_profile_effect_widgets')
-    manual_profile_group = context.get('manual_profile_group')
-    manual_profile_preset_combo = context.get('manual_profile_preset_combo')
-    manual_profile_preset_details_edit = context.get('manual_profile_preset_details_edit')
-    manual_profile_preset_name_edit = context.get('manual_profile_preset_name_edit')
-    manual_profile_preset_recommended_edit = context.get('manual_profile_preset_recommended_edit')
-    manual_profile_presets = context.get('manual_profile_presets')
-    manual_profile_ready = context.get('manual_profile_ready')
-    manual_profile_saved_values = context.get('manual_profile_saved_values')
-    manual_profile_settings_key = context.get('manual_profile_settings_key')
-    modify_original_clone_mode = bool(context.get('modify_original_clone_mode'))
-    self = context.get('self')
-    serialize_complete_swap_manual_material_profile = context.get('serialize_complete_swap_manual_material_profile')
-    write_complete_swap_calibrated_material_profile = context.get('write_complete_swap_calibrated_material_profile')
 
-    def _modify_original_tuning_enabled_value() -> bool:
-        if not callable(_modify_original_texture_tuning_enabled):
-            return False
-        return bool(_modify_original_texture_tuning_enabled())
 
-    def _sanitize_modify_original_manual_values(values: Mapping[str, object]) -> Dict[str, object]:
-        return dict(
-            _modify_original_manual_texture_tuning_values_helper(
-                values,
-                defaults=manual_profile_default_values,
-            )
-        )
 
-    def _current_manual_material_profile_values() -> Dict[str, object]:
-        values: Dict[str, object] = dict(manual_profile_default_values) if modify_original_clone_mode else {}
-        for key, control in manual_profile_controls.items():
-            if isinstance(control, QComboBox):
-                values[key] = str(control.currentData() or "")
-            elif isinstance(control, QSpinBox):
-                values[key] = int(control.value())
-            elif isinstance(control, QDoubleSpinBox):
-                values[key] = float(control.value())
-            elif isinstance(control, QCheckBox):
-                values[key] = bool(control.isChecked())
-            elif isinstance(control, tuple):
-                rgb_values: list[int] = []
-                for channel_control in control:
-                    if isinstance(channel_control, QSpinBox):
-                        rgb_values.append(int(channel_control.value()))
-                if len(rgb_values) >= 3:
-                    values[key] = tuple(rgb_values[:3])
-        if modify_original_clone_mode:
-            return _sanitize_modify_original_manual_values(values)
-        return values
 
-    def _refresh_manual_profile_control_effects(values: Optional[Mapping[str, object]] = None) -> None:
-        current_values = dict(values or _current_manual_material_profile_values())
-        control_states = _manual_material_profile_control_effect_states_helper(
-            current_values,
-            control_keys=tuple(manual_profile_effect_widgets),
-            control_tooltips=manual_profile_control_tooltips,
-        )
-        for key, widgets in manual_profile_effect_widgets.items():
-            state = control_states.get(key, {})
-            for widget in widgets:
-                if hasattr(widget, "setEnabled"):
-                    widget.setEnabled(bool(state.get("enabled", True)))
-                if hasattr(widget, "setToolTip"):
-                    widget.setToolTip(str(state.get("tooltip", "")))
-
-    def _set_manual_profile_dirty(dirty: bool) -> None:
-        state = _manual_material_profile_dirty_state_helper(dirty)
-        manual_profile_dirty["dirty"] = bool(state["dirty"])
-        manual_profile_apply_button.setEnabled(bool(state["apply_enabled"]))
-        manual_profile_change_status.setText(str(state["status_text"]))
-
-    def _apply_manual_material_profile_values(values: Mapping[str, object], *, persist: bool, refresh_preview: bool = False) -> None:
-        was_ready = bool(manual_profile_ready.get("ready"))
-        manual_profile_ready["ready"] = False
-        try:
-            for key, control in manual_profile_controls.items():
-                value = values.get(key, manual_profile_default_values.get(key))
-                if isinstance(control, QComboBox):
-                    index = control.findData(str(value or ""))
-                    control.setCurrentIndex(max(0, index))
-                elif isinstance(control, QSpinBox):
-                    try:
-                        control.setValue(int(value))
-                    except (TypeError, ValueError, OverflowError):
-                        pass
-                elif isinstance(control, QDoubleSpinBox):
-                    try:
-                        control.setValue(float(value))
-                    except (TypeError, ValueError, OverflowError):
-                        pass
-                elif isinstance(control, QCheckBox):
-                    control.setChecked(bool(value))
-                elif isinstance(control, tuple):
-                    rgb = value if isinstance(value, Sequence) and not isinstance(value, (str, bytes)) else ()
-                    for channel_index, channel_control in enumerate(control):
-                        if not isinstance(channel_control, QSpinBox):
-                            continue
-                        try:
-                            channel_control.setValue(int(rgb[channel_index]))
-                        except (TypeError, ValueError, OverflowError, IndexError):
-                            pass
-        finally:
-            manual_profile_ready["ready"] = was_ready
-        if persist:
-            saved = _current_manual_material_profile_values()
-            manual_profile_saved_values.clear()
-            manual_profile_saved_values.update(saved)
-            self.settings.setValue(manual_profile_settings_key, json.dumps(saved, sort_keys=True, separators=(",", ":")))
-            _save_complete_swap_material_profile()
-            _refresh_manual_profile_control_effects(saved)
-            if refresh_preview:
-                _set_manual_profile_dirty(False)
-                _refresh_output_impact_review()
-                _queue_texture_preview_refresh()
-            else:
-                _set_manual_profile_dirty(True)
-
-    def _reset_manual_material_profile_to_material_authority() -> None:
-        _apply_manual_material_profile_values(manual_profile_default_values, persist=True, refresh_preview=True)
-
-    def _apply_current_manual_material_profile_to_preview() -> None:
-        if modify_original_clone_mode:
-            if not _modify_original_tuning_enabled_value():
-                return
-        elif str(complete_swap_material_profile_combo.currentData() or "") != "material_authority_manual":
-            return
-        values = _current_manual_material_profile_values()
-        self.settings.setValue(manual_profile_settings_key, json.dumps(values, sort_keys=True, separators=(",", ":")))
-        manual_profile_saved_values.clear()
-        manual_profile_saved_values.update(values)
-        _save_complete_swap_material_profile()
-        _set_manual_profile_dirty(False)
-        _refresh_output_impact_review()
-        _queue_texture_preview_refresh()
-
-    _selected_manual_profile_preset = lambda: _selected_manual_material_profile_preset_helper(
-            manual_profile_presets,
-            manual_profile_preset_combo.currentData(),
-        )
-
-    def _refresh_manual_profile_preset_combo(select_name: str = "") -> None:
-        current_name = str(select_name or manual_profile_preset_combo.currentData() or "").strip()
-        manual_profile_preset_combo.blockSignals(True)
-        try:
-            manual_profile_preset_combo.clear()
-            manual_profile_preset_combo.addItem(manual_profile_control_text["no_saved_profile"], "")
-            for name in _manual_material_profile_preset_names_helper(manual_profile_presets):
-                manual_profile_preset_combo.addItem(name, name)
-            index = manual_profile_preset_combo.findData(current_name)
-            manual_profile_preset_combo.setCurrentIndex(max(0, index))
-        finally:
-            manual_profile_preset_combo.blockSignals(False)
-        _show_selected_manual_profile_preset_metadata()
-
-    def _show_selected_manual_profile_preset_metadata() -> None:
-        preset = _selected_manual_profile_preset()
-        if preset is None:
-            return
-        metadata = _manual_material_profile_preset_metadata_helper(preset)
-        manual_profile_preset_name_edit.setText(metadata["name"])
-        manual_profile_preset_details_edit.setPlainText(metadata["details"])
-        manual_profile_preset_recommended_edit.setText(metadata["recommended_models"])
-
-    def _save_current_manual_profile_preset() -> None:
-        name = manual_profile_preset_name_edit.text().strip()
-        if not name:
-            QMessageBox.information(
-                dialog,
-                manual_profile_control_text["save_title"],
-                manual_profile_control_text["save_missing_name"],
-            )
-            return
-        preset = _manual_material_profile_preset_from_fields_helper(
-            name=name,
-            details=manual_profile_preset_details_edit.toPlainText(),
-            recommended_models=manual_profile_preset_recommended_edit.text(),
-            values=_current_manual_material_profile_values(),
-        )
-        manual_profile_presets[:] = _upsert_manual_material_profile_preset_helper(manual_profile_presets, preset)
-        _save_manual_profile_presets(manual_profile_presets)
-        _refresh_manual_profile_preset_combo(name)
-        QMessageBox.information(
-            dialog,
-            manual_profile_control_text["save_title"],
-            _manual_material_profile_saved_message_helper(name),
-        )
-
-    def _load_selected_manual_profile_preset() -> None:
-        preset = _selected_manual_profile_preset()
-        if preset is None:
-            QMessageBox.information(
-                dialog,
-                manual_profile_control_text["load_title"],
-                manual_profile_control_text["load_missing_selection"],
-            )
-            return
-        _show_selected_manual_profile_preset_metadata()
-        _apply_manual_material_profile_values(_coerce_manual_profile_values(preset.get("values")), persist=True, refresh_preview=True)
-
-    def _delete_selected_manual_profile_preset() -> None:
-        preset = _selected_manual_profile_preset()
-        if preset is None:
-            QMessageBox.information(
-                dialog,
-                manual_profile_control_text["delete_title"],
-                manual_profile_control_text["delete_missing_selection"],
-            )
-            return
-        name = str(preset.get("name") or "").strip()
-        answer = QMessageBox.question(
-            dialog,
-            manual_profile_control_text["delete_title"],
-            _manual_material_profile_delete_question_helper(name),
-        )
-        if answer != QMessageBox.Yes:
-            return
-        manual_profile_presets[:] = _delete_manual_material_profile_preset_helper(manual_profile_presets, name)
-        _save_manual_profile_presets(manual_profile_presets)
-        _refresh_manual_profile_preset_combo("")
-
-    def _current_complete_swap_material_profile_token() -> str:
-        if modify_original_clone_mode:
-            if not _modify_original_tuning_enabled_value():
-                return "material_authority_detail_mask"
-            return str(
-                serialize_complete_swap_manual_material_profile(
-                    _current_manual_material_profile_values()
-                )
-            )
-        profile_name = str(complete_swap_material_profile_combo.currentData() or "material_authority_detail_mask")
-        return _manual_material_profile_token_helper(
-            profile_name,
-            manual_token=serialize_complete_swap_manual_material_profile(
-                _current_manual_material_profile_values()
-            ),
-        )
-
-    def _refresh_manual_material_profile_panel() -> None:
-        if modify_original_clone_mode:
-            manual_profile_group.setVisible(_modify_original_tuning_enabled_value())
-            manual_profile_group.setEnabled(_modify_original_tuning_enabled_value())
-            _refresh_manual_profile_control_effects()
-            return
-        state = _manual_material_profile_panel_state_helper(
-            complete_swap_material_profile_combo.currentData(),
-            complete_enabled=_complete_external_swap_enabled(),
-        )
-        manual_profile_group.setVisible(bool(state["visible"]))
-        manual_profile_group.setEnabled(bool(state["enabled"]))
-        _refresh_manual_profile_control_effects()
-
-    def _save_complete_swap_material_profile() -> None:
-        if modify_original_clone_mode:
-            self.settings.setValue(
-                manual_profile_settings_key,
-                json.dumps(_current_manual_material_profile_values(), sort_keys=True, separators=(",", ":")),
-            )
-            return
-        profile_name = str(complete_swap_material_profile_combo.currentData() or "material_authority_detail_mask")
-        self.settings.setValue("settings/complete_swap_material_profile", profile_name)
-        if profile_name == "material_authority_manual":
-            self.settings.setValue(
-                manual_profile_settings_key,
-                json.dumps(_current_manual_material_profile_values(), sort_keys=True, separators=(",", ":")),
-            )
-        try:
-            write_complete_swap_calibrated_material_profile(
-                complete_swap_profile_store_path,
-                _current_complete_swap_material_profile_token(),
-            )
-        except Exception:
-            pass
-
-    return SimpleNamespace(_current_manual_material_profile_values=_current_manual_material_profile_values, _refresh_manual_profile_control_effects=_refresh_manual_profile_control_effects, _set_manual_profile_dirty=_set_manual_profile_dirty, _apply_manual_material_profile_values=_apply_manual_material_profile_values, _reset_manual_material_profile_to_material_authority=_reset_manual_material_profile_to_material_authority, _apply_current_manual_material_profile_to_preview=_apply_current_manual_material_profile_to_preview, _selected_manual_profile_preset=_selected_manual_profile_preset, _refresh_manual_profile_preset_combo=_refresh_manual_profile_preset_combo, _show_selected_manual_profile_preset_metadata=_show_selected_manual_profile_preset_metadata, _save_current_manual_profile_preset=_save_current_manual_profile_preset, _load_selected_manual_profile_preset=_load_selected_manual_profile_preset, _delete_selected_manual_profile_preset=_delete_selected_manual_profile_preset, _current_complete_swap_material_profile_token=_current_complete_swap_material_profile_token, _refresh_manual_material_profile_panel=_refresh_manual_material_profile_panel, _save_complete_swap_material_profile=_save_complete_swap_material_profile)
-
-def create_alignment_custom_icon_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    ArchiveEntry = context.get('ArchiveEntry')
-    CUSTOM_ITEM_ICON_NO_TARGET_EXPORT_MESSAGE = context.get('CUSTOM_ITEM_ICON_NO_TARGET_EXPORT_MESSAGE')
-    ItemIconOverrideSpec = context.get('ItemIconOverrideSpec')
-    NativePreviewPanel = context.get('NativePreviewPanel')
-    Optional = context.get('Optional')
-    Path = context.get('Path')
-    QApplication = context.get('QApplication')
-    QFileDialog = context.get('QFileDialog')
-    QMessageBox = context.get('QMessageBox')
-    QPixmap = context.get('QPixmap')
-    QThread = context.get('QThread')
-    _alignment_current_camera_state = context.get('_alignment_current_camera_state')
-    _alignment_d3d11_preview_active = context.get('_alignment_d3d11_preview_active')
-    _custom_item_icon_alignment_generated_path_helper = context.get('_custom_item_icon_alignment_generated_path_helper')
-    _custom_item_icon_apply_control_enabled_state_helper = context.get('_custom_item_icon_apply_control_enabled_state_helper')
-    _custom_item_icon_control_enabled_state_helper = context.get('_custom_item_icon_control_enabled_state_helper')
-    _custom_item_icon_file_dialog_filter_helper = context.get('_custom_item_icon_file_dialog_filter_helper')
-    _custom_item_icon_generated_apply_state_helper = context.get('_custom_item_icon_generated_apply_state_helper')
-    _custom_item_icon_generated_status_helper = context.get('_custom_item_icon_generated_status_helper')
-    _custom_item_icon_generation_status_message_helper = context.get('_custom_item_icon_generation_status_message_helper')
-    _custom_item_icon_maybe_register_generated_icon_helper = context.get('_custom_item_icon_maybe_register_generated_icon_helper')
-    _custom_item_icon_override_spec_helper = context.get('_custom_item_icon_override_spec_helper')
-    _custom_item_icon_preview_image_from_pixmap_helper = context.get('_custom_item_icon_preview_image_from_pixmap_helper')
-    _custom_item_icon_status_text_helper = context.get('_custom_item_icon_status_text_helper')
-    _custom_item_icon_write_failure_message_helper = context.get('_custom_item_icon_write_failure_message_helper')
-    _qt_alignment_camera_tuple_helper = context.get('_qt_alignment_camera_tuple_helper')
-    _replay_alignment_d3d11_fast_transform = context.get('_replay_alignment_d3d11_fast_transform')
-    _sync_highlight_sets = context.get('_sync_highlight_sets')
-    _sync_mesh_edit_preview_settings = context.get('_sync_mesh_edit_preview_settings')
-    alignment_d3d11_preview_host = context.get('alignment_d3d11_preview_host')
-    custom_icon_checkbox = context.get('custom_icon_checkbox')
-    custom_icon_control_text = context.get('custom_icon_control_text')
-    custom_icon_file_button = context.get('custom_icon_file_button')
-    custom_icon_folder_button = context.get('custom_icon_folder_button')
-    custom_icon_library_button = context.get('custom_icon_library_button')
-    custom_icon_source_edit = context.get('custom_icon_source_edit')
-    custom_icon_status = context.get('custom_icon_status')
-    custom_icon_target_combo = context.get('custom_icon_target_combo')
-    custom_icon_target_entries = context.get('custom_icon_target_entries')
-    custom_icon_target_graph = context.get('custom_icon_target_graph')
-    dialog = context.get('dialog')
-    entry = context.get('entry')
-    obj_path = context.get('obj_path')
-    overlay_dialog_preview = context.get('overlay_dialog_preview')
-    preview_mode_combo = context.get('preview_mode_combo')
-    replacement_only_preview = context.get('replacement_only_preview')
-    save_generated_icon_to_library_checkbox = context.get('save_generated_icon_to_library_checkbox')
-    self = context.get('self')
-    static_dialog_preview = context.get('static_dialog_preview')
-
-    def _alignment_custom_icon_override_spec(*, show_messages: bool) -> Optional[ItemIconOverrideSpec]:
-        if not custom_icon_checkbox.isChecked():
-            return None
-        target_icon_entry = custom_icon_target_combo.currentData()
-        if not isinstance(target_icon_entry, ArchiveEntry):
-            if show_messages:
-                QMessageBox.warning(
-                    dialog,
-                    custom_icon_control_text["warning_title"],
-                    CUSTOM_ITEM_ICON_NO_TARGET_EXPORT_MESSAGE,
-                )
-            return None
-        icon_spec, message = _custom_item_icon_override_spec_helper(
-            source_text=custom_icon_source_edit.text(),
-            target_entry=target_icon_entry,
-            related_stems=self._archive_item_icon_related_stems(entry, custom_icon_target_graph),
-            display_name=entry.basename,
-        )
-        if icon_spec is None:
-            if show_messages:
-                QMessageBox.warning(dialog, custom_icon_control_text["warning_title"], message)
-            return None
-        return icon_spec
-
-    def _refresh_alignment_custom_icon_status() -> None:
-        _custom_item_icon_apply_control_enabled_state_helper(
-            _custom_item_icon_control_enabled_state_helper(
-                checked=custom_icon_checkbox.isChecked(),
-                has_target_entries=bool(custom_icon_target_entries),
-            ),
-            source_edit_widget=custom_icon_source_edit,
-            file_button_widget=custom_icon_file_button,
-            folder_button_widget=custom_icon_folder_button,
-            library_button_widget=custom_icon_library_button,
-            target_combo_widget=custom_icon_target_combo,
-        )
-        custom_icon_status.setText(
-            _custom_item_icon_status_text_helper(
-                checked=custom_icon_checkbox.isChecked(),
-                target_entry=custom_icon_target_combo.currentData(),
-                source_text=custom_icon_source_edit.text(),
-                related_stems=self._archive_item_icon_related_stems(entry, custom_icon_target_graph),
-                display_name=entry.basename,
-            )
-        )
-
-    def _choose_alignment_custom_icon_file() -> None:
-        selected, _selected_filter = QFileDialog.getOpenFileName(
-            dialog,
-            custom_icon_control_text["choose_file_title"],
-            str(obj_path.parent if obj_path.parent.is_dir() else self.settings_file_path.parent),
-            _custom_item_icon_file_dialog_filter_helper(),
-        )
-        if selected:
-            custom_icon_source_edit.setText(selected)
-
-    def _choose_alignment_custom_icon_folder() -> None:
-        selected = QFileDialog.getExistingDirectory(
-            dialog,
-            custom_icon_control_text["choose_folder_title"],
-            str(obj_path.parent if obj_path.parent.is_dir() else self.settings_file_path.parent),
-        )
-        if selected:
-            custom_icon_source_edit.setText(selected)
-
-    def _choose_alignment_custom_icon_library_source() -> None:
-        selected = self._choose_item_icon_library_source(dialog)
-        if selected is not None:
-            custom_icon_source_edit.setText(str(selected))
-
-    def _capture_alignment_replacement_icon_pixmap() -> Optional[QPixmap]:
-        if _alignment_d3d11_preview_active():
-            previous_mode = str(preview_mode_combo.currentData() or "side_by_side")
-            previous_view_state = alignment_d3d11_preview_host.view_state_snapshot()
-            capture_view_state = _alignment_current_camera_state()
-            try:
-                alignment_d3d11_preview_host.restore_view_state(capture_view_state)
-                alignment_d3d11_preview_host.set_icon_capture_mode(True)
-                alignment_d3d11_preview_host.set_display_mode("replacement_only")
-                alignment_d3d11_preview_host.set_highlighted_alignment_submeshes(
-                    replacement_submesh_indices=(),
-                    original_submesh_indices=(),
-                )
-                alignment_d3d11_preview_host.set_hidden_source_submeshes(())
-                alignment_d3d11_preview_host.set_alignment_state(
-                    enabled=False,
-                    source_submesh_indices=(),
-                    translation_sensitivity=0.85,
-                    rotation_degrees_per_pixel=0.18,
-                )
-                QApplication.processEvents()
-                QThread.msleep(80)
-                QApplication.processEvents()
-                screen = alignment_d3d11_preview_host.screen() or dialog.screen() or QApplication.primaryScreen()
-                if screen is None:
-                    return None
-                pixmap = screen.grabWindow(int(alignment_d3d11_preview_host.winId()))
-                return pixmap if not pixmap.isNull() else None
-            finally:
-                alignment_d3d11_preview_host.set_icon_capture_mode(False)
-                alignment_d3d11_preview_host.set_display_mode(previous_mode)
-                alignment_d3d11_preview_host.restore_view_state(previous_view_state)
-                _sync_highlight_sets()
-                _sync_mesh_edit_preview_settings()
-                try:
-                    _replay_alignment_d3d11_fast_transform()
-                except NameError:
-                    pass
-        preview_widget = replacement_only_preview
-        capture_view_state = _alignment_current_camera_state()
-        previous_replacement_view_state = replacement_only_preview.view_state_snapshot()
-        previous_guides = (
-            getattr(static_dialog_preview, "_show_grid_overlay", False),
-            getattr(overlay_dialog_preview, "_show_grid_overlay", False),
-            getattr(replacement_only_preview, "_show_grid_overlay", False),
-        )
-        previous_editing = (
-            getattr(static_dialog_preview, "_alignment_editing_enabled", False),
-            getattr(overlay_dialog_preview, "_alignment_editing_enabled", False),
-            getattr(replacement_only_preview, "_alignment_editing_enabled", False),
-        )
-        try:
-            preview_widget.restore_view_state(
-                _qt_alignment_camera_tuple_helper(
-                    capture_view_state,
-                    fit_distance=NativePreviewPanel._FIT_DISTANCE,
-                )
-            )
-            for widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):
-                widget.set_alignment_guides_visible(False)
-                widget.set_alignment_editing_enabled(False)
-                widget.repaint()
-            QApplication.processEvents()
-            pixmap = preview_widget.grab()
-            return pixmap if not pixmap.isNull() else None
-        finally:
-            replacement_only_preview.restore_view_state(previous_replacement_view_state)
-            for widget, guides_visible, editing_enabled in zip(
-                (static_dialog_preview, overlay_dialog_preview, replacement_only_preview),
-                previous_guides,
-                previous_editing,
-            ):
-                widget.set_alignment_guides_visible(bool(guides_visible))
-                widget.set_alignment_editing_enabled(bool(editing_enabled))
-
-    def _generate_alignment_icon_from_preview() -> None:
-        pixmap = _capture_alignment_replacement_icon_pixmap()
-        if pixmap is None or pixmap.isNull():
-            QMessageBox.warning(
-                dialog,
-                custom_icon_control_text["generate_preview_warning_title"],
-                custom_icon_control_text["generate_preview_not_ready"],
-            )
-            return
-        output_path = _custom_item_icon_alignment_generated_path_helper(
-            save_to_library=save_generated_icon_to_library_checkbox.isChecked(),
-            item_icons_tab=getattr(self, "item_icons_tab", None),
-            model_library_tab=getattr(self, "model_library_tab", None),
-            target_model_path=str(getattr(entry, "path", "") or entry.basename),
-            target_fallback_path=str(getattr(entry, "path", "") or obj_path.stem),
-            source_model_path=str(obj_path),
-            fallback_dir=Path.cwd(),
-        )
-        model_library = getattr(self, "model_library_tab", None)
-        formatter = getattr(model_library, "_model_preview_icon_image", None)
-        icon_image = _custom_item_icon_preview_image_from_pixmap_helper(pixmap, formatter=formatter, size=512)
-        if not icon_image.save(str(output_path), "PNG"):
-            QMessageBox.warning(
-                dialog,
-                custom_icon_control_text["generate_preview_warning_title"],
-                _custom_item_icon_write_failure_message_helper(output_path),
-            )
-            return
-        registration_result = _custom_item_icon_maybe_register_generated_icon_helper(
-            save_to_library=save_generated_icon_to_library_checkbox.isChecked(),
-            item_icons_tab=getattr(self, "item_icons_tab", None),
-            output_path=output_path,
-            target_model_path=str(getattr(entry, "path", "") or entry.basename),
-            source_model_path=str(obj_path),
-            target_icon_entry=custom_icon_target_combo.currentData(),
-        )
-        output_path = registration_result.output_path
-        saved_to_library = registration_result.saved_to_library
-        if registration_result.error_status:
-            self.set_status_message(registration_result.error_status, error=True)
-        custom_icon_source_edit.setText(str(output_path))
-        generated_apply_state = _custom_item_icon_generated_apply_state_helper(
-            has_target_entries=bool(custom_icon_target_entries),
-            checkbox_enabled=custom_icon_checkbox.isEnabled(),
-            current_target_entry=custom_icon_target_combo.currentData(),
-        )
-        if generated_apply_state["has_target"]:
-            custom_icon_checkbox.setChecked(True)
-            if generated_apply_state["select_first_target"]:
-                custom_icon_target_combo.setCurrentIndex(0)
-        _refresh_alignment_custom_icon_status()
-        custom_icon_status.setText(
-            _custom_item_icon_generated_status_helper(
-                output_name=output_path.name,
-                saved_to_library=saved_to_library,
-                has_target=bool(generated_apply_state["has_target"]),
-            )
-        )
-        self.set_status_message(_custom_item_icon_generation_status_message_helper(output_path))
-
-    return SimpleNamespace(_alignment_custom_icon_override_spec=_alignment_custom_icon_override_spec, _refresh_alignment_custom_icon_status=_refresh_alignment_custom_icon_status, _choose_alignment_custom_icon_file=_choose_alignment_custom_icon_file, _choose_alignment_custom_icon_folder=_choose_alignment_custom_icon_folder, _choose_alignment_custom_icon_library_source=_choose_alignment_custom_icon_library_source, _capture_alignment_replacement_icon_pixmap=_capture_alignment_replacement_icon_pixmap, _generate_alignment_icon_from_preview=_generate_alignment_icon_from_preview)
 
 def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> SimpleNamespace:
     Dict = context.get('Dict')
@@ -4957,7 +3355,7 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
                 normalization_center=center,
                 normalization_scale=getattr(original_reference_preview_model, "normalization_scale", 1.0),
             )
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             return None
 
     def _alignment_part_source_indices_for_commit() -> List[int]:
@@ -6347,7 +4745,8 @@ def create_alignment_parts_outliner_mapping_callbacks(context: dict[str, object]
             mapping_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             try:
                 advanced_part_tools_section.set_expanded(True)
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                # Best effort: advanced-part section state is visual-only.
                 pass
         else:
             mapping_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -6851,6 +5250,7 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
                 require_child=require_child,
             )
         except Exception as exc:
+            # Status-routed: host readiness touches native window handles and must return diagnostics.
             host_ready_state = _alignment_d3d11_host_ready_state_helper(
                 dialog_live=True,
                 host_visible=True,
@@ -7165,7 +5565,8 @@ def create_alignment_d3d11_loading_callbacks(context: dict[str, object]) -> Simp
     def _save_alignment_preview_mode_view_state(mode: str) -> None:
         try:
             alignment_preview_mode_view_states[_alignment_preview_mode_key_helper(mode)] = _alignment_current_camera_state()
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            # Best effort: missing camera state only prevents per-mode view restore.
             pass
 
     def _restore_alignment_preview_mode_view_state(mode: str) -> None:
@@ -7404,7 +5805,8 @@ def create_alignment_refresh_queue_callbacks(context: dict[str, object]) -> Simp
         if reset_host and not bool(alignment_d3d11_drag_transaction.get("active")):
             try:
                 alignment_d3d11_preview_host.set_alignment_preview_transforms()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                # Best effort: host transform reset is diagnostic preview state only.
                 pass
 
     def _alignment_d3d11_package_refresh_in_flight() -> bool:
@@ -8225,7 +6627,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             return True
         try:
             return control_tabs.tabText(control_tabs.currentIndex()).strip().lower() in {"mesh editing", "merged mesh editing"}
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
 
     def _alignment_mesh_edit_tab_active() -> bool:
@@ -8470,6 +6872,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         try:
             _shutdown_alignment_d3d11_preview()
         except Exception as exc:
+            # Event-recorded cleanup path: shutdown must not crash dialog teardown.
             _record_runtime_event("alignment_d3d11_shutdown_error", message=str(exc))
 
     def _side_by_side_alignment_preview_model(original_model: object, replacement_model: object) -> Optional[object]:
@@ -9412,6 +7815,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
                 ),
             )
         except Exception as exc:
+            # Status-routed: preview command construction failures are presented in the D3D11 status UI.
             _set_alignment_d3d11_loading(False, f"Preview unavailable: {exc}")
             unavailable_presentation = _alignment_d3d11_unavailable_performance_helper()
             _set_preview_performance_status_if_ready(
@@ -9425,7 +7829,8 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         process.setArguments(arguments)
         try:
             process.setWorkingDirectory(str(Path(__file__).resolve().parents[3]))
-        except Exception:
+        except (OSError, RuntimeError):
+            # Best effort: QProcess can still inherit the current process directory.
             pass
         process.setProcessChannelMode(QProcess.SeparateChannels)
         process.readyReadStandardError.connect(lambda process=process: _handle_alignment_d3d11_stderr(process))
@@ -9538,7 +7943,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         signature = _d3d11_status_file_signature(stat)
         try:
             payload_text = status_file.read_text(encoding="utf-8")
-        except Exception as exc:
+        except (OSError, UnicodeError) as exc:
             read_error_route = _alignment_d3d11_status_read_error_route_helper(exc)
             _set_alignment_d3d11_loading(False, read_error_route.message)
             return
@@ -9570,7 +7975,7 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
             return
         try:
             payload = json.loads(payload_text)
-        except Exception as exc:
+        except ValueError as exc:
             partial_route = _alignment_d3d11_unavailable_status_route_helper(
                 preview_loaded=bool(alignment_d3d11_state.get("preview_loaded")),
                 loading_stuck=_alignment_d3d11_loading_stuck(),
@@ -10380,7 +8785,8 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
         )
     try:
         auto_scene_texture_sources.extend(discover_scene_texture_files(obj_path, replacement_mesh_for_mapping))
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
+        # Best effort: explicit supplemental files are still registered below.
         pass
     _register_texture_source_files_helper(
         tuple(supplemental_files or ()) + tuple(auto_scene_texture_sources),
@@ -10648,7 +9054,7 @@ def create_alignment_preview_model_callbacks(context: dict[str, object]) -> Simp
         if archive_extract_widget is not None:
             try:
                 pac_xml_corpus_root = archive_extract_widget.text().strip()
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
                 pac_xml_corpus_root = ""
         return StaticMeshReplacementOptions(
             transform=placement_snapshot["transform"],

@@ -11,6 +11,15 @@ from cdmw.workers.archive_filter_workers import ArchiveFilterWorker
 from cdmw.workers.archive_workers import ArchiveStructureFilterWorker
 
 
+def _record_archive_filter_worker_lifecycle(target: object, event: str, **fields: object) -> None:
+    recorder = getattr(target, "_record_runtime_event", None)
+    if callable(recorder):
+        try:
+            recorder(str(event), **fields)
+        except Exception:
+            return
+
+
 class ArchiveFilterWorkerMixin:
     """Filter worker start, completion, and structure-filter warmup handling."""
 
@@ -44,6 +53,11 @@ class ArchiveFilterWorkerMixin:
 
     def _handle_archive_structure_filter_complete(self, result: object) -> None:
         if self._shutting_down:
+            _record_archive_filter_worker_lifecycle(
+                self,
+                "archive_structure_filter_result_ignored",
+                reason="cancelled_by_shutdown",
+            )
             return
         payload = result if isinstance(result, Mapping) else {}
         children = payload.get("structure_children")
@@ -79,14 +93,29 @@ class ArchiveFilterWorkerMixin:
         self.archive_preview_debounce_timer.stop()
         self._stop_archive_native_preview_prefetch()
         if self.archive_preview_worker is not None:
+            _record_archive_filter_worker_lifecycle(
+                self,
+                "archive_preview_worker_cancelled",
+                reason="cancelled_by_filter_change",
+            )
             try:
                 self.archive_preview_worker.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                _record_archive_filter_worker_lifecycle(
+                    self,
+                    "archive_preview_worker_failed",
+                    reason="worker_failed",
+                    error=str(exc),
+                )
         self._stop_archive_preview_loading_indicator(success=None)
         if self.worker_thread is not None:
             if self.archive_filter_worker is not None:
                 self.archive_filter_apply_pending = True
+                _record_archive_filter_worker_lifecycle(
+                    self,
+                    "archive_filter_worker_cancelled",
+                    reason="cancelled_by_filter_change",
+                )
                 self.archive_filter_worker.stop()
                 self._set_archive_load_progress("Stopping previous archive filter...", phase="Stopping")
                 self.set_status_message("Stopping previous archive filter...")
@@ -222,6 +251,12 @@ class ArchiveFilterWorkerMixin:
         request_signature = tuple(payload.get("request_signature") or ())
         preferred_path = str(payload.get("preferred_path", "") or "").strip()
         if request_signature and request_signature != self._current_archive_filter_signature():
+            _record_archive_filter_worker_lifecycle(
+                self,
+                "archive_filter_result_ignored",
+                reason="stale_result_ignored",
+                request_signature=request_signature,
+            )
             self.archive_filters_dirty = True
             self._update_archive_filter_button_state()
             stale_text = "Archive filter inputs changed while results were still loading. Press Apply Filters to refresh."

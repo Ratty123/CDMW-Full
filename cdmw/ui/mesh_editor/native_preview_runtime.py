@@ -139,12 +139,12 @@ def _host_widget_hwnd(host_widget: object | None) -> int:
     try:
         set_attribute = getattr(host_widget, "setAttribute")
         win_id = getattr(host_widget, "winId")
-    except Exception:
+    except AttributeError:
         return 0
     try:
         set_attribute(Qt.WA_NativeWindow, True)
         return int(win_id())
-    except Exception:
+    except (RuntimeError, TypeError, ValueError):
         return 0
 
 

@@ -20,6 +20,15 @@ from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
 from cdmw.workers.d3d11_package_workers import ArchiveNativePreviewPrefetchWorker
 
 
+def _record_archive_prefetch_lifecycle(target: object, event: str, **fields: object) -> None:
+    recorder = getattr(target, "_record_runtime_event", None)
+    if callable(recorder):
+        try:
+            recorder(str(event), **fields)
+        except Exception:
+            return
+
+
 class ArchivePreviewNativePrefetchMixin:
     """Visible-neighbor native preview package prefetch orchestration."""
 
@@ -32,8 +41,13 @@ class ArchivePreviewNativePrefetchMixin:
             memory_snapshot = _windows_process_memory_snapshot(os.getpid())
             if int(memory_snapshot.get("private_bytes", 0) or 0) > 3500 * 1024 * 1024:
                 return ()
-        except Exception:
-            pass
+        except Exception as exc:
+            _record_archive_prefetch_lifecycle(
+                self,
+                "archive_native_prefetch_memory_probe_failed",
+                reason="worker_failed",
+                error=str(exc),
+            )
         current_entry = self._current_archive_entry()
         if current_entry is None:
             return ()
@@ -89,6 +103,12 @@ class ArchivePreviewNativePrefetchMixin:
             return
         self.archive_native_prefetch_request_id += 1
         if self.archive_native_prefetch_worker is not None:
+            _record_archive_prefetch_lifecycle(
+                self,
+                "archive_native_prefetch_cancelled",
+                reason="cancelled_by_new_request",
+                request_id=self.archive_native_prefetch_request_id,
+            )
             self.archive_native_prefetch_worker.stop()
         if self.archive_native_prefetch_thread is not None:
             return
@@ -145,7 +165,17 @@ class ArchivePreviewNativePrefetchMixin:
         if hasattr(self, "archive_native_prefetch_timer"):
             self.archive_native_prefetch_timer.stop()
         if self.archive_native_prefetch_worker is not None:
+            _record_archive_prefetch_lifecycle(
+                self,
+                "archive_native_prefetch_cancelled",
+                reason="cancelled_by_shutdown" if self._shutting_down else "cancelled_by_filter_change",
+            )
             try:
                 self.archive_native_prefetch_worker.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                _record_archive_prefetch_lifecycle(
+                    self,
+                    "archive_native_prefetch_failed",
+                    reason="worker_failed",
+                    error=str(exc),
+                )

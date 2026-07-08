@@ -525,8 +525,11 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                         source_skeleton,
                         source_path=str(getattr(source_skeleton, "path", "") or ""),
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _record_mesh_edit_event(
+                        "mesh_edit_static_session_skeleton_attach_failed",
+                        message=str(exc),
+                    )
             mesh_editor_static_replacement_session_state["session"] = session
             mesh_editor_static_replacement_session_state["mesh"] = source_mesh
             mesh_editor_static_replacement_session_state["revision"] = current_revision
@@ -1097,14 +1100,14 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                         range(len(getattr(baked_mesh, "submeshes", ()) or ())),
                     )
                     return baked_mesh
-        except Exception:
-            pass
+        except Exception as exc:
+            _record_mesh_edit_event("morph_slider_native_bake_snapshot_error", message=str(exc))
         finally:
             if native_snapshot is not None:
                 try:
                     dispose_native_mesh_submesh_snapshot(native_snapshot)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _record_mesh_edit_event("morph_slider_native_bake_snapshot_dispose_failed", message=str(exc))
         message = "Native morph-slider bake snapshot failed; Python full-mesh bake clone fallback is disabled."
         _record_mesh_edit_event(
             "morph_slider_native_bake_snapshot_failed",
@@ -2407,7 +2410,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 from cdmw.modding.mesh_native_core import snapshot_native_mesh_submeshes
 
                 native_snapshot = snapshot_native_mesh_submeshes(snapshot)
-            except Exception:
+            except Exception as exc:
+                _record_mesh_edit_event("mesh_edit_native_undo_snapshot_exception", message=str(exc))
                 native_snapshot = None
             if native_snapshot is not None:
                 return native_snapshot
@@ -2432,7 +2436,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 restored = ParsedMesh()
                 if restore_native_mesh_submesh_snapshot(restored, snapshot):
                     return restored
-            except Exception:
+            except Exception as exc:
+                _record_mesh_edit_event("mesh_edit_native_undo_restore_exception", message=str(exc))
                 return None
         return None
 
@@ -2825,7 +2830,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             return {}
         try:
             raw_metrics = reader()
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            # Best effort: D3D11 send metrics are diagnostic-only.
             return {}
         return dict(raw_metrics) if isinstance(raw_metrics, _MappingABC) else {}
 
@@ -2926,7 +2932,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             from cdmw.modding.mesh_native_core import snapshot_native_mesh_submeshes
 
             native_snapshot = snapshot_native_mesh_submeshes(mesh)
-        except Exception:
+        except Exception as exc:
+            _record_mesh_edit_event("mesh_edit_native_live_stroke_snapshot_exception", message=str(exc))
             native_snapshot = None
         if native_snapshot is not None:
             return native_snapshot
@@ -2949,7 +2956,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 if restore_native_mesh_submesh_snapshot(restored, snapshot):
                     _mesh_edit_state.replacement_mesh_for_mapping = restored
                     return True
-            except Exception:
+            except Exception as exc:
+                _record_mesh_edit_event("mesh_edit_native_live_stroke_restore_exception", message=str(exc))
                 return False
             return False
         if isinstance(snapshot, ParsedMesh):
@@ -3862,7 +3870,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 _mesh_edit_state.replacement_mesh_for_mapping,
                 before_by_submesh,
             )
-        except Exception:
+        except Exception as exc:
+            _record_mesh_edit_event("mesh_edit_native_sparse_current_snapshot_exception", message=str(exc))
             native_current = None
         if native_current:
             native_snapshot = _mesh_edit_sparse_vertex_snapshot(native_current)
@@ -3892,7 +3901,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
             from cdmw.modding.mesh_native_core import apply_native_mesh_sparse_vertex_restore
 
             native_restore = apply_native_mesh_sparse_vertex_restore(mesh, before_by_submesh)
-        except Exception:
+        except Exception as exc:
+            _record_mesh_edit_event("mesh_edit_native_sparse_restore_exception", message=str(exc))
             native_restore = None
         native_restore_applied = native_restore is not None
         if native_restore is not None:
@@ -3912,7 +3922,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                     set(changed_vertices_by_submesh),
                     return_changed_vertices=True,
                 )
-            except Exception:
+            except Exception as exc:
+                _record_mesh_edit_event("mesh_edit_native_sparse_normal_recalculate_exception", message=str(exc))
                 native_normals = None
             if native_normals is not None:
                 normal_changed_vertices_by_submesh = _mesh_edit_changed_vertex_groups_for_live_update(native_normals or {})
@@ -4639,7 +4650,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                     normal_sources,
                     return_changed_vertices=True,
                 )
-            except Exception:
+            except Exception as exc:
+                _record_mesh_edit_event("mesh_edit_native_stroke_normal_recalculate_exception", message=str(exc))
                 native_normals = None
             if native_normals is not None:
                 normal_changed_vertices_by_submesh = _mesh_edit_changed_vertex_groups_for_live_update(native_normals or {})
@@ -5169,7 +5181,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 current_vertices_by_submesh=mesh_edit_selected_vertices_by_submesh,
                 selection_operation=operation,
             )
-        except Exception:
+        except Exception as exc:
+            _record_mesh_edit_event("mesh_edit_native_all_vertex_selection_failed", message=str(exc))
             return None
         if not isinstance(native_selection, Mapping):
             return None
@@ -5205,7 +5218,8 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 operation=operation,
                 iterations=iterations,
             )
-        except Exception:
+        except Exception as exc:
+            _record_mesh_edit_event("mesh_edit_native_vertex_selection_failed", message=str(exc))
             return None
         if not isinstance(native_selection, Mapping):
             return None
@@ -5317,7 +5331,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
                 "classic mesh editing",
                 "merged mesh editing",
             }
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
 
     mesh_edit_surface_tab_state = {"active": _mesh_edit_surface_tab_active()}

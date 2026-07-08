@@ -11,6 +11,17 @@ def _read(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
 
 
+def _mesh_native_core_source() -> str:
+    return "\n".join(
+        (
+            _read("cdmw/modding/mesh_native_core.py"),
+            _read("cdmw/modding/mesh_native_core_constants.py"),
+            _read("cdmw/modding/mesh_native_core_payload_helpers.py"),
+            _read("cdmw/modding/mesh_native_core_blend_helpers.py"),
+        )
+    )
+
+
 def _mesh_edit_source() -> str:
     return "\n".join(
         (
@@ -1331,7 +1342,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(_mesh_edit_preview_source_indices())", source)
         self.assertIn("_mesh_edit_preview_source_indices()", source)
         self.assertIn("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:", source)
-        self.assertIn("_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")", source)
+        self.assertIn("def _start_mesh_edit_fallback(reason: str) -> None:", source)
+        self.assertIn("_mesh_edit_apply_preview_mode_transition(str(reason or \"mesh_edit_dotnet_fallback\"))", source)
+        self.assertIn("_start_mesh_edit_fallback(\"mesh_edit_dotnet_unavailable\")", source)
+        self.assertIn("_start_mesh_edit_fallback(\"mesh_edit_dotnet_disabled\")", source)
         self.assertIn("mesh_edit_enabled_checkbox.toggled.connect(_mesh_edit_enabled_toggled)", source)
         self.assertIn('prompt_shell_context["_sync_mesh_edit_preview_settings"] = _sync_mesh_edit_preview_settings', source)
         self.assertIn('prompt_shell_context.get(\n                "_sync_mesh_edit_preview_settings"', source)
@@ -1449,7 +1463,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_mesh_editor_finalize_edit_mode_exit(\"mesh_edit_toggle\", mesh_changed=True)", main_source)
         toggle_start = main_source.index("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:")
         toggle_body = main_source[toggle_start: main_source.index("mesh_edit_enabled_checkbox.toggled.connect", toggle_start)]
-        self.assertIn("_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")", toggle_body)
+        self.assertIn("_start_mesh_edit_fallback(\"mesh_edit_dotnet_unavailable\")", toggle_body)
+        self.assertIn("_start_mesh_edit_fallback(\"mesh_edit_dotnet_disabled\")", toggle_body)
+        self.assertNotIn("_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")", toggle_body)
         self.assertNotIn("_mesh_edit_refresh_replacement_preview_model()\n", toggle_body)
         finish_start = main_source.index("def _mesh_edit_finish_stroke(payload: object) -> None:")
         finish_body = main_source[finish_start: main_source.index("def _mesh_edit_cancel_stroke", finish_start)]
@@ -3017,7 +3033,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         prompt_setup_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py")
         ui_sections_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_ui_sections.py")
         payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
-        mesh_native_source = _read("cdmw/modding/mesh_native_core.py")
+        mesh_native_source = _mesh_native_core_source()
         native_core_source = _read("native/cdmw_mesh_core/src/main.cpp")
         sparse_history_source = _read("cdmw/ui/archive_browser/static_replacement_sparse_history.py")
 
@@ -6149,7 +6165,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
     def test_subdivide_selection_is_explicit_topology_path_not_sculpt_toggle(self) -> None:
         source = _mesh_edit_source()
         deformer_source = _read("cdmw/modding/mesh_deformer.py")
-        mesh_native_source = _read("cdmw/modding/mesh_native_core.py")
+        mesh_native_source = _mesh_native_core_source()
         mesh_ops_source = _read("cdmw/modding/mesh_edit_ops.py")
         mesh_service_source = _read("cdmw/services/mesh_service.py")
         mesh_controller_source = _read("cdmw/ui/mesh_editor/controller.py")

@@ -120,7 +120,12 @@ def test_full_import_locks_advanced_ui_but_leaves_transform_live() -> None:
 
 
 def test_full_import_build_and_transform_callbacks_do_not_stay_busy_on_exceptions() -> None:
-    source = _source("cdmw", "ui", "archive_browser", "static_replacement_dialog_callback_factories.py")
+    source = "\n".join(
+        (
+            _source("cdmw", "ui", "archive_browser", "static_replacement_dialog_callback_factories.py"),
+            _source("cdmw", "ui", "archive_browser", "static_replacement_dialog_accept_dispatch_callbacks.py"),
+        )
+    )
     prompt_source = _source("cdmw", "ui", "archive_browser", "static_replacement_dialog_prompt.py")
 
     accept_start = source.index("def _accept_static_options_after_status_paint() -> None:")

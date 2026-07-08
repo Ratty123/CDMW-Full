@@ -4,7 +4,11 @@ Last updated: 2026-07-07
 
 ## Current .NET viewport implementation
 
-- Entry point: `tools/dotnet_mesh_editor_experiment/Program.cs`.
+- Entry point: `tools/dotnet_mesh_editor_experiment/ProgramEntry.cs`.
+- UI host and viewport shells: `tools/dotnet_mesh_editor_experiment/Program.cs`.
+- Extracted form partial files: `ExperimentForm.Controls.cs`, `ExperimentForm.Json.cs`, `ExperimentForm.Output.cs`, and `ExperimentForm.Protocol.cs`.
+- Extracted viewport partial files: `MeshViewport.Geometry.cs`, `MeshViewport.Renderer.cs`, `MeshViewport.Status.cs`, `MeshViewport.Topology.cs`, `MeshViewport.SelectionCommands.cs`, `MeshViewport.SelectionActions.cs`, `MeshViewport.SelectionPicking.cs`, `MeshViewport.Input.cs`, and `MeshViewport.Painting.cs`.
+- Extracted support files: `RuntimeSupport.cs`, `NativeWindowHost.cs`, `ObjDocument.cs`, `NetEdgeTopology.cs`, `NetMaterialSet.cs`, `NetTextureSet.cs`, and `GeometryPrimitives.cs`.
 - UI host: WinForms `ExperimentForm`, embedded through `--embedded --parent-hwnd` and `NativeWindowHost`.
 - Current viewport class: `MeshViewport : Control` attempts `D3D11MaterialViewport` first, then falls back to `WpfGpuMeshViewport` through `ElementHost`, then GDI.
 - Current primary drawing path: `D3D11MaterialViewport`, a .NET/Vortice Direct3D 11 HWND swap-chain renderer with HLSL vertex/pixel shaders, vertex/index buffers, material constant buffers, SRVs, and a sampler.
@@ -46,6 +50,7 @@ Last updated: 2026-07-07
 - During embedded editing, Python/C++ remains the authoritative command/session engine through `MeshEditorController` and `MeshService`.
 - The .NET viewport can keep a local mirror of selected vertices/faces/source parts/edges for display.
 - The .NET viewport does not own the full edit session or final authoritative selection model; output import now fails closed unless matching edit operation records exist and pass Python/C++ validation.
+- The handoff manifest is explicitly marked `interchange_format=obj_sidecar` with `metadata_risk=true`; OBJ is not treated as a complete native mesh metadata container.
 
 ## Current edge selection implementation
 
@@ -68,6 +73,8 @@ Last updated: 2026-07-07
 - The handoff package now contains material and resolved texture payloads, and .NET can decode common DDS formats into local D3D11/WPF-consumable bitmaps. Unsupported DDS uses the bundled `cd-texture-dx.exe` preview helper first, then DirectXTex `texconv` when available.
 - The .NET project now depends on Vortice.Direct3D11, Vortice.DXGI, and Vortice.D3DCompiler.
 - Remaining target work is runtime visual QA and true GPU overlay draw-pass parity for the D3D11 child viewport, not creation of the first shader backend.
+- Embedded production mode now treats D3D11 as required. If D3D11 initialization fails, the helper reports `blocked_renderer_unavailable`; WPF/GDI fallback is allowed only through an explicit developer renderer fallback.
+- Renderer status now exposes material parity blockers, including `native_dds_parity=false`, `dds_native_dxgi_upload=false`, and bitmap upload fallback. Host UI treats those states as non-authoritative and blocks embedded production import when material parity is required.
 
 ## Why edge overlay depended on host/native code
 
@@ -114,7 +121,7 @@ Implemented in this pass:
 - Added D3D11 device-lost detection/reset handling for removed/reset/driver-internal errors, forced Present-failure injection, and device-removed reason reporting in renderer metrics.
 - Replaced the embedded D3D11 GDI overlay composition path with D3D11 line/triangle overlay primitives drawn before swap-chain `Present` for wire, X-Ray marker, selected vertices, selected edges, hover edge, selected faces, selected source parts, and selection rectangle.
 - Added explicit frame scheduling/metrics for present time, dirty-to-present latency, dropped frames, frame count, first-frame state, and idle versus active rendering status.
-- Added release dirty-tree preflight through `scripts/release_preflight.py`; release packaging writes `build/release-change-inventory.json` and blocks generated output or unclassified untracked source.
+- Added release dirty-tree preflight through `scripts/release_preflight.py`; release packaging writes `build/release-change-inventory.json`, classifies untracked project source/docs under known repo roots, and blocks generated output or unclassified untracked source.
 - Added material debug channel toggles and renderer status parity metadata for base, normal, roughness, metallic, emissive, specular, and final output.
 - Kept host commit/import/material refresh unchanged.
 

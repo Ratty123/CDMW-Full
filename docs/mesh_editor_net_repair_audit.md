@@ -10,7 +10,11 @@ Last updated: 2026-07-08
 
 ## Current .NET editor files
 
-- `tools/dotnet_mesh_editor_experiment/Program.cs` contains the WinForms editor shell, OBJ loader, software viewport, embedded child-window host, NDJSON protocol reader/writer, local same-count OBJ save path, and command/status handoff.
+- `tools/dotnet_mesh_editor_experiment/ProgramEntry.cs` contains the process entrypoint and CLI launch flow.
+- `tools/dotnet_mesh_editor_experiment/Program.cs` contains only the remaining WinForms editor and viewport shells.
+- `tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs`, `ExperimentForm.Json.cs`, `ExperimentForm.Output.cs`, and `ExperimentForm.Protocol.cs` own extracted form control construction, protocol JSON/binary parsing, output/status persistence, and protocol/update handlers.
+- `tools/dotnet_mesh_editor_experiment/MeshViewport.Geometry.cs`, `MeshViewport.Renderer.cs`, `MeshViewport.Status.cs`, `MeshViewport.Topology.cs`, `MeshViewport.SelectionCommands.cs`, `MeshViewport.SelectionActions.cs`, `MeshViewport.SelectionPicking.cs`, `MeshViewport.Input.cs`, and `MeshViewport.Painting.cs` own extracted viewport geometry/math, renderer lifecycle, status payloads, topology, selection command, selection application, picking, input, and software paint fallback helpers.
+- `tools/dotnet_mesh_editor_experiment/RuntimeSupport.cs`, `NativeWindowHost.cs`, `ObjDocument.cs`, `NetEdgeTopology.cs`, `NetMaterialSet.cs`, `NetTextureSet.cs`, and `GeometryPrimitives.cs` own the extracted launch/runtime helpers, embedded HWND host, OBJ interchange data, local edge topology, material manifest model, texture/DDS decode set, and shared primitive records.
 - `cdmw/services/mesh_dotnet_experiment.py` packages the editable OBJ/sidecar handoff, locates the helper executable, imports the saved output, and writes evaluation notes.
 
 ## Host integration path
@@ -71,3 +75,11 @@ Last updated: 2026-07-08
 - Added shared `NetViewportCamera` ownership for projection/camera state across WinForms fallback projection, WPF camera setup, D3D11 shader constants, pointer payload matrices, picking, and overlay projection.
 - Corrected .NET top/bottom camera preset semantics to match the native preview direction convention.
 - Replaced D3D11 plus GDI overlay composition with D3D11-owned line/triangle overlay primitives drawn before swap-chain `Present`.
+- Hardened the .NET handoff manifest as `interchange_format=obj_sidecar` with `metadata_risk=true`; Python/C++ parser, validation, rebuild, and archive write authority remain mandatory.
+- Kept `edit_operations.json` mandatory for .NET output import and documented that OBJ is only an interchange sidecar, not a complete PAC metadata container.
+- Added production embedded renderer gating: D3D11 is required unless developer renderer fallback is explicitly enabled.
+- Added material parity status handling so incomplete native DDS/DXGI upload parity is shown as a non-authoritative preview warning and blocks embedded production import when parity is required.
+
+## Follow-up protocol note
+
+OBJ sidecar remains the short-term interop format. A GLB or native binary edit protocol should be handled as a separate milestone after the current editor bridge is stable, because that change affects parser coverage, validation evidence, material metadata, and archive rebuild guarantees.

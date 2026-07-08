@@ -7,6 +7,13 @@ from collections.abc import Mapping, MutableMapping
 
 from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_settings
 from cdmw.ui.archive_browser.static_replacement_d3d11_cache import alignment_d3d11_dirty_flags_for_reason
+from cdmw.ui.archive_browser.static_replacement_d3d11_loading_details import (
+    alignment_d3d11_failed_performance_details,
+    alignment_d3d11_resources_waiting_detail,
+    alignment_d3d11_resources_waiting_performance_details,
+    alignment_d3d11_restart_performance_details,
+    alignment_d3d11_stale_loading_detail,
+)
 
 
 ALIGNMENT_D3D11_LOADING_SPINNER_FRAMES = ("&#9679;", "&#9683;", "&#9681;", "&#9682;")
@@ -122,80 +129,6 @@ def alignment_d3d11_loading_spinner_html(frame: str) -> str:
     )
 
 
-def alignment_d3d11_resources_waiting_detail(
-    *,
-    reason: str,
-    elapsed_s: float,
-    last_percent: int,
-    last_stage: str,
-    host_detail: str,
-    child_detail: str,
-    active_package: object,
-) -> str:
-    return (
-        "Native D3D11 uploaded package resources but the preview panel is not renderable yet.\n"
-        f"elapsed={max(0.0, float(elapsed_s or 0.0)):.1f}s\n"
-        f"last_progress={int(last_percent or 0)}%\n"
-        f"last_stage={str(last_stage or 'unknown')}\n"
-        f"reason={str(reason or '')}\n"
-        f"host={str(host_detail or '')}\n"
-        f"child={str(child_detail or '')}\n"
-        f"active_package={active_package}"
-    )
-
-
-def alignment_d3d11_resources_waiting_performance_details(
-    *,
-    reason: str,
-    elapsed_s: float,
-    host_detail: str,
-    child_detail: str,
-    active_package: object,
-) -> str:
-    return (
-        f"reason={str(reason or '')}\n"
-        f"elapsed={max(0.0, float(elapsed_s or 0.0)):.1f}s\n"
-        f"host={str(host_detail or '')}\n"
-        f"child={str(child_detail or '')}\n"
-        f"active_package={active_package}"
-    )
-
-
-def alignment_d3d11_stale_loading_detail(
-    *,
-    reason: str,
-    elapsed_s: float,
-    last_percent: int,
-    last_stage: str,
-    host_detail: str,
-    child_detail: str,
-    active_package: object,
-) -> str:
-    return (
-        "Native D3D11 stayed alive but did not report a fresh rendered frame.\n"
-        f"elapsed={max(0.0, float(elapsed_s or 0.0)):.1f}s\n"
-        f"last_progress={int(last_percent or 0)}%\n"
-        f"last_stage={str(last_stage or 'unknown')}\n"
-        f"reason={str(reason or '')}\n"
-        f"host={str(host_detail or '')}\n"
-        f"child={str(child_detail or '')}\n"
-        f"active_package={active_package}"
-    )
-
-
-def alignment_d3d11_restart_performance_details(
-    stale_details: str,
-    *,
-    restart_count: int,
-    max_restarts: int = 2,
-) -> str:
-    return (
-        f"{str(stale_details or '')}\n"
-        f"restart={int(restart_count or 0) + 1}/{int(max_restarts or 0)}\n"
-        "The stale native load was cancelled and the latest preview request was queued immediately."
-    )
-
-
 def alignment_d3d11_loading_cleared_performance(reason: str) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
         summary="D3D11 preview loading state cleared.",
@@ -236,13 +169,6 @@ def alignment_d3d11_restart_performance(
             restart_count=restart_count,
             max_restarts=max_restarts,
         ),
-    )
-
-
-def alignment_d3d11_failed_performance_details(stale_details: str) -> str:
-    return (
-        f"{str(stale_details or '')}\n"
-        "The native renderer stayed alive, but no native loaded event arrived before the watchdog."
     )
 
 

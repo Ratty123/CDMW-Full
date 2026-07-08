@@ -6,12 +6,12 @@ from typing import Optional
 
 try:  # pragma: no cover - import guard keeps source tests light.
     from cdmw.models import ArchiveEntry
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     ArchiveEntry = object  # type: ignore[assignment]
 
 try:  # pragma: no cover
     from cdmw.modding.scene_importer import SceneImportResult
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     SceneImportResult = object  # type: ignore[assignment]
 
 

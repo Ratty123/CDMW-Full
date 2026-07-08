@@ -17,6 +17,7 @@ from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_pru
 from cdmw.models import RunCancelled
 
 DIRECTXTEX_TEXTURE_BACKEND_ID = "directxtex_native_0.1"
+_DIRECTXTEX_FAILURE_REPORTS: list[Dict[str, Any]] = []
 
 
 def _repo_root() -> Path:
@@ -53,6 +54,46 @@ def find_directxtex_texture_binary() -> Optional[Path]:
 
 def native_texture_available() -> bool:
     return find_directxtex_texture_binary() is not None
+
+
+def directxtex_texture_failure_reports(*, clear: bool = False) -> tuple[Dict[str, Any], ...]:
+    reports = tuple(dict(report) for report in _DIRECTXTEX_FAILURE_REPORTS)
+    if bool(clear):
+        _DIRECTXTEX_FAILURE_REPORTS.clear()
+    return reports
+
+
+def _stderr_summary(stderr: object, *, limit: int = 2000) -> str:
+    text = str(stderr or "").strip()
+    if len(text) <= int(limit):
+        return text
+    return text[-int(limit):]
+
+
+def _record_directxtex_failure(
+    *,
+    binary: Path | None,
+    operation: str,
+    returncode: object,
+    stderr: object = "",
+    source_path: object = "",
+    fallback_available: bool = True,
+    reason: str = "",
+) -> Dict[str, Any]:
+    report: Dict[str, Any] = {
+        "status": "failed",
+        "backend": "directxtex",
+        "binary": str(binary or ""),
+        "operation": str(operation or ""),
+        "returncode": returncode,
+        "stderr_summary": _stderr_summary(stderr),
+        "source_path": str(source_path or ""),
+        "fallback_available": bool(fallback_available),
+    }
+    if reason:
+        report["reason"] = str(reason)
+    _DIRECTXTEX_FAILURE_REPORTS.append(report)
+    return report
 
 
 def _native_diagnostic_args() -> list[str]:
@@ -320,16 +361,48 @@ def ensure_directxtex_dds_preview_pngs(
             )
         except RunCancelled:
             raise
-        except Exception:
+        except Exception as exc:
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-preview-json",
+                returncode="exception",
+                stderr=str(exc),
+                fallback_available=True,
+                reason=type(exc).__name__,
+            )
             return results
         if returncode != 0 or not report_path.is_file():
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-preview-json",
+                returncode=returncode,
+                stderr=_stderr,
+                fallback_available=True,
+                reason="missing_report" if not report_path.is_file() else "nonzero_returncode",
+            )
             return results
         try:
             parsed = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-preview-json",
+                returncode=returncode,
+                stderr=str(exc),
+                fallback_available=True,
+                reason="invalid_report_json",
+            )
             return results
         items = parsed.get("items") if isinstance(parsed, dict) else None
         if not isinstance(items, list):
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-preview-json",
+                returncode=returncode,
+                stderr="",
+                fallback_available=True,
+                reason="missing_report_items",
+            )
             return results
         for item in items:
             if not isinstance(item, dict) or str(item.get("status") or "").lower() != "decoded":
@@ -433,16 +506,52 @@ def decode_dds_preview_with_directxtex(
             )
         except RunCancelled:
             raise
-        except Exception:
+        except Exception as exc:
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-preview-json",
+                returncode="exception",
+                stderr=str(exc),
+                source_path=source_path,
+                fallback_available=True,
+                reason=type(exc).__name__,
+            )
             return None
         if returncode != 0 or not report_path.is_file():
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-preview-json",
+                returncode=returncode,
+                stderr=_stderr,
+                source_path=source_path,
+                fallback_available=True,
+                reason="missing_report" if not report_path.is_file() else "nonzero_returncode",
+            )
             return None
         try:
             parsed = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-preview-json",
+                returncode=returncode,
+                stderr=str(exc),
+                source_path=source_path,
+                fallback_available=True,
+                reason="invalid_report_json",
+            )
             return None
         items = parsed.get("items") if isinstance(parsed, dict) else None
         if not isinstance(items, list) or not items:
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-preview-json",
+                returncode=returncode,
+                stderr="",
+                source_path=source_path,
+                fallback_available=True,
+                reason="missing_report_items",
+            )
             return None
         item = items[0]
         if not isinstance(item, dict) or str(item.get("status") or "").lower() != "decoded" or not preview_path.is_file():
@@ -545,16 +654,48 @@ def encode_dds_batch_with_directxtex(
             )
         except RunCancelled:
             raise
-        except Exception:
+        except Exception as exc:
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-encode-json",
+                returncode="exception",
+                stderr=str(exc),
+                fallback_available=False,
+                reason=type(exc).__name__,
+            )
             return {}
         if returncode not in {0, 2} or not report_path.is_file():
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-encode-json",
+                returncode=returncode,
+                stderr=_stderr,
+                fallback_available=False,
+                reason="missing_report" if not report_path.is_file() else "nonzero_returncode",
+            )
             return {}
         try:
             parsed = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-encode-json",
+                returncode=returncode,
+                stderr=str(exc),
+                fallback_available=False,
+                reason="invalid_report_json",
+            )
             return {}
         items = parsed.get("items") if isinstance(parsed, dict) else None
         if not isinstance(items, list):
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-encode-json",
+                returncode=returncode,
+                stderr="",
+                fallback_available=False,
+                reason="missing_report_items",
+            )
             return {}
         results: Dict[str, Dict[str, Any]] = {}
         for item in items:
@@ -583,27 +724,37 @@ def texconv_preview_report(
     max_dimension: int = 0,
     backend: str = "texconv_fallback",
 ) -> Dict[str, Any]:
+    metadata_verified = True
     try:
         info = inspect_dds_native_path(dds_path)
         report = dds_native_report_dict(dds_path, info, backend=backend)
-    except Exception:
+    except Exception as exc:
+        metadata_verified = False
         report = {
             "backend": backend,
-            "status": "decoded",
+            "status": "decoded_with_unknown_metadata" if Path(preview_path).is_file() else "fallback_unverified",
             "source_path": str(dds_path),
             "format": "",
             "width": 0,
             "height": 0,
             "mip_count": 0,
+            "metadata_verified": False,
+            "metadata_error": str(exc),
         }
+    status = str(report.get("status") or "decoded")
+    if not metadata_verified:
+        status = str(report.get("status") or "fallback_unverified")
+    elif not str(report.get("format") or "").strip() or int(report.get("width") or 0) <= 0 or int(report.get("height") or 0) <= 0:
+        status = "decoded_with_unknown_metadata"
     report.update(
         {
-            "status": "decoded",
+            "status": status,
             "source_path": str(dds_path),
             "output_path": str(preview_path),
             "slot": str(slot_kind or "base"),
             "max_dimension": int(max_dimension or 0),
             "native_backend": "texconv",
+            "metadata_verified": metadata_verified and status == "decoded",
             "fallback_reason": "DirectXTex/native preview unavailable or unsupported",
         }
     )
