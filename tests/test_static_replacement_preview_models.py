@@ -10,6 +10,7 @@ from cdmw.ui.archive_browser.static_replacement_preview_models import (
     apply_source_selection_overlay_mesh_state,
     clear_preview_mesh_textures,
     clone_preview_model,
+    combine_alignment_preview_models,
     combine_optional_preview_models,
     combine_preview_with_overlay,
     combine_preview_models,
@@ -126,6 +127,35 @@ def test_combine_preview_models_clones_meshes_and_updates_counts() -> None:
     assert combine_preview_models(object()) is None
 
 
+def test_combine_alignment_preview_models_uses_original_frame_authority() -> None:
+    original = ModelPreviewData(
+        path="original.pac",
+        normalization_center=(0.0, 2.0, 0.0),
+        normalization_scale=0.5,
+        meshes=[ModelPreviewMesh(positions=[(0.0, 0.0, 0.0)], indices=[0, 0, 0])],
+    )
+    replacement = ModelPreviewData(
+        path="replacement.obj",
+        normalization_center=(9.0, 9.0, 9.0),
+        normalization_scale=3.0,
+        meshes=[ModelPreviewMesh(positions=[(1.0, 0.0, 0.0)], indices=[0, 0, 0])],
+    )
+
+    combined = combine_alignment_preview_models(original, replacement)
+
+    assert isinstance(combined, ModelPreviewData)
+    assert combined.normalization_center == (0.0, 2.0, 0.0)
+    assert combined.normalization_scale == 0.5
+    assert combined.preview_frame_kind == "original_pac_frame"
+    assert combined.preview_frame_source_path == "original.pac"
+    assert combined.preview_grid_mode == "original_frame"
+    assert combined.preview_grid_y == -1.0
+    assert combined.preview_material_parity_mode == "archive_preview"
+    assert combined.preview_original_materials_preserved is True
+    assert combined.preview_reference_tint_mode == "overlay_only"
+    assert combined.mesh_count == 2
+
+
 def test_combine_optional_preview_models_preserves_single_model_or_combines_many() -> None:
     first = _model(ModelPreviewMesh(material_name="first"))
     second = _model(ModelPreviewMesh(material_name="second"))
@@ -162,7 +192,18 @@ def test_combine_preview_with_overlay_keeps_invalid_base_or_empty_overlay() -> N
 
 
 def test_original_reference_preview_model_state_highlights_without_mutating_source() -> None:
-    original = _model(ModelPreviewMesh(), ModelPreviewMesh())
+    original = _model(
+        ModelPreviewMesh(),
+        ModelPreviewMesh(
+            material_name="steel",
+            texture_name="steel_base",
+            preview_texture_path="base.dds",
+            preview_normal_texture_path="normal.dds",
+            preview_material_texture_path="material.dds",
+            preview_height_texture_path="height.dds",
+            preview_native_material_overrides={"roughness": 0.42},
+        ),
+    )
 
     preview = original_reference_preview_model_state(
         original,
@@ -175,16 +216,24 @@ def test_original_reference_preview_model_state_highlights_without_mutating_sour
     assert preview.meshes[0].preview_color == (0.22, 0.30, 0.38)
     assert preview.meshes[1].preview_color == (1.0, 0.05, 0.95)
     assert preview.meshes[1].preview_double_sided is True
-    assert preview.meshes[1].preview_role == "original_reference_selection"
-    assert preview.meshes[1].preview_native_material_overrides["material_shader_family"] == "gltf_unlit"
+    assert preview.meshes[1].preview_role == "original_reference_selection_overlay"
+    assert preview.meshes[1].material_name == "steel"
+    assert preview.meshes[1].texture_name == "steel_base"
+    assert preview.meshes[1].preview_texture_path == "base.dds"
+    assert preview.meshes[1].preview_normal_texture_path == "normal.dds"
+    assert preview.meshes[1].preview_material_texture_path == "material.dds"
+    assert preview.meshes[1].preview_height_texture_path == "height.dds"
+    assert preview.meshes[1].preview_native_material_overrides == {"roughness": 0.42}
     assert original.meshes[1].preview_color == ()
     preserved = original_reference_preview_model_state(
         original,
         highlighted_indices=(1,),
         preserve_material_preview=True,
     )
-    assert preserved.meshes[1].preview_color == (1.0, 0.05, 0.95)
-    assert preserved.meshes[1].preview_role == "original_reference_selection"
+    assert preserved.meshes[1].preview_color == ()
+    assert preserved.meshes[1].preview_role == "original_reference_selection_overlay"
+    assert preserved.meshes[1].preview_texture_path == "base.dds"
+    assert preserved.meshes[1].preview_native_material_overrides == {"roughness": 0.42}
 
 
 def test_original_overlay_preview_model_state_marks_original_meshes_and_highlights() -> None:
@@ -205,7 +254,7 @@ def test_original_overlay_preview_model_state_marks_original_meshes_and_highligh
     assert overlay.meshes[0].source_face_indices == []
     assert overlay.meshes[0].preview_color == (1.0, 0.72, 0.22)
     assert overlay.meshes[0].preview_double_sided is True
-    assert overlay.meshes[0].preview_role == "original_reference_selection"
+    assert overlay.meshes[0].preview_role == "original_reference_selection_overlay"
     assert overlay.meshes[1].preview_color == (0.30, 0.42, 0.54)
     assert original.meshes[0].source_submesh_index == 7
 

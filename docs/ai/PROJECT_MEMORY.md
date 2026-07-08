@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 ## Repo Rules
 
@@ -21,7 +21,10 @@ Last updated: 2026-07-07
   active.
 ## Native Mesh Editor Rebuild
 
-- Active contract: `docs/plans/active/native-mesh-editor-rebuild.md`.
+- Native rebuild contract is now folded into `docs/features/mesh-editing-pipeline.md`,
+  `docs/mesh_editor_net_repair_audit.md`, and
+  `docs/mesh_editor_net_authoritative_renderer_audit.md`. Do not treat removed
+  local active-plan files as current source.
 - Target split: Python/Qt UI and service shell, C++ mesh/texture/preview core,
   optional Blender authoring bridge for workflows beyond Blender-lite editing.
 - `ParsedMesh` remains import/export compatibility data, not desired live edit
@@ -148,12 +151,14 @@ Last updated: 2026-07-07
   still fail closed.
 - The first .NET Mesh Editor experiment path is an external process launched
   from standalone Mesh Editor or the embedded replacement-builder Mesh Editor
-  toolbar; active follow-up plan is
-  `docs/plans/active/embedded-dotnet-mesh-editor.md`, which embeds that process
+  toolbar; current embedded .NET behavior is documented in
+  `docs/mesh_editor_net_repair_audit.md` and
+  `docs/mesh_editor_net_authoritative_renderer_audit.md`. It embeds that process
   inside `Edit Mesh`, adds solid/textured display with optional wire overlay,
   and requires toggling Edit Mesh off to import the .NET-edited mesh before
-  restoring the textured preview. The `.NET` button reads
-  `mesh_editor/dotnet_experiment_executable`,
+  restoring the textured preview. `Edit Mesh` uses embedded .NET when the
+  helper is available; normal preview controls hide the dedicated `.NET` button.
+  The helper path reads `mesh_editor/dotnet_experiment_executable`,
   `CDMW_MESH_DOTNET_EXPERIMENT_EXE`, or bundled
   `cdmw-mesh-dotnet-editor.exe`, then uses
   `MeshDotNetExperimentPackageWorker` to export an OBJ sidecar handoff package
@@ -179,11 +184,13 @@ Last updated: 2026-07-07
   The first embedded .NET slice passes `--embedded --parent-hwnd`, refuses an
   embedded launch if no Qt preview host HWND is available, runs WinForms
   borderless as a child window, resizes it to the host, and lets
-  `mesh_editor/use_embedded_dotnet_viewport` start .NET from `Edit Mesh` while
-  preserving the existing D3D11 route as rollback. The WinForms viewport now
-  defaults to solid shaded mesh with optional wire overlay and auto-saves edited
-  embedded sessions on close so the existing output import path can sync the
-  edited mesh back into the builder. The second embedded slice adds an NDJSON
+  `Edit Mesh` start .NET by default while preserving the existing D3D11 route
+  behind `mesh_editor/use_embedded_dotnet_viewport=false` as rollback. The
+  WinForms viewport now defaults to solid shaded mesh with optional wire overlay
+  and auto-saves edited embedded sessions on close so the existing output import
+  path can sync the edited mesh back into the builder and finalize a
+  textured/material preview rebuild from the edited working mesh. The second
+  embedded slice adds an NDJSON
   protocol over `QProcess` stdin/stdout: .NET sends ready/metrics/selection,
   stroke, command, save, and error events; Python sends session state,
   selection updates, preview vertex/triangle updates, command results, and close
@@ -412,8 +419,9 @@ Last updated: 2026-07-07
   before Python morph-slider mesh mutation or static preview rebuild can run;
   non-active static replacement keeps the legacy morph-slider path.
 - Embedded/static D3D11 live vertex and triangle refresh paths stop before
-  Python-generated preview groups when native group generation misses; the
-  existing stale-preview path handles the failure instead of rebuilding group
+  Python-generated preview groups when native group generation misses; rejected
+  native preview payloads mark the preview stale and force a native package
+  rebuild from the current working mesh instead of crashing or rebuilding group
   geometry from transformed compatibility meshes.
   Static-replacement Python live vertex and triangle preview packers are
   native-required by default; old Python geometry packing runs only with
@@ -549,7 +557,8 @@ Last updated: 2026-07-07
   allow_archive_legacy_preview_rebuild=True)` helper.
   Triangle, vertex-update, and selection-overlay preview group helpers are
   native-required by default; Python group generation requires explicit legacy
-  opt-in.
+  opt-in. Rejected topology preview payloads now recover by invalidating the
+  package cache and queuing a full native reload from the working mesh.
 - Mirror/Duplicate/Separate append topology defers Python sync when native
   reports have complete counts and preview groups. Export snapshot summary
   discovery hydrates appended native submeshes only when Python mesh state is

@@ -27,6 +27,8 @@ Use this file to choose the right doc before opening everything.
     where they plug into services/workers.
   - `mesh-editing-pipeline.md`: mesh parser/rebuilder/editor map, metadata loss
     risks, and the first no-edit round-trip harness slice.
+  - `prefab-json-import.md`: safe editable `.prefab` JSON import/export rules,
+    current gates, owned code, and validation commands.
   - `mesh-editor-skeleton-discovery.md`: read-only reverse-engineering notes for
     Crimson skeleton, animation, sequence, socket, and pose binding. Keep it
     because Mesh Editor rigging/animation smoke tests and future native mesh

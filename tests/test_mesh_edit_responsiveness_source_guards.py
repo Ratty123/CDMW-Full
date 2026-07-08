@@ -1446,13 +1446,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("mesh_edit_preview_model_dirty[\"value\"] = True", main_source)
         self.assertIn("edit_enabled = bool(mesh_edit_enabled_checkbox.isChecked())", main_source)
-        self.assertIn("mesh_edit_preview_model_dirty.get(\"value\") and not edit_enabled", main_source)
+        self.assertIn("_mesh_editor_finalize_edit_mode_exit(\"mesh_edit_toggle\", mesh_changed=True)", main_source)
         toggle_start = main_source.index("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:")
         toggle_body = main_source[toggle_start: main_source.index("mesh_edit_enabled_checkbox.toggled.connect", toggle_start)]
-        self.assertIn(
-            "_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)",
-            toggle_body,
-        )
+        self.assertIn("_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")", toggle_body)
         self.assertNotIn("_mesh_edit_refresh_replacement_preview_model()\n", toggle_body)
         finish_start = main_source.index("def _mesh_edit_finish_stroke(payload: object) -> None:")
         finish_body = main_source[finish_start: main_source.index("def _mesh_edit_cancel_stroke", finish_start)]
@@ -1599,16 +1596,17 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_mesh_editor_result_has_deferred_native_python_apply(result)", apply_result_body)
         self.assertIn("active_commands = _alignment_d3d11_mesh_edit_commands_active()", apply_result_body)
         self.assertIn("_mesh_editor_result_changes_mesh(result)", apply_result_body)
-        self.assertIn("active native static replacement edit result did not include preview payload", apply_result_body)
-        self.assertIn("active native static replacement edit preview payload was rejected", apply_result_body)
-        self.assertIn("Python live preview fallback is disabled", apply_result_body)
+        self.assertIn("_mesh_editor_queue_native_preview_rebuild_from_working_mesh", apply_result_body)
+        self.assertIn("Active native mesh edit result had no preview payload", apply_result_body)
+        self.assertIn("Active native mesh edit preview payload was rejected", apply_result_body)
+        self.assertIn("rebuilding native preview from the working mesh", apply_result_body)
         self.assertLess(
             apply_result_body.index("_mesh_editor_result_has_deferred_native_python_apply(result)"),
             apply_result_body.index("return False"),
         )
         self.assertLess(
-            apply_result_body.index("active native static replacement edit result did not include preview payload"),
-            apply_result_body.index("return False"),
+            apply_result_body.index("Active native mesh edit result had no preview payload"),
+            apply_result_body.index("return False", apply_result_body.index("Active native mesh edit result had no preview payload")),
         )
         self.assertIn("live_native_update_applied = _mesh_editor_apply_result_native_update(result)", main_source)
         self.assertNotIn("pending_live_vertices_by_submesh.setdefault(source_submesh_index, set()).update(changed)", main_source)
@@ -2470,7 +2468,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("for raw_index in tuple(keys() or ()):", main_source)
         self.assertIn("if _mesh_edit_replace_live_triangles(requested_source_indices, replace_all=replace_all):", helper_body)
         self.assertIn("if _alignment_d3d11_mesh_edit_commands_active():", helper_body)
-        self.assertIn("Native D3D11 mesh edit triangle update failed; preview is stale.", helper_body)
+        self.assertIn("Native D3D11 mesh edit triangle update failed; rebuilding native preview from the working mesh.", helper_body)
+        self.assertIn("_mesh_editor_queue_native_preview_rebuild_from_working_mesh", helper_body)
         self.assertIn("if _alignment_d3d11_preview_active():", helper_body)
         self.assertIn("Native D3D11 mesh edit commands are unavailable; preview is stale.", helper_body)
         self.assertIn("if _mesh_edit_tab_active():", helper_body)
@@ -2737,17 +2736,25 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             transition_body.index("_alignment_d3d11_clear_active_package_helper("),
             transition_body.index("_queue_texture_preview_refresh()"),
         )
+        finalize_start = source.index("def _mesh_editor_finalize_edit_mode_exit(reason: str, mesh_changed: bool = True) -> bool:")
+        finalize_body = source[finalize_start:source.index("def _mesh_editor_embedded_finalize_dotnet_import", finalize_start)]
+        post_exit_start = source.index("def _mesh_editor_queue_post_edit_textured_preview_rebuild(reason: str) -> None:")
+        post_exit_body = source[post_exit_start:finalize_start]
         toggle_start = source.index("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:")
         toggle_body = source[toggle_start:source.index("mesh_edit_enabled_checkbox.toggled.connect", toggle_start)]
-        self.assertIn('_mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")', toggle_body)
+        self.assertIn("mesh_edit_enabled_checkbox.setChecked(False)", finalize_body)
+        self.assertIn("_mesh_editor_sync_static_replacement_session_to_working_mesh", finalize_body)
+        self.assertIn("_mesh_edit_apply_preview_mode_transition", finalize_body)
+        self.assertIn("_mesh_editor_queue_post_edit_textured_preview_rebuild", finalize_body)
         self.assertIn("if not edit_enabled:", toggle_body)
-        self.assertIn("if callable(_queue_texture_preview_refresh):", toggle_body)
-        self.assertIn("_queue_texture_preview_refresh()", toggle_body)
-        self.assertIn("if callable(_queue_static_preview_rebuild):", toggle_body)
-        self.assertIn("_queue_static_preview_rebuild()", toggle_body)
+        self.assertIn('_mesh_editor_finalize_edit_mode_exit("mesh_edit_toggle", mesh_changed=True)', toggle_body)
+        self.assertIn("if callable(_queue_texture_preview_refresh):", post_exit_body)
+        self.assertIn("_queue_texture_preview_refresh()", post_exit_body)
+        self.assertIn("if callable(_queue_static_preview_rebuild):", post_exit_body)
+        self.assertIn("_queue_static_preview_rebuild()", post_exit_body)
         self.assertLess(
-            toggle_body.index('_mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")'),
-            toggle_body.index("_queue_static_preview_rebuild()"),
+            finalize_body.index("_mesh_edit_apply_preview_mode_transition"),
+            finalize_body.index("_mesh_editor_queue_post_edit_textured_preview_rebuild"),
         )
         self.assertNotIn("_restore_textured_preview_after_mesh_edit_surface_exit", source)
         self.assertIn("def alignment_d3d11_raw_package_active_or_pending(state: Mapping[str, object]) -> bool:", source)
@@ -6133,7 +6140,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         replay_start = source.index("def _replay_alignment_d3d11_fast_transform() -> None:")
         replay_body = source[replay_start: source.index("def _apply_global_transform_fast_preview", replay_start)]
         self.assertIn("_alignment_d3d11_fast_transform_replay_state_helper(", replay_body)
-        self.assertIn("mesh_edit_raw_active=bool(_mesh_edit_raw_preview_active() or _alignment_mesh_edit_tab_active())", replay_body)
+        self.assertIn("raw_geometry_conflict = bool(_mesh_edit_raw_preview_active()) and package_quality == \"mesh_edit_raw\"", replay_body)
+        self.assertIn("mesh_edit_raw_active=raw_geometry_conflict", replay_body)
+        self.assertIn("package_quality=package_quality", replay_body)
         self.assertIn("_clear_alignment_d3d11_fast_transform_state()", replay_body)
         self.assertIn("alignment_d3d11_preview_host.set_alignment_preview_transform()", replay_body)
 

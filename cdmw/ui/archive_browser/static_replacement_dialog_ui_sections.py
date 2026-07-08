@@ -1912,6 +1912,11 @@ def create_alignment_mesh_geometry_preview_section(context: dict[str, object]) -
         )
         setattr(
             dialog,
+            "_mesh_editor_embedded_finalize_dotnet_import",
+            alignment_mesh_edit_callbacks._mesh_editor_embedded_finalize_dotnet_import,
+        )
+        setattr(
+            dialog,
             "_mesh_editor_embedded_run_part_action",
             alignment_mesh_edit_callbacks._mesh_editor_embedded_run_part_action,
         )

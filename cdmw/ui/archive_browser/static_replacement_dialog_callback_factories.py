@@ -4687,10 +4687,25 @@ def create_alignment_transform_drag_callbacks(context: dict[str, object]) -> Sim
         return bool(state_ok and transform_ok)
 
     def _replay_alignment_d3d11_fast_transform() -> None:
+        package_quality = str(
+            alignment_d3d11_state.get("active_package_quality", "")
+            or alignment_d3d11_state.get("queued_package_quality", "")
+            or alignment_d3d11_state.get("pending_package_quality", "")
+            or ""
+        ).strip().lower()
+        reload_reason = str(
+            alignment_d3d11_state.get("active_reason", "")
+            or alignment_d3d11_state.get("queued_reason", "")
+            or alignment_d3d11_state.get("pending_reason", "")
+            or ""
+        )
+        raw_geometry_conflict = bool(_mesh_edit_raw_preview_active()) and package_quality == "mesh_edit_raw"
         replay_state = _alignment_d3d11_fast_transform_replay_state_helper(
             alignment_d3d11_state,
-            mesh_edit_raw_active=bool(_mesh_edit_raw_preview_active() or _alignment_mesh_edit_tab_active()),
+            mesh_edit_raw_active=raw_geometry_conflict,
             preview_active=_alignment_d3d11_preview_active(),
+            reload_reason=reload_reason,
+            package_quality=package_quality,
         )
         if bool(replay_state["clear_state"]):
             _clear_alignment_d3d11_fast_transform_state()
@@ -8604,7 +8619,11 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
 
         QTimer.singleShot(120, _upgrade)
 
-    def _queue_latest_alignment_d3d11_rebuild_for_stale_reload(request_id: int = 0) -> None:
+    def _queue_latest_alignment_d3d11_rebuild_for_stale_reload(
+        request_id: int = 0,
+        *,
+        force_active_mesh_edit: bool = False,
+    ) -> None:
         if not _alignment_dialog_widgets_live() or bool(alignment_d3d11_drag_transaction.get("active")):
             return
         reason = _alignment_d3d11_request_reason_helper(
@@ -8620,7 +8639,13 @@ def create_alignment_d3d11_package_lifecycle_callbacks(context: dict[str, object
         if dirty_flags.affects_material():
             texture_overrides_dirty["dirty"] = True
         _alignment_d3d11_invalidate_package_cache(f"stale_{reason}")
-        if _active_mesh_edit_d3d11_static_preview_queue_blocked("stale reload", "mesh_edit_static_preview_stale_reload_blocked"):
+        if (
+            not bool(force_active_mesh_edit)
+            and _active_mesh_edit_d3d11_static_preview_queue_blocked(
+                "stale reload",
+                "mesh_edit_static_preview_stale_reload_blocked",
+            )
+        ):
             return
         static_preview_refresh_timer.start()
 

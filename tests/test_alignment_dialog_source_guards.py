@@ -1217,10 +1217,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("\n                alignment_d3d11_stop_worker()", source)
         self.assertIn("clone_model(original_reference_model)", d3d11_mapping_source)
         self.assertIn('"original_reference"', d3d11_mapping_source)
-        self.assertIn(
-            "return combine_preview_models(original_workspace, replacement_workspace)",
-            d3d11_mapping_source,
-        )
+        self.assertIn("combine_alignment_preview_models(original_workspace, replacement_workspace)", d3d11_mapping_source)
+        self.assertIn("or combine_preview_models(original_workspace, replacement_workspace)", d3d11_mapping_source)
         self.assertNotIn("legacy_preview_fallback_checkbox", source)
         self.assertNotIn("_toggle_legacy_preview_fallback", source)
         self.assertIn('alignment_preview_settings_button = QPushButton(alignment_preview_control_text["settings_button"])', source)

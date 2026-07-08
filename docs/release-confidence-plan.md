@@ -1,6 +1,6 @@
 # Release Confidence Plan
 
-Last reviewed: 2026-07-07
+Last reviewed: 2026-07-08
 
 ## Goal
 
@@ -47,6 +47,21 @@ one is required.
 - Remaining failures, if any, are classified with owner, command, and reason.
 
 ## Latest Validation
+
+2026-07-08:
+
+- Focused static replacement, D3D11 package, native preview core, and Mesh
+  Editor action-bar tests passed: 353 passed.
+- Alignment dialog and Mesh Edit responsiveness source guards passed: 149
+  passed.
+- Release dirty-tree preflight passed after classifying the new preview-frame
+  source and prefab JSON feature doc as required source/docs.
+- `build.bat onedir release` produced
+  `dist/CrimsonDesertModWorkbench-0.10.0-alpha.2-windows/CrimsonDesertModWorkbench.exe`
+  14,414,778 bytes, SHA256
+  `C7ACB5B8F7224D6491E076FBE199B72AED4A611AECB6313174739EF2217365EF`.
+- Packaged onedir startup smoke passed with `QT_QPA_PLATFORM=offscreen` and
+  `CDMW_GUI_STARTUP_SMOKE=1`.
 
 2026-07-07:
 

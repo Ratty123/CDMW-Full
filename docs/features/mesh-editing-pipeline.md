@@ -256,19 +256,20 @@ Status: first safety slice, 2026-07-06.
   malformed non-finite vertex, normal, UV, tangent, or bitangent data is present.
   Explicit fallback-only test helpers still sanitize those values for diagnostic
   payload checks.
-- Standalone Mesh Editor and the embedded replacement-builder Mesh Editor
-  toolbar expose a `.NET` experiment launch button. It
-  uses `mesh_editor/dotnet_experiment_executable`,
+- `Edit Mesh` is the embedded .NET entry point when the helper is available;
+  the normal preview controls no longer expose a dedicated `.NET` button. The
+  helper uses `mesh_editor/dotnet_experiment_executable`,
   `CDMW_MESH_DOTNET_EXPERIMENT_EXE`, or the bundled
-  `cdmw-mesh-dotnet-editor.exe` helper, builds the handoff package in
+  `cdmw-mesh-dotnet-editor.exe`, builds the handoff package in
   `MeshDotNetExperimentPackageWorker`, and launches the process with input
   metadata, status, output, and edit-operation paths. On process exit,
   `MeshDotNetExperimentOutputImportWorker` detects `edited_mesh`,
   `edited_obj`, `output_mesh`, `edited_package`, or `output/mesh.obj`, restores
   the package sidecar if the editor wrote only OBJ geometry, imports through
   `import_obj()`, applies any saved safe edit-operation list, syncs embedded
-  output back into the replacement preview when launched from that surface, and
-  reruns export validation before rebuild can be enabled. Process exits, successful imports,
+  output back into the replacement preview when launched from that surface,
+  finalizes a textured/material preview rebuild from the edited working mesh,
+  and reruns export validation before rebuild can be enabled. Process exits, successful imports,
   and import failures write `dotnet_evaluation.md` in the handoff package,
   comparing reported .NET FPS, frame time, responsiveness, crash behavior,
   memory, packaging complexity, and maintenance complexity against any

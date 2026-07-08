@@ -1342,6 +1342,15 @@ class ModelPreviewData:
     lod_count: int = 0
     normalization_center: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     normalization_scale: float = 1.0
+    preview_frame_kind: str = ""
+    preview_frame_source_path: str = ""
+    preview_grid_origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    preview_grid_normal_axis: str = "y"
+    preview_grid_y: float = 0.0
+    preview_grid_mode: str = ""
+    preview_material_parity_mode: str = ""
+    preview_original_materials_preserved: bool = False
+    preview_reference_tint_mode: str = ""
     meshes: List[ModelPreviewMesh] = field(default_factory=list)
     physics_overlay: Optional[HkxPhysicsOverlayData] = None
     cloth_preview: Optional[ClothPreviewData] = None
@@ -1416,6 +1425,15 @@ class PreparedModelPreviewData:
     lod_count: int = 0
     normalization_center: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     normalization_scale: float = 1.0
+    preview_frame_kind: str = ""
+    preview_frame_source_path: str = ""
+    preview_grid_origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    preview_grid_normal_axis: str = "y"
+    preview_grid_y: float = 0.0
+    preview_grid_mode: str = ""
+    preview_material_parity_mode: str = ""
+    preview_original_materials_preserved: bool = False
+    preview_reference_tint_mode: str = ""
     batches: Tuple[PreparedModelPreviewBatch, ...] = ()
     cloth_preview: Optional[ClothPreviewData] = None
     load_trace: Dict[str, float] = field(default_factory=dict)

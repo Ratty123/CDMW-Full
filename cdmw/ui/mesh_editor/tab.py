@@ -518,7 +518,7 @@ class MeshEditorTab(QWidget):
         dotnet_enabled = dotnet_available and read_bool_setting(
             self.settings,
             "mesh_editor/use_embedded_dotnet_viewport",
-            False,
+            True,
         )
         setattr(builder, "_mesh_editor_embedded_start_dotnet", self._start_embedded_dotnet_editor_requested)
         setattr(builder, "_mesh_editor_embedded_stop_dotnet", self._request_embedded_dotnet_editor_close)
@@ -532,10 +532,11 @@ class MeshEditorTab(QWidget):
         if button.property("meshEditorDotNetConnectedTo") != id(self):
             button.clicked.connect(self._start_embedded_dotnet_editor_requested)
             button.setProperty("meshEditorDotNetConnectedTo", id(self))
+        button.setVisible(False)
         if dotnet_enabled:
-            button.setToolTip("Edit Mesh can start the opt-in .NET viewport automatically. Use this to restart/open it manually.")
+            button.setToolTip("Diagnostics-only .NET viewport restart; Edit Mesh starts .NET automatically when available.")
         else:
-            button.setToolTip("Open the optional .NET viewport manually. Edit Mesh keeps the native/classic controls unless the opt-in setting is enabled.")
+            button.setToolTip("Diagnostics-only .NET viewport launch; embedded .NET is unavailable or disabled by developer setting.")
         button.setEnabled(dotnet_available and not self._dotnet_task_active())
 
     def set_native_preview_host(self, host: object | None) -> None:
@@ -1354,6 +1355,10 @@ class MeshEditorTab(QWidget):
                 text = "Mesh .NET editor output imported, but embedded preview sync failed."
                 self._set_dotnet_status(text, error=True)
                 return
+            if not self._finalize_embedded_dotnet_import("dotnet_output_import"):
+                text = "Mesh .NET editor output imported, but textured preview rebuild sync failed."
+                self._set_dotnet_status(text, error=True)
+                return
             self._refresh_embedded_workspace_from_builder()
         else:
             self.update_editor_session_state(view, active_selection_mode=controller.active_selection_mode)
@@ -1412,6 +1417,17 @@ class MeshEditorTab(QWidget):
             return bool(sync(controller.working_mesh(clone=True)))
         except Exception as exc:
             self.status_message_requested.emit(f"Mesh .NET editor embedded sync failed: {exc}", True)
+            return False
+
+    def _finalize_embedded_dotnet_import(self, reason: str) -> bool:
+        builder = self.active_builder()
+        finalize = getattr(builder, "_mesh_editor_embedded_finalize_dotnet_import", None) if builder is not None else None
+        if not callable(finalize):
+            return True
+        try:
+            return bool(finalize(str(reason or "dotnet_import")))
+        except Exception as exc:
+            self.status_message_requested.emit(f"Mesh .NET editor embedded preview finalize failed: {exc}", True)
             return False
 
     def _dotnet_target_controller(self) -> MeshEditorController | None:
@@ -2135,6 +2151,7 @@ class MeshEditorTab(QWidget):
         if self.standalone_dotnet_target_embedded:
             controller = self._dotnet_target_controller()
             if controller is not None and self._sync_embedded_dotnet_imported_mesh(controller):
+                self._finalize_embedded_dotnet_import("dotnet_closed_without_output")
                 self._refresh_embedded_workspace_from_builder()
         output_hint = str(payload.get("edited_package", "") or package.output_dir)
         text = f"Mesh .NET editor experiment closed. Output package: {output_hint}"
@@ -2149,6 +2166,10 @@ class MeshEditorTab(QWidget):
         text = f"Mesh .NET editor experiment process error: {detail}"
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("failed", active=False)
+            controller = self._dotnet_target_controller()
+            if controller is not None:
+                self._sync_embedded_dotnet_imported_mesh(controller)
+            self._finalize_embedded_dotnet_import("dotnet_process_error")
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         self._set_dotnet_status(text, error=True)
 

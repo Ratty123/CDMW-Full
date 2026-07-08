@@ -169,11 +169,11 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     mesh_edit_enabled_checkbox = preview_mesh_edit_checkbox
     mesh_dotnet_experiment_button = QPushButton(".NET", preview_panel)
     mesh_dotnet_experiment_button.setObjectName("MeshAlignmentDotNetExperimentButton")
-    mesh_dotnet_experiment_button.setToolTip("Open the current mesh-edit session in the .NET editor experiment.")
+    mesh_dotnet_experiment_button.setToolTip("Diagnostics-only .NET editor launch; Edit Mesh opens .NET automatically when available.")
     mesh_dotnet_experiment_button.setMinimumWidth(0)
     mesh_dotnet_experiment_button.setMaximumWidth(64)
     mesh_dotnet_experiment_button.setEnabled(False)
-    mesh_dotnet_experiment_button.setVisible(bool(embedded_alignment_builder))
+    mesh_dotnet_experiment_button.setVisible(False)
     preview_controls_row.addWidget(mesh_dotnet_experiment_button)
     hovered_source_part = {"index": -1}
     alignment_d3d11_view_mode_combo = QComboBox()

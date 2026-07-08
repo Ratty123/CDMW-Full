@@ -1498,7 +1498,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("batch.emissive_dds = dds_slot_source(object, \"emissive\")", source)
         self.assertIn("batch.emissive_intensity = std::clamp(json_float_field(object, \"emissive_intensity\"", source)
         self.assertIn(
-            "load_batch_texture(batch.emissive_dds, batch.emissive_png, batch.emissive_srv, \"emissive\", stats, batch.live_texture_bytes)",
+            "load_batch_texture(batch.emissive_dds, batch.emissive_png, batch.emissive_srv, \"emissive\", false, stats, batch.live_texture_bytes)",
             source,
         )
         self.assertIn("emissive_tex.Sample(preview_sampler, uv)", source)

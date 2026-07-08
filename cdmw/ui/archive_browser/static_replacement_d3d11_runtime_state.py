@@ -251,8 +251,25 @@ def alignment_d3d11_fast_transform_replay_state(
     *,
     mesh_edit_raw_active: bool,
     preview_active: bool,
+    reload_reason: str = "",
+    package_quality: str = "",
 ) -> dict[str, bool]:
-    if bool(mesh_edit_raw_active):
+    normalized_reason = str(reload_reason or "").strip().lower()
+    normalized_quality = str(package_quality or "").strip().lower()
+    if not normalized_quality:
+        normalized_quality = str(
+            state.get("active_package_quality", "")
+            or state.get("queued_package_quality", "")
+            or state.get("pending_package_quality", "")
+            or ""
+        ).strip().lower()
+    material_reload = normalized_quality == "material_refresh" or normalized_reason in {
+        "material",
+        "material_refresh",
+        "material-only",
+        "material_only",
+    }
+    if bool(mesh_edit_raw_active) and not material_reload:
         return {
             "clear_state": True,
             "reset_host": bool(preview_active),

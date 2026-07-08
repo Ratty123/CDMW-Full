@@ -558,6 +558,79 @@ def _tuple3(value: object) -> Tuple[float, float, float]:
     return result if all(math.isfinite(component) for component in result) else ()
 
 
+def _manifest_tuple3(value: object, default: Tuple[float, float, float] = (0.0, 0.0, 0.0)) -> Tuple[float, float, float]:
+    parsed = _tuple3(value)
+    return parsed if parsed else default
+
+
+def _placement_frame_manifest(model: object, prepared_preview: PreparedModelPreviewData) -> Dict[str, object]:
+    frame_kind = str(
+        getattr(prepared_preview, "preview_frame_kind", "")
+        or getattr(model, "preview_frame_kind", "")
+        or ""
+    ).strip()
+    grid_mode = str(
+        getattr(prepared_preview, "preview_grid_mode", "")
+        or getattr(model, "preview_grid_mode", "")
+        or ""
+    ).strip()
+    material_parity = str(
+        getattr(prepared_preview, "preview_material_parity_mode", "")
+        or getattr(model, "preview_material_parity_mode", "")
+        or ""
+    ).strip()
+    preserve_original_materials = bool(
+        getattr(prepared_preview, "preview_original_materials_preserved", False)
+        or getattr(model, "preview_original_materials_preserved", False)
+    )
+    reference_tint_mode = str(
+        getattr(prepared_preview, "preview_reference_tint_mode", "")
+        or getattr(model, "preview_reference_tint_mode", "")
+        or ""
+    ).strip()
+    if not any((frame_kind, grid_mode, material_parity, preserve_original_materials, reference_tint_mode)):
+        return {}
+    center = _manifest_tuple3(getattr(prepared_preview, "normalization_center", (0.0, 0.0, 0.0)))
+    scale = _safe_float(getattr(prepared_preview, "normalization_scale", 1.0), 1.0)
+    if not math.isfinite(scale) or abs(scale) <= 1e-8:
+        scale = 1.0
+    grid_y = _safe_float(
+        getattr(prepared_preview, "preview_grid_y", getattr(model, "preview_grid_y", 0.0)),
+        0.0,
+    )
+    if not math.isfinite(grid_y):
+        grid_y = 0.0
+    grid_origin = _manifest_tuple3(
+        getattr(prepared_preview, "preview_grid_origin", getattr(model, "preview_grid_origin", (0.0, grid_y, 0.0))),
+        (0.0, grid_y, 0.0),
+    )
+    source_path = str(
+        getattr(prepared_preview, "preview_frame_source_path", "")
+        or getattr(model, "preview_frame_source_path", "")
+        or getattr(prepared_preview, "source_path", "")
+        or getattr(model, "path", "")
+        or ""
+    )
+    return {
+        "schema_version": 1,
+        "kind": frame_kind or "original_pac_frame",
+        "source_path": source_path,
+        "normalization_center": list(center),
+        "normalization_scale": scale,
+        "grid_origin": list(grid_origin),
+        "grid_normal_axis": str(
+            getattr(prepared_preview, "preview_grid_normal_axis", "")
+            or getattr(model, "preview_grid_normal_axis", "")
+            or "y"
+        ),
+        "grid_y": grid_y,
+        "grid_mode": grid_mode or "original_frame",
+        "material_parity": material_parity or "archive_preview",
+        "preserve_original_materials": preserve_original_materials,
+        "reference_tint_mode": reference_tint_mode or "overlay_only",
+    }
+
+
 def _write_cloth_collider_payload(
     model: object,
     package_dir: Path,
@@ -1446,6 +1519,10 @@ def write_isolated_d3d11_preview_package(
         "editable_value_groups": _editable_value_groups_metadata(model, cloth_batch_count=cloth_batch_count),
         "batches": batches,
     }
+    placement_frame = _placement_frame_manifest(model, prepared_preview)
+    if placement_frame:
+        manifest["placement_frame"] = placement_frame
+        manifest["reference_material_policy"] = "preserve"
     asset_preflight = asset_fidelity_preflight_manifest(manifest, package_dir=package_dir)
     manifest["asset_fidelity_preflight"] = asset_preflight
     manifest["dds_encoder_matrix"] = asset_preflight.get("dds_encoder_matrix", {})

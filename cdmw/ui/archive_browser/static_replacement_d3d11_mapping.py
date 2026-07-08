@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 
+from cdmw.ui.archive_browser.static_replacement_preview_models import combine_alignment_preview_models
+
 
 def alignment_d3d11_editor_ids_for_source_indices(
     source_indices: Sequence[int],
@@ -215,7 +217,7 @@ def alignment_d3d11_display_model(
     )
     if original_workspace is None:
         return replacement_workspace
-    return combine_preview_models(original_workspace, replacement_workspace)
+    return combine_alignment_preview_models(original_workspace, replacement_workspace) or combine_preview_models(original_workspace, replacement_workspace)
 
 
 def alignment_default_d3d11_editor_ids(

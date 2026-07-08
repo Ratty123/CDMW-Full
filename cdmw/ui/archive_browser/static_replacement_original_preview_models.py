@@ -5,39 +5,66 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 
 from cdmw.ui.archive_browser.static_replacement_preview_models import (
-    clear_preview_mesh_textures,
     clone_preview_model,
     tint_preview_model,
 )
 
 
-def _apply_selected_original_reference_mesh_state(
+def _mark_selected_original_reference_mesh_state(
     mesh: object,
     mesh_index: int,
     highlight_color: tuple[float, float, float],
+    *,
+    material_highlight: bool,
 ) -> None:
-    clear_preview_mesh_textures(mesh)
-    mesh.texture_name = ""
-    mesh.preview_texture_image = None
-    mesh.preview_normal_texture_image = None
-    mesh.preview_material_texture_image = None
-    mesh.preview_height_texture_image = None
-    mesh.preview_material_texture_inputs = ()
-    mesh.preview_texture_tint = ()
-    mesh.preview_color = highlight_color
     mesh.preview_double_sided = True
-    mesh.preview_role = "original_reference_selection"
-    overrides = dict(getattr(mesh, "preview_native_material_overrides", {}) or {})
-    overrides.update(
-        {
-            "material_shader_family": "gltf_unlit",
-            "roughness": 0.0,
-            "metalness": 0.0,
-            "specular": 1.0,
-        }
-    )
-    mesh.preview_native_material_overrides = overrides
-    mesh.material_name = f"selected original reference {int(mesh_index)}"
+    mesh.preview_role = "original_reference_selection_overlay"
+    if material_highlight:
+        mesh.preview_color = highlight_color
+        mesh.material_name = str(getattr(mesh, "material_name", "") or f"selected original reference {int(mesh_index)}")
+
+
+def original_reference_material_parity_model_state(
+    original_model: object,
+    *,
+    highlighted_indices: Iterable[int],
+    clone_model: Callable[[object], object] = clone_preview_model,
+    highlight_color: tuple[float, float, float] = (1.0, 0.05, 0.95),
+) -> object:
+    preview_model = clone_model(original_model)
+    highlighted = {int(index) for index in tuple(highlighted_indices or ())}
+    for mesh_index, mesh in enumerate(getattr(preview_model, "meshes", ()) or ()):
+        if mesh_index in highlighted:
+            _mark_selected_original_reference_mesh_state(
+                mesh,
+                mesh_index,
+                highlight_color,
+                material_highlight=False,
+            )
+    return preview_model
+
+
+def original_reference_debug_highlight_model_state(
+    original_model: object,
+    *,
+    highlighted_indices: Iterable[int],
+    clone_model: Callable[[object], object] = clone_preview_model,
+    highlight_color: tuple[float, float, float] = (1.0, 0.05, 0.95),
+    background_color: tuple[float, float, float] = (0.22, 0.30, 0.38),
+) -> object:
+    preview_model = clone_model(original_model)
+    highlighted = {int(index) for index in tuple(highlighted_indices or ())}
+    for mesh_index, mesh in enumerate(getattr(preview_model, "meshes", ()) or ()):
+        if mesh_index in highlighted:
+            _mark_selected_original_reference_mesh_state(
+                mesh,
+                mesh_index,
+                highlight_color,
+                material_highlight=True,
+            )
+        else:
+            mesh.preview_color = background_color
+    return preview_model
 
 
 def original_reference_preview_model_state(
@@ -49,15 +76,20 @@ def original_reference_preview_model_state(
     highlight_color: tuple[float, float, float] = (1.0, 0.05, 0.95),
     background_color: tuple[float, float, float] = (0.22, 0.30, 0.38),
 ) -> object:
-    preview_model = clone_model(original_model)
-    highlighted = {int(index) for index in tuple(highlighted_indices or ())}
-    if highlighted:
-        for mesh_index, mesh in enumerate(getattr(preview_model, "meshes", ()) or ()):
-            if mesh_index in highlighted:
-                _apply_selected_original_reference_mesh_state(mesh, mesh_index, highlight_color)
-            elif not bool(preserve_material_preview):
-                mesh.preview_color = background_color
-    return preview_model
+    if bool(preserve_material_preview):
+        return original_reference_material_parity_model_state(
+            original_model,
+            highlighted_indices=highlighted_indices,
+            clone_model=clone_model,
+            highlight_color=highlight_color,
+        )
+    return original_reference_debug_highlight_model_state(
+        original_model,
+        highlighted_indices=highlighted_indices,
+        clone_model=clone_model,
+        highlight_color=highlight_color,
+        background_color=background_color,
+    )
 
 
 def original_overlay_preview_model_state(
@@ -74,7 +106,12 @@ def original_overlay_preview_model_state(
         mesh.source_vertex_indices = []
         mesh.source_face_indices = []
         if mesh_index in highlighted:
-            _apply_selected_original_reference_mesh_state(mesh, mesh_index, highlight_color)
+            _mark_selected_original_reference_mesh_state(
+                mesh,
+                mesh_index,
+                highlight_color,
+                material_highlight=True,
+            )
     return overlay_model
 
 
@@ -97,6 +134,8 @@ def overlay_editable_mesh_state(
 
 __all__ = [
     "original_overlay_preview_model_state",
+    "original_reference_debug_highlight_model_state",
+    "original_reference_material_parity_model_state",
     "original_reference_preview_model_state",
     "overlay_editable_mesh_state",
 ]

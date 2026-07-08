@@ -7,6 +7,10 @@ from collections.abc import Callable, Mapping, Sequence
 
 from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.static_mesh_replacer import _semantic_tokens
+from cdmw.ui.archive_browser.static_replacement_preview_frame import (
+    alignment_preview_frame_from_model,
+    apply_alignment_preview_frame,
+)
 
 
 def preview_target_mesh_indices(
@@ -226,7 +230,7 @@ def _preview_model_in_original_frame_python_reference(
             source_index_map[int(source_indices[submesh_position])] = len(preview_meshes) - 1
     vertex_count = sum(len(mesh.positions) for mesh in preview_meshes)
     face_count = sum(len(mesh.indices) // 3 for mesh in preview_meshes)
-    return ModelPreviewData(
+    model = ModelPreviewData(
         path=str(getattr(parsed_mesh, "path", "") or ""),
         format=str(getattr(parsed_mesh, "format", "") or ""),
         summary=f"{len(preview_meshes)} mapped mesh part(s), {vertex_count:,} vertices, {face_count:,} faces",
@@ -237,6 +241,7 @@ def _preview_model_in_original_frame_python_reference(
         normalization_scale=scale,
         meshes=preview_meshes,
     )
+    return apply_alignment_preview_frame(model, alignment_preview_frame_from_model(model))
 
 
 def _preview_model_in_original_frame_native(
@@ -375,7 +380,7 @@ def _preview_model_in_original_frame_native(
     face_count = sum(_preview_mesh_face_count(mesh) for mesh in preview_meshes)
     center = tuple(normalization_center or (0.0, 0.0, 0.0))
     scale = float(normalization_scale or 1.0)
-    return ModelPreviewData(
+    model = ModelPreviewData(
         path=str(getattr(parsed_mesh, "path", "") or ""),
         format=str(getattr(parsed_mesh, "format", "") or ""),
         summary=f"{len(preview_meshes)} mapped mesh part(s), {vertex_count:,} vertices, {face_count:,} faces",
@@ -386,6 +391,7 @@ def _preview_model_in_original_frame_native(
         normalization_scale=scale,
         meshes=preview_meshes,
     )
+    return apply_alignment_preview_frame(model, alignment_preview_frame_from_model(model))
 
 
 def _nonnegative_int(value: object, default: int = 0) -> int:

@@ -268,6 +268,9 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
     _rebuild_source_part_widgets = context.get('_rebuild_source_part_widgets')
     _alignment_d3d11_invalidate_package_cache = context.get('_alignment_d3d11_invalidate_package_cache')
     _mark_alignment_d3d11_rebuild_reason = context.get('_mark_alignment_d3d11_rebuild_reason')
+    _queue_latest_alignment_d3d11_rebuild_for_stale_reload = context.get(
+        '_queue_latest_alignment_d3d11_rebuild_for_stale_reload'
+    )
     _queue_static_preview_rebuild = context.get('_queue_static_preview_rebuild')
     _queue_texture_preview_refresh = context.get('_queue_texture_preview_refresh')
     _record_runtime_event = context.get('_record_runtime_event')
@@ -676,6 +679,52 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         )
         mesh_edit_preview_model_dirty["value"] = False
         return True
+
+    def _mesh_editor_queue_post_edit_textured_preview_rebuild(reason: str) -> None:
+        mesh_edit_preview_model_dirty["value"] = True
+        mesh_edit_native_result_submesh_counts["value"] = ()
+        static_preview_geometry_cache.clear()
+        static_preview_prepared_cache.clear()
+        if callable(_mark_alignment_d3d11_rebuild_reason):
+            _mark_alignment_d3d11_rebuild_reason("geometry")
+        if callable(_alignment_d3d11_invalidate_package_cache):
+            _alignment_d3d11_invalidate_package_cache("geometry")
+            _alignment_d3d11_invalidate_package_cache("material")
+        if _mesh_edit_state.replacement_mesh_for_mapping is not None:
+            try:
+                _mesh_edit_refresh_replacement_preview_model(
+                    allow_defer_for_incremental_d3d11=False,
+                )
+            except RuntimeError as exc:
+                _record_mesh_edit_event(
+                    "mesh_edit_post_exit_preview_model_refresh_failed",
+                    reason=str(reason or "mesh_edit.finalize"),
+                    message=str(exc),
+                )
+                mesh_edit_preview_model_dirty["value"] = True
+        if callable(_queue_texture_preview_refresh):
+            _queue_texture_preview_refresh()
+        if callable(_queue_static_preview_rebuild):
+            _queue_static_preview_rebuild()
+
+    def _mesh_editor_finalize_edit_mode_exit(reason: str, mesh_changed: bool = True) -> bool:
+        if bool(mesh_edit_enabled_checkbox.isChecked()):
+            was_blocked = bool(mesh_edit_enabled_checkbox.blockSignals(True))
+            try:
+                mesh_edit_enabled_checkbox.setChecked(False)
+            finally:
+                mesh_edit_enabled_checkbox.blockSignals(was_blocked)
+        if not _mesh_editor_sync_static_replacement_session_to_working_mesh(str(reason or "mesh_edit.finalize")):
+            return False
+        if bool(mesh_changed):
+            mesh_edit_preview_model_dirty["value"] = True
+        _mesh_edit_apply_preview_mode_transition(str(reason or "mesh_edit_toggle"))
+        _mesh_editor_queue_post_edit_textured_preview_rebuild(str(reason or "mesh_edit.finalize"))
+        _refresh_mesh_edit_controls()
+        return True
+
+    def _mesh_editor_embedded_finalize_dotnet_import(reason: str) -> bool:
+        return _mesh_editor_finalize_edit_mode_exit(str(reason or "dotnet_import"), mesh_changed=True)
 
     _mesh_edit_preview_source_indices = lambda *, require_enabled=True: _mesh_edit_source_indices_helper(
         _mesh_edit_state.replacement_mesh_for_mapping,
@@ -2848,6 +2897,30 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         _record_mesh_edit_event("mesh_edit_native_preview_stale", message=message, **payload)
         self.set_status_message(message, error=True)
 
+    def _mesh_editor_queue_native_preview_rebuild_from_working_mesh(
+        reason: str,
+        message: str,
+        **payload: object,
+    ) -> None:
+        mesh_edit_preview_model_dirty["value"] = True
+        mesh_edit_native_result_submesh_counts["value"] = ()
+        static_preview_geometry_cache.clear()
+        static_preview_prepared_cache.clear()
+        if callable(_mark_alignment_d3d11_rebuild_reason):
+            _mark_alignment_d3d11_rebuild_reason(str(reason or "mesh_edit_topology"))
+        if callable(_alignment_d3d11_invalidate_package_cache):
+            _alignment_d3d11_invalidate_package_cache(str(reason or "mesh_edit_topology"))
+        _mesh_edit_mark_native_preview_stale(message, **payload)
+        if callable(_queue_latest_alignment_d3d11_rebuild_for_stale_reload):
+            try:
+                _queue_latest_alignment_d3d11_rebuild_for_stale_reload(0, force_active_mesh_edit=True)
+                return
+            except TypeError:
+                _queue_latest_alignment_d3d11_rebuild_for_stale_reload(0)
+                return
+        if callable(_queue_static_preview_rebuild):
+            _queue_static_preview_rebuild()
+
     def _mesh_edit_capture_live_stroke_base_snapshot(mesh: ParsedMesh) -> object | None:
         try:
             from cdmw.modding.mesh_native_core import snapshot_native_mesh_submeshes
@@ -3321,8 +3394,9 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         if _mesh_edit_replace_live_triangles(requested_source_indices, replace_all=replace_all):
             return
         if _alignment_d3d11_mesh_edit_commands_active():
-            _mesh_edit_mark_native_preview_stale(
-                "Native D3D11 mesh edit triangle update failed; preview is stale. Reload D3D11 preview to resync.",
+            _mesh_editor_queue_native_preview_rebuild_from_working_mesh(
+                "mesh_edit_topology",
+                "Native D3D11 mesh edit triangle update failed; rebuilding native preview from the working mesh.",
                 source_indices=tuple(requested_source_indices or ()),
                 replace_all=bool(replace_all),
             )
@@ -3355,18 +3429,31 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         active_commands = _alignment_d3d11_mesh_edit_commands_active()
         if native_update is None:
             if _mesh_editor_result_has_deferred_native_python_apply(result):
-                raise RuntimeError("native deferred edit result did not include preview payload; Python live preview fallback is disabled")
+                _mesh_editor_queue_native_preview_rebuild_from_working_mesh(
+                    "mesh_edit_topology",
+                    "Native deferred mesh edit result had no preview payload; rebuilding native preview from the working mesh.",
+                )
+                return False
             if active_commands and _mesh_editor_result_changes_mesh(result):
-                raise RuntimeError("active native static replacement edit result did not include preview payload; Python live preview fallback is disabled")
+                _mesh_editor_queue_native_preview_rebuild_from_working_mesh(
+                    "mesh_edit_topology",
+                    "Active native mesh edit result had no preview payload; rebuilding native preview from the working mesh.",
+                )
+                return False
             return False
         applied = _mesh_editor_apply_native_update(native_update)
         if not applied and _mesh_editor_result_has_deferred_native_python_apply(result):
-            raise RuntimeError("native deferred edit preview payload was rejected; Python live preview fallback is disabled")
-        if not applied and active_commands:
-            _mesh_edit_mark_native_preview_stale(
-                "Native D3D11 mesh edit preview payload was rejected; preview is stale. Reload D3D11 preview to resync."
+            _mesh_editor_queue_native_preview_rebuild_from_working_mesh(
+                "mesh_edit_topology",
+                "Native deferred mesh edit preview payload was rejected; rebuilding native preview from the working mesh.",
             )
-            raise RuntimeError("active native static replacement edit preview payload was rejected; Python live preview fallback is disabled")
+            return False
+        if not applied and active_commands:
+            _mesh_editor_queue_native_preview_rebuild_from_working_mesh(
+                "mesh_edit_topology",
+                "Active native mesh edit preview payload was rejected; rebuilding native preview from the working mesh.",
+            )
+            return False
         return applied
 
     def _mesh_edit_update_live_preview(
@@ -5244,29 +5331,24 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         edit_enabled = bool(mesh_edit_enabled_checkbox.isChecked())
         dotnet_active = bool(getattr(dialog, "_mesh_editor_embedded_dotnet_active", False))
         stop_dotnet = getattr(dialog, "_mesh_editor_embedded_stop_dotnet", None)
-        if not edit_enabled and dotnet_active and callable(stop_dotnet):
-            if stop_dotnet():
-                _refresh_mesh_edit_controls()
-                _mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")
+        if not edit_enabled:
+            if dotnet_active and callable(stop_dotnet):
+                stop_dotnet()
+            elif callable(stop_dotnet):
+                stop_dotnet()
+            if not _mesh_editor_finalize_edit_mode_exit("mesh_edit_toggle", mesh_changed=True):
                 return
-        if not edit_enabled and not _mesh_editor_sync_static_replacement_session_to_working_mesh("mesh_edit.toggle_off"):
             return
-        if mesh_edit_preview_model_dirty.get("value") and not edit_enabled:
-            _mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)
         _refresh_mesh_edit_controls()
         _mesh_edit_apply_preview_mode_transition("mesh_edit_toggle")
-        if edit_enabled:
-            start_dotnet = getattr(dialog, "_mesh_editor_embedded_start_dotnet", None)
-            if bool(getattr(dialog, "_mesh_editor_use_embedded_dotnet_viewport", False)) and callable(start_dotnet):
-                start_dotnet()
-        else:
-            if callable(stop_dotnet):
-                stop_dotnet()
-        if not edit_enabled:
-            if callable(_queue_texture_preview_refresh):
-                _queue_texture_preview_refresh()
-            if callable(_queue_static_preview_rebuild):
-                _queue_static_preview_rebuild()
+        start_dotnet = getattr(dialog, "_mesh_editor_embedded_start_dotnet", None)
+        if bool(getattr(dialog, "_mesh_editor_use_embedded_dotnet_viewport", False)) and callable(start_dotnet):
+            start_dotnet()
+        elif not bool(getattr(dialog, "_mesh_editor_dotnet_available", False)):
+            self.set_status_message(
+                "Mesh .NET editor helper unavailable; using native/classic Mesh Editor controls.",
+                error=True,
+            )
 
     mesh_edit_enabled_checkbox.toggled.connect(_mesh_edit_enabled_toggled)
     for widget in (
@@ -5320,6 +5402,7 @@ def create_alignment_mesh_edit_callbacks(context: dict[str, object]) -> SimpleNa
         _mesh_editor_action_bar_action_requested=_mesh_editor_action_bar_action_requested,
         _mesh_editor_embedded_apply_native_update=_mesh_editor_embedded_apply_native_update,
         _mesh_editor_embedded_controller=_mesh_editor_embedded_controller,
+        _mesh_editor_embedded_finalize_dotnet_import=_mesh_editor_embedded_finalize_dotnet_import,
         _mesh_editor_embedded_replace_working_mesh=_mesh_editor_embedded_replace_working_mesh,
         _mesh_editor_embedded_run_part_action=_mesh_editor_embedded_run_part_action,
         _mesh_editor_embedded_set_skeleton_bone=_mesh_editor_embedded_set_skeleton_bone,

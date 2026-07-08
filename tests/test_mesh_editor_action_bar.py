@@ -234,6 +234,7 @@ class _EmbeddedMeshBuilder(QFrame):
         self.part_actions: list[tuple[str, tuple[int, ...]]] = []
         self.skeleton_bones: list[int] = []
         self.replaced_meshes: list[object] = []
+        self.finalized_dotnet_imports: list[str] = []
         self.synced_data_font: QFont | None = None
 
     def _mesh_editor_embedded_controller(self) -> MeshEditorController:
@@ -249,6 +250,10 @@ class _EmbeddedMeshBuilder(QFrame):
 
     def _mesh_editor_embedded_replace_working_mesh(self, mesh: object) -> bool:
         self.replaced_meshes.append(mesh)
+        return True
+
+    def _mesh_editor_embedded_finalize_dotnet_import(self, reason: str) -> bool:
+        self.finalized_dotnet_imports.append(str(reason))
         return True
 
     def _mesh_editor_embedded_run_part_action(self, action_key: str, source_indices: tuple[int, ...]) -> bool:
@@ -591,6 +596,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         button = builder.findChild(QPushButton, "MeshAlignmentDotNetExperimentButton")
         assert button is not None
         self.assertTrue(button.isEnabled())
+        self.assertTrue(button.isHidden())
 
         with patch("cdmw.ui.mesh_editor.tab.find_mesh_dotnet_experiment_editor", return_value=None):
             button.click()
@@ -622,18 +628,18 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertFalse(getattr(builder, "_mesh_editor_embedded_dotnet_active", True))
             self.assertEqual("closed", getattr(builder, "_mesh_editor_embedded_dotnet_state", ""))
             self.assertTrue(button.isEnabled())
+            self.assertTrue(button.isHidden())
             app.processEvents()
             tab.deleteLater()
 
-    def test_embedded_dotnet_auto_start_requires_enabled_setting(self) -> None:
+    def test_embedded_dotnet_auto_start_enabled_by_default_when_helper_available(self) -> None:
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as tmp:
             exe_path = Path(tmp) / "cdmw-mesh-dotnet-editor.exe"
             exe_path.write_text("", encoding="utf-8")
-            settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetEnabledSetting")
+            settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetDefaultEnabled")
             settings.clear()
             settings.setValue("mesh_editor/dotnet_experiment_executable", str(exe_path))
-            settings.setValue("mesh_editor/use_embedded_dotnet_viewport", True)
             tab = MeshEditorTab(settings=settings)
             builder = _EmbeddedMeshBuilder()
 
@@ -643,6 +649,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertTrue(getattr(builder, "_mesh_editor_use_embedded_dotnet_viewport", False))
             self.assertFalse(getattr(builder, "_mesh_editor_embedded_dotnet_active", True))
             self.assertEqual("closed", getattr(builder, "_mesh_editor_embedded_dotnet_state", ""))
+            self.assertTrue(builder.dotnet_button.isHidden())
             app.processEvents()
             tab.deleteLater()
 
@@ -822,6 +829,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         )
 
         self.assertTrue(builder.replaced_meshes)
+        self.assertEqual(["dotnet_output_import"], builder.finalized_dotnet_imports)
         self.assertIn("safe to rebuild", tab.embedded_workspace.status_label.text())
         app.processEvents()
         tab.deleteLater()

@@ -106,7 +106,7 @@ Implemented in this pass:
 - Added DDS header verification and decoding for package-local DDS resources, including width, height, mip count, FourCC/DXGI format key, and decoded status where the header is valid.
 - Added DX10/DXGI DDS mapping for common formats used by real assets: BC1/BC2/BC3/BC4/BC5, R8/RG8, RGBA8, and BGRA8/BGRX8.
 - Updated PyInstaller packaging to bundle the full .NET WPF helper payload directory, not only `cdmw-mesh-dotnet-editor.exe`.
-- Changed embedded Edit Mesh behavior so the .NET viewport starts automatically only when `mesh_editor/use_embedded_dotnet_viewport=true`; helper availability is tracked separately and the `.NET` button remains a manual open/restart path.
+- Changed embedded Edit Mesh behavior so the .NET viewport starts automatically by default when the helper is available; `mesh_editor/use_embedded_dotnet_viewport=false` remains a developer fallback and the normal `.NET` button is hidden.
 - Added immediate QProcess startup verification and stdout/stderr/error diagnostics so .NET launch failures report status instead of appearing to do nothing.
 - Added renderer diagnostics to the ready/metrics protocol payload, including active backend, material count, texture-reference counts, package-local resource counts, decoded resources, DDS resource count, texture-load failures, explicit DDS status, and dynamically selected runtime capabilities.
 - Added explicit D3D11 initialization probing, forced-failure test hook, runtime fallback escalation, hashed/versioned shader extraction folders, SRV caching, and explicit D3D11 unbind-before-dispose cleanup.
@@ -128,7 +128,7 @@ Implemented in this pass:
 
 ## Target architecture gap
 
-The current code now has local edge topology, stable edge descriptors, topology generation, local vertex/face/edge/part picking, host-owned selection and transform command routing, shared .NET camera/projection semantics, material/texture handoff, common DDS and DX10/DXGI DDS decoding, `cd-texture-dx` DDS fallback, opt-in .NET startup for Edit Mesh, packaged .NET helper discovery, explicit D3D11 startup probing/fallback, device-lost reset, D3D11-owned overlay primitives for local selection state, material debug channels, release dirty-tree preflight, and a first custom D3D11/Vortice/HLSL material viewport. WPF remains fallback. Remaining validation is runtime visual QA/golden screenshots for the new .NET D3D11 viewport against real PAC assets.
+The current code now has local edge topology, stable edge descriptors, topology generation, local vertex/face/edge/part picking, host-owned selection and transform command routing, shared .NET camera/projection semantics, material/texture handoff, common DDS and DX10/DXGI DDS decoding, `cd-texture-dx` DDS fallback, default .NET startup for Edit Mesh, packaged .NET helper discovery, explicit D3D11 startup probing/fallback, device-lost reset, D3D11-owned overlay primitives for local selection state, material debug channels, release dirty-tree preflight, and a first custom D3D11/Vortice/HLSL material viewport. WPF remains fallback. Remaining validation is runtime visual QA/golden screenshots for the new .NET D3D11 viewport against real PAC assets.
 
 ## Real archive proof
 

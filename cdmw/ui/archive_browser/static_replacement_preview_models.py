@@ -7,6 +7,10 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 
 from cdmw.models import ModelPreviewData
 from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.ui.archive_browser.static_replacement_preview_frame import (
+    alignment_preview_frame_from_model,
+    apply_alignment_preview_frame,
+)
 
 SOURCE_SELECTION_OVERLAY_EDITOR_ID_BASE = 2_000_000
 
@@ -67,6 +71,41 @@ def combine_preview_models(*models: object) -> object | None:
         face_count=face_count,
         meshes=meshes,
     )
+
+
+def combine_alignment_preview_models(
+    original_model: object,
+    replacement_model: object,
+    *,
+    frame_authority: str = "original",
+) -> object | None:
+    if not isinstance(original_model, ModelPreviewData) and not isinstance(replacement_model, ModelPreviewData):
+        return None
+    if not isinstance(original_model, ModelPreviewData):
+        return combine_preview_models(replacement_model)
+    if not isinstance(replacement_model, ModelPreviewData):
+        return combine_preview_models(original_model)
+    meshes = [
+        dataclasses.replace(mesh)
+        for model in (original_model, replacement_model)
+        for mesh in getattr(model, "meshes", ()) or ()
+    ]
+    vertex_count = sum(_preview_mesh_vertex_count(mesh) for mesh in meshes)
+    face_count = sum(_preview_mesh_face_count(mesh) for mesh in meshes)
+    frame_source = original_model if str(frame_authority or "original").strip().lower() == "original" else replacement_model
+    frame = alignment_preview_frame_from_model(
+        frame_source,
+        preserve_original_materials=True,
+    )
+    combined = dataclasses.replace(
+        frame_source,
+        summary="Overlay alignment preview",
+        mesh_count=len(meshes),
+        vertex_count=vertex_count,
+        face_count=face_count,
+        meshes=meshes,
+    )
+    return apply_alignment_preview_frame(combined, frame)
 
 
 def _descriptor_count(value: object) -> int:
@@ -463,6 +502,7 @@ __all__ = [
     "apply_source_selection_overlay_mesh_state",
     "clear_preview_mesh_textures",
     "clone_preview_model",
+    "combine_alignment_preview_models",
     "combine_optional_preview_models",
     "combine_preview_with_overlay",
     "combine_preview_models",

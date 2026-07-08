@@ -37,10 +37,10 @@ Last updated: 2026-07-08
 
 ## Edit mode lifecycle
 
-- Enter edit mode: host starts the embedded .NET helper only if `mesh_editor/use_embedded_dotnet_viewport` is enabled and a parent HWND exists. Helper availability is tracked separately as `_mesh_editor_dotnet_available`.
+- Enter edit mode: host starts the embedded .NET helper by default when the helper is available and a parent HWND exists; `mesh_editor/use_embedded_dotnet_viewport=false` remains a developer fallback. Helper availability is tracked separately as `_mesh_editor_dotnet_available`.
 - During launch: native/classic controls remain usable until a matching .NET `ready` protocol event marks `_mesh_editor_embedded_dotnet_active=true`.
 - During edit mode: .NET emits commands and updates its own viewport from Python preview deltas.
-- Stop edit mode: host first asks .NET to close and save, then imports .NET output or syncs from the Python/C++ working mesh if the live bridge already applied edits.
+- Stop edit mode: host first asks .NET to close and save, then imports .NET output or syncs from the Python/C++ working mesh if the live bridge already applied edits. The builder then rebuilds the textured/material preview from that edited working mesh.
 - Failure path: failed launch, process error, or process finish clears embedded ownership and returns to the existing native D3D11 edit path.
 
 ## Current selection and hit test implementation

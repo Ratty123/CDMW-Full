@@ -528,6 +528,12 @@ struct RendererStats {
     int cloth_runtime_schema = 0;
     std::string render_diagnostic_mode;
     std::string lighting_preset;
+    std::string placement_frame_kind;
+    std::string grid_mode;
+    float grid_y = 0.0f;
+    bool placement_grid_valid = false;
+    std::string reference_tint_mode;
+    std::string reference_material_policy;
     bool physics_overlay_enabled = false;
     bool physics_overlay_cloth = false;
     int physics_shape_count = 0;
@@ -1893,6 +1899,24 @@ static std::vector<PreviewBatch> parse_manifest_batches(const fs::path& package_
         stats.render_diagnostic_mode = json_string_field(manifest, "render_diagnostic_mode");
     }
     stats.lighting_preset = json_string_field(manifest, "lighting_preset");
+    const std::string placement_frame = json_object_field(manifest, "placement_frame");
+    if (!placement_frame.empty()) {
+        stats.placement_frame_kind = json_string_field(placement_frame, "kind");
+        stats.grid_mode = lower_copy(json_string_field(placement_frame, "grid_mode"));
+        const float placement_grid_y = json_float_field(placement_frame, "grid_y", 0.0f);
+        if (std::isfinite(placement_grid_y)) {
+            stats.grid_y = placement_grid_y;
+            stats.placement_grid_valid = true;
+        }
+        stats.reference_tint_mode = lower_copy(json_string_field(placement_frame, "reference_tint_mode"));
+        if (stats.reference_tint_mode.empty() && lower_copy(json_string_field(placement_frame, "material_parity")) == "archive_preview") {
+            stats.reference_tint_mode = "overlay_only";
+        }
+    }
+    stats.reference_material_policy = lower_copy(json_string_field(manifest, "reference_material_policy"));
+    if (stats.reference_tint_mode.empty() && stats.reference_material_policy == "preserve") {
+        stats.reference_tint_mode = "overlay_only";
+    }
     const std::string physics_overlays = json_object_field(manifest, "physics_overlays");
     if (!physics_overlays.empty()) {
         stats.physics_overlay_enabled = json_bool_field(physics_overlays, "enabled", false);
@@ -2237,6 +2261,11 @@ static std::string loaded_payload_for_event(const RendererStats& stats, const st
            << "\"cloth_runtime_schema\":" << stats.cloth_runtime_schema << ","
            << "\"render_diagnostic_mode\":\"" << json_escape(stats.render_diagnostic_mode) << "\","
            << "\"lighting_preset\":\"" << json_escape(stats.lighting_preset) << "\","
+           << "\"placement_frame_kind\":\"" << json_escape(stats.placement_frame_kind) << "\","
+           << "\"grid_mode\":\"" << json_escape(stats.grid_mode) << "\","
+           << "\"grid_y\":" << stats.grid_y << ","
+           << "\"reference_tint_mode\":\"" << json_escape(stats.reference_tint_mode) << "\","
+           << "\"reference_material_policy\":\"" << json_escape(stats.reference_material_policy) << "\","
            << "\"physics_overlay_enabled\":" << (stats.physics_overlay_enabled ? "true" : "false") << ","
            << "\"physics_overlay_cloth\":" << (stats.physics_overlay_cloth ? "true" : "false") << ","
            << "\"physics_shape_count\":" << stats.physics_shape_count << ","
@@ -4418,7 +4447,16 @@ private:
         context_->PSSetShader(pixel_shader_.Get(), nullptr, 0);
     }
 
+    bool manifest_original_frame_grid_active() const {
+        return stats_.placement_grid_valid
+            && stats_.grid_mode == "original_frame"
+            && std::isfinite(stats_.grid_y);
+    }
+
     float workspace_grid_y_for_view(const PreviewRenderView& view) const {
+        if (manifest_original_frame_grid_active()) {
+            return stats_.grid_y;
+        }
         float min_y = std::numeric_limits<float>::infinity();
         for (const PreviewBatch& batch : batches_) {
             if (!batch_visible_in_view(batch, view.role)) continue;
@@ -5587,6 +5625,12 @@ private:
         draw_colored_triangles(vertices, identity, true);
     }
 
+    bool reference_material_tint_allowed() const {
+        const std::string mode = lower_copy(stats_.reference_tint_mode);
+        const std::string policy = lower_copy(stats_.reference_material_policy);
+        return mode != "overlay_only" && mode != "none" && policy != "preserve";
+    }
+
     void draw_render_view(const PreviewRenderView& view) {
         context_->RSSetViewports(1, &view.viewport);
         context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : (render_tuning_.cull_back_faces && cull_rasterizer_ ? cull_rasterizer_.Get() : rasterizer_.Get()));
@@ -5610,11 +5654,14 @@ private:
                 0.18f,
                 icon_capture_mode_ ? 0.0f : std::clamp(batch.highlight_strength, 0.0f, 0.74f));
             if (reference) {
+                const float reference_tint_alpha = reference_material_tint_allowed()
+                    ? std::max(view.reference_tint_alpha, std::clamp(batch.highlight_strength, 0.0f, 0.82f))
+                    : 0.0f;
                 tint = DirectX::XMFLOAT4(
                     batch.highlight_strength > 0.0f ? 1.0f : 0.36f,
                     batch.highlight_strength > 0.0f ? 0.82f : 0.58f,
                     batch.highlight_strength > 0.0f ? 0.04f : 1.0f,
-                    icon_capture_mode_ ? 0.0f : std::max(view.reference_tint_alpha, std::clamp(batch.highlight_strength, 0.0f, 0.82f)));
+                    icon_capture_mode_ ? 0.0f : reference_tint_alpha);
             }
             const DirectX::XMMATRIX alignment_transform =
                 view.role == PreviewViewRole::Reference ? DirectX::XMMatrixIdentity() : alignment_preview_transform_for_batch(batch);

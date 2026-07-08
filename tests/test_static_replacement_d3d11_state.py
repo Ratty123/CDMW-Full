@@ -1934,6 +1934,13 @@ def test_alignment_d3d11_fast_transform_replay_state_routes_clear_send_or_noop()
         preview_active=True,
     ) == {"clear_state": False, "reset_host": False, "send_preview": True}
     assert alignment_d3d11_fast_transform_replay_state(
+        {"pending_fast_transform": {"translation": (1.0, 0.0, 0.0)}},
+        mesh_edit_raw_active=True,
+        preview_active=True,
+        reload_reason="material",
+        package_quality="material_refresh",
+    ) == {"clear_state": False, "reset_host": False, "send_preview": True}
+    assert alignment_d3d11_fast_transform_replay_state(
         {"pending_fast_transform": "bad", "pending_part_fast_transforms": {}},
         mesh_edit_raw_active=False,
         preview_active=True,

@@ -313,6 +313,38 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
         self.assertIn("DDS preflight:", " ".join(manifest["shader_asset_fidelity_status"]["ui_summary"]))
         self.assertIn("mesh_health", manifest["asset_fidelity_preflight"])
 
+    def test_alignment_preview_package_writes_placement_frame_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            prepared = PreparedModelPreviewData(
+                source_path="sword.pac",
+                normalization_center=(0.0, 2.0, 0.0),
+                normalization_scale=0.5,
+                preview_frame_kind="original_pac_frame",
+                preview_frame_source_path="sword.pac",
+                preview_grid_origin=(0.0, -1.0, 0.0),
+                preview_grid_y=-1.0,
+                preview_grid_mode="original_frame",
+                preview_material_parity_mode="archive_preview",
+                preview_original_materials_preserved=True,
+                preview_reference_tint_mode="overlay_only",
+            )
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="sword.pac"),
+                prepared,
+                output_root=Path(temp_dir) / "package",
+                display_mode="overlay",
+                editor_workspace="mesh_replacement_alignment",
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+
+        self.assertEqual("preserve", manifest["reference_material_policy"])
+        self.assertEqual("original_pac_frame", manifest["placement_frame"]["kind"])
+        self.assertEqual("original_frame", manifest["placement_frame"]["grid_mode"])
+        self.assertEqual(-1.0, manifest["placement_frame"]["grid_y"])
+        self.assertEqual("archive_preview", manifest["placement_frame"]["material_parity"])
+        self.assertEqual("overlay_only", manifest["placement_frame"]["reference_tint_mode"])
+        self.assertTrue(manifest["placement_frame"]["preserve_original_materials"])
+
     def test_game_outdoor_d3d11_view_mode_writes_outdoor_lighting_preset(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             package_dir = write_isolated_d3d11_preview_package(
