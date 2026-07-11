@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -43,6 +44,18 @@ def test_full_qa_uses_canonical_bounded_temp_owned_gates() -> None:
     assert '$smoke.gates.native_windows_remained_hidden -ne $true' in package_source
     assert "[string]$PytestBaseTemp" in codex_source
     assert '"--basetemp=$PytestBaseTemp"' in codex_source
+    assert '"cdmw", "tests", "tools"' in source
+    assert "Skipping missing test" not in codex_source
+    assert "Configured tests are missing for area" in codex_source
+
+
+def test_codex_check_configured_test_paths_exist() -> None:
+    source = CODEX_CHECK.read_text(encoding="utf-8")
+    configured = sorted(set(re.findall(r'"(tests/test_[^"]+\.py)"', source)))
+    missing = [path for path in configured if not (ROOT / path).is_file()]
+
+    assert configured
+    assert not missing, f"Missing codex_check test paths: {missing}"
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")

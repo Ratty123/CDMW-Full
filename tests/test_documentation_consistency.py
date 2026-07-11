@@ -45,6 +45,26 @@ def test_documented_markdown_paths_exist_and_deleted_plans_are_unreferenced() ->
     assert not stale, f"Deleted active-plan references remain: {stale}"
 
 
+def test_test_matrix_command_paths_exist() -> None:
+    matrix = (ROOT / "docs" / "test-matrix.md").read_text(encoding="utf-8-sig")
+    references = sorted(
+        set(
+            re.findall(
+                r"((?:tests|tools|scripts)[/\\][A-Za-z0-9_./\\-]+\.(?:py|ps1|csproj))",
+                matrix,
+            )
+        )
+    )
+    missing = [
+        reference
+        for reference in references
+        if not (ROOT / reference.replace("\\", "/")).is_file()
+    ]
+
+    assert references
+    assert not missing, f"Missing test-matrix command paths: {missing}"
+
+
 def test_security_policy_tracks_current_application_version() -> None:
     security = (ROOT / "SECURITY.md").read_text(encoding="utf-8-sig")
     assert f"`{APP_VERSION}`" in security

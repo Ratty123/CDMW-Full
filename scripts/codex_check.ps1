@@ -85,20 +85,17 @@ if ($Area -eq "mesh") {
     exit $LASTEXITCODE
 }
 
-$ExistingTests = @()
-foreach ($Test in $TestsByArea[$Area]) {
-    if (Test-Path -LiteralPath (Join-Path $RepoRoot $Test)) {
-        $ExistingTests += $Test
-    } else {
-        Write-Host "Skipping missing test: $Test"
-    }
+$ConfiguredTests = @($TestsByArea[$Area])
+if ($ConfiguredTests.Count -eq 0) {
+    throw "No tests are configured for area '$Area'."
 }
-
-if ($ExistingTests.Count -eq 0) {
-    Write-Host "No existing tests configured for area '$Area'."
-    exit 0
+$MissingTests = @($ConfiguredTests | Where-Object {
+    -not (Test-Path -LiteralPath (Join-Path $RepoRoot $_))
+})
+if ($MissingTests.Count -gt 0) {
+    throw "Configured tests are missing for area '$Area': $($MissingTests -join ', ')"
 }
 
 Write-Host "Running $Area checks with $Python"
-& $Python -m pytest @PytestTempArgs @ExistingTests
+& $Python -m pytest @PytestTempArgs @ConfiguredTests
 exit $LASTEXITCODE

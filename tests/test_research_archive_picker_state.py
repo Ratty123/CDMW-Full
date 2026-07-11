@@ -6,13 +6,20 @@ from cdmw.models import ArchiveEntry
 from cdmw.ui.research.archive_picker_state import (
     archive_picker_available_status_text,
     archive_picker_entries_from_sources,
+    archive_picker_entry_for_path,
+    archive_picker_entry_index_for_path,
+    archive_picker_file_label,
     archive_picker_focus_flat_overflow_status_text,
     archive_picker_focus_missing_status_text,
+    archive_picker_folder_parts,
     archive_picker_folder_status_text,
     archive_picker_path_lookup_maps,
     archive_picker_render_status_text,
     archive_picker_reusable_browser_tree_index,
     archive_picker_selected_entry_status_text,
+    build_archive_snapshot_cache_key,
+    cached_archive_snapshot_cache_key,
+    normalize_archive_path,
 )
 
 
@@ -27,6 +34,55 @@ def _entry(path: str, package: str = "pakchunk0/paz00001.paz") -> ArchiveEntry:
         flags=0,
         paz_index=0,
     )
+
+
+def test_archive_picker_path_helpers_normalize_labels_indexes_and_cache_keys() -> None:
+    assert normalize_archive_path(r" 0001\texture\armor.dds ") == "0001/texture/armor.dds"
+    assert archive_picker_file_label(r"0001\texture\armor.dds", show_full_path=False) == "armor.dds"
+    assert archive_picker_file_label(r"0001\texture\armor.dds", show_full_path=True) == "0001/texture/armor.dds"
+    assert archive_picker_folder_parts(r"0001\texture\armor.dds") == ("0001", "texture")
+
+    entries = [_entry(r"0001\texture\armor.dds"), _entry("0001/texture/armor_n.dds")]
+    assert build_archive_snapshot_cache_key(entries) == build_archive_snapshot_cache_key(entries)
+    assert build_archive_snapshot_cache_key(entries).startswith("2:")
+    assert build_archive_snapshot_cache_key([]) == "0:empty"
+
+    cache: dict[tuple[int, int, str, str], str] = {}
+    cached_key = cached_archive_snapshot_cache_key(entries, cache)
+    assert cached_key == build_archive_snapshot_cache_key(entries)
+    assert cached_archive_snapshot_cache_key(entries, cache) == cached_key
+    assert len(cache) == 1
+    assert cached_archive_snapshot_cache_key([], cache) == "0:empty"
+
+    eager_index = {normalize_archive_path(entries[0].path).casefold(): 0}
+    lazy_index: dict[str, int] = {}
+    assert archive_picker_entry_index_for_path(
+        "0001/texture/armor.dds",
+        entries=entries,
+        entry_index_by_path=eager_index,
+        lazy_entry_index_by_path=lazy_index,
+    ) == 0
+    assert archive_picker_entry_index_for_path(
+        "0001/texture/armor_n.dds",
+        entries=entries,
+        entry_index_by_path=eager_index,
+        lazy_entry_index_by_path=lazy_index,
+    ) == 1
+    assert lazy_index["0001/texture/armor_n.dds"] == 1
+    assert archive_picker_entry_for_path(
+        r"0001\texture\armor.dds",
+        entries=entries,
+        entry_by_path={normalize_archive_path(entries[0].path): entries[0]},
+        entry_index_by_path=eager_index,
+        lazy_entry_index_by_path=lazy_index,
+    ) is entries[0]
+    assert archive_picker_entry_for_path(
+        "missing.dds",
+        entries=entries,
+        entry_by_path={},
+        entry_index_by_path={},
+        lazy_entry_index_by_path={},
+    ) is None
 
 
 def test_archive_picker_available_status_text_preserves_existing_modes() -> None:

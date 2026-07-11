@@ -8,7 +8,8 @@ Use the project virtualenv:
 .\.venv\Scripts\python.exe -m pytest <tests> -p no:cacheprovider --basetemp="$env:TEMP\cdmw-pytest-<name>"
 ```
 
-Use `%TEMP%` for pytest temp dirs when `.pytest-tmp` is locked.
+Use `$env:TEMP` for pytest temp dirs when `.pytest-tmp` is locked.
+`scripts/codex_check.ps1` fails closed if an area's configured test path is missing.
 
 ## Smoke
 
@@ -258,11 +259,11 @@ Its focused facade/profile/output-safety/cache probe gate is:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_services.py tests/test_asset_authoring_service.py tests/test_asset_authoring_workers.py tests/test_diagnostics_service.py tests/test_diagnostic_bundle_async.py tests/test_workers.py tests/test_shell_context.py
-.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-discovery --output "%TEMP%\cdmw-asset-authoring-discovery"
-.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-mesh-health --output "%TEMP%\cdmw-asset-authoring-mesh-health"
-.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-uv-report --output "%TEMP%\cdmw-asset-authoring-uv-report"
-.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-tangent-report --output "%TEMP%\cdmw-asset-authoring-tangent-report"
-.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-openimageio-report --output "%TEMP%\cdmw-asset-authoring-openimageio-report"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-discovery --output "$env:TEMP\cdmw-asset-authoring-discovery"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-mesh-health --output "$env:TEMP\cdmw-asset-authoring-mesh-health"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-uv-report --output "$env:TEMP\cdmw-asset-authoring-uv-report"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-tangent-report --output "$env:TEMP\cdmw-asset-authoring-tangent-report"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-openimageio-report --output "$env:TEMP\cdmw-asset-authoring-openimageio-report"
 ```
 
 `asset-authoring-mesh-health` writes both mesh-health and meshoptimizer
@@ -276,8 +277,9 @@ optimization preflight reports.
 .\run_full_qa.ps1
 ```
 
-`run_full_qa.ps1` runs canonical non-visual pytest, dependency, native, package,
-and packaged-startup gates with per-step timeouts. All temporary pytest and
+`run_full_qa.ps1` runs canonical non-visual pytest, compiles `cdmw`, `tests`,
+and `tools`, then runs dependency, native, package, and packaged-startup gates
+with per-step timeouts. All temporary pytest and
 PyInstaller output stays under a unique system-temp directory; cleanup never
 removes repository or user crash reports. It rebuilds the native helpers and
 self-contained .NET Mesh Editor through the same release helper path as normal

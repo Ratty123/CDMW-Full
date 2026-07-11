@@ -173,7 +173,7 @@ function Invoke-FullQA {
             "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $codexCheck,
             "-Area", "full", "-PytestBaseTemp", $qaPytest
         ) $scriptDir $StepTimeoutSeconds
-        Invoke-QAStep "Python compileall" $pythonExe @("-m", "compileall", "-q", "cdmw", "tests") $scriptDir 600
+        Invoke-QAStep "Python compileall" $pythonExe @("-m", "compileall", "-q", "cdmw", "tests", "tools") $scriptDir 600
         Invoke-QAStep "Python dependency check" $pythonExe @("-m", "pip", "check") $scriptDir 300
         Invoke-QAStep "cd_hkx cargo fmt" "cargo" @("fmt", "--check") (Join-Path $scriptDir "native\cd_hkx") 300
         Invoke-QAStep "cd_hkx cargo test" "cargo" @("test") (Join-Path $scriptDir "native\cd_hkx") $StepTimeoutSeconds

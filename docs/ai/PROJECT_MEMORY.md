@@ -55,9 +55,9 @@ Last updated: 2026-07-11
   PAC/archive/texture provenance and hashes, backend, geometry selection,
   captures, timings, fallback state, archive fingerprints, and individual gate
   results.
-- Use a system temporary base for pytest. Run focused owners first, then
-  architecture/runtime groups, then complete nonvisual QA, native builds,
-  packaged smoke, and finally the real-game gate.
+- Use a system temporary base for pytest. Configured `codex_check` area tests
+  fail closed if paths drift; full QA compiles `cdmw`, `tests`, and `tools`;
+  run focused owners before nonvisual QA, native builds, package, and real-game gates.
 
 ## Shared identities, I/O, and lifecycle
 

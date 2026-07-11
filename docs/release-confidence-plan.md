@@ -50,6 +50,15 @@ keeps core user workflows working behind stable facades.
 
 2026-07-11:
 
+- Test/tool relevance audit passed: all 389 test modules and 5,114 tests collect;
+  canonical nonvisual QA reported 5,107 passed, 5 skipped, and 2 intentional
+  visual deselections. The 68-module tool-facing gate reported 960 passed,
+  1 environment skip, and 2 visual deselections. Python compile coverage now
+  includes `tools`; the production .NET/Vortice helper built with zero warnings
+  or errors and passed hidden smoke on `d3d11_vortice_shader`. Redundant Research
+  facade behavior tests were replaced by an all-export identity contract, while
+  unique owner behavior stayed covered. Configured `codex_check` area paths now
+  fail closed instead of silently skipping missing tests.
 - Resident editor/import risk completion passed its final sequence. Clean
   headless QA reported 5,110 passed, 5 skipped, and 2 intentional visual
   deselections; `mesh-unit` reported 679 passed. Native helpers and Release

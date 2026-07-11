@@ -86,9 +86,10 @@ user explicitly names them.
 
 ## Validated Baseline
 
-The whole-codebase repair closed on 2026-07-11 after 4,865 headless tests,
-release onedir packaging/startup, packaged Vortice GPU smoke, and the explicit
-read-only .NET/Vortice real-game proof passed. No implementation plan is active.
+The whole-codebase repair closed on 2026-07-11; current canonical headless QA
+passes 5,107 tests. Release onedir packaging/startup, packaged Vortice GPU smoke,
+and the explicit read-only .NET/Vortice real-game proof passed. No implementation
+plan is active.
 Keep the one-base composed `MainWindow`, cached compatibility facades,
 dependency direction, and lowered size ratchets intact.
 
