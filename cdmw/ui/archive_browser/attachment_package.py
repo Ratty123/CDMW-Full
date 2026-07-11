@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import re
+import threading
 from collections.abc import Mapping
 from pathlib import PurePosixPath
 from typing import List, Optional, Tuple
 
-from cdmw.core.archive import (
-    _find_archive_model_related_entries,
-    _is_material_sidecar_extension,
+from cdmw.services.archive_query_service import (
+    find_archive_model_related_entries as _find_archive_model_related_entries,
     build_archive_relationship_references,
-    read_archive_entry_data,
 )
+from cdmw.domain.archives.format import is_material_sidecar_extension as _is_material_sidecar_extension
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.models import ArchiveEntry, AssetFamilyGraph, AssetFamilyMember, AttachmentPlacementEvidence
 
 
@@ -309,7 +311,15 @@ class ArchiveAttachmentPackageMixin:
         self,
         entry: ArchiveEntry,
         graph: AssetFamilyGraph,
+        *,
+        allow_archive_reads: bool = False,
+        stop_event: threading.Event | None = None,
     ) -> set[str]:
+        cache_key = self._attachment_package_entry_key(entry)
+        token_cache = getattr(self, "_attachment_weapon_subclass_token_cache", {})
+        cached_tokens = token_cache.get(cache_key) if isinstance(token_cache, Mapping) else None
+        if cached_tokens is not None and not allow_archive_reads:
+            return set(cached_tokens)
         tokens: set[str] = set()
 
         def add_from_text(raw_text: object) -> None:
@@ -402,14 +412,16 @@ class ArchiveAttachmentPackageMixin:
                     for value in self._archive_asset_catalog_row_values(row, key):
                         add_from_text(value)
 
-        for candidate in graph_entries:
-            if str(getattr(candidate, "extension", "") or "").lower() != ".prefab":
-                continue
-            try:
-                payload, _decompressed, _note = read_archive_entry_data(candidate)
-            except Exception:
-                continue
-            add_from_text(bytes(payload[:65536]).decode("latin-1", errors="ignore"))
+        if allow_archive_reads:
+            for candidate in graph_entries:
+                raise_if_cancelled(stop_event, "Attachment prefab classification cancelled.")
+                if str(getattr(candidate, "extension", "") or "").lower() != ".prefab":
+                    continue
+                try:
+                    payload, _decompressed, _note = read_archive_entry_data(candidate)
+                except Exception:
+                    continue
+                add_from_text(bytes(payload[:65536]).decode("latin-1", errors="ignore"))
 
         return tokens
 

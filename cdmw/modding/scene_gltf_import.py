@@ -1,19 +1,49 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 import json
-import mimetypes
 import re
 import struct
-import tempfile
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
+from cdmw.core.common import raise_if_cancelled
 
 from .mesh_parser import ParsedMesh, SubMesh, _compute_smooth_normals
+from .scene_gltf_geometry import (
+    _GLTF_COMPONENT_FORMATS,
+    _GLTF_TYPE_COUNTS,
+    _attach_gltf_vertex_color_summary,
+    _gltf_buffer_view,
+    _normalize_gltf_component,
+    _parse_gltf_primitive,
+    _read_gltf_accessor,
+    _read_gltf_buffer_view_bytes,
+    _read_gltf_vertex_colors,
+)
+from .scene_gltf_embedded_images import (
+    _MIME_EXTENSIONS as _GLTF_IMAGE_MIME_EXTENSIONS,
+    _embedded_gltf_extract_dir,
+    write_embedded_gltf_image,
+)
+from .scene_gltf_uv import (
+    GltfMaterialUvPlan,
+    _gltf_texture_info_texcoord,
+    _gltf_texture_transform,
+    _validate_gltf_image_payload,
+    build_gltf_material_uv_plan,
+    build_gltf_uv_bake_report,
+    read_gltf_primitive_uv_inputs,
+)
+from .scene_gltf_uv_bake import (
+    GltfGeneralUvBakeOutcome,
+    GltfUvPrimitiveRecord,
+    bake_general_gltf_uvs,
+    ensure_gltf_source_tangents,
+)
 from .scene_geometry_utils import (
     _bbox,
     _copy_submesh_with_transform,
@@ -43,6 +73,15 @@ from .scene_material_audit import (
 
 SCENE_TEXTURE_SOURCE_EXTENSIONS = {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"}
 SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS = {".ktx", ".ktx2"}
+_GltfMaterialInfo = tuple[
+    dict[int, str],
+    dict[int, str],
+    dict[int, tuple[float, float, float]],
+    dict[int, dict[str, SceneMaterialTextureSlot]],
+    dict[int, str],
+    dict[int, dict[str, object]],
+    dict[int, tuple[PreviewMaterialParameterInput, ...]],
+]
 
 
 def _dedupe_paths(values: list[Path]) -> list[Path]:
@@ -60,34 +99,6 @@ def _dedupe_paths(values: list[Path]) -> list[Path]:
     return result
 
 
-_GLTF_COMPONENT_FORMATS = {
-    5120: ("b", 1, True),
-    5121: ("B", 1, False),
-    5122: ("h", 2, True),
-    5123: ("H", 2, False),
-    5125: ("I", 4, False),
-    5126: ("f", 4, True),
-}
-
-
-_GLTF_TYPE_COUNTS = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT2": 4, "MAT3": 9, "MAT4": 16}
-
-
-_GLTF_IMAGE_MIME_EXTENSIONS = {
-    "image/png": ".png",
-    "image/jpeg": ".jpg",
-    "image/jpg": ".jpg",
-    "image/vnd-ms.dds": ".dds",
-    "image/x-dds": ".dds",
-    "image/tga": ".tga",
-    "image/bmp": ".bmp",
-    "image/tiff": ".tif",
-    "image/webp": ".webp",
-    "image/ktx": ".ktx",
-    "image/ktx2": ".ktx2",
-}
-
-
 @dataclass(slots=True)
 class _GltfPayload:
     document: dict[str, Any]
@@ -97,6 +108,8 @@ class _GltfPayload:
     diagnostics: list[str]
     extracted_embedded_files: list[Path]
     discovered_texture_files: list[Path]
+    material_uv_plans: dict[int, GltfMaterialUvPlan]
+    tolerate_missing_texture_files: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -108,11 +121,185 @@ class _GltfMeshInstance:
     skin_index: int = -1
 
 
-def import_gltf(path: str | Path, *, include_external_audit: bool = True) -> SceneImportResult:
+def _collect_gltf_geometry(
+    payload: _GltfPayload,
+    material_info: _GltfMaterialInfo,
+    stop_event: threading.Event | None,
+) -> tuple[list[SubMesh], list[ImportedMaterialBinding], list[GltfUvPrimitiveRecord], int]:
+    (
+        material_names,
+        material_textures,
+        material_colors,
+        material_texture_slots,
+        material_workflows,
+        material_flags,
+        material_preview_parameters,
+    ) = material_info
+    submeshes: list[SubMesh] = []
+    bindings: list[ImportedMaterialBinding] = []
+    uv_records: list[GltfUvPrimitiveRecord] = []
+    instances = _iter_gltf_mesh_instances(payload.document) or [
+        _GltfMeshInstance(index, _identity_matrix(), "")
+        for index, _mesh in enumerate(payload.document.get("meshes", []) or [])
+    ]
+    skin_matrix_cache: dict[tuple[int, int], tuple[tuple[float, ...], ...]] = {}
+    baked_skin_count = 0
+    for instance in instances:
+        raise_if_cancelled(stop_event, "glTF import cancelled during geometry parsing.")
+        gltf_meshes = payload.document.get("meshes", []) or []
+        if not 0 <= instance.mesh_index < len(gltf_meshes):
+            continue
+        mesh_entry = gltf_meshes[instance.mesh_index]
+        mesh_name = str(mesh_entry.get("name", "") or "")
+        for primitive_index, primitive in enumerate(mesh_entry.get("primitives", []) or []):
+            if not isinstance(primitive, dict):
+                continue
+            primitive_label = f"{mesh_name or instance.mesh_index}:{primitive_index}"
+            mode = _safe_int(primitive.get("mode"), 4)
+            attributes = primitive.get("attributes", {})
+            if mode not in {4, 5, 6}:
+                payload.diagnostics.append(f"Skipped glTF primitive {primitive_label} because its topology mode is unsupported.")
+                continue
+            if not isinstance(attributes, dict) or "POSITION" not in attributes:
+                payload.diagnostics.append(f"Skipped glTF primitive {primitive_label} because it has no POSITION attribute.")
+                continue
+            material_index = _safe_int(primitive.get("material"), -1)
+            material_name = (material_names.get(material_index, "") or f"material_{material_index}") if material_index >= 0 else ""
+            uv_plan = payload.material_uv_plans.get(material_index)
+            uv_inputs = (
+                read_gltf_primitive_uv_inputs(
+                    payload.document,
+                    primitive,
+                    uv_plan,
+                    primitive_label,
+                    lambda accessor_index: _read_gltf_accessor(payload, accessor_index, expected_components=2),
+                )
+                if uv_plan is not None
+                else None
+            )
+            submesh = _parse_gltf_primitive(
+                payload,
+                primitive,
+                name=instance.node_name or mesh_name or f"mesh_{instance.mesh_index}_{primitive_index}",
+                material=material_name or instance.node_name or mesh_name or primitive_label,
+                texture=material_textures.get(material_index, ""),
+                texcoord_index=(
+                    uv_plan.source_texcoord
+                    if uv_plan is not None and uv_plan.slots
+                    else _gltf_material_texcoord_index(material_texture_slots, material_index)
+                ),
+                texcoord_transform=(uv_plan.transform if uv_plan is not None and uv_plan.bakes_transform else ()),
+                texcoord_rows=(uv_inputs.rows(uv_plan.source_texcoord) if uv_inputs is not None and uv_plan is not None else None),
+            )
+            skin_matrices: tuple[tuple[float, ...], ...] = ()
+            if instance.skin_index >= 0 and instance.node_index >= 0:
+                cache_key = (instance.node_index, instance.skin_index)
+                if cache_key not in skin_matrix_cache:
+                    skin_matrix_cache[cache_key] = _gltf_skin_joint_matrices(
+                        payload, node_index=instance.node_index, skin_index=instance.skin_index
+                    )
+                skin_matrices = skin_matrix_cache[cache_key]
+            if skin_matrices and _bake_gltf_skin_primitive(payload, primitive, submesh, skin_matrices):
+                baked_skin_count += 1
+            if not submesh.faces:
+                payload.diagnostics.append(f"Skipped glTF primitive {primitive_label} because it produced no triangle faces.")
+                continue
+            copied = _copy_submesh_with_transform(submesh, instance.transform)
+            if uv_plan is not None and uv_inputs is not None and not uv_plan.requires_raster_bake and any(
+                "normal" in slot.slot_kind.lower() for slot in uv_plan.slots
+            ):
+                ensure_gltf_source_tangents(copied, uv_inputs.rows(uv_plan.source_texcoord), uv_plan.source_texcoord, stop_event=stop_event)
+            _apply_gltf_preview_material_metadata(
+                copied,
+                material_index,
+                material_colors=material_colors,
+                material_texture_slots=material_texture_slots,
+                material_flags=material_flags,
+                material_preview_parameters=material_preview_parameters,
+            )
+            submeshes.append(copied)
+            if uv_plan is not None and uv_inputs is not None:
+                uv_records.append(GltfUvPrimitiveRecord(material_index, len(submeshes) - 1, primitive_label, uv_inputs))
+            flags = material_flags.get(material_index, {})
+            bindings.append(
+                ImportedMaterialBinding(
+                    material_index=material_index,
+                    material_name=material_name or copied.material,
+                    submesh_index=len(submeshes) - 1,
+                    submesh_name=copied.name,
+                    texture_slots=tuple(
+                        (str(slot_kind), Path(str(slot.path)).expanduser())
+                        for slot_kind, slot in sorted(material_texture_slots.get(material_index, {}).items())
+                        if isinstance(slot, SceneMaterialTextureSlot) and str(slot.path or "").strip()
+                    ),
+                    pbr_workflow=str(material_workflows.get(material_index, "") or ""),
+                    alpha_mode=str(flags.get("alpha_mode", "") or ""),
+                    double_sided=bool(flags.get("double_sided", False)),
+                )
+            )
+    return submeshes, bindings, uv_records, baked_skin_count
+
+
+def _apply_general_gltf_bake(
+    mesh: ParsedMesh,
+    payload: _GltfPayload,
+    material_info: _GltfMaterialInfo,
+    records: Sequence[GltfUvPrimitiveRecord],
+    bindings: Sequence[ImportedMaterialBinding],
+    source_path: Path,
+    stop_event: threading.Event | None,
+) -> GltfGeneralUvBakeOutcome:
+    _names, _textures, colors, slots_by_material, _workflows, flags, preview_parameters = material_info
+    outcome = bake_general_gltf_uvs(
+        mesh, payload.material_uv_plans, records, slots_by_material, source_path, stop_event=stop_event
+    )
+    payload.discovered_texture_files.extend(outcome.generated_paths)
+    for material_index in outcome.material_reports:
+        slots = slots_by_material.get(material_index, {})
+        for record in records:
+            if record.material_index != material_index:
+                continue
+            mesh.submeshes[record.submesh_index].preview_normal_texture_strength = 1.0
+            _apply_gltf_preview_material_metadata(
+                mesh.submeshes[record.submesh_index],
+                material_index,
+                material_colors=colors,
+                material_texture_slots=slots_by_material,
+                material_flags=flags,
+                material_preview_parameters=preview_parameters,
+            )
+        binding_slots = tuple(
+            (str(slot_kind), Path(str(slot.path)).expanduser())
+            for slot_kind, slot in sorted(slots.items())
+            if str(slot.path or "").strip()
+        )
+        for binding in bindings:
+            if binding.material_index == material_index:
+                binding.texture_slots = binding_slots
+    if outcome.generated_paths:
+        vertices = [vertex for submesh in mesh.submeshes for vertex in submesh.vertices]
+        mesh.bbox_min, mesh.bbox_max = _bbox(vertices)
+        mesh.total_vertices = sum(len(submesh.vertices) for submesh in mesh.submeshes)
+        mesh.total_faces = sum(len(submesh.faces) for submesh in mesh.submeshes)
+        mesh.has_uvs = any(len(submesh.uvs) == len(submesh.vertices) for submesh in mesh.submeshes)
+    return outcome
+
+
+def import_gltf(
+    path: str | Path,
+    *,
+    include_external_audit: bool = True,
+    tolerate_missing_texture_files: bool = False,
+    stop_event: threading.Event | None = None,
+) -> SceneImportResult:
     from .scene_importer import SceneImportResult
 
     source_path = Path(path).expanduser().resolve()
-    payload = _load_gltf_payload(source_path)
+    raise_if_cancelled(stop_event, "glTF import cancelled before source parsing.")
+    payload = _load_gltf_payload(
+        source_path,
+        tolerate_missing_texture_files=tolerate_missing_texture_files,
+    )
     _validate_gltf_static_payload(payload)
     (
         material_names,
@@ -123,100 +310,18 @@ def import_gltf(path: str | Path, *, include_external_audit: bool = True) -> Sce
         material_flags,
         material_preview_parameters,
     ) = _gltf_material_info(payload)
-    submeshes: list[SubMesh] = []
-    material_bindings: list[ImportedMaterialBinding] = []
-    mesh_instances = _iter_gltf_mesh_instances(payload.document)
-    if not mesh_instances:
-        mesh_instances = [
-            _GltfMeshInstance(index, _identity_matrix(), "")
-            for index, _mesh in enumerate(payload.document.get("meshes", []) or [])
-        ]
-    skin_matrix_cache: dict[tuple[int, int], tuple[tuple[float, ...], ...]] = {}
-    baked_skin_primitive_count = 0
-    for instance in mesh_instances:
-        mesh_index = instance.mesh_index
-        transform = instance.transform
-        node_name = instance.node_name
-        gltf_meshes = payload.document.get("meshes", []) or []
-        if mesh_index < 0 or mesh_index >= len(gltf_meshes):
-            continue
-        mesh_entry = gltf_meshes[mesh_index]
-        mesh_name = str(mesh_entry.get("name", "") or "")
-        for primitive_index, primitive in enumerate(mesh_entry.get("primitives", []) or []):
-            if not isinstance(primitive, dict):
-                continue
-            mode = int(primitive.get("mode", 4) or 4)
-            if mode != 4:
-                payload.diagnostics.append(
-                    f"Skipped glTF primitive {mesh_name or mesh_index}:{primitive_index} because only TRIANGLES mode is supported."
-                )
-                continue
-            attributes = primitive.get("attributes", {})
-            if not isinstance(attributes, dict) or "POSITION" not in attributes:
-                payload.diagnostics.append(
-                    f"Skipped glTF primitive {mesh_name or mesh_index}:{primitive_index} because it has no POSITION attribute."
-                )
-                continue
-            material_index = _safe_int(primitive.get("material"), -1)
-            material_name = (material_names.get(material_index, "") or f"material_{material_index}") if material_index >= 0 else ""
-            texture_path = material_textures.get(material_index, "")
-            submesh = _parse_gltf_primitive(
-                payload,
-                primitive,
-                name=node_name or mesh_name or f"mesh_{mesh_index}_{primitive_index}",
-                material=material_name or node_name or mesh_name or f"mesh_{mesh_index}_{primitive_index}",
-                texture=texture_path,
-                texcoord_index=_gltf_material_texcoord_index(material_texture_slots, material_index),
-            )
-            skin_matrices: tuple[tuple[float, ...], ...] = ()
-            if instance.skin_index >= 0 and instance.node_index >= 0:
-                cache_key = (instance.node_index, instance.skin_index)
-                skin_matrices = skin_matrix_cache.get(cache_key, ())
-                if cache_key not in skin_matrix_cache:
-                    skin_matrices = _gltf_skin_joint_matrices(
-                        payload,
-                        node_index=instance.node_index,
-                        skin_index=instance.skin_index,
-                    )
-                    skin_matrix_cache[cache_key] = skin_matrices
-            if skin_matrices and _bake_gltf_skin_primitive(payload, primitive, submesh, skin_matrices):
-                baked_skin_primitive_count += 1
-            if not submesh.faces:
-                payload.diagnostics.append(
-                    f"Skipped glTF primitive {mesh_name or mesh_index}:{primitive_index} because it produced no triangle faces."
-                )
-                continue
-            copied = _copy_submesh_with_transform(submesh, transform)
-            copied.name = submesh.name
-            copied.material = submesh.material
-            copied.texture = submesh.texture
-            _apply_gltf_preview_material_metadata(
-                copied,
-                material_index,
-                material_colors=material_colors,
-                material_texture_slots=material_texture_slots,
-                material_flags=material_flags,
-                material_preview_parameters=material_preview_parameters,
-            )
-            submeshes.append(copied)
-            slots = tuple(
-                (str(slot_kind), Path(str(slot.path)).expanduser())
-                for slot_kind, slot in sorted(material_texture_slots.get(material_index, {}).items())
-                if isinstance(slot, SceneMaterialTextureSlot) and str(slot.path or "").strip()
-            )
-            flags = material_flags.get(material_index, {})
-            material_bindings.append(
-                ImportedMaterialBinding(
-                    material_index=material_index,
-                    material_name=material_name or copied.material,
-                    submesh_index=len(submeshes) - 1,
-                    submesh_name=copied.name,
-                    texture_slots=slots,
-                    pbr_workflow=str(material_workflows.get(material_index, "") or ""),
-                    alpha_mode=str(flags.get("alpha_mode", "") or ""),
-                    double_sided=bool(flags.get("double_sided", False)),
-                )
-            )
+    material_info = (
+        material_names,
+        material_textures,
+        material_colors,
+        material_texture_slots,
+        material_workflows,
+        material_flags,
+        material_preview_parameters,
+    )
+    submeshes, material_bindings, primitive_uv_records, baked_skin_primitive_count = _collect_gltf_geometry(
+        payload, material_info, stop_event
+    )
     if not submeshes:
         raise ValueError(f"glTF import did not contain supported uncompressed triangle geometry: {source_path}")
     vertices = [vertex for submesh in submeshes for vertex in submesh.vertices]
@@ -231,6 +336,15 @@ def import_gltf(path: str | Path, *, include_external_audit: bool = True) -> Sce
         total_faces=sum(len(submesh.faces) for submesh in submeshes),
         has_uvs=any(submesh.uvs for submesh in submeshes),
         has_bones=False,
+    )
+    general_bake = _apply_general_gltf_bake(
+        mesh,
+        payload,
+        material_info,
+        primitive_uv_records,
+        material_bindings,
+        source_path,
+        stop_event,
     )
     if payload.extracted_embedded_files:
         payload.diagnostics.append(
@@ -252,12 +366,20 @@ def import_gltf(path: str | Path, *, include_external_audit: bool = True) -> Sce
             discovered_texture_files=tuple(_dedupe_paths(payload.discovered_texture_files)),
             extracted_embedded_files=tuple(_dedupe_paths(payload.extracted_embedded_files)),
             material_bindings=tuple(material_bindings),
+            uv_bake_report=build_gltf_uv_bake_report(
+                tuple(payload.material_uv_plans.values()),
+                general_bake.material_reports,
+            ),
         ),
         enabled=include_external_audit,
     )
 
 
-def _load_gltf_payload(source_path: Path) -> _GltfPayload:
+def _load_gltf_payload(
+    source_path: Path,
+    *,
+    tolerate_missing_texture_files: bool = False,
+) -> _GltfPayload:
     diagnostics: list[str] = []
     extracted_embedded_files: list[Path] = []
     discovered_texture_files: list[Path] = []
@@ -301,6 +423,8 @@ def _load_gltf_payload(source_path: Path) -> _GltfPayload:
         diagnostics=diagnostics,
         extracted_embedded_files=extracted_embedded_files,
         discovered_texture_files=discovered_texture_files,
+        tolerate_missing_texture_files=bool(tolerate_missing_texture_files),
+        material_uv_plans={},
     )
 
 
@@ -353,44 +477,27 @@ def _validate_gltf_static_payload(payload: _GltfPayload) -> None:
                 warned_morphs = True
 
 
-def _gltf_texture_info_texcoord(texture_info: object) -> int:
-    if not isinstance(texture_info, Mapping):
-        return 0
-    return max(0, _safe_int(texture_info.get("texCoord"), 0))
-
-
-def _gltf_texture_transform(texture_info: object) -> tuple[float, ...]:
-    if not isinstance(texture_info, Mapping):
-        return ()
-    extensions = texture_info.get("extensions", {})
-    transform = extensions.get("KHR_texture_transform") if isinstance(extensions, Mapping) else None
-    if not isinstance(transform, Mapping):
-        return ()
-    offset = _float_list(transform.get("offset"), 2, (0.0, 0.0))
-    scale = _float_list(transform.get("scale"), 2, (1.0, 1.0))
-    rotation = 0.0
-    try:
-        rotation = float(transform.get("rotation", 0.0) or 0.0)
-    except (TypeError, ValueError, OverflowError):
-        rotation = 0.0
-    return (offset[0], offset[1], scale[0], scale[1], rotation)
-
-
-def _gltf_texture_info_parameters(slot_kind: str, texture_info: object) -> tuple[PreviewMaterialParameterInput, ...]:
+def _gltf_texture_info_parameters(
+    slot_kind: str,
+    texture_info: object,
+    *,
+    normalize_uv: bool = False,
+) -> tuple[PreviewMaterialParameterInput, ...]:
     slot_key = re.sub(r"[^A-Za-z0-9_]+", "_", str(slot_kind or "").strip()) or "texture"
     parameters: list[PreviewMaterialParameterInput] = []
-    texcoord = _gltf_texture_info_texcoord(texture_info)
-    if texcoord > 0:
-        _append_scene_parameter(parameters, _scene_preview_float_parameter(f"_gltfTexCoord_{slot_key}", texcoord))
-    transform = _gltf_texture_transform(texture_info)
-    if transform:
-        parameters.append(
-            PreviewMaterialParameterInput(
-                parameter_kind="string",
-                parameter_name=f"_gltfTextureTransform_{slot_key}",
-                value=",".join(f"{value:.6f}" for value in transform),
+    if not normalize_uv:
+        texcoord = _gltf_texture_info_texcoord(texture_info)
+        if texcoord > 0:
+            _append_scene_parameter(parameters, _scene_preview_float_parameter(f"_gltfTexCoord_{slot_key}", texcoord))
+        transform = _gltf_texture_transform(texture_info)
+        if transform:
+            parameters.append(
+                PreviewMaterialParameterInput(
+                    parameter_kind="string",
+                    parameter_name=f"_gltfTextureTransform_{slot_key}",
+                    value=",".join(f"{value:.6f}" for value in transform),
+                )
             )
-        )
     if isinstance(texture_info, Mapping) and "scale" in texture_info:
         _append_scene_parameter(parameters, _scene_preview_float_parameter(f"_gltfTextureScale_{slot_key}", texture_info.get("scale")))
     if isinstance(texture_info, Mapping) and "strength" in texture_info:
@@ -418,54 +525,62 @@ def _gltf_scene_material_slot(
     *,
     parameter_name: str = "",
     source: str = "gltf",
+    normalize_uv: bool = False,
 ) -> Optional[SceneMaterialTextureSlot]:
     image_path = _gltf_texture_image_path(payload, textures, images, texture_info)
     if image_path is None:
         return None
     suffix = image_path.suffix.lower()
-    if suffix in SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS:
-        payload.diagnostics.append(
-            f"glTF {slot_kind} texture uses {suffix.upper().lstrip('.')} and is recorded as diagnostic-only; "
-            "export PNG/WebP/JPEG/TGA/DDS for preview decoding."
+    if suffix in SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS or suffix not in SCENE_TEXTURE_SOURCE_EXTENSIONS:
+        raise ValueError(
+            f"glTF {slot_kind} texture uses unsupported image format {suffix or '<none>'}. "
+            "Convert it to PNG, JPEG, WebP, TGA, BMP, TIFF, or DDS and export the glTF again."
         )
-        return None
-    if suffix.lower() not in SCENE_TEXTURE_SOURCE_EXTENSIONS:
-        payload.diagnostics.append(
-            f"glTF {slot_kind} texture has unsupported image extension {suffix or '<none>'}; preview skips this slot."
-        )
-        return None
-    texcoord = _gltf_texture_info_texcoord(texture_info)
-    transform = _gltf_texture_transform(texture_info)
-    if texcoord > 0:
-        payload.diagnostics.append(f"glTF {slot_kind} texture requests TEXCOORD_{texcoord}; preview selects that UV set when present.")
-    if transform:
-        offset_u, offset_v, scale_u, scale_v, rotation = transform
-        if abs(offset_u) > 1e-6 or abs(offset_v) > 1e-6 or abs(rotation) > 1e-6:
-            payload.diagnostics.append(
-                f"glTF {slot_kind} texture uses KHR_texture_transform offset/rotation; preview records it but only UV scale is rendered."
-            )
+    source_texcoord = _gltf_texture_info_texcoord(texture_info)
+    if source_texcoord > 0:
+        action = "import reads it before runtime TEXCOORD_0 normalization" if normalize_uv else "preview selects that UV set when present"
+        payload.diagnostics.append(f"glTF {slot_kind} texture requests TEXCOORD_{source_texcoord}; {action}.")
     return _scene_material_slot(
         slot_kind,
         image_path.as_posix(),
         parameter_name=parameter_name,
-        texcoord=texcoord,
-        transform=transform,
+        texcoord=0 if normalize_uv else source_texcoord,
+        transform=() if normalize_uv else _gltf_texture_transform(texture_info),
         source=source,
-        parameters=_gltf_texture_info_parameters(slot_kind, texture_info),
+        parameters=_gltf_texture_info_parameters(slot_kind, texture_info, normalize_uv=normalize_uv),
     )
 
 
-def _gltf_material_info(
+def _record_gltf_material_uv_plan(
     payload: _GltfPayload,
-) -> tuple[
-    dict[int, str],
-    dict[int, str],
-    dict[int, tuple[float, float, float]],
-    dict[int, dict[str, SceneMaterialTextureSlot]],
-    dict[int, str],
-    dict[int, dict[str, object]],
-    dict[int, tuple[PreviewMaterialParameterInput, ...]],
-]:
+    material_index: int,
+    material_name: str,
+    texture_infos: Sequence[tuple[str, str, object, str]],
+) -> GltfMaterialUvPlan:
+    plan = build_gltf_material_uv_plan(
+        payload.document,
+        material_index,
+        material_name,
+        texture_infos,
+    )
+    payload.material_uv_plans[material_index] = plan
+    if plan.requires_raster_bake:
+        payload.diagnostics.append(
+            f"Raster-baking glTF material {plan.material_name} slots into one xatlas TEXCOORD_0 layout."
+        )
+    elif plan.bakes_transform:
+        payload.diagnostics.append(
+            f"Baked glTF material {plan.material_name} shared KHR_texture_transform from "
+            f"TEXCOORD_{plan.source_texcoord} into runtime TEXCOORD_0."
+        )
+    elif plan.slots and plan.source_texcoord > 0:
+        payload.diagnostics.append(
+            f"Normalized glTF material {plan.material_name} TEXCOORD_{plan.source_texcoord} into runtime TEXCOORD_0."
+        )
+    return plan
+
+
+def _gltf_material_info(payload: _GltfPayload) -> _GltfMaterialInfo:
     material_names: dict[int, str] = {}
     material_textures: dict[int, str] = {}
     material_colors: dict[int, tuple[float, float, float]] = {}
@@ -475,6 +590,7 @@ def _gltf_material_info(
     material_preview_parameters: dict[int, tuple[PreviewMaterialParameterInput, ...]] = {}
     textures = payload.document.get("textures", []) or []
     images = payload.document.get("images", []) or []
+    payload.material_uv_plans.clear()
     for material_index, material in enumerate(payload.document.get("materials", []) or []):
         if not isinstance(material, dict):
             continue
@@ -680,7 +796,9 @@ def _gltf_material_info(
                 _append_scene_parameter(preview_parameters, _scene_preview_float_parameter("_iridescenceFactor", iridescence_ext.get("iridescenceFactor", 0.0)))
                 _append_scene_parameter(preview_parameters, _scene_preview_float_parameter("_iridescenceIor", iridescence_ext.get("iridescenceIor", 1.3)))
                 texture_infos.append(("iridescence", "iridescence", iridescence_ext.get("iridescenceTexture"), "_iridescenceTexture"))
-
+        uv_plan = _record_gltf_material_uv_plan(
+            payload, material_index, material_names[material_index], texture_infos
+        )
         for slot_key, slot_kind, texture_info, parameter_name in texture_infos:
             slot = _gltf_scene_material_slot(
                 payload,
@@ -689,6 +807,7 @@ def _gltf_material_info(
                 slot_kind,
                 texture_info,
                 parameter_name=parameter_name,
+                normalize_uv=bool(uv_plan.slots),
             )
             if slot is None:
                 continue
@@ -698,6 +817,12 @@ def _gltf_material_info(
             texture_path = Path(slot.path)
             if texture_path.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS:
                 payload.discovered_texture_files.append(texture_path)
+        missing_slots = sorted({slot.slot_key for slot in uv_plan.slots} - set(material_slots))
+        if missing_slots:
+            raise ValueError(
+                f"glTF material {uv_plan.material_name} failed material-slot resolution for {', '.join(missing_slots)}. "
+                "Re-export every referenced slot with one valid core texture source and decodable image."
+            )
         if material_slots:
             material_texture_slots[material_index] = material_slots
         if preview_parameters:
@@ -766,40 +891,46 @@ def _resolve_gltf_image(payload: _GltfPayload, image: dict[str, Any], image_inde
     uri = str(image.get("uri", "") or "")
     if uri:
         if uri.startswith("data:"):
-            mime_type, data = _decode_data_uri_with_mime(uri)
+            try:
+                mime_type, data = _decode_data_uri_with_mime(uri)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"glTF image {image_index} has an invalid data URI; embed a valid supported image.") from exc
             return _write_embedded_gltf_image(payload, image_index, data, mime_type)
         image_path = _resolve_scene_uri(payload.source_path.parent, uri)
-        return image_path.resolve() if image_path.is_file() else image_path
+        if not image_path.is_file():
+            if payload.tolerate_missing_texture_files:
+                payload.diagnostics.append(
+                    f"glTF image {image_index} is missing at {image_path}; audit retained the unresolved reference."
+                )
+                return image_path.resolve()
+            raise ValueError(
+                f"glTF image {image_index} is missing at {image_path}. Restore that file or embed it, then export again."
+            )
+        _validate_gltf_image_payload(image_path, image_index, image_path.suffix)
+        return image_path.resolve()
     buffer_view_index = _safe_int(image.get("bufferView"), -1)
     if buffer_view_index >= 0:
-        image_bytes = _read_gltf_buffer_view_bytes(payload, buffer_view_index)
+        view = _gltf_buffer_view(payload, buffer_view_index)
+        buffer_index = view.get("buffer")
+        offset, length = view.get("byteOffset", 0), view.get("byteLength")
+        if (
+            isinstance(buffer_index, bool) or not isinstance(buffer_index, int) or not 0 <= buffer_index < len(payload.buffers)
+            or isinstance(offset, bool) or not isinstance(offset, int) or offset < 0
+            or isinstance(length, bool) or not isinstance(length, int) or length <= 0
+            or offset + length > len(payload.buffers[buffer_index])
+        ):
+            raise ValueError(
+                f"glTF image {image_index} has invalid bufferView {buffer_view_index} bounds. "
+                "Embed one complete supported image payload and export again."
+            )
+        image_bytes = payload.buffers[buffer_index][offset : offset + length]
         mime_type = str(image.get("mimeType", "") or "")
         return _write_embedded_gltf_image(payload, image_index, image_bytes, mime_type)
     return None
 
 
 def _write_embedded_gltf_image(payload: _GltfPayload, image_index: int, data: bytes, mime_type: str) -> Path:
-    ext = _GLTF_IMAGE_MIME_EXTENSIONS.get(str(mime_type or "").lower(), "")
-    if not ext:
-        guessed = mimetypes.guess_extension(str(mime_type or "")) or ""
-        ext = guessed if guessed.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS else ".bin"
-    export_dir = _embedded_gltf_extract_dir(payload.source_path)
-    export_dir.mkdir(parents=True, exist_ok=True)
-    path = export_dir / f"image_{image_index}{ext}"
-    if not path.is_file() or path.read_bytes() != data:
-        path.write_bytes(data)
-    payload.extracted_embedded_files.append(path.resolve())
-    return path.resolve()
-
-
-def _embedded_gltf_extract_dir(source_path: Path) -> Path:
-    try:
-        stat = source_path.stat()
-        key = f"{source_path}|{stat.st_mtime_ns}|{stat.st_size}"
-    except OSError:
-        key = str(source_path)
-    digest = hashlib.sha1(key.encode("utf-8", errors="ignore")).hexdigest()[:16]
-    return Path(tempfile.gettempdir()) / "cdmw_gltf_imports" / digest
+    return write_embedded_gltf_image(payload, image_index, data, mime_type, SCENE_TEXTURE_SOURCE_EXTENSIONS)
 
 
 def _iter_gltf_mesh_instances(document: dict[str, Any]) -> list[_GltfMeshInstance]:
@@ -959,17 +1090,21 @@ def _bake_gltf_skin_primitive(
         return False
     vertices = list(submesh.vertices)
     normals = list(submesh.normals)
+    if len(joints) != len(vertices) or len(weights) != len(vertices):
+        raise ValueError("glTF JOINTS_0/WEIGHTS_0 contain invalid skin rows; export one complete skin row per vertex.")
+    for vertex_index, weight_values in enumerate(weights):
+        weight_sum = sum(max(0.0, float(weight)) for weight in weight_values)
+        if not weight_sum > 1e-8:
+            raise ValueError(
+                f"glTF WEIGHTS_0 contains an invalid zero-sum skin row at vertex {vertex_index}; "
+                "export normalized non-zero weights for every skinned vertex."
+            )
     baked_vertices: list[tuple[float, float, float]] = []
     baked_normals: list[tuple[float, float, float]] = []
     for vertex_index, vertex in enumerate(vertices):
-        joint_values = joints[vertex_index] if vertex_index < len(joints) else (0.0, 0.0, 0.0, 0.0)
-        weight_values = weights[vertex_index] if vertex_index < len(weights) else (1.0, 0.0, 0.0, 0.0)
+        joint_values = joints[vertex_index]
+        weight_values = weights[vertex_index]
         weight_sum = sum(max(0.0, float(weight)) for weight in weight_values)
-        if weight_sum <= 1e-8:
-            baked_vertices.append(tuple(float(component) for component in vertex[:3]))
-            if vertex_index < len(normals):
-                baked_normals.append(_normalize_vec(tuple(float(component) for component in normals[vertex_index][:3])))
-            continue
         position_accumulator = [0.0, 0.0, 0.0]
         normal_accumulator = [0.0, 0.0, 0.0]
         has_normal = vertex_index < len(normals)
@@ -1044,166 +1179,6 @@ def _compose_trs_matrix(
         0.0,
         1.0,
     )
-
-
-def _parse_gltf_primitive(
-    payload: _GltfPayload,
-    primitive: dict[str, Any],
-    *,
-    name: str,
-    material: str,
-    texture: str,
-    texcoord_index: int = 0,
-) -> SubMesh:
-    attributes = primitive.get("attributes", {})
-    positions = _read_gltf_accessor(payload, _safe_int(attributes.get("POSITION"), -1), expected_components=3)
-    normals = _read_gltf_accessor(payload, _safe_int(attributes.get("NORMAL"), -1), expected_components=3)
-    texcoord_name = f"TEXCOORD_{max(0, int(texcoord_index or 0))}"
-    texcoord_accessor = _safe_int(attributes.get(texcoord_name), -1)
-    if texcoord_accessor < 0 and texcoord_name != "TEXCOORD_0":
-        payload.diagnostics.append(f"glTF primitive {name} does not provide {texcoord_name}; falling back to TEXCOORD_0.")
-        texcoord_accessor = _safe_int(attributes.get("TEXCOORD_0"), -1)
-    uvs = _read_gltf_accessor(payload, texcoord_accessor, expected_components=2)
-    vertex_colors = _read_gltf_vertex_colors(payload, _safe_int(attributes.get("COLOR_0"), -1))
-    index_accessor = _safe_int(primitive.get("indices"), -1)
-    if index_accessor >= 0:
-        raw_indices = [int(values[0]) for values in _read_gltf_accessor(payload, index_accessor, expected_components=1)]
-    else:
-        raw_indices = list(range(len(positions)))
-    faces = [
-        (raw_indices[index], raw_indices[index + 1], raw_indices[index + 2])
-        for index in range(0, len(raw_indices) - 2, 3)
-        if max(raw_indices[index], raw_indices[index + 1], raw_indices[index + 2]) < len(positions)
-    ]
-    normalized_uvs = [(float(uv[0]), 1.0 - float(uv[1])) for uv in uvs]
-    if len(normalized_uvs) != len(positions):
-        normalized_uvs = [(0.0, 0.0)] * len(positions)
-    if len(normals) != len(positions):
-        normals = _compute_smooth_normals(positions, faces)
-    submesh = SubMesh(
-        name=name,
-        material=material,
-        texture=texture,
-        vertices=[(float(v[0]), float(v[1]), float(v[2])) for v in positions],
-        uvs=normalized_uvs,
-        normals=[(float(n[0]), float(n[1]), float(n[2])) for n in normals],
-        faces=faces,
-        vertex_count=len(positions),
-        face_count=len(faces),
-    )
-    if len(vertex_colors) == len(positions):
-        _attach_gltf_vertex_color_summary(submesh, vertex_colors)
-    return submesh
-
-
-def _read_gltf_vertex_colors(payload: _GltfPayload, accessor_index: int) -> list[tuple[float, float, float, float]]:
-    if accessor_index < 0:
-        return []
-    color_rows = _read_gltf_accessor(payload, accessor_index, expected_components=4)
-    if not color_rows:
-        rgb_rows = _read_gltf_accessor(payload, accessor_index, expected_components=3)
-        color_rows = [tuple(row[:3]) + (1.0,) for row in rgb_rows]
-    output: list[tuple[float, float, float, float]] = []
-    for row in color_rows:
-        if len(row) < 3:
-            continue
-        rgba = tuple(max(0.0, min(1.0, float(value))) for value in (tuple(row[:4]) + (1.0,))[:4])
-        output.append(rgba)  # type: ignore[arg-type]
-    return output
-
-
-def _attach_gltf_vertex_color_summary(
-    submesh: SubMesh,
-    vertex_colors: Sequence[Sequence[float]],
-) -> None:
-    rows = [tuple(float(value) for value in tuple(row or ())[:4]) for row in tuple(vertex_colors or ()) if len(tuple(row or ())) >= 4]
-    if not rows:
-        return
-    count = float(len(rows))
-    mean = tuple(sum(row[index] for row in rows) / count for index in range(4))
-    setattr(submesh, "preview_vertex_color_mean", tuple(round(max(0.0, min(1.0, value)), 4) for value in mean[:3]))
-    setattr(submesh, "preview_vertex_alpha_mean", round(max(0.0, min(1.0, mean[3])), 4))
-    setattr(submesh, "preview_vertex_alpha_min", round(max(0.0, min(1.0, min(row[3] for row in rows))), 4))
-    setattr(submesh, "preview_vertex_color_count", len(rows))
-
-
-def _read_gltf_accessor(payload: _GltfPayload, accessor_index: int, *, expected_components: int) -> list[tuple[float, ...]]:
-    accessors = payload.document.get("accessors", []) or []
-    if accessor_index < 0:
-        return []
-    if accessor_index >= len(accessors) or not isinstance(accessors[accessor_index], dict):
-        raise ValueError(f"glTF accessor index is invalid: {accessor_index}")
-    accessor = accessors[accessor_index]
-    if accessor.get("sparse"):
-        payload.diagnostics.append("glTF sparse accessors are not expanded; affected attributes may import incompletely.")
-    component_type = int(accessor.get("componentType", 0) or 0)
-    type_name = str(accessor.get("type", "SCALAR") or "SCALAR")
-    component_count = _GLTF_TYPE_COUNTS.get(type_name, 1)
-    if expected_components > component_count:
-        return []
-    count = int(accessor.get("count", 0) or 0)
-    buffer_view_index = _safe_int(accessor.get("bufferView"), -1)
-    if buffer_view_index < 0:
-        return [(0.0,) * expected_components for _index in range(count)]
-    view = _gltf_buffer_view(payload, buffer_view_index)
-    fmt, component_size, _signed = _GLTF_COMPONENT_FORMATS.get(component_type, ("", 0, False))
-    if not fmt or component_size <= 0:
-        raise ValueError(f"Unsupported glTF accessor component type: {component_type}")
-    buffer_index = _safe_int(view.get("buffer"), -1)
-    if buffer_index < 0 or buffer_index >= len(payload.buffers):
-        raise ValueError(f"glTF accessor references missing buffer {buffer_index}.")
-    buffer_data = payload.buffers[buffer_index]
-    view_offset = int(view.get("byteOffset", 0) or 0)
-    accessor_offset = int(accessor.get("byteOffset", 0) or 0)
-    byte_stride = int(view.get("byteStride", 0) or 0) or component_size * component_count
-    start = view_offset + accessor_offset
-    normalized = bool(accessor.get("normalized", False))
-    rows: list[tuple[float, ...]] = []
-    unpack = struct.Struct("<" + fmt)
-    for row_index in range(count):
-        row_start = start + row_index * byte_stride
-        values: list[float] = []
-        for component_index in range(component_count):
-            offset = row_start + component_index * component_size
-            if offset + component_size > len(buffer_data):
-                values.append(0.0)
-                continue
-            value = unpack.unpack_from(buffer_data, offset)[0]
-            values.append(float(_normalize_gltf_component(value, component_type)) if normalized else float(value))
-        rows.append(tuple(values[:expected_components]))
-    return rows
-
-
-def _gltf_buffer_view(payload: _GltfPayload, view_index: int) -> dict[str, Any]:
-    views = payload.document.get("bufferViews", []) or []
-    if view_index < 0 or view_index >= len(views) or not isinstance(views[view_index], dict):
-        raise ValueError(f"glTF bufferView index is invalid: {view_index}")
-    return views[view_index]
-
-
-def _read_gltf_buffer_view_bytes(payload: _GltfPayload, view_index: int) -> bytes:
-    view = _gltf_buffer_view(payload, view_index)
-    buffer_index = _safe_int(view.get("buffer"), -1)
-    if buffer_index < 0 or buffer_index >= len(payload.buffers):
-        raise ValueError(f"glTF image references missing buffer {buffer_index}.")
-    offset = int(view.get("byteOffset", 0) or 0)
-    length = int(view.get("byteLength", 0) or 0)
-    return payload.buffers[buffer_index][offset : offset + length]
-
-
-def _normalize_gltf_component(value: object, component_type: int) -> float:
-    number = float(value)
-    if component_type == 5120:
-        return max(number / 127.0, -1.0)
-    if component_type == 5121:
-        return number / 255.0
-    if component_type == 5122:
-        return max(number / 32767.0, -1.0)
-    if component_type == 5123:
-        return number / 65535.0
-    if component_type == 5125:
-        return number / 4294967295.0
-    return number
 
 
 def _decode_data_uri(uri: str) -> bytes:

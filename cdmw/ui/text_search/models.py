@@ -1,5 +1,0 @@
-"""Text Search tab view-model boundary."""
-
-from __future__ import annotations
-
-__all__: list[str] = []

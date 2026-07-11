@@ -28,7 +28,7 @@ from cdmw.constants import (
     MOD_READY_PACKAGE_TITLE,
     MOD_READY_PACKAGE_VERSION,
 )
-from cdmw.core.mod_package import (
+from cdmw.domain.packages.export_policy import (
     MOD_PACKAGE_MANAGER_PROFILE_LABELS,
     MOD_PACKAGE_MANAGER_PROFILES,
     MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY,
@@ -36,7 +36,7 @@ from cdmw.core.mod_package import (
     mod_package_export_options_for_profiles,
     mod_package_profile_uses_manager_metadata,
 )
-from cdmw.core.texture_pipeline.package_export import resolve_default_mod_ready_export_root
+from cdmw.services.texture_workflow_service import resolve_default_mod_ready_export_root
 from cdmw.models import ModPackageInfo
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.shell.help_widgets import make_help_button

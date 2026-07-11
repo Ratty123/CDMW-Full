@@ -11,6 +11,10 @@ from cdmw.ui.archive_browser.static_replacement_dialog_prompt_shell import (
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_setup import (
     create_static_replacement_prompt_setup,
 )
+from cdmw.ui.archive_browser.static_replacement_prompt_preflight import (
+    StaticReplacementPromptPreflightResult,
+    dispatch_static_replacement_prompt_preflight,
+)
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_state_callbacks import (
     create_static_replacement_prompt_state_callbacks,
 )
@@ -54,12 +58,50 @@ def prompt_archive_static_replacement_options(
     ] = None,
     on_accept: Optional[Callable[[StaticMeshReplacementOptions], None]] = None,
     on_cancel: Optional[Callable[[], None]] = None,
+    _prepared_prompt_preflight: StaticReplacementPromptPreflightResult | None = None,
 ) -> None:
     dialog_title = dialog_title or _alignment_builder_window_title_helper()
     alignment_dialog_key = self._modeless_alignment_dialog_key(entry, obj_path, dialog_title)
     if self._activate_modeless_alignment_dialog(alignment_dialog_key):
         self.set_status_message(_alignment_builder_already_open_status_helper())
         return
+    if _prepared_prompt_preflight is None:
+        dispatch_static_replacement_prompt_preflight(
+            self,
+            entry,
+            obj_path,
+            supplemental_files=supplemental_files,
+            scene_import_result=scene_import_result,
+            original_mesh=original_mesh,
+            on_complete=lambda prepared: prompt_archive_static_replacement_options(
+                self,
+                entry,
+                obj_path,
+                supplemental_files=supplemental_files,
+                import_diagnostics=import_diagnostics,
+                scene_import_result=prepared.scene_import_result,
+                source_skeleton=source_skeleton,
+                original_mesh=prepared.original_mesh,
+                preferred_rebuild_material_sidecar=preferred_rebuild_material_sidecar,
+                preferred_complete_source_swap=preferred_complete_source_swap,
+                dialog_title=dialog_title,
+                placement_context_note=placement_context_note,
+                source_texture_evidence=source_texture_evidence,
+                extra_supplemental_specs=extra_supplemental_specs,
+                defer_original_texture_preview=defer_original_texture_preview,
+                runtime_export_target_entry=runtime_export_target_entry,
+                full_import_model_replacement=full_import_model_replacement,
+                embedded_host=embedded_host,
+                continue_build_callback=continue_build_callback,
+                on_accept=on_accept,
+                on_cancel=on_cancel,
+                _prepared_prompt_preflight=prepared,
+            ),
+        )
+        return
+    prompt_preflight = _prepared_prompt_preflight
+    scene_import_result = prompt_preflight.scene_import_result
+    original_mesh = prompt_preflight.original_mesh
     _record_runtime_event = getattr(self, "_record_runtime_event", lambda *_args, **_kwargs: {})
     builtin_context = {
         "any": any,

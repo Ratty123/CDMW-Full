@@ -52,11 +52,11 @@ def test_source_preview_path_keeps_dds_path_for_native_loader() -> None:
 
 def test_accent_glow_preview_intensity_clamps_profile_values() -> None:
     assert accent_glow_preview_intensity(SimpleNamespace(accent_glow_strength=0, accent_glow_intensity_max=8)) == 1.0
-    assert accent_glow_preview_intensity(SimpleNamespace(accent_glow_strength=50, accent_glow_intensity_max=8)) == 4.0
+    assert accent_glow_preview_intensity(SimpleNamespace(accent_glow_strength=50, accent_glow_intensity_max=8)) == 4.5
     assert accent_glow_preview_intensity(SimpleNamespace(accent_glow_strength=1000, accent_glow_intensity_max=100)) == 20.0
     assert accent_glow_preview_intensity(SimpleNamespace(accent_glow_strength="bad")) == 1.0
-    assert accent_glow_preview_enabled(SimpleNamespace(accent_glow_strength=1))
-    assert not accent_glow_preview_enabled(SimpleNamespace(accent_glow_strength=0))
+    assert accent_glow_preview_enabled(SimpleNamespace(emissive_mode="intensity", accent_glow_strength=0))
+    assert not accent_glow_preview_enabled(SimpleNamespace(emissive_mode="disabled", accent_glow_strength=100))
 
 
 def test_material_authority_preview_parameters_clamps_numeric_values() -> None:
@@ -100,7 +100,7 @@ def test_material_authority_preview_native_hints_track_profile_controls() -> Non
         enabled=True,
     )
 
-    assert mesh.preview_texture_brightness > 1.2
+    assert mesh.preview_texture_brightness == 1.1
     hints = mesh.preview_native_material_overrides["native_material_hints"]
     assert hints["roughness"] == 0.25
     assert hints["metalness"] == 0.6
@@ -155,7 +155,7 @@ def test_material_authority_preview_for_model_updates_imported_mesh_without_text
     )
 
     mesh = model.meshes[0]
-    assert mesh.preview_texture_brightness > 1.35
+    assert mesh.preview_texture_brightness == 1.35
     assert mesh.preview_native_material_overrides["native_material_hints"]["roughness"] == 0.2
 
 
@@ -658,7 +658,7 @@ def test_source_role_emissive_preview_clears_and_applies_role_override() -> None
     assert role_input.part_name == "2: Glow"
     assert mesh.preview_sidecar_shader_family == "SkinnedMeshEmissive_Ver2"
     assert mesh.preview_native_material_overrides["_source_role_emissive_preview"] is True
-    assert mesh.preview_native_material_overrides["emissive_intensity"] == 4.0
+    assert mesh.preview_native_material_overrides["emissive_intensity"] == 4.5
     assert mesh.preview_native_material_overrides["emissive_color"] == "#0080FFFF"
 
 

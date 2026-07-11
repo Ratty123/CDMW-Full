@@ -9,9 +9,10 @@ from typing import List, Optional, Sequence, Tuple
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QLabel, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout
 
-from cdmw.core.archive import _strip_archive_model_family_variant_suffix, derive_texture_group_key
-from cdmw.core.material_sidecar_editor import is_material_sidecar_entry
-from cdmw.core.upscale_profiles import normalize_texture_reference_for_sidecar_lookup
+from cdmw.services.archive_workflow_service import _strip_archive_model_family_variant_suffix
+from cdmw.services.texture_workflow_service import derive_texture_group_key
+from cdmw.services.material_sidecar_service import is_material_sidecar_entry
+from cdmw.services.texture_workflow_service import normalize_texture_reference_for_sidecar_lookup
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, RelationConfidence
 
 

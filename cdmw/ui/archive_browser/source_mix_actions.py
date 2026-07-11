@@ -1,7 +1,6 @@
 """Archive source-mix package dialog and helper resolution."""
 from __future__ import annotations
 
-import dataclasses
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from pathlib import Path, PurePosixPath
@@ -23,28 +22,36 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.archive import try_decode_text_like_archive_data
-from cdmw.core.archive_modding import (
+from cdmw.services.preview_workflow_service import try_decode_text_like_archive_data
+from cdmw.domain.archives.mesh_contracts import (
     ArchiveLooseExportResult,
-    ArchivePatchRequest,
     MeshImportSupplementalFileSpec,
-    export_archive_payloads_to_mod_ready_loose,
 )
-from cdmw.core.source_mix import (
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
+from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
+from cdmw.services.texture_workflow_service import (
     SourceMixCandidate,
     SourceMixSelection,
     normalize_source_mix_virtual_path,
     paired_counterpart_virtual_path,
-    scan_loose_folder_source,
-    scan_mod_archive_source,
     source_mix_role_for_virtual_path,
     validate_source_mix_selections,
 )
-from cdmw.core.upscale_profiles import (
+from cdmw.services.texture_workflow_service import (
     normalize_texture_reference_for_sidecar_lookup,
     parse_texture_sidecar_bindings,
 )
 from cdmw.models import ArchiveEntry
+from cdmw.ui.archive_browser.source_mix_task_controller import (
+    source_mix_task_controller_for_guard,
+)
+from cdmw.workers.source_mix_workers import (
+    SourceMixIndexSnapshot,
+    SourceMixScanRequest,
+    SourceMixScanResult,
+    resolve_source_mix_candidate_targets,
+    run_source_mix_scan,
+)
 
 
 class ArchiveSourceMixActionsMixin:
@@ -111,22 +118,13 @@ class ArchiveSourceMixActionsMixin:
         self,
         candidates: Sequence[SourceMixCandidate],
     ) -> Tuple[SourceMixCandidate, ...]:
-        resolved: List[SourceMixCandidate] = []
-        for candidate in candidates:
-            target_entry, match_status, confidence = self._source_mix_candidate_target_from_indexes(candidate)
-            default_action = "replace" if target_entry is not None else "skip"
-            if candidate.conflict_status == "conflict":
-                default_action = "resolve"
-            resolved.append(
-                dataclasses.replace(
-                    candidate,
-                    target_archive_entry=target_entry,
-                    match_status=match_status,
-                    confidence=confidence,
-                    default_action=default_action,
-                )
-            )
-        return tuple(resolved)
+        return resolve_source_mix_candidate_targets(
+            candidates,
+            SourceMixIndexSnapshot.capture(
+                self.archive_entries_by_normalized_path,
+                self.archive_entries_by_basename,
+            ),
+        )
 
     def _source_mix_counterpart_entry(self, entry: ArchiveEntry) -> Optional[ArchiveEntry]:
         counterpart = paired_counterpart_virtual_path(entry.path)
@@ -280,6 +278,7 @@ class ArchiveSourceMixActionsMixin:
         dialog.setWindowTitle("Build Loose Package From Sources")
         dialog.setModal(True)
         dialog.resize(980, 520)
+        source_task_controller = source_mix_task_controller_for_guard(self, dialog)
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
@@ -396,6 +395,28 @@ class ArchiveSourceMixActionsMixin:
                     "The selected source did not contain payloads matching the target virtual path(s).",
                 )
 
+        def _set_source_scan_controls_enabled(enabled: bool) -> None:
+            add_loose_button.setEnabled(enabled)
+            add_mod_archive_button.setEnabled(enabled)
+
+        def _start_source_scan(request: SourceMixScanRequest, *, title: str) -> None:
+            def _completed(result: object) -> None:
+                if not isinstance(result, SourceMixScanResult):
+                    QMessageBox.warning(dialog, title, "Source scan returned an unexpected result.")
+                    return
+                _add_candidates(result.candidates)
+
+            started = source_task_controller.start(
+                request,
+                run_source_mix_scan,
+                status_message=f"Scanning source: {request.source_path.name}...",
+                on_complete=_completed,
+                on_error=lambda message: QMessageBox.warning(dialog, title, message),
+                on_idle=lambda: _set_source_scan_controls_enabled(True),
+            )
+            if started:
+                _set_source_scan_controls_enabled(False)
+
         for target_entry in target_entries:
             normalized = normalize_source_mix_virtual_path(target_entry.path)
             if not normalized:
@@ -430,15 +451,14 @@ class ArchiveSourceMixActionsMixin:
             )
             if not selected_dir:
                 return
-            try:
-                candidates = scan_loose_folder_source(
-                    Path(selected_dir),
-                    target_entries_by_virtual_path=target_entries_by_virtual_path,
-                )
-            except Exception as exc:
-                QMessageBox.warning(dialog, "Add Loose Mod Folder", str(exc))
-                return
-            _add_candidates(candidates)
+            _start_source_scan(
+                SourceMixScanRequest(
+                    source_path=Path(selected_dir),
+                    source_kind="loose",
+                    target_entries=tuple(target_entries_by_virtual_path.items()),
+                ),
+                title="Add Loose Mod Folder",
+            )
 
         def _add_mod_archive_source() -> None:
             selected_path, _selected_filter = QFileDialog.getOpenFileName(
@@ -449,15 +469,14 @@ class ArchiveSourceMixActionsMixin:
             )
             if not selected_path:
                 return
-            try:
-                candidates = scan_mod_archive_source(
-                    Path(selected_path),
-                    target_entries_by_virtual_path=target_entries_by_virtual_path,
-                )
-            except Exception as exc:
-                QMessageBox.warning(dialog, "Add .pamt/.paz Mod", str(exc))
-                return
-            _add_candidates(candidates)
+            _start_source_scan(
+                SourceMixScanRequest(
+                    source_path=Path(selected_path),
+                    source_kind="mod_archive",
+                    target_entries=tuple(target_entries_by_virtual_path.items()),
+                ),
+                title="Add .pamt/.paz Mod",
+            )
 
         add_loose_button.clicked.connect(_add_loose_source)
         add_mod_archive_button.clicked.connect(_add_mod_archive_source)

@@ -6,6 +6,8 @@ from typing import Optional
 
 from PySide6.QtCore import QThread
 
+from cdmw.ui.texture_workflow.editor_history_state import shutdown_texture_editor_history_encoder
+
 
 def _record_texture_worker_lifecycle(target: object, event: str, **fields: object) -> None:
     recorder = getattr(target, "_record_runtime_event", None)
@@ -24,6 +26,9 @@ class TextureEditorWorkerLifecycleMixin:
         )
 
     def request_shutdown(self) -> None:
+        clear_resident_patch = getattr(self, "_clear_resident_texture_patch_state", None)
+        if callable(clear_resident_patch):
+            clear_resident_patch()
         if self._task_worker is not None:
             _record_texture_worker_lifecycle(self, "texture_editor_worker_cancelled", reason="cancelled_by_shutdown", worker="task")
             self._task_worker.stop()
@@ -42,6 +47,7 @@ class TextureEditorWorkerLifecycleMixin:
             except Exception as exc:
                 _record_texture_worker_lifecycle(self, "texture_editor_worker_failed", reason="worker_failed", worker="ui_constraint", error=str(exc))
             self._ui_constraint_thread.quit()
+        shutdown_texture_editor_history_encoder()
         self.flush_settings_save()
 
     def shutdown(self) -> None:

@@ -6,8 +6,8 @@ import math
 import xml.etree.ElementTree as ET
 from typing import Optional, Sequence
 
-from cdmw.core.archive import read_archive_entry_data
-from cdmw.core.xml_text import decode_xml_text_payload, encode_xml_text_like_source
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.domain.xml_text import decode_xml_text_payload, encode_xml_text_like_source
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.attachment_visual_preview import ArchiveAttachmentVisualPreviewMixin
 

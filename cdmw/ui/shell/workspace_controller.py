@@ -12,9 +12,9 @@ from cdmw.constants import (
     DIRECTXTEX_RELEASES_PAGE_URL,
     REALESRGAN_NCNN_RELEASES_PAGE_URL,
 )
-from cdmw.core.archive import clear_directory_contents
-from cdmw.core.chainner import import_model_assets_to_directory, validate_ncnn_model_import_sources
-from cdmw.core.texture_pipeline.workspace import (
+from cdmw.services.archive_extraction_service import clear_directory_contents
+from cdmw.services.texture_workflow_service import import_model_assets_to_directory, validate_ncnn_model_import_sources
+from cdmw.services.texture_workflow_service import (
     common_workspace_root_from_config,
     create_missing_directories_for_config,
     create_workspace_structure,

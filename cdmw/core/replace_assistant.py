@@ -9,18 +9,13 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from cdmw.core.archive import (
-    ArchiveEntry,
+from cdmw.core.archive_media_preview import (
     build_loose_archive_preview_assets,
-    clear_directory_contents,
     ensure_archive_preview_source,
 )
 from cdmw.core.common import raise_if_cancelled, run_process_with_cancellation
-from cdmw.core.mod_package import (
-    normalize_mod_package_payload_path,
-    resolve_mod_package_root,
-    write_mod_package_manifest,
-)
+from cdmw.core.mod_package import normalize_mod_package_payload_path
+from cdmw.core.replace_assistant_package import publish_replace_assistant_packages
 from cdmw.core.texture_pipeline.planning import (
     _build_loose_sidecar_index,
     _collect_loose_sidecar_texts,
@@ -39,8 +34,9 @@ from cdmw.core.upscale_postprocess import (
     apply_post_upscale_color_correction,
     build_source_match_plan_for_path,
 )
-from cdmw.core.upscale_profiles import build_ncnn_retry_tile_candidates, copy_mod_ready_loose_tree
+from cdmw.core.upscale_profiles import build_ncnn_retry_tile_candidates
 from cdmw.models import (
+    ArchiveEntry,
     ArchivePreviewResult,
     MatchedOriginalTexture,
     ModPackageInfo,
@@ -249,7 +245,7 @@ def match_replace_assistant_original(
 
     for candidate in _candidate_relative_keys(resolved_source, archive_index.package_roots, archive_index.original_dds_root):
         local_match = archive_index.local_by_package_relative_path.get(candidate)
-        if local_match is not None:
+        if local_match is not None and local_match != resolved_source:
             loose_relative = _infer_loose_relative_path(local_match, archive_index.original_dds_root)
             package_root = _package_root_from_loose_relative(loose_relative)
             archive_relative_path = _strip_package_prefix(candidate)
@@ -262,7 +258,11 @@ def match_replace_assistant_original(
             archive_relative_path = PurePosixPath(archive_entry.path).as_posix()
             match_reason = f"matched package-prefixed relative path: {candidate}"
             break
-        local_relative_matches = archive_index.local_by_relative_path.get(_strip_package_prefix(candidate), [])
+        local_relative_matches = [
+            path
+            for path in archive_index.local_by_relative_path.get(_strip_package_prefix(candidate), [])
+            if path != resolved_source
+        ]
         if len(local_relative_matches) == 1:
             original_dds_path = local_relative_matches[0]
             loose_relative = _infer_loose_relative_path(original_dds_path, archive_index.original_dds_root)
@@ -284,7 +284,9 @@ def match_replace_assistant_original(
 
     if archive_entry is None and original_dds_path is None:
         for basename in basename_candidates:
-            local_basename_matches = archive_index.local_by_basename.get(basename, [])
+            local_basename_matches = [
+                path for path in archive_index.local_by_basename.get(basename, []) if path != resolved_source
+            ]
             if len(local_basename_matches) == 1:
                 original_dds_path = local_basename_matches[0]
                 loose_relative = _infer_loose_relative_path(original_dds_path, archive_index.original_dds_root)
@@ -317,15 +319,24 @@ def match_replace_assistant_original(
         if archive_index.original_dds_root is not None:
             local_key = f"{package_root}/{archive_relative_path}".lower()
             candidate = archive_index.local_by_package_relative_path.get(local_key)
-            if candidate is not None and candidate.exists():
+            if candidate is not None and candidate != resolved_source and candidate.exists():
                 original_dds_path = candidate
+
+    if archive_entry is None and original_dds_path is None:
+        package_root = ""
+        archive_relative_path = ""
+        match_reason = (
+            f"{match_reason}; Choose Archive Original."
+            if match_reason.startswith("ambiguous")
+            else "Choose Archive Original."
+        )
 
     return MatchedOriginalTexture(
         package_root=package_root,
-        archive_relative_path=archive_relative_path or resolved_source.name,
-        loose_relative_path=Path(package_root) / Path(PurePosixPath(archive_relative_path or resolved_source.name))
+        archive_relative_path=archive_relative_path,
+        loose_relative_path=Path(package_root) / Path(PurePosixPath(archive_relative_path))
         if package_root
-        else Path(PurePosixPath(archive_relative_path or resolved_source.name)),
+        else Path(PurePosixPath(archive_relative_path)),
         original_dds_path=original_dds_path,
         archive_entry=archive_entry,
         match_reason=match_reason,
@@ -641,8 +652,6 @@ def build_replace_assistant_package(
     failed_items = 0
     cancelled = False
     review_items: List[ReplaceAssistantReviewItem] = []
-    final_package_root = resolve_mod_package_root(options.package_output_root, options.package_info)
-
     try:
         raise_if_cancelled(stop_event, "Texture Replacer build cancelled by user.")
         stage_root.mkdir(parents=True, exist_ok=True)
@@ -825,26 +834,17 @@ def build_replace_assistant_package(
         raise_if_cancelled(stop_event, "Texture Replacer build cancelled by user.")
 
         if failed_items == 0 and unresolved_items == 0:
-            if options.overwrite_existing_package_files and final_package_root.exists():
-                clear_directory_contents(final_package_root)
-            final_package_root.mkdir(parents=True, exist_ok=True)
-            copy_mod_ready_loose_tree(
+            published_packages = publish_replace_assistant_packages(
                 stage_root,
-                final_package_root,
-                overwrite=options.overwrite_existing_package_files,
-                dry_run=False,
-                on_log=None,
-            )
-            write_mod_package_manifest(
-                final_package_root,
-                options.package_info,
-                kind="dds_loose_mod",
-                extra_fields={"file_count": built_items},
-                create_no_encrypt_file=options.create_no_encrypt_file,
+                output_parent=options.package_output_root,
+                package_info=options.package_info,
                 export_options=options.export_options,
+                create_no_encrypt_file=options.create_no_encrypt_file,
+                overwrite=options.overwrite_existing_package_files,
+                file_count=built_items,
+                on_log=on_log,
             )
-            if on_log:
-                on_log(f"Replace package written to: {final_package_root}")
+            final_package_root, final_payload_root = published_packages[0]
             return ReplaceAssistantBuildSummary(
                 total_items=total_items,
                 built_items=built_items,
@@ -857,7 +857,7 @@ def build_replace_assistant_package(
                     ReplaceAssistantReviewItem(
                         source_path=item.source_path,
                         relative_path=item.relative_path,
-                        output_dds_path=final_package_root / Path(
+                        output_dds_path=final_payload_root / Path(
                             normalize_mod_package_payload_path(item.output_dds_path.relative_to(stage_root)).as_posix()
                         ),
                         original_dds_path=item.original_dds_path,

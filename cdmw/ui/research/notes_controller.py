@@ -4,7 +4,11 @@ from typing import Optional
 
 from PySide6.QtWidgets import QTreeWidgetItem
 
-from cdmw.core.research import delete_research_note, save_research_notes, upsert_research_note
+from cdmw.domain.research.notes import (
+    delete_research_note,
+    upsert_research_note,
+)
+from cdmw.services.research_service import research_service
 from cdmw.ui.research.models import build_note_item, item_payload
 from cdmw.ui.research.notes_state import (
     research_note_delete_success_status_text,
@@ -45,7 +49,7 @@ def _save_note(self) -> None:
             tags_text=self.notes_tags_edit.text(),
             note_text=self.notes_edit.toPlainText(),
         )
-        save_research_notes(self.notes_path, self.notes)
+        research_service.notes.save(self.notes_path, self.notes)
         self._populate_notes_tree()
         self.status_message_requested.emit(research_note_save_success_status_text(), False)
     except Exception as exc:
@@ -53,7 +57,7 @@ def _save_note(self) -> None:
 
 def _delete_note(self) -> None:
     delete_research_note(self.notes, self.notes_target_edit.text())
-    save_research_notes(self.notes_path, self.notes)
+    research_service.notes.save(self.notes_path, self.notes)
     self._populate_notes_tree()
     self.notes_tags_edit.clear()
     self.notes_edit.clear()

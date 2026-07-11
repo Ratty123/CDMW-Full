@@ -8,9 +8,11 @@ from typing import Dict, Iterable, Optional, Tuple
 
 import numpy as np
 
-from cdmw.core.texture_editor import (
+from cdmw.domain.textures.editor_layers import (
     add_texture_editor_layer,
     bump_texture_editor_layer_revision,
+)
+from cdmw.domain.textures.editor_selection import (
     copy_texture_editor_layer_channel,
     extract_texture_editor_layer_channel_to_rgba,
     load_texture_editor_layer_channel_as_selection,

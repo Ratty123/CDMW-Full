@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
+import threading
 import unittest
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from PySide6.QtCore import Qt
 
@@ -17,8 +21,9 @@ from cdmw.core.material_sidecar_editor import (
     discover_material_sidecar_values,
     export_material_sidecar_mod_package,
 )
+from cdmw.core.mod_package import ModPackageExportOptions
 from cdmw.core.upscale_profiles import parse_material_sidecar_profile, parse_texture_sidecar_bindings
-from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, ModPackageInfo
+from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, ModPackageInfo, RunCancelled
 from cdmw.ui.archive_browser.material_sidecar_editor_helpers import (
     material_sidecar_action_button_labels,
     material_sidecar_edit_failed_dialog_title,
@@ -463,6 +468,137 @@ class MaterialSidecarEditorTests(unittest.TestCase):
             self.assertIn("character/texture/cd_phm_00_cloak_00_0340_op.dds", files)
             self.assertIn("Edited material sidecar", files["character/modelproperty/cd_phm_00_cloak_00_0340.pac_xml"]["note"])
             self.assertTrue((result.package_root / "material_sidecar_edits.json").exists())
+            self.assertTrue(all(path.is_file() and result.package_root in path.parents for path in result.written_files))
+            self.assertTrue(all(path.is_file() and result.package_root in path.parents for path in result.metadata_files))
+
+    def test_cancelled_export_preserves_existing_package_and_cleans_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            package_root = root / "Material Edit"
+            package_root.mkdir()
+            (package_root / "old.txt").write_text("old package", encoding="utf-8")
+            package_zip = package_root.with_suffix(".zip")
+            package_zip.write_bytes(b"old zip")
+            sidecar = entry("character/modelproperty/test.pac_xml", root)
+            related = entry("character/texture/test.dds", root)
+            stop_event = threading.Event()
+
+            def cancel_after_read(_entry: ArchiveEntry) -> bytes:
+                stop_event.set()
+                return b"new related payload"
+
+            with self.assertRaises(RunCancelled):
+                export_material_sidecar_mod_package(
+                    edited_entry=sidecar,
+                    edited_text="<edited />",
+                    related_entries=(related,),
+                    parent_root=root,
+                    package_info=ModPackageInfo(title="Material Edit"),
+                    read_entry_bytes=cancel_after_read,
+                    stop_event=stop_event,
+                )
+
+            self.assertEqual("old package", (package_root / "old.txt").read_text(encoding="utf-8"))
+            self.assertEqual(b"old zip", package_zip.read_bytes())
+            self.assertFalse(any(path.name.startswith(".Material Edit.") for path in root.iterdir()))
+
+    def test_interrupted_write_preserves_existing_package(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            package_root = root / "Material Edit"
+            package_root.mkdir()
+            (package_root / "old.txt").write_text("old package", encoding="utf-8")
+            sidecar = entry("character/modelproperty/test.pac_xml", root)
+            related = entry("character/texture/test.dds", root)
+
+            with self.assertRaisesRegex(OSError, "read interrupted"):
+                export_material_sidecar_mod_package(
+                    edited_entry=sidecar,
+                    edited_text="<edited />",
+                    related_entries=(related,),
+                    parent_root=root,
+                    package_info=ModPackageInfo(title="Material Edit"),
+                    read_entry_bytes=lambda _entry: (_ for _ in ()).throw(OSError("read interrupted")),
+                )
+
+            self.assertEqual("old package", (package_root / "old.txt").read_text(encoding="utf-8"))
+            self.assertFalse((package_root / "character").exists())
+            self.assertFalse(any(path.name.startswith(".Material Edit.") for path in root.iterdir()))
+
+    def test_zip_publish_failure_rolls_back_package_and_zip(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            package_root = root / "Material Edit"
+            package_root.mkdir()
+            (package_root / "old.txt").write_text("old package", encoding="utf-8")
+            package_zip = package_root.with_suffix(".zip")
+            package_zip.write_bytes(b"old zip")
+            sidecar = entry("character/modelproperty/test.pac_xml", root)
+            real_replace = os.replace
+
+            def fail_staged_zip(source: object, target: object) -> None:
+                if Path(source).name == "package.zip" and Path(target) == package_zip:
+                    raise OSError("zip publish interrupted")
+                real_replace(source, target)
+
+            with patch("cdmw.core.material_sidecar_package.os.replace", side_effect=fail_staged_zip):
+                with self.assertRaisesRegex(OSError, "zip publish interrupted"):
+                    export_material_sidecar_mod_package(
+                        edited_entry=sidecar,
+                        edited_text="<edited />",
+                        related_entries=(),
+                        parent_root=root,
+                        package_info=ModPackageInfo(title="Material Edit"),
+                        export_options=ModPackageExportOptions(create_zip=True),
+                        read_entry_bytes=lambda _entry: b"",
+                    )
+
+            self.assertEqual("old package", (package_root / "old.txt").read_text(encoding="utf-8"))
+            self.assertEqual(b"old zip", package_zip.read_bytes())
+            self.assertFalse(any(path.name.startswith(".Material Edit.") for path in root.iterdir()))
+
+    def test_successful_fresh_publish_removes_stale_package_files_and_zip(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            package_root = root / "Material Edit"
+            package_root.mkdir()
+            (package_root / "stale.txt").write_text("stale", encoding="utf-8")
+            package_root.with_suffix(".zip").write_bytes(b"stale zip")
+            sidecar = entry("character/modelproperty/test.pac_xml", root)
+
+            result = export_material_sidecar_mod_package(
+                edited_entry=sidecar,
+                edited_text="<edited />",
+                related_entries=(),
+                parent_root=root,
+                package_info=ModPackageInfo(title="Material Edit"),
+                read_entry_bytes=lambda _entry: b"",
+            )
+
+            self.assertEqual(package_root, result.package_root)
+            self.assertFalse((package_root / "stale.txt").exists())
+            self.assertFalse(package_root.with_suffix(".zip").exists())
+            self.assertTrue((package_root / "character" / "modelproperty" / "test.pac_xml").exists())
+
+    def test_cancellable_zip_export_publishes_readable_zip(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            sidecar = entry("character/modelproperty/test.pac_xml", root)
+
+            result = export_material_sidecar_mod_package(
+                edited_entry=sidecar,
+                edited_text="<edited />",
+                related_entries=(),
+                parent_root=root,
+                package_info=ModPackageInfo(title="Material Edit"),
+                export_options=ModPackageExportOptions(create_zip=True),
+                read_entry_bytes=lambda _entry: b"",
+                stop_event=threading.Event(),
+            )
+
+            with zipfile.ZipFile(result.package_root.with_suffix(".zip")) as archive:
+                self.assertIn("character/modelproperty/test.pac_xml", archive.namelist())
+                self.assertEqual(b"<edited />", archive.read("character/modelproperty/test.pac_xml"))
 
 
 class MaterialSidecarEditorHelperTests(unittest.TestCase):

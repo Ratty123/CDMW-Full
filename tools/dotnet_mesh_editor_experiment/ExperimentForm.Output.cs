@@ -18,7 +18,7 @@ internal sealed partial class ExperimentForm
 
     private void SaveAndReport()
     {
-        SaveOutput(_options, _document, _editedSubmeshes, _viewport.Metrics);
+        SaveOutput(_options, _document, _editedSubmeshes, _viewport.Metrics, RendererStatusWithLifecycle());
         _saved = true;
         _statusLabel.Text = $"Saved edited package: {_options.OutputDir}";
     }
@@ -27,7 +27,8 @@ internal sealed partial class ExperimentForm
         LaunchOptions options,
         ObjDocument document,
         IEnumerable<int> editedSubmeshIndices,
-        RenderMetrics metrics)
+        RenderMetrics metrics,
+        Dictionary<string, object?>? rendererStatus = null)
     {
         Directory.CreateDirectory(options.OutputDir);
         var outputObj = Path.Combine(options.OutputDir, "mesh.obj");
@@ -43,7 +44,8 @@ internal sealed partial class ExperimentForm
             "saved",
             "Mesh .NET editor experiment saved edited package.",
             metrics,
-            outputObj);
+            outputObj,
+            rendererStatus);
     }
 
     public static void WriteStatus(

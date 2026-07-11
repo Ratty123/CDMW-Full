@@ -1,8 +1,7 @@
 """Archive in-game mesh swap scope dialog."""
 from __future__ import annotations
 
-import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from pathlib import PurePosixPath
 from typing import Dict, List, Optional
 
@@ -21,16 +20,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.archive import read_archive_entry_data, try_decode_text_like_archive_data
-from cdmw.core.archive_relationships import (
+from cdmw.domain.archives.relationships import (
     ARCHIVE_REL_INCLUDE_RECOMMENDED,
     ARCHIVE_REL_INCLUDE_REQUIRED,
-    SWAP_SCOPE_BODY_HEAD,
-    ArchiveRelationEdge,
-    build_character_swap_plan,
 )
 from cdmw.domain.mesh.session import InGameMeshSwapScopeSelection
 from cdmw.models import ArchiveEntry
+from cdmw.ui.archive_browser.mesh_swap_scope_preflight import ArchiveMeshSwapScopePreflightResult
 
 
 class ArchiveMeshSwapScopeDialogMixin:
@@ -38,119 +34,18 @@ class ArchiveMeshSwapScopeDialogMixin:
         self,
         target_entry: ArchiveEntry,
         source_entry: ArchiveEntry,
+        *,
+        prepared_scope: ArchiveMeshSwapScopePreflightResult,
     ) -> Optional[InGameMeshSwapScopeSelection]:
-        source_related_entries_by_key: Dict[str, ArchiveEntry] = {}
-        relationship_edges_by_key: Dict[str, ArchiveRelationEdge] = {}
-        unresolved_relationship_edges: List[ArchiveRelationEdge] = []
-        allow_character_scope = self._archive_entries_allow_character_swap_scope(target_entry, source_entry)
-        item_family_scope = bool(
-            not allow_character_scope
-            and (
-                self._archive_entry_is_equipment_model_for_swap(target_entry)
-                or self._archive_entry_is_equipment_model_for_swap(source_entry)
-            )
-        )
-
-        def _weapon_folder_segment(entry: ArchiveEntry) -> str:
-            parts = list(PurePosixPath(str(entry.path or "").replace("\\", "/")).parts)
-            lowered = [part.lower() for part in parts]
-            try:
-                weapon_index = lowered.index("weapon")
-                return parts[weapon_index + 1].lower()
-            except (ValueError, IndexError):
-                return ""
-
-        target_weapon_folder = _weapon_folder_segment(target_entry)
-        source_weapon_folder = _weapon_folder_segment(source_entry)
-        same_weapon_folder = bool(target_weapon_folder and source_weapon_folder and target_weapon_folder == source_weapon_folder)
-        if allow_character_scope:
-            try:
-                character_relationship_plan = build_character_swap_plan(
-                    target_entry,
-                    source_entry,
-                    self.archive_entries,
-                    swap_scope=SWAP_SCOPE_BODY_HEAD,
-                )
-            except Exception:
-                character_relationship_plan = None
-        else:
-            character_relationship_plan = None
-
-        def _add_related_entry(entry: ArchiveEntry) -> None:
-            key = self._archive_entry_identity_key(entry)
-            if key and key not in source_related_entries_by_key:
-                source_related_entries_by_key[key] = entry
-
-        def _add_relationship_edge(edge: ArchiveRelationEdge) -> None:
-            if edge.unresolved:
-                unresolved_relationship_edges.append(edge)
-                return
-            entry = edge.related_entry
-            if not isinstance(entry, ArchiveEntry):
-                return
-            key = self._archive_entry_identity_key(entry)
-            if not key:
-                return
-            _add_related_entry(entry)
-            current = relationship_edges_by_key.get(key)
-            current_rank = 0
-            if current is not None:
-                current_rank = 3 if current.include_policy == ARCHIVE_REL_INCLUDE_REQUIRED else 2 if current.include_policy == ARCHIVE_REL_INCLUDE_RECOMMENDED else 1
-            rank = 3 if edge.include_policy == ARCHIVE_REL_INCLUDE_REQUIRED else 2 if edge.include_policy == ARCHIVE_REL_INCLUDE_RECOMMENDED else 1
-            if current is None or rank > current_rank:
-                relationship_edges_by_key[key] = edge
-
-        for related_entry in self._archive_model_related_entries_for_swap(source_entry):
-            _add_related_entry(related_entry)
-        if allow_character_scope:
-            for edge in tuple(getattr(character_relationship_plan, "edges", ()) or ()):
-                _add_relationship_edge(edge)
-            for related_entry in self._archive_character_app_graph_entries_for_swap(source_entry):
-                _add_related_entry(related_entry)
-            for texture_entry in self._archive_character_app_graph_texture_entries_for_swap(source_entry):
-                _add_related_entry(texture_entry)
-        for texture_entry in self._archive_model_source_texture_entries_for_swap(source_entry):
-            _add_related_entry(texture_entry)
-        source_related_entries = list(source_related_entries_by_key.values())
-        source_sidecar_entries_for_contract = tuple(self._archive_model_sidecar_entries_for_swap(source_entry))
-        target_sidecar_entries_for_contract = tuple(self._archive_model_sidecar_entries_for_swap(target_entry))
-        source_sidecar_paths = {entry.path for entry in source_sidecar_entries_for_contract}
-        source_appearance_paths = (
-            {entry.path for entry in self._archive_character_appearance_entries_for_swap(source_entry)}
-            if allow_character_scope
-            else set()
-        )
-        for related_entry in source_related_entries:
-            if self._archive_entry_is_material_sidecar(related_entry):
-                source_sidecar_paths.add(related_entry.path)
-            if self._archive_entry_is_appearance_descriptor(related_entry):
-                source_appearance_paths.add(related_entry.path)
-        if item_family_scope:
-            source_stem = PurePosixPath(source_entry.path.replace("\\", "/")).stem.lower()
-
-            def _is_item_family_related_entry(entry: ArchiveEntry) -> bool:
-                normalized_path = entry.path.replace("\\", "/").strip().lower()
-                basename = PurePosixPath(normalized_path).name.lower()
-                extension = str(entry.extension or "").strip().lower()
-                if extension == ".dds":
-                    return True
-                if self._archive_entry_is_material_sidecar(entry) and entry.path in source_sidecar_paths:
-                    return True
-                if source_stem and source_stem in basename:
-                    return True
-                return False
-
-            source_related_entries = [
-                entry
-                for entry in source_related_entries
-                if _is_item_family_related_entry(entry)
-            ]
-        source_related_entries.sort(
-            key=lambda entry: (
-                self._archive_entry_swap_companion_group(entry),
-                entry.path.replace("\\", "/").casefold(),
-            )
-        )
+        allow_character_scope = prepared_scope.allow_character_scope
+        item_family_scope = prepared_scope.item_family_scope
+        same_weapon_folder = prepared_scope.same_weapon_folder
+        character_relationship_plan = prepared_scope.character_relationship_plan
+        relationship_edges_by_key = dict(prepared_scope.relationship_edges)
+        unresolved_relationship_edges = list(prepared_scope.unresolved_relationship_edges)
+        source_related_entries = list(prepared_scope.source_related_entries)
+        source_sidecar_paths = set(prepared_scope.source_sidecar_paths)
+        source_appearance_paths = set(prepared_scope.source_appearance_paths)
 
         def _is_source_item_meshphysics(entry: ArchiveEntry) -> bool:
             normalized_path = entry.path.replace("\\", "/").strip().lower()
@@ -166,58 +61,11 @@ class ArchiveMeshSwapScopeDialogMixin:
         def _is_source_physics_companion(entry: ArchiveEntry) -> bool:
             return str(entry.extension or "").strip().lower() in {".hkx", ".hkt"}
 
-        def _material_contract_stats(entries: Sequence[ArchiveEntry]) -> Dict[str, object]:
-            wrapper_count = 0
-            pbd_names: List[str] = []
-            pbd_hits = 0
-            for sidecar_entry in entries:
-                try:
-                    sidecar_data, _decompressed, _note = read_archive_entry_data(sidecar_entry)
-                    sidecar_text = try_decode_text_like_archive_data(sidecar_data) or sidecar_data.decode(
-                        "utf-8",
-                        errors="replace",
-                    )
-                except Exception:
-                    continue
-                wrapper_count += len(
-                    re.findall(r"<\s*SkinnedMeshMaterialWrapper\b", sidecar_text, flags=re.IGNORECASE)
-                )
-                pbd_names.extend(
-                    value.strip()
-                    for value in re.findall(
-                        r"_pbdSimulationMaterialName\s*=\s*\"([^\"]+)\"",
-                        sidecar_text,
-                        flags=re.IGNORECASE,
-                    )
-                    if value.strip()
-                )
-                pbd_hits += len(
-                    re.findall(
-                        r"_pbdSimulationMaterialName|<\s*OverridedPbdMaterialProperty\b|\bpbd\b",
-                        sidecar_text,
-                        flags=re.IGNORECASE,
-                    )
-                )
-            unique_pbd_names = tuple(dict.fromkeys(pbd_names))
-            return {
-                "wrappers": wrapper_count,
-                "pbd_hits": pbd_hits,
-                "pbd_names": unique_pbd_names,
-            }
-
-        source_contract_stats = _material_contract_stats(source_sidecar_entries_for_contract)
-        target_contract_stats = _material_contract_stats(target_sidecar_entries_for_contract)
-        source_wrapper_count = int(source_contract_stats.get("wrappers") or 0)
-        target_wrapper_count = int(target_contract_stats.get("wrappers") or 0)
-        source_has_pbd_contract = int(source_contract_stats.get("pbd_hits") or 0) > 0
-        source_has_larger_material_contract = bool(
-            source_wrapper_count > 0
-            and target_wrapper_count > 0
-            and source_wrapper_count > target_wrapper_count
-        )
-        preserve_source_contract_default = bool(
-            item_family_scope and (source_has_pbd_contract or source_has_larger_material_contract)
-        )
+        source_wrapper_count = prepared_scope.source_wrapper_count
+        target_wrapper_count = prepared_scope.target_wrapper_count
+        source_has_pbd_contract = prepared_scope.source_has_pbd_contract
+        source_has_larger_material_contract = prepared_scope.source_has_larger_material_contract
+        preserve_source_contract_default = prepared_scope.preserve_source_contract_default
         complete_swap_scope_default = True
 
         dialog = QDialog(self)
@@ -235,7 +83,7 @@ class ArchiveMeshSwapScopeDialogMixin:
         layout.addWidget(intro)
 
         if preserve_source_contract_default:
-            pbd_names = tuple(source_contract_stats.get("pbd_names") or ())
+            pbd_names = prepared_scope.source_pbd_names
             contract_reason_parts: List[str] = []
             if source_has_pbd_contract:
                 pbd_preview = ", ".join(str(name) for name in pbd_names[:3]) if pbd_names else "PBD/cloth metadata"

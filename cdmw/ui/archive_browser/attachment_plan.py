@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
+from types import MappingProxyType
 from typing import Callable, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.domain.mesh.session import PlacementWorkspacePreparation
-from cdmw.core.archive import (
+from cdmw.services.archive_query_service import (
     build_archive_asset_family_graph,
     build_archive_item_icon_references_from_catalog,
     build_archive_relationship_references,
@@ -14,9 +15,20 @@ from cdmw.core.archive import (
 )
 from cdmw.models import (
     ArchiveEntry,
+    ArchiveEntryIdentity,
     ArchiveModelTextureReference,
     AssetFamilyGraph,
     ModPackageInfo,
+)
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.workers.attachment_io_workers import (
+    ATTACHMENT_PAYLOAD_MAX_BYTES,
+    AttachmentPayloadReadRequest,
+    run_attachment_payload_read,
+)
+from cdmw.workers.attachment_loose_workers import (
+    AttachmentLoosePreflightRequest,
+    prepare_attachment_loose_targets,
 )
 
 
@@ -81,20 +93,38 @@ class ArchiveAttachmentPlanMixin:
             return False
         if donor_entry is not None and not isinstance(donor_entry, ArchiveEntry):
             donor_entry = None
-        if self._background_task_active():
+        request_id = int(getattr(self, "_attachment_placement_prepare_request_id", 0) or 0) + 1
+        self._attachment_placement_prepare_request_id = request_id
+        active_attachment_worker = getattr(self, "_attachment_placement_prepare_worker", None)
+        queue_latest = bool(
+            self._background_task_active()
+            and active_attachment_worker is not None
+            and active_attachment_worker is getattr(self, "utility_worker", None)
+        )
+        if self._background_task_active() and not queue_latest:
             self.set_status_message(
                 "Another background task is still running. Wait for it to finish before preparing placement.",
                 error=True,
             )
             return False
+        if queue_latest:
+            stop = getattr(active_attachment_worker, "stop", None)
+            if callable(stop):
+                stop()
 
         path_index_snapshot = self.archive_entries_by_normalized_path
         basename_index_snapshot = self.archive_entries_by_basename
         item_catalog_snapshot = tuple(getattr(self, "archive_item_asset_catalog", ()) or ())
+        output_root_widget = getattr(self, "output_root_edit", None)
+        output_root_text = output_root_widget.text().strip() if output_root_widget is not None else ""
+        raw_extract_widget = getattr(self, "archive_extract_root_edit", None)
+        raw_extract_root_text = raw_extract_widget.text().strip() if raw_extract_widget is not None else ""
+        current_preview = getattr(self, "current_archive_preview_result", None)
+        preview_loose_file_path = str(getattr(current_preview, "loose_file_path", "") or "").strip()
         build_graph = self._build_archive_asset_family_graph_from_snapshots
         donor_snapshot = donor_entry
 
-        def _task(log: Callable[[str], None]) -> PlacementWorkspacePreparation:
+        def _task(log: Callable[[str], None], stop_event: object) -> PlacementWorkspacePreparation:
             log(f"Resolving target placement family: {target_entry.path}")
             target_graph, target_references = build_graph(
                 target_entry,
@@ -112,37 +142,224 @@ class ArchiveAttachmentPlanMixin:
                     archive_entries_by_basename=basename_index_snapshot,
                     archive_item_asset_catalog=item_catalog_snapshot,
                 )
+            target_subclass_tokens = tuple(
+                sorted(
+                    self._attachment_package_weapon_subclass_tokens(
+                        target_entry,
+                        target_graph,
+                        allow_archive_reads=True,
+                        stop_event=stop_event,
+                    )
+                )
+            )
+            donor_subclass_tokens = (
+                tuple(
+                    sorted(
+                        self._attachment_package_weapon_subclass_tokens(
+                            donor_snapshot,
+                            donor_graph,
+                            allow_archive_reads=True,
+                            stop_event=stop_event,
+                        )
+                    )
+                )
+                if isinstance(donor_snapshot, ArchiveEntry) and isinstance(donor_graph, AssetFamilyGraph)
+                else ()
+            )
+            target_socket_entry = self._attachment_socket_entry_from_selection(target_graph)
+            target_socket_document = (
+                self._attachment_visual_socket_document_from_path(
+                    target_socket_entry.path,
+                    preferred_entry=target_socket_entry,
+                    stop_event=stop_event,
+                )
+                if isinstance(target_socket_entry, ArchiveEntry)
+                else None
+            )
+            donor_socket_entry = (
+                self._attachment_socket_entry_from_selection(donor_graph)
+                if isinstance(donor_graph, AssetFamilyGraph)
+                else None
+            )
+            donor_socket_document = (
+                self._attachment_visual_socket_document_from_path(
+                    donor_socket_entry.path,
+                    preferred_entry=donor_socket_entry,
+                    stop_event=stop_event,
+                )
+                if isinstance(donor_socket_entry, ArchiveEntry)
+                else None
+            )
+            character_socket_entry = next(
+                (
+                    candidate
+                    for basename in ("phm_01.pab.sockets.xml", "identityskeleton.pab.sockets.xml")
+                    for candidate in tuple(basename_index_snapshot.get(basename, ()) or ())
+                    if isinstance(candidate, ArchiveEntry)
+                ),
+                None,
+            )
+            character_socket_document = (
+                self._attachment_visual_socket_document_from_path(
+                    character_socket_entry.path,
+                    preferred_entry=character_socket_entry,
+                    stop_event=stop_event,
+                )
+                if isinstance(character_socket_entry, ArchiveEntry)
+                else None
+            )
+            payload_entries: List[ArchiveEntry] = []
+            seen_payloads: set[ArchiveEntryIdentity] = set()
+
+            def add_payload_entry(candidate: object) -> None:
+                if not isinstance(candidate, ArchiveEntry):
+                    return
+                if str(candidate.extension or "").casefold() not in {
+                    ".xml",
+                    ".prefab",
+                    ".pac_xml",
+                    ".pam_xml",
+                    ".pamlod_xml",
+                }:
+                    return
+                if candidate.identity in seen_payloads:
+                    return
+                seen_payloads.add(candidate.identity)
+                payload_entries.append(candidate)
+
+            for candidate in self._attachment_package_graph_entries(target_entry, target_graph):
+                add_payload_entry(candidate)
+            if isinstance(donor_snapshot, ArchiveEntry) and isinstance(donor_graph, AssetFamilyGraph):
+                for candidate in self._attachment_package_graph_entries(donor_snapshot, donor_graph):
+                    add_payload_entry(candidate)
+            for basename in (
+                "phm_description_player_kliff.xml",
+                "phm_01.pab.sockets.xml",
+                "identityskeleton.pab.sockets.xml",
+            ):
+                for candidate in tuple(basename_index_snapshot.get(basename, ()) or ()):
+                    add_payload_entry(candidate)
+
+            archive_payloads: List[Tuple[ArchiveEntryIdentity, bytes]] = []
+            remaining_payload_bytes = 128 * 1024 * 1024
+            for candidate in payload_entries:
+                raise_if_cancelled(stop_event, "Attachment placement preparation cancelled.")
+                if remaining_payload_bytes <= 0:
+                    break
+                try:
+                    payload = run_attachment_payload_read(
+                        AttachmentPayloadReadRequest(
+                            archive_entry=candidate,
+                            max_bytes=min(ATTACHMENT_PAYLOAD_MAX_BYTES, remaining_payload_bytes),
+                        ),
+                        stop_event=stop_event,
+                    ).data
+                except Exception:
+                    raise_if_cancelled(stop_event, "Attachment placement preparation cancelled.")
+                    continue
+                archive_payloads.append((candidate.identity, payload))
+                remaining_payload_bytes -= len(payload)
+            raise_if_cancelled(stop_event, "Attachment placement preparation cancelled.")
+            target_model = self._attachment_visual_model_entry(target_entry, target_graph)
+            material_sidecar = self._attachment_package_material_sidecar_for_model(
+                target_entry,
+                target_graph,
+                target_model,
+            )
+            icon_entries = tuple(self._attachment_package_item_icon_entries(target_entry, target_graph))
+            support_entries = tuple(self._attachment_package_target_support_entries(target_entry, target_graph))
+            loose_result = prepare_attachment_loose_targets(
+                AttachmentLoosePreflightRequest(
+                    request_id=request_id,
+                    target_entry=target_entry,
+                    output_root_paths=(output_root_text,) if output_root_text else (),
+                    raw_extract_root_path=raw_extract_root_text,
+                    preview_loose_file_path=preview_loose_file_path,
+                    material_sidecar_paths=(material_sidecar.path,) if isinstance(material_sidecar, ArchiveEntry) else (),
+                    item_icon_paths=tuple(entry.path for entry in icon_entries),
+                    support_paths=tuple((action, entry.path) for action, entry, _note in support_entries),
+                    archive_entries_by_normalized_path=(
+                        MappingProxyType(path_index_snapshot)
+                        if isinstance(path_index_snapshot, dict)
+                        else path_index_snapshot
+                    ),
+                ),
+                stop_event=stop_event,
+            )
             return PlacementWorkspacePreparation(
+                request_id=request_id,
                 target_entry=target_entry,
                 donor_entry=donor_snapshot,
                 target_graph=target_graph,
                 target_references=target_references,
                 donor_graph=donor_graph,
                 donor_references=donor_references,
+                target_subclass_tokens=target_subclass_tokens,
+                donor_subclass_tokens=donor_subclass_tokens,
+                target_socket_document=target_socket_document,
+                donor_socket_document=donor_socket_document,
+                character_socket_document=character_socket_document,
+                archive_payloads=tuple(archive_payloads),
+                target_loose_roots=loose_result.roots,
             )
 
         def _complete(result: object) -> None:
             if not isinstance(result, PlacementWorkspacePreparation):
                 self.set_status_message("Placement preparation finished with an unexpected result payload.", error=True)
                 return
+            if result.request_id != int(getattr(self, "_attachment_placement_prepare_request_id", 0) or 0):
+                return
             if isinstance(result.target_graph, AssetFamilyGraph):
                 self._remember_archive_asset_family_graph(result.target_entry, result.target_graph, result.target_references)
             if isinstance(result.donor_entry, ArchiveEntry) and isinstance(result.donor_graph, AssetFamilyGraph):
                 self._remember_archive_asset_family_graph(result.donor_entry, result.donor_graph, result.donor_references)
+            token_cache = getattr(self, "_attachment_weapon_subclass_token_cache", None)
+            if not isinstance(token_cache, dict):
+                token_cache = {}
+                self._attachment_weapon_subclass_token_cache = token_cache
+            token_cache[self._attachment_package_entry_key(result.target_entry)] = tuple(result.target_subclass_tokens)
+            if isinstance(result.donor_entry, ArchiveEntry):
+                token_cache[self._attachment_package_entry_key(result.donor_entry)] = tuple(result.donor_subclass_tokens)
             on_prepared(result)
 
         def _error(message: str) -> None:
+            if request_id != int(getattr(self, "_attachment_placement_prepare_request_id", 0) or 0):
+                return
             if on_error is not None:
                 on_error(message)
 
-        self._run_utility_task(
-            status_message=status_message,
-            task=_task,
-            on_complete=_complete,
-            on_error=_error,
-            show_archive_progress=True,
-        )
+        def _start() -> None:
+            if (
+                request_id != int(getattr(self, "_attachment_placement_prepare_request_id", 0) or 0)
+                or bool(getattr(self, "_shutting_down", False))
+            ):
+                return
+            self._run_utility_task(
+                status_message=status_message,
+                task=_task,
+                on_complete=_complete,
+                on_error=_error,
+                show_archive_progress=True,
+                task_accepts_cancel=True,
+            )
+            self._attachment_placement_prepare_worker = getattr(self, "utility_worker", None)
+
+        if queue_latest:
+            self._run_when_background_idle(_start, label="loading the latest placement selection")
+        else:
+            _start()
         return True
+
+    def _cancel_archive_attachment_placement_prepare(self) -> None:
+        worker = getattr(self, "_attachment_placement_prepare_worker", None)
+        if worker is None or worker is not getattr(self, "utility_worker", None):
+            return
+        self._attachment_placement_prepare_request_id = int(
+            getattr(self, "_attachment_placement_prepare_request_id", 0) or 0
+        ) + 1
+        stop = getattr(worker, "stop", None)
+        if callable(stop):
+            stop()
 
     @staticmethod
     def _placement_swap_package_info_with_diagnostics(

@@ -6,7 +6,7 @@ import dataclasses
 from dataclasses import dataclass
 from typing import Dict, Optional, Sequence
 
-from cdmw.core.texture_editor import (
+from cdmw.domain.textures.editor_layers import (
     add_texture_editor_adjustment_layer,
     remove_texture_editor_adjustment_layer,
     update_texture_editor_adjustment_layer,

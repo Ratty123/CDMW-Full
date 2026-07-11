@@ -17,6 +17,15 @@ This crate is the first Rust layer for the HKX converter. It currently covers th
 - Native model graph output with ITEM nodes, PTCH-backed object/null references, inferred offset references, owner-array rows, root/container hints, and stable graph ordering
 - JSON output for Python/PySide integration
 
+## Ownership
+
+`src/lib.rs` is the stable public facade. Parsing, fixups, object layouts,
+schema evidence, graph/readiness reports, fixed-float editing, lossless no-edit
+writing, and JSON serialization live in focused normal Rust modules. The split
+uses no source-level `include!`; owner files stay at or below 800 lines and
+functions at or below 150 lines. Unit fixtures and cases are split under
+`src/tests/` while preserving the same public API and JSON/writer behavior.
+
 Build:
 
 ```powershell

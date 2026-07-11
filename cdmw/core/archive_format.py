@@ -5,6 +5,7 @@ import gc
 import os
 import re
 import struct
+import threading
 import time
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Tuple
@@ -34,33 +35,36 @@ from cdmw.constants import (
     CRIMSON_DESERT_STEAM_APP_ID,
     DDS_MAGIC,
 )
+from cdmw.domain.archives.format import (
+    ARCHIVE_MATERIAL_SIDECAR_EXTENSIONS as _ARCHIVE_MATERIAL_SIDECAR_EXTENSIONS,
+    ARCHIVE_METADATA_XML_EXTENSIONS as _ARCHIVE_METADATA_XML_EXTENSIONS,
+    ARCHIVE_XML_LIKE_EXTENSIONS as _ARCHIVE_XML_LIKE_EXTENSIONS,
+    is_material_sidecar_extension as _is_material_sidecar_extension,
+    normalize_archive_extension_filter,
+    try_decode_text_like_archive_data,
+)
 from cdmw.core.common import raise_if_cancelled, read_u32_le
+from cdmw.core.dds_resource_limits import DDS_MAX_PAYLOAD_BYTES
 from cdmw.core.upscale_profiles import classify_texture_type
 from cdmw.models import ArchiveEntry
 
 
-def extract_binary_strings(data: bytes, *, min_length: int = 4, limit: int = 200) -> Tuple[str, ...]:
-    from cdmw.core import archive as archive_core
+def extract_binary_strings(*args, **kwargs):
+    from cdmw.core.archive_binary_preview import extract_binary_strings as owner
 
-    return archive_core.extract_binary_strings(data, min_length=min_length, limit=limit)
-
-
-def reconstruct_partial_dds(data: bytes, *, max_bytes: int = 4 * 1024 * 1024) -> Optional[bytes]:
-    from cdmw.core import archive as archive_core
-
-    return archive_core.reconstruct_partial_dds(data, max_bytes=max_bytes)
+    return owner(*args, **kwargs)
 
 
-def try_decode_text_like_archive_data(data: bytes) -> Optional[str]:
-    from cdmw.core import archive as archive_core
+def reconstruct_partial_dds(*args, **kwargs):
+    from cdmw.core.archive_extraction import reconstruct_partial_dds as owner
 
-    return archive_core.try_decode_text_like_archive_data(data)
+    return owner(*args, **kwargs)
 
 
 def discover_pamt_files(package_root: Path) -> List[Path]:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_scan_cache import discover_pamt_files as owner
 
-    return archive_core.discover_pamt_files(package_root)
+    return owner(package_root)
 
 
 _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS: Tuple[str, ...] = (
@@ -114,18 +118,6 @@ CHACHA20_XOR_DELTAS = (
     0x02020202,
 )
 
-_ARCHIVE_MATERIAL_SIDECAR_EXTENSIONS: frozenset[str] = frozenset({".pami", ".pac_xml", ".pam_xml", ".pamlod_xml"})
-_ARCHIVE_METADATA_XML_EXTENSIONS: frozenset[str] = frozenset({".xml", ".app_xml", ".prefabdata_xml"})
-_ARCHIVE_XML_LIKE_EXTENSIONS: frozenset[str] = _ARCHIVE_MATERIAL_SIDECAR_EXTENSIONS | _ARCHIVE_METADATA_XML_EXTENSIONS
-
-def _is_material_sidecar_extension(extension: str, basename: str = "") -> bool:
-    normalized_extension = str(extension or "").strip().lower()
-    normalized_basename = str(basename or "").strip().lower()
-    if normalized_extension in _ARCHIVE_MATERIAL_SIDECAR_EXTENSIONS:
-        return True
-    if normalized_extension == ".xml" and normalized_basename.endswith((".pac.xml", ".pam.xml", ".pamlod.xml")):
-        return True
-    return False
 _PRINTABLE_BINARY_STRING_RE = re.compile(rb"[\x20-\x7E]{4,}")
 _TEXT_DDS_REFERENCE_RE = re.compile(r"[A-Za-z0-9_./\\-]{3,255}\.dds", re.IGNORECASE)
 
@@ -331,6 +323,8 @@ def _looks_like_decrypted_payload(entry: ArchiveEntry, data: bytes) -> bool:
     if entry.compression_type == 2:
         if lz4_block is None:
             return False
+        if entry.extension == ".dds" and (entry.orig_size <= 0 or entry.orig_size > DDS_MAX_PAYLOAD_BYTES):
+            return False
         try:
             candidate = lz4_block.decompress(data, uncompressed_size=entry.orig_size)
         except Exception:
@@ -501,6 +495,7 @@ def discover_non_steam_base_paths() -> List[Path]:
 def discover_non_steam_archive_package_roots(
     *,
     on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> List[Path]:
     explicit_env_vars = (
         "CDMW_PACKAGE_ROOT",
@@ -510,6 +505,7 @@ def discover_non_steam_archive_package_roots(
     candidates: set[Path] = set()
 
     for env_var in explicit_env_vars:
+        raise_if_cancelled(stop_event, "Archive path auto-detection cancelled.")
         raw_value = os.environ.get(env_var)
         if not raw_value:
             continue
@@ -534,6 +530,7 @@ def discover_non_steam_archive_package_roots(
     )
 
     for base_path in discover_non_steam_base_paths():
+        raise_if_cancelled(stop_event, "Archive path auto-detection cancelled.")
         for relative_parts in relative_patterns:
             for game_dir_name in game_dir_names:
                 candidate = base_path.joinpath(*relative_parts, game_dir_name)
@@ -556,6 +553,7 @@ def discover_non_steam_archive_package_roots(
     )
 
     for drive_root in discover_windows_drive_roots():
+        raise_if_cancelled(stop_event, "Archive path auto-detection cancelled.")
         for container_name in store_container_names:
             candidate_container = drive_root / container_name
             if not candidate_container.exists() or not candidate_container.is_dir():
@@ -575,6 +573,7 @@ def discover_non_steam_archive_package_roots(
             dynamic_child_matches: List[Path] = []
             try:
                 for child in candidate_container.iterdir():
+                    raise_if_cancelled(stop_event, "Archive path auto-detection cancelled.")
                     if not child.is_dir():
                         continue
                     child_key = child.name.lower()
@@ -625,11 +624,13 @@ def looks_like_archive_package_root(path: Path) -> bool:
 def autodetect_archive_package_roots(
     *,
     on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> List[Path]:
     if on_log:
         on_log("Checking Steam libraries and common custom install locations...")
     library_roots: set[Path] = set()
     for steam_root in discover_steam_roots():
+        raise_if_cancelled(stop_event, "Archive path auto-detection cancelled.")
         library_roots.add(steam_root)
         for library_file in (
             steam_root / "steamapps" / "libraryfolders.vdf",
@@ -640,6 +641,7 @@ def autodetect_archive_package_roots(
 
     candidates: set[Path] = set()
     for library_root in sorted(library_roots):
+        raise_if_cancelled(stop_event, "Archive path auto-detection cancelled.")
         manifest_path = library_root / "steamapps" / f"appmanifest_{CRIMSON_DESERT_STEAM_APP_ID}.acf"
         manifest_install_dir = parse_steam_appmanifest_installdir(manifest_path)
         possible_dirs: List[Path] = []
@@ -655,7 +657,10 @@ def autodetect_archive_package_roots(
                     resolved_candidate = candidate
                 candidates.add(resolved_candidate)
 
-    for candidate in discover_non_steam_archive_package_roots(on_log=on_log):
+    for candidate in discover_non_steam_archive_package_roots(
+        on_log=on_log,
+        stop_event=stop_event,
+    ):
         candidates.add(candidate)
 
     if on_log:
@@ -962,13 +967,6 @@ def archive_entry_matches_filter(entry: ArchiveEntry, filter_text: str, extensio
     if any(char in text for char in "*?[]"):
         return fnmatch.fnmatch(path_lower, text) or fnmatch.fnmatch(basename_lower, text)
     return text in path_lower or text in basename_lower
-
-
-def normalize_archive_extension_filter(extension_filter: str) -> str:
-    normalized_extension = extension_filter.strip().lower()
-    if not normalized_extension or normalized_extension in {"*", "all", ".*"}:
-        return normalized_extension
-    return normalized_extension if normalized_extension.startswith(".") else f".{normalized_extension}"
 
 
 def archive_entry_role(entry: ArchiveEntry) -> str:

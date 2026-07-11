@@ -10,9 +10,11 @@ from PySide6.QtCore import Qt
 
 from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_COLOR
 from cdmw.models import ModelPreviewData, ModelPreviewRenderSettings, PreparedModelPreviewData
-from cdmw.modding.mesh_parser import ParsedMesh
-from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
-from cdmw.rendering.native_preview_package_writer import write_isolated_d3d11_preview_package
+from cdmw.services.mesh_workflow_service import ParsedMesh
+from cdmw.services.preview_rendering_service import (
+    find_native_d3d11_host,
+    write_isolated_d3d11_preview_package,
+)
 from cdmw.ui.mesh_editor.native_preview_payloads import mesh_to_native_preview
 
 
@@ -130,6 +132,9 @@ def mesh_editor_native_preview_command(
     parent_hwnd = _host_widget_hwnd(host_widget)
     if parent_hwnd:
         arguments.extend(["--parent-hwnd", str(parent_hwnd)])
+    hold_package = getattr(host_widget, "hold_native_preview_package_cache_lease", None)
+    if callable(hold_package):
+        hold_package(Path(package_dir))
     return str(host_binary), arguments
 
 

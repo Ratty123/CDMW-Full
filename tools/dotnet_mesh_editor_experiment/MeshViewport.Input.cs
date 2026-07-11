@@ -96,9 +96,9 @@ internal sealed partial class MeshViewport
             else
             {
                 _editorStrokeActive = true;
-                _strokeStart = e.Location;
+                _strokePrevious = e.Location;
                 _strokeId++;
-                EditorEventRequested?.Invoke("stroke_begin", PointerPayload(e.Location, e.Location, true));
+                EditorEventRequested?.Invoke("stroke_begin", PointerPayload(e.Location, e.Location, true, includeLocalSelection: true));
             }
             base.OnMouseDown(e);
             return;
@@ -116,7 +116,8 @@ internal sealed partial class MeshViewport
         }
         if (_editorStrokeActive)
         {
-            EditorEventRequested?.Invoke("stroke_end", PointerPayload(e.Location, _strokeStart, true));
+            EditorEventRequested?.Invoke("stroke_end", PointerPayload(e.Location, _strokePrevious, true));
+            _strokePrevious = e.Location;
             _editorStrokeActive = false;
         }
         _rotating = false;
@@ -146,8 +147,12 @@ internal sealed partial class MeshViewport
         }
         if (_editorStrokeActive)
         {
-            EditorEventRequested?.Invoke("stroke_update", PointerPayload(e.Location, _strokeStart, true));
-            Invalidate();
+            if ((e.Button & MouseButtons.Left) == MouseButtons.Left)
+            {
+                EditorEventRequested?.Invoke("stroke_update", PointerPayload(e.Location, _strokePrevious, true));
+                _strokePrevious = e.Location;
+                Invalidate();
+            }
         }
         else if (_rotating)
         {
@@ -174,7 +179,7 @@ internal sealed partial class MeshViewport
         base.OnMouseWheel(e);
     }
 
-    private Dictionary<string, object?> PointerPayload(Point point, Point? start, bool stroke)
+    private Dictionary<string, object?> PointerPayload(Point point, Point? start, bool stroke, bool includeLocalSelection = false)
     {
         var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
         var radius = NumberOption(options, "radius", 24.0);
@@ -184,6 +189,10 @@ internal sealed partial class MeshViewport
             ["tool"] = ActiveTool,
             ["screen_brush"] = screenPayload
         };
+        if (includeLocalSelection)
+        {
+            payload["local_selection"] = SelectionSnapshotPayload();
+        }
         if (stroke)
         {
             var origin = start ?? point;

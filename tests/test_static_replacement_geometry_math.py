@@ -216,6 +216,44 @@ def test_appended_part_work_area_fit_skips_already_fitted_sources() -> None:
     assert appended_part_work_area_fit((), vertices) is None
 
 
+def test_appended_part_work_area_fit_without_reference_centers_and_grounds() -> None:
+    vertices = ((10.0, 4.0, 20.0), (12.0, 6.0, 22.0))
+
+    fit = appended_part_work_area_fit(vertices, ())
+
+    assert fit is not None
+    assert fit.scale == 1.0
+    transformed = transformed_vertices_for_work_area(vertices, fit)
+    assert min(vertex[1] for vertex in transformed) == 0.0
+    assert (transformed[0][0] + transformed[1][0]) * 0.5 == 0.0
+    assert (transformed[0][2] + transformed[1][2]) * 0.5 == 0.0
+
+
+def test_work_area_fit_translation_reports_scaled_affine_offset() -> None:
+    vertices = ((100.0, 10.0, 100.0), (200.0, 20.0, 200.0))
+    fit = external_import_work_area_fit(
+        vertices,
+        ((0.0, 0.0, 0.0), (10.0, 10.0, 10.0)),
+        up_axis=1,
+    )
+
+    assert fit is not None
+    assert fit.scale < 1.0
+    assert fit.translation == tuple(
+        fit.target_center[index] - (fit.source_center[index] * fit.scale)
+        for index in range(3)
+    )
+    transformed = transformed_vertices_for_work_area(vertices, fit)
+    assert all(
+        abs(
+            transformed[0][index]
+            - ((vertices[0][index] * fit.scale) + fit.translation[index])
+        )
+        < 1e-12
+        for index in range(3)
+    )
+
+
 def test_transformed_vertices_for_work_area_applies_fit_center_and_scale() -> None:
     fit = appended_part_work_area_fit(
         ((100.0, 0.0, 0.0), (200.0, 0.0, 0.0)),

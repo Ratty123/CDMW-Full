@@ -8,13 +8,13 @@ from typing import Optional, Tuple
 
 from PySide6.QtWidgets import QFileDialog, QInputDialog
 
-from cdmw.core.archive import (
+from cdmw.services.archive_workflow_service import (
     _infer_model_preview_normal_strength,
     _resolve_model_texture_semantic_details,
-    build_archive_preview_result,
 )
-from cdmw.core.texture_pipeline.inspection import parse_dds
-from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
+from cdmw.services.archive_preview_service import build_archive_preview_result
+from cdmw.services.texture_workflow_service import parse_dds
+from cdmw.services.preview_workflow_service import ensure_dds_display_preview_png
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, ArchivePreviewResult, ModelPreviewData, ModelPreviewMesh
 
 

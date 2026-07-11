@@ -13,6 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QWidget
 
+from cdmw.services.settings_service import create_settings
 from cdmw.ui.shell.app_startup import (
     ShellApplicationStartup,
     finish_gui_startup_smoke_if_requested,
@@ -21,6 +22,7 @@ from cdmw.ui.shell.app_startup import (
     read_shell_startup_theme_key,
     run_shell_event_loop,
 )
+from cdmw.ui.shell.app_context import AppContext
 from cdmw.ui.themes import UI_THEME_SCHEMES
 
 
@@ -220,9 +222,13 @@ class ShellAppStartupTests(unittest.TestCase):
     def test_prepare_shell_application_configures_qapplication(self) -> None:
         app = QApplication.instance() or QApplication([])
 
-        startup = prepare_shell_application(app)
+        with patch("cdmw.ui.shell.app_startup.create_settings", wraps=create_settings) as create_call:
+            startup = prepare_shell_application(app)
+            context = AppContext.from_settings(startup.settings)
 
         self.assertIsInstance(startup, ShellApplicationStartup)
+        self.assertIs(context.settings, startup.settings)
+        create_call.assert_called_once_with()
         self.assertIn(startup.theme_key, UI_THEME_SCHEMES)
         self.assertTrue(app.organizationName())
         self.assertTrue(app.applicationName())
@@ -256,12 +262,26 @@ class ShellAppStartupTests(unittest.TestCase):
             os.environ.pop("CDMW_GUI_STARTUP_SMOKE", None)
             self.assertFalse(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
 
-        with patch.dict(os.environ, {"CDMW_GUI_STARTUP_SMOKE": "1"}):
-            self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "startup-result.json"
+            with patch.dict(
+                os.environ,
+                {
+                    "CDMW_GUI_STARTUP_SMOKE": "1",
+                    "CDMW_GUI_STARTUP_SMOKE_RESULT": str(result_path),
+                    "CDMW_GUI_STARTUP_SMOKE_TARGET": "",
+                },
+            ):
+                self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
 
         self.assertTrue(window.released)
         self.assertTrue(app.process_events_called)
         self.assertTrue(window.finalized)
+        self.assertEqual(
+            {"ok": True, "pid": os.getpid(), "stage": "post_construction", "target": "default"},
+            payload,
+        )
 
     def test_finish_gui_startup_smoke_can_activate_mesh_editor_target(self) -> None:
         QApplication.instance() or QApplication([])

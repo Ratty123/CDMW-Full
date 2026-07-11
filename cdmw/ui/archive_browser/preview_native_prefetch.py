@@ -9,7 +9,7 @@ from typing import List, Tuple
 from PySide6.QtCore import QThread
 
 from cdmw.models import ArchiveEntry
-from cdmw.rendering.native_preview_package_cache import (
+from cdmw.services.preview_rendering_service import (
     lookup_native_preview_package_cache,
     native_preview_package_prefetch_limit,
 )

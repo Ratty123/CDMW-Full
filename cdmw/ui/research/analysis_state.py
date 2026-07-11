@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Mapping, Optional, Sequence
 
 from cdmw.domain.textures.plan import describe_processing_path_kind
-from cdmw.core.research import (
+from cdmw.domain.research.contracts import (
     MipAnalysisRow,
     NormalValidationRow,
     TextureBudgetClassSummary,

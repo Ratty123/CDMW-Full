@@ -4,43 +4,38 @@ import dataclasses
 import json
 import os
 import shutil
+import threading
 import zipfile
 import re
 from pathlib import Path, PurePosixPath
 from typing import Mapping, Sequence
 
 from cdmw.core.mod_package import (
-    MOD_PACKAGE_MANAGER_PROFILES,
     MeshLooseModAsset,
     MeshLooseModFile,
-    ModPackageExportOptions,
-    mod_package_export_options_for_manager,
-    normalize_mod_package_manager_profile,
-    normalize_mod_package_payload_path,
-    sanitize_mod_package_folder_name,
     write_jmm_mod_json,
     write_mesh_loose_mod_package_metadata,
     write_mod_package_manifest,
 )
-from cdmw.core.archive import read_archive_entry_data
+from cdmw.core.archive_extraction import read_archive_entry_data
+from cdmw.core.common import raise_if_cancelled, read_file_bytes_cancellable, read_text_file_cancellable
+from cdmw.domain.packages.export_policy import (
+    ModPackageExportOptions,
+    mod_package_export_options_for_manager,
+    normalize_mod_package_manager_profile,
+)
+from cdmw.domain.packages.layout import normalize_mod_package_payload_path, sanitize_mod_package_folder_name
+from cdmw.domain.packages.retrofit import (
+    KNOWN_RETROFIT_CONTENT_ROOTS,
+    RETROFIT_MANAGER_PROFILES,
+    ModPackageRetrofitResult,
+    RetrofitPathRepairSummary,
+    RetrofitPayloadMapping,
+    RetrofittableModPackage,
+)
 from cdmw.models import ModPackageInfo
 
 
-KNOWN_RETROFIT_CONTENT_ROOTS = frozenset(
-    {
-        "character",
-        "effect",
-        "gamedata",
-        "leveldata",
-        "meta",
-        "object",
-        "tree",
-        "ui",
-        "vehicle",
-        "world",
-    }
-)
-RETROFIT_MANAGER_PROFILES = MOD_PACKAGE_MANAGER_PROFILES
 _IGNORED_ROOT_FILENAMES = {
     ".no_encrypt",
     "info.json",
@@ -60,97 +55,55 @@ _JMM_DESCRIPTOR_ALIAS_PAIRS = (
 )
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
-class RetrofittableModPackage:
-    root: Path
-    name: str
-    kind: str
-    package_info: ModPackageInfo
-    payload_paths: tuple[str, ...]
-    existing_metadata: tuple[str, ...] = ()
-    warnings: tuple[str, ...] = ()
-    manifest: Mapping[str, object] = dataclasses.field(default_factory=dict)
-    modinfo: Mapping[str, object] = dataclasses.field(default_factory=dict)
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class ModPackageRetrofitResult:
-    source_root: Path
-    output_root: Path
-    package_root: Path
-    zip_path: Path
-    manager_profile: str
-    metadata_files: tuple[Path, ...]
-    payload_paths: tuple[str, ...]
-    warnings: tuple[str, ...] = ()
-    repaired_path_count: int = 0
-    unresolved_path_count: int = 0
-    ambiguous_path_count: int = 0
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class RetrofitPayloadMapping:
-    source_path: str
-    target_path: str
-    package_group: str = ""
-    is_new: bool = False
-    status: str = "unchanged"
-    message: str = ""
-    binary_status: str = ""
-    binary_note: str = ""
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class RetrofitPathRepairSummary:
-    mappings: tuple[RetrofitPayloadMapping, ...]
-    repaired_path_count: int = 0
-    unresolved_path_count: int = 0
-    ambiguous_path_count: int = 0
-    binary_size_mismatch_count: int = 0
-    binary_size_match_count: int = 0
-    binary_size_unknown_count: int = 0
-    binary_exact_match_count: int = 0
-    binary_exact_mismatch_count: int = 0
-    binary_exact_unknown_count: int = 0
-    warnings: tuple[str, ...] = ()
-    package_game_build: str = ""
-    current_game_build: str = ""
-    build_match_status: str = "unknown"
-
-
-def scan_retrofittable_mod_packages(source: Path | str) -> list[RetrofittableModPackage]:
+def scan_retrofittable_mod_packages(
+    source: Path | str,
+    *,
+    stop_event: threading.Event | None = None,
+) -> list[RetrofittableModPackage]:
     source_path = Path(source).expanduser()
+    raise_if_cancelled(stop_event, "Retrofit package scan cancelled.")
     if source_path.is_file() and source_path.suffix.lower() == ".zip":
-        package = analyze_retrofittable_mod_package(source_path)
+        package = analyze_retrofittable_mod_package(source_path, stop_event=stop_event)
         return [package] if package is not None else []
     if not source_path.is_dir():
         return []
-    own_package = analyze_retrofittable_mod_package(source_path)
+    own_package = analyze_retrofittable_mod_package(source_path, stop_event=stop_event)
     if own_package is not None:
         return [own_package]
 
     packages: list[RetrofittableModPackage] = []
-    for child in sorted(source_path.iterdir(), key=lambda item: item.name.casefold()):
-        if child.is_dir() and child.name.casefold() == "converted":
-            continue
-        if not child.is_dir() and child.suffix.lower() != ".zip":
-            continue
-        package = analyze_retrofittable_mod_package(child)
-        if package is not None:
-            packages.append(package)
-    return packages
+    with os.scandir(source_path) as entries:
+        for entry in entries:
+            raise_if_cancelled(stop_event, "Retrofit package scan cancelled.")
+            child = Path(entry.path)
+            if entry.is_dir() and child.name.casefold() == "converted":
+                continue
+            if not entry.is_dir() and (not entry.is_file() or child.suffix.casefold() != ".zip"):
+                continue
+            package = analyze_retrofittable_mod_package(child, stop_event=stop_event)
+            if package is not None:
+                packages.append(package)
+    return sorted(packages, key=lambda package: str(package.root).casefold())
 
 
-def analyze_retrofittable_mod_package(root: Path | str) -> RetrofittableModPackage | None:
+def analyze_retrofittable_mod_package(
+    root: Path | str,
+    *,
+    stop_event: threading.Event | None = None,
+) -> RetrofittableModPackage | None:
     package_root = Path(root).expanduser()
+    raise_if_cancelled(stop_event, "Retrofit package scan cancelled.")
     if package_root.is_file() and package_root.suffix.lower() == ".zip":
-        return _analyze_retrofittable_zip_package(package_root)
+        return _analyze_retrofittable_zip_package(package_root, stop_event=stop_event)
     if not package_root.is_dir():
         return None
 
-    manifest = _read_json_file(package_root / "manifest.json") or _read_json_file(package_root / "mod.json")
-    modinfo = _read_json_file(package_root / "modinfo.json")
-    payload_paths = _discover_retrofit_payload_paths(package_root)
+    manifest = _read_json_file(package_root / "manifest.json", stop_event=stop_event) or _read_json_file(
+        package_root / "mod.json",
+        stop_event=stop_event,
+    )
+    modinfo = _read_json_file(package_root / "modinfo.json", stop_event=stop_event)
+    payload_paths = _discover_retrofit_payload_paths(package_root, stop_event=stop_event)
     if not payload_paths and not manifest and not modinfo:
         return None
 
@@ -185,7 +138,9 @@ def retrofit_mod_package(
     manager_profile: str,
     export_options: ModPackageExportOptions | None = None,
     archive_entries_by_basename: Mapping[str, Sequence[object]] | None = None,
+    stop_event: threading.Event | None = None,
 ) -> ModPackageRetrofitResult:
+    raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
     normalized_profile = _normalize_retrofit_manager_profile(manager_profile)
     output_root = Path(output_parent).expanduser()
     package_root = output_root / f"{package.name}_{normalized_profile}"
@@ -197,15 +152,28 @@ def retrofit_mod_package(
     repair_summary = build_retrofit_path_repair_summary(
         package,
         archive_entries_by_basename=archive_entries_by_basename,
+        stop_event=stop_event,
     )
     warnings.extend(repair_summary.warnings)
-    copied_payload_paths = _copy_payloads(package.root, package_root, repair_summary.mappings, warnings)
+    copied_payload_paths = _copy_payloads(
+        package.root,
+        package_root,
+        repair_summary.mappings,
+        warnings,
+        stop_event=stop_event,
+    )
+    raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
     new_file_paths = [mapping.target_path for mapping in repair_summary.mappings if mapping.is_new]
     source_to_target = {mapping.source_path.casefold(): mapping.target_path for mapping in repair_summary.mappings}
     if normalized_profile == "jmm":
-        _add_jmm_descriptor_alias_payloads(package_root, copied_payload_paths, new_file_paths)
+        _add_jmm_descriptor_alias_payloads(
+            package_root,
+            copied_payload_paths,
+            new_file_paths,
+            stop_event=stop_event,
+        )
         mod_json_path = _write_jmm_mod_json(package_root, package, copied_payload_paths, new_file_paths)
-        zip_path = _write_retrofit_package_zip(package_root)
+        zip_path = _write_retrofit_package_zip(package_root, stop_event=stop_event)
         return ModPackageRetrofitResult(
             source_root=package.root,
             output_root=output_root,
@@ -221,6 +189,7 @@ def retrofit_mod_package(
         )
 
     export_options = _retrofit_export_options(normalized_profile, package.kind, copied_payload_paths, export_options)
+    raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
 
     if _should_preserve_mesh_manifest(package, copied_payload_paths):
         metadata_files = write_mesh_loose_mod_package_metadata(
@@ -233,6 +202,7 @@ def retrofit_mod_package(
             create_no_encrypt_file=export_options.create_no_encrypt_file,
             game_build=str(package.manifest.get("game_build", "") or ""),
             game_metadata=package.manifest.get("game_metadata") if isinstance(package.manifest.get("game_metadata"), Mapping) else None,
+            stop_event=stop_event,
         )
     else:
         returned_path = write_mod_package_manifest(
@@ -244,6 +214,7 @@ def retrofit_mod_package(
             all_payload_paths=copied_payload_paths,
             export_options=export_options,
             create_no_encrypt_file=export_options.create_no_encrypt_file,
+            stop_event=stop_event,
         )
         metadata_files = [returned_path]
         for metadata_name in ("README.txt", ".no_encrypt", "manifest.json", "mod.json", "modinfo.json", "info.json", "mod.field.json"):
@@ -252,6 +223,7 @@ def retrofit_mod_package(
                 metadata_files.append(metadata_path)
 
     zip_path = package_root.with_suffix(".zip")
+    raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
     if not zip_path.is_file():
         warnings.append("Converted zip was not created.")
 
@@ -459,28 +431,53 @@ def merge_retrofittable_mod_packages(
     )
 
 
-def _read_json_file(path: Path) -> dict[str, object]:
+def _read_json_file(
+    path: Path,
+    *,
+    stop_event: threading.Event | None = None,
+) -> dict[str, object]:
     if not path.is_file():
         return {}
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(read_text_file_cancellable(path, stop_event=stop_event))
     except Exception:
+        raise_if_cancelled(stop_event, "Retrofit package scan cancelled.")
         return {}
     return payload if isinstance(payload, dict) else {}
 
 
-def _analyze_retrofittable_zip_package(package_path: Path) -> RetrofittableModPackage | None:
+def _analyze_retrofittable_zip_package(
+    package_path: Path,
+    *,
+    stop_event: threading.Event | None = None,
+) -> RetrofittableModPackage | None:
     try:
         with zipfile.ZipFile(package_path) as archive:
-            member_names = [info.filename.replace("\\", "/") for info in archive.infolist() if not info.is_dir()]
+            member_names: list[str] = []
+            for info in archive.infolist():
+                raise_if_cancelled(stop_event, "Retrofit package scan cancelled.")
+                if not info.is_dir():
+                    member_names.append(info.filename.replace("\\", "/"))
             json_members = {
                 PurePosixPath(name).name.lower(): name
                 for name in member_names
                 if PurePosixPath(name).name.lower() in {"manifest.json", "modinfo.json", "mod.json", "info.json", "mod.field.json"}
             }
-            manifest = _read_zip_json_member(archive, json_members.get("manifest.json", ""))
-            modinfo = _read_zip_json_member(archive, json_members.get("modinfo.json", ""))
-            mod_json = _read_zip_json_member(archive, json_members.get("mod.json", ""))
+            manifest = _read_zip_json_member(
+                archive,
+                json_members.get("manifest.json", ""),
+                stop_event=stop_event,
+            )
+            modinfo = _read_zip_json_member(
+                archive,
+                json_members.get("modinfo.json", ""),
+                stop_event=stop_event,
+            )
+            mod_json = _read_zip_json_member(
+                archive,
+                json_members.get("mod.json", ""),
+                stop_event=stop_event,
+            )
             payload_paths = _discover_retrofit_zip_payload_paths(member_names, mod_json)
     except (OSError, zipfile.BadZipFile):
         return None
@@ -509,12 +506,26 @@ def _analyze_retrofittable_zip_package(package_path: Path) -> RetrofittableModPa
     )
 
 
-def _read_zip_json_member(archive: zipfile.ZipFile, member_name: str) -> dict[str, object]:
+def _read_zip_json_member(
+    archive: zipfile.ZipFile,
+    member_name: str,
+    *,
+    stop_event: threading.Event | None = None,
+) -> dict[str, object]:
     if not member_name:
         return {}
     try:
-        payload = json.loads(archive.read(member_name).decode("utf-8-sig"))
+        chunks: list[bytes] = []
+        with archive.open(member_name) as handle:
+            while True:
+                raise_if_cancelled(stop_event, "Retrofit package scan cancelled.")
+                chunk = handle.read(1024 * 1024)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+        payload = json.loads(b"".join(chunks).decode("utf-8-sig"))
     except Exception:
+        raise_if_cancelled(stop_event, "Retrofit package scan cancelled.")
         return {}
     return payload if isinstance(payload, dict) else {}
 
@@ -538,36 +549,52 @@ def _discover_retrofit_zip_payload_paths(member_names: Sequence[str], mod_json: 
     return result
 
 
-def _discover_retrofit_payload_paths(root: Path) -> list[str]:
+def _discover_retrofit_payload_paths(
+    root: Path,
+    *,
+    stop_event: threading.Event | None = None,
+) -> list[str]:
     paths: list[str] = []
     seen: set[str] = set()
-    for path in sorted(root.rglob("*")):
-        if not path.is_file():
-            continue
-        relative = path.relative_to(root)
-        if _is_ignored_retrofit_file(relative):
-            continue
-        relative_parts = relative.parts
-        if not relative_parts:
-            continue
-        first_part = relative_parts[0].casefold()
-        if first_part == "files":
-            if len(relative_parts) < 3 or relative_parts[1].casefold() not in KNOWN_RETROFIT_CONTENT_ROOTS:
+    for current_root, directory_names, file_names in os.walk(root):
+        raise_if_cancelled(stop_event, "Retrofit package scan cancelled.")
+        directory_names[:] = [name for name in directory_names if not name.startswith(".")]
+        if Path(current_root) == root:
+            directory_names[:] = [
+                name
+                for name in directory_names
+                if name.casefold() in KNOWN_RETROFIT_CONTENT_ROOTS or name.casefold() == "files"
+            ]
+        directory_names.sort(key=str.casefold)
+        file_names.sort(key=str.casefold)
+        current = Path(current_root)
+        for file_name in file_names:
+            raise_if_cancelled(stop_event, "Retrofit package scan cancelled.")
+            path = current / file_name
+            relative = path.relative_to(root)
+            if _is_ignored_retrofit_file(relative):
                 continue
-        elif first_part not in KNOWN_RETROFIT_CONTENT_ROOTS:
-            continue
-        normalized = normalize_mod_package_payload_path(relative).as_posix().strip("/")
-        if not normalized:
-            continue
-        parts = PurePosixPath(normalized).parts
-        if not parts or parts[0].lower() not in KNOWN_RETROFIT_CONTENT_ROOTS:
-            continue
-        key = normalized.casefold()
-        if key in seen:
-            continue
-        seen.add(key)
-        paths.append(normalized)
-    return paths
+            relative_parts = relative.parts
+            if not relative_parts:
+                continue
+            first_part = relative_parts[0].casefold()
+            if first_part == "files":
+                if len(relative_parts) < 3 or relative_parts[1].casefold() not in KNOWN_RETROFIT_CONTENT_ROOTS:
+                    continue
+            elif first_part not in KNOWN_RETROFIT_CONTENT_ROOTS:
+                continue
+            normalized = normalize_mod_package_payload_path(relative).as_posix().strip("/")
+            if not normalized:
+                continue
+            parts = PurePosixPath(normalized).parts
+            if not parts or parts[0].lower() not in KNOWN_RETROFIT_CONTENT_ROOTS:
+                continue
+            key = normalized.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            paths.append(normalized)
+    return sorted(paths, key=str.casefold)
 
 
 def _payload_path_from_any_member(path_value: str | Path) -> str:
@@ -679,7 +706,9 @@ def build_retrofit_path_repair_summary(
     archive_entries_by_basename: Mapping[str, Sequence[object]] | None = None,
     current_game_build: str | None = None,
     compare_payload_bytes: bool = True,
+    stop_event: threading.Event | None = None,
 ) -> RetrofitPathRepairSummary:
+    raise_if_cancelled(stop_event, "Retrofit package analysis cancelled.")
     package_game_build = _metadata_text(package.manifest, "game_build") or _metadata_text(
         package.modinfo,
         "game_build",
@@ -720,6 +749,7 @@ def build_retrofit_path_repair_summary(
     binary_exact_mismatch = 0
     binary_exact_unknown = 0
     for payload_path in package.payload_paths:
+        raise_if_cancelled(stop_event, "Retrofit package analysis cancelled.")
         source_path = normalize_mod_package_payload_path(payload_path).as_posix().strip("/")
         if not source_path:
             continue
@@ -769,6 +799,7 @@ def build_retrofit_path_repair_summary(
 
     archive_payloads_by_path = archive_entries_by_basename or {}
     for index, mapping in enumerate(mappings):
+        raise_if_cancelled(stop_event, "Retrofit package analysis cancelled.")
         target_path = normalize_mod_package_payload_path(mapping.target_path).as_posix().strip("/")
         if not target_path:
             binary_unknown += 1
@@ -798,7 +829,22 @@ def build_retrofit_path_repair_summary(
                 binary_note="Manual review required before binary comparison.",
             )
             continue
-        source_data = _payload_file_bytes(package.root, mapping.source_path)
+        matching_entries = _archive_payload_path_candidate_rows(
+            target_path,
+            archive_entries_by_basename=archive_payloads_by_path,
+            package_group=mapping.package_group,
+        )
+        if not matching_entries:
+            binary_unknown += 1
+            binary_exact_unknown += 1
+            mappings[index] = dataclasses.replace(
+                mapping,
+                binary_status="unknown",
+                binary_note="Could not find matching archive target for binary check.",
+            )
+            warnings.append(f"Could not find matching archive target for binary check: {target_path}")
+            continue
+        source_data = _payload_file_bytes(package.root, mapping.source_path, stop_event=stop_event)
         if source_data is None:
             binary_unknown += 1
             binary_exact_unknown += 1
@@ -817,22 +863,6 @@ def build_retrofit_path_repair_summary(
                 binary_status="unknown",
                 binary_note="Source payload is empty.",
             )
-            continue
-        matching_entries = _archive_payload_path_candidate_rows(
-            target_path,
-            archive_entries_by_basename=archive_payloads_by_path,
-            package_group=mapping.package_group,
-        )
-        if not matching_entries:
-            binary_unknown += 1
-            binary_exact_unknown += 1
-            mappings[index] = dataclasses.replace(
-                mapping,
-                binary_status="unknown",
-                binary_note="Could not find matching archive target for binary check.",
-            )
-            if mapping.status in {"unchanged", "repaired"}:
-                warnings.append(f"Could not find matching archive target for binary check: {target_path}")
             continue
         archive_entry = None
         normalized_target = target_path.casefold()
@@ -1143,17 +1173,42 @@ def _repair_retrofit_payload_path(
     )
 
 
+def _copy_file_cancellable(
+    source: Path,
+    target: Path,
+    *,
+    stop_event: threading.Event | None = None,
+) -> None:
+    with source.open("rb") as source_handle, target.open("wb") as target_handle:
+        while True:
+            raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
+            chunk = source_handle.read(1024 * 1024)
+            if not chunk:
+                break
+            target_handle.write(chunk)
+    shutil.copystat(source, target)
+
+
 def _copy_payloads(
     source_root: Path,
     package_root: Path,
     mappings: Sequence[RetrofitPayloadMapping],
     warnings: list[str],
+    *,
+    stop_event: threading.Event | None = None,
 ) -> list[str]:
     if source_root.is_file() and source_root.suffix.lower() == ".zip":
-        return _copy_payloads_from_zip(source_root, package_root, mappings, warnings)
+        return _copy_payloads_from_zip(
+            source_root,
+            package_root,
+            mappings,
+            warnings,
+            stop_event=stop_event,
+        )
     copied: list[str] = []
     seen: set[str] = set()
     for mapping in mappings:
+        raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
         source_normalized = normalize_mod_package_payload_path(mapping.source_path).as_posix().strip("/")
         target_normalized = normalize_mod_package_payload_path(mapping.target_path).as_posix().strip("/")
         if not source_normalized or not target_normalized:
@@ -1164,7 +1219,7 @@ def _copy_payloads(
             continue
         target_path = package_root.joinpath(*PurePosixPath(target_normalized).parts)
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_path, target_path)
+        _copy_file_cancellable(source_path, target_path, stop_event=stop_event)
         key = target_normalized.casefold()
         if key not in seen:
             seen.add(key)
@@ -1176,6 +1231,8 @@ def _add_jmm_descriptor_alias_payloads(
     package_root: Path,
     payload_paths: list[str],
     new_file_paths: list[str],
+    *,
+    stop_event: threading.Event | None = None,
 ) -> None:
     payload_keys = {normalize_mod_package_payload_path(path).as_posix().strip("/").casefold() for path in payload_paths}
     new_path_keys = {
@@ -1183,6 +1240,7 @@ def _add_jmm_descriptor_alias_payloads(
         for path in new_file_paths
     }
     for left, right in _JMM_DESCRIPTOR_ALIAS_PAIRS:
+        raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
         left_key = left.casefold()
         right_key = right.casefold()
         left_is_payload = left_key in payload_keys
@@ -1206,7 +1264,7 @@ def _add_jmm_descriptor_alias_payloads(
             continue
         target_path = package_root.joinpath(*PurePosixPath(target_rel).parts)
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_path, target_path)
+        _copy_file_cancellable(source_path, target_path, stop_event=stop_event)
         payload_paths.append(target_rel)
         payload_keys.add(target_key)
         if source_key in new_path_keys and target_key not in new_path_keys:
@@ -1219,6 +1277,8 @@ def _copy_payloads_from_zip(
     package_root: Path,
     mappings: Sequence[RetrofitPayloadMapping],
     warnings: list[str],
+    *,
+    stop_event: threading.Event | None = None,
 ) -> list[str]:
     requested = {
         normalize_mod_package_payload_path(mapping.source_path).as_posix().strip("/").casefold(): mapping
@@ -1230,6 +1290,7 @@ def _copy_payloads_from_zip(
     try:
         with zipfile.ZipFile(source_zip) as archive:
             for info in archive.infolist():
+                raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
                 if info.is_dir():
                     continue
                 normalized = _payload_path_from_any_member(info.filename)
@@ -1243,7 +1304,12 @@ def _copy_payloads_from_zip(
                 target_path = package_root.joinpath(*PurePosixPath(target_normalized).parts)
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(info, "r") as source_handle, target_path.open("wb") as target_handle:
-                    shutil.copyfileobj(source_handle, target_handle)
+                    while True:
+                        raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
+                        chunk = source_handle.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        target_handle.write(chunk)
                 seen.add(key)
                 copied.append(target_normalized)
     except (OSError, zipfile.BadZipFile) as exc:
@@ -1265,7 +1331,12 @@ def _payload_file_size(source_root: Path, payload_path: str) -> int | None:
         return None
 
 
-def _payload_file_bytes(source_root: Path, payload_path: str) -> bytes | None:
+def _payload_file_bytes(
+    source_root: Path,
+    payload_path: str,
+    *,
+    stop_event: threading.Event | None = None,
+) -> bytes | None:
     normalized = normalize_mod_package_payload_path(payload_path).as_posix().strip("/")
     if not normalized:
         return None
@@ -1273,11 +1344,18 @@ def _payload_file_bytes(source_root: Path, payload_path: str) -> bytes | None:
         try:
             with zipfile.ZipFile(source_root) as archive:
                 for info in archive.infolist():
+                    raise_if_cancelled(stop_event, "Retrofit package analysis cancelled.")
                     if info.is_dir():
                         continue
                     if normalize_mod_package_payload_path(info.filename).as_posix().strip("/") == normalized:
                         with archive.open(info, "r") as source_handle:
-                            return source_handle.read()
+                            chunks: list[bytes] = []
+                            while True:
+                                raise_if_cancelled(stop_event, "Retrofit package analysis cancelled.")
+                                chunk = source_handle.read(1024 * 1024)
+                                if not chunk:
+                                    return b"".join(chunks)
+                                chunks.append(chunk)
         except (OSError, zipfile.BadZipFile, KeyError, ValueError):
             return None
         return None
@@ -1285,7 +1363,7 @@ def _payload_file_bytes(source_root: Path, payload_path: str) -> bytes | None:
     if source_path is None:
         return None
     try:
-        return source_path.read_bytes()
+        return read_file_bytes_cancellable(source_path, stop_event=stop_event)
     except OSError:
         return None
 
@@ -1420,14 +1498,31 @@ def _compact_retrofit_value(value: object) -> object:
     return value
 
 
-def _write_retrofit_package_zip(root: Path) -> Path:
+def _write_retrofit_package_zip(
+    root: Path,
+    *,
+    stop_event: threading.Event | None = None,
+) -> Path:
     zip_path = root.with_suffix(".zip")
     if zip_path.exists():
         zip_path.unlink()
+    paths: list[Path] = []
+    for path in root.rglob("*"):
+        raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
+        paths.append(path)
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted(root.rglob("*")):
+        for path in sorted(paths):
+            raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
             if path.is_file():
-                archive.write(path, path.relative_to(root).as_posix())
+                info = zipfile.ZipInfo.from_file(path, path.relative_to(root).as_posix())
+                info.compress_type = zipfile.ZIP_DEFLATED
+                with path.open("rb") as source_handle, archive.open(info, "w") as target_handle:
+                    while True:
+                        raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
+                        chunk = source_handle.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        target_handle.write(chunk)
     return zip_path
 
 

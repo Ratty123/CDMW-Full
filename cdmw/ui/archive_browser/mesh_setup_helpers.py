@@ -20,13 +20,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.archive import read_archive_entry_data
-from cdmw.core.mesh_baseline import read_archive_entry_baseline_data
 from cdmw.models import ArchiveEntry
-from cdmw.modding.asset_replacement import ReplacementAssetProfile, analyze_replacement_asset
-from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
-from cdmw.modding.scene_importer import import_scene_mesh
-from cdmw.modding.static_mesh_replacer import describe_static_placement_context
+from cdmw.services.mesh_workflow_service import ReplacementAssetProfile
+from cdmw.services.mesh_workflow_service import ParsedMesh
+from cdmw.services.mesh_workflow_service import describe_static_placement_context
 from cdmw.ui.archive_browser.mesh_import_setup_state import (
     mesh_import_compatibility_control_text as _mesh_import_compatibility_control_text,
 )
@@ -88,46 +85,6 @@ class ArchiveMeshSetupHelperMixin:
                 ),
             )
 
-    def _prompt_archive_mesh_import_mode(self, entry: Optional[ArchiveEntry] = None) -> Optional[str]:
-        dialog = QMessageBox(self)
-        dialog.setWindowTitle("Choose Mesh Import Mode")
-        dialog.setIcon(QMessageBox.Question)
-        dialog.setText("Choose how to import this mesh file.")
-        compatibility_note = ""
-        profile: Optional[ReplacementAssetProfile] = None
-        if entry is not None:
-            try:
-                original_data = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data).data
-                profile = analyze_replacement_asset(
-                    entry,
-                    archive_entries_by_basename=self.archive_entries_by_basename,
-                    parsed_mesh=parse_mesh(original_data, entry.path),
-                )
-                compatibility_note = f"\n\nMesh replacement compatibility: {profile.support_level} ({profile.category_hint})."
-                if profile.errors:
-                    compatibility_note += "\n" + "\n".join(profile.errors[:2])
-            except Exception as exc:
-                compatibility_note = f"\n\nMesh replacement compatibility could not be inspected: {exc}"
-        dialog.setInformativeText(
-            "Round-trip edit expects an OBJ to keep the original exported mesh structure. "
-            "Mesh replacement maps a different OBJ/DAE model onto the original material/draw slots when the target asset is compatible."
-            + compatibility_note
-        )
-        roundtrip_button = dialog.addButton("Round-trip Edit", QMessageBox.AcceptRole)
-        static_button = dialog.addButton("Mesh Replacement", QMessageBox.ActionRole)
-        if profile is not None and not profile.export_supported:
-            static_button.setEnabled(False)
-            static_button.setToolTip("\n".join(profile.errors) or "Mesh replacement is not enabled for this asset.")
-        dialog.addButton(QMessageBox.Cancel)
-        dialog.setDefaultButton(roundtrip_button)
-        dialog.exec()
-        clicked = dialog.clickedButton()
-        if clicked == static_button:
-            return "static_replacement"
-        if clicked == roundtrip_button:
-            return "roundtrip"
-        return None
-
     @staticmethod
     def _format_static_alignment_number(value: object) -> str:
         try:
@@ -153,12 +110,14 @@ class ArchiveMeshSetupHelperMixin:
         original_mesh: Optional[ParsedMesh] = None,
         replacement_mesh: Optional[ParsedMesh] = None,
         ) -> Tuple[str, Dict[str, object]]:
+        if original_mesh is None or replacement_mesh is None:
+            missing = "original archive mesh" if original_mesh is None else "replacement scene mesh"
+            return (
+                "<span style='color:#fdd663;'>Placement values are unavailable because the async import "
+                f"preflight did not provide the {escape(missing)} for {escape(entry.path)}.</span>",
+                {},
+            )
         try:
-            if original_mesh is None:
-                original_data = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data).data
-                original_mesh = parse_mesh(original_data, entry.path)
-            if replacement_mesh is None:
-                replacement_mesh = import_scene_mesh(obj_path)
             context_lines = describe_static_placement_context(original_mesh, replacement_mesh)
             parsed: Dict[str, object] = {}
             for line in context_lines:

@@ -8,7 +8,7 @@ from html import escape
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping, Sequence
 
-from cdmw.core.final_package_preview import (
+from cdmw.services.preview_workflow_service import (
     TEXTURE_PLAN_STATUS_IGNORED_ADVANCED,
     TEXTURE_PLAN_STATUS_LIKELY_GREY,
     TEXTURE_PLAN_STATUS_READY,
@@ -17,7 +17,7 @@ from cdmw.core.final_package_preview import (
     build_dds_override_table_row,
 )
 
-from cdmw.modding.static_mesh_replacer import _semantic_tokens
+from cdmw.services.mesh_workflow_service import _semantic_tokens
 from cdmw.models import ModelPreviewData, PreviewMaterialParameterInput, PreviewMaterialTextureInput
 from cdmw.ui.archive_browser.static_replacement_texture_rows import (
     TextureRowTableDisplay,

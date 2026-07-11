@@ -7,7 +7,7 @@ from html import escape
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QThread, Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -31,21 +31,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.archive import (
-    PrefabAttachmentProfilePatchResult,
-    archive_entry_identity_key,
-    archive_entry_is_mod_package,
-    archive_entry_load_priority,
+from cdmw.domain.archives.attachments import PrefabAttachmentProfilePatchResult
+from cdmw.services.archive_workflow_service import (
     build_attachment_body_location_choices,
-    build_iteminfo_behavior_equip_type_patch,
     build_pac_xml_stack_equip_type_patch,
     build_part_in_out_socket_attach_point_patch,
     build_part_in_out_socket_class_copy_patch,
     build_part_in_out_socket_profile_patch,
     build_prefab_attachment_profile_patch,
     build_socket_bone_data_profile_patch,
-    build_universal_twohand_sword_animation_alias_plan,
-    build_universal_twohand_sword_true_onehand_iteminfo_patch,
     infer_attachment_child_socket_name,
     infer_part_in_out_weapon_class,
     infer_stack_equip_type_for_socket,
@@ -53,23 +47,32 @@ from cdmw.core.archive import (
     parse_part_in_out_socket_info_xml,
     parse_socket_bone_data_xml,
     part_in_out_rows_for_weapon_class,
-    read_archive_entry_data,
 )
-from cdmw.core.archive_modding import (
+from cdmw.domain.archives.filters import (
+    archive_entry_identity_key,
+    archive_entry_is_mod_package,
+    archive_entry_load_priority,
+)
+from cdmw.services.archive_workflow_service import (
+    build_iteminfo_behavior_equip_type_patch,
+    build_universal_twohand_sword_animation_alias_plan,
+    build_universal_twohand_sword_true_onehand_iteminfo_patch,
+)
+from cdmw.domain.archives.mesh_contracts import (
     ArchiveLooseExportResult,
-    ArchivePatchRequest,
     MeshImportSupplementalFileSpec,
-    export_archive_payloads_to_mod_ready_loose,
 )
-from cdmw.core.item_icon import (
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
+from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
+from cdmw.domain.library.item_icons import (
     ITEM_ICON_SOURCE_EXTENSIONS,
     ItemIconOverrideSpec,
-    choose_item_icon_source,
 )
-from cdmw.core.xml_text import decode_xml_text_payload, encode_xml_text_like_source
-from cdmw.domain.mesh.session import PlacementWorkspacePreparation
+from cdmw.domain.xml_text import decode_xml_text_payload, encode_xml_text_like_source
+from cdmw.domain.mesh.session import PlacementLooseRootPreparation, PlacementWorkspacePreparation
 from cdmw.models import (
     ArchiveEntry,
+    ArchiveEntryIdentity,
     AssetFamilyGraph,
     AssetFamilyMember,
     AttachmentAnimationAliasPlanResult,
@@ -83,8 +86,15 @@ from cdmw.models import (
     AttachmentStackEquipTypePatchResult,
     AttachmentUniversalItemInfoBehaviorPatchResult,
 )
+from cdmw.ui.archive_browser.attachment_prepared_payloads import AttachmentPreparedPayloads
+from cdmw.ui.archive_browser.attachment_profile_import import start_attachment_profile_import
 from cdmw.ui.shell.responsiveness_controller import expand_tree_columns_to_available_width
 from cdmw.ui.widgets import CollapsibleSection
+from cdmw.workers.attachment_io_workers import (
+    ATTACHMENT_PAYLOAD_MAX_BYTES,
+    AttachmentPayloadReadRequest,
+    run_attachment_payload_read,
+)
 
 
 class ArchiveAttachmentPlacementDiffDialogMixin:
@@ -97,7 +107,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
         *,
         preparation: Optional[PlacementWorkspacePreparation] = None,
     ) -> None:
-        if (
+        preparation_matches = bool(
             isinstance(preparation, PlacementWorkspacePreparation)
             and isinstance(preparation.target_graph, AssetFamilyGraph)
             and self._same_archive_entry(preparation.target_entry, target_entry)
@@ -109,28 +119,31 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                     and self._same_archive_entry(preparation.donor_entry, donor_entry)
                 )
             )
-        ):
-            target_graph = preparation.target_graph
-            if isinstance(donor_entry, ArchiveEntry) and isinstance(preparation.donor_graph, AssetFamilyGraph):
-                donor_graph = preparation.donor_graph
-            elif isinstance(donor_entry, ArchiveEntry):
-                donor_graph, _donor_refs = self._archive_asset_family_graph_for_entry(donor_entry)
-            else:
-                donor_graph = AssetFamilyGraph(
-                    root_path="",
-                    family_key="",
-                    summary="No placement source selected. Choose a body location to build XML-only placement, or open Advanced source copy.",
-                )
-        else:
-            target_graph, _target_refs = self._archive_asset_family_graph_for_entry(target_entry)
-            if isinstance(donor_entry, ArchiveEntry):
-                donor_graph, _donor_refs = self._archive_asset_family_graph_for_entry(donor_entry)
-            else:
-                donor_graph = AssetFamilyGraph(
-                    root_path="",
-                    family_key="",
-                    summary="No placement source selected. Choose a body location to build XML-only placement, or open Advanced source copy.",
-                )
+        )
+        if not preparation_matches:
+            self._run_archive_attachment_placement_prepare(
+                target_entry,
+                donor_entry,
+                status_message=f"Preparing placement comparison for {target_entry.basename}...",
+                on_prepared=lambda prepared: self._open_archive_attachment_placement_diff_dialog(
+                    target_entry,
+                    donor_entry,
+                    preparation=prepared,
+                ),
+            )
+            return
+        assert isinstance(preparation, PlacementWorkspacePreparation)
+        assert isinstance(preparation.target_graph, AssetFamilyGraph)
+        target_graph = preparation.target_graph
+        donor_graph = (
+            preparation.donor_graph
+            if isinstance(donor_entry, ArchiveEntry) and isinstance(preparation.donor_graph, AssetFamilyGraph)
+            else AssetFamilyGraph(
+                root_path="",
+                family_key="",
+                summary="No placement source selected. Choose a body location to build XML-only placement, or open Advanced source copy.",
+            )
+        )
         package_plan_rows: List[dict] = []
         package_plan_warnings: List[str] = []
         dialog = QDialog(self)
@@ -273,6 +286,13 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
         donor_evidence = self._attachment_visual_best_evidence(donor_graph)
         target_socket_entry = self._attachment_socket_entry_from_selection(target_graph)
         donor_socket_entry = self._attachment_socket_entry_from_selection(donor_graph)
+        socket_documents_by_key: Dict[Tuple[str, str, int], AttachmentSocketDocument] = {}
+        prepared_payloads = AttachmentPreparedPayloads(preparation)
+        if isinstance(preparation, PlacementWorkspacePreparation):
+            if isinstance(target_socket_entry, ArchiveEntry) and isinstance(preparation.target_socket_document, AttachmentSocketDocument):
+                socket_documents_by_key[self._attachment_package_entry_key(target_socket_entry)] = preparation.target_socket_document
+            if isinstance(donor_socket_entry, ArchiveEntry) and isinstance(preparation.donor_socket_document, AttachmentSocketDocument):
+                socket_documents_by_key[self._attachment_package_entry_key(donor_socket_entry)] = preparation.donor_socket_document
 
         compare_group = QGroupBox("Socket Value Compare")
         compare_group.setMinimumWidth(0)
@@ -335,14 +355,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
         def _socket_document(entry: Optional[ArchiveEntry]) -> Optional[AttachmentSocketDocument]:
             if not isinstance(entry, ArchiveEntry):
                 return None
-            try:
-                data, _decompressed, _note = read_archive_entry_data(entry)
-                return parse_socket_bone_data_xml(
-                    decode_xml_text_payload(data).text,
-                    entry.path,
-                )
-            except Exception:
-                return None
+            return socket_documents_by_key.get(self._attachment_package_entry_key(entry))
 
         target_socket_document: Optional[AttachmentSocketDocument] = None
         donor_socket_document: Optional[AttachmentSocketDocument] = None
@@ -446,7 +459,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
         def _placement_xml_entry_by_basename(*basenames: str, prefer_original: bool = False) -> Optional[ArchiveEntry]:
             normalized_names = [PurePosixPath(str(name or "").replace("\\", "/")).name.casefold() for name in basenames if str(name or "").strip()]
             candidates: List[ArchiveEntry] = []
-            seen_candidate_keys: set[Tuple[str, str, int, int]] = set()
+            seen_candidate_keys: set[ArchiveEntryIdentity] = set()
 
             def add_candidate(candidate: object) -> None:
                 if not isinstance(candidate, ArchiveEntry):
@@ -510,6 +523,12 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
 
         part_in_out_entry = _placement_xml_entry_by_basename("phm_description_player_kliff.xml")
         character_socket_entry = _placement_xml_entry_by_basename("phm_01.pab.sockets.xml", "identityskeleton.pab.sockets.xml")
+        if (
+            isinstance(preparation, PlacementWorkspacePreparation)
+            and isinstance(character_socket_entry, ArchiveEntry)
+            and isinstance(preparation.character_socket_document, AttachmentSocketDocument)
+        ):
+            socket_documents_by_key[self._attachment_package_entry_key(character_socket_entry)] = preparation.character_socket_document
         iteminfo_entry = _placement_entry_by_virtual_path("gamedata/binary__/client/bin/iteminfo.pabgb", "iteminfo.pabgb")
         iteminfo_header_entry = _placement_entry_by_virtual_path("gamedata/binary__/client/bin/iteminfo.pabgh", "iteminfo.pabgh")
         equiptype_entry = _placement_entry_by_virtual_path("gamedata/binary__/client/bin/equiptypeinfo.pabgb", "equiptypeinfo.pabgb")
@@ -548,7 +567,13 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
 
         inferred_weapon_class = _infer_current_weapon_class()
         donor_inferred_weapon_class = _infer_current_donor_weapon_class()
-        target_loose_roots = self._attachment_package_loose_target_roots_for_entry(target_entry)
+        target_loose_preparations = tuple(
+            row
+            for row in preparation.target_loose_roots
+            if isinstance(row, PlacementLooseRootPreparation)
+        )
+        target_loose_roots = tuple(row.root for row in target_loose_preparations)
+        target_loose_by_root = {row.root: row for row in target_loose_preparations}
         imported_profile_state: Dict[str, object] = {
             "part_in_out_text": "",
             "part_in_out_path": "",
@@ -560,23 +585,20 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             Tuple[Optional[ArchiveEntry], Optional[ArchiveEntry], Optional[AttachmentItemInfoBehaviorPatchResult], str],
         ] = {}
 
+        def _read_archive_bytes(entry: Optional[ArchiveEntry]) -> bytes:
+            return prepared_payloads.read(
+                entry,
+                allow_io=QThread.currentThread() != dialog.thread(),
+            )
+
         def _read_archive_text(entry: Optional[ArchiveEntry]) -> str:
-            if not isinstance(entry, ArchiveEntry):
-                return ""
-            try:
-                data, _decompressed, _note = read_archive_entry_data(entry)
-            except Exception:
-                return ""
-            return decode_xml_text_payload(data).text
+            data = _read_archive_bytes(entry)
+            return decode_xml_text_payload(data).text if data else ""
 
         def _read_original_archive_bytes(entry: Optional[ArchiveEntry]) -> bytes:
             if not isinstance(entry, ArchiveEntry) or archive_entry_is_mod_package(entry):
                 return b""
-            try:
-                data, _decompressed, _note = read_archive_entry_data(entry)
-                return data
-            except Exception:
-                return b""
+            return _read_archive_bytes(entry)
 
         def _read_original_archive_text(entry: Optional[ArchiveEntry]) -> str:
             data = _read_original_archive_bytes(entry)
@@ -585,6 +607,9 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             return decode_xml_text_payload(data).text
 
         def _character_socket_document() -> Optional[AttachmentSocketDocument]:
+            cached = _socket_document(character_socket_entry)
+            if isinstance(cached, AttachmentSocketDocument):
+                return cached
             text = _read_archive_text(character_socket_entry)
             if not text:
                 return None
@@ -974,11 +999,25 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             return value if isinstance(value, Path) else None
 
         def _target_loose_specs() -> Tuple[MeshImportSupplementalFileSpec, ...]:
-            return self._attachment_package_loose_target_specs(
-                target_entry,
-                target_graph,
-                _selected_target_loose_root(),
+            loose_root = _selected_target_loose_root()
+            prepared = target_loose_by_root.get(loose_root) if isinstance(loose_root, Path) else None
+            if not isinstance(prepared, PlacementLooseRootPreparation):
+                return ()
+            return tuple(
+                MeshImportSupplementalFileSpec(
+                    source_path=spec.source_path,
+                    target_path=spec.target_path,
+                    kind=spec.kind,
+                    target_entry=spec.target_entry,
+                    note=spec.note,
+                )
+                for spec in prepared.specs
             )
+
+        def _target_loose_warning() -> str:
+            loose_root = _selected_target_loose_root()
+            prepared = target_loose_by_root.get(loose_root) if isinstance(loose_root, Path) else None
+            return str(prepared.warning or "") if isinstance(prepared, PlacementLooseRootPreparation) else ""
 
         def _visual_selected_attach_choice() -> Optional[AttachmentBodyLocationChoice]:
             value = attach_point_combo.currentData()
@@ -1009,40 +1048,36 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             normalized = str(virtual_path or "").replace("\\", "/").strip().lstrip("/")
             if normalized.casefold().startswith("files/"):
                 normalized = normalized[6:]
-            if not isinstance(root, Path) or not normalized:
+            prepared = target_loose_by_root.get(root) if isinstance(root, Path) else None
+            if not isinstance(prepared, PlacementLooseRootPreparation) or not normalized:
                 return None
-            relative = PurePosixPath(normalized)
-            for base in (root / "files", root):
-                candidate = base.joinpath(*relative.parts)
-                if candidate.is_file():
-                    return candidate
-            return None
+            key = normalized.casefold()
+            return next(
+                (spec.source_path for spec in prepared.specs if spec.target_path.casefold() == key),
+                None,
+            )
 
         def _read_placement_base_text(entry: Optional[ArchiveEntry]) -> str:
-            if not isinstance(entry, ArchiveEntry):
-                return ""
-            loose_path = _selected_loose_file_for_virtual(entry.path)
-            if isinstance(loose_path, Path):
-                try:
-                    return decode_xml_text_payload(loose_path.read_bytes()).text
-                except OSError:
-                    pass
-            return _read_archive_text(entry)
+            data = _read_placement_base_bytes(entry)
+            return decode_xml_text_payload(data).text if data else ""
 
         def _read_placement_base_bytes(entry: Optional[ArchiveEntry]) -> bytes:
             if not isinstance(entry, ArchiveEntry):
                 return b""
             loose_path = _selected_loose_file_for_virtual(entry.path)
             if isinstance(loose_path, Path):
+                if QThread.currentThread() == dialog.thread():
+                    return b""
                 try:
-                    return loose_path.read_bytes()
-                except OSError:
+                    return run_attachment_payload_read(
+                        AttachmentPayloadReadRequest(
+                            file_path=loose_path,
+                            max_bytes=ATTACHMENT_PAYLOAD_MAX_BYTES,
+                        )
+                    ).data
+                except Exception:
                     pass
-            try:
-                data, _decompressed, _note = read_archive_entry_data(entry)
-                return data
-            except Exception:
-                return b""
+            return _read_archive_bytes(entry)
 
         def _encode_placement_base_text(entry: Optional[ArchiveEntry], payload_text: str) -> bytes:
             return encode_xml_text_like_source(payload_text, _read_placement_base_bytes(entry))
@@ -1245,11 +1280,13 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             loose_path = _selected_loose_file_for_virtual(target_prefab_entry.path)
             try:
                 if isinstance(loose_path, Path):
-                    payload_data = loose_path.read_bytes()
+                    payload_data = _read_placement_base_bytes(target_prefab_entry)
                     base_note = f"loose target prefab {loose_path}"
                 else:
-                    payload_data, _decompressed, _note = read_archive_entry_data(target_prefab_entry)
+                    payload_data = _read_archive_bytes(target_prefab_entry)
                     base_note = f"archive target prefab {target_prefab_entry.path}"
+                if not payload_data:
+                    return target_prefab_entry, None, "Target prefab payload is still loading or unavailable."
                 source_part_name = ""
                 source_socket_file = ""
                 source_note = ""
@@ -1258,7 +1295,9 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                     if not isinstance(donor_prefab_entry, ArchiveEntry):
                         return target_prefab_entry, None, "Full behavior needs a resolved source prefab role profile."
                     else:
-                        donor_payload, _donor_decompressed, _donor_note = read_archive_entry_data(donor_prefab_entry)
+                        donor_payload = _read_archive_bytes(donor_prefab_entry)
+                        if not donor_payload:
+                            return target_prefab_entry, None, "Source prefab payload is still loading or unavailable."
                         source_fields = {
                             field.field_name: field.value
                             for field in inspect_prefab_attachment_profile_fields(donor_payload)
@@ -1685,36 +1724,41 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             if not selected:
                 return
             path = Path(selected).expanduser()
-            try:
-                text = decode_xml_text_payload(path.read_bytes()).text
-            except Exception as exc:
-                QMessageBox.warning(dialog, "Import Placement Profile XML", f"Could not read profile XML:\n{exc}")
-                return
-            lowered = path.name.casefold()
-            if lowered.endswith(".sockets.xml") or "socket" in lowered:
-                imported_profile_state["socket_text"] = text
-                imported_profile_state["socket_path"] = str(path)
-                patch_socket_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
-                should_use_profile = False
-                attach_socket = _visual_selected_attach_socket()
-                if isinstance(character_socket_entry, ArchiveEntry) and attach_socket:
-                    preview_patch = build_socket_bone_data_profile_patch(
-                        _read_archive_text(character_socket_entry),
-                        text,
-                        socket_names=(attach_socket,),
-                    )
-                    should_use_profile = bool(preview_patch.diffs)
-                use_profile_transforms_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
-                use_profile_transforms_checkbox.setChecked(should_use_profile)
-                patch_socket_checkbox.setChecked(should_use_profile)
-            else:
-                imported_profile_state["part_in_out_text"] = text
-                imported_profile_state["part_in_out_path"] = str(path)
-                if isinstance(part_in_out_entry, ArchiveEntry):
-                    patch_part_in_out_checkbox.setChecked(True)
-            _populate_attach_point_combo()
-            _refresh_visual_status()
-            _refresh_package_plan()
+
+            def _apply_profile_payload(text: str) -> None:
+                lowered = path.name.casefold()
+                if lowered.endswith(".sockets.xml") or "socket" in lowered:
+                    imported_profile_state["socket_text"] = text
+                    imported_profile_state["socket_path"] = str(path)
+                    patch_socket_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
+                    should_use_profile = False
+                    attach_socket = _visual_selected_attach_socket()
+                    if isinstance(character_socket_entry, ArchiveEntry) and attach_socket:
+                        preview_patch = build_socket_bone_data_profile_patch(
+                            _read_archive_text(character_socket_entry),
+                            text,
+                            socket_names=(attach_socket,),
+                        )
+                        should_use_profile = bool(preview_patch.diffs)
+                    use_profile_transforms_checkbox.setEnabled(isinstance(character_socket_entry, ArchiveEntry))
+                    use_profile_transforms_checkbox.setChecked(should_use_profile)
+                    patch_socket_checkbox.setChecked(should_use_profile)
+                else:
+                    imported_profile_state["part_in_out_text"] = text
+                    imported_profile_state["part_in_out_path"] = str(path)
+                    if isinstance(part_in_out_entry, ArchiveEntry):
+                        patch_part_in_out_checkbox.setChecked(True)
+                _populate_attach_point_combo()
+                _refresh_visual_status()
+                _refresh_package_plan()
+
+            start_attachment_profile_import(
+                self,
+                dialog,
+                import_profile_button,
+                path,
+                on_loaded=_apply_profile_payload,
+            )
 
         def _advanced_features_enabled() -> bool:
             return bool(advanced_features_toggle.isChecked())
@@ -1883,9 +1927,14 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             )
             warning_label.setText("Review notes: " + " ".join(warning_parts) if warning_parts else "")
             warning_label.setVisible(bool(warning_parts))
-            build_ready = bool(effective_package_plan_rows or visual_rows) and not bool(patch_scope_blocked or behavior_blocked)
+            loose_scan_error = _target_loose_warning()
+            build_ready = bool(effective_package_plan_rows or visual_rows) and not bool(
+                patch_scope_blocked or behavior_blocked or loose_scan_error
+            )
             build_button.setEnabled(build_ready)
-            if patch_scope_blocked:
+            if loose_scan_error:
+                simple_ready_status.setText(loose_scan_error)
+            elif patch_scope_blocked:
                 simple_ready_status.setText("Cannot build safely. Open Advanced to review the blocked descriptor patch.")
             elif behavior_blocked:
                 simple_ready_status.setText("Cannot build full behavior safely. Use Placement only or choose a resolved 1H/2H source.")
@@ -1919,7 +1968,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                     QMessageBox.warning(dialog, "Custom Item Icon", "Choose a custom icon source file or folder.")
                 return None
             source_root = Path(source_text).expanduser()
-            chosen, _candidates, message = choose_item_icon_source(
+            chosen, _candidates, message = self.app_context.services.require_item_icons().choose_source(
                 source_root,
                 target_path=target_icon_entry.path,
                 related_stems=self._archive_item_icon_related_stems(target_entry, target_graph),
@@ -1958,7 +2007,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                     f"Current: {target_icon_entry.path}. Source: choose file or folder. Final: fit + pad to existing icon template."
                 )
                 return
-            chosen, candidates, message = choose_item_icon_source(
+            chosen, candidates, message = self.app_context.services.require_item_icons().choose_source(
                 Path(source_text).expanduser(),
                 target_path=target_icon_entry.path,
                 related_stems=self._archive_item_icon_related_stems(target_entry, target_graph),
@@ -2034,10 +2083,13 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             nonlocal inferred_weapon_class, donor_inferred_weapon_class
             if not dialog.isVisible():
                 return
+            prepared_payloads.merge(prepared)
             if isinstance(prepared.target_graph, AssetFamilyGraph):
                 target_graph = prepared.target_graph
                 target_evidence = self._attachment_visual_best_evidence(target_graph)
                 target_socket_entry = self._attachment_socket_entry_from_selection(target_graph)
+                if isinstance(target_socket_entry, ArchiveEntry) and isinstance(prepared.target_socket_document, AttachmentSocketDocument):
+                    socket_documents_by_key[self._attachment_package_entry_key(target_socket_entry)] = prepared.target_socket_document
             if not isinstance(prepared.donor_entry, ArchiveEntry) or not isinstance(prepared.donor_graph, AssetFamilyGraph):
                 _set_placement_source_loading(False)
                 self.set_status_message("Placement source preparation finished without a source graph.", error=True)
@@ -2048,6 +2100,8 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             donor_graph = prepared.donor_graph
             donor_evidence = self._attachment_visual_best_evidence(donor_graph)
             donor_socket_entry = self._attachment_socket_entry_from_selection(donor_graph)
+            if isinstance(donor_socket_entry, ArchiveEntry) and isinstance(prepared.donor_socket_document, AttachmentSocketDocument):
+                socket_documents_by_key[self._attachment_package_entry_key(donor_socket_entry)] = prepared.donor_socket_document
             inferred_weapon_class = _infer_current_weapon_class()
             donor_inferred_weapon_class = _infer_current_donor_weapon_class()
             behavior_patch_cache.clear()
@@ -2527,7 +2581,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                 ),
                 (
                     f"Existing target loose files preserved from {_selected_target_loose_root()}."
-                    if _target_loose_specs()
+                    if loose_specs
                     else "No existing target loose package detected; vanilla target files remain in game."
                 ),
                 *tuple(package_plan_warnings[:8]),
@@ -2544,7 +2598,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             for action, target_path, note in _visual_patch_preview_rows():
                 diagnostics.append(f"{action}: {target_path}; {note}")
             package_info = self._placement_swap_package_info_with_diagnostics(package_info, diagnostics)
-            loose_specs_snapshot = tuple(_target_loose_specs())
+            loose_specs_snapshot = tuple(loose_specs)
 
             def _task(log: Callable[[str], None]) -> ArchiveLooseExportResult:
                 requests_by_path: Dict[str, ArchivePatchRequest] = {}
@@ -2617,7 +2671,9 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                     if target_key in seen_request_paths:
                         continue
                     seen_request_paths.add(target_key)
-                    payload_data, _decompressed, _note = read_archive_entry_data(donor)
+                    payload_data = _read_archive_bytes(donor)
+                    if not payload_data:
+                        raise ValueError(f"Could not read placement source payload: {donor.path}")
                     log(f"{action}: {donor.path} -> {target.path}")
                     requests_by_path[target_key] = ArchivePatchRequest(target, payload_data)
                 part_patch_for_socket: Optional[AttachmentPartInOutPatchResult] = None
@@ -2734,7 +2790,9 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                 _refresh_package_plan(),
             )
         )
-        target_loose_combo.currentIndexChanged.connect(lambda _index=0: _refresh_package_plan())
+        target_loose_combo.currentIndexChanged.connect(
+            lambda _index=0: _refresh_package_plan()
+        )
         swap_type_combo.currentIndexChanged.connect(lambda _index=0: (_refresh_visual_status(), _refresh_package_plan()))
         _apply_default_swap_type()
         _refresh_custom_icon_status()
@@ -2759,6 +2817,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             )
         )
         _refresh_visual_status()
+        dialog.finished.connect(lambda _result=0: self._cancel_archive_attachment_placement_prepare())
         legacy_raw_prefab_checkbox.toggled.connect(lambda _checked=False: _refresh_experimental_options())
         legacy_hkx_checkbox.toggled.connect(lambda _checked=False: _refresh_package_plan())
         experimental_prefab_resize_checkbox.toggled.connect(lambda _checked=False: (_refresh_visual_status(), _refresh_package_plan()))

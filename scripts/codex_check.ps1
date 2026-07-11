@@ -1,7 +1,8 @@
 param(
     [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "mesh-unit", "full")]
     [string]$Area = "smoke",
-    [string]$GameRoot = ""
+    [string]$GameRoot = "",
+    [string]$PytestBaseTemp = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,9 +38,10 @@ $TestsByArea = @{
         "tests/test_static_texture_replacement.py"
     )
     "mesh-unit" = @(
+        "tests/test_mesh_dotnet_experiment.py",
+        "tests/test_dotnet_mesh_editor_tool_protocol_source.py",
         "tests/test_mesh_service_editing.py",
         "tests/test_mesh_editor_controller.py",
-        "tests/test_mesh_editor_dev_harness.py",
         "tests/test_mesh_editor_actions.py",
         "tests/test_mesh_editor_action_bar.py",
         "tests/test_mesh_deformer.py",
@@ -51,11 +53,15 @@ $TestsByArea = @{
 
 Set-Location -LiteralPath $RepoRoot
 
-$RealMeshScenario = "real-archive-mesh-editor-d3d11-side-by-side-edit-smoke"
+$RealMeshScenario = "real-archive-mesh-editor-dotnet-edit-smoke"
+$PytestTempArgs = @()
+if ($PytestBaseTemp) {
+    $PytestTempArgs = @("-p", "no:cacheprovider", "--basetemp=$PytestBaseTemp")
+}
 
 if ($Area -eq "full") {
-    Write-Host "Running full pytest suite with $Python"
-    & $Python -m pytest
+    Write-Host "Running non-visual full pytest suite with $Python"
+    & $Python -m pytest @PytestTempArgs
     exit $LASTEXITCODE
 }
 
@@ -67,12 +73,14 @@ if ($Area -eq "mesh") {
     if (-not $ResolvedGameRoot) {
         $ResolvedGameRoot = "C:\games\Steam\steamapps\common\Crimson Desert"
     }
-    if (-not (Test-Path -LiteralPath $ResolvedGameRoot)) {
-        Write-Error "Mesh proof requires a real game root. Pass -GameRoot or set CDMW_GAME_ROOT. Synthetic unit coverage moved to -Area mesh-unit."
+    $PamtPath = Join-Path $ResolvedGameRoot "0009\0.pamt"
+    if (-not (Test-Path -LiteralPath $PamtPath)) {
+        Write-Error "Mesh proof requires the real game archive index at '$PamtPath'. Pass -GameRoot or set CDMW_GAME_ROOT."
         exit 1
     }
-    $OutputDir = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-real-archive-mesh-editor-d3d11-side-by-side-codex-check"
-    Write-Host "Running real game Mesh Editor proof with $Python"
+    $ProofRunId = [Guid]::NewGuid().ToString("N")
+    $OutputDir = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-real-archive-mesh-editor-dotnet-$ProofRunId"
+    Write-Host "Running real in-game PAC .NET Mesh Editor proof from $PamtPath"
     & $Python tools\mesh_editor_dev_harness.py --scenario $RealMeshScenario --game-root $ResolvedGameRoot --output $OutputDir
     exit $LASTEXITCODE
 }
@@ -92,10 +100,5 @@ if ($ExistingTests.Count -eq 0) {
 }
 
 Write-Host "Running $Area checks with $Python"
-if ($Area -eq "mesh-unit") {
-    $MeshUnitFilter = "not native_mesh_editor_d3d11_delta_scenario_uses_vertex_update_without_fallback and not native_mesh_editor_standalone_stroke_scenario_uses_native_session_without_fallback and not native_mesh_editor_qt_responsiveness_scenario_uses_worker_without_fallback and not native_mesh_editor_qt_cancellation_scenario_cancels_without_fallback"
-    & $Python -m pytest @ExistingTests -k $MeshUnitFilter
-} else {
-    & $Python -m pytest @ExistingTests
-}
+& $Python -m pytest @PytestTempArgs @ExistingTests
 exit $LASTEXITCODE

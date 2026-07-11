@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Mapping, Optional
 
-from cdmw.core.research import MaterialTextureReferenceRow
+from cdmw.domain.research.contracts import MaterialTextureReferenceRow
 
 __all__ = [
     "current_ui_constraint_related_paths",

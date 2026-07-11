@@ -82,7 +82,7 @@ class NativePreviewPanel(QWidget):
     mesh_edit_stroke_cancelled = Signal(object)
     mesh_edit_selection_changed = Signal(object)
 
-    from cdmw.rendering import model_preview_prepare as _prep
+    from cdmw.services import preview_rendering_service as _prep
 
     _FIT_DISTANCE = _prep.FIT_DISTANCE
     _OVERLAY_CLIP_EPSILON = _prep.OVERLAY_CLIP_EPSILON

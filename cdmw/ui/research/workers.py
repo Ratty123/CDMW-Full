@@ -10,21 +10,12 @@ from typing import Dict, List, Optional, Sequence
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 from PySide6.QtGui import QImageReader
 
-from cdmw.core.archive import build_archive_preview_result
-from cdmw.core.research import (
+from cdmw.domain.research.contracts import (
     MipAnalysisRow,
     NormalValidationRow,
-    analyze_mip_behavior,
-    build_archive_research_snapshot,
-    build_mip_analysis_family_members_by_path,
-    build_processing_plan_lookup,
-    build_texture_budget_analysis,
-    build_ui_constraint_reference_rows,
-    discover_archive_sidecars,
-    resolve_material_texture_references,
-    validate_normal_maps,
 )
 from cdmw.models import AppConfig, ArchiveEntry, ArchivePreviewResult
+from cdmw.services.research_service import research_service
 
 __all__ = [
     "ReferenceResolveWorker",
@@ -98,7 +89,7 @@ class ResearchRefreshWorker(QObject):
                 payload.update(self.archive_snapshot_payload)
             else:
                 payload.update(
-                    build_archive_research_snapshot(
+                    research_service.archive.build_snapshot(
                         working_entries,
                         sidecar_source_entries=self.sidecar_source_entries,
                         stop_event=self.stop_event,
@@ -113,7 +104,7 @@ class ResearchRefreshWorker(QObject):
             processing_plan_lookup: Dict[str, object] = {}
             if self.app_config is not None and self.original_root is not None and self.original_root.exists():
                 try:
-                    processing_plan_lookup = build_processing_plan_lookup(
+                    processing_plan_lookup = research_service.texture_analysis.processing_plan_lookup(
                         self.app_config,
                         original_root_override=self.original_root,
                         stop_event=self.stop_event,
@@ -122,12 +113,12 @@ class ResearchRefreshWorker(QObject):
                     processing_plan_lookup = {}
             if self.original_root is not None and self.output_root is not None:
                 if self.original_root.exists() and self.output_root.exists():
-                    mip_family_members_by_path = build_mip_analysis_family_members_by_path(
+                    mip_family_members_by_path = research_service.texture_analysis.mip_family_members(
                         self.original_root,
                         self.output_root,
                         stop_event=self.stop_event,
                     )
-                    mip_rows = analyze_mip_behavior(
+                    mip_rows = research_service.texture_analysis.analyze_mips(
                         self.original_root,
                         self.output_root,
                         texconv_path=self.texconv_path,
@@ -144,7 +135,7 @@ class ResearchRefreshWorker(QObject):
             normal_rows: List[NormalValidationRow] = []
             if self.original_root is not None and self.original_root.exists():
                 normal_rows.extend(
-                    validate_normal_maps(
+                    research_service.texture_analysis.validate_normals(
                         self.original_root,
                         root_label="Original DDS root",
                         texconv_path=self.texconv_path,
@@ -154,7 +145,7 @@ class ResearchRefreshWorker(QObject):
                 )
             if self.output_root is not None and self.output_root.exists() and self.output_root != self.original_root:
                 normal_rows.extend(
-                    validate_normal_maps(
+                    research_service.texture_analysis.validate_normals(
                         self.output_root,
                         root_label="Output root",
                         texconv_path=self.texconv_path,
@@ -176,7 +167,7 @@ class ResearchRefreshWorker(QObject):
             }
             if self.original_root is not None and self.output_root is not None:
                 if self.original_root.exists() and self.output_root.exists():
-                    budget_payload = build_texture_budget_analysis(
+                    budget_payload = research_service.texture_analysis.texture_budget(
                         self.original_root,
                         self.output_root,
                         processing_plan_lookup=processing_plan_lookup,
@@ -216,7 +207,7 @@ class ReferenceResolveWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
-            rows, stats = resolve_material_texture_references(
+            rows, stats = research_service.references.resolve_material_references(
                 self.archive_entries,
                 self.target_path,
                 on_progress=self.progress_changed.emit,
@@ -225,7 +216,7 @@ class ReferenceResolveWorker(QObject):
             if self.stop_event.is_set():
                 raise RuntimeError("Reference resolve cancelled.")
             self.progress_changed.emit(1, 1, "Discovering archive sidecars...")
-            sidecar_rows = discover_archive_sidecars(
+            sidecar_rows = research_service.references.discover_sidecars(
                 self.archive_entries,
                 self.target_path,
                 stop_event=self.stop_event,
@@ -276,7 +267,7 @@ class UIConstraintRefreshWorker(QObject):
     def run(self) -> None:
         try:
             archive_entries = [entry for entry in self.archive_entries if isinstance(entry, ArchiveEntry)]
-            rows = build_ui_constraint_reference_rows(
+            rows = research_service.references.build_ui_constraint_rows(
                 archive_entries,
                 stop_event=self.stop_event,
                 on_progress=self.progress_changed.emit,
@@ -316,10 +307,9 @@ class UnknownResolverPreviewWorker(QObject):
         try:
             if self.stop_event.is_set():
                 return
-            payload = build_archive_preview_result(
+            payload = research_service.preview.build_archive_preview(
                 self.texconv_path,
                 self.entry,
-                [],
                 stop_event=self.stop_event,
             )
             if self.stop_event.is_set():

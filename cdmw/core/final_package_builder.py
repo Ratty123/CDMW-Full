@@ -7,13 +7,17 @@ import hashlib
 import json
 import re
 import shutil
+import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.archive_modding import (
+from cdmw.core.atomic_file import atomic_publish_directory, atomic_write_bytes, atomic_write_text
+from cdmw.core.archive_modding_constants import (
     ARCHIVE_MESH_EXTENSIONS,
     MESH_IMPORT_COMPANION_EXTENSIONS,
     MESH_IMPORT_SIDECAR_EXTENSIONS,
+)
+from cdmw.core.archive_mesh_types import (
     MeshImportPreviewResult,
     MeshImportSupplementalFileSpec,
 )
@@ -217,52 +221,52 @@ def stage_final_package_preview_payloads(
     digest = hasher.hexdigest()[:16]
     safe_label = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(label or "test_build_preview")).strip("._") or "test_build_preview"
     package_root = app_temp_cache_path("final_package_preview_stage") / f"{safe_label}_{digest}"
-    if package_root.exists():
-        shutil.rmtree(package_root)
-    package_root.mkdir(parents=True, exist_ok=True)
-    manifest_files: List[dict] = []
+    package_root.parent.mkdir(parents=True, exist_ok=True)
+    staging_root = Path(tempfile.mkdtemp(prefix=f".{package_root.name}.", suffix=".tmp", dir=package_root.parent))
+    try:
+        manifest_files: List[dict] = []
+        parsed_path = str(getattr(getattr(preview_result, "parsed_mesh", None), "path", "") or "").strip()
+        rebuilt_data = bytes(getattr(preview_result, "rebuilt_data", b"") or b"")
+        if parsed_path and rebuilt_data:
+            target_path = _final_payload_path(parsed_path, export_options)
+            if target_path:
+                output_path = staging_root.joinpath(*PurePosixPath(target_path).parts)
+                atomic_write_bytes(output_path, rebuilt_data)
+                manifest_files.append({"path": target_path, "format": output_path.suffix.lstrip(".").lower()})
 
-    parsed_path = str(getattr(getattr(preview_result, "parsed_mesh", None), "path", "") or "").strip()
-    rebuilt_data = bytes(getattr(preview_result, "rebuilt_data", b"") or b"")
-    if parsed_path and rebuilt_data:
-        target_path = _final_payload_path(parsed_path, export_options)
-        if target_path:
-            output_path = package_root.joinpath(*PurePosixPath(target_path).parts)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_bytes(rebuilt_data)
+        seen: set[str] = {str(row["path"]).lower() for row in manifest_files}
+        for spec in tuple(supplemental_file_specs or ()):
+            if not isinstance(spec, MeshImportSupplementalFileSpec):
+                continue
+            target_path = _final_payload_path(str(getattr(spec, "target_path", "") or ""), export_options)
+            if not target_path:
+                continue
+            key = target_path.lower()
+            if key in seen:
+                continue
+            payload = _spec_payload_raw_bytes(spec)
+            if not payload:
+                continue
+            output_path = staging_root.joinpath(*PurePosixPath(target_path).parts)
+            atomic_write_bytes(output_path, payload)
             manifest_files.append({"path": target_path, "format": output_path.suffix.lstrip(".").lower()})
+            seen.add(key)
 
-    seen: set[str] = {str(row["path"]).lower() for row in manifest_files}
-    for spec in tuple(supplemental_file_specs or ()):
-        if not isinstance(spec, MeshImportSupplementalFileSpec):
-            continue
-        target_path = _final_payload_path(str(getattr(spec, "target_path", "") or ""), export_options)
-        if not target_path:
-            continue
-        key = target_path.lower()
-        if key in seen:
-            continue
-        payload = _spec_payload_raw_bytes(spec)
-        if not payload:
-            continue
-        output_path = package_root.joinpath(*PurePosixPath(target_path).parts)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(payload)
-        manifest_files.append({"path": target_path, "format": output_path.suffix.lstrip(".").lower()})
-        seen.add(key)
-
-    (package_root / "manifest.json").write_text(
-        json.dumps(
-            {
-                "format": "v1",
-                "kind": "mesh_loose_mod_preview_stage",
-                "files_root": ".",
-                "files": manifest_files,
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+        atomic_write_text(
+            staging_root / "manifest.json",
+            json.dumps(
+                {
+                    "format": "v1",
+                    "kind": "mesh_loose_mod_preview_stage",
+                    "files_root": ".",
+                    "files": manifest_files,
+                },
+                indent=2,
+            ),
+        )
+        atomic_publish_directory(staging_root, package_root)
+    finally:
+        shutil.rmtree(staging_root, ignore_errors=True)
     request_app_temp_cache_prune()
     return package_root
 
@@ -318,11 +322,12 @@ def build_final_package_preview(
         _is_sidecar_spec,
         _is_stock_or_shared_texture_path,
         _looks_like_normal_source_path,
-        _looks_like_normal_texture_path,
+        _material_export_safety_blockers_for_specs,
         _material_authority_source_material_rows_for_report,
         _material_key,
         _material_label_for_mesh,
         _normalize_final_path,
+        _pac_xml_normal_binding_warning,
         _pac_runtime_abi_preflight_errors,
         _pac_xml_material_shader_name_errors,
         _pac_xml_material_wrapper_structure_errors,
@@ -493,14 +498,11 @@ def build_final_package_preview(
                 continue
             parameter_name = str(getattr(binding, "parameter_name", "") or "").strip()
             kept_original_binding = str(sidecar_path or "").strip().lower() == "kept original sidecar bindings"
-            if (
-                parameter_name.lower() == "_normaltexture"
-                and not kept_original_binding
-                and not _looks_like_normal_texture_path(texture_path)
-            ):
-                warnings.append(
-                    f"Texture contract warning: _normalTexture points at a non-normal-looking DDS path: {texture_path}."
-                )
+            normal_warning = _pac_xml_normal_binding_warning(
+                parameter_name, texture_path, kept_original=kept_original_binding
+            )
+            if normal_warning:
+                warnings.append(normal_warning)
             role_key, role_label, visualized = _slot_role(parameter_name, texture_path)
             final_texture_path = _final_payload_path(texture_path, export_options)
             final_texture_key = _normalize_final_path(final_texture_path)
@@ -808,6 +810,8 @@ def build_final_package_preview(
                 if key:
                     planned_placeholder_material_keys.add(key)
     preflight_errors: List[str] = []
+    if source_owned_binding_contract_enabled:
+        preflight_errors.extend(_material_export_safety_blockers_for_specs(preview_result, source_materials_for_report, tuple(sidecars.values()), package_written=package_root is not None))
     for row in binding_rows:
         row_material_key = _material_key(getattr(row, "material_name", ""))
         row_is_planned_placeholder = bool(row_material_key and row_material_key in planned_placeholder_material_keys)

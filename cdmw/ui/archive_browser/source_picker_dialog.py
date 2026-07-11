@@ -7,7 +7,7 @@ from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt, QThread, QTimer
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush, QColor, QImage, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -27,10 +27,9 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.constants import DEFAULT_UI_THEME
-from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
-from cdmw.core.source_mix import SourceMixCandidate, source_mix_role_for_virtual_path
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
+from cdmw.services.texture_workflow_service import SourceMixCandidate, source_mix_role_for_virtual_path
 from cdmw.models import ArchiveEntry, ArchivePreviewResult, ModelPreviewData
-from cdmw.ui.archive_browser.static_preview_thumbnail import render_static_model_preview_pixmap
 from cdmw.ui.themes import get_theme
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
 
@@ -254,7 +253,7 @@ class ArchiveSourcePickerDialogMixin:
         preview_state: Dict[str, object] = {"request_id": 0, "worker": None, "thread": None, "closed": False}
         preview_cache: Dict[Tuple[str, str, int], ArchivePreviewResult] = {}
 
-        def _stop_source_preview_worker(wait: bool = False) -> None:
+        def _stop_source_preview_worker() -> None:
             preview_state["request_id"] = int(preview_state.get("request_id", 0) or 0) + 1
             worker = preview_state.get("worker")
             thread = preview_state.get("thread")
@@ -262,8 +261,6 @@ class ArchiveSourcePickerDialogMixin:
                 worker.stop()
             if isinstance(thread, QThread):
                 thread.quit()
-                if wait:
-                    thread.wait(1200)
             preview_state["worker"] = None
             preview_state["thread"] = None
 
@@ -273,25 +270,13 @@ class ArchiveSourcePickerDialogMixin:
                 _set_source_preview_message(f"No renderable model preview was recovered for {source_entry.basename}.")
                 preview_status.setText(f"{source_entry.basename}: no renderable model preview recovered.")
                 return
-            try:
-                preview_theme = get_theme(str(getattr(self, "current_theme_key", DEFAULT_UI_THEME) or DEFAULT_UI_THEME))
-                pixmap = render_static_model_preview_pixmap(
-                    preview_model,
-                    width=preview_widget.width(),
-                    height=preview_widget.height(),
-                    text_color=str(preview_theme.get("text_muted", "#8b949e")),
-                    draw_point_cloud_when_no_triangles=True,
-                )
-            except Exception as exc:
-                _set_source_preview_message(f"Could not show source preview for {source_entry.basename}.")
-                preview_status.setText(f"Preview display failed for {source_entry.basename}: {exc}")
-                return
-            if pixmap is None:
+            image = getattr(payload, "static_preview_image", None)
+            if not isinstance(image, QImage) or image.isNull():
                 _set_source_preview_message(f"No renderable geometry was recovered for {source_entry.basename}.")
                 preview_status.setText(f"{source_entry.basename}: no renderable geometry recovered.")
                 return
             preview_widget.clear()
-            preview_widget.setPixmap(pixmap)
+            preview_widget.setPixmap(QPixmap.fromImage(image))
             preview_status.setText(
                 f"Previewing {source_entry.path} | "
                 f"{int(getattr(preview_model, 'vertex_count', 0) or 0):,} vertices, "
@@ -343,6 +328,7 @@ class ArchiveSourcePickerDialogMixin:
             texconv_text = self.texconv_path_edit.text().strip()
             texconv_path = Path(texconv_text).expanduser() if texconv_text else None
             preview_settings = self._current_model_preview_render_settings()
+            preview_theme = get_theme(str(getattr(self, "current_theme_key", DEFAULT_UI_THEME) or DEFAULT_UI_THEME))
             worker = ArchivePreviewWorker(
                 request_id,
                 texconv_path,
@@ -359,6 +345,9 @@ class ArchiveSourcePickerDialogMixin:
                 include_loose_preview_assets=False,
                 sidecar_generation=self.archive_sidecar_generation,
                 attach_preview_images=False,
+                static_thumbnail_size=(preview_widget.width(), preview_widget.height()),
+                static_thumbnail_text_color=str(preview_theme.get("text_muted", "#8b949e")),
+                static_thumbnail_point_cloud=True,
             )
             thread = QThread(self)
             worker.moveToThread(thread)
@@ -516,5 +505,5 @@ class ArchiveSourcePickerDialogMixin:
                 return result.get("value")
         finally:
             preview_state["closed"] = True
-            _stop_source_preview_worker(wait=True)
+            _stop_source_preview_worker()
         return None

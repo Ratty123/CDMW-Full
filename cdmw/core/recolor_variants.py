@@ -267,16 +267,23 @@ def import_recolor_variant_templates(
     return tuple(merged)
 
 
-def analyze_recolor_variant_package(package_path: Path | str) -> RecolorVariantAnalysis:
+def analyze_recolor_variant_package(
+    package_path: Path | str,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> RecolorVariantAnalysis:
     resolved = Path(package_path).expanduser()
-    recipe_analysis = analyze_working_mod_package(resolved)
+    raise_if_cancelled(stop_event, "Recolor analysis cancelled.")
+    recipe_analysis = analyze_working_mod_package(resolved, stop_event=stop_event)
+    raise_if_cancelled(stop_event, "Recolor analysis cancelled.")
     warnings = list(recipe_analysis.warnings)
-    members = _list_package_members(resolved, warnings)
-    package_members = _payload_members(resolved, members)
+    members = _list_package_members(resolved, warnings, stop_event=stop_event)
+    package_members = _payload_members(resolved, members, stop_event=stop_event)
     payload_paths = tuple(sorted({member.payload_path for member in package_members.values()}))
     member_by_payload = {member.payload_path.casefold(): member for member in package_members.values()}
     dds_member_by_basename: dict[str, _PackageMember] = {}
     for member in package_members.values():
+        raise_if_cancelled(stop_event, "Recolor analysis cancelled.")
         if PurePosixPath(member.payload_path).suffix.lower() == ".dds":
             dds_member_by_basename.setdefault(PurePosixPath(member.payload_path).name.lower(), member)
 
@@ -285,8 +292,10 @@ def analyze_recolor_variant_package(package_path: Path | str) -> RecolorVariantA
     texture_state: dict[str, RecolorVariantTarget] = {}
 
     for recipe in recipe_analysis.recipes:
+        raise_if_cancelled(stop_event, "Recolor analysis cancelled.")
         consumer = recipe.submesh_name or recipe.material_name or recipe.sidecar_path
         for binding in recipe.texture_bindings:
+            raise_if_cancelled(stop_event, "Recolor analysis cancelled.")
             payload_path = normalize_mod_package_payload_path(binding.texture_path).as_posix().strip("/")
             member = member_by_payload.get(payload_path.casefold())
             if member is None and binding.source_member_path:
@@ -341,7 +350,7 @@ def analyze_recolor_variant_package(package_path: Path | str) -> RecolorVariantA
             texture_state[state_key] = target
 
     targets.extend(sorted(texture_state.values(), key=lambda target: (not target.editable, target.game_path.lower())))
-    targets.extend(_material_color_targets(resolved, recipe_analysis.sidecar_paths))
+    targets.extend(_material_color_targets(resolved, recipe_analysis.sidecar_paths, stop_event=stop_event))
 
     if not any(target.editable for target in targets):
         warnings.append("No safe editable recolor targets were detected.")
@@ -421,26 +430,33 @@ def preview_recolor_variant_target_image(
 
     preview_root = app_temp_cache_path("preview_cache", "recolor_variants", uuid.uuid4().hex)
     preview_root.mkdir(parents=True, exist_ok=True)
-    source_dds = _materialize_target_dds_for_preview(analysis, target, preview_root)
-    raise_if_cancelled(stop_event, "Recolor target preview cancelled.")
+    try:
+        raise_if_cancelled(stop_event, "Recolor target preview cancelled.")
+        source_dds = _materialize_target_dds_for_preview(analysis, target, preview_root)
+        raise_if_cancelled(stop_event, "Recolor target preview cancelled.")
 
-    dds_info = parse_dds(source_dds)
-    source_display_png = ensure_dds_display_preview_png(
-        texconv_path if texconv_path is not None and texconv_path.is_file() else None,
-        source_dds,
-        dds_info=dds_info,
-        max_dimension=max(1, int(max_dimension)),
-        slot_kind=target.slot_kind or "base",
-        stop_event=stop_event,
-    )
-    source_png = preview_root / "source.png"
-    preview_png = preview_root / "preview.png"
-    with Image.open(source_display_png) as image:
-        rgba = image.convert("RGBA")
-        pixels = np.asarray(rgba, dtype=np.uint8).copy()
-        rgba.save(source_png)
-    edited = apply_texture_editor_recolor(pixels, _texture_editor_settings_for_recolor_rule(rule))
-    save_rgba_array_png(edited, preview_png)
+        dds_info = parse_dds(source_dds)
+        source_display_png = ensure_dds_display_preview_png(
+            texconv_path if texconv_path is not None and texconv_path.is_file() else None,
+            source_dds,
+            dds_info=dds_info,
+            max_dimension=max(1, int(max_dimension)),
+            slot_kind=target.slot_kind or "base",
+            stop_event=stop_event,
+        )
+        source_png = preview_root / "source.png"
+        preview_png = preview_root / "preview.png"
+        with Image.open(source_display_png) as image:
+            rgba = image.convert("RGBA")
+            pixels = np.asarray(rgba, dtype=np.uint8).copy()
+            rgba.save(source_png)
+        raise_if_cancelled(stop_event, "Recolor target preview cancelled.")
+        edited = apply_texture_editor_recolor(pixels, _texture_editor_settings_for_recolor_rule(rule))
+        raise_if_cancelled(stop_event, "Recolor target preview cancelled.")
+        save_rgba_array_png(edited, preview_png)
+    except BaseException:
+        shutil.rmtree(preview_root, ignore_errors=True)
+        raise
     request_app_temp_cache_prune()
     return RecolorVariantPreviewImage(
         target_id=target.target_id,
@@ -448,6 +464,45 @@ def preview_recolor_variant_target_image(
         source_png=source_png,
         preview_png=preview_png,
     )
+
+
+def _remove_recolor_output_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
+
+
+def _publish_recolor_output_paths(
+    paths: Sequence[tuple[Path, Path]],
+    *,
+    stop_event: Optional[threading.Event],
+) -> None:
+    published: list[tuple[Path, Optional[Path]]] = []
+    try:
+        for staged_path, final_path in paths:
+            raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
+            backup_path: Optional[Path] = None
+            if final_path.exists() or final_path.is_symlink():
+                backup_path = final_path.with_name(f"cdmw-recolor-backup-{uuid.uuid4().hex}-{final_path.name}")
+                final_path.replace(backup_path)
+            try:
+                staged_path.replace(final_path)
+            except BaseException:
+                if backup_path is not None and backup_path.exists():
+                    backup_path.replace(final_path)
+                raise
+            published.append((final_path, backup_path))
+    except BaseException:
+        for final_path, backup_path in reversed(published):
+            _remove_recolor_output_path(final_path)
+            if backup_path is not None and backup_path.exists():
+                backup_path.replace(final_path)
+        raise
+    else:
+        for _final_path, backup_path in published:
+            if backup_path is not None and backup_path.exists():
+                _remove_recolor_output_path(backup_path)
 
 
 def build_recolor_variant_outputs(
@@ -492,6 +547,7 @@ def build_recolor_variant_outputs(
             pass
 
     scratch_root = Path(tempfile.mkdtemp(prefix="cdmw_recolor_variant_work_"))
+    staged_output_paths: list[Path] = []
     output_roots: list[Path] = []
     changed_texture_paths: list[str] = []
     changed_material_paths: list[str] = []
@@ -506,6 +562,7 @@ def build_recolor_variant_outputs(
             source_package,
             analysis.payload_paths,
             source_stage,
+            stop_event=stop_event,
             on_log=on_log,
         )
         copied_paths.extend(analysis.payload_paths)
@@ -577,25 +634,56 @@ def build_recolor_variant_outputs(
                 errors=tuple(errors),
             )
 
+        profile_plans: list[tuple[RecolorVariantOutputProfile, ModPackageInfo, Path, ModPackageExportOptions]] = []
+        seen_output_roots: set[str] = set()
         for profile in enabled_profiles:
             raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
             package_info = _profile_package_info(analysis.package_info, template, profile)
             final_root = _profile_output_root(resolved_output_root, package_info, profile)
-            if overwrite_existing and final_root.exists():
-                _clear_directory_contents(final_root)
-            elif final_root.exists() and any(final_root.iterdir()):
+            output_key = str(final_root.absolute()).casefold()
+            if output_key in seen_output_roots:
+                errors.append(f"Multiple output profiles resolve to the same folder: {final_root}")
+                continue
+            seen_output_roots.add(output_key)
+            if final_root.exists() and not final_root.is_dir():
+                errors.append(f"Output path exists and is not a folder: {final_root}")
+                continue
+            if not overwrite_existing and final_root.exists() and any(final_root.iterdir()):
                 errors.append(f"Output already exists and is not empty: {final_root}")
                 continue
-            copy_mod_ready_loose_tree(
+            export_options = profile.export_options or recolor_export_options_for_manager(profile.profile_id)
+            profile_plans.append((profile, package_info, final_root, export_options))
+
+        if errors:
+            return RecolorVariantBuildResult(
+                source_package_path=analysis.package_path,
+                changed_texture_paths=tuple(dict.fromkeys(changed_texture_paths)),
+                changed_material_paths=tuple(dict.fromkeys(changed_material_paths)),
+                copied_payload_paths=tuple(dict.fromkeys(copied_paths)),
+                skipped_targets=preview.skipped_targets,
+                warnings=tuple(dict.fromkeys(warnings)),
+                errors=tuple(errors),
+            )
+
+        publication_paths: list[tuple[Path, Path]] = []
+        for profile, package_info, final_root, export_options in profile_plans:
+            raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
+            final_root.parent.mkdir(parents=True, exist_ok=True)
+            staging_parent = Path(tempfile.mkdtemp(prefix="cdmw-recolor-stage-", dir=final_root.parent))
+            staged_output_paths.append(staging_parent)
+            staged_root = staging_parent / final_root.name
+            copy_result = copy_mod_ready_loose_tree(
                 source_stage,
-                final_root,
+                staged_root,
                 overwrite=True,
                 dry_run=False,
                 on_log=on_log,
+                stop_event=stop_event,
             )
-            export_options = profile.export_options or recolor_export_options_for_manager(profile.profile_id)
+            if copy_result.failed_files:
+                raise OSError(f"Could not stage {copy_result.failed_files} recolor output file(s).")
             write_mod_package_manifest(
-                final_root,
+                staged_root,
                 package_info,
                 kind="mesh_loose_mod" if any(path.lower().endswith((".pac", ".pam", ".pamlod")) for path in analysis.payload_paths) else "dds_loose_mod",
                 extra_fields={
@@ -613,11 +701,21 @@ def build_recolor_variant_outputs(
                 create_no_encrypt_file=export_options.create_no_encrypt_file,
             )
             if profile.profile_id.strip().lower() == "jmm":
-                _write_jmm_mod_json(final_root, package_info, analysis.payload_paths)
-            output_roots.append(final_root)
+                _write_jmm_mod_json(staged_root, package_info, analysis.payload_paths)
+            publication_paths.append((staged_root, final_root))
+            if export_options.create_zip:
+                staged_zip = staged_root.with_suffix(".zip")
+                if not staged_zip.is_file():
+                    raise OSError(f"Recolor output ZIP was not staged: {staged_zip}")
+                publication_paths.append((staged_zip, final_root.with_suffix(".zip")))
             completed_steps += 1
             if on_progress:
                 on_progress(min(completed_steps, total_steps), total_steps, f"{min(completed_steps, total_steps)} / {total_steps} steps")
+
+        raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
+        _publish_recolor_output_paths(publication_paths, stop_event=stop_event)
+        output_roots.extend(final_root for _profile, _package_info, final_root, _export_options in profile_plans)
+        for final_root in output_roots:
             if on_log:
                 on_log(f"Wrote recolor variant output: {final_root}")
 
@@ -634,6 +732,8 @@ def build_recolor_variant_outputs(
     except RunCancelled:
         raise
     finally:
+        for staged_path in staged_output_paths:
+            shutil.rmtree(staged_path, ignore_errors=True)
         shutil.rmtree(scratch_root, ignore_errors=True)
 
 
@@ -724,10 +824,16 @@ def _rule_from_dict(data: Mapping[str, object]) -> RecolorVariantRule:
     )
 
 
-def _list_package_members(package_path: Path, warnings: list[str]) -> tuple[str, ...]:
+def _list_package_members(
+    package_path: Path,
+    warnings: list[str],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> tuple[str, ...]:
     if package_path.is_dir():
         names = []
         for child in package_path.rglob("*"):
+            raise_if_cancelled(stop_event, "Recolor analysis cancelled.")
             if child.is_file():
                 try:
                     names.append(child.relative_to(package_path).as_posix())
@@ -737,16 +843,27 @@ def _list_package_members(package_path: Path, warnings: list[str]) -> tuple[str,
     if package_path.suffix.lower() == ".zip":
         try:
             with zipfile.ZipFile(package_path) as archive:
-                return tuple(sorted(info.filename.replace("\\", "/") for info in archive.infolist() if not info.is_dir()))
+                members: list[str] = []
+                for info in archive.infolist():
+                    raise_if_cancelled(stop_event, "Recolor analysis cancelled.")
+                    if not info.is_dir():
+                        members.append(info.filename.replace("\\", "/"))
+                return tuple(sorted(members))
         except (OSError, zipfile.BadZipFile) as exc:
             warnings.append(f"Zip member scan failed: {exc}")
             return ()
     return ()
 
 
-def _payload_members(package_path: Path, member_names: Sequence[str]) -> dict[str, _PackageMember]:
+def _payload_members(
+    package_path: Path,
+    member_names: Sequence[str],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> dict[str, _PackageMember]:
     members: dict[str, _PackageMember] = {}
     for member_name in member_names:
+        raise_if_cancelled(stop_event, "Recolor analysis cancelled.")
         payload = normalize_mod_package_payload_path(member_name).as_posix().strip("/")
         if not payload:
             continue
@@ -816,9 +933,15 @@ def _classify_texture_target(
     return texture_type, semantic_subtype, True, ""
 
 
-def _material_color_targets(package_path: Path, sidecar_paths: Sequence[str]) -> list[RecolorVariantTarget]:
+def _material_color_targets(
+    package_path: Path,
+    sidecar_paths: Sequence[str],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> list[RecolorVariantTarget]:
     targets: list[RecolorVariantTarget] = []
     for sidecar_path in sidecar_paths:
+        raise_if_cancelled(stop_event, "Recolor analysis cancelled.")
         normalized_path = normalize_mod_package_payload_path(sidecar_path).as_posix().strip("/")
         if not normalized_path:
             continue
@@ -837,6 +960,7 @@ def _material_color_targets(package_path: Path, sidecar_paths: Sequence[str]) ->
             continue
         occurrence = 0
         for match in _COLOR_PARAM_RE.finditer(text):
+            raise_if_cancelled(stop_event, "Recolor analysis cancelled.")
             attrs = _attrs_dict(match.group("attrs"))
             parameter_name = _first_attr(attrs, "_name", "StringItemID", "Name", "ItemID")
             raw_value = _first_attr(attrs, "Value", "_value", "value")
@@ -895,17 +1019,26 @@ def _copy_source_payloads_to_stage(
     payload_paths: Sequence[str],
     stage_root: Path,
     *,
+    stop_event: Optional[threading.Event] = None,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> None:
     stage_root.mkdir(parents=True, exist_ok=True)
     if source_package.is_dir():
         for payload_path in payload_paths:
+            raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
             source = _source_path_for_payload(source_package, payload_path, payload_path)
             if source is None:
                 continue
             target = stage_root / Path(PurePosixPath(payload_path).as_posix())
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+            if stop_event is None:
+                shutil.copy2(source, target)
+            else:
+                with source.open("rb") as source_handle, target.open("wb") as target_handle:
+                    while chunk := source_handle.read(1024 * 1024):
+                        raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
+                        target_handle.write(chunk)
+                shutil.copystat(source, target)
             if on_log:
                 on_log(f"COPY {payload_path}")
         return
@@ -914,6 +1047,7 @@ def _copy_source_payloads_to_stage(
         with zipfile.ZipFile(source_package) as archive:
             seen: set[str] = set()
             for info in archive.infolist():
+                raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
                 if info.is_dir():
                     continue
                 normalized = normalize_mod_package_payload_path(info.filename).as_posix().strip("/")
@@ -922,7 +1056,9 @@ def _copy_source_payloads_to_stage(
                 target = stage_root / Path(PurePosixPath(normalized).as_posix())
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(info, "r") as source_handle, target.open("wb") as target_handle:
-                    shutil.copyfileobj(source_handle, target_handle)
+                    while chunk := source_handle.read(1024 * 1024):
+                        raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
+                        target_handle.write(chunk)
                 seen.add(normalized.casefold())
                 if on_log:
                     on_log(f"COPY {normalized}")
@@ -1212,16 +1348,3 @@ def _json_bool(value: object, default: bool) -> bool:
     if text in {"0", "false", "no", "off", ""}:
         return False
     return bool(default)
-
-
-def _clear_directory_contents(path: Path) -> None:
-    resolved = Path(path).expanduser().resolve()
-    if not resolved.exists():
-        return
-    if not resolved.is_dir():
-        raise ValueError(f"Output path is not a directory: {resolved}")
-    for child in resolved.iterdir():
-        if child.is_dir():
-            shutil.rmtree(child)
-        else:
-            child.unlink()

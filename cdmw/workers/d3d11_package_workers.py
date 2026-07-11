@@ -29,6 +29,8 @@ from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_p
 from cdmw.rendering.native_preview_package_cache import (
     create_native_preview_package_staging_dir,
     lookup_native_preview_package_cache,
+    native_preview_package_cache_build_lock,
+    release_native_preview_package_staging_dir,
     store_native_preview_package_cache,
 )
 
@@ -149,47 +151,53 @@ class ArchiveNativePreviewPrefetchWorker(QObject):
                     validate_package=self.validate_package,
                 ) is not None:
                     continue
-                staging_entry_dir: Optional[Path] = None
-                try:
-                    staging_entry_dir = create_native_preview_package_staging_dir(self.cache_root)
-                    attempt = run_native_preview_core_preview_job(
-                        entry,
-                        cache_root=self.cache_root,
-                        render_settings=self.render_settings,
-                        companion_entry=companion_entry,
-                        package_root=self.package_root,
-                        output_root=staging_entry_dir / "package",
-                        timeout_seconds=5.0,
-                        stop_event=self.stop_event,
-                        dds_cache_max_bytes=512 * 1024 * 1024,
-                        dds_cache_target_bytes=384 * 1024 * 1024,
-                    )
-                    if attempt.succeeded:
-                        store_native_preview_package_cache(
-                            self.cache_root,
-                            key,
-                            staging_entry_dir,
-                            {
-                                "entry_path": str(getattr(entry, "path", "") or ""),
-                                "companion_path": str(getattr(companion_entry, "path", "") or ""),
-                                "cache_mode": self.cache_mode,
-                                "prefetch": True,
-                                "diagnostics": dict(attempt.diagnostics),
-                            },
-                            validate_package=self.validate_package,
-                            max_bytes=self.package_cache_max_bytes,
-                            target_bytes=self.package_cache_target_bytes,
+                with native_preview_package_cache_build_lock(self.cache_root, key):
+                    if self.stop_event.is_set():
+                        return
+                    if lookup_native_preview_package_cache(
+                        self.cache_root,
+                        key,
+                        validate_package=self.validate_package,
+                    ) is not None:
+                        continue
+                    staging_entry_dir: Optional[Path] = None
+                    try:
+                        staging_entry_dir = create_native_preview_package_staging_dir(self.cache_root, leased=True)
+                        attempt = run_native_preview_core_preview_job(
+                            entry,
+                            cache_root=self.cache_root,
+                            render_settings=self.render_settings,
+                            companion_entry=companion_entry,
+                            package_root=self.package_root,
+                            output_root=staging_entry_dir / "package",
+                            timeout_seconds=5.0,
+                            stop_event=self.stop_event,
+                            dds_cache_max_bytes=512 * 1024 * 1024,
+                            dds_cache_target_bytes=384 * 1024 * 1024,
                         )
-                    else:
-                        shutil.rmtree(staging_entry_dir, ignore_errors=True)
-                except RunCancelled:
-                    # The native service may already be writing this staging output.
-                    # Leave it for later package-cache pruning instead of racing it.
-                    return
-                except Exception:
-                    if staging_entry_dir is not None:
-                        shutil.rmtree(staging_entry_dir, ignore_errors=True)
-                    continue
+                        if attempt.succeeded:
+                            store_native_preview_package_cache(
+                                self.cache_root,
+                                key,
+                                staging_entry_dir,
+                                {
+                                    "entry_path": str(getattr(entry, "path", "") or ""),
+                                    "companion_path": str(getattr(companion_entry, "path", "") or ""),
+                                    "cache_mode": self.cache_mode,
+                                    "prefetch": True,
+                                    "diagnostics": dict(attempt.diagnostics),
+                                },
+                                validate_package=self.validate_package,
+                                max_bytes=self.package_cache_max_bytes,
+                                target_bytes=self.package_cache_target_bytes,
+                            )
+                    except RunCancelled:
+                        return
+                    except Exception:
+                        continue
+                    finally:
+                        if staging_entry_dir is not None:
+                            release_native_preview_package_staging_dir(staging_entry_dir, cleanup=True)
         finally:
             self.finished.emit()
 

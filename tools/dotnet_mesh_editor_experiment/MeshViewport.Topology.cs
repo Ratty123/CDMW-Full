@@ -4,11 +4,7 @@ internal sealed partial class MeshViewport
 {
     public void RefreshBounds()
     {
-        _bounds = _document.Bounds();
-        _center = new Vec3(
-            (_bounds.Min.X + _bounds.Max.X) * 0.5f,
-            (_bounds.Min.Y + _bounds.Max.Y) * 0.5f,
-            (_bounds.Min.Z + _bounds.Max.Z) * 0.5f);
+        RefreshModelBounds();
         RebuildEdgeTopology();
         RebuildPartAdjacency();
         if (_d3d11Viewport is not null)
@@ -17,6 +13,108 @@ internal sealed partial class MeshViewport
         }
         _gpuViewport?.RefreshGeometry();
         UpdateGpuViewport();
+    }
+
+    public void RefreshTopologyGeometry(
+        IReadOnlyCollection<int> affectedSubmeshes,
+        IReadOnlyDictionary<int, int> materialSources,
+        bool replaceAll)
+    {
+        RefreshModelBounds();
+        RebuildEdgeTopology();
+        RebuildPartAdjacency();
+        _d3d11Viewport?.RefreshTopologyGeometry(affectedSubmeshes, materialSources, replaceAll);
+        _gpuViewport?.RefreshGeometry();
+        UpdateGpuViewport();
+    }
+
+    public void RefreshVertexGeometry(IReadOnlyDictionary<int, IReadOnlyCollection<int>> changedVertices)
+    {
+        var changed = new Dictionary<int, IReadOnlyCollection<int>>();
+        foreach (var (submeshIndex, sourceVertices) in changedVertices)
+        {
+            if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count)
+            {
+                continue;
+            }
+            var valid = sourceVertices
+                .Where(index => index >= 0 && index < _document.Submeshes[submeshIndex].Vertices.Count)
+                .Distinct()
+                .ToArray();
+            if (valid.Length > 0)
+            {
+                changed[submeshIndex] = valid;
+            }
+        }
+        if (changed.Count == 0)
+        {
+            return;
+        }
+        ExpandModelBounds(changed);
+        _d3d11Viewport?.RefreshVertexGeometry(changed);
+        _gpuViewport?.RefreshGeometry();
+        UpdateGpuViewport();
+    }
+
+    public void RefreshVertexGeometry(IReadOnlyDictionary<int, MeshVertexChannelChanges> changedChannels)
+    {
+        var changed = new Dictionary<int, MeshVertexChannelChanges>();
+        foreach (var (submeshIndex, channels) in changedChannels)
+        {
+            if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count)
+            {
+                continue;
+            }
+            var submesh = _document.Submeshes[submeshIndex];
+            var positions = ValidChannelIndices(channels.Positions, submesh.Vertices.Count);
+            var normals = ValidChannelIndices(channels.Normals, submesh.Normals.Count);
+            var uvs = ValidChannelIndices(channels.Uvs, submesh.Uvs.Count);
+            if (positions.Length > 0 || normals.Length > 0 || uvs.Length > 0)
+            {
+                changed[submeshIndex] = new MeshVertexChannelChanges(positions, normals, uvs);
+            }
+        }
+        if (changed.Count == 0)
+        {
+            return;
+        }
+        var changedPositions = changed
+            .Where(pair => pair.Value.Positions.Count > 0)
+            .ToDictionary(pair => pair.Key, pair => pair.Value.Positions);
+        if (changedPositions.Count > 0)
+        {
+            ExpandModelBounds(changedPositions);
+        }
+        _d3d11Viewport?.RefreshVertexGeometry(changed);
+        _gpuViewport?.RefreshGeometry();
+        UpdateGpuViewport();
+    }
+
+    private static int[] ValidChannelIndices(IEnumerable<int> indices, int count)
+    {
+        return indices.Where(index => index >= 0 && index < count).Distinct().ToArray();
+    }
+
+    public void RefreshVertexGeometry(IEnumerable<int> changedSubmeshes)
+    {
+        RefreshVertexGeometry(changedSubmeshes
+            .Where(index => index >= 0 && index < _document.Submeshes.Count)
+            .Distinct()
+            .ToDictionary(
+                index => index,
+                index => (IReadOnlyCollection<int>)Enumerable.Range(0, _document.Submeshes[index].Vertices.Count).ToArray()));
+    }
+
+    private void ExpandModelBounds(IReadOnlyDictionary<int, IReadOnlyCollection<int>> changedVertices)
+    {
+        SparseBounds.Update(changedVertices);
+        ApplySparseBounds();
+    }
+
+    private void RefreshModelBounds()
+    {
+        SparseBounds.Rebase();
+        ApplySparseBounds();
     }
 
     private NetViewportCamera CurrentCamera()
@@ -83,27 +181,7 @@ internal sealed partial class MeshViewport
         {
             return false;
         }
-        var leftBounds = SubmeshBounds(left);
-        var rightBounds = SubmeshBounds(right);
-        if (!BoundsTouchOrOverlap(leftBounds, rightBounds, tolerance))
-        {
-            return false;
-        }
-        var toleranceSquared = tolerance * tolerance;
-        foreach (var a in left.Vertices)
-        {
-            foreach (var b in right.Vertices)
-            {
-                var dx = a.X - b.X;
-                var dy = a.Y - b.Y;
-                var dz = a.Z - b.Z;
-                if ((dx * dx) + (dy * dy) + (dz * dz) <= toleranceSquared)
-                {
-                    return true;
-                }
-            }
-        }
-        return true;
+        return BoundsTouchOrOverlap(SubmeshBounds(left), SubmeshBounds(right), tolerance);
     }
 
     private static (Vec3 Min, Vec3 Max) SubmeshBounds(ObjSubmesh submesh)
@@ -126,7 +204,12 @@ internal sealed partial class MeshViewport
 
     public void FrameMesh()
     {
-        RefreshBounds();
+        RefreshModelBounds();
+        if (_edgeTopology.Generation == 0)
+        {
+            RebuildEdgeTopology();
+            RebuildPartAdjacency();
+        }
         var size = Math.Max(_bounds.Max.X - _bounds.Min.X, Math.Max(_bounds.Max.Y - _bounds.Min.Y, _bounds.Max.Z - _bounds.Min.Z));
         _zoom = size > 0.0001f ? 380.0f / size : 220.0f;
         _panX = 0;

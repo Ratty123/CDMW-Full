@@ -7,6 +7,7 @@ from typing import Optional
 
 from cdmw.app.bootstrap_reports import bootstrap_root
 from cdmw.app.pyinstaller_runtime import prepare_pyinstaller_runtime_temp_cleanup
+from cdmw.app.startup_splash import cleanup_stale_startup_splash_artifacts
 
 
 _startup_maintenance_thread: Optional[threading.Thread] = None
@@ -27,6 +28,7 @@ def prepare_app_temp_cache_cleanup() -> None:
 
 def run_startup_maintenance() -> None:
     prepare_pyinstaller_runtime_temp_cleanup()
+    cleanup_stale_startup_splash_artifacts()
     prepare_app_temp_cache_cleanup()
 
 

@@ -1,6 +1,8 @@
 from pathlib import Path
 import unittest
 
+from tests.hkx_editor_dialog_source_support import hkx_editor_dialog_source
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAIN_WINDOW = REPO_ROOT / "cdmw" / "ui" / "shell" / "app_window.py"
@@ -34,6 +36,7 @@ ARCHIVE_MESH_SETUP_HELPERS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "me
 ARCHIVE_MATERIAL_SIDECAR_ACTIONS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "material_sidecar_actions.py"
 ARCHIVE_MATERIAL_SIDECAR_EDITOR_DIALOG = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "material_sidecar_editor_dialog.py"
 ARCHIVE_MATERIAL_SIDECAR_EDITOR_HELPERS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "material_sidecar_editor_helpers.py"
+MATERIAL_SIDECAR_PREVIEW_SERVICE = REPO_ROOT / "cdmw" / "services" / "material_sidecar_preview_service.py"
 ARCHIVE_MOD_READY_EXPORT = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "mod_ready_export.py"
 ARCHIVE_RENDER_LIFECYCLE = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "render_lifecycle.py"
 ARCHIVE_SCAN_LIFECYCLE = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "scan_lifecycle.py"
@@ -41,6 +44,7 @@ ARCHIVE_UI_FORMATTING = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "ui_form
 ARCHIVE_VIRTUAL_PATH_LOOKUP = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "virtual_path_lookup.py"
 ARCHIVE_ATTACHMENT_ICONS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_icons.py"
 ARCHIVE_ATTACHMENT_LOOSE_FILES = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_loose_files.py"
+ATTACHMENT_LOOSE_WORKERS = REPO_ROOT / "cdmw" / "workers" / "attachment_loose_workers.py"
 ARCHIVE_ATTACHMENT_BATCH = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_batch.py"
 ARCHIVE_ATTACHMENT_PACKAGE = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_package.py"
 ARCHIVE_ATTACHMENT_PLAN = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "attachment_plan.py"
@@ -62,7 +66,6 @@ ARCHIVE_PREVIEW_LAYOUT = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "previe
 ARCHIVE_REFERENCE_PREVIEW = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "reference_preview.py"
 ARCHIVE_SOURCE_MIX_ACTIONS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "source_mix_actions.py"
 ARCHIVE_SOURCE_MIX_OVERLAY = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "source_mix_overlay.py"
-ARCHIVE_WEAPON_PLACEMENT_MAP = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "weapon_placement_map.py"
 ARCHIVE_WEAPON_PLACEMENT_STUDIO = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "weapon_placement_studio.py"
 ARCHIVE_WORKERS = REPO_ROOT / "cdmw" / "workers" / "archive_workers.py"
 ARCHIVE_SCAN_WORKERS = REPO_ROOT / "cdmw" / "workers" / "archive_scan_workers.py"
@@ -121,9 +124,10 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertLess(cache_hit, extract)
         self.assertLess(batch_convert, fallback_convert)
         self.assertIn("pending_dds_keys.add(prepared_key)", worker_source)
-        self.assertIn("failed_dds_notes.setdefault(", worker_source)
+        self.assertIn("failed_notes.setdefault(", worker_source)
+        self.assertIn("def _prepare_dds_icons(", worker_source)
         self.assertIn("save_archive_item_icon_thumbnail_cache(", worker_source)
-        self.assertIn("emit_prepared(prepared_key, cached_path, note)", worker_source)
+        self.assertIn("self._emit_prepared(prepared_key, cached_path, note, emitted_keys)", worker_source)
 
     def test_asset_map_tabs_and_preview_health_are_present(self) -> None:
         source = "\n".join(
@@ -298,6 +302,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             + ARCHIVE_MATERIAL_SIDECAR_EDITOR_DIALOG.read_text(encoding="utf-8")
             + "\n"
             + ARCHIVE_MATERIAL_SIDECAR_EDITOR_HELPERS.read_text(encoding="utf-8")
+            + "\n"
+            + MATERIAL_SIDECAR_PREVIEW_SERVICE.read_text(encoding="utf-8")
         )
 
         self.assertIn('material_preview_host = NativeD3D11PreviewHostFrame(dialog)', source)
@@ -309,9 +315,9 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("material_preview_host.load_package(package_dir, status_file", source)
         self.assertIn("material_preview_base_result_state", source)
         self.assertIn("reused active Archive Preview D3D11 package; no material values changed.", source)
-        self.assertIn("cleanup_owned_package=False", source)
+        self.assertIn('cleanup_owned_package=result_kind != "reused"', source)
         self.assertIn("def _current_archive_material_preview_result()", source)
-        self.assertIn("def _active_archive_material_preview_package(model_entry: ArchiveEntry)", source)
+        self.assertIn("def _archive_material_preview_source_package()", source)
         self.assertIn("archive_isolated_renderer_active_package", source)
         self.assertIn("material_preview_package_matches_entry", source)
         self.assertIn("def fast_material_preview_package_from_manifest(", source)
@@ -354,7 +360,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             )
         )
 
-        self.assertIn("from cdmw.core.appearance_composite import", source)
+        self.assertIn("from cdmw.services.texture_workflow_service import", source)
+        self.assertNotIn("from cdmw.core.appearance_composite import", source)
         self.assertIn("AppearanceCompositeModelOverride", source)
         self.assertIn('self.archive_appearance_composite_button = QPushButton("Composite Preview...")', source)
         self.assertNotIn('("Preview Composite Appearance", self.archive_appearance_composite_button)', source)
@@ -390,7 +397,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         )
 
         self.assertIn("AppearanceSinglePacSwapPlan", source)
-        self.assertIn("build_appearance_single_pac_swap_plan", source)
+        self.assertIn("AppearanceSwapPlanRequest", source)
+        self.assertIn("run_appearance_swap_plan", source)
         self.assertIn("build_appearance_single_pac_swap_package_plan", source)
         self.assertIn('self.archive_appearance_swap_button = QPushButton("Armor Swap...")', source)
         self.assertNotIn('("Appearance Armor Swap", self.archive_appearance_swap_button)', source)
@@ -833,27 +841,27 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("Target prefab placement + role metadata", source)
 
     def test_hkx_editor_placement_workflow_is_disabled_wip(self) -> None:
-        source = ARCHIVE_HKX_EDITOR_DIALOG.read_text(encoding="utf-8")
-        start = source.index("placement_page = QWidget()")
-        end = source.index("hkx_preview_panel = QWidget()", start)
+        source = hkx_editor_dialog_source(REPO_ROOT)
+        start = source.index("_state.placement_page = _state.QWidget()")
+        end = source.index("_state.hkx_preview_panel = _state.QWidget()", start)
         placement_source = source[start:end]
 
         self.assertIn('"Disabled - WIP. Prefab/socket placement workflow is paused here', placement_source)
-        self.assertIn('placement_swap_title = QLabel("Placement Swap (Disabled - WIP)")', placement_source)
-        self.assertIn('placement_swap_copy_button = QPushButton("Choose Placement Source (Disabled - WIP)")', placement_source)
-        self.assertIn("placement_swap_copy_button.setEnabled(False)", placement_source)
-        self.assertIn('placement_tab_index = tab_widget.addTab(placement_page, "Placement (Disabled - WIP)")', placement_source)
-        self.assertIn("tab_widget.setTabEnabled(placement_tab_index, False)", placement_source)
-        self.assertIn("placement_page.setEnabled(False)", placement_source)
+        self.assertIn('_state.placement_swap_title = _state.QLabel("Placement Swap (Disabled - WIP)")', placement_source)
+        self.assertIn('_state.placement_swap_copy_button = _state.QPushButton("Choose Placement Source (Disabled - WIP)")', placement_source)
+        self.assertIn("_state.placement_swap_copy_button.setEnabled(False)", placement_source)
+        self.assertIn('_state.placement_tab_index = _state.tab_widget.addTab(_state.placement_page, "Placement (Disabled - WIP)")', placement_source)
+        self.assertIn("_state.tab_widget.setTabEnabled(_state.placement_tab_index, False)", placement_source)
+        self.assertIn("_state.placement_page.setEnabled(False)", placement_source)
         self.assertIn("Choose Placement Source is disabled - WIP.", placement_source)
-        self.assertNotIn("placement_swap_copy_button.clicked.connect", placement_source)
+        self.assertNotIn("_state.placement_swap_copy_button.clicked.connect", placement_source)
 
-        nav_start = source.index("for section_index in range(tab_widget.count()):")
-        nav_end = source.index("syncing_tree = {\"active\": False}", nav_start)
+        nav_start = source.index("for _state.section_index in range(_state.tab_widget.count()):")
+        nav_end = source.index('_state.syncing_tree = {"active": False}', nav_start)
         nav_source = source[nav_start:nav_end]
-        self.assertIn("section_index == placement_tab_index", nav_source)
-        self.assertIn("combo_item.setEnabled(False)", nav_source)
-        self.assertIn("~Qt.ItemFlag.ItemIsEnabled", nav_source)
+        self.assertIn("_state.section_index == _state.placement_tab_index", nav_source)
+        self.assertIn("_state.combo_item.setEnabled(False)", nav_source)
+        self.assertIn("~_state.Qt.ItemFlag.ItemIsEnabled", nav_source)
         self.assertIn("Placement view is disabled - WIP.", source)
 
     def test_weapon_placement_studio_ui_and_guardrails_are_present(self) -> None:
@@ -877,8 +885,6 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         start = source.index("    def _open_archive_weapon_placement_studio_dialog(")
         end = source.index("__all__", start)
         studio_source = source[start:end]
-        placement_map_source = ARCHIVE_WEAPON_PLACEMENT_MAP.read_text(encoding="utf-8")
-
         self.assertIn("Weapon Placement Studio is disabled - WIP.", studio_source)
         self.assertIn("return", studio_source)
         self.assertLessEqual(len(studio_source.splitlines()), 8)
@@ -889,11 +895,6 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertNotIn("CDMW_ENABLE_WEAPON_STUDIO_NATIVE_D3D11", studio_source)
         self.assertNotIn("from cdmw.core.weapon_swap_templates import (", source)
         self.assertIn("Weapon Placement Batch", source)
-        self.assertIn("class WeaponPlacementStudioPlacementMap(QFrame)", placement_map_source)
-        self.assertIn("self._show_shield = False", placement_map_source)
-        self.assertIn("Human skeleton schematic: bones and sockets, not a blob/body proxy.", placement_map_source)
-        self.assertIn("draw_socket_anchor(\"Spine2\"", placement_map_source)
-        self.assertIn("draw_label(\"human skeleton back\"", placement_map_source)
 
     def test_weapon_placement_ctf_smoke_script_is_present(self) -> None:
         source = Path("tools/weapon_placement_studio_ctf_smoke.py").read_text(encoding="utf-8")
@@ -905,7 +906,9 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("decode timing threshold", source)
 
     def test_mod_generation_ui_uses_target_manager_checklists(self) -> None:
-        app_window_source = MAIN_WINDOW.read_text(encoding="utf-8")
+        app_window_source = (REPO_ROOT / "cdmw" / "ui" / "shell" / "window_feature_providers.py").read_text(
+            encoding="utf-8"
+        )
         safe_placement_dialog_source = ARCHIVE_ATTACHMENT_SAFE_PLACEMENT_DIALOG.read_text(encoding="utf-8")
         visual_dialog_source = ARCHIVE_ATTACHMENT_VISUAL_DIALOG.read_text(encoding="utf-8")
         source = "\n".join(
@@ -1097,13 +1100,15 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("def _placement_behavior_patch_blocking_reason", source)
         self.assertIn("patched_part_names", source)
         self.assertIn("patch_scope_blocked", source)
-        self.assertIn("build_ready = bool(effective_package_plan_rows or visual_rows) and not bool(patch_scope_blocked or behavior_blocked)", source)
+        self.assertIn("build_ready = bool(effective_package_plan_rows or visual_rows) and not bool(", source)
+        self.assertIn("patch_scope_blocked or behavior_blocked or loose_scan_error", source)
         self.assertIn("Placement patch touches unrelated descriptor rows", source)
         self.assertIn("Build Placement Package", source)
         self.assertIn("Target that changes", source)
         self.assertIn("Placement source", source)
         icon_source = ARCHIVE_ATTACHMENT_ICONS.read_text(encoding="utf-8")
         loose_source = ARCHIVE_ATTACHMENT_LOOSE_FILES.read_text(encoding="utf-8")
+        loose_worker_source = ATTACHMENT_LOOSE_WORKERS.read_text(encoding="utf-8")
         package_source = ARCHIVE_ATTACHMENT_PACKAGE.read_text(encoding="utf-8")
         plan_source = ARCHIVE_ATTACHMENT_PLAN.read_text(encoding="utf-8")
         source_mix_source = ARCHIVE_SOURCE_MIX_ACTIONS.read_text(encoding="utf-8")
@@ -1115,6 +1120,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             + "\n"
             + loose_source
             + "\n"
+            + loose_worker_source
+            + "\n"
             + package_source
             + "\n"
             + plan_source
@@ -1125,7 +1132,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         )
 
         self.assertIn("def _build_attachment_donor_package_plan", plan_source)
-        self.assertIn("def _attachment_package_loose_target_specs", loose_source)
+        self.assertIn("def prepare_attachment_loose_targets", loose_worker_source)
         self.assertIn("def _attachment_package_target_support_entries", package_source)
         self.assertIn("def _attachment_package_item_icon_entries", icon_source)
         self.assertIn("def _attachment_package_source_icon_override_rows", icon_source)
@@ -1167,20 +1174,16 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("def _resolve_source_mix_candidate_targets", source_mix_source)
         self.assertIn("self.archive_entries_by_normalized_path.get(normalized", source_mix_source)
         self.assertIn("self.archive_entries_by_basename.get(candidate_name", source_mix_source)
-        self.assertIn("candidates = scan_loose_folder_source(scan_root)", source_mix_overlay_source)
-        self.assertIn("candidates = self._resolve_source_mix_candidate_targets(candidates)", source_mix_overlay_source)
+        self.assertIn("SourceMixScanRequest(", source_mix_overlay_source)
+        self.assertIn("SourceMixIndexSnapshot.capture(", source_mix_overlay_source)
+        self.assertIn("run_source_mix_scan", source_mix_overlay_source)
+        self.assertNotIn("scan_loose_folder_source(scan_root)", source_mix_overlay_source)
 
-        loose_roots_start = loose_source.index("def _attachment_package_loose_target_roots_for_entry")
-        loose_roots_body = loose_source[
-            loose_roots_start : loose_source.index("def _attachment_package_loose_target_specs", loose_roots_start)
-        ]
-        self.assertIn("_attachment_package_output_loose_roots()", loose_roots_body)
-        self.assertIn("_attachment_package_raw_extract_root()", loose_roots_body)
-        self.assertNotIn("_collect_archive_preview_loose_roots()", loose_roots_body)
-        self.assertNotIn("archive_extract_root_edit", loose_roots_body)
-
-        loose_specs_start = loose_source.index("def _attachment_package_loose_target_specs")
-        loose_specs_body = loose_source[loose_specs_start:]
+        self.assertIn("prepare_attachment_loose_targets(", plan_source)
+        self.assertIn("target_loose_roots=loose_result.roots", plan_source)
+        self.assertNotIn(".iterdir()", ARCHIVE_ATTACHMENT_PLACEMENT_DIFF_DIALOG.read_text(encoding="utf-8"))
+        self.assertNotIn(".read_text(", ARCHIVE_ATTACHMENT_PLACEMENT_DIFF_DIALOG.read_text(encoding="utf-8"))
+        loose_specs_body = loose_worker_source
         for token in (".prefab", ".hkx", ".hkt", ".paa", ".paa_metabin", ".motionblending", ".sockets.xml"):
             self.assertIn(token, loose_specs_body)
         self.assertNotIn("donor_entry", loose_specs_body)

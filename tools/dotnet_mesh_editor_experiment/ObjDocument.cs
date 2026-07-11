@@ -262,6 +262,8 @@ internal sealed class ObjSubmesh
     public List<Vec3> Vertices { get; } = new();
     public List<Vec2> Uvs { get; } = new();
     public List<Vec3> Normals { get; } = new();
+    public bool NormalsVertexAligned { get; set; }
+    public bool UvsVertexAligned { get; set; }
     public List<ObjFace> Faces { get; } = new();
 }
 

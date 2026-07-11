@@ -47,6 +47,7 @@ class PyInstallerTempCleanupTests(unittest.TestCase):
     def test_startup_maintenance_scheduler_runs_cleanup_asynchronously(self) -> None:
         with (
             mock.patch.object(startup_maintenance, "prepare_pyinstaller_runtime_temp_cleanup") as runtime_cleanup,
+            mock.patch.object(startup_maintenance, "cleanup_stale_startup_splash_artifacts") as splash_cleanup,
             mock.patch.object(startup_maintenance, "prepare_app_temp_cache_cleanup") as cache_cleanup,
         ):
             startup_maintenance._startup_maintenance_thread = None
@@ -56,6 +57,7 @@ class PyInstallerTempCleanupTests(unittest.TestCase):
             thread.join(timeout=5)
 
         runtime_cleanup.assert_called_once()
+        splash_cleanup.assert_called_once()
         cache_cleanup.assert_called_once()
 
     def test_dead_marked_runtime_dir_is_removed_without_touching_current_dir(self) -> None:

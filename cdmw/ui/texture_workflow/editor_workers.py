@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from cdmw.core.research import summarize_ui_reference_constraints
+from cdmw.services.research_service import research_service
 
 
 class TextureEditorTaskWorker(QObject):
@@ -58,7 +58,7 @@ class TextureEditorUIConstraintWorker(QObject):
             if self.stop_event.is_set() or not self._target_path:
                 return
             warning_text = ""
-            summary = summarize_ui_reference_constraints(
+            summary = research_service.references.summarize_ui_constraints(
                 self._archive_entries,
                 self._target_path,
                 stop_event=self.stop_event,

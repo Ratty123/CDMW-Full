@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import threading
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -16,6 +17,14 @@ from cdmw.constants import (
     UPSCALE_TEXTURE_PRESET_COLOR_UI_EMISSIVE,
 )
 from cdmw.core.classification_registry import get_registered_texture_classification
+from cdmw.core.common import raise_if_cancelled
+from cdmw.domain.textures.semantics import (
+    _PRESET_UPSCALE_TYPES,
+    TextureUpscaleDecision,
+    is_png_intermediate_high_risk,
+    is_technical_texture_type,
+    should_upscale_texture,
+)
 
 _PATH_TEXTURE_TYPE_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
     ("ui", re.compile(r"(^|[/\\])(ui|hud|menu|cursor|button|font)([/\\]|_|-|$)", re.IGNORECASE)),
@@ -83,13 +92,6 @@ _GROUP_SUFFIX_PATTERNS: Tuple[re.Pattern[str], ...] = (
 _SIDECARE_EXTENSIONS = {".xml", ".material", ".shader", ".technique", ".json", ".pami"}
 _TEXTURE_REFERENCE_EXTENSIONS = {".dds", ".png", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff"}
 
-_PRESET_UPSCALE_TYPES: Dict[str, Tuple[str, ...]] = {
-    UPSCALE_TEXTURE_PRESET_BALANCED: ("color", "ui", "emissive", "impostor"),
-    UPSCALE_TEXTURE_PRESET_COLOR_UI: ("color", "ui"),
-    UPSCALE_TEXTURE_PRESET_COLOR_UI_EMISSIVE: ("color", "ui", "emissive", "impostor"),
-    UPSCALE_TEXTURE_PRESET_ALL: ("color", "ui", "emissive", "impostor", "normal", "roughness", "mask", "height", "vector", "unknown"),
-}
-
 _PRESET_DESCRIPTIONS: Dict[str, str] = {
     UPSCALE_TEXTURE_PRESET_BALANCED: "Recommended first test. Upscale visible color/UI-style maps only; leave normals, masks, grayscale technical maps, vectors, and unknown maps unchanged.",
     UPSCALE_TEXTURE_PRESET_COLOR_UI: "Safer visible-only preset. Upscale color and UI textures only; leave technical maps unchanged.",
@@ -109,10 +111,6 @@ _ALL_TEXTURE_TYPES: Tuple[str, ...] = (
     "mask",
     "unknown",
 )
-
-_TECHNICAL_TEXTURE_TYPES = frozenset({"normal", "roughness", "mask", "height", "vector"})
-_LOSSY_PNG_RISK_TYPES = frozenset({"height", "vector", "roughness", "mask"})
-
 
 def _texture_path_text(path_value: object) -> str:
     return str(path_value or "").replace("\\", "/")
@@ -232,26 +230,6 @@ class TexturePresetDefinition:
     upscale_types: Tuple[str, ...]
     copy_types: Tuple[str, ...]
     warning: str = ""
-
-
-@dataclass(slots=True)
-class TextureUpscaleDecision:
-    path: str
-    texture_type: str
-    semantic_subtype: str
-    semantic_confidence: int
-    should_upscale: bool
-    recommended_colorspace: str
-    format_strategy: str
-    recommended_texconv_format: str
-    preserve_alpha: bool
-    alpha_mode: str
-    packed_channels: Tuple[str, ...] = ()
-    precision_sensitive: bool = False
-    preserve_original_due_to_intermediate: bool = False
-    intermediate_policy: str = "png_ok"
-    source_evidence: List[str] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -1478,24 +1456,6 @@ def classify_texture_type(path_value: str | Path) -> str:
     return "unknown"
 
 
-def should_upscale_texture(texture_type: str, preset: str) -> bool:
-    definition = get_texture_preset_definition(preset)
-    return texture_type in definition.upscale_types
-
-
-def is_technical_texture_type(texture_type: str) -> bool:
-    return texture_type in _TECHNICAL_TEXTURE_TYPES
-
-
-def is_png_intermediate_high_risk(texture_type: str, original_texconv_format: str = "") -> bool:
-    original_upper = str(original_texconv_format or "").strip().upper()
-    if texture_type in _LOSSY_PNG_RISK_TYPES:
-        return True
-    if "FLOAT" in original_upper or "SNORM" in original_upper:
-        return True
-    return False
-
-
 def _contains_any(text: str, needles: Sequence[str]) -> bool:
     return any(needle in text for needle in needles)
 
@@ -2312,6 +2272,19 @@ def copy_loose_tree_preserving_paths(
     )
 
 
+def _copy_file_with_cancellation(
+    source: Path,
+    destination: Path,
+    stop_event: threading.Event,
+) -> None:
+    with source.open("rb") as source_handle, destination.open("wb") as destination_handle:
+        while chunk := source_handle.read(1024 * 1024):
+            raise_if_cancelled(stop_event)
+            destination_handle.write(chunk)
+    raise_if_cancelled(stop_event)
+    shutil.copystat(source, destination)
+
+
 def copy_mod_ready_loose_tree(
     source_root: Path,
     destination_root: Path,
@@ -2321,6 +2294,7 @@ def copy_mod_ready_loose_tree(
     dry_run: bool = False,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> LooseTreeCopyResult:
     from cdmw.core.mod_package import (
         is_mod_package_payload_path,
@@ -2333,10 +2307,15 @@ def copy_mod_ready_loose_tree(
         raise ValueError(f"Source root does not exist: {resolved_source}")
 
     if selected_paths is None:
-        source_files = [path for path in resolved_source.rglob("*") if path.is_file()]
+        source_files = []
+        for path in resolved_source.rglob("*"):
+            raise_if_cancelled(stop_event)
+            if path.is_file():
+                source_files.append(path)
     else:
         source_files = []
         for entry in selected_paths:
+            raise_if_cancelled(stop_event)
             candidate = Path(entry)
             if not candidate.is_absolute():
                 candidate = resolved_source / candidate
@@ -2353,6 +2332,7 @@ def copy_mod_ready_loose_tree(
 
     total = len(source_files)
     for index, source_file in enumerate(source_files, start=1):
+        raise_if_cancelled(stop_event)
         try:
             source_file = source_file.resolve()
             source_rel_path = source_file.relative_to(resolved_source.resolve())
@@ -2375,13 +2355,18 @@ def copy_mod_ready_loose_tree(
                 if destination_file.exists():
                     overwritten_files += 1
                 if not dry_run:
-                    shutil.copy2(source_file, destination_file)
+                    if stop_event is None:
+                        shutil.copy2(source_file, destination_file)
+                    else:
+                        _copy_file_with_cancellation(source_file, destination_file, stop_event)
+                    raise_if_cancelled(stop_event)
                 copied_files += 1
                 copied_paths.append(rel_path.as_posix())
                 if on_log:
                     action = "DRYRUN COPY" if dry_run else "COPY"
                     on_log(f"{action} {rel_path.as_posix()}")
         except Exception:
+            raise_if_cancelled(stop_event)
             failed_files += 1
             failed_paths.append(str(source_file))
             if on_log:

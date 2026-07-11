@@ -627,8 +627,6 @@ def cleanup_native_fault_log_on_exit(
                 pass
     except Exception:
         pass
-
-
 def process_is_alive(pid_value: object) -> bool:
     try:
         pid = int(pid_value)
@@ -636,7 +634,7 @@ def process_is_alive(pid_value: object) -> bool:
         return False
     if pid <= 0 or pid == os.getpid():
         return False
-    if platform.system().lower() != "windows":
+    if os.name != "nt":
         try:
             os.kill(pid, 0)
             return True
@@ -837,6 +835,7 @@ def write_app_heartbeat(
     session_id: str,
     phase: str,
     clean_shutdown: bool = False,
+    platform_label: str | None = None,
 ) -> dict[str, object]:
     payload = heartbeat_payload(
         app_title,
@@ -844,11 +843,10 @@ def write_app_heartbeat(
         session_id,
         phase,
         clean_shutdown=clean_shutdown,
+        platform_label=platform_label,
     )
     write_heartbeat_file(heartbeat_path, payload)
     return payload
-
-
 def timing_value(timings: Mapping[str, object] | None, key: str) -> float:
     if not timings:
         return 0.0

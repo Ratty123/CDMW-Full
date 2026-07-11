@@ -8,9 +8,9 @@ from typing import List, Optional, Tuple
 from PySide6.QtCore import Qt, QThread
 from PySide6.QtWidgets import QLabel, QListWidgetItem
 
-from cdmw.core.texture_pipeline.planning import build_single_texture_processing_plan
-from cdmw.core.texture_pipeline.preview import collect_compare_relative_paths
-from cdmw.core.texture_pipeline.runtime_config import normalize_config_for_planning
+from cdmw.services.texture_workflow_service import build_single_texture_processing_plan
+from cdmw.services.preview_workflow_service import collect_compare_relative_paths
+from cdmw.services.texture_workflow_service import normalize_config_for_planning
 from cdmw.models import ComparePreviewPaneResult
 from cdmw.ui.widgets import PreviewLabel
 from cdmw.workers.preview_workers import ComparePreviewWorker

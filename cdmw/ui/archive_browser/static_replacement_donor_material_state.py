@@ -7,9 +7,9 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from types import SimpleNamespace
 
-from cdmw.core.upscale_profiles import parse_material_sidecar_profile
-from cdmw.modding.asset_replacement import classify_texture_binding
-from cdmw.modding.static_mesh_replacer import (
+from cdmw.services.texture_workflow_service import parse_material_sidecar_profile
+from cdmw.services.mesh_workflow_service import classify_texture_binding
+from cdmw.services.mesh_workflow_service import (
     StaticDonorMaterialPlan,
     StaticDonorMaterialTextureBinding,
 )

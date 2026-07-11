@@ -6,7 +6,6 @@ import unittest
 import zipfile
 import zlib
 from pathlib import Path
-
 from cdmw.core.archive_modding import attach_scene_preview_textures, parsed_mesh_to_preview_model
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.scene_importer import (
@@ -18,6 +17,7 @@ from cdmw.modding.scene_importer import (
     import_scene_mesh_with_report,
 )
 from cdmw.modding.static_mesh_replacer import suggest_static_submesh_mappings
+from tests.scene_gltf_test_support import valid_image_bytes, write_valid_image
 
 
 def _pad4(data: bytes) -> bytes:
@@ -212,10 +212,10 @@ class GltfSceneImporterTests(unittest.TestCase):
             root = Path(tmp)
             bin_chunk, document = _triangle_payload()
             (root / "triangle.bin").write_bytes(bin_chunk)
-            (root / "body_base.png").write_bytes(b"png")
-            (root / "body_normal.png").write_bytes(b"png")
-            (root / "body_metallic_roughness.png").write_bytes(b"png")
-            (root / "body_emissive.png").write_bytes(b"png")
+            write_valid_image(root / "body_base.png")
+            write_valid_image(root / "body_normal.png")
+            write_valid_image(root / "body_metallic_roughness.png")
+            write_valid_image(root / "body_emissive.png")
             document["buffers"][0]["uri"] = "triangle.bin"
             document["materials"][0]["pbrMetallicRoughness"] = {
                 "baseColorTexture": {"index": 0},
@@ -297,7 +297,7 @@ class GltfSceneImporterTests(unittest.TestCase):
                 "gold_emissive.png",
                 "gold_transmission.png",
             ):
-                (root / name).write_bytes(b"png")
+                write_valid_image(root / name)
             document["buffers"][0]["uri"] = "triangle.bin"
             document["materials"][0] = {
                 "name": "Gold Crystal Emissive Metal",
@@ -609,32 +609,32 @@ class GltfSceneImporterTests(unittest.TestCase):
                     "baseColorTexture": {
                         "index": 0,
                         "texCoord": 1,
-                        "extensions": {"KHR_texture_transform": {"scale": [2.0, 3.0]}},
+                        "extensions": {"KHR_texture_transform": {"scale": [1.0, 1.0]}},
                     },
-                    "metallicRoughnessTexture": {"index": 1},
+                    "metallicRoughnessTexture": {"index": 1, "texCoord": 1},
                     "metallicFactor": 0.25,
                     "roughnessFactor": 0.5,
                 },
-                "normalTexture": {"index": 2, "scale": 0.4},
-                "occlusionTexture": {"index": 3, "strength": 0.6},
-                "emissiveTexture": {"index": 4},
+                "normalTexture": {"index": 2, "texCoord": 1, "scale": 0.4},
+                "occlusionTexture": {"index": 3, "texCoord": 1, "strength": 0.6},
+                "emissiveTexture": {"index": 4, "texCoord": 1},
                 "emissiveFactor": [0.1, 0.2, 0.3],
                 "extensions": {
                     "KHR_materials_unlit": {},
                     "KHR_materials_specular": {
                         "specularFactor": 0.75,
-                        "specularTexture": {"index": 5},
+                        "specularTexture": {"index": 5, "texCoord": 1},
                     },
                     "KHR_materials_clearcoat": {
                         "clearcoatFactor": 0.5,
-                        "clearcoatTexture": {"index": 6},
+                        "clearcoatTexture": {"index": 6, "texCoord": 1},
                     },
                     "KHR_materials_sheen": {
-                        "sheenColorTexture": {"index": 7},
+                        "sheenColorTexture": {"index": 7, "texCoord": 1},
                     },
                     "KHR_materials_transmission": {
                         "transmissionFactor": 0.2,
-                        "transmissionTexture": {"index": 8},
+                        "transmissionTexture": {"index": 8, "texCoord": 1},
                     },
                 },
             }
@@ -667,7 +667,7 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIn((root / "body_base.webp").resolve(), result.discovered_texture_files)
             self.assertEqual("body_base.webp", Path(mesh.preview_texture_path).name)
             self.assertEqual((0.5, 0.25, 1.0), mesh.preview_texture_tint)
-            self.assertEqual((2.0, 3.0), mesh.preview_texture_uv_scale)
+            self.assertEqual((), mesh.preview_texture_uv_scale)
             self.assertEqual(0.4, mesh.preview_normal_texture_strength)
             self.assertEqual(0.42, mesh.preview_native_material_overrides["alpha_threshold"])
             self.assertEqual("gltf_unlit", mesh.preview_native_material_overrides["material_shader_family"])
@@ -679,14 +679,14 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertIn("_metallicFactor", parameter_names)
             self.assertIn("_roughnessFactor", parameter_names)
             self.assertIn("_gltfTextureStrength_occlusion", parameter_names)
-            self.assertIn("_gltfTexCoord_base", parameter_names)
+            self.assertNotIn("_gltfTexCoord_base", parameter_names)
             self.assertIn("occlusion", {slot for slot, _path in result.material_bindings[0].texture_slots})
             self.assertIn("unlit", result.material_bindings[0].pbr_workflow)
             inventory_slots = {slot.slot_kind: slot for slot in result.external_audit.material_inventory[0].texture_slots}
-            self.assertEqual(1, inventory_slots["base"].texcoord)
-            self.assertEqual((0.0, 0.0, 2.0, 3.0, 0.0), inventory_slots["base"].uv_transform)
-            self.assertIn("texcoord:1", inventory_slots["base"].evidence)
-            self.assertIn("uv_transform", inventory_slots["base"].evidence)
+            self.assertEqual(0, inventory_slots["base"].texcoord)
+            self.assertEqual((), inventory_slots["base"].uv_transform)
+            self.assertNotIn("texcoord:1", inventory_slots["base"].evidence)
+            self.assertNotIn("uv_transform", inventory_slots["base"].evidence)
             self.assertIn("TEXCOORD_1", " ".join(result.diagnostics))
             self.assertIn("KHR_materials_clearcoat", " ".join(result.diagnostics))
 
@@ -1283,9 +1283,9 @@ class GltfSceneImporterTests(unittest.TestCase):
             root = Path(tmp)
             bin_chunk, document = _triangle_payload()
             (root / "triangle.bin").write_bytes(bin_chunk)
-            (root / "blade_diffuse.jpeg").write_bytes(b"jpeg")
-            (root / "blade_normal.png").write_bytes(b"png")
-            (root / "blade_specularGlossiness.png").write_bytes(b"png")
+            write_valid_image(root / "blade_diffuse.jpeg")
+            write_valid_image(root / "blade_normal.png")
+            write_valid_image(root / "blade_specularGlossiness.png")
             document["buffers"][0]["uri"] = "triangle.bin"
             document["materials"][0] = {
                 "name": "Blade",
@@ -1333,8 +1333,8 @@ class GltfSceneImporterTests(unittest.TestCase):
             root = Path(tmp)
             bin_chunk, document = _triangle_payload()
             (root / "triangle.bin").write_bytes(bin_chunk)
-            (root / "painted_base.png").write_bytes(b"png")
-            (root / "shared_metallicRoughness.png").write_bytes(b"png")
+            write_valid_image(root / "painted_base.png")
+            write_valid_image(root / "shared_metallicRoughness.png")
             document["buffers"][0]["uri"] = "triangle.bin"
             document["materials"] = [
                 {
@@ -1384,8 +1384,8 @@ class GltfSceneImporterTests(unittest.TestCase):
             root = Path(tmp)
             bin_chunk, document = _triangle_payload()
             (root / "Serpent-Sword.bin").write_bytes(bin_chunk)
-            (root / "Serpent_Sword_baseColor.png").write_bytes(b"png")
-            (root / "Serpent_Sword_normal.png").write_bytes(b"png")
+            write_valid_image(root / "Serpent_Sword_baseColor.png")
+            write_valid_image(root / "Serpent_Sword_normal.png")
             document["buffers"][0]["uri"] = "Serpent-Sword.bin"
             document["materials"][0]["name"] = "Blade"
             document["materials"][0]["pbrMetallicRoughness"] = {"baseColorTexture": {"index": 0}}
@@ -1460,7 +1460,7 @@ class GltfSceneImporterTests(unittest.TestCase):
 
     def test_glb_embedded_image_is_extracted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            png_bytes = b"\x89PNG\r\n\x1a\nfake"
+            png_bytes = valid_image_bytes()
             bin_chunk, document = _triangle_payload(image_bytes=png_bytes)
             path = Path(tmp) / "embedded.glb"
             _write_glb(path, document, bin_chunk)

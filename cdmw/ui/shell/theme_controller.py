@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Optional
 
-from PySide6.QtCore import QRectF, QSettings, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import QApplication, QAbstractItemView, QFrame, QHeaderView, QWidget
+from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QApplication, QAbstractItemView, QHeaderView, QWidget
 
 from cdmw.constants import (
     DEFAULT_UI_DATA_FONT_SIZE,
@@ -29,13 +29,15 @@ from cdmw.constants import (
 from cdmw.ui.shell.responsiveness_controller import (
     responsive_control_scale_for_resolution as _responsive_control_scale_for_resolution,
 )
+from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+from cdmw.ui.shell.theme_overlay import ThemeChangeBusyOverlay
 from cdmw.ui.shell.settings_bridge import (
     read_bool_setting as _read_bool_setting,
     read_int_setting as _read_int_setting,
 )
 from cdmw.ui.app_icon import load_app_icon
-from cdmw.ui.themes import UI_THEME_SCHEMES, build_app_palette, build_app_stylesheet, get_theme
-from cdmw.ui.widgets import available_layout_size_for, available_screen_size_for
+from cdmw.ui.themes import UI_THEME_SCHEMES, build_app_palette, build_app_stylesheet
+from cdmw.ui.layout_utils import available_layout_size_for, available_screen_size_for
 
 
 def _same_font(left: QFont, right: QFont) -> bool:
@@ -209,26 +211,28 @@ def apply_window_text_highlight_style(window: "MainWindow") -> None:
         "appearance/preview_color_scheme",
         DEFAULT_UI_PREVIEW_COLOR_SCHEME,
     )
-    for highlighter in (
-        window.log_highlighter,
-        window.archive_log_highlighter,
-        window.text_search_tab.log_highlighter,
-    ):
+    text_search_tab = created_tool_widget(getattr(window, "text_search_tab", None))
+    highlighters = [window.log_highlighter, window.archive_log_highlighter]
+    if text_search_tab is not None:
+        highlighters.append(text_search_tab.log_highlighter)
+    for highlighter in highlighters:
         if hasattr(highlighter, "set_highlight_style"):
             highlighter.set_highlight_style(style)
         if hasattr(highlighter, "set_color_scheme"):
             highlighter.set_color_scheme(log_scheme)
-    for editor in (
+    editors = [
         window.archive_preview_text_edit,
         window.archive_preview_info_edit,
         window.archive_preview_details_edit,
-        window.text_search_tab.preview_text_edit,
-    ):
+    ]
+    if text_search_tab is not None:
+        editors.append(text_search_tab.preview_text_edit)
+    for editor in editors:
         if hasattr(editor, "set_highlight_style"):
             editor.set_highlight_style(style)
         if hasattr(editor, "set_color_scheme"):
             editor.set_color_scheme(preview_scheme)
-    research_tab = getattr(window, "research_tab", None)
+    research_tab = created_tool_widget(getattr(window, "research_tab", None))
     if research_tab is not None and hasattr(research_tab, "_apply_archive_picker_preview_text_style"):
         research_tab._apply_archive_picker_preview_text_style()
 
@@ -246,25 +250,35 @@ def apply_window_data_fonts(window: "MainWindow") -> None:
     _mark_custom_font(window.archive_preview_info_edit)
     window.archive_preview_details_edit.apply_font_preferences(log_font, preserve_size=False)
     _mark_custom_font(window.archive_preview_details_edit)
-    window.text_search_tab.log_view.setFont(log_font)
-    _mark_custom_font(window.text_search_tab.log_view)
-    window.text_search_tab.log_view.document().setDefaultFont(log_font)
-    window.text_search_tab.preview_text_edit.apply_font_preferences(log_font, preserve_size=False)
-    _mark_custom_font(window.text_search_tab.preview_text_edit)
-    window.replace_assistant_tab.log_view.setFont(log_font)
-    _mark_custom_font(window.replace_assistant_tab.log_view)
-    window.replace_assistant_tab.log_view.document().setDefaultFont(log_font)
-    window.replace_assistant_tab.preview_details_edit.setFont(log_font)
-    _mark_custom_font(window.replace_assistant_tab.preview_details_edit)
-    window.replace_assistant_tab.preview_details_edit.document().setDefaultFont(log_font)
+    text_search_tab = created_tool_widget(getattr(window, "text_search_tab", None))
+    if text_search_tab is not None:
+        text_search_tab.log_view.setFont(log_font)
+        _mark_custom_font(text_search_tab.log_view)
+        text_search_tab.log_view.document().setDefaultFont(log_font)
+        text_search_tab.preview_text_edit.apply_font_preferences(log_font, preserve_size=False)
+        _mark_custom_font(text_search_tab.preview_text_edit)
+    replace_assistant_tab = created_tool_widget(getattr(window, "replace_assistant_tab", None))
+    if replace_assistant_tab is not None:
+        replace_assistant_tab.log_view.setFont(log_font)
+        _mark_custom_font(replace_assistant_tab.log_view)
+        replace_assistant_tab.log_view.document().setDefaultFont(log_font)
+        replace_assistant_tab.preview_details_edit.setFont(log_font)
+        _mark_custom_font(replace_assistant_tab.preview_details_edit)
+        replace_assistant_tab.preview_details_edit.document().setDefaultFont(log_font)
     bold_enabled = _read_bool_setting(window.settings, "appearance/log_font_bold", DEFAULT_UI_LOG_FONT_BOLD)
     window.log_highlighter.set_bold_enabled(bold_enabled)
     window.archive_log_highlighter.set_bold_enabled(bold_enabled)
-    window.text_search_tab.log_highlighter.set_bold_enabled(bold_enabled)
+    if text_search_tab is not None:
+        text_search_tab.log_highlighter.set_bold_enabled(bold_enabled)
     apply_window_text_highlight_style(window)
 
 
-def apply_window_ui_fonts(window: "MainWindow", app: QApplication | None = None) -> tuple[QFont, QFont] | None:
+def apply_window_ui_fonts(
+    window: "MainWindow",
+    app: QApplication | None = None,
+    *,
+    settings: QSettings | None = None,
+) -> tuple[QFont, QFont] | None:
     app = app or QApplication.instance()
     if app is None:
         return None
@@ -272,12 +286,15 @@ def apply_window_ui_fonts(window: "MainWindow", app: QApplication | None = None)
     screen_width, screen_height = available_layout_size_for(layout_widget)
     ui_font, data_font = apply_app_fonts(
         app,
-        window.settings,
+        settings if settings is not None else window.settings,
         screen_width=screen_width,
         screen_height=screen_height,
     )
     if layout_widget is not None:
         _apply_ui_fonts_to_widget_tree(layout_widget, ui_font)
+        root_sync = getattr(layout_widget, "sync_ui_font", None)
+        if callable(root_sync):
+            root_sync(ui_font)
         _apply_data_fonts_to_widget_tree(layout_widget, data_font)
     else:
         sync_data = getattr(window, "_apply_data_widget_fonts", None)
@@ -286,11 +303,11 @@ def apply_window_ui_fonts(window: "MainWindow", app: QApplication | None = None)
     sync_archive_controls = getattr(window, "_sync_archive_controls_font", None)
     if callable(sync_archive_controls):
         sync_archive_controls(ui_font)
-    texture_editor_tab = getattr(window, "texture_editor_tab", None)
+    texture_editor_tab = created_tool_widget(getattr(window, "texture_editor_tab", None))
     texture_sync = getattr(texture_editor_tab, "sync_ui_font", None)
     if callable(texture_sync):
         texture_sync(ui_font)
-    mesh_editor_tab = getattr(window, "mesh_editor_tab", None)
+    mesh_editor_tab = created_tool_widget(getattr(window, "mesh_editor_tab", None))
     mesh_sync = getattr(mesh_editor_tab, "sync_ui_font", None)
     if callable(mesh_sync):
         mesh_sync(ui_font, data_font)
@@ -462,8 +479,18 @@ class ThemeControllerMixin:
             self._queue_appearance_apply_step("Updating archive text preview", lambda: self.archive_preview_text_edit.set_theme(self.current_theme_key))
             self._queue_appearance_apply_step("Updating archive info preview", lambda: self.archive_preview_info_edit.set_theme(self.current_theme_key))
             self._queue_appearance_apply_step("Updating archive details preview", lambda: self.archive_preview_details_edit.set_theme(self.current_theme_key))
-            self._queue_appearance_apply_step("Updating text search theme", lambda: self.text_search_tab.set_theme(self.current_theme_key))
-            self._queue_appearance_apply_step("Updating research theme", lambda: self.research_tab.set_theme(self.current_theme_key))
+            text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
+            if text_search_tab is not None:
+                self._queue_appearance_apply_step(
+                    "Updating text search theme",
+                    lambda text_search_tab=text_search_tab: text_search_tab.set_theme(self.current_theme_key),
+                )
+            research_tab = created_tool_widget(getattr(self, "research_tab", None))
+            if research_tab is not None:
+                self._queue_appearance_apply_step(
+                    "Updating research theme",
+                    lambda research_tab=research_tab: research_tab.set_theme(self.current_theme_key),
+                )
             self._queue_appearance_apply_step("Updating mesh editor theme", self._sync_mesh_editor_theme)
             self._queue_appearance_apply_step("Syncing settings controls", lambda: self.settings_tab.sync_appearance_controls(self.current_theme_key))
             self._queue_appearance_apply_step("Updating responsive controls", self._apply_responsive_control_minimums)
@@ -519,7 +546,12 @@ class ThemeControllerMixin:
 
     def _queue_ui_font_apply_steps(self, app: QApplication, *, schedule_column_autofit: bool) -> None:
         self._queue_appearance_apply_step("Updating app UI fonts", lambda app=app: self._apply_application_ui_fonts(app))
-        self._queue_appearance_apply_step("Updating texture editor font", lambda app=app: self.texture_editor_tab.sync_ui_font(app.font()))
+        texture_editor_tab = created_tool_widget(getattr(self, "texture_editor_tab", None))
+        if texture_editor_tab is not None:
+            self._queue_appearance_apply_step(
+                "Updating texture editor font",
+                lambda app=app, texture_editor_tab=texture_editor_tab: texture_editor_tab.sync_ui_font(app.font()),
+            )
         self._queue_appearance_apply_step("Updating mesh editor font", lambda app=app: self._sync_mesh_editor_font(app))
         self._queue_appearance_apply_step("Updating responsive controls", self._apply_responsive_control_minimums)
         if schedule_column_autofit:
@@ -557,14 +589,14 @@ class ThemeControllerMixin:
         self._sync_mesh_editor_font(app)
 
     def _sync_mesh_editor_theme(self) -> None:
-        mesh_editor_tab = getattr(self, "mesh_editor_tab", None)
+        mesh_editor_tab = created_tool_widget(getattr(self, "mesh_editor_tab", None))
         if mesh_editor_tab is None:
             return
         if hasattr(mesh_editor_tab, "set_theme"):
             mesh_editor_tab.set_theme(self.current_theme_key)
 
     def _sync_mesh_editor_font(self, app: QApplication) -> None:
-        mesh_editor_tab = getattr(self, "mesh_editor_tab", None)
+        mesh_editor_tab = created_tool_widget(getattr(self, "mesh_editor_tab", None))
         if mesh_editor_tab is None:
             return
         screen_width, screen_height = available_layout_size_for(self)
@@ -611,28 +643,42 @@ class ThemeControllerMixin:
 
     def _queue_data_font_apply_steps(self, *, schedule_column_autofit: bool) -> None:
         log_font = build_monospace_font(self.settings)
-        targets = (
+        targets = [
             ("main log font", self.log_view),
             ("archive log font", self.archive_log_view),
             ("archive preview text font", self.archive_preview_text_edit),
             ("archive preview info font", self.archive_preview_info_edit),
             ("archive preview details font", self.archive_preview_details_edit),
-            ("text search log font", self.text_search_tab.log_view),
-            ("text search preview font", self.text_search_tab.preview_text_edit),
-            ("replace assistant log font", self.replace_assistant_tab.log_view),
-            ("replace assistant preview font", self.replace_assistant_tab.preview_details_edit),
-        )
+        ]
+        text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
+        if text_search_tab is not None:
+            targets.extend(
+                (
+                    ("text search log font", text_search_tab.log_view),
+                    ("text search preview font", text_search_tab.preview_text_edit),
+                )
+            )
+        replace_assistant_tab = created_tool_widget(getattr(self, "replace_assistant_tab", None))
+        if replace_assistant_tab is not None:
+            targets.extend(
+                (
+                    ("replace assistant log font", replace_assistant_tab.log_view),
+                    ("replace assistant preview font", replace_assistant_tab.preview_details_edit),
+                )
+            )
         for label, widget in targets:
             self._queue_appearance_apply_step(
                 f"Updating {label}",
                 lambda widget=widget, log_font=log_font: self._apply_single_text_widget_font(widget, log_font),
             )
         bold_enabled = _read_bool_setting(self.settings, "appearance/log_font_bold", DEFAULT_UI_LOG_FONT_BOLD)
-        for label, highlighter in (
+        highlighters = [
             ("main log highlighter bold", self.log_highlighter),
             ("archive log highlighter bold", self.archive_log_highlighter),
-            ("text search log highlighter bold", self.text_search_tab.log_highlighter),
-        ):
+        ]
+        if text_search_tab is not None:
+            highlighters.append(("text search log highlighter bold", text_search_tab.log_highlighter))
+        for label, highlighter in highlighters:
             self._queue_appearance_apply_step(
                 f"Updating {label}",
                 lambda highlighter=highlighter, bold_enabled=bold_enabled: highlighter.set_bold_enabled(bold_enabled),
@@ -665,11 +711,14 @@ class ThemeControllerMixin:
             "appearance/preview_color_scheme",
             DEFAULT_UI_PREVIEW_COLOR_SCHEME,
         )
-        for label, highlighter in (
+        text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
+        highlighters = [
             ("main log colors", self.log_highlighter),
             ("archive log colors", self.archive_log_highlighter),
-            ("text search log colors", self.text_search_tab.log_highlighter),
-        ):
+        ]
+        if text_search_tab is not None:
+            highlighters.append(("text search log colors", text_search_tab.log_highlighter))
+        for label, highlighter in highlighters:
             self._queue_appearance_apply_step(
                 f"Updating {label}",
                 lambda highlighter=highlighter, style=style, log_scheme=log_scheme: self._apply_single_highlighter_style(
@@ -678,12 +727,14 @@ class ThemeControllerMixin:
                     log_scheme,
                 ),
             )
-        for label, editor in (
+        editors = [
             ("archive text preview colors", self.archive_preview_text_edit),
             ("archive info preview colors", self.archive_preview_info_edit),
             ("archive details preview colors", self.archive_preview_details_edit),
-            ("text search preview colors", self.text_search_tab.preview_text_edit),
-        ):
+        ]
+        if text_search_tab is not None:
+            editors.append(("text search preview colors", text_search_tab.preview_text_edit))
+        for label, editor in editors:
             self._queue_appearance_apply_step(
                 f"Updating {label}",
                 lambda editor=editor, style=style, preview_scheme=preview_scheme: self._apply_single_editor_text_style(
@@ -692,7 +743,7 @@ class ThemeControllerMixin:
                     preview_scheme,
                 ),
             )
-        research_tab = getattr(self, "research_tab", None)
+        research_tab = created_tool_widget(getattr(self, "research_tab", None))
         if research_tab is not None and hasattr(research_tab, "_apply_archive_picker_preview_text_style"):
             self._queue_appearance_apply_step(
                 "Updating research preview colors",
@@ -715,117 +766,6 @@ class ThemeControllerMixin:
 class ThemeController:
     def __init__(self, context: object | None = None) -> None:
         self.context = context
-
-
-class ThemeChangeBusyOverlay(QFrame):
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setObjectName("ThemeChangeBusyOverlay")
-        self.setAttribute(Qt.WA_StyledBackground, False)
-        self.setAutoFillBackground(False)
-        self.hide()
-        self._theme_key = DEFAULT_UI_THEME
-        self._theme_label = UI_THEME_SCHEMES[DEFAULT_UI_THEME]["label"]
-        self._overlay_title = f"Applying {self._theme_label} theme"
-        self._overlay_detail = "Updating app colors and preview panes..."
-        self._spinner_degrees = 0
-        self._spinner_timer = QTimer(self)
-        self._spinner_timer.setInterval(50)
-        self._spinner_timer.timeout.connect(self._advance_spinner)
-        self._hide_timer = QTimer(self)
-        self._hide_timer.setSingleShot(True)
-        self._hide_timer.timeout.connect(self._hide_now)
-
-    def show_theme_change(self, theme_key: str) -> None:
-        resolved_theme_key = theme_key if theme_key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
-        theme_label = str(UI_THEME_SCHEMES[resolved_theme_key].get("label", "Theme"))
-        self.show_appearance_change(
-            resolved_theme_key,
-            title=f"Applying {theme_label} theme",
-            detail="Updating app colors and preview panes...",
-        )
-
-    def show_appearance_change(self, theme_key: str, *, title: str, detail: str) -> None:
-        resolved_theme_key = theme_key if theme_key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
-        self._theme_key = resolved_theme_key
-        self._theme_label = str(UI_THEME_SCHEMES[resolved_theme_key].get("label", "Theme"))
-        self._overlay_title = str(title or f"Applying {self._theme_label} theme")
-        self._overlay_detail = str(detail or "Updating app colors and preview panes...")
-        parent = self.parentWidget()
-        if parent is not None:
-            self.setGeometry(parent.rect())
-        self._hide_timer.stop()
-        self.show()
-        self.raise_()
-        if not self._spinner_timer.isActive():
-            self._spinner_timer.start()
-        self.update()
-
-    def finish(self, delay_ms: int = 140) -> None:
-        if self.isVisible():
-            self._hide_timer.start(max(0, int(delay_ms)))
-        else:
-            self._hide_now()
-
-    def _hide_now(self) -> None:
-        self._hide_timer.stop()
-        self._spinner_timer.stop()
-        self.hide()
-
-    def _advance_spinner(self) -> None:
-        self._spinner_degrees = (self._spinner_degrees + 34) % 360
-        self.update()
-
-    def paintEvent(self, event) -> None:  # type: ignore[override]
-        rect = QRectF(self.rect())
-        if rect.width() <= 2 or rect.height() <= 2:
-            return
-        theme = get_theme(self._theme_key)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-
-        scrim = QColor(str(theme.get("window", "#111111")))
-        scrim.setAlpha(196)
-        painter.fillRect(rect, scrim)
-
-        panel_width = min(380.0, max(280.0, rect.width() * 0.34))
-        panel_height = 122.0
-        panel = QRectF(
-            rect.center().x() - panel_width / 2.0,
-            rect.center().y() - panel_height / 2.0,
-            panel_width,
-            panel_height,
-        )
-        surface = QColor(str(theme.get("surface", "#252526")))
-        border = QColor(str(theme.get("border_strong", "#3c3c3c")))
-        painter.setPen(QPen(border, 1.0))
-        painter.setBrush(surface)
-        painter.drawRoundedRect(panel, 8.0, 8.0)
-
-        spinner_rect = QRectF(panel.left() + 26.0, panel.top() + 40.0, 36.0, 36.0)
-        track = QColor(str(theme.get("border", "#2a2d2e")))
-        track.setAlpha(150)
-        painter.setPen(QPen(track, 3.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        painter.drawArc(spinner_rect, 0, 360 * 16)
-        accent = QColor(str(theme.get("accent", "#007acc")))
-        painter.setPen(QPen(accent, 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        painter.drawArc(spinner_rect, -self._spinner_degrees * 16, 245 * 16)
-
-        title_font = QFont(self.font())
-        title_font.setBold(True)
-        title_font.setPointSize(max(10, title_font.pointSize() + 1))
-        painter.setFont(title_font)
-        painter.setPen(QColor(str(theme.get("text_strong", "#f3f3f3"))))
-        text_left = spinner_rect.right() + 18.0
-        text_rect = QRectF(text_left, panel.top() + 30.0, panel.right() - text_left - 22.0, 28.0)
-        painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, self._overlay_title)
-
-        body_font = QFont(self.font())
-        body_font.setPointSize(max(9, body_font.pointSize()))
-        painter.setFont(body_font)
-        painter.setPen(QColor(str(theme.get("text_muted", "#9da0a6"))))
-        body_rect = QRectF(text_left, panel.top() + 60.0, panel.right() - text_left - 22.0, 34.0)
-        painter.drawText(body_rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, self._overlay_detail)
 
 
 __all__ = [

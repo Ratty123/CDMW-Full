@@ -9,6 +9,7 @@ from cdmw.models import (
     PreviewMaterialParameterInput,
     PreviewMaterialTextureInput,
 )
+from cdmw.domain.textures.material_parameters import effective_emissive_intensity, profile_accent_glow_intensity, profile_source_emissive_enabled, source_emissive_strength
 from cdmw.ui.archive_browser.static_replacement_native_manifest import (
     apply_native_preview_core_material_manifest,
     load_native_preview_core_material_manifest_for_alignment,
@@ -31,21 +32,11 @@ def source_preview_path(source_path_text: object) -> str:
 
 
 def accent_glow_preview_intensity(profile: object) -> float:
-    try:
-        strength = max(0.0, min(100.0, float(getattr(profile, "accent_glow_strength", 0.0) or 0.0)))
-        maximum = max(0.0, min(20.0, float(getattr(profile, "accent_glow_intensity_max", 5.5) or 5.5)))
-    except (TypeError, ValueError, OverflowError):
-        return 1.0
-    intensity = maximum * (strength / 100.0)
-    return max(1.0, intensity) if strength > 0.0 else 1.0
+    return profile_accent_glow_intensity(profile)
 
 
 def accent_glow_preview_enabled(profile: object) -> bool:
-    try:
-        strength = float(getattr(profile, "accent_glow_strength", 0.0) or 0.0)
-    except (TypeError, ValueError, OverflowError):
-        return False
-    return strength > 0.0
+    return not hasattr(profile, "emissive_mode") or profile_source_emissive_enabled(profile)
 
 
 def add_preview_material_input(
@@ -197,7 +188,7 @@ def apply_source_material_preview(
     apply_material_authority_preview_native_hints(
         mesh,
         material_authority_profile,
-        enabled=material_authority_enabled and material_authority_profile is not None,
+        enabled=material_authority_enabled and material_authority_profile is not None, source=texture_set,
     )
     if material_authority_enabled and material_authority_profile is not None:
         try:
@@ -486,19 +477,10 @@ def apply_source_material_preview_for_model(
     accent_glow_preview_intensity: float,
 ) -> None:
     meshes = list(getattr(preview_model, "meshes", ()) or ())
-    material_authority_enabled = bool(
-        complete_external_swap_enabled
-        and basic_controls_profile_enabled
-        and material_authority_profile is not None
-    )
-    if material_authority_enabled:
-        for mesh in meshes:
-            apply_material_authority_preview_native_hints(
-                mesh,
-                material_authority_profile,
-                enabled=True,
-            )
     if not texture_sets:
+        enabled = bool(complete_external_swap_enabled and basic_controls_profile_enabled and material_authority_profile is not None)
+        for mesh in meshes:
+            apply_material_authority_preview_native_hints(mesh, material_authority_profile, enabled=enabled)
         return
 
     def apply_for_mesh(mesh_index: int, texture_set: object | None, target_name: str) -> None:
@@ -618,7 +600,12 @@ def apply_source_role_emissive_preview(
         return
     if not accent_glow_preview_enabled(profile):
         return
-    emissive_intensity = accent_glow_preview_intensity(profile)
+    emissive_source = texture_set if source_emissive_strength(texture_set) is not None else mesh
+    emissive_intensity = effective_emissive_intensity(
+        profile,
+        source=emissive_source,
+        part_adjustment=adjustment,
+    )
     color_hex, color_rgb = preview_glow_color_from_candidates(
         (
             tuple(getattr(adjustment, "emissive_color_rgb", ()) or ()),

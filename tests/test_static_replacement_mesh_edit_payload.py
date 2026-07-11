@@ -1084,7 +1084,7 @@ def test_mesh_edit_queue_live_vertex_updates_preserves_compact_ranges_until_unio
 
 
 def test_mesh_edit_live_vertex_update_groups_builds_positions_and_normals(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
     from cdmw.modding.mesh_native_core import clear_native_mesh_core_fallback_counts, native_mesh_core_fallback_counts
 
     clear_native_mesh_core_fallback_counts()
@@ -1117,7 +1117,7 @@ def test_mesh_edit_live_vertex_update_groups_builds_positions_and_normals(monkey
 
 
 def test_large_static_preview_python_fallback_blocks_when_native_available(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
     from cdmw.modding.mesh_native_core import clear_native_mesh_core_fallback_counts, native_mesh_core_fallback_counts
 
     clear_native_mesh_core_fallback_counts()
@@ -1156,7 +1156,7 @@ def test_large_static_preview_python_fallback_blocks_when_native_available(monke
 
 
 def test_large_static_preview_python_fallback_blocks_before_iterating_payloads(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
     from cdmw.modding.mesh_native_core import clear_native_mesh_core_fallback_counts, native_mesh_core_fallback_counts
 
     class NoIterSequence:
@@ -1205,7 +1205,7 @@ def test_large_static_preview_python_fallback_blocks_before_iterating_payloads(m
 
 
 def test_large_static_live_preview_blocks_small_changes_before_tuple_conversion(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
     from cdmw.modding.mesh_native_core import clear_native_mesh_core_fallback_counts, native_mesh_core_fallback_counts
 
     class NoIterSequence:
@@ -1234,7 +1234,7 @@ def test_large_static_live_preview_blocks_small_changes_before_tuple_conversion(
 
 
 def test_large_static_live_preview_blocks_from_submesh_length_before_tuple_conversion(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
     from cdmw.modding.mesh_native_core import clear_native_mesh_core_fallback_counts, native_mesh_core_fallback_counts
 
     class NoIterSequence:
@@ -1516,7 +1516,7 @@ def test_mesh_edit_native_live_vertex_update_groups_blocks_source_space_when_req
 
 
 def test_mesh_edit_native_live_vertex_update_groups_uses_native_generator_before_python_pack(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
 
     submesh = SimpleNamespace(vertices=[(1.0, 2.0, 3.0)])
     mesh = SimpleNamespace(submeshes=[submesh])
@@ -1558,7 +1558,7 @@ def test_mesh_edit_native_live_vertex_update_groups_uses_native_generator_before
 
 
 def test_mesh_edit_native_live_vertex_update_groups_forwards_full_range_to_native_generator(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
 
     submesh = SimpleNamespace(vertices=[(1.0, 2.0, 3.0), (4.0, 5.0, 6.0)])
     mesh = SimpleNamespace(submeshes=[submesh])
@@ -1601,7 +1601,7 @@ def test_mesh_edit_native_live_vertex_update_groups_forwards_full_range_to_nativ
 
 
 def test_mesh_edit_native_live_vertex_update_groups_forwards_descriptor_to_native_generator(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
 
     descriptor = {
         "source_vertex_indices_binary": {
@@ -1650,7 +1650,7 @@ def test_mesh_edit_native_live_vertex_update_groups_forwards_descriptor_to_nativ
 
 
 def test_mesh_edit_native_live_vertex_update_groups_retries_missing_native_payload(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
 
     submesh = SimpleNamespace(vertices=[(1.0, 2.0, 3.0)])
     mesh = SimpleNamespace(submeshes=[submesh])
@@ -1700,7 +1700,7 @@ def test_mesh_edit_native_live_vertex_update_groups_retries_missing_native_paylo
 
 
 def test_mesh_edit_native_live_vertex_update_groups_falls_back_on_missing_native_payload(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
 
     submesh = SimpleNamespace(vertices=[(1.0, 2.0, 3.0)])
     mesh = SimpleNamespace(submeshes=[submesh])
@@ -1715,7 +1715,7 @@ def test_mesh_edit_native_live_vertex_update_groups_falls_back_on_missing_native
 
 
 def test_mesh_edit_triangle_replace_groups_builds_full_triangle_payload(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
     from cdmw.modding.mesh_native_core import clear_native_mesh_core_fallback_counts, native_mesh_core_fallback_counts
 
     clear_native_mesh_core_fallback_counts()
@@ -1792,7 +1792,7 @@ def test_mesh_edit_triangle_replace_groups_consumes_native_source_payload() -> N
 
 
 def test_mesh_edit_triangle_replace_groups_uses_native_generator_before_python_pack(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
 
     submesh = SimpleNamespace(material="body_mat", texture="body_d.dds")
     mesh = SimpleNamespace(submeshes=[submesh])
@@ -2007,7 +2007,7 @@ def test_mesh_edit_triangle_replace_groups_consumes_native_affine_payload() -> N
 
 
 def test_mesh_edit_triangle_replace_groups_clears_vertex_payload_without_valid_faces(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
 
     monkeypatch.setattr(mesh_native_core, "native_mesh_core_available", lambda: False)
     mesh = SimpleNamespace(submeshes=[object()])
@@ -2169,7 +2169,7 @@ def test_mesh_edit_inverted_vertex_selection_subtracts_normalized_selected_verti
 
 
 def test_mesh_edit_selected_vertex_points_and_region_amount_use_valid_selection_bounds(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
 
     monkeypatch.setattr(mesh_native_core, "native_mesh_core_available", lambda: False)
 
@@ -2223,14 +2223,14 @@ def test_mesh_edit_selection_region_default_amount_prefers_native_bounds(monkeyp
     def fail_python_scan(*_args: object, **_kwargs: object) -> list[tuple[float, float, float]]:
         raise AssertionError("python selected-vertex point scan should stay fallback-only")
 
-    monkeypatch.setattr("cdmw.modding.mesh_native_core.summarize_native_mesh_selection_bounds", native_bounds)
+    monkeypatch.setattr("cdmw.services.mesh_workflow_service.summarize_native_mesh_selection_bounds", native_bounds)
     monkeypatch.setattr(state, "mesh_edit_selected_vertex_points", fail_python_scan)
 
     assert state.mesh_edit_selection_region_default_amount(mesh, {0: {0, 1}}) == 0.4
 
 
 def test_mesh_edit_selection_region_amount_blocks_python_point_scan_when_native_available(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
+    from cdmw.services import mesh_workflow_service as mesh_native_core
     from cdmw.modding.mesh_native_core import clear_native_mesh_core_fallback_counts, native_mesh_core_fallback_counts
     from cdmw.ui.archive_browser import static_replacement_mesh_edit_state as state
 

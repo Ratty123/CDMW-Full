@@ -5,7 +5,10 @@ from typing import Optional
 from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QTreeWidgetItem
 
-from cdmw.core.research import MaterialTextureReferenceRow, SidecarDiscoveryRow
+from cdmw.domain.research.contracts import (
+    MaterialTextureReferenceRow,
+    SidecarDiscoveryRow,
+)
 from cdmw.ui.research.models import item_payload, item_user_role
 from cdmw.ui.research.progress_helpers import set_progress_error, set_progress_ready, set_research_progress
 from cdmw.ui.research.reference_payload_state import (

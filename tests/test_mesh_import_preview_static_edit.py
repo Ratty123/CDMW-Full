@@ -143,7 +143,7 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
                     return_value=((), (), ImportAutoFixResult(), []),
                 ),
                 patch.object(archive_mesh_import_preview, "_load_obj_roundtrip_sidecar", return_value=None),
-                patch("cdmw.core.archive.build_archive_model_texture_references", return_value=()),
+                patch("cdmw.core.archive_model_textures.build_archive_model_texture_references", return_value=()),
             ):
                 result = archive_modding.build_mesh_import_preview(
                     entry,
@@ -211,7 +211,7 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
                     return_value=((), (), ImportAutoFixResult(), []),
                 ),
                 patch.object(archive_mesh_import_preview, "_load_obj_roundtrip_sidecar", return_value=None),
-                patch("cdmw.core.archive.build_archive_model_texture_references", return_value=()),
+                patch("cdmw.core.archive_model_textures.build_archive_model_texture_references", return_value=()),
             ):
                 result = archive_modding.build_mesh_import_preview(
                     entry,
@@ -398,7 +398,7 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
                 target_path.write_bytes(f"related:{entry.path}".encode("utf-8"))
                 return target_path
 
-            with patch("cdmw.core.archive.extract_archive_entry", side_effect=fake_extract):
+            with patch("cdmw.core.archive_extraction.extract_archive_entry", side_effect=fake_extract):
                 result = archive_modding.export_archive_mesh_payloads_to_mod_ready_loose(
                     (archive_modding.ArchivePatchRequest(primary, b"rebuilt"),),
                     primary_entry=primary,

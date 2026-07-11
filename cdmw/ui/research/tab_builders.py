@@ -22,7 +22,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.research import unknown_resolver_choice_label, unknown_resolver_label_choices
+from cdmw.domain.research.classification import (
+    unknown_resolver_choice_label,
+    unknown_resolver_label_choices,
+)
 from cdmw.ui.research.analysis_state import ANALYSIS_CONTEXT_HELP_TEXT
 from cdmw.ui.research.help_widgets import (
     add_flat_section_help as _add_flat_section_help,

@@ -10,12 +10,13 @@ from typing import Dict, Mapping, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
-from cdmw.core.texture_editor import (
-    _blend_layer_region,
+from cdmw.domain.textures.editor_brush import texture_editor_stroke_points_for_symmetry
+from cdmw.domain.textures.editor_composite import _blend_layer_region
+from cdmw.domain.textures.editor_layers import (
     add_texture_editor_layer,
-    build_texture_editor_selection_mask,
     bump_texture_editor_layer_revision,
 )
+from cdmw.domain.textures.editor_selection_masks import build_texture_editor_selection_mask
 from cdmw.models import TextureEditorDocument, TextureEditorFloatingSelection, TextureEditorLayer, TextureEditorToolSettings
 from cdmw.ui.texture_workflow.editor_clipboard_state import (
     texture_editor_cut_selection_status_text,
@@ -129,8 +130,14 @@ def estimated_texture_editor_brush_dirty_bounds(
     if document is None or not points:
         return None
     brush_padding = padding if padding is not None else int(math.ceil(max(1.0, float(tool_settings.size)) * 0.75)) + 4
-    xs = [int(point[0]) for point in points]
-    ys = [int(point[1]) for point in points]
+    dirty_points = texture_editor_stroke_points_for_symmetry(
+        points,
+        document.width,
+        document.height,
+        tool_settings.symmetry_mode,
+    )
+    xs = [int(point[0]) for point in dirty_points]
+    ys = [int(point[1]) for point in dirty_points]
     x0 = max(0, min(xs) - brush_padding)
     y0 = max(0, min(ys) - brush_padding)
     x1 = min(int(document.width), max(xs) + brush_padding + 1)

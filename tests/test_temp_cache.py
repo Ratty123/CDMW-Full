@@ -1,18 +1,26 @@
 from __future__ import annotations
 
+import gc
 import os
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
+import cdmw.core.temp_cache as temp_cache
 from cdmw.core.temp_cache import (
     APP_TEMP_CACHE_ROOT_ENV,
+    AppTempCachePruneReport,
     DEFAULT_APP_TEMP_CACHE_MAX_BYTES,
     DEFAULT_APP_TEMP_CACHE_TARGET_BYTES,
+    app_temp_cache_build,
     app_temp_cache_path,
     app_temp_root,
+    app_temp_cache_use,
     prune_app_temp_cache,
+    request_app_temp_cache_prune,
 )
 
 
@@ -60,6 +68,105 @@ class AppTempCacheTests(unittest.TestCase):
             self.assertFalse(old_unit.exists())
             self.assertTrue(new_unit.exists())
             self.assertTrue(foreign_unit.exists())
+
+    def test_prune_skips_cache_unit_while_build_lease_is_active(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_text:
+            app_root = Path(temp_text) / "CrimsonDesertModWorkbench"
+            unit = app_root / "archive_preview_cache" / "building"
+            unit.mkdir(parents=True)
+            (unit / "payload.bin").write_bytes(b"x" * 700)
+            started = threading.Event()
+            release = threading.Event()
+
+            def hold_build() -> None:
+                with app_temp_cache_build(unit):
+                    started.set()
+                    self.assertTrue(release.wait(5.0))
+
+            thread = threading.Thread(target=hold_build)
+            thread.start()
+            self.assertTrue(started.wait(5.0))
+            report = prune_app_temp_cache(max_bytes=1, target_bytes=0, root=app_root)
+
+            self.assertEqual(0, report.removed_units)
+            self.assertTrue(unit.is_dir())
+            release.set()
+            thread.join(5.0)
+            self.assertFalse(thread.is_alive())
+
+            prune_app_temp_cache(max_bytes=1, target_bytes=0, root=app_root)
+            self.assertFalse(unit.exists())
+
+    def test_prune_skips_cache_unit_while_descendant_read_lease_is_active(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_text:
+            app_root = Path(temp_text) / "CrimsonDesertModWorkbench"
+            unit = app_root / "preview_cache" / "reading"
+            payload = unit / "preview.png"
+            payload.parent.mkdir(parents=True)
+            payload.write_bytes(b"x" * 700)
+            started = threading.Event()
+            release = threading.Event()
+
+            def hold_read() -> None:
+                with app_temp_cache_use(payload):
+                    started.set()
+                    self.assertTrue(release.wait(5.0))
+
+            thread = threading.Thread(target=hold_read)
+            thread.start()
+            self.assertTrue(started.wait(5.0))
+            report = prune_app_temp_cache(max_bytes=1, target_bytes=0, root=app_root)
+
+            self.assertEqual(0, report.removed_units)
+            self.assertEqual(b"x" * 700, payload.read_bytes())
+            release.set()
+            thread.join(5.0)
+            self.assertFalse(thread.is_alive())
+
+            prune_app_temp_cache(max_bytes=1, target_bytes=0, root=app_root)
+            self.assertFalse(unit.exists())
+
+    def test_cache_unit_lock_registry_releases_unused_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_text:
+            root = Path(temp_text) / "CrimsonDesertModWorkbench" / "preview_cache"
+            baseline = len(temp_cache._CACHE_UNIT_LOCKS)
+            for index in range(1000):
+                lock = temp_cache._cache_unit_lock(root / str(index))
+            del lock
+            gc.collect()
+
+            self.assertLessEqual(len(temp_cache._CACHE_UNIT_LOCKS), baseline + 1)
+
+    def test_prune_request_never_scans_on_caller_thread(self) -> None:
+        started = threading.Event()
+        release = threading.Event()
+        worker_threads: list[int] = []
+
+        def slow_prune(**_kwargs: object) -> AppTempCachePruneReport:
+            worker_threads.append(threading.get_ident())
+            started.set()
+            self.assertTrue(release.wait(5.0))
+            return AppTempCachePruneReport(0, 0, 0, 0, 0, 0)
+
+        self.assertTrue(temp_cache._PRUNE_LOCK.acquire(timeout=5.0))
+        temp_cache._PRUNE_LOCK.release()
+        previous = temp_cache._last_prune_monotonic
+        temp_cache._last_prune_monotonic = 0.0
+        try:
+            with mock.patch.object(temp_cache, "prune_app_temp_cache", side_effect=slow_prune):
+                before = time.perf_counter()
+                self.assertIsNone(request_app_temp_cache_prune(min_interval_seconds=0.0))
+                self.assertLess(time.perf_counter() - before, 0.05)
+                self.assertTrue(started.wait(1.0))
+                self.assertIsNone(request_app_temp_cache_prune(min_interval_seconds=0.0))
+                self.assertEqual([worker_threads[0]], worker_threads)
+                self.assertNotEqual(threading.get_ident(), worker_threads[0])
+                release.set()
+                self.assertTrue(temp_cache._PRUNE_LOCK.acquire(timeout=5.0))
+                temp_cache._PRUNE_LOCK.release()
+        finally:
+            release.set()
+            temp_cache._last_prune_monotonic = previous
 
 
 if __name__ == "__main__":

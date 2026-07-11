@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.text_search import (
+from cdmw.services.text_search_service import (
     DEFAULT_TEXT_SEARCH_EXTENSIONS,
     TextSearchResult,
     TextSearchRunStats,
@@ -36,7 +36,7 @@ from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.text_search.controller import TextSearchControllerMixin, TextSearchSettingsMixin
 from cdmw.ui.text_search.export_actions import TextSearchExportMixin
 from cdmw.ui.text_search.preview_panel import TextSearchPreviewMixin
-from cdmw.ui.text_search.workers import TextSearchPreviewWorker, TextSearchWorker
+from cdmw.ui.text_search.workers import TextSearchExportWorker, TextSearchPreviewWorker, TextSearchWorker
 from cdmw.ui.widgets import (
     CodePreviewEditor,
     EmptyStatePanel,
@@ -81,9 +81,13 @@ class TextSearchTab(TextSearchSettingsMixin, TextSearchControllerMixin, TextSear
         self.current_theme_key = theme_key
         self.search_thread: Optional[QThread] = None
         self.search_worker: Optional[TextSearchWorker] = None
+        self.search_request_id = 0
         self.preview_thread: Optional[QThread] = None
         self.preview_worker: Optional[TextSearchPreviewWorker] = None
         self.preview_request_id = 0
+        self.export_thread: Optional[QThread] = None
+        self.export_worker: Optional[TextSearchExportWorker] = None
+        self.export_request_id = 0
         self.pending_preview_result: Optional[TextSearchResult] = None
         self.scheduled_preview_result: Optional[TextSearchResult] = None
         self.search_results: List[TextSearchResult] = []

@@ -20,17 +20,28 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.appearance_composite import (
+from cdmw.services.texture_workflow_service import (
     AppearanceCompositeModelOverride,
     AppearanceCompositePreviewPlan,
     AppearanceSinglePacSwapPlan,
-    build_appearance_composite_preview_plan,
     build_appearance_single_pac_swap_package_plan,
-    build_appearance_single_pac_swap_plan,
 )
-from cdmw.core.archive_modding import ArchiveLooseExportResult, export_archive_payloads_to_mod_ready_loose
-from cdmw.core.mod_package import ModPackageExportOptions
+from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
+from cdmw.domain.packages.export_policy import ModPackageExportOptions
 from cdmw.models import ArchiveEntry, ModPackageInfo
+from cdmw.ui.shell.request_task_controller import request_task_controller_for_guard
+from cdmw.workers.appearance_workers import (
+    AppearanceCompositePlanRequest,
+    AppearanceCompositePlanResult,
+    AppearanceExactMatchRequest,
+    AppearanceExactMatchResult,
+    AppearanceSwapPlanRequest,
+    AppearanceSwapPlanResult,
+    run_appearance_composite_plan,
+    run_appearance_exact_match,
+    run_appearance_swap_plan,
+)
 
 
 class ArchiveAppearanceSwapMixin:
@@ -64,12 +75,8 @@ class ArchiveAppearanceSwapMixin:
             self._begin_archive_appearance_swap_review(target_app_entry, donor_model_entry)
             return
         if isinstance(donor_model_entry, ArchiveEntry) and target_app_entry is None:
-            def _task(log: Callable[[str], None]) -> object:
-                log(f"Searching exact body appearance contexts for {donor_model_entry.basename}...")
-                return self._find_exact_appearance_contexts_for_model(donor_model_entry)
-
             def _complete(payload: object) -> None:
-                candidates = tuple(entry for entry in (payload if isinstance(payload, tuple) else ()) if isinstance(entry, ArchiveEntry))
+                candidates = payload.candidates if isinstance(payload, AppearanceExactMatchResult) else ()
                 if not candidates:
                     QMessageBox.information(
                         self,
@@ -81,65 +88,106 @@ class ArchiveAppearanceSwapMixin:
                 if selected_app is not None:
                     self._begin_archive_appearance_swap_review(selected_app, donor_model_entry)
 
-            self._run_utility_task(
+            extension_index = getattr(self, "archive_entries_by_extension", {}) or {}
+            app_entries = tuple(extension_index.get(".app_xml", ()) or ())
+            if not app_entries and getattr(self, "archive_entries", ()):
+                ensure_index = getattr(self, "_ensure_archive_extension_index_ready", None)
+                if callable(ensure_index):
+                    ensure_index()
+                self.set_status_message("Archive extension index is warming; retry appearance swap when indexing finishes.")
+                return
+            controller = request_task_controller_for_guard(
+                self,
+                self,
+                attribute="_appearance_swap_task_controller",
+                worker_label="appearance_swap",
+            )
+            controller.start(
+                AppearanceExactMatchRequest(donor_model_entry, app_entries),
+                run_appearance_exact_match,
                 status_message=f"Finding exact body appearance contexts for {donor_model_entry.basename}...",
-                task=_task,
                 on_complete=_complete,
-                show_archive_progress=True,
+                on_error=lambda message: QMessageBox.warning(self, "Appearance Armor Swap", message),
             )
             return
         QMessageBox.warning(self, "Appearance Armor Swap", reason or "Select one target body .app_xml and one donor model.")
 
     def _begin_archive_appearance_swap_review(self, target_app_entry: ArchiveEntry, donor_model_entry: ArchiveEntry) -> None:
         archive_entries = tuple(self.archive_entries)
-        path_index = getattr(self, "archive_entries_by_normalized_path", None) or self._build_archive_entry_path_index(archive_entries)
-        basename_index = getattr(self, "archive_entries_by_basename", None) or self._build_archive_entry_basename_index(archive_entries)
-        try:
-            composite_plan = build_appearance_composite_preview_plan(
-                target_app_entry,
-                archive_entries,
-                appearance_entry=target_app_entry,
-                path_index=path_index,
-                basename_index=basename_index,
-            )
-        except Exception as exc:
-            QMessageBox.warning(self, "Appearance Armor Swap", f"Could not build the target body appearance context:\n{exc}")
+        lookup_indexes = self._archive_lookup_indexes_snapshot()
+        if lookup_indexes is None:
             return
-        component_index = self._prompt_appearance_composite_override_component(
-            composite_plan,
-            donor_model_entry,
-            purpose="package",
+        path_index, basename_index = lookup_indexes
+        controller = request_task_controller_for_guard(
+            self,
+            self,
+            attribute="_appearance_swap_task_controller",
+            worker_label="appearance_swap",
         )
-        if component_index is None:
-            return
-        component = composite_plan.components[component_index] if 0 <= component_index < len(composite_plan.components) else None
-        model_candidates = tuple(
-            entry
-            for entry in tuple(getattr(component, "resolved_model_entries", ()) or ())
-            if str(getattr(entry, "extension", "") or "").lower() in {".pac", ".pam", ".pamlod"}
-        )
-        target_model_entry: Optional[ArchiveEntry] = None
-        if len(model_candidates) > 1:
-            target_model_entry = self._prompt_appearance_swap_target_model(component, model_candidates)
-            if target_model_entry is None:
+
+        def _composite_ready(payload: object) -> None:
+            if not isinstance(payload, AppearanceCompositePlanResult):
+                QMessageBox.warning(self, "Appearance Armor Swap", "Appearance planner returned an unexpected result.")
                 return
-        try:
-            swap_plan = build_appearance_single_pac_swap_plan(
+            composite_plan = payload.plan
+            component_index = self._prompt_appearance_composite_override_component(
+                composite_plan,
+                donor_model_entry,
+                purpose="package",
+            )
+            if component_index is None:
+                return
+            component = composite_plan.components[component_index] if 0 <= component_index < len(composite_plan.components) else None
+            model_candidates = tuple(
+                entry
+                for entry in tuple(getattr(component, "resolved_model_entries", ()) or ())
+                if str(getattr(entry, "extension", "") or "").lower() in {".pac", ".pam", ".pamlod"}
+            )
+            target_model_entry: Optional[ArchiveEntry] = None
+            if len(model_candidates) > 1:
+                target_model_entry = self._prompt_appearance_swap_target_model(component, model_candidates)
+                if target_model_entry is None:
+                    return
+
+            def _swap_ready(swap_payload: object) -> None:
+                if not isinstance(swap_payload, AppearanceSwapPlanResult):
+                    QMessageBox.warning(self, "Appearance Armor Swap", "Swap planner returned an unexpected result.")
+                    return
+                self._open_archive_appearance_swap_review_dialog(
+                    composite_plan,
+                    swap_payload.plan,
+                    target_model_entry=target_model_entry,
+                )
+
+            controller.start(
+                AppearanceSwapPlanRequest(
+                    target_app_entry,
+                    donor_model_entry,
+                    archive_entries,
+                    component_index,
+                    target_model_entry,
+                    False,
+                    path_index,
+                    basename_index,
+                ),
+                run_appearance_swap_plan,
+                status_message=f"Building appearance swap plan for {donor_model_entry.basename}...",
+                on_complete=_swap_ready,
+                on_error=lambda message: QMessageBox.warning(self, "Appearance Armor Swap", message),
+            )
+
+        controller.start(
+            AppearanceCompositePlanRequest(
                 target_app_entry,
                 donor_model_entry,
                 archive_entries,
-                target_component_index=component_index,
-                target_model_entry=target_model_entry,
-                path_index=path_index,
-                basename_index=basename_index,
-            )
-        except Exception as exc:
-            QMessageBox.warning(self, "Appearance Armor Swap", f"Could not build the package plan:\n{exc}")
-            return
-        self._open_archive_appearance_swap_review_dialog(
-            composite_plan,
-            swap_plan,
-            target_model_entry=target_model_entry,
+                path_index,
+                basename_index,
+            ),
+            run_appearance_composite_plan,
+            status_message=f"Building appearance context for {target_app_entry.basename}...",
+            on_complete=_composite_ready,
+            on_error=lambda message: QMessageBox.warning(self, "Appearance Armor Swap", message),
         )
 
     def _prompt_appearance_swap_target_model(
@@ -240,8 +288,10 @@ class ArchiveAppearanceSwapMixin:
         target_model_entry: Optional[ArchiveEntry] = None,
     ) -> None:
         archive_entries = tuple(self.archive_entries)
-        path_index = getattr(self, "archive_entries_by_normalized_path", None) or self._build_archive_entry_path_index(archive_entries)
-        basename_index = getattr(self, "archive_entries_by_basename", None) or self._build_archive_entry_basename_index(archive_entries)
+        lookup_indexes = self._archive_lookup_indexes_snapshot()
+        if lookup_indexes is None:
+            return
+        path_index, basename_index = lookup_indexes
         dialog = QDialog(self)
         dialog.setWindowTitle("Appearance Armor Swap Review")
         layout = QVBoxLayout(dialog)
@@ -269,26 +319,48 @@ class ArchiveAppearanceSwapMixin:
         layout.addLayout(button_row)
 
         plan_holder: Dict[str, AppearanceSinglePacSwapPlan] = {"plan": swap_plan}
+        review_controller = request_task_controller_for_guard(
+            self,
+            dialog,
+            attribute="_appearance_review_task_controller",
+            worker_label="appearance_review",
+        )
 
-        def _refresh_plan() -> None:
-            try:
-                refreshed = build_appearance_single_pac_swap_plan(
-                    swap_plan.target_app_entry,
-                    swap_plan.donor_model_entry,
-                    archive_entries,
-                    target_component_index=swap_plan.target_component_index,
-                    target_model_entry=target_model_entry,
-                    allow_experimental_mismatch=experimental_checkbox.isChecked(),
-                    path_index=path_index,
-                    basename_index=basename_index,
-                )
-            except Exception as exc:
-                review_edit.setPlainText(f"Could not refresh appearance swap plan:\n{exc}")
-                build_button.setEnabled(False)
-                return
+        def _apply_plan(refreshed: AppearanceSinglePacSwapPlan) -> None:
             plan_holder["plan"] = refreshed
             review_edit.setPlainText(self._appearance_swap_plan_review_text(refreshed))
             build_button.setEnabled(not bool(refreshed.blocking_reasons))
+
+        def _refresh_plan() -> None:
+            experimental_checkbox.setEnabled(False)
+            build_button.setEnabled(False)
+
+            def _complete(payload: object) -> None:
+                if isinstance(payload, AppearanceSwapPlanResult):
+                    _apply_plan(payload.plan)
+                else:
+                    review_edit.setPlainText("Appearance planner returned an unexpected result.")
+                    build_button.setEnabled(False)
+
+            started = review_controller.start(
+                AppearanceSwapPlanRequest(
+                    swap_plan.target_app_entry,
+                    swap_plan.donor_model_entry,
+                    archive_entries,
+                    swap_plan.target_component_index,
+                    target_model_entry,
+                    experimental_checkbox.isChecked(),
+                    path_index,
+                    basename_index,
+                ),
+                run_appearance_swap_plan,
+                status_message="Refreshing appearance swap compatibility...",
+                on_complete=_complete,
+                on_error=lambda message: review_edit.setPlainText(f"Could not refresh appearance swap plan:\n{message}"),
+                on_idle=lambda: experimental_checkbox.setEnabled(True),
+            )
+            if not started:
+                experimental_checkbox.setEnabled(True)
 
         def _preview_swap() -> None:
             current_plan = plan_holder["plan"]
@@ -332,7 +404,7 @@ class ArchiveAppearanceSwapMixin:
         preview_button.clicked.connect(lambda _checked=False: _preview_swap())
         build_button.clicked.connect(lambda _checked=False: _build_swap())
         cancel_button.clicked.connect(dialog.reject)
-        _refresh_plan()
+        _apply_plan(swap_plan)
         dialog.resize(980, 680)
         dialog.exec()
 

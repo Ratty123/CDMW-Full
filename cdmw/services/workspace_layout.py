@@ -5,8 +5,16 @@ from pathlib import Path
 import shutil
 from typing import Mapping
 
+from cdmw.domain.workspace import (
+    WORKSPACE_DIRNAME,
+    app_root_from_workspace_member,
+    default_mod_package_export_root,
+    workspace_path,
+    workspace_paths,
+    workspace_root,
+)
 
-WORKSPACE_DIRNAME = "workspace"
+
 WORKSPACE_MIGRATION_SETTINGS_KEY = "workspace/layout_migration_v1_done"
 
 
@@ -57,55 +65,6 @@ class WorkspaceMigrationReport:
     settings_updated: list[str] = field(default_factory=list)
 
 
-def workspace_root(app_root: Path) -> Path:
-    return Path(app_root).expanduser().resolve() / WORKSPACE_DIRNAME
-
-
-def workspace_path(app_root: Path, relative_path: str) -> Path:
-    return workspace_root(app_root) / Path(relative_path)
-
-
-def workspace_paths(app_root: Path) -> dict[str, Path]:
-    root = workspace_root(app_root)
-    tools_root = root / "tools"
-    ncnn_dir = tools_root / "realesrgan_ncnn"
-    output_root = root / "outputs" / "rebuilt_textures"
-    return {
-        "workspace_root": root,
-        "original_dds_root": root / "original_dds",
-        "png_root": root / "staging" / "upscaled_png",
-        "texture_editor_png_root": root / "staging" / "texture_editor_png",
-        "dds_staging_root": root / "staging" / "dds_input_png",
-        "output_root": output_root,
-        "mod_ready_export_root": root / "outputs" / "mod_packages",
-        "replace_assistant_output_root": root / "outputs" / "texture_replacer",
-        "text_search_export_root": root / "outputs" / "text_search",
-        "archive_extract_root": root / "extracts",
-        "texture_editor_workspace_root": root / "texture_editor_projects",
-        "item_icon_library_root": root / "libraries" / "item_icons",
-        "model_catalogue_root": root / "libraries" / "models",
-        "paa_research_root": root / "paa_research",
-        "modify_original_sessions_root": root / "modify_original_sessions",
-        "archive_cache_root": root / "cache",
-        "crash_reports_dir": root / "logs",
-        "tools_root": tools_root,
-        "texconv_path": tools_root / "texconv.exe",
-        "chainner_dir": tools_root / "chaiNNer",
-        "chainner_exe_path": tools_root / "chaiNNer" / "chaiNNer.exe",
-        "ncnn_dir": ncnn_dir,
-        "ncnn_exe_path": ncnn_dir / "realesrgan-ncnn-vulkan.exe",
-        "ncnn_model_dir": ncnn_dir / "models",
-        "csv_log_path": root / "logs" / "build_log.csv",
-    }
-
-
-def default_mod_package_export_root(output_root: Path) -> Path:
-    output = Path(output_root).expanduser()
-    if output.name == "rebuilt_textures" and output.parent.name == "outputs":
-        return output.parent / "mod_packages"
-    return output.parent / "mod_packages"
-
-
 def legacy_direct_child_path(app_root: Path, name: str) -> Path:
     return Path(app_root).expanduser().resolve() / name
 
@@ -119,25 +78,18 @@ def is_legacy_direct_child(path: Path, app_root: Path, legacy_name: str) -> bool
     return resolved.parent == root and resolved.name.lower() == legacy_name.lower()
 
 
-def app_root_from_workspace_member(path: Path) -> Path | None:
-    parts = Path(path).parts
-    lowered = [part.lower() for part in parts]
-    if WORKSPACE_DIRNAME not in lowered:
-        return None
-    workspace_index = len(lowered) - 1 - lowered[::-1].index(WORKSPACE_DIRNAME)
-    if workspace_index <= 0:
-        return None
-    return Path(*parts[:workspace_index])
-
-
 def migrate_legacy_workspace_layout(app_root: Path, settings: object | None = None) -> WorkspaceMigrationReport:
     root = Path(app_root).expanduser().resolve()
     report = WorkspaceMigrationReport()
+    source_checkout = (root / ".git").exists() and (root / "cdmw").is_dir()
 
     for legacy_name, new_relative in LEGACY_WORKSPACE_DIRS.items():
         source = root / legacy_name
         destination = workspace_path(root, new_relative)
         if not source.exists() or not source.is_dir():
+            continue
+        if legacy_name == "tools" and source_checkout:
+            report.skipped.append((source, destination, "source checkout"))
             continue
         if source.parent != root:
             report.skipped.append((source, destination, "not direct child"))

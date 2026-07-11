@@ -7,7 +7,7 @@ import time
 from collections.abc import Mapping
 from typing import Dict, Optional
 
-from cdmw.core.archive_compact_index import ArchiveRowIndex
+from cdmw.services.archive_workflow_service import ArchiveRowIndex
 from cdmw.models import ArchivePreviewResult
 from cdmw.ui.shell.diagnostics_controller import windows_process_memory_snapshot as _windows_process_memory_snapshot
 

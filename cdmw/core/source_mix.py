@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import dataclasses
+import os
+import threading
 from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Mapping, Optional, Sequence
 
-from cdmw.core.archive import parse_archive_pamt, read_archive_entry_data
+from cdmw.core.archive_extraction import read_archive_entry_data
+from cdmw.core.archive_format import parse_archive_pamt
+from cdmw.core.common import raise_if_cancelled
 from cdmw.core.mod_package import is_mod_package_payload_path, normalize_mod_package_payload_path
 from cdmw.models import ArchiveEntry
 
@@ -258,6 +262,7 @@ def enrich_source_mix_candidates(
     candidates: Sequence[SourceMixCandidate],
     *,
     target_entries_by_virtual_path: Mapping[str, ArchiveEntry] | None = None,
+    stop_event: threading.Event | None = None,
 ) -> tuple[SourceMixCandidate, ...]:
     """Add role/family/match metadata used by overlay review and asset-family flows."""
     target_map = target_entries_by_virtual_path or {}
@@ -271,7 +276,9 @@ def enrich_source_mix_candidates(
             target_entries_by_basename.setdefault((target_name, target_extension), []).append(target_entry)
     grouped_by_path = group_source_mix_candidates_by_virtual_path(candidates)
     enriched: list[SourceMixCandidate] = []
-    for candidate in candidates:
+    for index, candidate in enumerate(candidates):
+        if not (index & 255):
+            raise_if_cancelled(stop_event, "Source-mix candidate enrichment cancelled.")
         normalized = candidate.normalized_virtual_path
         target_entry = candidate.target_archive_entry or target_map.get(normalized)
         match_status = "exact" if target_entry is not None else "extra"
@@ -329,13 +336,37 @@ def scan_archive_entries_source(
     )
 
 
-def _iter_loose_payload_files(root: Path) -> Iterable[Path]:
+def _iter_loose_payload_files(
+    root: Path,
+    *,
+    stop_event: threading.Event | None = None,
+    max_entries: int = 100_000,
+) -> Iterable[Path]:
+    raise_if_cancelled(stop_event, "Loose source scan cancelled.")
     if root.is_file():
         yield root
         return
-    for path in sorted(root.rglob("*")):
-        if path.is_file() and not any(part.startswith(".") for part in path.relative_to(root).parts):
-            yield path
+    paths: list[Path] = []
+    pending = [root]
+    visited = 0
+    limit = max(1, int(max_entries))
+    while pending:
+        raise_if_cancelled(stop_event, "Loose source scan cancelled.")
+        directory = pending.pop()
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if not (visited & 255):
+                    raise_if_cancelled(stop_event, "Loose source scan cancelled.")
+                visited += 1
+                if visited > limit:
+                    raise ValueError(f"Loose source scan exceeded the {limit:,}-entry safety limit.")
+                if entry.name.startswith("."):
+                    continue
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(Path(entry.path))
+                elif entry.is_file(follow_symlinks=False):
+                    paths.append(Path(entry.path))
+    yield from sorted(paths)
 
 
 def _loose_virtual_path(root: Path, path: Path) -> str:
@@ -353,13 +384,23 @@ def scan_loose_folder_source(
     *,
     label: str = "",
     target_entries_by_virtual_path: Mapping[str, ArchiveEntry] | None = None,
+    stop_event: threading.Event | None = None,
+    max_entries: int = 100_000,
+    max_candidates: int = 50_000,
 ) -> tuple[SourceMixCandidate, ...]:
+    raise_if_cancelled(stop_event, "Loose source scan cancelled.")
     resolved_root = root.expanduser().resolve()
     if not resolved_root.exists():
         raise FileNotFoundError(f"Loose source folder does not exist: {resolved_root}")
     layer = source_mix_layer_for_loose_folder(resolved_root, label=label)
     candidates: list[SourceMixCandidate] = []
-    for path in _iter_loose_payload_files(resolved_root):
+    candidate_limit = max(1, int(max_candidates))
+    for path in _iter_loose_payload_files(
+        resolved_root,
+        stop_event=stop_event,
+        max_entries=max_entries,
+    ):
+        raise_if_cancelled(stop_event, "Loose source scan cancelled.")
         display_path = _loose_virtual_path(resolved_root if resolved_root.is_dir() else resolved_root.parent, path)
         normalized = normalize_source_mix_virtual_path(display_path)
         if not normalized or not is_mod_package_payload_path(display_path):
@@ -376,9 +417,13 @@ def scan_loose_folder_source(
                 _payload_reader=lambda current_path=path: current_path.read_bytes(),
             )
         )
+        if len(candidates) > candidate_limit:
+            raise ValueError(f"Loose source scan exceeded the {candidate_limit:,}-candidate safety limit.")
+    raise_if_cancelled(stop_event, "Loose source scan cancelled.")
     return enrich_source_mix_candidates(
         candidates,
         target_entries_by_virtual_path=target_entries_by_virtual_path,
+        stop_event=stop_event,
     )
 
 
@@ -402,14 +447,21 @@ def scan_mod_archive_source(
     *,
     label: str = "",
     target_entries_by_virtual_path: Mapping[str, ArchiveEntry] | None = None,
+    stop_event: threading.Event | None = None,
+    max_candidates: int = 50_000,
 ) -> tuple[SourceMixCandidate, ...]:
+    raise_if_cancelled(stop_event, "Source mod archive scan cancelled.")
     pamt_files = _mod_archive_pamt_files(source_path)
     if not pamt_files:
         raise FileNotFoundError(f"No .pamt files were found for source mod archive: {source_path}")
     layer = source_mix_layer_for_mod_archive(source_path, label=label)
     candidates: list[SourceMixCandidate] = []
+    candidate_limit = max(1, int(max_candidates))
     for pamt_path in pamt_files:
+        raise_if_cancelled(stop_event, "Source mod archive scan cancelled.")
         for entry in parse_archive_pamt(pamt_path):
+            if not (len(candidates) & 255):
+                raise_if_cancelled(stop_event, "Source mod archive scan cancelled.")
             normalized = normalize_source_mix_virtual_path(entry.path)
             if not normalized:
                 continue
@@ -420,9 +472,15 @@ def scan_mod_archive_source(
                     target_archive_entry=(target_entries_by_virtual_path or {}).get(normalized),
                 )
             )
+            if len(candidates) > candidate_limit:
+                raise ValueError(
+                    f"Source mod archive scan exceeded the {candidate_limit:,}-candidate safety limit."
+                )
+    raise_if_cancelled(stop_event, "Source mod archive scan cancelled.")
     return enrich_source_mix_candidates(
         candidates,
         target_entries_by_virtual_path=target_entries_by_virtual_path,
+        stop_event=stop_event,
     )
 
 

@@ -5,6 +5,7 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QLabel, QTabWidget, QWidget
 
 from cdmw.app.events import AppEventBus
@@ -14,6 +15,14 @@ from cdmw.ui.shell.tab_registry import TabRegistry, TabSpec
 
 
 class ShellContextTests(unittest.TestCase):
+    def test_context_from_settings_reuses_one_settings_instance(self) -> None:
+        settings = QSettings("CDMWTests", "ContextReuse")
+
+        context = AppContext.from_settings(settings)
+
+        self.assertIs(settings, context.settings)
+        self.assertIs(settings, context.services.settings)
+
     def test_event_bus_delivers_payload(self) -> None:
         events: list[tuple[str, dict[str, object]]] = []
         bus = AppEventBus()

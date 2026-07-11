@@ -23,9 +23,9 @@ from cdmw.models import ArchiveEntry, PathcCollisionEntry, PathcEntry, PathcLook
 
 
 def _StructuredBinaryPreviewBundle(*args, **kwargs):
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_model_references import _StructuredBinaryPreviewBundle as owner
 
-    return archive_core._StructuredBinaryPreviewBundle(*args, **kwargs)
+    return owner(*args, **kwargs)
 
 
 _PATHC_COLLECTION_CACHE: Dict[str, Tuple[str, "PathcCollection"]] = {}

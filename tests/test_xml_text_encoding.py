@@ -1,6 +1,10 @@
+import ast
 import unittest
+from pathlib import Path
 
+from cdmw.core import xml_text as core_xml_text
 from cdmw.core.xml_text import decode_xml_text_payload, encode_xml_text_like_source
+from cdmw.domain import xml_text as domain_xml_text
 
 
 KOREAN_LABEL = "\ub514\uc2a4\ud06c\ub9bd\uc158 / \ud074\ub9ac\ud504"
@@ -40,6 +44,22 @@ def _windows_1252ish_mojibake(data: bytes) -> str:
 
 
 class XmlTextEncodingTests(unittest.TestCase):
+    def test_core_exports_domain_owned_objects_and_ui_uses_domain_owner(self) -> None:
+        self.assertIs(core_xml_text.DecodedXmlText, domain_xml_text.DecodedXmlText)
+        self.assertIs(core_xml_text.decode_xml_text_payload, domain_xml_text.decode_xml_text_payload)
+        self.assertIs(core_xml_text.encode_xml_text_like_source, domain_xml_text.encode_xml_text_like_source)
+        offenders: list[str] = []
+        for path in Path("cdmw/ui").rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module == "cdmw.core.xml_text":
+                    offenders.append(path.as_posix())
+                elif isinstance(node, ast.Import) and any(
+                    alias.name == "cdmw.core.xml_text" for alias in node.names
+                ):
+                    offenders.append(path.as_posix())
+        self.assertEqual([], offenders)
+
     def test_utf8_korean_xml_round_trips_without_mojibake(self) -> None:
         source_text = f"<!-- {KOREAN_LABEL} --><Root />"
         decoded = decode_xml_text_payload(source_text.encode("utf-8"))

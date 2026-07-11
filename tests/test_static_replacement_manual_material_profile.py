@@ -12,6 +12,7 @@ from cdmw.ui.archive_browser.static_replacement_manual_material_profile import (
     manual_material_profile_change_status_text,
     manual_material_profile_control_text,
     manual_material_profile_control_effect_states,
+    material_authority_resource_channels,
     manual_material_profile_default_values,
     manual_material_profile_delete_question,
     manual_material_profile_dirty_state,
@@ -221,6 +222,53 @@ def test_manual_material_profile_control_effect_states_attach_inactive_reasons()
         "tooltip": "Roughness default\n\nNo effect: PBR/mask slot is not generating a material-mask DDS.",
     }
     assert states["unchanged"] == {"enabled": True, "tooltip": "Unchanged"}
+
+
+def test_resident_resource_controls_enable_only_with_live_resource_channels() -> None:
+    values = {
+        "base_binding_mode": "overlay_texture",
+        "mask_binding_mode": "detail_mask_material",
+        "support_policy": "source_only",
+        "emissive_mode": "intensity",
+        "allow_factor_only_authority": True,
+    }
+    keys = (
+        "base_binding_mode",
+        "ao_default",
+        "support_policy",
+        "emissive_mode",
+        "roughness_scale",
+        "neutral_color_rgb",
+    )
+    states = manual_material_profile_control_effect_states(
+        values,
+        control_keys=keys,
+        control_tooltips={key: key for key in keys},
+        target_height_supported=True,
+        resident_parameter_only=True,
+        resident_parameters_available=True,
+        resident_resources_available=True,
+    )
+
+    assert material_authority_resource_channels(("base_binding_mode",)) == ("base",)
+    assert material_authority_resource_channels(("ao_default",)) == ("material_mask",)
+    assert material_authority_resource_channels(("support_policy",)) == ("normal", "height", "material_mask")
+    assert material_authority_resource_channels(("emissive_mode",)) == ("emissive",)
+    assert material_authority_resource_channels(("base_color_scale",)) == ()
+    assert "detail_mask" not in material_authority_resource_channels(("*",))
+    assert all(states[key]["enabled"] for key in keys[:5])
+    assert states["neutral_color_rgb"]["enabled"] is False
+    assert "export/sidecar structure only" in states["neutral_color_rgb"]["tooltip"]
+
+    unavailable = manual_material_profile_control_effect_states(
+        values,
+        control_keys=("emissive_mode",),
+        control_tooltips={"emissive_mode": "Emissive mode"},
+        resident_parameter_only=True,
+        resident_resources_available=False,
+    )
+    assert unavailable["emissive_mode"]["enabled"] is False
+    assert "material-resource channel" in unavailable["emissive_mode"]["tooltip"]
 
 
 def test_manual_material_profile_panel_dirty_and_token_state() -> None:

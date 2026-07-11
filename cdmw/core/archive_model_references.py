@@ -36,21 +36,21 @@ from cdmw.models import (
 
 
 def extract_binary_strings(*args, **kwargs):
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_binary_preview import extract_binary_strings as owner
 
-    return archive_core.extract_binary_strings(*args, **kwargs)
+    return owner(*args, **kwargs)
 
 
 def _archive_path_is_probable_item_icon(*args, **kwargs):
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_references import _archive_path_is_probable_item_icon as owner
 
-    return archive_core._archive_path_is_probable_item_icon(*args, **kwargs)
+    return owner(*args, **kwargs)
 
 
 def _is_placeholder_model_texture(*args, **kwargs):
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_model_textures import _is_placeholder_model_texture as owner
 
-    return archive_core._is_placeholder_model_texture(*args, **kwargs)
+    return owner(*args, **kwargs)
 
 
 _ARCHIVE_TEXTURE_FAMILY_SUFFIXES: Tuple[str, ...] = (

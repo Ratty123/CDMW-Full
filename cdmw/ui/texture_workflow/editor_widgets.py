@@ -74,7 +74,7 @@ class TextureEditorNavigator(QWidget):
         image_height: int,
         viewport_rect: Optional[Tuple[float, float, float, float]],
     ) -> None:
-        self._image = image.copy() if image is not None else None
+        self._image = image
         self._image_width = max(0, int(image_width))
         self._image_height = max(0, int(image_height))
         self._viewport_rect = viewport_rect

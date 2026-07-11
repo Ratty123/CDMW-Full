@@ -67,12 +67,8 @@ from cdmw.ui.texture_workflow.editor_brush_presets import (
 from cdmw.ui.texture_workflow.editor_async_task_ui import TextureEditorAsyncTaskUiMixin
 from cdmw.ui.texture_workflow.editor_brush_preset_ui import TextureEditorBrushPresetUiMixin
 from cdmw.ui.texture_workflow.editor_document_ui import TextureEditorDocumentUiMixin
-from cdmw.ui.texture_workflow.editor_floating_state import (
-    texture_editor_floating_canvas_transform_state,
-)
-from cdmw.ui.texture_workflow.editor_export_state import (
-    texture_editor_default_workspace_root,
-)
+from cdmw.ui.texture_workflow.editor_floating_state import texture_editor_floating_canvas_transform_state
+from cdmw.ui.texture_workflow.editor_export_state import texture_editor_default_workspace_root
 from cdmw.ui.texture_workflow.editor_file_io_ui import TextureEditorFileIoUiMixin
 from cdmw.ui.texture_workflow.editor_history_ui import TextureEditorHistoryUiMixin
 from cdmw.ui.texture_workflow.editor_floating_ui import TextureEditorFloatingUiMixin
@@ -99,6 +95,7 @@ from cdmw.ui.texture_workflow.editor_shortcuts_ui import TextureEditorShortcutsU
 from cdmw.ui.texture_workflow.editor_selection_ui import TextureEditorSelectionUiMixin
 from cdmw.ui.texture_workflow.editor_session_ui import TextureEditorSessionUiMixin
 from cdmw.ui.texture_workflow.editor_refresh_ui import TextureEditorRefreshUiMixin
+from cdmw.ui.texture_workflow.editor_resident_texture import TextureEditorResidentTextureMixin
 from cdmw.ui.texture_workflow.editor_source_binding import (
     texture_editor_metadata_display_state,
 )
@@ -132,7 +129,7 @@ from cdmw.models import (
     TextureEditorToolSettings,
     TextureEditorWorkspace,
 )
-from cdmw.ui.widgets import build_responsive_splitter_sizes, responsive_sidebar_bounds
+from cdmw.ui.layout_utils import build_responsive_splitter_sizes, responsive_sidebar_bounds
 
 
 class TextureEditorTab(
@@ -150,6 +147,7 @@ class TextureEditorTab(
     TextureEditorSelectionUiMixin,
     TextureEditorAdjustmentUiMixin,
     TextureEditorFileIoUiMixin,
+    TextureEditorResidentTextureMixin,
     TextureEditorStatusCacheUiMixin,
     TextureEditorRefreshUiMixin,
     TextureEditorToolCoordinationMixin,
@@ -163,6 +161,7 @@ class TextureEditorTab(
     send_to_texture_workflow_requested = Signal(str, object)
     send_to_item_icons_requested = Signal(str, object)
     native_dds_ready = Signal(str, object)
+    resident_texture_patch_ready = Signal(object)
     browse_archive_requested = Signal(str)
     open_in_compare_requested = Signal(str, object)
     _task_completed_on_ui = Signal(object)
@@ -172,8 +171,7 @@ class TextureEditorTab(
     _ui_constraint_finished_on_ui = Signal()
 
     def __init__(
-        self,
-        *,
+        self, *,
         settings: QSettings,
         base_dir: Path,
         get_texconv_path,
@@ -237,6 +235,7 @@ class TextureEditorTab(
         self._coalesced_ui_refresh_timer.setSingleShot(True)
         self._coalesced_ui_refresh_timer.setInterval(16)
         self._coalesced_ui_refresh_timer.timeout.connect(self._flush_coalesced_ui_refresh)
+        self._initialize_resident_texture_patch_state()
         self._applying_brush_preset = False
         raw_custom_brush_presets = str(self.settings.value("texture_editor/custom_brush_presets", "{}") or "{}").strip() or "{}"
         self._custom_brush_presets: Dict[str, Dict[str, object]] = normalize_texture_editor_custom_brush_presets(raw_custom_brush_presets)

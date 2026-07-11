@@ -6,16 +6,23 @@ import hashlib
 import re
 import shutil
 import tempfile
+import threading
 from dataclasses import replace
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence
+
+from cdmw.core.atomic_file import atomic_binary_writer
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.textures.material_parameters import evaluate_material_parameters
+from cdmw.modding.material_base_color_evaluator import shader_equivalent_base_color_rgba
 
 from .asset_replacement import classify_texture_binding, infer_cd_texture_role_from_path
 from .material_profiles import (
     CDMaterialRuntimeProfile,
     get_complete_swap_material_profile,
-    normalize_tone_contrast,
+    _profile_base_binding_mode,
     _profile_mask_binding_mode,
+    _profile_source_emissive_enabled,
 )
 from .material_sidecar_patching import (
     _SOURCE_MATERIAL_OVERRIDE_SLOT_ALIASES,
@@ -1144,61 +1151,25 @@ def _source_slot_needs_base_color_adjustment(source_slot: ReplacementTextureSlot
         return False
     if not (_source_slot_is_real_texture(source_slot) or _source_slot_is_synthetic_factor_authority(source_slot)):
         return False
-    try:
-        scale = max(0.0, min(4.0, float(getattr(source_slot, "base_color_scale", 1.0) or 1.0)))
-        lift = max(0, min(254, int(getattr(source_slot, "base_color_lift", 0) or 0)))
-        gamma = max(0.1, min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0)))
-        saturation = max(0.0, min(4.0, float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0)))
-        value_max = max(0, min(255, int(getattr(source_slot, "base_color_value_max", 255) or 255)))
-        auto_balance = max(0, min(100, int(getattr(source_slot, "base_color_auto_balance", 0) or 0)))
-        shadow_lift = max(0, min(100, int(getattr(source_slot, "base_color_shadow_lift", 0) or 0)))
-        tone_contrast = normalize_tone_contrast(getattr(source_slot, "base_color_tone_contrast", 0.0))
-    except (TypeError, ValueError, OverflowError):
-        return False
+    values = evaluate_material_parameters(source_slot=source_slot)
     return (
-        abs(scale - 1.0) > 0.0001
-        or lift > 0
-        or abs(gamma - 1.0) > 0.0001
-        or abs(saturation - 1.0) > 0.0001
-        or value_max < 255
-        or auto_balance > 0
-        or shadow_lift > 0
-        or abs(tone_contrast) > 0.0001
+        abs(values.base_color_scale - 1.0) > 0.0001
+        or values.base_color_lift > 0
+        or abs(values.gamma - 1.0) > 0.0001
+        or abs(values.saturation - 1.0) > 0.0001
+        or values.value_max < 255
+        or values.auto_balance > 0
+        or values.shadow_lift > 0
+        or abs(values.tone_contrast) > 0.0001
     )
 
 
-def _auto_balance_source_base_rgb(rgb: object, alpha: object, strength_percent: int) -> object:
-    strength = max(0.0, min(1.0, float(strength_percent or 0) / 100.0))
-    if strength <= 0.0:
-        return rgb
-    from PIL import ImageEnhance, ImageStat
-
-    sample_rgb = rgb
-    sample_alpha = alpha
-    width, height = getattr(sample_rgb, "size", (0, 0))
-    max_dimension = max(int(width or 0), int(height or 0))
-    if max_dimension > 96:
-        scale = 96.0 / float(max_dimension)
-        sample_size = (max(1, int(round(float(width) * scale))), max(1, int(round(float(height) * scale))))
-        sample_rgb = sample_rgb.resize(sample_size)
-        sample_alpha = sample_alpha.resize(sample_size)
-    luma = sample_rgb.convert("L")
-    alpha_mask = sample_alpha.point(lambda value: 255 if int(value) >= 24 else 0)
-    visible = ImageStat.Stat(luma, mask=alpha_mask).mean
-    if not visible:
-        return rgb
-    mean_luma = float(visible[0])
-    if 96.0 <= mean_luma <= 158.0:
-        return rgb
-    target_luma = 116.0 if mean_luma < 96.0 else 138.0
-    correction = (target_luma / max(1.0, mean_luma)) ** strength
-    correction = max(0.68, min(1.42, correction))
-    if abs(correction - 1.0) <= 0.015:
-        return rgb
-    return ImageEnhance.Brightness(rgb).enhance(correction)
-
-
-def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTextureSlot) -> Path:
+def _source_slot_png_with_base_color_factor_path(
+    source_slot: ReplacementTextureSlot,
+    *,
+    output_root: Path | None = None,
+    stop_event: threading.Event | None = None,
+) -> Path:
     from .material_source_driven import _sanitize_texture_component
 
     if (
@@ -1207,20 +1178,21 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
         and not _source_slot_needs_base_color_adjustment(source_slot)
     ):
         return source_slot.source_path
-    factor = tuple(max(0.0, min(1.0, float(component))) for component in tuple(source_slot.base_color_factor[:3]))
+    values = evaluate_material_parameters(source_slot=source_slot)
+    factor = tuple(values.tint_color[:3])
     if len(factor) < 3:
         factor = (1.0, 1.0, 1.0)
     alpha_factor = 1.0
     if _source_slot_needs_base_alpha_factor(source_slot):
         alpha_factor = max(0.0, min(1.0, float(getattr(source_slot, "base_alpha_factor", 1.0) or 1.0)))
-    scale_rgb = max(0.0, min(4.0, float(getattr(source_slot, "base_color_scale", 1.0) or 1.0)))
-    lift = max(0, min(254, int(getattr(source_slot, "base_color_lift", 0) or 0)))
-    gamma = max(0.1, min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0)))
-    saturation = max(0.0, min(4.0, float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0)))
-    value_max = max(0, min(255, int(getattr(source_slot, "base_color_value_max", 255) or 255)))
-    auto_balance = max(0, min(100, int(getattr(source_slot, "base_color_auto_balance", 0) or 0)))
-    shadow_lift = max(0, min(100, int(getattr(source_slot, "base_color_shadow_lift", 0) or 0)))
-    tone_contrast = normalize_tone_contrast(getattr(source_slot, "base_color_tone_contrast", 0.0))
+    scale_rgb = values.base_color_scale
+    lift = values.base_color_lift
+    gamma = values.gamma
+    saturation = values.saturation
+    value_max = values.value_max
+    auto_balance = values.auto_balance
+    shadow_lift = values.shadow_lift
+    tone_contrast = values.tone_contrast
     source_path = source_slot.source_path
     try:
         stat = source_path.stat()
@@ -1235,7 +1207,7 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
             f"{auto_balance}|{shadow_lift}|{tone_contrast:.6f}"
         )
     digest = hashlib.sha1(fingerprint.encode("utf-8", errors="ignore")).hexdigest()[:12]
-    root = Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
+    root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"
     root.mkdir(parents=True, exist_ok=True)
     suffix = (
         "basecolorfactor"
@@ -1245,68 +1217,17 @@ def _source_slot_png_with_base_color_factor_path(source_slot: ReplacementTexture
     path = root / f"{_sanitize_texture_component(source_path.stem) or 'base'}_{suffix}_{digest}.png"
     if path.is_file():
         return path
-    from PIL import Image, ImageChops, ImageEnhance
+    raise_if_cancelled(stop_event, "Material base-color generation cancelled.")
+    from PIL import Image
 
     with Image.open(source_path) as image:
         rgba = image.convert("RGBA")
-        r, g, b, a = rgba.split()
-        r = r.point(lambda value: max(0, min(255, int(round(int(value) * factor[0] * scale_rgb)))))
-        g = g.point(lambda value: max(0, min(255, int(round(int(value) * factor[1] * scale_rgb)))))
-        b = b.point(lambda value: max(0, min(255, int(round(int(value) * factor[2] * scale_rgb)))))
-        if _source_slot_needs_base_alpha_factor(source_slot):
-            a = a.point(lambda value: max(0, min(255, int(round(int(value) * alpha_factor)))))
-        if abs(gamma - 1.0) > 0.0001:
-            r = r.point(lambda value: max(0, min(255, int(round(((int(value) / 255.0) ** gamma) * 255.0)))))
-            g = g.point(lambda value: max(0, min(255, int(round(((int(value) / 255.0) ** gamma) * 255.0)))))
-            b = b.point(lambda value: max(0, min(255, int(round(((int(value) / 255.0) ** gamma) * 255.0)))))
-        if lift > 0:
-            scale = (255.0 - float(lift)) / 255.0
-            r = r.point(lambda value: max(0, min(255, int(round(float(lift) + int(value) * scale)))))
-            g = g.point(lambda value: max(0, min(255, int(round(float(lift) + int(value) * scale)))))
-            b = b.point(lambda value: max(0, min(255, int(round(float(lift) + int(value) * scale)))))
-        if abs(saturation - 1.0) > 0.0001:
-            rgb = Image.merge("RGB", (r, g, b))
-            rgb = ImageEnhance.Color(rgb).enhance(saturation)
-            r, g, b = rgb.split()
-        if auto_balance > 0:
-            rgb = _auto_balance_source_base_rgb(Image.merge("RGB", (r, g, b)), a, auto_balance)
-            r, g, b = rgb.split()
-        if shadow_lift > 0:
-            rgb = Image.merge("RGB", (r, g, b))
-            luma = rgb.convert("L")
-            shadow_mask = luma.point(
-                lambda value: (
-                    max(
-                        0,
-                        min(
-                            255,
-                            int(round((((96.0 - float(value)) / 96.0) ** 1.5) * 255.0)),
-                        ),
-                    )
-                    if int(value) < 96
-                    else 0
-                )
-            )
-            boost = int(round(72.0 * (float(shadow_lift) / 100.0)))
-            if boost > 0:
-                r = Image.composite(ImageChops.add(r, Image.new("L", r.size, boost)), r, shadow_mask)
-                g = Image.composite(ImageChops.add(g, Image.new("L", g.size, boost)), g, shadow_mask)
-                b = Image.composite(ImageChops.add(b, Image.new("L", b.size, boost)), b, shadow_mask)
-        if abs(tone_contrast) > 0.0001:
-            rgb = Image.merge("RGB", (r, g, b))
-            if tone_contrast < 0.0:
-                factor_contrast = max(0.35, 1.0 + 0.55 * (tone_contrast / 100.0))
-                rgb = ImageEnhance.Contrast(rgb).enhance(factor_contrast)
-                rgb = ImageEnhance.Brightness(rgb).enhance(1.0 + 0.10 * (-tone_contrast / 100.0))
-            else:
-                rgb = ImageEnhance.Contrast(rgb).enhance(1.0 + 0.75 * (tone_contrast / 100.0))
-            r, g, b = rgb.split()
-        if value_max < 255:
-            r = r.point(lambda value: min(value_max, int(value)))
-            g = g.point(lambda value: min(value_max, int(value)))
-            b = b.point(lambda value: min(value_max, int(value)))
-        Image.merge("RGBA", (r, g, b, a)).save(path)
-    return path
+        raise_if_cancelled(stop_event, "Material base-color generation cancelled.")
+        adjusted = shader_equivalent_base_color_rgba(rgba, values, alpha_factor=alpha_factor)
+        raise_if_cancelled(stop_event, "Material base-color generation cancelled.")
+        with atomic_binary_writer(path) as handle:
+            adjusted.save(handle, format="PNG")
+        return path
 
 
 def material_authority_preview_texture_slots(
@@ -1314,6 +1235,8 @@ def material_authority_preview_texture_slots(
     material_profile: Optional[CDMaterialRuntimeProfile] = None,
     *,
     enabled: bool = True,
+    output_root: Path | None = None,
+    stop_event: threading.Event | None = None,
 ) -> dict[str, ReplacementTextureSlot]:
     from .material_replacer import ReplacementTextureSlot
     from .material_source_driven import (
@@ -1331,13 +1254,28 @@ def material_authority_preview_texture_slots(
         return preview_slots
 
     profile = material_profile or get_complete_swap_material_profile()
+    base_mode = _profile_base_binding_mode(profile)
+    mask_mode = _profile_mask_binding_mode(profile)
+    if base_mode in {"disabled", "tint_only"}:
+        preview_slots.pop("base", None)
+    if not _profile_source_emissive_enabled(profile):
+        preview_slots.pop("emissive", None)
+    if mask_mode in {"disabled", "scratch_scalars"}:
+        for slot_kind in (
+            "material", "material_mask", "detail_mask", "roughness", "metallic", "metalness", "ao", "occlusion",
+        ):
+            preview_slots.pop(slot_kind, None)
 
     def adjusted_slot(source_slot: ReplacementTextureSlot) -> ReplacementTextureSlot:
         slot_kind = str(getattr(source_slot, "slot_kind", "") or "").strip().lower()
         if slot_kind not in {"base", "emissive"}:
             return source_slot
         try:
-            preview_path = _source_slot_png_with_base_color_factor_path(source_slot)
+            preview_path = _source_slot_png_with_base_color_factor_path(
+                source_slot,
+                output_root=output_root,
+                stop_event=stop_event,
+            )
         except Exception:
             return source_slot
         if preview_path == source_slot.source_path:
@@ -1350,11 +1288,12 @@ def material_authority_preview_texture_slots(
         include_complete_support_fallbacks=True,
         material_profile=profile,
     ):
+        raise_if_cancelled(stop_event, "Material resource generation cancelled.")
         slot_kind = str(getattr(source_slot, "slot_kind", "") or "").strip().lower()
         if slot_kind:
             preview_slots[slot_kind] = adjusted_slot(source_slot)
 
-    if "emissive" not in preview_slots:
+    if _profile_source_emissive_enabled(profile) and "emissive" not in preview_slots:
         accent_slot = _complete_swap_accent_emissive_slot(
             texture_set,
             str(getattr(texture_set, "material_name", "") or ""),
@@ -1363,13 +1302,24 @@ def material_authority_preview_texture_slots(
         if accent_slot is not None:
             preview_slots["emissive"] = adjusted_slot(accent_slot)
 
-    if "material_mask" not in preview_slots or _profile_mask_binding_mode(profile) != "detail_mask_material":
+    if base_mode in {"disabled", "tint_only"}:
+        preview_slots.pop("base", None)
+    if not _profile_source_emissive_enabled(profile):
+        preview_slots.pop("emissive", None)
+    if mask_mode in {"disabled", "scratch_scalars"}:
+        for slot_kind in (
+            "material", "material_mask", "detail_mask", "roughness", "metallic", "metalness", "ao", "occlusion",
+        ):
+            preview_slots.pop(slot_kind, None)
+
+    if mask_mode in {"detail_mask_material", "color_blending_mask"} and "material_mask" not in preview_slots:
         preview_slots["material_mask"] = ReplacementTextureSlot(
             str(getattr(texture_set, "material_name", "") or "material"),
             "material_mask",
             _complete_swap_runtime_material_mask_png_path(texture_set, profile),
             source_authority="synthetic",
         )
+    raise_if_cancelled(stop_event, "Material resource generation cancelled.")
     return preview_slots
 
 

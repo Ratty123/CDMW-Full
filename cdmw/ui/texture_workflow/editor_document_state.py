@@ -7,7 +7,7 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 
-from cdmw.core.texture_editor import (
+from cdmw.domain.textures.editor_document import (
     crop_texture_editor_document_to_selection,
     flip_texture_editor_document,
     resize_texture_editor_document_canvas,

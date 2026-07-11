@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import shutil
 import tempfile
 import re
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 from PySide6.QtCore import QSettings, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QImageReader
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -23,36 +22,29 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.item_icon import (
+from cdmw.domain.library.item_icons import (
     ITEM_ICON_DEFAULT_BACKGROUND_MODE,
     ITEM_ICON_SOURCE_EXTENSIONS,
     ItemIconLibraryRecord,
     ItemIconOverrideSpec,
-    build_item_icon_fit_pad_preview,
-    build_item_icon_payload,
-    build_item_icon_source_preview_png,
-    import_edited_item_icon_source,
     normalize_item_icon_background_mode,
-    patch_existing_loose_mod_with_item_icon,
-    read_item_icon_template_info,
-    save_item_icon_library_index,
-    scan_item_icon_library,
-    update_item_icon_library_record_metadata,
 )
 from cdmw.models import TextureEditorSourceBinding
+from cdmw.services.item_icon_service import ItemIconService
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.item_icons.controller import ItemIconRecordListMixin
 from cdmw.ui.item_icons.panels import build_library_panel, build_preview_panel, build_roots_panel
+from cdmw.ui.item_icons.workers import ItemIconWorkerMixin
 from cdmw.ui.item_icons.state import (
     path_list_to_settings as _path_list_to_settings,
     safe_icon_library_component as _safe_icon_library_component,
     safe_relative_target_path as _safe_relative_target_path,
     settings_path_list as _settings_path_list,
 )
-from cdmw.ui.widgets import responsive_sidebar_bounds
+from cdmw.ui.layout_utils import responsive_sidebar_bounds
 
 
-class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
+class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
     status_message_requested = Signal(str, bool)
     open_in_texture_editor_requested = Signal(str, object)
     open_target_in_archive_requested = Signal(str)
@@ -69,6 +61,7 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         get_texconv_path: Callable[[], str],
         resolve_target_template_path: Callable[[object], Path],
         get_current_archive_path: Optional[Callable[[], str]] = None,
+        item_icon_service: Optional[ItemIconService] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -78,6 +71,7 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         self.get_texconv_path = get_texconv_path
         self.resolve_target_template_path = resolve_target_template_path
         self.get_current_archive_path = get_current_archive_path or (lambda: "")
+        self.item_icon_service = item_icon_service or ItemIconService(settings=settings)
         self.library_root = workspace_paths(self.base_dir)["item_icon_library_root"]
         self.edited_root = self.library_root / "edited"
         self.preview_root = self.library_root / "previews"
@@ -88,6 +82,7 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         self._target_entries: list[object] = []
         self._loading_record = False
         self._temp_preview_dir = tempfile.TemporaryDirectory(prefix="cdmw_item_icon_tab_")
+        self._initialize_item_icon_workers()
         self._pending_record_rows: list[ItemIconLibraryRecord] = []
         self._pending_record_select_key = ""
         self._pending_record_total = 0
@@ -147,10 +142,10 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         self.refresh_targets(force=True)
 
     def iter_shutdown_workers(self) -> tuple[tuple[str, Optional[object], Optional[object]], ...]:
-        return ()
+        return self._iter_item_icon_shutdown_workers()
 
     def request_shutdown(self) -> None:
-        self._temp_preview_dir.cleanup()
+        self._request_item_icon_shutdown()
 
     def shutdown(self) -> None:
         self.request_shutdown()
@@ -216,114 +211,6 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         self.edited_root.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.edited_root)))
 
-    def scan_library(self, *, show_status: bool) -> None:
-        self.library_root.mkdir(parents=True, exist_ok=True)
-        self.edited_root.mkdir(parents=True, exist_ok=True)
-        self.preview_root.mkdir(parents=True, exist_ok=True)
-        selected = self.current_source_path()
-        self.records = list(
-            scan_item_icon_library(
-                self.library_roots,
-                index_path=self.index_path,
-                edited_root=self.edited_root,
-            )
-        )
-        save_item_icon_library_index(
-            self.index_path,
-            roots=tuple(self.library_roots) + (self.edited_root,),
-            records=self.records,
-        )
-        self._records_by_key = {str(record.path).casefold(): record for record in self.records}
-        self._populate_records_tree(select_path=selected)
-        message = f"Item icon library scanned: {len(self.records):,} supported source image(s)."
-        self.library_status_label.setText(message)
-        if show_status:
-            self._emit_status(message)
-
-    def save_selected_metadata(self) -> None:
-        if self._loading_record:
-            return
-        path = self.current_source_path()
-        if path is None:
-            return
-        tags = [part.strip() for part in self.tags_edit.text().split(",") if part.strip()]
-        update_item_icon_library_record_metadata(
-            self.index_path,
-            path,
-            tags=tags,
-            notes=self.notes_edit.toPlainText(),
-            favorite=self.favorite_checkbox.isChecked(),
-        )
-        self.scan_library(show_status=False)
-        self.select_source_path(path)
-        self._emit_status(f"Saved item icon metadata for {path.name}.")
-
-    def update_source_preview(self) -> None:
-        path = self.current_source_path()
-        record = self._record_for_path(path)
-        if path is None or record is None:
-            self.source_preview_label.clear_preview("Select an icon source.")
-            self.source_meta_label.setText("")
-            return
-        if not path.is_file():
-            self.source_preview_label.clear_preview("Source file is missing.")
-            self.source_meta_label.setText(str(path))
-            return
-        try:
-            preview_path = build_item_icon_source_preview_png(
-                path,
-                output_dir=Path(self._temp_preview_dir.name),
-                texconv_path=self._texconv_path(),
-            )
-            if path.suffix.lower() != ".dds":
-                reader = QImageReader(str(preview_path))
-                if not reader.size().isValid():
-                    raise ValueError("Qt could not read this image for preview.")
-            self.source_preview_label.set_preview_image_path(str(preview_path), path.name)
-        except Exception as exc:
-            self.source_preview_label.clear_preview(str(exc))
-        warning = f" Warning: {record.warning}" if record.warning else ""
-        self.source_meta_label.setText(
-            f"{record.width or '-'}x{record.height or '-'} | {record.source_kind} | {record.path}{warning}"
-        )
-
-    def update_final_preview(self, *, show_errors: bool = False) -> None:
-        source_path = self.current_source_path()
-        target_entry = self._current_target_entry()
-        target_path = self._current_target_path()
-        if source_path is None:
-            self.final_preview_label.clear_preview("Select an icon source.")
-            self.target_meta_label.setText("")
-            return
-        if target_entry is None or not target_path:
-            self.final_preview_label.clear_preview("Choose an existing target icon path.")
-            self.target_meta_label.setText("Archive target icon data is required before compatible output can be generated.")
-            return
-        try:
-            template_path = self.resolve_target_template_path(target_entry)
-            preview_path = self.preview_root / f"{PurePosixPath(target_path).stem}_{source_path.stem}_preview.png"
-            preview_path.parent.mkdir(parents=True, exist_ok=True)
-            _preview_path, target_info, source_dimensions, warnings = build_item_icon_fit_pad_preview(
-                source_path,
-                target_path=target_path,
-                target_template_path=template_path,
-                output_path=preview_path,
-                texconv_path=self._texconv_path(),
-                background_mode=self._background_mode(),
-            )
-            self.final_preview_label.set_preview_image_path(str(preview_path), "Final item icon preview")
-            warning_text = f" | {'; '.join(warnings)}" if warnings else ""
-            self.target_meta_label.setText(
-                f"Final: {target_path} | target {target_info.width}x{target_info.height}, "
-                f"{target_info.target_format}, {target_info.mip_count} mip(s) | source {source_dimensions[0]}x{source_dimensions[1]}"
-                f" | background {self._background_mode()}{warning_text}"
-            )
-        except Exception as exc:
-            self.final_preview_label.clear_preview(str(exc))
-            self.target_meta_label.setText(str(exc))
-            if show_errors:
-                QMessageBox.warning(self, "Icon Creator", str(exc))
-
     def export_generated_icon(self) -> None:
         source_path = self.current_source_path()
         target_entry = self._current_target_entry()
@@ -335,28 +222,23 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         if not output_dir:
             return
         try:
-            template_path = self.resolve_target_template_path(target_entry)
-            payload = build_item_icon_payload(
-                ItemIconOverrideSpec(
-                    source_path=source_path,
-                    target_entry=target_entry,
-                    target_path=target_path,
-                    source_mode="library",
-                    background_mode=self._background_mode(),
-                ),
-                target_template_path=template_path,
-                texconv_path=self._texconv_path(),
-            )
-            relative = _safe_relative_target_path(payload.target_path)
+            relative = _safe_relative_target_path(target_path)
             destination = Path(output_dir).expanduser() / relative
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(payload.payload_data)
         except Exception as exc:
             QMessageBox.warning(self, "Icon Creator", str(exc))
             self._emit_status(f"Item icon export failed: {exc}", True)
             return
-        self._emit_status(f"Exported generated item icon: {destination}")
-        QMessageBox.information(self, "Icon Creator", f"Generated icon written to:\n{destination}")
+        self._queue_item_icon_output(
+            action="export",
+            spec=ItemIconOverrideSpec(
+                source_path=source_path,
+                target_entry=target_entry,
+                target_path=target_path,
+                source_mode="library",
+                background_mode=self._background_mode(),
+            ),
+            destination=destination,
+        )
 
     def add_to_existing_loose_mod(self) -> None:
         source_path = self.current_source_path()
@@ -372,42 +254,17 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         )
         if not loose_mod_dir:
             return
-        try:
-            template_path = self.resolve_target_template_path(target_entry)
-            payload = build_item_icon_payload(
-                ItemIconOverrideSpec(
-                    source_path=source_path,
-                    target_entry=target_entry,
-                    target_path=target_path,
-                    source_mode="library",
-                    background_mode=self._background_mode(),
-                ),
-                target_template_path=template_path,
-                texconv_path=self._texconv_path(),
-            )
-            result = patch_existing_loose_mod_with_item_icon(
-                Path(loose_mod_dir),
-                target_path=payload.target_path,
-                payload_data=payload.payload_data,
+        self._queue_item_icon_output(
+            action="patch",
+            spec=ItemIconOverrideSpec(
+                source_path=source_path,
                 target_entry=target_entry,
-            )
-        except Exception as exc:
-            QMessageBox.warning(self, "Icon Creator", str(exc))
-            self._emit_status(f"Existing loose mod icon patch failed: {exc}", True)
-            return
-
-        details = [
-            f"Patched copy:\n{result.output_root}",
-            f"Icon:\n{result.icon_path}",
-        ]
-        if result.manifest_path is not None:
-            details.append(f"Manifest updated:\n{result.manifest_path}")
-        if result.zip_path is not None:
-            details.append(f"Fresh zip:\n{result.zip_path}")
-        if payload.warnings:
-            details.append("Warnings:\n" + "\n".join(payload.warnings))
-        self._emit_status(f"Added generated item icon to patched loose mod copy: {result.output_root}")
-        QMessageBox.information(self, "Icon Creator", "\n\n".join(details))
+                target_path=target_path,
+                source_mode="library",
+                background_mode=self._background_mode(),
+            ),
+            destination=Path(loose_mod_dir),
+        )
 
     def open_selected_in_texture_editor(self) -> None:
         path = self.current_source_path()
@@ -435,16 +292,7 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
-        try:
-            path.unlink()
-        except OSError as exc:
-            QMessageBox.warning(self, "Icon Creator", f"Could not delete icon source:\n{exc}")
-            self._emit_status(f"Icon source delete failed: {exc}", True)
-            return
-        self.source_preview_label.clear_preview("Select an icon source.")
-        self.final_preview_label.clear_preview("Select a source and target icon.")
-        self._emit_status(f"Deleted icon source: {path.name}")
-        self.scan_library(show_status=False)
+        self._queue_item_icon_library_mutation(action="delete", source_path=path)
 
     def _show_records_context_menu(self, position) -> None:
         item = self.records_tree.itemAt(position)
@@ -485,10 +333,18 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
                 self._refresh_roots_list()
             self.scan_library(show_status=True)
             return resolved
-        copied = import_edited_item_icon_source(source, self.edited_root)
-        self.scan_library(show_status=True)
-        self.select_source_path(copied)
-        return copied
+        if not source.is_file():
+            raise FileNotFoundError(f"Edited item icon export was not found: {source}")
+        if source.suffix.lower() not in ITEM_ICON_SOURCE_EXTENSIONS:
+            raise ValueError(f"Unsupported edited item icon source format: {source.suffix}")
+        stored = self._available_edited_source_path(source.stem, source.suffix)
+        self._queue_item_icon_library_mutation(
+            action="import",
+            source_path=source,
+            destination_path=stored,
+            select=True,
+        )
+        return stored
 
     def _available_edited_source_path(self, stem: str, suffix: str) -> Path:
         self.edited_root.mkdir(parents=True, exist_ok=True)
@@ -496,7 +352,7 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         safe_suffix = suffix.lower() if suffix and suffix.startswith(".") else ".png"
         candidate = self.edited_root / f"{safe_stem}{safe_suffix}"
         counter = 1
-        while candidate.exists():
+        while candidate.exists() or self._path_key(candidate) in self._reserved_edited_paths:
             counter += 1
             candidate = self.edited_root / f"{safe_stem}_{counter}{safe_suffix}"
         return candidate
@@ -530,7 +386,6 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
             source_label = _safe_icon_library_component(source_model_path, fallback="source")
             stem = f"mesh-editor__target-{target_label}__source-{source_label}"
             stored = self._available_edited_source_path(stem, source.suffix.lower() or ".png")
-            shutil.copy2(source, stored)
 
         target_label = _safe_icon_library_component(target_model_path, fallback="target")
         source_label = _safe_icon_library_component(source_model_path, fallback="source")
@@ -542,16 +397,15 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget):
         ]
         if target_icon_path:
             note_lines.append(f"Initial target icon: {target_icon_path}")
-        update_item_icon_library_record_metadata(
-            self.index_path,
-            stored,
+        self._queue_item_icon_library_mutation(
+            action="register",
+            source_path=source,
+            destination_path=stored,
             tags=tags,
             notes="\n".join(note_lines),
             favorite=False,
+            select=select,
         )
-        self.scan_library(show_status=False)
-        if select:
-            self.select_source_path(stored)
         return stored
 
     def choose_source_dialog(self, parent: Optional[QWidget] = None) -> Optional[Path]:

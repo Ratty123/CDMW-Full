@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
-from cdmw.core.material_authority_report_check import check_material_authority_report
 from cdmw.domain.textures.material_authority import (
     complete_swap_material_allows_inherited_layer_color_bindings,
     complete_swap_material_authority_contract,
@@ -49,7 +48,14 @@ def complete_swap_requires_true_source_authority(options: object = None) -> bool
     return bool(complete_swap_material_requires_true_source_authority(str(raw_profile_name or "")))
 
 
-def check_final_preview_material_authority(final_preview: object) -> Mapping[str, object]:
+MaterialAuthorityReportChecker = Callable[[Mapping[str, object]], Mapping[str, object]]
+
+
+def check_final_preview_material_authority(
+    final_preview: object,
+    *,
+    report_checker: MaterialAuthorityReportChecker | None = None,
+) -> Mapping[str, object]:
     report_obj = getattr(final_preview, "material_authority_report", None)
     if report_obj is None:
         return {
@@ -69,8 +75,19 @@ def check_final_preview_material_authority(final_preview: object) -> Mapping[str
             "blocking_risk_flags": ["invalid_material_authority_report"],
             "review_risk_flags": [],
         }
+    if report_checker is None:
+        precomputed = getattr(final_preview, "material_authority_check", None)
+        if isinstance(precomputed, Mapping):
+            return precomputed
+        return {
+            "status": "failed",
+            "errors": ["Material authority report checker was not provided."],
+            "warnings": [],
+            "blocking_risk_flags": ["material_authority_checker_unavailable"],
+            "review_risk_flags": [],
+        }
     try:
-        result = check_material_authority_report(report)
+        result = report_checker(report)
     except Exception as exc:
         return {
             "status": "failed",
@@ -104,6 +121,7 @@ def material_authority_check_review_lines(check_result: Mapping[str, object], *,
 
 
 __all__ = [
+    "MaterialAuthorityReportChecker",
     "TextureProcessingPolicy",
     "available_texture_profile_keys",
     "check_final_preview_material_authority",

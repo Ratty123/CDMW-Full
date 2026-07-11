@@ -69,7 +69,7 @@ def _convert_audio_to_wav(source_path: Path, output_path: Path) -> Path:
 
 
 def _decode_with_vgmstream(source_path: Path, output_path: Path) -> Path:
-    from cdmw.core.archive import _resolve_vgmstream_cli_path
+    from cdmw.core.archive_media_preview import _resolve_vgmstream_cli_path
 
     cli_path = _resolve_vgmstream_cli_path()
     if cli_path is None:
@@ -81,7 +81,7 @@ def _decode_with_vgmstream(source_path: Path, output_path: Path) -> Path:
 
 
 def export_archive_audio_as_wav(entry: ArchiveEntry, output_path: Path) -> Path:
-    from cdmw.core.archive import ensure_archive_preview_source
+    from cdmw.core.archive_media_preview import ensure_archive_preview_source
 
     output_path = output_path.expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -212,7 +212,7 @@ def _build_pcm_wem(wav_data: bytes, sample_rate: int, channels: int) -> bytes:
 
 
 def build_archive_audio_patch_payload(entry: ArchiveEntry, replacement_audio_path: Path) -> bytes:
-    from cdmw.core.archive import read_archive_entry_data
+    from cdmw.core.archive_extraction import read_archive_entry_data
 
     normalized_path = replacement_audio_path.expanduser().resolve()
     if not normalized_path.is_file():

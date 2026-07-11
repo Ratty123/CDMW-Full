@@ -14,11 +14,6 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QMatrix4x4, QVector3D
 
-try:  # pragma: no cover - exercised through behavior tests when numpy is installed.
-    import numpy as np
-except Exception:  # pragma: no cover
-    np = None  # type: ignore[assignment]
-
 from cdmw.core.dds_native import dds_source_path_from_report
 from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
 from cdmw.models import (
@@ -682,7 +677,7 @@ def _pack_mesh_vertex_blob(
     flat_indices = _valid_triangle_indices(indices, len(positions))
     if not flat_indices:
         return b"", 0
-    if not use_numpy or np is None:
+    if not use_numpy:
         return _pack_mesh_vertex_blob_python_reference(
             positions,
             normals,
@@ -695,6 +690,8 @@ def _pack_mesh_vertex_blob(
             indices,
         )
     try:
+        import numpy as np
+
         dtype = np.dtype("<f4")
         selected = np.asarray(flat_indices, dtype=np.int64)
         packed_count = int(selected.size)

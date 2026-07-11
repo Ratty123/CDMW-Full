@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMessageBox,
-    QProgressDialog,
     QPushButton,
     QRadioButton,
     QScrollArea,
@@ -31,34 +30,37 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.archive import read_archive_entry_data
-from cdmw.core.archive_modding import MeshExportResult, export_archive_mesh
-from cdmw.core.model_export import export_model_preview_to_obj
-from cdmw.core.mesh_baseline import read_archive_entry_baseline_data
-from cdmw.core.mesh_preflight import build_mesh_import_preflight
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.domain.archives.mesh_contracts import MeshExportResult
+from cdmw.services.archive_workflow_service import export_archive_mesh
+from cdmw.services.mesh_workflow_service import export_model_preview_to_obj
 from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.domain.mesh.validation import MeshImportModeAvailability, mesh_import_mode_availability
 from cdmw.models import ArchiveEntry
-from cdmw.modding.asset_replacement import ReplacementAssetProfile, analyze_replacement_asset
-from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
-from cdmw.modding.scene_importer import SCENE_TEXTURE_SOURCE_EXTENSIONS, import_scene_mesh_with_report
+from cdmw.services.mesh_workflow_service import ParsedMesh
+from cdmw.services.mesh_workflow_service import SCENE_TEXTURE_SOURCE_EXTENSIONS, SceneImportResult
+from cdmw.ui.archive_browser.directory_scan_controller import DirectoryScanController
+from cdmw.ui.archive_browser.mesh_import_preflight_controller import (
+    MeshImportSetupPreflightResult,
+    dispatch_mesh_import_setup_preflight,
+)
 from cdmw.ui.archive_browser.mesh_import_setup_state import (
     mesh_import_continue_button_text as _mesh_import_continue_button_text,
     mesh_import_placement_status_chips as _mesh_import_placement_status_chips,
     mesh_import_replacement_status_chip as _mesh_import_replacement_status_chip,
-    mesh_import_setup_control_text as _mesh_import_setup_control_text,
     mesh_import_static_guidance_text as _mesh_import_static_guidance_text,
 )
 
-
 class ArchiveMeshImportExportMixin:
     """Archive mesh import setup and export UI flow."""
-    def _prompt_archive_mesh_import_setup(
+
+    def _prepare_archive_mesh_import_setup_async(
         self,
         entry: ArchiveEntry,
         scene_path: Path,
         *,
         title: str,
+        on_complete: Callable[[Optional[MeshImportSetupSelection]], None],
         scene_import_result: Optional[SceneImportResult] = None,
         source_skeleton: object | None = None,
         original_mesh: Optional[ParsedMesh] = None,
@@ -67,67 +69,45 @@ class ArchiveMeshImportExportMixin:
         placement_review_title: str = "",
         placement_context_note: str = "",
         full_import_model_replacement: bool = False,
-        ) -> Optional[MeshImportSetupSelection]:
-        setup_control_text = _mesh_import_setup_control_text()
-        source_display_label = source_label.strip() or str(scene_path)
-        startup_progress = QProgressDialog(setup_control_text["startup_label"], "", 0, 0, self)
-        startup_progress.setWindowTitle(setup_control_text["startup_title"])
-        startup_progress.setCancelButton(None)
-        startup_progress.setMinimumDuration(0)
-        startup_progress.setAutoClose(False)
-        # Keep the main window paintable while the alignment shell is being
-        # assembled. Some imports still need real work before the dialog can
-        # exec(), but the progress window must not make the app look hung.
-        startup_progress.setWindowModality(Qt.NonModal)
-        startup_progress.show()
-        QApplication.processEvents()
-        if scene_import_result is None:
-            try:
-                startup_progress.setLabelText(setup_control_text["reading_replacement_scene"])
-                QApplication.processEvents()
-                scene_import_result = import_scene_mesh_with_report(scene_path)
-            except Exception as exc:
-                startup_progress.close()
-                QApplication.processEvents()
-                QMessageBox.warning(
-                    self,
-                    setup_control_text["unsupported_title"],
-                    f"{scene_path.name} could not be imported.\n\n{exc}",
-                )
-                return None
-
-        suffix = scene_path.suffix.lower()
-        is_obj = suffix == ".obj" and not force_static_replacement
-        has_roundtrip_sidecar = self._has_valid_obj_roundtrip_sidecar(scene_path) if is_obj else False
-        profile: Optional[ReplacementAssetProfile] = None
-        original_mesh_for_setup: Optional[ParsedMesh] = original_mesh
-        try:
-            if original_mesh_for_setup is None:
-                startup_progress.setLabelText(setup_control_text["reading_original_mesh"])
-                QApplication.processEvents()
-                original_data = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data).data
-                original_mesh_for_setup = parse_mesh(original_data, entry.path)
-            startup_progress.setLabelText(setup_control_text["checking_asset_compatibility"])
-            QApplication.processEvents()
-            profile = analyze_replacement_asset(
-                entry,
-                archive_entries_by_basename=self.archive_entries_by_basename,
-                parsed_mesh=original_mesh_for_setup,
-            )
-        except Exception:
-            profile = None
-            original_mesh_for_setup = None
-        preflight = build_mesh_import_preflight(
+    ) -> int:
+        return dispatch_mesh_import_setup_preflight(
+            self,
             entry,
             scene_path,
-            replacement_mesh=scene_import_result.mesh,
-            original_mesh=original_mesh_for_setup,
-            import_diagnostics=scene_import_result.diagnostics,
+            title=title,
+            on_complete=on_complete,
+            scene_import_result=scene_import_result,
+            source_skeleton=source_skeleton,
+            original_mesh=original_mesh,
+            source_label=source_label,
+            force_static_replacement=force_static_replacement,
+            placement_review_title=placement_review_title,
+            placement_context_note=placement_context_note,
+            full_import_model_replacement=full_import_model_replacement,
         )
-        startup_progress.setLabelText(preflight.summary)
-        QApplication.processEvents()
-        startup_progress.close()
-        QApplication.processEvents()
+
+    def _prompt_archive_mesh_import_setup(
+        self,
+        entry: ArchiveEntry,
+        scene_path: Path,
+        *,
+        title: str,
+        prepared_preflight: MeshImportSetupPreflightResult,
+        source_skeleton: object | None = None,
+        source_label: str = "",
+        force_static_replacement: bool = False,
+        placement_review_title: str = "",
+        placement_context_note: str = "",
+        full_import_model_replacement: bool = False,
+        ) -> Optional[MeshImportSetupSelection]:
+        source_display_label = source_label.strip() or str(scene_path)
+        scene_import_result = prepared_preflight.scene_import_result
+        suffix = scene_path.suffix.lower()
+        is_obj = suffix == ".obj" and not force_static_replacement
+        has_roundtrip_sidecar = bool(prepared_preflight.has_roundtrip_sidecar) if is_obj else False
+        profile = prepared_preflight.profile
+        original_mesh_for_setup = prepared_preflight.original_mesh
+        preflight = prepared_preflight.preflight
 
         dialog = QDialog(self)
         dialog.setObjectName("MeshImportSetupDialog")
@@ -472,22 +452,16 @@ class ArchiveMeshImportExportMixin:
         supplemental_warning_label.setWordWrap(True)
         supplemental_warning_label.setVisible(False)
         supported_suffixes = set(SCENE_TEXTURE_SOURCE_EXTENSIONS) | {
-            ".xml",
-            ".pami",
-            ".pac_xml",
-            ".pam_xml",
-            ".pamlod_xml",
-            ".app_xml",
-            ".prefabdata_xml",
-        }
+            ".xml", ".pami", ".pac_xml", ".pam_xml", ".pamlod_xml", ".app_xml", ".prefabdata_xml"}
         seen_paths: set[str] = set()
+        folder_scan_state = {"blocked": False}
 
-        def _add_supplemental_path(path: Path, *, checked: bool = True) -> None:
+        def _add_supplemental_path(path: Path, *, checked: bool = True, verified: bool = False) -> None:
             try:
-                resolved = path.expanduser().resolve()
+                resolved = Path(path) if verified else path.expanduser().resolve()
             except Exception:
                 return
-            if not resolved.is_file() or resolved.suffix.lower() not in supported_suffixes:
+            if (not verified and not resolved.is_file()) or resolved.suffix.lower() not in supported_suffixes:
                 return
             key = str(resolved).lower()
             if key in seen_paths:
@@ -542,6 +516,7 @@ class ArchiveMeshImportExportMixin:
         add_files_button = QPushButton("Add Files")
         add_folder_button = QPushButton("Add Folder")
         clear_button = QPushButton("Clear")
+        folder_scan = DirectoryScanController(thread_parent=self, parent=dialog)
         supplemental_buttons.addWidget(add_files_button)
         supplemental_buttons.addWidget(add_folder_button)
         supplemental_buttons.addStretch(1)
@@ -565,17 +540,42 @@ class ArchiveMeshImportExportMixin:
             selected_dir = QFileDialog.getExistingDirectory(dialog, "Add Supplemental Folder", str(scene_path.parent))
             if not selected_dir:
                 return
-            for candidate in sorted(Path(selected_dir).rglob("*")):
-                _add_supplemental_path(candidate, checked=True)
+            folder_scan.start(Path(selected_dir), suffixes=tuple(supported_suffixes))
+
+        def _add_folder_batch(_request_id: int, paths: object) -> None:
+            previous = supplemental_list.blockSignals(True)
+            try:
+                for candidate in paths if isinstance(paths, tuple) else ():
+                    _add_supplemental_path(candidate, checked=True, verified=True)
+            finally:
+                supplemental_list.blockSignals(previous)
+
+        def _finish_folder_scan(_request_id: int, truncated: bool) -> None:
+            folder_scan_state["blocked"] = bool(truncated)
             _refresh_supplemental_warning()
+            if truncated:
+                supplemental_warning_label.setText("Folder scan reached its 10,000-file safety limit; narrow the selected folder.")
+                supplemental_warning_label.setVisible(True)
+            _refresh_continue_state()
+
+        def _fail_folder_scan(_request_id: int, message: str) -> None:
+            folder_scan_state["blocked"] = True
+            supplemental_warning_label.setText(f"Could not scan supplemental folder: {message}")
+            supplemental_warning_label.setVisible(True)
+            _refresh_continue_state()
 
         def _clear_supplemental() -> None:
+            folder_scan.cancel()
+            folder_scan_state["blocked"] = False
             supplemental_list.clear()
             seen_paths.clear()
             _refresh_supplemental_warning()
 
         add_files_button.clicked.connect(_add_files)
         add_folder_button.clicked.connect(_add_folder)
+        folder_scan.batch_ready.connect(_add_folder_batch)
+        folder_scan.completed.connect(_finish_folder_scan)
+        folder_scan.error.connect(_fail_folder_scan)
         clear_button.clicked.connect(_clear_supplemental)
         supplemental_list.itemChanged.connect(lambda _item: _refresh_supplemental_warning())
         _refresh_supplemental_warning()
@@ -593,12 +593,20 @@ class ArchiveMeshImportExportMixin:
 
         def _refresh_continue_state() -> None:
             continue_button.setEnabled(
-                (roundtrip_radio.isEnabled() and roundtrip_radio.isChecked())
-                or (static_radio.isEnabled() and static_radio.isChecked())
+                not folder_scan.is_running()
+                and not folder_scan_state["blocked"]
+                and (
+                    (roundtrip_radio.isEnabled() and roundtrip_radio.isChecked())
+                    or (static_radio.isEnabled() and static_radio.isChecked())
+                )
             )
 
         roundtrip_radio.toggled.connect(_refresh_continue_state)
         static_radio.toggled.connect(_refresh_continue_state)
+        folder_scan.busy_changed.connect(
+            lambda busy: (add_folder_button.setEnabled(not busy), _refresh_continue_state())
+        )
+        dialog.finished.connect(lambda _result=0: folder_scan.close())
         cancel_button.clicked.connect(dialog.reject)
         continue_button.clicked.connect(dialog.accept)
         _refresh_continue_state()

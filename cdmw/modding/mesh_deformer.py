@@ -20,7 +20,6 @@ class MeshTopologySignature:
     face_counts: tuple[int, ...]
     faces: tuple[tuple[tuple[int, int, int], ...], ...]
 
-
 @dataclass(frozen=True)
 class MeshFaceDeleteResult:
     affected_submesh_indices: tuple[int, ...] = ()
@@ -28,14 +27,12 @@ class MeshFaceDeleteResult:
     removed_face_count: int = 0
     removed_vertex_count: int = 0
 
-
 @dataclass
 class MeshSubdivisionResult:
     affected_submesh_indices: tuple[int, ...] = ()
     changed_vertices_by_submesh: dict[int, set[int]] | None = None
     added_vertex_count: int = 0
     added_face_count: int = 0
-
 
 @dataclass(frozen=True)
 class MeshPartSplitResult:
@@ -100,6 +97,9 @@ _EXTRA_SUBMESH_ATTRS = (
     "cdmw_mesh_edit_topology_source_submesh_index",
     "cdmw_native_preview_triangle_group",
     "cdmw_native_preview_vertex_update_group",
+    "source_vertex_map_authority",
+    "source_bone_palette",
+    "source_skin_weight_layout",
 )
 
 
@@ -1130,10 +1130,10 @@ def _allow_python_selection_expansion_fallback(
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
         return True
     try:
-        from .mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+        from . import mesh_native_core
     except ImportError:
         return True
-    if not native_mesh_core_available():
+    if mesh_native_core.find_native_mesh_core_binary() is None or not mesh_native_core.native_mesh_core_available():
         return True
     target_vertex_count = _target_vertex_count(mesh, source_indices)
     vertex_count = max(
@@ -1142,7 +1142,7 @@ def _allow_python_selection_expansion_fallback(
         int(selected_vertex_count or 0),
     )
     face_count = _mesh_count_hint(mesh, "total_faces")
-    record_native_mesh_core_fallback(
+    mesh_native_core.record_native_mesh_core_fallback(
         f"{operation}.blocked",
         "Python selection expansion fallback blocked while native mesh core is available",
         vertex_count=vertex_count,

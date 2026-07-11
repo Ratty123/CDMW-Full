@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.appearance_composite import (
+from cdmw.services.texture_workflow_service import (
     AppearanceCompositeBuildResult,
     AppearanceCompositeModelOverride,
     AppearanceCompositePreviewPlan,
@@ -33,7 +33,7 @@ from cdmw.core.appearance_composite import (
     find_appearance_composite_candidates,
 )
 from cdmw.models import ArchiveEntry, ArchivePreviewResult, ModelPreviewData, PreparedModelPreviewData
-from cdmw.rendering.model_preview_prepare import prepare_model_preview
+from cdmw.services.preview_rendering_service import prepare_model_preview
 
 
 class ArchiveAppearanceCompositeMixin:
@@ -395,8 +395,10 @@ class ArchiveAppearanceCompositeMixin:
         if candidates and selected_appearance is None and str(entry.extension or "").lower() != ".app_xml":
             return
         archive_entries = tuple(self.archive_entries)
-        path_index = getattr(self, "archive_entries_by_normalized_path", None) or self._build_archive_entry_path_index(archive_entries)
-        basename_index = getattr(self, "archive_entries_by_basename", None) or self._build_archive_entry_basename_index(archive_entries)
+        lookup_indexes = self._archive_lookup_indexes_snapshot()
+        if lookup_indexes is None:
+            return
+        path_index, basename_index = lookup_indexes
         try:
             plan = build_appearance_composite_preview_plan(
                 entry,
@@ -439,8 +441,10 @@ class ArchiveAppearanceCompositeMixin:
         model_overrides: Sequence[AppearanceCompositeModelOverride] = (),
     ) -> None:
         archive_entries = tuple(self.archive_entries)
-        path_index = getattr(self, "archive_entries_by_normalized_path", None) or self._build_archive_entry_path_index(archive_entries)
-        basename_index = getattr(self, "archive_entries_by_basename", None) or self._build_archive_entry_basename_index(archive_entries)
+        lookup_indexes = self._archive_lookup_indexes_snapshot()
+        if lookup_indexes is None:
+            return
+        path_index, basename_index = lookup_indexes
         texconv_text = self.texconv_path_edit.text().strip()
         texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         preview_settings = self._current_model_preview_render_settings()

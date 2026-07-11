@@ -42,12 +42,16 @@ internal sealed partial class ExperimentForm : Form
     private readonly System.Windows.Forms.Timer _timer = new();
     private bool _saved;
     private bool _externalTopologyDirty;
+    private bool _embeddedViewportActive = true;
+    private bool _embeddedHostFailed;
+    private bool _readyPublished;
     private DateTime _lastMetricsProtocolUtc = DateTime.MinValue;
 
-    public ExperimentForm(LaunchOptions options, ObjDocument document)
+    public ExperimentForm(LaunchOptions options, ObjDocument document, long sourceParseCount)
     {
         _options = options;
         _document = document;
+        _sourceParseCount = Math.Max(0, sourceParseCount);
         _materials = NetMaterialSet.Load(options.MaterialsPath);
         _textureSet = NetTextureSet.Load(_materials);
         Text = "CDMW .NET Mesh Editor Experiment";
@@ -66,10 +70,14 @@ internal sealed partial class ExperimentForm : Form
             Top = 0;
         }
 
+        _ = Handle;
+        StartProtocolReader();
+
         _viewport = new MeshViewport(document, _materials, _textureSet, options) { Dock = DockStyle.Fill };
         _viewport.ToolOptionsProvider = ToolOptionsPayload;
         _viewport.EditorEventRequested += WriteProtocolEvent;
         _viewport.StatusRequested += message => _statusLabel.Text = message;
+        _viewport.MouseDown += (_, _) => _viewport.Focus();
         _viewport.SubmeshSelectedRequested += index =>
         {
             if (index >= 0 && index < _submeshList.Items.Count && _submeshList.SelectedIndex != index)
@@ -123,7 +131,7 @@ internal sealed partial class ExperimentForm : Form
         _timer.Interval = 16;
         _timer.Tick += (_, _) =>
         {
-            if (_options.Embedded && _options.ParentHwnd > 0)
+            if (_options.Embedded && _options.ParentHwnd > 0 && _embeddedViewportActive)
             {
                 NativeWindowHost.ResizeToParent(this, new IntPtr(_options.ParentHwnd));
                 if (File.Exists(_options.CloseRequestPath))
@@ -132,23 +140,104 @@ internal sealed partial class ExperimentForm : Form
                     return;
                 }
             }
+            if (!_embeddedViewportActive)
+            {
+                return;
+            }
             var renderRequested = _viewport.ConsumeRenderRequest();
             if (renderRequested)
             {
                 _viewport.Invalidate();
             }
-            _fpsLabel.Text = RendererMetricsText(_viewport.Metrics, _viewport.RendererStatusPayload(), renderRequested);
+            _fpsLabel.Text = RendererMetricsText(_viewport.Metrics, RendererStatusWithLifecycle(), renderRequested);
             if ((DateTime.UtcNow - _lastMetricsProtocolUtc).TotalMilliseconds >= 500)
             {
                 _lastMetricsProtocolUtc = DateTime.UtcNow;
                 var metricsPayload = MetricsPayload(_viewport.Metrics);
-                metricsPayload["renderer"] = _viewport.RendererStatusPayload();
+                metricsPayload["renderer"] = RendererStatusWithLifecycle();
+                metricsPayload["lifecycle_counts"] = LifecycleCountsPayload();
                 WriteProtocolEvent("metrics", metricsPayload);
             }
         };
         _timer.Start();
-        StartProtocolReader();
-        var rendererStatus = _viewport.RendererStatusPayload();
+    }
+
+    private void StartTextureLoad()
+    {
+        _initialTextureLoadCount++;
+        _statusLabel.Text = "Loading textures before the resident editor becomes ready...";
+        _ = _textureSet.LoadAsync(_materials).ContinueWith(task =>
+        {
+            if (IsDisposed || Disposing || !IsHandleCreated)
+            {
+                return;
+            }
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (task.IsFaulted || task.IsCanceled)
+                    {
+                        var message = task.Exception?.GetBaseException().Message ?? "Texture load was cancelled.";
+                        _statusLabel.Text = message;
+                        WriteProtocolEvent("textures_error", new Dictionary<string, object?>
+                        {
+                            ["message"] = message,
+                            ["terminal"] = true,
+                            ["lifecycle_counts"] = LifecycleCountsPayload(),
+                        });
+                        PublishReady("error", message);
+                        return;
+                    }
+                    var allSubmeshes = Enumerable.Range(0, _document.Submeshes.Count).ToArray();
+                    if (!_viewport.TryApplyMaterialState(allSubmeshes, out var bindError))
+                    {
+                        _statusLabel.Text = bindError;
+                        WriteProtocolEvent("textures_error", new Dictionary<string, object?>
+                        {
+                            ["message"] = bindError,
+                            ["terminal"] = true,
+                            ["renderer"] = RendererStatusWithLifecycle(),
+                            ["lifecycle_counts"] = LifecycleCountsPayload(),
+                        });
+                        PublishReady("error", bindError);
+                        return;
+                    }
+                    _statusLabel.Text = $"Textures ready: {_textureSet.DecodedCount} decoded, {_textureSet.TextureLoadFailureCount} failed.";
+                    WriteProtocolEvent("textures_ready", new Dictionary<string, object?>
+                    {
+                        ["decoded_texture_resources"] = _textureSet.DecodedCount,
+                        ["texture_load_failures"] = _textureSet.TextureLoadFailureCount,
+                        ["renderer"] = RendererStatusWithLifecycle(),
+                        ["lifecycle_counts"] = LifecycleCountsPayload(),
+                    });
+                    PublishReady("ready", string.Empty);
+                }));
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }, TaskScheduler.Default);
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        if (_options.Embedded && !TryEmbedOrFail("startup"))
+        {
+            return;
+        }
+        StartTextureLoad();
+    }
+
+    private void PublishReady(string textureState, string textureError)
+    {
+        if (_readyPublished)
+        {
+            return;
+        }
+        _readyPublished = true;
+        var rendererStatus = RendererStatusWithLifecycle();
         WriteStatus(
             _options,
             _viewport.RendererBlocked ? "blocked_renderer_unavailable" : "loaded",
@@ -159,35 +248,53 @@ internal sealed partial class ExperimentForm : Form
         {
             ["capabilities"] = _viewport.ActiveCapabilities(),
             ["selection_depth_mode"] = "visible",
-            ["renderer"] = _viewport.RendererStatusPayload()
+            ["material_signature"] = _materials.Signature,
+            ["material_generation"] = _materials.Generation,
+            ["texture_state"] = textureState,
+            ["texture_error"] = textureError,
+            ["renderer"] = rendererStatus,
+            ["lifecycle_counts"] = LifecycleCountsPayload(),
         });
     }
 
-    protected override void OnShown(EventArgs e)
+    private bool TryEmbedOrFail(string phase)
     {
-        base.OnShown(e);
-        if (_options.Embedded && _options.ParentHwnd > 0)
+        if (NativeWindowHost.Embed(this, new IntPtr(_options.ParentHwnd)))
         {
-            if (NativeWindowHost.Embed(this, new IntPtr(_options.ParentHwnd)))
-            {
-                _statusLabel.Text = "Embedded .NET mesh editor ready.";
-            }
-            else
-            {
-                _statusLabel.Text = "Embedded host was not available; .NET editor is running borderless.";
-            }
+            _statusLabel.Text = "Embedded .NET mesh editor ready.";
+            Focus();
+            _viewport.Focus();
+            return true;
         }
+        _embeddedViewportActive = false;
+        _embeddedHostFailed = true;
+        var message = $"Embedded host unavailable during {phase}; returning to the native mesh editor.";
+        _statusLabel.Text = message;
+        WriteStatus(_options, "error", message, _viewport.Metrics, rendererStatus: RendererStatusWithLifecycle());
+        WriteProtocolEvent("error", new Dictionary<string, object?>
+        {
+            ["code"] = "embedded_host_unavailable",
+            ["phase"] = phase,
+            ["message"] = message
+        });
+        Close();
+        return false;
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        if (!_saved && _options.Embedded && _editedSubmeshes.Count > 0 && !_externalTopologyDirty)
+        if (!_saved && !_embeddedHostFailed && _options.Embedded && _editedSubmeshes.Count > 0 && !_externalTopologyDirty)
         {
             SaveAndReport();
         }
-        if (!_saved)
+        if (!_saved && !_embeddedHostFailed)
         {
-            WriteStatus(_options, "closed", "Mesh .NET editor experiment closed without saving.", _viewport.Metrics);
+            WriteStatus(
+                _options,
+                "closed",
+                "Mesh .NET editor experiment closed without saving.",
+                _viewport.Metrics,
+                rendererStatus: RendererStatusWithLifecycle());
         }
         _textureSet.Dispose();
         base.OnFormClosing(e);
@@ -204,18 +311,6 @@ internal sealed partial class ExperimentForm : Form
         var save = StyledButton("Save Edited Package", height: 30);
         save.Click += (_, _) => SaveAndReport();
 
-        var solid = ToolCheckBox("Solid", true);
-        solid.CheckedChanged += (_, _) =>
-        {
-            _viewport.ShowSolid = solid.Checked;
-            _viewport.Invalidate();
-        };
-        var wire = ToolCheckBox("Wire", false);
-        wire.CheckedChanged += (_, _) =>
-        {
-            _viewport.ShowWire = wire.Checked;
-            _viewport.Invalidate();
-        };
         var partPick = ToolCheckBox("Part Pick", false);
         partPick.CheckedChanged += (_, _) =>
         {
@@ -225,16 +320,16 @@ internal sealed partial class ExperimentForm : Form
                 _statusLabel.Text = "Part Pick enabled; selection requests target source parts.";
             }
         };
-        var gizmo = DisabledButton("Gizmo", "Gizmo handles are owned by the native host path in this build.");
-
         var left = new Panel
         {
             Name = "DotNetMeshEditorToolPanel",
             Dock = DockStyle.Left,
             Width = 286,
             Padding = new Padding(0),
+            TabStop = true,
             BackColor = ThemePanelBackground
         };
+        left.MouseDown += (_, _) => left.Focus();
         var statusFooter = new Panel
         {
             Dock = DockStyle.Bottom,
@@ -283,7 +378,7 @@ internal sealed partial class ExperimentForm : Form
         AddSection(stack, "Transform",
             LabeledControl("Translate step", _translateStep),
             ButtonRow(StyledActionButton("Move +X", () => RequestTransformMove((float)_translateStep.Value)), StyledActionButton("Move -X", () => RequestTransformMove(-(float)_translateStep.Value))),
-            ButtonRow(ToolButton("Move", "move"), ToolButton("Grab", "grab"), gizmo));
+            ButtonRow(ToolButton("Move", "move"), ToolButton("Grab", "grab")));
         AddSection(stack, "Brush Tools",
             LabeledControl("Radius", _radius),
             LabeledControl("Strength", _strength),
@@ -297,7 +392,7 @@ internal sealed partial class ExperimentForm : Form
                 DisabledButton("Copy", "Mesh clipboard is disabled until metadata-preserving paste is proved; use Duplicate for same-selection copies."),
                 DisabledButton("Paste", "Mesh clipboard is disabled until metadata-preserving paste is proved; use Duplicate for same-selection copies.")));
         AddSection(stack, "Viewport",
-            PreviewModeControl(solid, wire),
+            PreviewModeControl(),
             MaterialDebugModeControl(),
             ButtonRow(CameraButton("Front", "front"), CameraButton("Left", "left"), CameraButton("Right", "right")),
             ButtonRow(CameraButton("Back", "back"), CameraButton("Top", "top"), CameraButton("Bottom", "bottom")),
@@ -394,7 +489,7 @@ internal sealed partial class MeshViewport : Control
     private (Vec3 Min, Vec3 Max) _bounds;
     private Vec3 _center;
     private NetViewportCamera _camera;
-    private Point _strokeStart;
+    private Point _strokePrevious;
     private int _strokeId;
     private bool _editorStrokeActive;
     private readonly Dictionary<int, HashSet<int>> _selectedVertices = new();
@@ -422,9 +517,12 @@ internal sealed partial class MeshViewport : Control
     public string RendererBlockReason => _rendererBlockReason;
     public string RendererBackend => _rendererBlocked ? "blocked_renderer_unavailable" : (_d3d11Viewport is not null ? "d3d11_vortice_shader" : (_gpuViewport is not null ? "wpf_viewport3d_gpu" : "winforms_gdi_fallback"));
     public int SelectedSubmeshIndex { get; set; }
-    public bool ShowSolid { get; set; } = true;
-    public bool ShowWire { get; set; } = false;
-    public bool ShowXRay { get; set; } = false;
+    public bool ShowSolid { get; private set; } = true;
+    public bool ShowWire { get; private set; }
+    public bool ShowVertices { get; private set; }
+    public bool ShowXRay { get; set; }
+    public bool TexturesEnabled { get; private set; } = true;
+    public string DisplayMode { get; private set; } = "textured";
     public int MaterialDebugMode { get; set; }
     public string ActiveTool { get; set; } = "orbit";
     public Func<Dictionary<string, object?>>? ToolOptionsProvider { get; set; }
@@ -469,6 +567,7 @@ internal sealed partial class MeshViewport : Control
         BackColor = Color.FromArgb(23, 25, 29);
         ForeColor = Color.White;
         Dock = DockStyle.Fill;
+        TabStop = true;
         InitializeGpuViewport();
         FrameMesh();
     }

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Iterable, Mapping, MutableSequence, Sequence
+from dataclasses import replace
+from threading import Event
 
 
 _SPARSE_VERTEX_SNAPSHOT_REFCOUNTS: dict[str, int] = {}
@@ -46,7 +48,7 @@ def release_sparse_vertex_snapshot(snapshot: object) -> None:
     if not snapshot_ids:
         return
     try:
-        from cdmw.modding.mesh_native_core import dispose_native_mesh_sparse_vertex_snapshot
+        from cdmw.services.mesh_workflow_service import dispose_native_mesh_sparse_vertex_snapshot
     except Exception:
         return
     for snapshot_id in snapshot_ids:
@@ -62,7 +64,7 @@ def release_native_submesh_snapshot(snapshot: object) -> None:
     if not isinstance(snapshot, Mapping) or snapshot.get("kind") != "native_submesh_snapshot":
         return
     try:
-        from cdmw.modding.mesh_native_core import dispose_native_mesh_submesh_snapshot
+        from cdmw.services.mesh_workflow_service import dispose_native_mesh_submesh_snapshot
     except Exception:
         return
     dispose_native_mesh_submesh_snapshot(snapshot)
@@ -87,7 +89,7 @@ def allow_python_sparse_history_restore_fallback(
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
         return True
     try:
-        from cdmw.modding.mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+        from cdmw.services.mesh_workflow_service import native_mesh_core_available, record_native_mesh_core_fallback
     except Exception:
         return True
     if not native_mesh_core_available():
@@ -107,7 +109,7 @@ def allow_python_full_mesh_clone_fallback(mesh: object, operation: str, reason: 
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
         return True
     try:
-        from cdmw.modding.mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+        from cdmw.services.mesh_workflow_service import native_mesh_core_available, record_native_mesh_core_fallback
     except Exception:
         return True
     if not native_mesh_core_available():
@@ -133,18 +135,18 @@ def clone_mesh_for_static_replacement_native_first(
     if not _native_submesh_snapshot_supported(mesh):
         if not allow_python_setup_fallback:
             return None
-        from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+        from cdmw.services.mesh_workflow_service import clone_mesh_for_editing
 
         return clone_mesh_for_editing(mesh)  # type: ignore[arg-type]
     native_snapshot = None
     try:
-        from cdmw.modding.mesh_native_core import (
+        from cdmw.services.mesh_workflow_service import (
             dispose_native_mesh_submesh_snapshot,
             invalidate_native_mesh_session_submeshes,
             restore_native_mesh_submesh_snapshot,
             snapshot_native_mesh_submeshes,
         )
-        from cdmw.modding.mesh_parser import ParsedMesh
+        from cdmw.services.mesh_workflow_service import ParsedMesh
 
         native_snapshot = snapshot_native_mesh_submeshes(mesh)  # type: ignore[arg-type]
         if native_snapshot is not None:
@@ -164,7 +166,7 @@ def clone_mesh_for_static_replacement_native_first(
             except Exception:
                 pass
     if allow_python_setup_fallback:
-        from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+        from cdmw.services.mesh_workflow_service import clone_mesh_for_editing
 
         return clone_mesh_for_editing(mesh)  # type: ignore[arg-type]
     if fallback_allowed is not None:
@@ -173,9 +175,26 @@ def clone_mesh_for_static_replacement_native_first(
         allowed = allow_python_full_mesh_clone_fallback(mesh, operation, reason)
     if not allowed:
         return None
-    from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+    from cdmw.services.mesh_workflow_service import clone_mesh_for_editing
 
     return clone_mesh_for_editing(mesh)  # type: ignore[arg-type]
+
+
+def clone_static_replacement_options_for_worker(options: object, stop_event: Event) -> object:
+    edited_source_mesh = getattr(options, "edited_source_mesh", None)
+    if edited_source_mesh is None:
+        return options
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    raise_if_cancelled(stop_event, "Mesh import preview cancelled.")
+    edited_source_mesh = clone_mesh_for_static_replacement_native_first(
+        edited_source_mesh,
+        "export.edited_source_mesh_clone",
+        "Python edited source mesh clone fallback blocked while native mesh core is available",
+    )
+    if edited_source_mesh is None:
+        raise RuntimeError("Native edited source mesh clone failed.")
+    return replace(options, edited_source_mesh=edited_source_mesh)
 
 
 def _native_submesh_snapshot_supported(mesh: object) -> bool:
@@ -295,6 +314,7 @@ __all__ = [
     "allow_python_mesh_history_snapshot_fallback",
     "allow_python_sparse_history_restore_fallback",
     "clone_mesh_for_static_replacement_native_first",
+    "clone_static_replacement_options_for_worker",
     "clear_mesh_history_snapshot_stack",
     "clear_sparse_vertex_snapshot_stack",
     "release_mesh_history_snapshot",

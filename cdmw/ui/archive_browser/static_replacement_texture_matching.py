@@ -6,7 +6,7 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path, PurePosixPath
 
-from cdmw.modding.static_mesh_replacer import _semantic_tokens
+from cdmw.services.mesh_workflow_service import _semantic_tokens
 
 
 _IMPORTANT_STATIC_TEXTURE_TOKENS = {

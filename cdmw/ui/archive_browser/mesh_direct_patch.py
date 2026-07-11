@@ -8,18 +8,16 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from PySide6.QtGui import QImageReader
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
+from PySide6.QtWidgets import QMessageBox, QWidget
 
-from cdmw.core.archive_modding import (
-    ARCHIVE_PATCH_BACKUP_ROOT,
-    ArchivePatchRequest,
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
+from cdmw.domain.archives.mesh_contracts import (
     MeshImportPreviewResult,
     MeshImportSupplementalFileSpec,
 )
-from cdmw.core.final_package_preview import FinalPackagePreviewResult
+from cdmw.services.preview_workflow_service import FinalPackagePreviewResult
 from cdmw.models import ArchiveEntry, ArchivePreviewResult, ImportIssueStatus
-from cdmw.modding.scene_importer import SCENE_TEXTURE_SOURCE_EXTENSIONS
-from cdmw.rendering.model_preview_prepare import prepare_model_preview
+from cdmw.services.preview_rendering_service import prepare_model_preview
 
 
 class ArchiveMeshDirectPatchMixin:
@@ -151,10 +149,11 @@ class ArchiveMeshDirectPatchMixin:
             "A backup of the touched PAPGT/PAMT/PAZ files will be created first and can be restored from Archive Patch Backups.\n\n"
             f"Targets:\n{shown_targets or '- none'}"
         )
+        backup_root = self.app_context.services.require_archive_mutations().backup_root
         prompt.setDetailedText(
             "Archive entries that will be patched:\n"
             + "\n".join(compact_paths)
-            + f"\n\nBackup root:\n{ARCHIVE_PATCH_BACKUP_ROOT}"
+            + f"\n\nBackup root:\n{backup_root}"
         )
         prompt.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         prompt.setDefaultButton(QMessageBox.No)
@@ -388,80 +387,6 @@ class ArchiveMeshDirectPatchMixin:
             default_checked=default_checked,
             parent=parent,
         )
-
-    def _prompt_archive_mesh_import_supplemental_files(
-        self,
-        entry: ArchiveEntry,
-        *,
-        title: str,
-        ) -> Optional[Tuple[Path, ...]]:
-        decision = QMessageBox.question(
-            self,
-            title,
-            (
-                f"Do you want to add local supplemental files for {entry.basename}?\n\n"
-                "Supported files:\n"
-                "  - .png / .jpg / .jpeg replacement texture sources for static scene imports\n"
-                "  - .dds texture overrides\n"
-                "  - .xml / .pac_xml PAC material sidecars\n"
-                "  - .pami PAM material sidecars\n\n"
-                "Selected files will be used for rebuilt preview, and mapped files can also be included in the loose export package."
-            ),
-            QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
-            QMessageBox.No,
-        )
-        if decision == QMessageBox.Cancel:
-            return None
-        if decision != QMessageBox.Yes:
-            return ()
-
-        source_dialog = QMessageBox(self)
-        source_dialog.setWindowTitle(title)
-        source_dialog.setIcon(QMessageBox.Question)
-        source_dialog.setText("Select supplemental files or a folder?")
-        source_dialog.setInformativeText(
-            "Use a folder when replacement textures are already grouped together, such as a Blender export texture folder."
-        )
-        files_button = source_dialog.addButton("Select Files", QMessageBox.AcceptRole)
-        folder_button = source_dialog.addButton("Select Folder", QMessageBox.ActionRole)
-        source_dialog.addButton(QMessageBox.Cancel)
-        source_dialog.setDefaultButton(files_button)
-        source_dialog.exec()
-        clicked_source = source_dialog.clickedButton()
-        supported_suffixes = set(SCENE_TEXTURE_SOURCE_EXTENSIONS) | {
-            ".xml",
-            ".pami",
-            ".pac_xml",
-            ".pam_xml",
-            ".pamlod_xml",
-            ".app_xml",
-            ".prefabdata_xml",
-        }
-        if clicked_source == folder_button:
-            selected_dir = QFileDialog.getExistingDirectory(
-                self,
-                title,
-                str(self.settings_file_path.parent),
-            )
-            if not selected_dir:
-                return ()
-            return tuple(
-                path
-                for path in sorted(Path(selected_dir).rglob("*"))
-                if path.is_file() and path.suffix.lower() in supported_suffixes
-            )
-        if clicked_source != files_button:
-            return None
-
-        selected_files, _selected_filter = QFileDialog.getOpenFileNames(
-            self,
-            title,
-            str(self.settings_file_path.parent),
-            "Supplemental Files (*.png *.jpg *.jpeg *.dds *.xml *.pami *.pac_xml *.pam_xml *.pamlod_xml *.app_xml *.prefabdata_xml);;Texture Sources (*.png *.jpg *.jpeg *.dds);;DDS Files (*.dds);;Image Files (*.png *.jpg *.jpeg);;Material Sidecars (*.xml *.pami *.pac_xml *.pam_xml *.pamlod_xml *.app_xml *.prefabdata_xml)",
-        )
-        if not selected_files:
-            return ()
-        return tuple(Path(path) for path in selected_files if path)
 
     @staticmethod
     def _archive_mesh_import_file_filter() -> str:

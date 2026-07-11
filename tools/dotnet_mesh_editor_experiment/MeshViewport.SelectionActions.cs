@@ -74,6 +74,7 @@ internal sealed partial class MeshViewport
                 _selectedVertices.Clear();
             }
             StatusRequested?.Invoke($"Vertex mode: selected={_selectedVertices.Values.Sum(vertices => vertices.Count)} hit=0 xray={(ShowXRay ? "on" : "off")}");
+            NotifyLocalSelectionChanged();
             UpdateGpuViewport();
             Invalidate();
             return;
@@ -82,6 +83,7 @@ internal sealed partial class MeshViewport
         SelectedSubmeshIndex = hit.Value.SubmeshIndex;
         SubmeshSelectedRequested?.Invoke(hit.Value.SubmeshIndex);
         StatusRequested?.Invoke($"Vertex mode: selected={_selectedVertices.Values.Sum(vertices => vertices.Count)} hit=1 xray={(ShowXRay ? "on" : "off")}");
+        NotifyLocalSelectionChanged();
         UpdateGpuViewport();
         Invalidate();
     }
@@ -96,6 +98,7 @@ internal sealed partial class MeshViewport
                 _selectedFaces.Clear();
             }
             StatusRequested?.Invoke($"Face mode: selected={_selectedFaces.Values.Sum(faces => faces.Count)} hit=0 xray={(ShowXRay ? "on" : "off")}");
+            NotifyLocalSelectionChanged();
             UpdateGpuViewport();
             Invalidate();
             return;
@@ -104,6 +107,7 @@ internal sealed partial class MeshViewport
         SelectedSubmeshIndex = hit.Value.SubmeshIndex;
         SubmeshSelectedRequested?.Invoke(hit.Value.SubmeshIndex);
         StatusRequested?.Invoke($"Face mode: selected={_selectedFaces.Values.Sum(faces => faces.Count)} hit=1 xray={(ShowXRay ? "on" : "off")}");
+        NotifyLocalSelectionChanged();
         UpdateGpuViewport();
         Invalidate();
     }
@@ -118,6 +122,7 @@ internal sealed partial class MeshViewport
                 _selectedSources.Clear();
             }
             StatusRequested?.Invoke($"Part mode: selected={_selectedSources.Count} hit=0 xray={(ShowXRay ? "on" : "off")}");
+            NotifyLocalSelectionChanged();
             UpdateGpuViewport();
             Invalidate();
             return;
@@ -126,6 +131,7 @@ internal sealed partial class MeshViewport
         SelectedSubmeshIndex = submeshIndex;
         SubmeshSelectedRequested?.Invoke(submeshIndex);
         StatusRequested?.Invoke($"Part mode: selected={_selectedSources.Count} hit=1 xray={(ShowXRay ? "on" : "off")}");
+        NotifyLocalSelectionChanged();
         UpdateGpuViewport();
         Invalidate();
     }

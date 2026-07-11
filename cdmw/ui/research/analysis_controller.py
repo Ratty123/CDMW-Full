@@ -3,14 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QAbstractItemView, QFileDialog, QTreeWidgetItem
 
-from cdmw.core.research import (
+from cdmw.domain.research.contracts import (
     MipAnalysisRow,
     NormalValidationRow,
-    build_mip_analysis_detail,
-    build_normal_validation_detail,
-    export_texture_analysis_report,
 )
 from cdmw.ui.research.analysis_state import (
     analysis_report_default_name,
@@ -29,6 +27,13 @@ from cdmw.ui.research.tree_population import (
     populate_research_heatmap_tree,
     populate_research_mip_tree,
     populate_research_normal_tree,
+)
+from cdmw.workers.research_analysis_workers import (
+    AnalysisDetailResult,
+    AnalysisReportExportResult,
+    mip_detail_request,
+    normal_detail_request,
+    report_export_request,
 )
 
 def _populate_heatmap_rows(self, rows: object) -> None:
@@ -67,9 +72,11 @@ def _focus_pending_mip_row(self) -> bool:
         if row_key != target_key:
             continue
         self.pending_mip_focus_relative_path = ""
+        already_current = self.mip_tree.currentItem() is item
         self.mip_tree.setCurrentItem(item)
         self.mip_tree.scrollToItem(item, QAbstractItemView.PositionAtCenter)
-        self._show_mip_row_details(row)
+        if already_current:
+            self._show_mip_row_details(row)
         self.analysis_status_label.setText(f"Showing Mip Analysis details for {target_path}.")
         self.status_message_requested.emit(f"Showing Mip Analysis details for {target_path}.", False)
         return True
@@ -97,6 +104,7 @@ def _handle_mip_selection_changed(
     _previous: Optional[QTreeWidgetItem],
 ) -> None:
     if current is None:
+        self.analysis_task_controller.cancel_detail()
         return
     row = item_payload(current, MipAnalysisRow)
     if row is None:
@@ -109,6 +117,7 @@ def _handle_normal_selection_changed(
     _previous: Optional[QTreeWidgetItem],
 ) -> None:
     if current is None:
+        self.analysis_task_controller.cancel_detail()
         return
     row = item_payload(current, NormalValidationRow)
     if row is None:
@@ -119,29 +128,58 @@ def _show_mip_row_details(self, row: MipAnalysisRow) -> None:
     original_root_text = self.get_original_root().strip()
     output_root_text = self.get_output_root().strip()
     self.analysis_detail_label.setText("Mip Analysis details")
+    QTimer.singleShot(
+        0,
+        self.analysis_detail_edit,
+        lambda: self.analysis_detail_edit.setPlainText("Loading Mip Analysis details..."),
+    )
     texconv_path = Path(self.get_texconv_path()).expanduser() if self.get_texconv_path().strip() else None
-    detail_text = build_mip_analysis_detail(
+    family_lookup = self.research_payload.get("mip_detail_family_members_by_path")
+    family_members = family_lookup.get(row.relative_path, ()) if isinstance(family_lookup, dict) else ()
+    request = mip_detail_request(
         Path(original_root_text).expanduser() if original_root_text else Path("."),
         Path(output_root_text).expanduser() if output_root_text else Path("."),
+        texconv_path,
         row,
-        texconv_path=texconv_path,
-        family_members_by_path=self.research_payload.get("mip_detail_family_members_by_path")
-        if isinstance(self.research_payload.get("mip_detail_family_members_by_path"), dict)
-        else None,
+        family_members if isinstance(family_members, (list, tuple)) else (),
     )
-    self.analysis_detail_edit.setPlainText(detail_text)
+    self.analysis_task_controller.queue_detail(
+        request,
+        on_complete=self._apply_analysis_detail_result,
+        on_error=self._handle_analysis_detail_error,
+    )
 
 def _show_normal_row_details(self, row: NormalValidationRow) -> None:
     self.analysis_detail_label.setText("Bulk Normal Validator details")
+    QTimer.singleShot(
+        0,
+        self.analysis_detail_edit,
+        lambda: self.analysis_detail_edit.setPlainText("Loading Bulk Normal Validator details..."),
+    )
     texconv_path = Path(self.get_texconv_path()).expanduser() if self.get_texconv_path().strip() else None
     root_path = Path(row.root_path).expanduser() if row.root_path else Path(".")
-    detail_text = build_normal_validation_detail(root_path, row, texconv_path=texconv_path)
-    self.analysis_detail_edit.setPlainText(detail_text)
+    self.analysis_task_controller.queue_detail(
+        normal_detail_request(root_path, texconv_path, row),
+        on_complete=self._apply_analysis_detail_result,
+        on_error=self._handle_analysis_detail_error,
+    )
+
+def _apply_analysis_detail_result(self, result: AnalysisDetailResult) -> None:
+    self.analysis_detail_label.setText(
+        "Mip Analysis details" if result.kind == "mip" else "Bulk Normal Validator details"
+    )
+    self.analysis_detail_edit.setPlainText(result.detail_text)
+
+def _handle_analysis_detail_error(self, message: str) -> None:
+    status = f"Could not load analysis details: {message}"
+    self.analysis_detail_edit.setPlainText(status)
+    self.status_message_requested.emit(status, True)
 
 def _show_budget_details(self, row: object) -> None:
     payload = budget_detail_payload(row)
     if payload is None:
         return
+    self.analysis_task_controller.cancel_detail()
     label_text, detail_text = payload
     self.analysis_detail_label.setText(label_text)
     self.analysis_detail_edit.setPlainText(detail_text)
@@ -170,19 +208,35 @@ def _export_analysis_report(self, default_suffix: str) -> None:
     report_path = analysis_report_output_path(selected_path, default_suffix)
     if report_path is None:
         return
-    try:
-        final_path = export_texture_analysis_report(
-            report_path,
-            report_rows.mip_rows,
-            report_rows.normal_rows,
-            budget_rows=report_rows.budget_rows,
-            budget_class_rows=report_rows.budget_class_rows,
-            budget_group_rows=report_rows.budget_group_rows,
-            budget_profile=report_rows.budget_profile,
-        )
-        status_text = analysis_report_exported_status_text(final_path)
-        self.analysis_status_label.setText(status_text)
-        self.status_message_requested.emit(status_text, False)
-    except Exception as exc:
-        self.analysis_status_label.setText(str(exc))
-        self.status_message_requested.emit(str(exc), True)
+    request = report_export_request(
+        report_path,
+        mip_rows=report_rows.mip_rows,
+        normal_rows=report_rows.normal_rows,
+        budget_rows=report_rows.budget_rows,
+        budget_class_rows=report_rows.budget_class_rows,
+        budget_group_rows=report_rows.budget_group_rows,
+        budget_profile=report_rows.budget_profile,
+    )
+    self.export_report_csv_button.setEnabled(False)
+    self.export_report_json_button.setEnabled(False)
+    self.analysis_status_label.setText(f"Exporting analysis report to {report_path}...")
+    if not self.analysis_task_controller.start_export(
+        request,
+        on_complete=self._handle_analysis_export_complete,
+        on_error=self._handle_analysis_export_error,
+        on_idle=self._handle_analysis_export_idle,
+    ):
+        self._handle_analysis_export_idle()
+
+def _handle_analysis_export_complete(self, result: AnalysisReportExportResult) -> None:
+    status_text = analysis_report_exported_status_text(result.output_path)
+    self.analysis_status_label.setText(status_text)
+    self.status_message_requested.emit(status_text, False)
+
+def _handle_analysis_export_error(self, message: str) -> None:
+    self.analysis_status_label.setText(message)
+    self.status_message_requested.emit(message, True)
+
+def _handle_analysis_export_idle(self) -> None:
+    self.export_report_csv_button.setEnabled(True)
+    self.export_report_json_button.setEnabled(True)

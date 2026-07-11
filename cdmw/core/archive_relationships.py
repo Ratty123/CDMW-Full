@@ -7,34 +7,36 @@ import xml.etree.ElementTree as ET
 from pathlib import PurePosixPath
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.archive import (
+from cdmw.core.archive_binary_preview import (
     _binary_sidecar_asset_reference_rows,
     _binary_sidecar_schema_declarations,
-    _extract_archive_sidecar_texture_lookup_paths,
     _extract_binary_string_records,
-    _find_archive_model_sidecar_entries,
-    read_archive_entry_data,
     try_decode_text_like_archive_data,
 )
-from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
+from cdmw.core.archive_extraction import read_archive_entry_data
+from cdmw.core.archive_model_references import _find_archive_model_sidecar_entries
+from cdmw.core.archive_sidecar_cache import _extract_archive_sidecar_texture_lookup_paths
+from cdmw.core.archive_modding_constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.core.upscale_profiles import normalize_texture_reference_for_sidecar_lookup, parse_texture_sidecar_bindings
 from cdmw.core.table_catalog import (
     evidence_label,
     extract_table_asset_reference_evidence,
     recognized_table_for_path,
 )
+from cdmw.domain.archives.relationships import (
+    ARCHIVE_REL_INCLUDE_MANUAL,
+    ARCHIVE_REL_INCLUDE_RECOMMENDED,
+    ARCHIVE_REL_INCLUDE_REQUIRED,
+    ARCHIVE_REL_INCLUDE_RISKY,
+    ARCHIVE_REL_INCLUDE_UNRESOLVED,
+    SWAP_SCOPE_BODY_HEAD,
+    SWAP_SCOPE_BODY_ONLY,
+    SWAP_SCOPE_FULL_APPEARANCE_REDIRECT,
+    ArchiveRelationEdge,
+    ArchiveRelationshipPlan,
+    CharacterDependencyPlan,
+)
 from cdmw.models import ArchiveEntry
-
-
-ARCHIVE_REL_INCLUDE_REQUIRED = "required"
-ARCHIVE_REL_INCLUDE_RECOMMENDED = "recommended"
-ARCHIVE_REL_INCLUDE_MANUAL = "manual"
-ARCHIVE_REL_INCLUDE_RISKY = "risky"
-ARCHIVE_REL_INCLUDE_UNRESOLVED = "unresolved"
-
-SWAP_SCOPE_BODY_ONLY = "body_only"
-SWAP_SCOPE_BODY_HEAD = "body_head"
-SWAP_SCOPE_FULL_APPEARANCE_REDIRECT = "full_appearance_redirect"
 
 _XML_DESCRIPTOR_EXTENSIONS = {".xml", ".app_xml", ".prefabdata_xml", ".paccd", ".pac_xml", ".pami", ".pappt", ".pamhc", ".seqmt"}
 _MATERIAL_SIDECAR_EXTENSIONS = {".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".xml"}
@@ -80,45 +82,6 @@ _SIDECAR_DESCRIPTOR_REFERENCE_SUFFIXES = frozenset(
 _PATH_INDEX_CACHE: Dict[Tuple[int, int, str, str], Dict[str, List[ArchiveEntry]]] = {}
 _BASENAME_INDEX_CACHE: Dict[Tuple[int, int, str, str], Dict[str, List[ArchiveEntry]]] = {}
 _INDEX_CACHE_LIMIT = 4
-
-
-@dataclass(frozen=True, slots=True)
-class ArchiveRelationEdge:
-    source_path: str
-    related_path: str = ""
-    related_entry: Optional[ArchiveEntry] = None
-    relation_kind: str = ""
-    role: str = ""
-    confidence: str = "heuristic"
-    reason: str = ""
-    include_policy: str = ARCHIVE_REL_INCLUDE_MANUAL
-    risk: bool = False
-    suggested_target_path: str = ""
-    unresolved: bool = False
-    source_table: str = ""
-    source_field: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class ArchiveRelationshipPlan:
-    source_path: str
-    mode: str = "inspect"
-    edges: Tuple[ArchiveRelationEdge, ...] = ()
-    warnings: Tuple[str, ...] = ()
-    swap_scope: str = ""
-    patched_target_app_xml: bytes = b""
-    patched_target_app_path: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class CharacterDependencyPlan:
-    body_path: str
-    selected_appearance_path: str = ""
-    appearance_paths: Tuple[str, ...] = ()
-    entries: Tuple[ArchiveEntry, ...] = ()
-    edges: Tuple[ArchiveRelationEdge, ...] = ()
-    warnings: Tuple[str, ...] = ()
-    blocking_errors: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

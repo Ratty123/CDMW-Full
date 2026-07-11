@@ -352,7 +352,7 @@ def test_morph_slider_capture_post_edit_fallback_streams_vertices_once() -> None
 
     with (
         patch.object(morph_slider_state, "_morph_slider_native_post_edit_deltas", return_value=None),
-        patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=False),
+        patch("cdmw.services.mesh_workflow_service.native_mesh_core_available", return_value=False),
     ):
         assert morph_slider_capture_post_edit_deltas(working_mesh, slider_mesh) == [
             [(1.0, 2.0, 3.0), (2.0, 4.0, 6.0)]
@@ -400,7 +400,7 @@ def test_morph_slider_capture_post_edit_deltas_blocks_python_fallback_when_nativ
 
     mesh_native_core.clear_native_mesh_core_fallback_counts()
     with (
-        patch("cdmw.modding.mesh_native_core.native_mesh_core_available", return_value=True),
+        patch("cdmw.services.mesh_workflow_service.native_mesh_core_available", return_value=True),
         patch.object(morph_slider_state, "_morph_slider_native_post_edit_deltas", return_value=None),
         patch.object(
             morph_slider_state,

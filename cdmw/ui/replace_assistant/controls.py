@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import Dict
 
 from cdmw.constants import REALESRGAN_NCNN_MODEL_DIR
-from cdmw.core.mod_package import (
+from cdmw.domain.packages.export_policy import (
     MOD_PACKAGE_MANAGER_PROFILES,
     mod_package_export_options_for_manager,
     mod_package_export_options_for_profiles,
     mod_package_profile_uses_manager_metadata,
 )
-from cdmw.core.realesrgan_ncnn import discover_realesrgan_ncnn_models
+from cdmw.services.texture_workflow_service import discover_realesrgan_ncnn_models
 
 
 class ReplaceAssistantControlMixin:

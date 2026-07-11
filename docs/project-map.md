@@ -1,6 +1,6 @@
 # Project Map
 
-Last reviewed: 2026-07-08
+Last reviewed: 2026-07-11
 
 Use this file for navigation. Use `docs/project-map-detailed.md` only when
 you need historical ownership detail.
@@ -46,8 +46,9 @@ user explicitly names them.
   handling, PyInstaller cleanup, bootstrap reports, CLI/GUI dispatch.
 - `cdmw/ui/main_window.py`: public compatibility facade for `MainWindow`,
   `run_gui`, and legacy imports.
-- `cdmw/ui/shell/`: shell window, tab wiring, actions, settings, theme,
-  startup, close, diagnostics, and app context.
+- `cdmw/ui/shell/`: one-base shell window, composed controller/provider
+  registry, tab wiring, actions, settings, theme, startup, close, diagnostics,
+  and app context.
 - `cdmw/ui/tools/`: utility tool workspaces such as Retrofit/Repackage Mods.
 - `build_gui.py`, `build.bat`, `build_pyside6_app.ps1`,
   `CrimsonDesertModWorkbench.spec`: build/package entry points.
@@ -56,14 +57,18 @@ user explicitly names them.
 
 | Concern | Primary code | Supporting code | Tests | Docs |
 |---|---|---|---|---|
-| Startup and GUI launch | `cdmw/app/`, `cdmw/ui/shell/` | `cdmw_app.py`, `cdmw/ui/main_window.py` | `tests/test_shell_*.py`, `tests/test_runtime_dependency_smoke.py` | `docs/runbooks/startup-flow.md` |
-| Archive browser and preview | `cdmw/ui/archive_browser/` | `cdmw/core/archive*.py`, `cdmw/workers/archive_*.py` | `tests/test_archive_*.py`, `tests/test_archive_browser_*.py` | `docs/features/archive-safety-model.md` |
-| Prefab JSON import | `cdmw/core/prefab_json.py`, `cdmw/core/prefab_corpus.py`, `cdmw/ui/archive_browser/prefab_json_actions.py` | `cdmw/core/crimson_formats.py`, `cdmw/core/archive_attachment_patches.py`, `cdmw/ui/archive_browser/actions.py`, `tools/report_prefab_json_import_corpus.py` | `tests/test_prefab_json_import.py`, `tests/test_prefab_corpus.py`, `tests/test_prefab_corpus_tool.py`, `tests/test_prefab_json_actions_source.py`, `tests/test_crimson_formats.py` | `docs/features/prefab-json-import.md` |
-| Mesh Editor and replacement builder | `cdmw/ui/mesh_editor/`, `cdmw/ui/archive_browser/static_replacement_*.py`, `cdmw/ui/archive_browser/mesh_launch_flow.py` | `cdmw/modding/static_mesh_*.py`, dormant `cdmw/modding/full_import_model_replacement.py`, `cdmw/rendering/native_preview_*.py`, `native/cdmw_mesh_core/`, `tools/dotnet_mesh_editor_experiment/`, `schemas/mesh/` | `tests/test_mesh_*.py`, `tests/test_static_replacement_*.py`, `tests/test_full_import_model_replacement.py` | `docs/features/mesh-editing-pipeline.md`, `docs/mesh_editor_net_repair_audit.md`, `docs/mesh_editor_net_authoritative_renderer_audit.md` |
-| Texture workflow and editor | `cdmw/ui/texture_workflow/` | `cdmw/core/texture_pipeline/`, `cdmw/domain/textures/` | `tests/test_texture_*.py`, `tests/test_static_texture_replacement.py` | `docs/architecture.md` |
+| Startup and GUI launch | `cdmw/app/`, `cdmw/ui/shell/` | `cdmw/services/startup_splash_service.py`, `cdmw/core/startup_splash_protocol.py`, `cdmw/ui/shell/startup_path_task_controller.py`, `cdmw_app.py`, `cdmw/ui/main_window.py` | `tests/test_shell_*.py`, `tests/test_startup_splash_lifecycle.py`, `tests/test_startup_archive_path_async.py`, `tests/test_runtime_dependency_smoke.py` | `docs/runbooks/startup-flow.md` |
+| Archive browser and preview | `cdmw/ui/archive_browser/` | `cdmw/domain/archives/` contracts; focused `cdmw/core/archive_*.py` owners including bounded binary-sidecar format helpers, model-texture, and mesh-import preview owners; cached/direct-export compatibility facades; `archive_workflow_service.py`, preview services, and workers | `tests/test_archive_*.py`, `tests/test_archive_binary_preview_decomposition.py`, `tests/test_archive_binary_preview_helper_decomposition.py`, `tests/test_archive_preview_decomposition.py`, `tests/test_archive_facade_identity.py`, `tests/test_archive_workflow_boundary.py`, `tests/test_preview_service_boundaries.py`, `tests/test_archive_browser_*.py` | `docs/features/archive-safety-model.md`, `docs/architecture.md` |
+| HKX/Havok documents | `cdmw/core/archive_hkx.py` direct-export facade; bounded parsing/types/summary/collision/edit/XML owners plus focused record-layout, converter, fixup, readiness, editor-model, relationship, Havok-view, edit-gate, XML-metadata, editable-XML, descriptor, role, geometry, overlay, preview, corpus, and `hkx_native.py` owners | Thin Archive Browser `hkx_editor_dialog.py` facade over registry-ordered `hkx_editor_dialog_*_part_*.py` UI owners; bounded parsing, fixup, layout, schema/evidence, graph/readiness, writer, editing, and JSON modules behind `native/cd_hkx/src/lib.rs` | `tests/test_archive_hkx_decomposition.py`, `tests/test_archive_hkx_helper_decomposition.py`, `tests/test_native_hkx_decomposition.py`, `tests/test_hkx_editor_dialog_decomposition.py`, `tests/test_hkx_preview.py`, `tests/test_hkx_native_backend.py`, `tests/test_hkx_ui_source_guards.py` | `docs/architecture.md`, `native/cd_hkx/README.md` |
+| Prefab JSON import | `cdmw/core/prefab_json.py` and `prefab_corpus.py` facades; focused `prefab_json_*.py` and `prefab_corpus_*.py` owners; Archive Browser actions | `cdmw/core/crimson_formats.py`, attachment patches, `tools/report_prefab_json_import_corpus.py` | `tests/test_prefab_json_import.py`, `tests/test_prefab_corpus*.py`, `tests/test_prefab_decomposition.py`, source guards | `docs/features/prefab-json-import.md` |
+| Mesh Editor and replacement builder | `cdmw/ui/mesh_editor/tab.py` and `workspace.py` public classes over bounded `tab_*.py` and `workspace_*.py` UI owners; thin static-replacement callback/section facades over bounded `static_replacement_dialog_{callbacks,sections}_*_part_*.py` owners; thin mesh-edit factory over bounded `static_replacement_mesh_edit_*.py` state/action/history/stroke owners; `cdmw/ui/archive_browser/mesh_launch_flow.py` | `cdmw/services/mesh_service.py` plus focused service owners; `mesh_workflow_service.py`; bounded `cdmw/modding/mesh_native_*.py` client/session/payload/kernel/report owners behind `mesh_native_core.py`; `cdmw/modding/static_mesh_*.py`; `cdmw/rendering/native_preview_*.py`; resident `native/cdmw_mesh_core/`; production .NET/Vortice renderer under `tools/dotnet_mesh_editor_experiment/`; compatibility-only `native/cdmw_d3d11_preview/`; `tools/mesh_harness/` behind `tools/mesh_editor_dev_harness.py`; mesh schemas | `tests/test_static_replacement_dialog_factory_decomposition.py`, `tests/test_static_replacement_mesh_edit_decomposition.py`, `tests/test_mesh_editor_tab_decomposition.py`, `tests/test_mesh_editor_workspace_decomposition.py`, `tests/test_mesh_service_decomposition.py`, `tests/test_mesh_native_core_decomposition.py`, `tests/test_native_mesh_core_decomposition.py`, `tests/test_native_d3d11_preview_decomposition.py`, `tests/test_mesh_harness_scenario_registry.py`, `tests/test_mesh_harness_real_dotnet_evidence.py`, `tests/test_mesh_dotnet_live_stroke_dispatch.py`, `tests/test_mesh_*.py`, `tests/test_static_replacement_*.py` | `docs/features/mesh-editing-pipeline.md`, `docs/mesh_editor_net_repair_audit.md`, `docs/mesh_editor_net_authoritative_renderer_audit.md` |
+| Texture workflow and editor | `cdmw/ui/texture_workflow/` | `cdmw/services/texture_workflow_service.py`, `cdmw/core/texture_pipeline/`, `cdmw/core/texture_native.py`, `cdmw/core/texture_decode_cache.py`, `cdmw/core/texture_native_preview_cache.py`, `cdmw/domain/textures/` | `tests/test_texture_*.py`, `tests/test_static_texture_replacement.py` | `docs/architecture.md` |
 | Asset authoring helpers | `cdmw/services/asset_authoring_service.py`, `cdmw/workers/asset_authoring_workers.py` | `cdmw/ui/texture_workflow/asset_authoring_panel.py`, `native/cdmw_mesh_core/` | `tests/test_asset_authoring_*.py`, asset-authoring harness scenarios | `docs/features/asset-authoring-integrations.md` |
-| Supporting feature tabs | `cdmw/ui/research/`, `cdmw/ui/model_library/`, `cdmw/ui/item_icons/`, `cdmw/ui/text_search/`, `cdmw/ui/replace_assistant/` | `cdmw/core/research*.py`, `cdmw/core/model_catalogue.py`, `cdmw/core/item_icon.py`, `cdmw/services/model_library_preview.py` | matching `tests/test_*` files | feature READMEs when present |
-| Utility tools | `cdmw/ui/tools/` | `cdmw/core/mod_package_retrofit.py`, `cdmw/core/mod_package.py` | `tests/test_mod_package_retrofit.py`, `tests/test_restructure_runtime_regression_smoke.py` | `cdmw/ui/tools/README.md` |
+| Research | `cdmw/ui/research/`, `cdmw/services/research_service.py`, `cdmw/domain/research/` | focused `cdmw/core/research_*.py` owners; cached `cdmw/core/research.py` facade; research workers | `tests/test_research_*.py`, import-order and architecture boundary tests | `cdmw/ui/research/README.md`, `docs/architecture.md` |
+| Supporting feature tabs | `cdmw/ui/model_library/`, `cdmw/ui/item_icons/`, `cdmw/ui/text_search/`, `cdmw/ui/replace_assistant/` | focused Item Icon/Model Library/text-search/Replace Assistant services; compatibility core owners | matching `tests/test_*` files | feature READMEs when present |
+| Diagnostic bundle export | `cdmw/services/diagnostic_bundle_service.py`, `cdmw/ui/shell/profile_controller.py` | shell utility worker, diagnostics service | `tests/test_diagnostic_bundle_async.py`, `tests/test_diagnostics_service.py` | `docs/architecture.md`, `docs/runbooks/worker-lifecycle.md` |
+| Localization files | `cdmw/services/localization_file_service.py`, `cdmw/workers/localization_workers.py` | `cdmw/ui/localization.py`, `cdmw/ui/shell/language_controller.py` | `tests/test_localization_async_io.py`, `tests/test_localization_translations.py` | `docs/architecture.md` |
+| Utility tools | `cdmw/ui/tools/` | `cdmw/core/mod_package_retrofit.py`, `cdmw/core/mod_package.py`; lazy `tools/headless_feature_stress.py` facade over `tools/headless_stress/` | `tests/test_mod_package_retrofit.py`, `tests/test_restructure_runtime_regression_smoke.py`, `tests/test_headless_feature_stress.py` | `cdmw/ui/tools/README.md`, `docs/test-matrix.md` |
 | Services/domain/workers | `cdmw/services/`, `cdmw/domain/`, `cdmw/workers/` | feature callers | `tests/test_services.py`, `tests/test_workers.py`, architecture tests | `docs/runbooks/worker-lifecycle.md` |
 | App-managed workspace folders | `cdmw/services/workspace_layout.py` | `cdmw/core/texture_pipeline/workspace.py`, shell settings/startup | `tests/test_services.py`, startup/crash guards | `docs/architecture.md` |
 
@@ -79,12 +84,13 @@ user explicitly names them.
 - Do not mutate archives directly from UI code.
 - Preserve public imports through compatibility wrappers while moving internals.
 
-## Current Priority
+## Validated Baseline
 
-The restructure is in app-readiness mode. Prefer fixing concrete runtime,
-import, startup, and test failures over more large-file splitting. Current
-evidence from crash reports showed Mesh Editor `Modify Original` failed before
-builder mount when `_archive_entry_identity_key` was used as a bound method.
+The whole-codebase repair closed on 2026-07-11 after 4,865 headless tests,
+release onedir packaging/startup, packaged Vortice GPU smoke, and the explicit
+read-only .NET/Vortice real-game proof passed. No implementation plan is active.
+Keep the one-base composed `MainWindow`, cached compatibility facades,
+dependency direction, and lowered size ratchets intact.
 
 Model Library auto-preview and Preview Here prepare local models through
 `cdmw/services/model_library_preview.py` inside the Model Library task worker,

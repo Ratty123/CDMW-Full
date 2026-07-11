@@ -2,16 +2,33 @@ from __future__ import annotations
 
 import ctypes
 import os
-from pathlib import Path
+import re
 import tempfile
 import time
+from pathlib import Path
 from typing import Optional
 
 
 APP_SINGLE_INSTANCE_MUTEX_NAME = "Local\\CrimsonDesertModWorkbench.SingleInstance"
+SINGLE_INSTANCE_SCOPE_ENV = "CDMW_SINGLE_INSTANCE_SCOPE"
 
 _single_instance_mutex_handle: Optional[int] = None
 _single_instance_lock_handle: Optional[object] = None
+
+
+def _single_instance_scope() -> str:
+    raw_scope = os.environ.get(SINGLE_INSTANCE_SCOPE_ENV, "").strip()
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", raw_scope)[:64]
+
+
+def _single_instance_mutex_name() -> str:
+    scope = _single_instance_scope()
+    return f"{APP_SINGLE_INSTANCE_MUTEX_NAME}.{scope}" if scope else APP_SINGLE_INSTANCE_MUTEX_NAME
+
+
+def _single_instance_lock_file_name() -> str:
+    scope = _single_instance_scope()
+    return f"single_instance.{scope}.lock" if scope else "single_instance.lock"
 
 
 def acquire_single_instance_guard() -> bool:
@@ -26,7 +43,7 @@ def acquire_single_instance_guard() -> bool:
         kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
         kernel32.CloseHandle.restype = ctypes.c_bool
 
-        handle = kernel32.CreateMutexW(None, True, APP_SINGLE_INSTANCE_MUTEX_NAME)
+        handle = kernel32.CreateMutexW(None, True, _single_instance_mutex_name())
         if handle:
             if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
                 kernel32.CloseHandle(handle)
@@ -40,7 +57,7 @@ def acquire_single_instance_guard() -> bool:
 
         lock_dir = Path(tempfile.gettempdir()) / "CrimsonDesertModWorkbench"
         lock_dir.mkdir(parents=True, exist_ok=True)
-        lock_path = lock_dir / "single_instance.lock"
+        lock_path = lock_dir / _single_instance_lock_file_name()
         lock_path.touch(exist_ok=True)
         lock_handle = lock_path.open("r+b")
         try:

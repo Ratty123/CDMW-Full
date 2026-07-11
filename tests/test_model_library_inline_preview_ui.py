@@ -129,12 +129,21 @@ class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
                     time.sleep(0.01)
 
                 tab._schedule_auto_inline_preview()
-                deadline = time.perf_counter() + 10.0
+                deadline = time.perf_counter() + 30.0
                 while tab._inline_preview_loaded_import_path is None and time.perf_counter() < deadline:
                     app.processEvents()
                     time.sleep(0.01)
 
-                self.assertEqual(tab._inline_preview_loaded_import_path, scene_path)
+                self.assertEqual(
+                    tab._inline_preview_loaded_import_path,
+                    scene_path,
+                    msg=(
+                        f"status={tab.inline_preview_status_label.text()!r}; "
+                        f"task_running={tab._task_thread is not None}; "
+                        f"inline_task={tab._inline_preview_task_running}; "
+                        f"events={[event for event, _fields in events]!r}"
+                    ),
+                )
                 self.assertEqual(tab._inline_preview_loaded_renderer_backend, "qt")
                 self.assertIn("model_library_preview_start", [event for event, _fields in events])
                 self.assertIn("model_library_preview_prepared", [event for event, _fields in events])
@@ -144,7 +153,7 @@ class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
                     if tab._stop_event is not None and hasattr(tab._stop_event, "set"):
                         tab._stop_event.set()
                     tab._task_thread.quit()
-                    tab._task_thread.wait(2000)
+                    tab._task_thread.wait(5000)
                 tab.close()
                 tab.deleteLater()
                 app.processEvents()

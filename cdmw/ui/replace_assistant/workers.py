@@ -8,8 +8,8 @@ from typing import Dict, List, Optional, Sequence
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtGui import QImageReader
 
-from cdmw.core.archive import ArchiveEntry
-from cdmw.core.replace_assistant import (
+from cdmw.models import ArchiveEntry
+from cdmw.services.replace_assistant_service import (
     ReplaceAssistantArchiveIndex,
     build_replace_assistant_archive_index,
     build_replace_assistant_items,
@@ -17,9 +17,9 @@ from cdmw.core.replace_assistant import (
     build_replace_assistant_preview_assets,
     match_replace_assistant_original,
 )
-from cdmw.core.research import summarize_ui_reference_constraints
-from cdmw.core.texture_pipeline.inspection import parse_dds
-from cdmw.core.texture_pipeline.preview import build_compare_preview_pane_result
+from cdmw.services.research_service import research_service
+from cdmw.services.texture_workflow_service import parse_dds
+from cdmw.services.preview_workflow_service import build_compare_preview_pane_result
 from cdmw.models import (
     ArchivePreviewResult,
     ReplaceAssistantBuildOptions,
@@ -438,7 +438,11 @@ class ReplaceAssistantUIConstraintWorker(QObject):
         try:
             if self.stop_event.is_set():
                 return
-            summary = summarize_ui_reference_constraints(self.entries, self.target_path, stop_event=self.stop_event)
+            summary = research_service.references.summarize_ui_constraints(
+                self.entries,
+                self.target_path,
+                stop_event=self.stop_event,
+            )
             if not self.stop_event.is_set():
                 self.completed.emit(self.request_id, self.target_path, str(summary.get("warning_text", "") or ""))
         except Exception as exc:

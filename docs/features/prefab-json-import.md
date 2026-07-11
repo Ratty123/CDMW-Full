@@ -1,6 +1,6 @@
 # Prefab JSON Import
 
-Last reviewed: 2026-07-08
+Last reviewed: 2026-07-10
 
 ## Purpose
 
@@ -13,9 +13,13 @@ not mutate game archives directly.
 - `cdmw/core/crimson_formats.py`: prefab layout decoding, reference evidence,
   member declarations, descriptor spans, byte-span layout, and same-length string
   rebuild support.
-- `cdmw/core/prefab_json.py`: CDMW editable JSON format, source identity
-  validation, supported-field validation, and fixed-size edit application.
-- `cdmw/core/prefab_corpus.py`: corpus scan and no-edit roundtrip evidence.
+- `cdmw/core/prefab_json.py`: stable compatibility facade. Common coercion,
+  document assembly, validation, and application live in the bounded
+  `prefab_json_{common,document,validation,apply}.py` owners.
+- `cdmw/core/prefab_corpus.py`: stable compatibility facade. Probe values,
+  descriptor/offset metrics, sample audit, loose/archive loading, report
+  stages, normalized output, merge, and JSON publication live in focused
+  `prefab_corpus_*.py` owners capped at 800 lines and 150 lines per function.
 - `cdmw/ui/archive_browser/prefab_json_actions.py`: Archive Browser export/import
   actions and loose output handoff.
 - `cdmw/ui/archive_browser/binary_sidecar_actions.py`: diagnostic Decode JSON
@@ -54,7 +58,7 @@ not mutate game archives directly.
 Use focused tests first:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_crimson_formats.py tests/test_prefab_json_import.py tests/test_prefab_corpus.py tests/test_prefab_corpus_tool.py tests/test_prefab_json_actions_source.py --basetemp="$env:TEMP\cdmw-pytest-prefab-json"
+.\.venv\Scripts\python.exe -m pytest tests/test_crimson_formats.py tests/test_prefab_json_import.py tests/test_prefab_corpus.py tests/test_prefab_corpus_tool.py tests/test_prefab_json_actions_source.py tests/test_prefab_decomposition.py --basetemp="$env:TEMP\cdmw-pytest-prefab-json"
 ```
 
 Optional real archive-entry smoke:

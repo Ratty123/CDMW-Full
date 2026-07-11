@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.archive_modding import MeshImportPreviewResult, MeshImportSupplementalFileSpec
+from cdmw.core.archive_mesh_types import MeshImportPreviewResult, MeshImportSupplementalFileSpec
 from cdmw.core.texture_pipeline.inspection import inspect_crimson_dds
 from cdmw.core.upscale_profiles import (
     normalize_texture_reference_for_sidecar_lookup,

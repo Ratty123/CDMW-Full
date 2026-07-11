@@ -13,7 +13,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 
-from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled, run_process_with_cancellation
+from cdmw.core.common import (
+    BoundedTextTail,
+    finish_process_tree,
+    hidden_process_group_kwargs,
+    raise_if_cancelled,
+    read_bounded_text_line,
+    run_process_with_cancellation,
+    start_bounded_text_stream_drain,
+)
 from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
 
 NATIVE_PREVIEW_CORE_BINARY_NAME = "cdmw-preview-core.exe" if os.name == "nt" else "cdmw-preview-core"
@@ -211,6 +219,8 @@ class NativePreviewCoreServiceClient:
         self._lock = threading.RLock()
         self._process: Optional[subprocess.Popen[str]] = None
         self._jobs_completed = 0
+        self._stderr_thread: Optional[threading.Thread] = None
+        self._stderr_tail = BoundedTextTail()
 
     @staticmethod
     def resolve_binary_signature(binary: Path) -> tuple[int, int]:
@@ -238,19 +248,16 @@ class NativePreviewCoreServiceClient:
             self._jobs_completed = 0
             if process is None:
                 return
+            shutdown_requested = False
             try:
                 if process.poll() is None and process.stdin is not None:
                     process.stdin.write('{"command":"shutdown"}\n')
                     process.stdin.flush()
+                    shutdown_requested = True
             except OSError:
                 pass
-            try:
-                process.wait(timeout=1.0)
-            except subprocess.TimeoutExpired:
-                try:
-                    process.kill()
-                except OSError:
-                    pass
+            finish_process_tree(process, grace_seconds=1.0, request_stop=not shutdown_requested)
+            self._close_process_streams_locked(process)
 
     def _kill_locked(self) -> None:
         process = self._process
@@ -258,10 +265,30 @@ class NativePreviewCoreServiceClient:
         self._jobs_completed = 0
         if process is None:
             return
-        try:
-            process.kill()
-        except OSError:
-            pass
+        finish_process_tree(process, grace_seconds=0.25, request_stop=True)
+        self._close_process_streams_locked(process)
+
+    def _close_process_streams_locked(self, process: object) -> None:
+        for stream in (
+            getattr(process, "stdin", None),
+            getattr(process, "stdout", None),
+            getattr(process, "stderr", None),
+        ):
+            close = getattr(stream, "close", None)
+            if not callable(close):
+                continue
+            try:
+                close()
+            except (OSError, ValueError):
+                pass
+        stderr_thread = self._stderr_thread
+        self._stderr_thread = None
+        if stderr_thread is not None and stderr_thread is not threading.current_thread():
+            stderr_thread.join(0.2)
+
+    @property
+    def stderr_tail(self) -> str:
+        return self._stderr_tail.text()
 
     def _read_stdout_line_locked(self, timeout_seconds: float, stop_event: Any = None) -> str:
         process = self._process
@@ -271,7 +298,7 @@ class NativePreviewCoreServiceClient:
 
         def read_line() -> None:
             try:
-                result["line"] = process.stdout.readline()
+                result["line"] = read_bounded_text_line(process.stdout)
             except Exception as exc:  # pragma: no cover - defensive for pipe teardown
                 result["error"] = exc
 
@@ -312,8 +339,15 @@ class NativePreviewCoreServiceClient:
             text=True,
             encoding="utf-8",
             errors="replace",
-            **hidden_subprocess_kwargs(),
+            **hidden_process_group_kwargs(),
         )
+        stderr = self._process.stderr
+        self._stderr_tail = BoundedTextTail()
+        if stderr is not None:
+            self._stderr_thread, self._stderr_tail = start_bounded_text_stream_drain(
+                stderr,
+                name="cdmw-preview-core-stderr",
+            )
         ready_line = self._read_stdout_line_locked(5.0, stop_event=stop_event)
         try:
             ready = json.loads(ready_line)

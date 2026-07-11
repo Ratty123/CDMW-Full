@@ -16,10 +16,8 @@ from cdmw.constants import (
     ARCHIVE_ROLE_FILTER,
     ARCHIVE_STRUCTURE_FILTER,
 )
-from cdmw.core.archive import (
-    build_archive_structure_children_map,
-    normalize_archive_structure_filter_value,
-)
+from cdmw.services.archive_query_service import build_archive_structure_children_map
+from cdmw.domain.archives.filters import normalize_archive_structure_filter_value
 
 
 class ArchiveFilterControlsMixin:

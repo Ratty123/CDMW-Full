@@ -12,6 +12,9 @@ class ModelLibraryResultsViewMixin:
     """Coordinate active results view, debounced filters, and sort state."""
 
     def _handle_results_current_item_changed(self, _current: Optional[QTreeWidgetItem], _previous: Optional[QTreeWidgetItem]) -> None:
+        cancel_icon_output = getattr(self, "_cancel_stale_icon_output", None)
+        if callable(cancel_icon_output):
+            cancel_icon_output()
         self._update_selection_state()
         if self._populating_results:
             return

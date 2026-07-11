@@ -34,7 +34,6 @@ class ShellSignalWiringMixin:
         self.download_texconv_button.clicked.connect(self.open_texconv_download_page)
         self.download_ncnn_button.clicked.connect(self.open_realesrgan_ncnn_download_page)
         self.import_ncnn_models_button.clicked.connect(self.import_ncnn_models)
-        self.validate_chainner_button.clicked.connect(self.validate_chainner_chain)
         self.clear_log_button.clicked.connect(self.clear_live_log)
         self.clear_archive_log_button.clicked.connect(self.clear_archive_scan_log)
         self.refresh_compare_button.clicked.connect(self.refresh_compare_list)

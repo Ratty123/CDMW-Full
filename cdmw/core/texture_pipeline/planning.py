@@ -11,6 +11,7 @@ except Exception:  # pragma: no cover - optional preview helper
 
 from cdmw.core.texture_pipeline.inspection import parse_dds
 from cdmw.core.texture_pipeline.preview import ensure_dds_preview_png
+from cdmw.core.common import raise_if_cancelled
 from cdmw.core.upscale_profiles import (
     TexturePreviewSample,
     TextureUpscaleDecision,
@@ -70,9 +71,12 @@ def build_single_texture_processing_plan(
     )
 
 
-def _read_loose_sidecar_text(path: Path) -> str:
+def _read_loose_sidecar_text(path: Path, *, stop_event: Optional[object] = None) -> str:
     try:
-        raw = path.read_bytes()
+        raise_if_cancelled(stop_event)
+        with path.open("rb") as handle:
+            raw = handle.read(_LOOSE_SIDECAR_TEXT_LIMIT + 1)
+        raise_if_cancelled(stop_event)
     except OSError:
         return ""
     if not raw:
@@ -89,6 +93,8 @@ def _read_loose_sidecar_text(path: Path) -> str:
 
 def _build_loose_sidecar_index(
     root: Path,
+    *,
+    stop_event: Optional[object] = None,
 ) -> Tuple[
     Dict[str, List[Path]],
     Dict[str, List[Path]],
@@ -104,6 +110,7 @@ def _build_loose_sidecar_index(
     if not root.exists() or not root.is_dir():
         return {}, {}, {}, {}, {}
     for path in root.rglob("*"):
+        raise_if_cancelled(stop_event)
         if not path.is_file() or path.suffix.lower() not in _LOOSE_SEMANTIC_SIDECAR_EXTENSIONS:
             continue
         try:
@@ -112,7 +119,7 @@ def _build_loose_sidecar_index(
             continue
         by_group[derive_texture_group_key(rel_text)].append(path)
         by_folder[str(path.relative_to(root).parent).replace("\\", "/")].append(path)
-        text = _read_loose_sidecar_text(path)
+        text = _read_loose_sidecar_text(path, stop_event=stop_event)
         text_cache[path] = text
         if text and path.suffix.lower() in {".xml", ".pami"}:
             for binding in parse_texture_sidecar_bindings(text, sidecar_path=rel_text):
@@ -136,7 +143,9 @@ def _collect_loose_sidecar_texts(
     sidecars_by_texture_basename: Dict[str, List[Path]],
     text_cache: Dict[Path, str],
     limit: int = 6,
+    stop_event: Optional[object] = None,
 ) -> List[str]:
+    raise_if_cancelled(stop_event)
     rel_text = relative_path.as_posix()
     group_key = derive_texture_group_key(rel_text)
     folder_key = str(relative_path.parent).replace("\\", "/")
@@ -163,9 +172,10 @@ def _collect_loose_sidecar_texts(
     target_name = relative_path.name.lower()
     target_stem = relative_path.stem.lower()
     for path, exact_match in candidates[:limit]:
+        raise_if_cancelled(stop_event)
         text = text_cache.get(path)
         if text is None:
-            text = _read_loose_sidecar_text(path)
+            text = _read_loose_sidecar_text(path, stop_event=stop_event)
             text_cache[path] = text
         lowered = text.lower()
         if lowered and (

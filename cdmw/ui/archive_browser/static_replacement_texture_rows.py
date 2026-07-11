@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from cdmw.modding.material_replacer import is_shared_material_layer_texture
+from cdmw.services.mesh_workflow_service import is_shared_material_layer_texture
+from cdmw.models import RunCancelled
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,6 +231,7 @@ def resolve_dds_detail_preview_path(
     texconv_path: object | None,
     parse_dds_file: Callable[[Path], object],
     ensure_dds_display_preview: Callable[..., object],
+    stop_event: threading.Event | None = None,
 ) -> tuple[Path | None, str]:
     raw_text = str(raw_path or "").strip()
     if not raw_text:
@@ -245,13 +248,20 @@ def resolve_dds_detail_preview_path(
             dds_info = parse_dds_file(candidate)
         except Exception:
             dds_info = None
+        preview_kwargs = {
+            "dds_info": dds_info,
+            "max_dimension": 512,
+            "slot_kind": str(slot_kind or "base").strip().lower() or "base",
+        }
+        if stop_event is not None:
+            preview_kwargs["stop_event"] = stop_event
         preview_path = ensure_dds_display_preview(
             texconv_candidate if texconv_candidate is not None and texconv_candidate.is_file() else None,
             candidate,
-            dds_info=dds_info,
-            max_dimension=512,
-            slot_kind=str(slot_kind or "base").strip().lower() or "base",
+            **preview_kwargs,
         )
+    except RunCancelled:
+        raise
     except Exception as exc:
         return None, f"DDS is not previewable here: {exc}"
     return Path(preview_path), "Visible thumbnail from decoded DDS preview."

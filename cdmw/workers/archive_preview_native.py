@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import shutil
 import time
 from collections import defaultdict
 from collections.abc import Mapping
@@ -23,6 +22,7 @@ from cdmw.models import (
     AssetRelation,
     RelationConfidence,
     RelationKind,
+    RunCancelled,
 )
 from cdmw.rendering.native_preview_core import (
     NativePreviewCoreAttempt,
@@ -31,6 +31,9 @@ from cdmw.rendering.native_preview_core import (
 )
 from cdmw.rendering.native_preview_package_cache import (
     create_native_preview_package_staging_dir,
+    lookup_native_preview_package_cache,
+    native_preview_package_cache_build_lock,
+    release_native_preview_package_staging_dir,
     store_native_preview_package_cache,
 )
 
@@ -87,18 +90,46 @@ class ArchivePreviewNativeMixin:
         )
         staging_entry_dir: Optional[Path] = None
         output_root: Optional[Path] = None
+        build_lock = None
         dds_cache_max_bytes = 96 * 1024 * 1024
         dds_cache_target_bytes = 64 * 1024 * 1024
-        if durable_cache_enabled:
-            dds_cache_max_bytes = 512 * 1024 * 1024 if cache_mode == "aggressive" else 192 * 1024 * 1024
-            dds_cache_target_bytes = 384 * 1024 * 1024 if cache_mode == "aggressive" else 128 * 1024 * 1024
-            try:
-                staging_entry_dir = create_native_preview_package_staging_dir(cache_root)
-                output_root = staging_entry_dir / "package"
-            except OSError:
-                staging_entry_dir = None
-                output_root = None
         try:
+            if durable_cache_enabled:
+                build_lock = native_preview_package_cache_build_lock(
+                    cache_root,
+                    self.native_preview_package_cache_key,
+                )
+                build_lock.acquire()
+                if self.stop_event.is_set():
+                    raise RunCancelled("Native preview-core job cancelled.")
+                hit = lookup_native_preview_package_cache(
+                    cache_root,
+                    self.native_preview_package_cache_key,
+                    validate_package=self._validate_native_preview_core_package_basic,
+                )
+                if hit is not None:
+                    diagnostics_source = hit.metadata.get("diagnostics") if isinstance(hit.metadata, Mapping) else {}
+                    diagnostics = dict(diagnostics_source) if isinstance(diagnostics_source, Mapping) else {}
+                    diagnostics.update(
+                        {
+                            "native_preview_package_cache": "hit_after_wait",
+                            "native_preview_package_cache_key": self.native_preview_package_cache_key,
+                            "package_path": str(hit.package_dir),
+                        }
+                    )
+                    return NativePreviewCoreAttempt(
+                        status="ok",
+                        package_path=str(hit.package_dir),
+                        diagnostics=diagnostics,
+                    )
+                dds_cache_max_bytes = 512 * 1024 * 1024 if cache_mode == "aggressive" else 192 * 1024 * 1024
+                dds_cache_target_bytes = 384 * 1024 * 1024 if cache_mode == "aggressive" else 128 * 1024 * 1024
+                try:
+                    staging_entry_dir = create_native_preview_package_staging_dir(cache_root, leased=True)
+                    output_root = staging_entry_dir / "package"
+                except OSError:
+                    staging_entry_dir = None
+                    output_root = None
             native_attempt = run_native_preview_core_preview_job(
                 self.entry,
                 cache_root=cache_root,
@@ -139,20 +170,19 @@ class ArchivePreviewNativeMixin:
                     )
                 diagnostics["native_preview_package_cache"] = "store_failed"
                 return dataclasses.replace(native_attempt, diagnostics=diagnostics)
-            if staging_entry_dir is not None and not native_attempt.succeeded:
-                shutil.rmtree(staging_entry_dir, ignore_errors=True)
             return native_attempt
         except RunCancelled:
-            # The native service may already have opened job.json and may still write
-            # output_root. Leave durable staging for later cache pruning.
             raise
         except Exception as exc:
-            if staging_entry_dir is not None:
-                shutil.rmtree(staging_entry_dir, ignore_errors=True)
             return NativePreviewCoreAttempt(
                 status="error",
                 fallback_reason=f"native preview-core failed before package generation: {exc}",
             )
+        finally:
+            if staging_entry_dir is not None:
+                release_native_preview_package_staging_dir(staging_entry_dir, cleanup=True)
+            if build_lock is not None:
+                build_lock.release()
 
     @staticmethod
     def _validate_native_preview_core_package_basic(package_dir: Path) -> Tuple[bool, Tuple[str, ...]]:

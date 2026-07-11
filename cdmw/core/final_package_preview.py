@@ -13,14 +13,13 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.archive_modding import (
+from cdmw.core.archive_loose_export import _mesh_loose_export_payload_path
+from cdmw.core.archive_mesh_import_preview import parsed_mesh_to_preview_model
+from cdmw.core.archive_mesh_types import MeshImportPreviewResult, MeshImportSupplementalFileSpec
+from cdmw.core.archive_modding_constants import (
     ARCHIVE_MESH_EXTENSIONS,
     MESH_IMPORT_COMPANION_EXTENSIONS,
     MESH_IMPORT_SIDECAR_EXTENSIONS,
-    MeshImportPreviewResult,
-    MeshImportSupplementalFileSpec,
-    _mesh_loose_export_payload_path,
-    parsed_mesh_to_preview_model,
 )
 from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.core.upscale_profiles import (
@@ -34,6 +33,7 @@ from cdmw.modding.mesh_parser import _find_pac_descriptors, _parse_par_sections,
 from cdmw.modding.pac_xml_profiles import (
     build_pac_xml_material_authority_report,
     compare_pac_xml_material_authority_structure,
+    pac_xml_texture_alias_matches_parameter,
 )
 from cdmw.rendering.asset_fidelity_preflight import normal_y_policy_report
 
@@ -90,6 +90,7 @@ MATERIAL_PREFLIGHT_HARD_BLOCKER_TOKENS = (
     "material shader name is the source material label",
     "_submeshresources idbase",
     "_submeshresources wrapper order does not match",
+    "corpus-proven target wrapper support missing",
 )
 
 
@@ -277,8 +278,11 @@ from .final_package_preview_model import (
 from .final_package_pac_xml_preflight import (
     _binding_material_name,
     _candidate_mesh_indices,
+    _material_export_safety_blockers,
+    _material_export_safety_blockers_for_specs,
     _material_key,
     _material_loose_key,
+    _pac_xml_normal_binding_warning,
     _pac_runtime_abi_preflight_errors,
     _pac_xml_material_shader_name_errors,
     _pac_xml_material_wrapper_structure_errors,

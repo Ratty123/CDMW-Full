@@ -15,8 +15,25 @@ from cdmw.constants import APP_TITLE
 
 
 class ActivationController:
-    def __init__(self, context: object | None = None) -> None:
-        self.context = context
+    """Composed activation owner with compatibility forwarding through its window."""
+
+    def __init__(self, window: object) -> None:
+        self.window = window
+
+    def initialize_polling(self) -> None:
+        ActivationControllerMixin._initialize_existing_instance_activation_polling(self.window)
+
+    def configure_system_tray_icon(self, app_icon: QIcon) -> None:
+        ActivationControllerMixin._configure_system_tray_icon(self.window, app_icon)
+
+    def handle_system_tray_activated(self, reason: object) -> None:
+        ActivationControllerMixin._handle_system_tray_activated(self.window, reason)
+
+    def present_main_window(self, reason: str = "") -> None:
+        ActivationControllerMixin._present_main_window(self.window, reason)
+
+    def poll_existing_instance_activation_request(self) -> None:
+        ActivationControllerMixin._poll_existing_instance_activation_request(self.window)
 
 
 class ActivationControllerMixin:

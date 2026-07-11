@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.archive import ensure_archive_preview_source
+from cdmw.services.archive_preview_service import ensure_archive_preview_source
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 from cdmw.ui.widgets import make_tree_columns_persistent
 

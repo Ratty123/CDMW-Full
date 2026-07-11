@@ -73,7 +73,6 @@ def test_material_authority_basic_controls_profile_gate() -> None:
     assert not material_authority_basic_controls_profile_enabled("material_authority_runtime_xml")
     assert MATERIAL_AUTHORITY_VISIBLE_COMPLETE_SWAP_PROFILE_NAMES == (
         "material_authority_detail_mask",
-        "material_authority_placeholder_safe_test",
         "material_authority_manual",
     )
 
@@ -507,7 +506,7 @@ def test_material_authority_preview_signature_row_helpers(tmp_path) -> None:
             3: SimpleNamespace(material_role="", emissive_color_rgb=()),
         }
     )
-    assert source_role_rows == ((2, "emissive", (1, 2, 3), 0.0, 0.0, 0.0, 1.0, ()),)
+    assert source_role_rows == ((2, "emissive", (1, 2, 3), None, 0.0, 0.0, 0.0, 1.0, ()),)
     assert material_authority_preview_controls_signature(
         global_gloss_reduction=-5,
         auto_brightness=50,
@@ -587,7 +586,7 @@ def test_material_authority_preview_signature_composes_visible_rows_and_controls
         accent_glow=6,
         glow_color_enabled=True,
         glow_rgb=(7, 8, 9),
-        source_role_rows=((2, "emissive", (1, 2, 3), 0.0, 0.0, 0.0, 1.0, ()),),
+        source_role_rows=((2, "emissive", (1, 2, 3), None, 0.0, 0.0, 0.0, 1.0, ()),),
     )
     assert signature == material_authority_preview_signature_hashes(
         visible_payload=visible_payload,
@@ -733,6 +732,8 @@ def test_material_authority_sidecar_control_application_state_groups_controls() 
         "auto_brightness",
         "source_brightness",
         "tone_contrast",
+        "edge_relief",
+        "edge_relief_source",
         "accent_glow",
         "reset_adjustments",
     )

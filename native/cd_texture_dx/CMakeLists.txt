@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(CDMW_FETCH_DIRECTXTEX "Fetch Microsoft DirectXTex when it is not provided by DirectXTex_DIR" ON)
+set(CDMW_DIRECTXTEX_COMMIT "bf256afaed1c789ddd444fb45105ffbcab283efe" CACHE STRING "Pinned DirectXTex commit")
 
 find_package(DirectXTex CONFIG QUIET)
 if(NOT DirectXTex_FOUND AND CDMW_FETCH_DIRECTXTEX)
@@ -12,7 +13,7 @@ if(NOT DirectXTex_FOUND AND CDMW_FETCH_DIRECTXTEX)
     FetchContent_Declare(
         directxtex
         GIT_REPOSITORY https://github.com/microsoft/DirectXTex.git
-        GIT_TAG main
+        GIT_TAG ${CDMW_DIRECTXTEX_COMMIT}
         UPDATE_DISCONNECTED TRUE
     )
     FetchContent_MakeAvailable(directxtex)

@@ -5,7 +5,7 @@ from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.texture_workflow.editor_images import _create_tool_icon
-from cdmw.ui.widgets import build_responsive_splitter_sizes, clamp_splitter_sizes, responsive_sidebar_bounds
+from cdmw.ui.layout_utils import build_responsive_splitter_sizes, clamp_splitter_sizes, responsive_sidebar_bounds
 
 
 class TextureEditorUiShellMixin:

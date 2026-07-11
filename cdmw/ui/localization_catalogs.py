@@ -2455,3 +2455,15 @@ _FALLBACK_WORD_TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "Zoom": "Zoom",
     },
 }
+
+
+# Deterministic source-key catalogue derived from assets already bundled with the app.
+_source_string_catalogue: set[str] = set()
+for _language in BUILTIN_LANGUAGES.values():
+    _translations = _language.get("translations")
+    if isinstance(_translations, dict):
+        _source_string_catalogue.update(str(key) for key in _translations)
+for _translations in _FALLBACK_EXACT_TRANSLATIONS.values():
+    _source_string_catalogue.update(str(key) for key in _translations)
+SOURCE_STRING_CATALOGUE = tuple(sorted(_source_string_catalogue))
+del _language, _source_string_catalogue, _translations

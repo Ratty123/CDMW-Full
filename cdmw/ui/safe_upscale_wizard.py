@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.upscale_profiles import get_texture_preset_definition
+from cdmw.services.texture_workflow_service import get_texture_preset_definition
 from cdmw.constants import (
     DEFAULT_UI_THEME,
     UPSCALE_BACKEND_CHAINNER,

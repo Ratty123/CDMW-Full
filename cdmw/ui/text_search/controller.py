@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Sequence
 from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import QFileDialog, QTreeWidgetItem
 
-from cdmw.core.text_search import (
+from cdmw.services.text_search_service import (
     DEFAULT_TEXT_SEARCH_EXTENSIONS,
     TextSearchResult,
     TextSearchRunStats,
@@ -108,7 +108,7 @@ class TextSearchControllerMixin:
         self._update_controls()
 
     def is_busy(self) -> bool:
-        return self.search_thread is not None
+        return self.search_thread is not None or self.export_thread is not None
 
     def set_archive_entries(self, entries: Sequence[ArchiveEntry], package_root_text: str = "") -> None:
         self.archive_entries = entries if isinstance(entries, list) else list(entries)
@@ -128,7 +128,7 @@ class TextSearchControllerMixin:
         if not query:
             self.status_message_requested.emit("No highlight query was provided for the selected reference.", True)
             return False
-        if self.search_thread is not None:
+        if self.is_busy():
             self.status_message_requested.emit("Text Search is busy. Wait for the current search to finish first.", True)
             return False
 
@@ -189,20 +189,25 @@ class TextSearchControllerMixin:
         return (
             ("search_thread", self.search_thread, self.search_worker),
             ("preview_thread", self.preview_thread, self.preview_worker),
+            ("export_thread", self.export_thread, self.export_worker),
         )
 
     def request_shutdown(self) -> None:
-        self.flush_settings_save()
         self._preview_debounce_timer.stop()
         self._clear_pending_result_population()
         if self.search_worker is not None:
             self.search_worker.stop()
+            self.search_request_id += 1
         if self.preview_worker is not None:
             self.preview_worker.stop()
+        if self.export_worker is not None:
+            self.export_worker.stop()
+            self.export_request_id += 1
         for _name, thread, _worker in self.iter_shutdown_workers():
             _shutdown_thread(thread)
 
     def shutdown(self) -> None:
+        self.flush_settings_save()
         self.request_shutdown()
 
     def clear_log(self) -> None:
@@ -216,7 +221,7 @@ class TextSearchControllerMixin:
         scrollbar.setValue(scrollbar.maximum())
 
     def _update_controls(self) -> None:
-        busy = self.search_thread is not None
+        busy = self.is_busy()
         can_interact = not busy and not self.external_busy
         self.source_combo.setEnabled(can_interact)
         self.query_edit.setEnabled(can_interact)
@@ -283,7 +288,7 @@ class TextSearchControllerMixin:
         self.status_message_requested.emit("Regex preset applied to Text Search.", False)
 
     def start_search(self) -> None:
-        if self.external_busy or self.search_thread is not None:
+        if self.external_busy or self.is_busy():
             return
         self._preview_debounce_timer.stop()
         self.pending_preview_result = None
@@ -343,7 +348,10 @@ class TextSearchControllerMixin:
         self.search_progress_bar.setRange(0, 0)
         self.search_progress_bar.setFormat("Working...")
 
+        request_id = self.search_request_id + 1
+        self.search_request_id = request_id
         worker = TextSearchWorker(
+            request_id=request_id,
             source_kind=source_kind,
             query=query,
             extension_text=self.extensions_edit.text().strip(),
@@ -356,7 +364,7 @@ class TextSearchControllerMixin:
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.log_message.connect(self.append_log)
+        worker.log_message.connect(self._handle_search_log)
         worker.progress_changed.connect(self._handle_progress)
         worker.completed.connect(self._handle_search_complete)
         worker.cancelled.connect(self._handle_search_cancelled)
@@ -375,6 +383,8 @@ class TextSearchControllerMixin:
     def stop_search(self) -> None:
         if self.search_worker is not None:
             self.search_worker.stop()
+        if self.export_worker is not None:
+            self.export_worker.stop()
 
     def _clear_pending_result_population(self) -> None:
         self._results_population_timer.stop()
@@ -382,7 +392,13 @@ class TextSearchControllerMixin:
         self._pending_result_total = 0
         self._pending_auto_preview_enabled = False
 
-    def _handle_progress(self, current: int, total: int, detail: str) -> None:
+    def _handle_search_log(self, request_id: int, message: str) -> None:
+        if request_id == self.search_request_id:
+            self.append_log(message)
+
+    def _handle_progress(self, request_id: int, current: int, total: int, detail: str) -> None:
+        if request_id != self.search_request_id:
+            return
         self.search_progress_label.setText(detail)
         if total > 0:
             self.search_progress_bar.setRange(0, total)
@@ -394,7 +410,9 @@ class TextSearchControllerMixin:
             self.search_progress_bar.setFormat("Working...")
         self.status_message_requested.emit(detail, False)
 
-    def _handle_search_complete(self, payload: object) -> None:
+    def _handle_search_complete(self, request_id: int, payload: object) -> None:
+        if request_id != self.search_request_id:
+            return
         self._clear_pending_result_population()
         data = payload if isinstance(payload, dict) else {}
         self.search_results = data.get("results", []) if isinstance(data.get("results"), list) else []
@@ -498,7 +516,9 @@ class TextSearchControllerMixin:
         item.setData(0, Qt.UserRole, index)
         return item
 
-    def _handle_search_cancelled(self, message: str) -> None:
+    def _handle_search_cancelled(self, request_id: int, message: str) -> None:
+        if request_id != self.search_request_id:
+            return
         self._clear_pending_result_population()
         self.search_progress_label.setText(message)
         self.search_progress_bar.setRange(0, 1)
@@ -507,7 +527,9 @@ class TextSearchControllerMixin:
         self.append_log(message)
         self.status_message_requested.emit(message, True)
 
-    def _handle_search_error(self, message: str) -> None:
+    def _handle_search_error(self, request_id: int, message: str) -> None:
+        if request_id != self.search_request_id:
+            return
         self._clear_pending_result_population()
         self.search_progress_label.setText(message)
         self.search_progress_bar.setRange(0, 1)

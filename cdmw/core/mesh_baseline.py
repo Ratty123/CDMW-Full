@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from cdmw.constants import APP_NAME
+from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.models import ArchiveEntry
 
 
@@ -49,17 +50,11 @@ class MeshBaselineCache:
 
     @staticmethod
     def _atomic_write_bytes(path: Path, data: bytes) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-        temp_path.write_bytes(data)
-        temp_path.replace(path)
+        atomic_write_bytes(path, data)
 
     @staticmethod
     def _atomic_write_text(path: Path, text: str) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-        temp_path.write_text(text, encoding="utf-8")
-        temp_path.replace(path)
+        atomic_write_text(path, text)
 
     def get(self, entry: ArchiveEntry) -> MeshBaselineData | None:
         payload_path, metadata_path = self._paths_for_entry(entry)
@@ -137,8 +132,7 @@ def read_archive_entry_baseline_data(
     read_entry_data: Optional[Callable[[ArchiveEntry], tuple[bytes, object, object]]] = None,
 ) -> MeshBaselineData:
     if read_entry_data is None:
-        from cdmw.core.archive import read_archive_entry_data as read_entry_data_func
+        from cdmw.core.archive_extraction import read_archive_entry_data as read_entry_data_func
     else:
         read_entry_data_func = read_entry_data
     return (cache or MeshBaselineCache()).get_or_snapshot(entry, read_entry_data_func)
-

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import re
-from pathlib import PurePosixPath
-from typing import Dict, List, Sequence, Tuple
+from pathlib import Path, PurePosixPath
+from typing import Dict, List, Mapping, Sequence, Tuple
 
-from cdmw.core.archive_modding import MeshImportPreviewResult
+from cdmw.core.archive_mesh_types import MeshImportPreviewResult
+from cdmw.domain.mesh.material_export_safety import material_export_safety_blockers
 from cdmw.modding.mesh_parser import _find_pac_descriptors, _parse_par_sections
+from cdmw.modding.pac_xml_profiles import build_pac_xml_material_authority_report, pac_xml_texture_alias_matches_parameter
 
 from .final_package_preview_model import _material_label_for_mesh
 
@@ -21,6 +23,125 @@ def _dedupe(values):
         seen.add(key)
         result.append(text)
     return result
+
+
+def _pac_xml_normal_binding_warning(parameter_name: str, texture_path: str, *, kept_original: bool) -> str:
+    if str(parameter_name or "").casefold() != "_normaltexture" or kept_original:
+        return ""
+    stem = PurePosixPath(str(texture_path or "").replace("\\", "/")).stem.casefold()
+    normal_like = "normal" in stem or stem.endswith(("_n", "_wn", "_nm", "_nrm", "_nor", "_no"))
+    normal_like = normal_like or bool(re.search(r"(?:^|[_\-.])n(?:$|[_\-.])", stem))
+    if normal_like or pac_xml_texture_alias_matches_parameter(parameter_name, texture_path):
+        return ""
+    return f"Texture contract warning: _normalTexture points at a non-normal-looking DDS path: {texture_path}."
+
+
+def _pac_xml_material_export_wrapper_rows(
+    sidecars: Sequence[tuple[str, str, bool]],
+) -> Tuple[Mapping[str, object], ...]:
+    rows: list[Mapping[str, object]] = []
+    for sidecar_path, sidecar_text, corpus_proven in tuple(sidecars or ()):
+        normalized_path = str(sidecar_path or "").replace("\\", "/").lower()
+        if not normalized_path.endswith((".pac_xml", ".pac.xml")):
+            continue
+        try:
+            report = build_pac_xml_material_authority_report(sidecar_text, sidecar_path)
+        except Exception:
+            continue
+        parameters = (
+            tuple(report.runtime_abi_parameters)
+            + tuple(report.source_authority_parameters)
+            + tuple(report.inherited_influence_parameters)
+            + tuple(report.unknown_material_response_parameters)
+        )
+        for wrapper in tuple(report.wrapper_order or ()):
+            wrapper_key = _material_key(wrapper.wrapper_name)
+            wrapper_parameters = tuple(
+                {
+                    "name": parameter.parameter_name,
+                    "type": parameter.parameter_type,
+                    "value": parameter.texture_path or parameter.value,
+                }
+                for parameter in parameters
+                if _material_key(parameter.wrapper_name) == wrapper_key
+            )
+            rows.append(
+                {
+                    "wrapper_name": wrapper.wrapper_name,
+                    "shader_name": wrapper.shader_name,
+                    "parameters": wrapper_parameters,
+                    "corpus_proven": bool(corpus_proven),
+                }
+            )
+    return tuple(rows)
+
+
+def _material_export_route_rows(preview_result: MeshImportPreviewResult) -> Tuple[Mapping[str, object], ...]:
+    rows: list[Mapping[str, object]] = []
+    for section in tuple(getattr(preview_result, "source_owned_output_draw_sections", ()) or ()):
+        source_names = tuple(
+            str(name or "").strip()
+            for name in tuple(getattr(section, "atlas_source_material_names", ()) or ())
+            if str(name or "").strip()
+        )
+        if not source_names:
+            source_name = str(getattr(section, "source_material_name", "") or "").strip()
+            source_names = tuple(part.strip() for part in source_name.split(" + ") if part.strip())
+        target_names = tuple(
+            dict.fromkeys(
+                str(name or "").strip()
+                for name in (
+                    getattr(section, "target_submesh_name", ""),
+                    getattr(section, "donor_material_name", ""),
+                    getattr(section, "runtime_material_name", ""),
+                    getattr(section, "runtime_slot_name", ""),
+                )
+                if str(name or "").strip()
+            )
+        )
+        rows.append(
+            {
+                "source_material_names": source_names,
+                "source_indices": tuple(getattr(section, "source_submesh_indices", ()) or ()),
+                "target_wrapper_names": target_names,
+            }
+        )
+    return tuple(rows)
+
+
+def _material_export_safety_blockers(
+    preview_result: MeshImportPreviewResult,
+    source_materials: Sequence[Mapping[str, object]],
+    sidecars: Sequence[tuple[str, str, bool]],
+) -> Tuple[str, ...]:
+    return material_export_safety_blockers(
+        source_materials,
+        _pac_xml_material_export_wrapper_rows(sidecars),
+        _material_export_route_rows(preview_result),
+    )
+
+
+def _material_export_safety_blockers_for_specs(
+    preview_result: MeshImportPreviewResult,
+    source_materials: Sequence[Mapping[str, object]],
+    sidecars: Sequence[tuple[str, object]],
+    *,
+    package_written: bool = False,
+) -> Tuple[str, ...]:
+    rows: list[tuple[str, str, bool]] = []
+    for sidecar_path, spec in tuple(sidecars or ()):
+        payload = bytes(getattr(spec, "payload_data", b"") or b"")
+        if payload:
+            text = payload.decode("utf-8", errors="ignore")
+        else:
+            source_path = getattr(spec, "source_path", None)
+            try:
+                text = source_path.read_text(encoding="utf-8", errors="ignore") if isinstance(source_path, Path) else ""
+            except OSError:
+                text = ""
+        note = str(getattr(spec, "note", "") or "").casefold()
+        rows.append((sidecar_path, text, bool(package_written or "original" in note)))
+    return _material_export_safety_blockers(preview_result, source_materials, rows)
 
 def _pac_xml_material_wrapper_structure_errors(sidecar_text: str, sidecar_path: str) -> Tuple[str, ...]:
     normalized_path = str(sidecar_path or "").replace("\\", "/").lower()

@@ -3,9 +3,17 @@ from __future__ import annotations
 from array import array
 import math
 from pathlib import Path
+
+from tests.hkx_editor_dialog_source_support import hkx_editor_dialog_source
 import unittest
 
 from PySide6.QtGui import QColor, QImage, QVector3D
+
+from tests.native_source_text import d3d11_preview_source
+from tests.static_replacement_source_support import (
+    static_replacement_callback_factory_source,
+    static_replacement_ui_section_source,
+)
 
 from cdmw.models import (
     MODEL_PREVIEW_ALPHA_HANDLING_MODES,
@@ -258,7 +266,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
             settings = clamp_model_preview_render_settings(ModelPreviewRenderSettings(render_diagnostic_mode=mode))
             self.assertEqual(mode, settings.render_diagnostic_mode)
 
-        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        native_source = d3d11_preview_source()
         self.assertIn("wireframe_rasterizer_", native_source)
         self.assertIn("diagnostic_mode_code", native_source)
         self.assertIn('mode == "uv_checker"', native_source)
@@ -269,7 +277,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual(5, _RENDER_DIAGNOSTIC_MODE_CODES["normal"])
         self.assertEqual(11, _RENDER_DIAGNOSTIC_MODE_CODES["normal_raw"])
 
-        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        native_source = d3d11_preview_source()
         self.assertIn('mode == "normal"', native_source)
         self.assertIn('mode == "normal_raw"', native_source)
 
@@ -567,7 +575,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
 
     def test_enhanced_relief_shader_path_is_gated(self) -> None:
         prep_source = Path("cdmw/rendering/model_preview_prepare.py").read_text(encoding="utf-8")
-        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        native_source = d3d11_preview_source()
 
         self.assertIn("def enhanced_relief_status", prep_source)
         self.assertIn('"height_calibrated"', prep_source)
@@ -886,8 +894,8 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
                 (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_state_b.py").read_text(encoding="utf-8"),
                 (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_callbacks.py").read_text(encoding="utf-8"),
                 (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_preview_shell.py").read_text(encoding="utf-8"),
-                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_ui_sections.py").read_text(encoding="utf-8"),
-                (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_callback_factories.py").read_text(encoding="utf-8"),
+                static_replacement_ui_section_source(root),
+                static_replacement_callback_factory_source(root),
                 (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_d3d11_runtime_state.py").read_text(encoding="utf-8"),
                 (root / "cdmw" / "ui" / "archive_browser" / "static_replacement_d3d11_drag_ui_state.py").read_text(encoding="utf-8"),
             )
@@ -915,10 +923,10 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         main_source = "\n".join(
             (
                 (root / "cdmw" / "ui" / "shell" / "app_window.py").read_text(encoding="utf-8"),
-                (root / "cdmw" / "ui" / "archive_browser" / "hkx_editor_dialog.py").read_text(encoding="utf-8"),
+                hkx_editor_dialog_source(root),
             )
         )
-        native_source = (root / "native" / "cdmw_d3d11_preview" / "src" / "main.cpp").read_text(encoding="utf-8")
+        native_source = d3d11_preview_source()
         package_source = "\n".join(
             (
                 (root / "cdmw" / "rendering" / "native_preview_package.py").read_text(encoding="utf-8"),
@@ -929,7 +937,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn("physics_overlay_target_selected = Signal", source)
         self.assertIn("physics_overlay_bones_visible", source)
         self.assertNotIn("_step_physics_simulation_preview", source)
-        self.assertIn("physics_overlay_target_selected.connect(_show_preview_overlay_target_in_hkx_editor)", main_source)
+        self.assertIn("physics_overlay_target_selected.connect(_state._show_preview_overlay_target_in_hkx_editor)", main_source)
         self.assertIn("preview.set_physics_overlay_edited_targets(edited_targets)", main_source)
         self.assertIn("shape:", main_source)
         self.assertIn("physics_overlay_enabled", native_source)
@@ -952,7 +960,7 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         main_source = "\n".join(
             (
                 (root / "cdmw" / "ui" / "shell" / "app_window.py").read_text(encoding="utf-8"),
-                (root / "cdmw" / "ui" / "archive_browser" / "hkx_editor_dialog.py").read_text(encoding="utf-8"),
+                hkx_editor_dialog_source(root),
             )
         )
         preview_result_source = (root / "cdmw" / "ui" / "archive_browser" / "preview_result.py").read_text(encoding="utf-8")

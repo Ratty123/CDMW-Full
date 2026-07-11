@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.model_catalogue import DEFAULT_MODEL_MIRROR_URL
+from cdmw.domain.library.models import DEFAULT_MODEL_MIRROR_URL
 from cdmw.ui.model_library.settings import MODEL_LIBRARY_FILTER_COLUMNS
 from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
 from cdmw.ui.widgets import NativePreviewPanel

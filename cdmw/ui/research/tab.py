@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
-    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHeaderView,
@@ -33,36 +32,17 @@ from cdmw.constants import (
     DEFAULT_UI_PREVIEW_COLOR_SCHEME,
     DEFAULT_UI_THEME,
 )
-from cdmw.core.archive import build_archive_tree_index
-from cdmw.core.classification_registry import (
+from cdmw.services.archive_query_service import build_archive_tree_index
+from cdmw.services.texture_workflow_service import (
     remove_registered_texture_classifications,
     set_registered_texture_classifications,
     texture_classification_registry_path,
 )
-from cdmw.core.research import (
-    MaterialTextureReferenceRow,
-    MipAnalysisRow,
-    NormalValidationRow,
+from cdmw.domain.research.contracts import (
     ResearchNote,
-    SidecarDiscoveryRow,
-    TextureSetGroup,
     UnknownResolverGroup,
-    UnknownResolverMember,
-    build_unknown_resolver_detail,
-    build_texture_usage_heatmap,
-    build_mip_analysis_detail,
-    build_normal_validation_detail,
-    bundle_texture_sets,
-    classify_texture_entries,
-    delete_research_note,
-    export_texture_analysis_report,
-    load_research_notes,
-    summarize_ui_reference_constraints,
-    save_research_notes,
-    unknown_resolver_choice_label,
-    unknown_resolver_label_choices,
-    upsert_research_note,
 )
+from cdmw.services.research_service import research_service
 from cdmw.models import AppConfig, ArchiveEntry, ArchivePreviewResult
 from cdmw.ui.research import archive_picker_controller as _research_archive_picker_controller
 from cdmw.ui.research.archive_picker_state import (
@@ -83,17 +63,12 @@ from cdmw.ui.research.archive_picker_state import (
     normalize_archive_path,
 )
 from cdmw.ui.research import analysis_controller as _research_analysis_controller
+from cdmw.ui.research.analysis_task_controller import ResearchAnalysisTaskController
 from cdmw.ui.research.analysis_state import (
     ANALYSIS_CONTEXT_HELP_TEXT,
-    analysis_report_default_name,
-    analysis_report_exported_status_text,
-    analysis_report_missing_status_text,
-    analysis_report_output_path,
-    budget_detail_payload,
     compare_path_missing_status_text,
     mip_focus_refresh_pending_state,
     missing_mip_focus_state,
-    research_analysis_report_rows,
     texture_analysis_context_text,
 )
 from cdmw.ui.research import classification_review_controller as _research_classification_review_controller
@@ -351,9 +326,14 @@ class ResearchTab(QWidget):
     _handle_normal_selection_changed = _research_analysis_controller._handle_normal_selection_changed
     _show_mip_row_details = _research_analysis_controller._show_mip_row_details
     _show_normal_row_details = _research_analysis_controller._show_normal_row_details
+    _apply_analysis_detail_result = _research_analysis_controller._apply_analysis_detail_result
+    _handle_analysis_detail_error = _research_analysis_controller._handle_analysis_detail_error
     _show_budget_details = _research_analysis_controller._show_budget_details
     _handle_budget_selection_changed = _research_analysis_controller._handle_budget_selection_changed
     _export_analysis_report = _research_analysis_controller._export_analysis_report
+    _handle_analysis_export_complete = _research_analysis_controller._handle_analysis_export_complete
+    _handle_analysis_export_error = _research_analysis_controller._handle_analysis_export_error
+    _handle_analysis_export_idle = _research_analysis_controller._handle_analysis_export_idle
     refresh_research = _research_refresh_controller.refresh_research
     refresh_ui_constraints = _research_refresh_controller.refresh_ui_constraints
     focus_texture_analysis_for_compare_path = _research_refresh_controller.focus_texture_analysis_for_compare_path
@@ -474,7 +454,7 @@ class ResearchTab(QWidget):
         self.get_current_compare_path = get_current_compare_path
         self.get_archive_browser_tree_state = get_archive_browser_tree_state
         self.notes_path = self.base_dir / "research_notes.json"
-        self.notes: Dict[str, ResearchNote] = load_research_notes(self.notes_path)
+        self.notes: Dict[str, ResearchNote] = research_service.notes.load(self.notes_path)
         self.refresh_thread: Optional[QThread] = None
         self.refresh_worker: Optional[ResearchRefreshWorker] = None
         self.ui_constraint_thread: Optional[QThread] = None
@@ -489,6 +469,7 @@ class ResearchTab(QWidget):
         self.unknown_preview_zoom_factor = 1.0
         self.archive_picker_preview_thread: Optional[QThread] = None
         self.archive_picker_preview_worker: Optional[UnknownResolverPreviewWorker] = None
+        self.analysis_task_controller = ResearchAnalysisTaskController(self)
         self.archive_picker_preview_request_id = 0
         self.pending_archive_picker_preview_request: Optional[tuple[int, Optional[ArchiveEntry]]] = None
         self.archive_picker_preview_fit_to_view = True
@@ -690,11 +671,12 @@ class ResearchTab(QWidget):
             ("resolve_thread", self.resolve_thread, self.resolve_worker),
             ("unknown_preview_thread", self.unknown_preview_thread, self.unknown_preview_worker),
             ("archive_picker_preview_thread", self.archive_picker_preview_thread, self.archive_picker_preview_worker),
-        )
+        ) + self.analysis_task_controller.iter_shutdown_workers()
 
     def request_shutdown(self) -> None:
         self._refresh_population_timer.stop()
         self._unknown_population_timer.stop()
+        self.analysis_task_controller.request_shutdown()
         if self.refresh_worker is not None:
             self.refresh_worker.stop()
         if self.ui_constraint_worker is not None:

@@ -7,16 +7,9 @@ from typing import Dict, Mapping, Optional, Tuple
 
 import numpy as np
 
-from cdmw.core.texture_editor import (
-    create_texture_editor_document_from_source,
-    export_texture_editor_flattened_png,
-    export_texture_editor_grid_slices,
-    export_texture_editor_region_png,
-    load_texture_editor_project,
-    save_texture_editor_project,
-)
 from cdmw.models import TextureEditorDocument, TextureEditorSourceBinding
 from cdmw.services.texture_editor_service import (
+    TextureEditorService,
     TextureEditorNativeDdsOptions,
     TextureEditorNativeDdsResult,
     TextureEditorNativeDdsService,
@@ -27,7 +20,13 @@ from cdmw.ui.texture_workflow.editor_export_state import texture_editor_workspac
 def copy_texture_editor_layer_pixels(
     layer_pixels: Mapping[str, np.ndarray],
 ) -> Dict[str, np.ndarray]:
-    return {key: value.copy() for key, value in layer_pixels.items()}
+    """Take the sole worker-owned pixel snapshot for an export request."""
+    snapshot: Dict[str, np.ndarray] = {}
+    for key, value in layer_pixels.items():
+        pixels = value.copy()
+        pixels.setflags(write=False)
+        snapshot[str(key)] = pixels
+    return snapshot
 
 
 def create_texture_editor_source_document_task(
@@ -37,7 +36,7 @@ def create_texture_editor_source_document_task(
     workspace_root: Path,
     binding: TextureEditorSourceBinding,
 ) -> Tuple[TextureEditorDocument, Dict[str, np.ndarray]]:
-    document, layer_pixels, _normalized_png = create_texture_editor_document_from_source(
+    document, layer_pixels, _normalized_png = TextureEditorService.create_document_from_source(
         source_path,
         texconv_path=texconv_path,
         workspace_root=workspace_root,
@@ -49,7 +48,7 @@ def create_texture_editor_source_document_task(
 def load_texture_editor_project_task(
     project_path: Path,
 ) -> object:
-    return load_texture_editor_project(project_path)
+    return TextureEditorService.load_project(project_path)
 
 
 def save_texture_editor_project_task(
@@ -59,11 +58,11 @@ def save_texture_editor_project_task(
     *,
     floating_pixels: Optional[np.ndarray] = None,
 ) -> TextureEditorDocument:
-    return save_texture_editor_project(
+    return TextureEditorService.save_project(
         document,
-        copy_texture_editor_layer_pixels(layer_pixels),
+        layer_pixels,
         project_path,
-        floating_pixels=None if floating_pixels is None else floating_pixels.copy(),
+        floating_pixels=floating_pixels,
     )
 
 
@@ -75,7 +74,7 @@ def export_texture_editor_workspace_png_task(
 ) -> Path:
     output_path = texture_editor_workspace_png_path(document, workspace_root, suffix)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    return export_texture_editor_flattened_png(document, copy_texture_editor_layer_pixels(layer_pixels), output_path)
+    return TextureEditorService.export_flattened_png(document, layer_pixels, output_path)
 
 
 def export_texture_editor_flattened_png_task(
@@ -83,9 +82,9 @@ def export_texture_editor_flattened_png_task(
     layer_pixels: Mapping[str, np.ndarray],
     output_path: Path,
 ) -> Path:
-    return export_texture_editor_flattened_png(
+    return TextureEditorService.export_flattened_png(
         document,
-        copy_texture_editor_layer_pixels(layer_pixels),
+        layer_pixels,
         output_path,
     )
 
@@ -99,9 +98,9 @@ def export_texture_editor_region_png_task(
     padding: int,
     trim_transparent: bool,
 ) -> Path:
-    return export_texture_editor_region_png(
+    return TextureEditorService.export_region_png(
         document,
-        copy_texture_editor_layer_pixels(layer_pixels),
+        layer_pixels,
         output_path,
         bounds,
         padding=padding,
@@ -119,9 +118,9 @@ def export_texture_editor_grid_slices_task(
     trim_transparent: bool,
     skip_empty: bool,
 ) -> object:
-    return export_texture_editor_grid_slices(
+    return TextureEditorService.export_grid_slices(
         document,
-        copy_texture_editor_layer_pixels(layer_pixels),
+        layer_pixels,
         output_dir,
         cell_width=cell_size,
         cell_height=cell_size,
@@ -138,7 +137,7 @@ def export_texture_editor_native_dds_task(
 ) -> TextureEditorNativeDdsResult:
     return TextureEditorNativeDdsService().export_dds(
         document,
-        copy_texture_editor_layer_pixels(layer_pixels),
+        layer_pixels,
         options,
     )
 
@@ -150,6 +149,6 @@ def preview_texture_editor_native_dds_task(
 ) -> TextureEditorNativeDdsResult:
     return TextureEditorNativeDdsService().preview_compressed(
         document,
-        copy_texture_editor_layer_pixels(layer_pixels),
+        layer_pixels,
         options,
     )

@@ -229,7 +229,7 @@ class ArchiveFilterWorkerMixin:
         worker.moveToThread(thread)
 
         thread.started.connect(worker.run)
-        worker.log_message.connect(lambda message: self.append_archive_log(message, verbose=True))
+        worker.log_message.connect(self._append_verbose_archive_log)
         worker.progress_changed.connect(self._handle_archive_scan_progress)
         worker.completed.connect(self._handle_archive_filter_complete)
         worker.error.connect(self._handle_worker_error)

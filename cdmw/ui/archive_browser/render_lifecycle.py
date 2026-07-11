@@ -8,7 +8,8 @@ from typing import Callable, List, Optional
 
 from PySide6.QtCore import QTimer
 
-from cdmw.core.archive import normalize_archive_browser_sort_column
+from cdmw.domain.archives.filters import normalize_archive_browser_sort_column
+from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 
 
 class ArchiveRenderLifecycleMixin:
@@ -442,10 +443,13 @@ class ArchiveRenderLifecycleMixin:
                 QTimer.singleShot(0, on_complete)
 
     def _refresh_or_defer_research_archive_picker(self) -> None:
+        research_tab = created_tool_widget(getattr(self, "research_tab", None))
+        if research_tab is None:
+            return
         if self._is_tool_visible_or_current(self.research_tab):
-            self.research_tab.refresh_archive_picker()
+            research_tab.refresh_archive_picker()
         else:
-            self.research_tab.mark_archive_picker_dirty()
+            research_tab.mark_archive_picker_dirty()
 
     def _mark_archive_browser_render_stale(self) -> None:
         if self.archive_browser_preload_state == "rendering":

@@ -16,19 +16,20 @@ from cdmw.constants import (
     ARCHIVE_TEXT_EXTENSIONS,
     ARCHIVE_VIDEO_EXTENSIONS,
 )
-from cdmw.core.archive import (
-    _is_material_sidecar_extension,
+from cdmw.domain.archives.format import (
+    is_material_sidecar_extension as _is_material_sidecar_extension,
+    normalize_archive_extension_filter,
+)
+from cdmw.domain.archives.filters import (
     active_archive_entry_for_virtual_path,
     archive_browser_sort_is_active,
     archive_entry_identity_key,
     archive_entry_is_mod_package,
     archive_entry_load_priority,
-    build_archive_tree_index,
-    format_byte_size,
     normalize_archive_browser_sort_column,
-    normalize_archive_extension_filter,
-    sort_archive_entries_for_browser,
 )
+from cdmw.services.archive_query_service import build_archive_tree_index, sort_archive_entries_for_browser
+from cdmw.services.archive_read_service import format_byte_size
 from cdmw.domain.archives.filters import build_archive_category_entry_index
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.model import ArchiveBrowserRowPayload
@@ -74,6 +75,9 @@ class ArchiveBrowserRowPayloadMixin:
     def _find_archive_preview_companion_entry(self, entry: Optional[ArchiveEntry]) -> Optional[ArchiveEntry]:
         if entry is None or entry.extension not in {".pam", ".pamlod"}:
             return None
+        indexed_companion = getattr(self, "archive_mesh_companion_by_identity", {}).get(entry.identity)
+        if isinstance(indexed_companion, ArchiveEntry):
+            return indexed_companion
         normalized_path = self._normalize_archive_entry_path(entry.path)
         companion_paths: List[str] = []
         if entry.extension == ".pam" and normalized_path.endswith(".pam"):

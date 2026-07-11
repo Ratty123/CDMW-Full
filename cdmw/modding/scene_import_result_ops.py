@@ -23,6 +23,7 @@ class SceneImportResult:
     discovered_supplemental_files: tuple[Path, ...] = ()
     material_bindings: tuple[ImportedMaterialBinding, ...] = ()
     external_audit: Optional[ExternalModelAudit] = None
+    uv_bake_report: Optional[dict[str, object]] = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -48,6 +49,7 @@ def _scene_result_context(scene_result: SceneImportResult) -> dict[str, object]:
     return {
         "material_bindings": tuple(getattr(scene_result, "material_bindings", ()) or ()),
         "external_audit": getattr(scene_result, "external_audit", None),
+        "uv_bake_report": copy.deepcopy(getattr(scene_result, "uv_bake_report", None)),
     }
 
 

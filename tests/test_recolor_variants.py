@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import struct
 import tempfile
+import threading
 import unittest
 import zipfile
 from pathlib import Path
@@ -10,6 +11,7 @@ from unittest import mock
 
 from PIL import Image
 
+import cdmw.core.recolor_variants as recolor_variants_module
 from cdmw.core.recolor_variants import (
     RecolorVariantOutputProfile,
     RecolorVariantRule,
@@ -23,6 +25,7 @@ from cdmw.core.recolor_variants import (
     recolor_export_options_for_manager,
     save_recolor_variant_templates,
 )
+from cdmw.models import RunCancelled
 
 
 def _dds(width: int = 4, height: int = 4, *, mips: int = 3, fourcc: bytes = b"DXT1") -> bytes:
@@ -88,6 +91,14 @@ def _fake_preview_png(path: Path, color: tuple[int, int, int, int] = (128, 128, 
 
 
 class RecolorVariantTests(unittest.TestCase):
+    def test_analysis_honors_pre_cancelled_request(self) -> None:
+        stop_event = threading.Event()
+        stop_event.set()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = _write_mod(Path(temp_dir))
+            with self.assertRaises(RunCancelled):
+                analyze_recolor_variant_package(source, stop_event=stop_event)
+
     def test_analysis_detects_safe_basecolor_and_locks_technical_maps(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             source = _write_mod(Path(temp_dir))
@@ -182,6 +193,75 @@ class RecolorVariantTests(unittest.TestCase):
             self.assertNotEqual(b"RECOLORED", (dmm_root / "character" / "texture" / "blade_n.dds").read_bytes())
             self.assertTrue((jmm_root / "mod.json").exists())
             self.assertFalse((jmm_root / "manifest.json").exists())
+
+    def test_overwrite_failure_and_cancellation_preserve_previous_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = _write_mod(root)
+            analysis = analyze_recolor_variant_package(source)
+            profiles = (
+                RecolorVariantOutputProfile(
+                    profile_id="dmm",
+                    label="Definitive Mod Manager",
+                    enabled=True,
+                    export_options=recolor_export_options_for_manager("dmm"),
+                ),
+            )
+
+            def _fake_recolor(dds_path: Path, *_args: object, **_kwargs: object) -> None:
+                dds_path.write_bytes(b"RECOLORED")
+
+            with mock.patch("cdmw.core.recolor_variants._apply_texture_rule_to_dds", side_effect=_fake_recolor):
+                initial = build_recolor_variant_outputs(
+                    analysis,
+                    default_recolor_variant_templates()[0],
+                    root / "out",
+                    profiles,
+                    overwrite_existing=True,
+                )
+            output_root = initial.output_roots[0]
+            marker = output_root / "keep.txt"
+            marker.write_text("previous", encoding="utf-8")
+
+            with (
+                mock.patch("cdmw.core.recolor_variants._apply_texture_rule_to_dds", side_effect=_fake_recolor),
+                mock.patch("cdmw.core.recolor_variants.write_mod_package_manifest", side_effect=RuntimeError("write failed")),
+                self.assertRaisesRegex(RuntimeError, "write failed"),
+            ):
+                build_recolor_variant_outputs(
+                    analysis,
+                    default_recolor_variant_templates()[0],
+                    root / "out",
+                    profiles,
+                    overwrite_existing=True,
+                )
+            self.assertEqual("previous", marker.read_text(encoding="utf-8"))
+
+            stop_event = threading.Event()
+            real_manifest_writer = recolor_variants_module.write_mod_package_manifest
+
+            def _write_then_cancel(*args: object, **kwargs: object) -> Path:
+                result = real_manifest_writer(*args, **kwargs)  # type: ignore[arg-type]
+                stop_event.set()
+                return result
+
+            with (
+                mock.patch("cdmw.core.recolor_variants._apply_texture_rule_to_dds", side_effect=_fake_recolor),
+                mock.patch("cdmw.core.recolor_variants.write_mod_package_manifest", side_effect=_write_then_cancel),
+                self.assertRaises(RunCancelled),
+            ):
+                build_recolor_variant_outputs(
+                    analysis,
+                    default_recolor_variant_templates()[0],
+                    root / "out",
+                    profiles,
+                    overwrite_existing=True,
+                    stop_event=stop_event,
+                )
+
+            self.assertEqual("previous", marker.read_text(encoding="utf-8"))
+            self.assertFalse(any(output_root.parent.glob("cdmw-recolor-stage-*")))
+            self.assertFalse(any(output_root.parent.glob("cdmw-recolor-backup-*")))
 
     def test_zip_source_analysis_and_build_preserve_payload_layout(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -354,7 +434,11 @@ class RecolorVariantTests(unittest.TestCase):
         )
 
         self.assertIn("from cdmw.ui.recolor_variants_tab import RecolorVariantsTab", main_source)
-        self.assertIn('self.texture_tabs.addTab(self.recolor_variants_tab, "Recolor Variants")', main_source)
+        self.assertIn("self.recolor_variants_tab = self._add_lazy_shell_tool(", main_source)
+        self.assertIn(
+            'self.texture_tabs, "Recolor Variants", "recolor_variants", self._create_recolor_variants_tab',
+            main_source,
+        )
         self.assertIn('self._register_detachable_tool("recolor_variants"', main_source)
         self.assertIn("open_recolor_target_in_editor_requested.connect", main_source)
         self.assertIn("def _open_recolor_variant_target_in_texture_editor", main_source)

@@ -11,6 +11,7 @@ from cdmw.app.cli import run_cli_workflow
 from cdmw.app.gui import run_gui_workflow
 from cdmw.app.pyinstaller_runtime import write_current_pyinstaller_runtime_marker
 from cdmw.app.single_instance import acquire_single_instance_guard, release_single_instance_guard
+from cdmw.app.startup_smoke import gui_startup_smoke_requested, write_gui_startup_smoke_result
 from cdmw.app.startup_maintenance import run_startup_maintenance, schedule_startup_maintenance
 from cdmw.app.startup_splash import (
     close_external_startup_splash,
@@ -45,6 +46,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     run_gui_mode = not args.cli and not args.isolated_renderer_host
     if run_gui_mode:
         if not acquire_single_instance_guard():
+            if gui_startup_smoke_requested():
+                write_gui_startup_smoke_result(
+                    ok=False,
+                    stage="single_instance_guard",
+                    detail="Another process owns the requested single-instance scope.",
+                )
+                update_pyinstaller_boot_splash("Startup smoke blocked by another instance.")
+                return 3
             request_existing_instance_activation()
             update_pyinstaller_boot_splash("Already running.")
             return 0

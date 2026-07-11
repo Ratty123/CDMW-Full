@@ -140,21 +140,13 @@ def _dedupe_mesh_loose_file_rows(file_rows: Sequence["MeshLooseModFile"]) -> Lis
     return deduped
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _export_related_archive_entries(
     entries: Sequence[ArchiveEntry],
     output_root: Path,
     *,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> List[Path]:
-    from cdmw.core.archive import extract_archive_entry
+    from cdmw.core.archive_extraction import extract_archive_entry
 
     written_paths: List[Path] = []
     seen_paths: set[str] = set()
@@ -379,7 +371,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         write_mesh_loose_mod_package_metadata,
     )
     from cdmw.core.mod_package import ModPackageExportOptions
-    from cdmw.core.archive import extract_archive_entry
+    from cdmw.core.archive_extraction import extract_archive_entry
 
     if not requests:
         raise ValueError("No archive payloads were provided for mesh mod-ready loose export.")
@@ -797,13 +789,13 @@ def audit_loose_package_active_file_authority(
     exported loose folder but the game loads an older active package instead.
     """
 
-    from cdmw.core.archive import (
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_filtering import (
         archive_entry_is_mod_package,
         active_archive_entry_for_virtual_path,
-        discover_pamt_files,
-        parse_archive_pamt,
-        read_archive_entry_data,
     )
+    from cdmw.core.archive_format import parse_archive_pamt
+    from cdmw.core.archive_scan_cache import discover_pamt_files
 
     root = Path(package_root).expanduser().resolve()
     resolved_game_root = Path(game_root).expanduser().resolve()

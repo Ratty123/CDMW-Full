@@ -10,7 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QObject, Signal, Slot
-from PySide6.QtGui import QImageReader
+from PySide6.QtGui import QImage, QImageReader
 
 from cdmw.core.archive import (
     build_archive_asset_family_graph,
@@ -19,7 +19,7 @@ from cdmw.core.archive import (
     build_archive_preview_result,
 )
 from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
-from cdmw.core.common import raise_if_cancelled
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.models import (
     ArchiveEntry,
     ArchiveModelTextureReference,
@@ -35,6 +35,7 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
+from cdmw.rendering.static_model_thumbnail import render_static_model_thumbnail_image
 from cdmw.workers.archive_preview_native import ArchivePreviewNativeMixin, NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
 from cdmw.rendering.native_preview_package_cache import (
     lookup_native_preview_package_cache,
@@ -96,6 +97,9 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         preview_cache_snapshot: Optional[Mapping[str, ArchivePreviewResult]] = None,
         emit_quick_preview: bool = False,
         emit_private_payloads: bool = False,
+        static_thumbnail_size: Optional[Tuple[int, int]] = None,
+        static_thumbnail_text_color: str = "#8b949e",
+        static_thumbnail_point_cloud: bool = False,
     ):
         super().__init__()
         self.request_id = request_id
@@ -132,6 +136,13 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         self.preview_cache_snapshot = dict(preview_cache_snapshot or {})
         self.emit_quick_preview = bool(emit_quick_preview)
         self.emit_private_payloads = bool(emit_private_payloads)
+        self.static_thumbnail_size = (
+            (max(320, int(static_thumbnail_size[0])), max(260, int(static_thumbnail_size[1])))
+            if static_thumbnail_size is not None and len(static_thumbnail_size) >= 2
+            else None
+        )
+        self.static_thumbnail_text_color = str(static_thumbnail_text_color or "#8b949e")
+        self.static_thumbnail_point_cloud = bool(static_thumbnail_point_cloud)
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -178,7 +189,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                     sidecar_generation=self.sidecar_generation,
                 )
                 if not self.stop_event.is_set():
-                    self.completed.emit(self.request_id, fast_payload)
+                    self._emit_archive_preview_result(fast_payload)
             if native_attempt is None:
                 native_attempt = self._try_native_preview_core()
                 if self._emit_native_preview_core_attempt(native_attempt, timings):
@@ -201,7 +212,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                     timings=payload_timings,
                     sidecar_generation=self.sidecar_generation,
                 )
-                self.completed.emit(self.request_id, payload)
+                self._emit_archive_preview_result(payload)
         except RunCancelled:
             pass
         except Exception as exc:
@@ -213,6 +224,8 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
     def _should_emit_progressive_fast_preview(self) -> bool:
         if self.entry is None or self.include_loose_preview_assets:
             return False
+        if self.static_thumbnail_size is not None:
+            return False
         if self._native_preview_core_supported_for_entry():
             return False
         return str(getattr(self.entry, "extension", "") or "").strip().lower() in {".pac", ".pam", ".pamlod"}
@@ -220,10 +233,32 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
     def _emit_preview_payload(self, payload: _ArchivePreviewWorkerPayload) -> None:
         if self.stop_event.is_set():
             return
+        result = self._with_static_thumbnail(payload.result)
         if self.emit_private_payloads:
-            self.completed.emit(self.request_id, payload)
+            self.completed.emit(self.request_id, dataclasses.replace(payload, result=result))
         else:
-            self.completed.emit(self.request_id, payload.result)
+            self.completed.emit(self.request_id, result)
+
+    def _emit_archive_preview_result(self, result: ArchivePreviewResult) -> None:
+        if not self.stop_event.is_set():
+            self.completed.emit(self.request_id, self._with_static_thumbnail(result))
+
+    def _with_static_thumbnail(self, result: ArchivePreviewResult) -> ArchivePreviewResult:
+        size = self.static_thumbnail_size
+        if size is None or not isinstance(result.preview_model, ModelPreviewData):
+            return result
+        existing = getattr(result, "static_preview_image", None)
+        if isinstance(existing, QImage) and not existing.isNull() and (existing.width(), existing.height()) == size:
+            return result
+        image = render_static_model_thumbnail_image(
+            result.preview_model,
+            width=size[0],
+            height=size[1],
+            text_color=self.static_thumbnail_text_color,
+            draw_point_cloud_when_no_triangles=self.static_thumbnail_point_cloud,
+            stop_event=self.stop_event,
+        )
+        return dataclasses.replace(result, static_preview_image=image)
 
     def _cached_preview_payload(self, cache_key: str, *, source: str) -> Optional[_ArchivePreviewWorkerPayload]:
         key = str(cache_key or "").strip()

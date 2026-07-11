@@ -9,7 +9,7 @@ from cdmw.core.mod_package import (
     mod_package_profile_uses_manager_metadata,
 )
 from cdmw.models import AppConfig
-from cdmw.services.workspace_layout import default_mod_package_export_root
+from cdmw.domain.workspace import default_mod_package_export_root
 
 def resolve_default_mod_ready_export_root(output_root: Path) -> Path:
     return default_mod_package_export_root(output_root)

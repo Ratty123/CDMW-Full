@@ -98,17 +98,44 @@ internal sealed partial class ExperimentForm
         });
     }
 
-    private Control PreviewModeControl(CheckBox solid, CheckBox wire)
+    private Control PreviewModeControl()
     {
         var combo = new ComboBox();
-        ConfigureCombo(combo, new object[] { "Solid", "Solid + Wire", "Wire", "X-Ray" }, selectedIndex: 0);
+        var modes = new[]
+        {
+            "textured",
+            "untextured_faces",
+            "textured_wire",
+            "wire",
+            "vertices",
+            "wire_vertices",
+            "xray",
+        };
+        ConfigureCombo(
+            combo,
+            new object[]
+            {
+                "Solid (Textured)",
+                "Faces (No Textures)",
+                "Solid + Wire",
+                "Wire",
+                "Vertices",
+                "Wire + Vertices",
+                "X-Ray",
+            },
+            selectedIndex: 0);
         combo.SelectedIndexChanged += (_, _) =>
         {
-            var value = SelectionText(combo, "solid");
-            solid.Checked = value is "solid" or "solid_+_wire";
-            wire.Checked = value is "wire" or "solid_+_wire" or "x-ray";
-            _xray.Checked = value == "x-ray";
-            _statusLabel.Text = $"Preview mode: {combo.SelectedItem}.";
+            var index = Math.Clamp(combo.SelectedIndex, 0, modes.Length - 1);
+            if (_viewport.TrySetDisplayMode(modes[index], out var error))
+            {
+                _xray.Checked = _viewport.ShowXRay;
+                _statusLabel.Text = $"Preview mode: {combo.SelectedItem}.";
+            }
+            else
+            {
+                _statusLabel.Text = error;
+            }
         };
         return LabeledControl("Preview mode", combo);
     }

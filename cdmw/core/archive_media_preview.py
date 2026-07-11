@@ -6,6 +6,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -22,6 +23,7 @@ from cdmw.constants import (
     DDS_MAGIC,
 )
 from cdmw.models import ArchiveEntry, DdsInfo
+from cdmw.core.atomic_file import atomic_publish_directory
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
 from cdmw.core.archive_extraction import (
     _dds_bytes_per_block,
@@ -32,7 +34,13 @@ from cdmw.core.archive_extraction import (
 )
 from cdmw.core.archive_format import extract_binary_strings
 from cdmw.core.archive_preview_support import resolve_archive_pathc_path
-from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
+from cdmw.core.temp_cache import (
+    app_temp_cache_build,
+    app_temp_cache_path,
+    app_temp_cache_use,
+    mark_app_temp_cache_recent,
+    request_app_temp_cache_prune,
+)
 from cdmw.core.texture_pipeline.inspection import inspect_crimson_dds, parse_dds
 from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
 from cdmw.core.upscale_profiles import classify_texture_type, infer_texture_semantics
@@ -376,18 +384,42 @@ def ensure_archive_preview_source(
     filename = sanitize_cache_filename(f"{Path(entry.path).stem}{suffix}")
     cache_dir = app_temp_cache_path("archive_preview_cache", cache_key)
     target_path = cache_dir / filename
-    if target_path.exists() and target_path.stat().st_size > 0:
-        note_path = cache_dir / ".note"
-        note = note_path.read_text(encoding="utf-8") if note_path.exists() else ""
-        return target_path, note
+    with app_temp_cache_build(cache_dir):
+        try:
+            if target_path.is_file() and target_path.stat().st_size > 0:
+                note_path = cache_dir / ".note"
+                note = note_path.read_text(encoding="utf-8") if note_path.is_file() else ""
+                mark_app_temp_cache_recent(cache_dir)
+                return target_path, note
+        except (OSError, UnicodeError):
+            pass
 
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    data, _decompressed, note = read_archive_entry_data(entry, stop_event=stop_event)
-    target_path.write_bytes(data)
-    if note:
-        (cache_dir / ".note").write_text(note, encoding="utf-8")
-    request_app_temp_cache_prune()
-    return target_path, note
+        cache_dir.parent.mkdir(parents=True, exist_ok=True)
+        staging_dir = Path(
+            tempfile.mkdtemp(
+                prefix=f".{cache_key}.",
+                suffix=".staging",
+                dir=cache_dir.parent,
+            )
+        )
+        try:
+            with app_temp_cache_use(staging_dir):
+                data, _decompressed, note = read_archive_entry_data(entry, stop_event=stop_event)
+                raise_if_cancelled(stop_event, "Archive preview extraction cancelled.")
+                (staging_dir / filename).write_bytes(data)
+                if note:
+                    (staging_dir / ".note").write_text(note, encoding="utf-8")
+                if cache_dir.is_symlink() or cache_dir.is_file():
+                    cache_dir.unlink()
+                elif cache_dir.is_dir():
+                    shutil.rmtree(cache_dir)
+                atomic_publish_directory(staging_dir, cache_dir)
+        finally:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+
+        mark_app_temp_cache_recent(cache_dir)
+        request_app_temp_cache_prune()
+        return target_path, note
 
 
 

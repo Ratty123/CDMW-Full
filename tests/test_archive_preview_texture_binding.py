@@ -86,7 +86,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
@@ -126,7 +126,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_sidecar_texture_preview_paths(
@@ -243,7 +243,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_sidecar_texture_preview_paths(
@@ -291,7 +291,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_sidecar_texture_preview_paths(
@@ -329,7 +329,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
@@ -373,7 +373,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
@@ -439,7 +439,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
@@ -497,7 +497,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
@@ -556,7 +556,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
@@ -591,7 +591,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_sidecar_texture_preview_paths(
@@ -643,7 +643,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
@@ -691,7 +691,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_support_texture_preview_paths(
@@ -752,7 +752,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_texture_preview_paths(
@@ -784,7 +784,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_texture_preview_paths(
@@ -810,7 +810,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_texture_preview_paths(
@@ -852,7 +852,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_support_texture_preview_paths(
@@ -898,7 +898,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_support_texture_preview_paths(
@@ -955,7 +955,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
             return f"preview://{texture_entry.path}"
 
         with patch(
-            "cdmw.core.archive._ensure_archive_model_texture_preview_path",
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
             side_effect=_preview_path,
         ):
             lines = _attach_model_support_texture_preview_paths(

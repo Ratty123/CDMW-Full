@@ -169,6 +169,9 @@ class ArchivePreviewD3D11RuntimeMixin:
         process.errorOccurred.connect(self._handle_archive_isolated_renderer_error)
         self.archive_isolated_renderer_process = process
         self.archive_isolated_renderer_active_process = process
+        track_process = getattr(self.archive_d3d11_preview_host, "track_renderer_process", None)
+        if callable(track_process):
+            track_process(process)
         self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
         self.archive_d3d11_preview_status_label.setText("Loading preview... starting renderer.")
         self._set_archive_isolated_renderer_debug(
@@ -443,6 +446,7 @@ class ArchivePreviewD3D11RuntimeMixin:
         if process is None:
             self.archive_isolated_renderer_status_timer.stop()
             self._cleanup_archive_isolated_renderer_packages(include_active=True)
+            self._release_archive_d3d11_package_leases()
             return
         package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
         self._record_archive_d3d11_runtime_event(
@@ -471,6 +475,7 @@ class ArchivePreviewD3D11RuntimeMixin:
         try:
             if state != QProcess.NotRunning:
                 def cleanup_finished_process(*_args: object) -> None:
+                    self._release_archive_d3d11_package_leases()
                     self._cleanup_finished_archive_isolated_renderer_process(process, package_dir)
 
                 def kill_process_if_still_running() -> None:
@@ -484,9 +489,11 @@ class ArchivePreviewD3D11RuntimeMixin:
                 QTimer.singleShot(1200, kill_process_if_still_running)
                 QTimer.singleShot(7000, remove_retired_package_dir)
             else:
+                self._release_archive_d3d11_package_leases()
                 self._remove_archive_isolated_package_dir(package_dir)
                 self._delete_archive_qprocess_later(process)
         except RuntimeError:
+            self._release_archive_d3d11_package_leases()
             self._remove_archive_isolated_package_dir(package_dir)
             self._delete_archive_qprocess_later(process)
         self._cleanup_archive_isolated_renderer_packages(include_active=False)

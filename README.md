@@ -75,7 +75,7 @@ libraries, tools, cache, logs, sessions, projects, and research data.
 Requirements:
 
 - Windows
-- Python 3.11+
+- Python 3.11 or 3.14 (the two release-tested interpreters)
 - PowerShell
 - CMake/MSVC toolchain for native helper builds
 
@@ -83,8 +83,10 @@ Install Python dependencies:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
+.\.venv\Scripts\python.exe -m pip install "pip==25.3"
+.\.venv\Scripts\python.exe -m pip install -c constraints-release.txt -r requirements-build.txt
+.\.venv\Scripts\python.exe -m pip install "pytest==9.0.3"
+.\.venv\Scripts\python.exe scripts\verify_release_dependencies.py
 ```
 
 Run tests:
@@ -106,6 +108,11 @@ Build a publishable onefile EXE:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mode onefile -BuildProfile release
 ```
+
+Release builds require the exact versions in `constraints-release.txt`, publish
+the bundled .NET Mesh Editor as a self-contained `win-x64` single file, and run
+an offscreen startup smoke. Output is published only after the atomic result
+marker reports `post_construction`.
 
 Expected output:
 

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Mapping, Optional, Sequence
 
+from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QMessageBox
 
-from cdmw.core.text_search import TextSearchResult, export_text_search_results
+from cdmw.services.text_search_service import TextSearchResult
+from cdmw.ui.text_search.workers import TextSearchExportWorker
 
 
 class TextSearchExportMixin:
@@ -45,17 +47,93 @@ class TextSearchExportMixin:
             return
         if not self._confirm_export(results):
             return
-        try:
-            stats = export_text_search_results(results, export_root, on_log=self.append_log)
-            message = (
-                f"Exported {stats['exported']:,} file(s) from {label}. "
-                f"Renamed {stats['renamed']:,}, failed {stats['failed']:,}."
-            )
-            self.status_message_requested.emit(message, False)
+        if self.export_thread is not None:
+            self.status_message_requested.emit("A text export is already running.", True)
+            return
+
+        request_id = self.export_request_id + 1
+        self.export_request_id = request_id
+        worker = TextSearchExportWorker(
+            request_id=request_id,
+            results=results,
+            output_root=export_root,
+            label=label,
+        )
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.log_message.connect(self._handle_export_log)
+        worker.progress_changed.connect(self._handle_export_progress)
+        worker.completed.connect(self._handle_export_complete)
+        worker.cancelled.connect(self._handle_export_cancelled)
+        worker.error.connect(self._handle_export_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._cleanup_export_refs)
+        self.export_worker = worker
+        self.export_thread = thread
+        self.search_progress_label.setText(f"Preparing to export {len(results):,} matched file(s)...")
+        self.search_progress_bar.setRange(0, max(1, len(results)))
+        self.search_progress_bar.setValue(0)
+        self.search_progress_bar.setFormat(f"0 / {len(results):,}")
+        self._update_controls()
+        self.status_message_requested.emit("Starting text result export...", False)
+        thread.start()
+
+    def _handle_export_log(self, request_id: int, message: str) -> None:
+        if request_id == self.export_request_id:
             self.append_log(message)
-        except Exception as exc:
-            self.status_message_requested.emit(str(exc), True)
-            self.append_log(f"ERROR: {exc}")
+
+    def _handle_export_progress(self, request_id: int, current: int, total: int, detail: str) -> None:
+        if request_id != self.export_request_id:
+            return
+        self.search_progress_label.setText(detail)
+        self.search_progress_bar.setRange(0, max(1, total))
+        self.search_progress_bar.setValue(min(max(0, current), max(1, total)))
+        self.search_progress_bar.setFormat(f"{current:,} / {total:,}")
+
+    def _handle_export_complete(self, request_id: int, payload: object, label: str) -> None:
+        if request_id != self.export_request_id or not isinstance(payload, Mapping):
+            return
+        exported = int(payload.get("exported", 0) or 0)
+        renamed = int(payload.get("renamed", 0) or 0)
+        failed = int(payload.get("failed", 0) or 0)
+        message = (
+            f"Exported {exported:,} file(s) from {label}. "
+            f"Renamed {renamed:,}, failed {failed:,}."
+        )
+        self.search_progress_label.setText(message)
+        self.search_progress_bar.setRange(0, 1)
+        self.search_progress_bar.setValue(1)
+        self.search_progress_bar.setFormat("Ready")
+        self.status_message_requested.emit(message, False)
+        self.append_log(message)
+
+    def _handle_export_cancelled(self, request_id: int, message: str) -> None:
+        if request_id != self.export_request_id:
+            return
+        self.search_progress_label.setText(message)
+        self.search_progress_bar.setRange(0, 1)
+        self.search_progress_bar.setValue(0)
+        self.search_progress_bar.setFormat("Stopped")
+        self.status_message_requested.emit(message, True)
+        self.append_log(message)
+
+    def _handle_export_error(self, request_id: int, message: str) -> None:
+        if request_id != self.export_request_id:
+            return
+        self.search_progress_label.setText(message)
+        self.search_progress_bar.setRange(0, 1)
+        self.search_progress_bar.setValue(0)
+        self.search_progress_bar.setFormat("Error")
+        self.status_message_requested.emit(message, True)
+        self.append_log(f"ERROR: {message}")
+
+    def _cleanup_export_refs(self) -> None:
+        self.export_thread = None
+        self.export_worker = None
+        self._update_controls()
 
 
 __all__ = ["TextSearchExportMixin"]

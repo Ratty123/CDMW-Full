@@ -12,7 +12,10 @@ from PySide6.QtCore import QProcess, Qt
 from PySide6.QtWidgets import QWidget
 
 from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_COLOR
-from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
+from cdmw.services.preview_rendering_service import (
+    find_native_d3d11_host,
+    is_durable_native_preview_package_path,
+)
 from cdmw.services.workspace_layout import workspace_paths
 
 
@@ -60,6 +63,15 @@ class ArchivePreviewD3D11ProcessMixin:
             process.deleteLater()
         except RuntimeError:
             pass
+
+    def _release_archive_d3d11_package_leases(self) -> None:
+        release_leases = getattr(
+            getattr(self, "archive_d3d11_preview_host", None),
+            "release_native_preview_package_cache_leases",
+            None,
+        )
+        if callable(release_leases):
+            release_leases()
 
     def _cleanup_archive_isolated_renderer_packages(self, *, include_active: bool = False) -> None:
         retired = list(getattr(self, "archive_isolated_renderer_retired_packages", []) or [])
@@ -119,6 +131,13 @@ class ArchivePreviewD3D11ProcessMixin:
         self.archive_isolated_renderer_pending_status_file = None
         self.archive_isolated_renderer_pending_package_source = ""
         self.archive_d3d11_pending_model_key = ""
+        retain_package = getattr(
+            getattr(self, "archive_d3d11_preview_host", None),
+            "retain_native_preview_package_cache_lease",
+            None,
+        )
+        if callable(retain_package):
+            retain_package(Path(pending_package))
 
     def _discard_archive_d3d11_pending_package(self, status_file: Optional[Path] = None) -> bool:
         pending_status = getattr(self, "archive_isolated_renderer_pending_status_file", None)
@@ -131,6 +150,13 @@ class ArchivePreviewD3D11ProcessMixin:
         self.archive_isolated_renderer_pending_status_file = None
         self.archive_isolated_renderer_pending_package_source = ""
         self.archive_d3d11_pending_model_key = ""
+        release_package = getattr(
+            getattr(self, "archive_d3d11_preview_host", None),
+            "release_native_preview_package_cache_lease",
+            None,
+        )
+        if callable(release_package):
+            release_package(Path(pending_package))
         self._remove_archive_isolated_package_dir(Path(pending_package))
         return True
 
@@ -138,6 +164,9 @@ class ArchivePreviewD3D11ProcessMixin:
         if package_dir is None:
             return
         package_dir = Path(package_dir)
+        cache_root = getattr(self, "_native_preview_package_cache_root", lambda: None)()
+        if cache_root is not None and is_durable_native_preview_package_path(Path(cache_root), package_dir):
+            return
         removable_root = package_dir
         try:
             parent = package_dir.parent
@@ -244,6 +273,9 @@ class ArchivePreviewD3D11ProcessMixin:
             parent_hwnd = 0
         if parent_hwnd:
             arguments.extend(["--parent-hwnd", str(parent_hwnd)])
+        hold_package = getattr(host_widget, "hold_native_preview_package_cache_lease", None)
+        if callable(hold_package):
+            hold_package(Path(package_dir))
         return str(host_binary), arguments
 
     def _archive_isolated_renderer_command(self, package_dir: Path, status_file: Path) -> Tuple[str, List[str]]:

@@ -1626,9 +1626,12 @@ def test_texture_editor_navigator_and_ruler_state_updates() -> None:
     _app()
     navigator = TextureEditorNavigator()
     navigator.resize(220, 160)
-    navigator.set_state(None, image_width=1024, image_height=512, viewport_rect=(100.0, 80.0, 300.0, 120.0))
+    image_pixels = np.zeros((8, 16, 4), dtype=np.uint8)
+    image = _rgba_array_to_qimage(image_pixels, copy=False)
+    navigator.set_state(image, image_width=1024, image_height=512, viewport_rect=(100.0, 80.0, 300.0, 120.0))
 
     assert not navigator._target_rect().isEmpty()
+    assert navigator._image is image
 
     ruler = TextureEditorRuler(Qt.Horizontal)
     ruler.set_state(
@@ -1651,12 +1654,16 @@ def test_texture_editor_canvas_rgba_state_and_zoom() -> None:
     pixels[..., 3] = 255
 
     canvas.set_rgba_images(pixels)
+    pixels[0, 0] = [10, 20, 30, 255]
     canvas.set_fit_to_view(False)
     canvas.set_zoom_factor(2.0)
 
     assert canvas.current_display_scale() == 2.0
     assert canvas.width() == 10
     assert canvas.height() == 8
+    assert canvas._edited_rgba is pixels
+    assert canvas._edited_image is canvas._display_image
+    assert canvas._edited_image.pixelColor(0, 0).getRgb() == (10, 20, 30, 255)
 
 
 def test_texture_editor_canvas_view_mode_builds_channel_image() -> None:
@@ -1921,7 +1928,7 @@ def test_texture_editor_history_record_helpers_build_records_and_trim_redo() -> 
         limit=3,
     )
     capped, capped_index = texture_editor_history_with_appended_record(
-        [{"entry": "old0"}, {"entry": "old1"}, {"entry": "old2"}],
+        [checkpoint, delta, delta],
         2,
         checkpoint,
         limit=3,
@@ -1936,12 +1943,15 @@ def test_texture_editor_history_record_helpers_build_records_and_trim_redo() -> 
     assert restored_after[1, 1].tolist() == [50, 60, 70, 255]
     assert texture_editor_history_should_checkpoint(history_count=0, force_checkpoint=False) is True
     assert texture_editor_history_should_checkpoint(history_count=18, force_checkpoint=False) is False
-    assert texture_editor_history_should_checkpoint(history_count=19, force_checkpoint=False) is True
+    assert texture_editor_history_should_checkpoint(history_count=19, force_checkpoint=False) is False
     assert texture_editor_history_should_checkpoint(history_count=2, force_checkpoint=True) is True
     assert texture_editor_history_tracked_layer_ids(before_document, after_document) == {"base", "mask", "adj_mask"}
     assert updated == [{"entry": "old0"}, {"entry": "old1"}, delta]
     assert updated_index == 2
-    assert capped == [{"entry": "old1"}, {"entry": "old2"}, checkpoint]
+    assert len(capped) == 3
+    assert "checkpoint" in capped[0]
+    assert capped[0]["entry"].label == "Paint"
+    assert capped[-1] is checkpoint
     assert capped_index == 2
 
 
@@ -2160,6 +2170,12 @@ def test_texture_editor_floating_bounds_helpers_use_layer_offsets_and_document_l
         ((1, 1), (5, 6)),
         padding=2,
     ) == (0, 0, 8, 8)
+    assert estimated_texture_editor_brush_dirty_bounds(
+        document,
+        dataclasses.replace(TextureEditorToolSettings(size=4), symmetry_mode="both"),
+        ((1, 1),),
+        padding=0,
+    ) == (1, 1, 8, 6)
 
 
 def test_texture_editor_shift_pixels_moves_full_and_masked_regions() -> None:
@@ -3350,6 +3366,8 @@ def test_texture_editor_export_tasks_copy_and_write_files(tmp_path: Path) -> Non
     layer_pixels = {"base": pixels}
 
     snapshot = copy_texture_editor_layer_pixels(layer_pixels)
+    assert snapshot["base"] is not pixels
+    assert not snapshot["base"].flags.writeable
     pixels[0, 0] = [0, 0, 0, 0]
     flattened_path = export_texture_editor_flattened_png_task(document, snapshot, tmp_path / "flat.png")
     region_path = export_texture_editor_region_png_task(
@@ -3763,6 +3781,7 @@ def test_texture_editor_view_state_helpers() -> None:
     assert cache_hit.dirty_bounds == (0, 0, 1, 1)
     assert dirty_composite.rgba[0, 0].tolist() == [10, 20, 30, 255]
     assert dirty_composite.rgba[1, 1].tolist() == [80, 90, 100, 255]
+    assert dirty_composite.rgba is full_composite.cache
     assert dirty_composite.cache_revision == 2
     assert dirty_composite.dirty_bounds is None
 

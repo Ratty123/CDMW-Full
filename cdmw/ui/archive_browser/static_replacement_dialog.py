@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-from cdmw.ui.archive_browser.static_replacement_dialog_prompt import (
-    prompt_archive_static_replacement_options,
-)
-
-
 class ArchiveStaticReplacementDialogMixin:
     """Static mesh replacement builder dialog and preview wiring."""
 
@@ -44,6 +39,10 @@ class ArchiveStaticReplacementDialogMixin:
         on_accept: Optional[Callable[[StaticMeshReplacementOptions], None]] = None,
         on_cancel: Optional[Callable[[], None]] = None,
     ) -> None:
+        from cdmw.ui.archive_browser.static_replacement_dialog_prompt import (
+            prompt_archive_static_replacement_options,
+        )
+
         return prompt_archive_static_replacement_options(
             self,
             entry,
@@ -67,6 +66,17 @@ class ArchiveStaticReplacementDialogMixin:
             on_accept=on_accept,
             on_cancel=on_cancel,
         )
+
+
+def __getattr__(name: str) -> object:
+    if name != "prompt_archive_static_replacement_options":
+        raise AttributeError(name)
+    from cdmw.ui.archive_browser.static_replacement_dialog_prompt import (
+        prompt_archive_static_replacement_options,
+    )
+
+    globals()[name] = prompt_archive_static_replacement_options
+    return prompt_archive_static_replacement_options
 
 
 __all__ = ["ArchiveStaticReplacementDialogMixin"]

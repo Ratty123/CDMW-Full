@@ -16,6 +16,20 @@ from cdmw.domain.textures.material_authority import (
     material_profile_mask_binding_mode,
     material_profile_support_policy,
 )
+from cdmw.domain.textures.material_parameters import (
+    normalize_basic_control_percent as _normalize_basic_control_percent,
+    normalize_edge_relief_source as _normalize_edge_relief_source,
+    normalize_global_gloss_reduction as _normalize_global_gloss_reduction,
+    normalize_gloss_reduction_mode as _normalize_gloss_reduction_mode,
+    normalize_signed_basic_control_percent as _normalize_signed_basic_control_percent,
+    normalize_tone_contrast as _normalize_tone_contrast,
+    profile_accent_glow_intensity as _material_parameter_accent_glow_intensity,
+    profile_accent_glow_strength as _material_parameter_accent_glow_strength,
+    profile_metallic_inverted as _material_parameter_metallic_inverted,
+    profile_roughness_inverted as _material_parameter_roughness_inverted,
+    profile_source_emissive_enabled as _material_parameter_source_emissive_enabled,
+    profile_source_emissive_parameter_intensity as _material_parameter_source_emissive_intensity,
+)
 
 MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME = "material_authority_manual"
 _MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_PREFIX = f"{MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME}:"
@@ -256,7 +270,7 @@ def _material_authority_detail_mask_profile() -> CDMaterialRuntimeProfile:
     return replace(
         _material_authority_pbr_source_test_profile(),
         name="material_authority_detail_mask",
-        label="Material Authority",
+        label="Automatic",
         authority_contract="true_source_authority_detail_mask",
         mask_binding_mode="detail_mask_material",
         base_color_lift=0,
@@ -293,7 +307,7 @@ def _material_authority_manual_default_profile() -> CDMaterialRuntimeProfile:
     return replace(
         _material_authority_detail_mask_profile(),
         name=MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
-        label="Material Authority Manual",
+        label="Manual",
         note=(
             "Manual source-owned material profile based on Material Authority. "
             "UI controls override color, emissive, roughness, metallic, tint reset, displacement, and source-routing behavior."
@@ -656,6 +670,8 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
         "material_authority_user": MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
         "manual_material_authority": MANUAL_COMPLETE_SWAP_MATERIAL_PROFILE_NAME,
         "material_authority": "material_authority_detail_mask",
+        "automatic": "material_authority_detail_mask",
+        "material_authority_automatic": "material_authority_detail_mask",
         "material_authority_default": "material_authority_detail_mask",
         "recommended_material_authority": "material_authority_detail_mask",
         "runtime_xml": "material_authority_runtime_xml",
@@ -680,9 +696,9 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
         "material_authority_detail_mask": "material_authority_detail_mask",
         "material_authority_detail_mask_source": "material_authority_detail_mask",
         "true_source_detail_mask": "material_authority_detail_mask",
-        "placeholder_safe": "material_authority_placeholder_safe_test",
-        "placeholder_safe_test": "material_authority_placeholder_safe_test",
-        "material_authority_placeholder_safe": "material_authority_placeholder_safe_test",
+        "placeholder_safe": "material_authority_detail_mask",
+        "placeholder_safe_test": "material_authority_detail_mask",
+        "material_authority_placeholder_safe": "material_authority_detail_mask",
         "material_authority_placeholder_safe_test": "material_authority_placeholder_safe_test",
         "clean_source": "material_authority_clean_source",
         "material_authority_clean": "material_authority_clean_source",
@@ -707,64 +723,23 @@ def get_complete_swap_material_profile(profile_name: str = "") -> CDMaterialRunt
 
 
 def normalize_global_gloss_reduction(value: object) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return 0.0
-    if number == 0.0:
-        return 0.0
-    if -1.0 <= number <= 1.0:
-        number *= 100.0
-    return max(-100.0, min(100.0, number))
+    return _normalize_global_gloss_reduction(value)
 
 
 def normalize_basic_control_percent(value: object) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return 0.0
-    if number <= 0.0:
-        return 0.0
-    if number <= 1.0:
-        number *= 100.0
-    return max(0.0, min(100.0, number))
+    return _normalize_basic_control_percent(value)
 
 
 def normalize_signed_basic_control_percent(value: object) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return 0.0
-    if number == 0.0:
-        return 0.0
-    if -1.0 <= number <= 1.0:
-        number *= 100.0
-    return max(-100.0, min(100.0, number))
+    return _normalize_signed_basic_control_percent(value)
 
 
 def normalize_tone_contrast(value: object) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return 0.0
-    return max(-100.0, min(100.0, number))
+    return _normalize_tone_contrast(value)
 
 
 def normalize_edge_relief_source(value: object) -> str:
-    normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
-    aliases = {
-        "preserve": "preserve_target",
-        "preserve_target_support": "preserve_target",
-        "target": "preserve_target",
-        "generate": "generate_source",
-        "generated": "generate_source",
-        "source": "generate_source",
-        "source_generated": "generate_source",
-    }
-    normalized = aliases.get(normalized, normalized)
-    if normalized not in {"preserve_target", "generate_source", "hybrid"}:
-        return "hybrid"
-    return normalized
+    return _normalize_edge_relief_source(value)
 
 
 def _profile_uses_cd_smoothness_mask_response(material_profile: CDMaterialRuntimeProfile) -> bool:
@@ -788,22 +763,11 @@ def _profile_global_gloss_reduction(material_profile: CDMaterialRuntimeProfile) 
 
 
 def _profile_accent_glow_strength(material_profile: Optional[CDMaterialRuntimeProfile]) -> float:
-    if material_profile is None:
-        return 0.0
-    return normalize_basic_control_percent(getattr(material_profile, "accent_glow_strength", 0.0))
+    return _material_parameter_accent_glow_strength(material_profile)
 
 
 def _profile_accent_glow_intensity(material_profile: Optional[CDMaterialRuntimeProfile]) -> float:
-    if material_profile is None:
-        return 0.0
-    strength = _profile_accent_glow_strength(material_profile)
-    if strength <= 0.0:
-        return 0.0
-    try:
-        maximum = float(getattr(material_profile, "accent_glow_intensity_max", 5.5) or 5.5)
-    except (TypeError, ValueError, OverflowError):
-        maximum = 5.5
-    return max(0.0, min(20.0, maximum)) * (strength / 100.0)
+    return _material_parameter_accent_glow_intensity(material_profile)
 
 
 def _profile_requires_accent_glow_for_source_emissive(
@@ -817,47 +781,17 @@ def _profile_requires_accent_glow_for_source_emissive(
 
 
 def _profile_source_emissive_enabled(material_profile: Optional[CDMaterialRuntimeProfile]) -> bool:
-    if material_profile is None:
-        return False
-    if str(getattr(material_profile, "emissive_mode", "") or "").strip().lower() != "intensity":
-        return False
-    if _profile_requires_accent_glow_for_source_emissive(material_profile):
-        return _profile_accent_glow_strength(material_profile) > 0.0
-    return True
+    return _material_parameter_source_emissive_enabled(material_profile)
 
 
 def _profile_source_emissive_parameter_intensity(
     material_profile: Optional[CDMaterialRuntimeProfile],
 ) -> float:
-    if not _profile_source_emissive_enabled(material_profile):
-        return 0.0
-    accent_intensity = _profile_accent_glow_intensity(material_profile)
-    if accent_intensity > 0.0:
-        return accent_intensity
-    return 1.0
+    return _material_parameter_source_emissive_intensity(material_profile)
 
 
 def _profile_gloss_reduction_mode(material_profile: CDMaterialRuntimeProfile) -> str:
-    mode = _sanitize_texture_component(str(getattr(material_profile, "gloss_reduction_mode", "") or "cd_smoothness_low"))
-    aliases = {
-        "cdsmoothnesslow": "cd_smoothness_low",
-        "smoothnesslow": "cd_smoothness_low",
-        "low": "cd_smoothness_low",
-        "cdsmoothnesslowpreservemetal": "cd_smoothness_low_preserve_metal",
-        "smoothnesslowpreservemetal": "cd_smoothness_low_preserve_metal",
-        "lowpreservemetal": "cd_smoothness_low_preserve_metal",
-        "preservemetal": "cd_smoothness_low_preserve_metal",
-        "sourceroughnesshigh": "source_roughness_high",
-        "roughnesshigh": "source_roughness_high",
-        "mattehigh": "source_roughness_high",
-        "pbr": "source_roughness_high",
-    }
-    return aliases.get(
-        mode,
-        mode
-        if mode in {"cd_smoothness_low", "cd_smoothness_low_preserve_metal", "source_roughness_high"}
-        else "cd_smoothness_low",
-    )
+    return _normalize_gloss_reduction_mode(getattr(material_profile, "gloss_reduction_mode", "cd_smoothness_low"))
 
 
 def _blend_byte_value(value: Optional[int], target: int, strength: float, fallback: int = 0) -> int:
@@ -1583,11 +1517,11 @@ def _profile_displacement_scale_max(material_profile: Optional[CDMaterialRuntime
 
 
 def _profile_roughness_inverted(material_profile: CDMaterialRuntimeProfile) -> bool:
-    return bool(getattr(material_profile, "roughness_inverted", False) or getattr(material_profile, "roughness_invert", False))
+    return _material_parameter_roughness_inverted(material_profile)
 
 
 def _profile_metallic_inverted(material_profile: CDMaterialRuntimeProfile) -> bool:
-    return bool(getattr(material_profile, "metallic_inverted", False) or getattr(material_profile, "metallic_invert", False))
+    return _material_parameter_metallic_inverted(material_profile)
 
 
 def _profile_ma_rgb_roles(material_profile: CDMaterialRuntimeProfile) -> tuple[str, str, str]:

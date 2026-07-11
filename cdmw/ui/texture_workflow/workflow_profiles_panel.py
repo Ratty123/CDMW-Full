@@ -8,10 +8,10 @@ from typing import List, Optional, Tuple
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QFrame, QGridLayout, QInputDialog, QLabel, QTreeWidgetItem, QVBoxLayout
 
-from cdmw.constants import UPSCALE_BACKEND_REALESRGAN_NCNN
-from cdmw.core.texture_pipeline.discovery import collect_dds_files
-from cdmw.core.texture_pipeline.planning import build_texture_processing_plan
-from cdmw.core.texture_pipeline.runtime_config import normalize_config_for_planning
+from cdmw.constants import REALESRGAN_NCNN_TILE_SIZE, UPSCALE_BACKEND_REALESRGAN_NCNN
+from cdmw.services.texture_workflow_service import collect_dds_files
+from cdmw.services.texture_workflow_service import build_texture_processing_plan
+from cdmw.services.texture_workflow_service import normalize_config_for_planning
 from cdmw.domain.textures.output import (
     summarize_effective_dds_override,
     summarize_effective_ncnn_settings,
@@ -130,7 +130,11 @@ class TextureWorkflowProfilesPanelMixin:
 
     def _refresh_workflow_profile_ncnn_model_combo(self) -> None:
         current_value = self._combo_value(self.workflow_profile_ncnn_model_combo)
-        models = [self.ncnn_model_combo.itemData(index) for index in range(self.ncnn_model_combo.count())]
+        models = (
+            [self.ncnn_model_combo.itemData(index) for index in range(self.ncnn_model_combo.count())]
+            if self.chainner_section.is_body_built()
+            else []
+        )
         self.workflow_profile_ncnn_model_combo.blockSignals(True)
         self.workflow_profile_ncnn_model_combo.clear()
         self._add_combo_choice(self.workflow_profile_ncnn_model_combo, "Inherit Direct NCNN Model", "")
@@ -262,6 +266,11 @@ class TextureWorkflowProfilesPanelMixin:
         index = self._selected_workflow_profile_index()
         has_profile = 0 <= index < len(self.workflow_profiles_state)
         profile = self.workflow_profiles_state[index] if has_profile else None
+        direct_tile_size = (
+            self.ncnn_tile_size_spin.value()
+            if self.chainner_section.is_body_built()
+            else int(self.settings.value("ncnn/tile_size", REALESRGAN_NCNN_TILE_SIZE))
+        )
         self._workflow_editor_syncing = True
         try:
             for widget in (
@@ -292,7 +301,7 @@ class TextureWorkflowProfilesPanelMixin:
                 self._refresh_workflow_profile_ncnn_model_combo()
                 self._set_combo_by_value(self.workflow_profile_ncnn_scale_combo, "")
                 self.workflow_profile_ncnn_tile_override_checkbox.setChecked(False)
-                self.workflow_profile_ncnn_tile_spin.setValue(max(0, self.ncnn_tile_size_spin.value()))
+                self.workflow_profile_ncnn_tile_spin.setValue(max(0, direct_tile_size))
                 self.workflow_profile_ncnn_extra_args_edit.clear()
                 self._set_combo_by_value(self.workflow_profile_post_correction_combo, "")
             else:
@@ -321,7 +330,7 @@ class TextureWorkflowProfilesPanelMixin:
                 )
                 self.workflow_profile_ncnn_tile_override_checkbox.setChecked(profile.ncnn_tile_size is not None)
                 self.workflow_profile_ncnn_tile_spin.setValue(
-                    int(profile.ncnn_tile_size) if profile.ncnn_tile_size is not None else max(0, self.ncnn_tile_size_spin.value())
+                    int(profile.ncnn_tile_size) if profile.ncnn_tile_size is not None else max(0, direct_tile_size)
                 )
                 self.workflow_profile_ncnn_extra_args_edit.setText(profile.ncnn_extra_args)
                 self._set_combo_by_value(self.workflow_profile_post_correction_combo, profile.post_correction_mode or "")
@@ -372,7 +381,12 @@ class TextureWorkflowProfilesPanelMixin:
         self._sync_workflow_editor_state()
 
     def _schedule_workflow_match_refresh(self, *_args) -> None:
-        if not self._settings_ready or self._shutting_down or self._workflow_editor_syncing:
+        if (
+            not self.filters_section.is_body_built()
+            or not self._settings_ready
+            or self._shutting_down
+            or self._workflow_editor_syncing
+        ):
             return
         self._workflow_match_refresh_timer.start()
 

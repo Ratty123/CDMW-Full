@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 
+from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
 
 class LogControllerMixin:
     """Shared shell log appenders, status message, and busy state toggles."""
@@ -15,13 +17,14 @@ class LogControllerMixin:
         self.archive_log_view.clear()
         self.set_status_message("Archive scan log cleared.")
 
-    def _background_task_active(self) -> bool:
+    def _background_task_active(self, *, block_on_archive_index: bool = True) -> bool:
         if self.worker_thread is not None:
             return True
-        if self.archive_basic_index_thread is not None:
+        if block_on_archive_index and self.archive_basic_index_thread is not None:
             self.set_status_message("Archive lookup indexes are still warming. Wait for them to finish before refreshing archives.", error=True)
             return True
-        if self.text_search_tab.is_busy():
+        text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
+        if text_search_tab is not None and text_search_tab.is_busy():
             self.set_status_message("Text Search is still running. Stop it first before starting another task.", error=True)
             return True
         return False
@@ -57,6 +60,9 @@ class LogControllerMixin:
         self.archive_log_view.appendPlainText(f"[{timestamp}] {message}")
         scrollbar = self.archive_log_view.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
+
+    def _append_verbose_archive_log(self, message: str) -> None:
+        self.append_archive_log(message, verbose=True)
 
     def set_status_message(self, message: str, *, error: bool = False) -> None:
         self.error_message_value.setText(message)
@@ -138,9 +144,15 @@ class LogControllerMixin:
         self.archive_media_preview.setEnabled(not busy)
         self.archive_preview_text_edit.setEnabled(not busy)
         self.archive_preview_info_edit.setEnabled(not busy)
-        self.text_search_tab.set_external_busy(busy)
+        self.text_search_tab.setEnabled(not busy)
+        text_search_tab = created_tool_widget(self.text_search_tab)
+        if text_search_tab is not None:
+            text_search_tab.set_external_busy(busy)
         self.research_tab.setEnabled(not busy)
-        self.replace_assistant_tab.set_external_busy(busy)
+        self.replace_assistant_tab.setEnabled(not busy)
+        replace_assistant_tab = created_tool_widget(self.replace_assistant_tab)
+        if replace_assistant_tab is not None:
+            replace_assistant_tab.set_external_busy(busy)
         self.texture_editor_tab.setEnabled(not busy)
         self.settings_tab.setEnabled(not busy)
         self.archive_preview_loose_toggle_button.setEnabled(

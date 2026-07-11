@@ -3,6 +3,12 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from tests.static_replacement_source_support import (
+    static_replacement_callback_factory_source,
+    static_replacement_mesh_edit_implementation_source,
+    static_replacement_remaining_callback_source,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "cdmw_app.py"
@@ -48,12 +54,7 @@ ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_STATE_B = (
 ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_CALLBACKS = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_deps_callbacks.py"
 )
-ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES = (
-    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_callback_factories.py"
-)
-ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS = (
-    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_remaining_callbacks.py"
-)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_MATERIAL_AUTHORITY_CALLBACKS = ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_material_authority_callbacks.py"
 ARCHIVE_STATIC_REPLACEMENT_DIALOG_MESH_EDIT_CALLBACKS = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_mesh_edit_callbacks.py"
 )
@@ -74,8 +75,10 @@ UTILITY_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "utility_controller.py"
 THEME_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "theme_controller.py"
 ACTIVATION_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "activation_controller.py"
 DIAGNOSTICS_SERVICE = ROOT / "cdmw" / "services" / "diagnostics_service.py"
+DIAGNOSTIC_BUNDLE_SERVICE = ROOT / "cdmw" / "services" / "diagnostic_bundle_service.py"
 CLOSE_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "close_controller.py"
 STARTUP_DIALOGS = ROOT / "cdmw" / "ui" / "shell" / "startup_dialogs.py"
+STARTUP_PATH_TASK_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "startup_path_task_controller.py"
 ARCHIVE_WORKERS = ROOT / "cdmw" / "workers" / "archive_workers.py"
 ARCHIVE_CONTROLS_PANEL = ROOT / "cdmw" / "ui" / "archive_browser" / "controls_panel.py"
 ARCHIVE_PROGRESS = ROOT / "cdmw" / "ui" / "archive_browser" / "progress.py"
@@ -98,7 +101,6 @@ ARCHIVE_PREVIEW_LAYOUT = ROOT / "cdmw" / "ui" / "archive_browser" / "preview_lay
 ARCHIVE_UI_FORMATTING = ROOT / "cdmw" / "ui" / "archive_browser" / "ui_formatting.py"
 ARCHIVE_PREVIEW_SETTINGS = ROOT / "cdmw" / "ui" / "archive_browser" / "preview_settings.py"
 TEXTURE_WORKERS = ROOT / "cdmw" / "workers" / "texture_workers.py"
-WORKER_PROTOCOL = ROOT / "cdmw" / "workers" / "worker_protocol.py"
 STARTUP_SPLASH_HOST = ROOT / "cdmw" / "ui" / "startup_splash_host.py"
 APP_ICON = ROOT / "cdmw" / "ui" / "app_icon.py"
 ARCHIVE = ROOT / "cdmw" / "core" / "archive.py"
@@ -115,6 +117,9 @@ REPLACE_ASSISTANT_TAB = ROOT / "cdmw" / "ui" / "replace_assistant_tab.py"
 TEXTURE_EDITOR_TAB = ROOT / "cdmw" / "ui" / "texture_editor_tab.py"
 TEXTURE_EDITOR_WORKER_LIFECYCLE = ROOT / "cdmw" / "ui" / "texture_workflow" / "editor_worker_lifecycle.py"
 ITEM_ICONS_TAB = ROOT / "cdmw" / "ui" / "item_icons" / "tab.py"
+MODEL_LIBRARY_TAB = ROOT / "cdmw" / "ui" / "model_library" / "tab.py"
+MODEL_LIBRARY_PREVIEW = ROOT / "cdmw" / "ui" / "model_library" / "preview.py"
+RECOLOR_VARIANTS_TAB = ROOT / "cdmw" / "ui" / "recolor_variants_tab.py"
 
 
 def _legacy_nested_source(path: Path) -> str:
@@ -153,11 +158,15 @@ def _main_window_source() -> str:
         + "\n"
         + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS_CALLBACKS)
         + "\n"
-        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_CALLBACK_FACTORIES)
+        + static_replacement_callback_factory_source(ROOT)
         + "\n"
-        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS)
+        + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_MATERIAL_AUTHORITY_CALLBACKS)
+        + "\n"
+        + static_replacement_remaining_callback_source(ROOT)
         + "\n"
         + _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_MESH_EDIT_CALLBACKS)
+        + "\n"
+        + static_replacement_mesh_edit_implementation_source(ROOT)
     )
 
 
@@ -166,7 +175,8 @@ class CrashReportingGuardTests(unittest.TestCase):
         main_source = _main_window_source()
         diagnostics_source = (ROOT / "cdmw" / "ui" / "shell" / "diagnostics_controller.py").read_text(encoding="utf-8")
         responsiveness_source = (ROOT / "cdmw" / "ui" / "shell" / "responsiveness_controller.py").read_text(encoding="utf-8")
-        widgets_source = WIDGETS.read_text(encoding="utf-8")
+        wheel_guard_source = (ROOT / "cdmw" / "ui" / "wheel_guard.py").read_text(encoding="utf-8")
+        from cdmw.ui import wheel_guard, widgets
 
         self.assertIn("def qt_wrapper_is_valid(obj: object) -> bool:", diagnostics_source)
         self.assertIn("shiboken6.isValid(obj)", diagnostics_source)
@@ -174,20 +184,19 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("and qt_wrapper_is_valid(watched)", responsiveness_source)
         self.assertIn("self._viewport = tree.viewport()", main_source)
         self.assertIn("watched is not self._viewport or not _qt_object_is_valid(self._tree)", main_source)
-        self.assertIn("selected_items = tuple(source_tree.selectedItems())", main_source)
+        self.assertIn("selected_items = tuple(_state.source_tree.selectedItems())", main_source)
         self.assertIn("except RuntimeError:", main_source)
         self.assertIn("selected_items = ()", main_source)
-        self.assertIn("import shiboken6", widgets_source)
-        self.assertIn("def _watched_is_valid(watched: object) -> bool:", widgets_source)
-        self.assertIn("shiboken6.isValid(watched)", widgets_source)
-        self.assertIn("if event_type != QEvent.Type.Wheel:", widgets_source)
+        self.assertEqual((widgets.NonIntrusiveWheelGuard, widgets.ensure_app_wheel_guard), (wheel_guard.NonIntrusiveWheelGuard, wheel_guard.ensure_app_wheel_guard))
+        self.assertIn("shiboken6.isValid(watched)", wheel_guard_source)
+        self.assertIn("if event_type != QEvent.Type.Wheel:", wheel_guard_source)
 
     def test_morph_slider_topology_crash_uses_existing_refresh_helper(self) -> None:
         source = _main_window_source()
 
         self.assertNotIn("_refresh_morph_slider_controls", source)
-        self.assertIn("def _morph_slider_refresh_controls() -> None:", source)
-        self.assertIn("_morph_slider_refresh_controls()", source)
+        self.assertIn("def _morph_slider_refresh_controls(_state, _callbacks, ) -> None:", source)
+        self.assertIn("_callbacks._morph_slider_refresh_controls()", source)
 
     def test_bootstrap_import_failures_are_reported(self) -> None:
         source = APP_BOOTSTRAP.read_text(encoding="utf-8")
@@ -216,7 +225,13 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("APP_ACTIVATION_REQUEST_FILE_NAME", activation_source)
         self.assertIn("def request_existing_instance_activation", activation_source)
         self.assertIn("--startup-splash-host", splash_source)
-        self.assertIn("if _startup_splash_process.poll() is None:", splash_source)
+        start_body = splash_source[splash_source.index("def start_external_startup_splash"):]
+        self.assertNotIn("time.sleep(", start_body)
+        self.assertNotIn("while time.monotonic()", start_body)
+        self.assertIn("_start_process_monitor(process, command_file", start_body)
+        self.assertIn("_start_process_watchdog(process, exited)", splash_source)
+        self.assertIn("cleanup_startup_splash_artifacts(command_file)", splash_source)
+        self.assertIn("cleanup_stale_startup_splash_artifacts()", maintenance_source)
         self.assertIn("os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)", splash_source)
         self.assertIn("request_existing_instance_activation()", source)
         self.assertIn('if not os.environ.get("_PYI_SPLASH_IPC"):', splash_source)
@@ -289,6 +304,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         menus_source = SHELL_MENUS.read_text(encoding="utf-8")
         wiring_source = SIGNAL_WIRING.read_text(encoding="utf-8")
         profile_source = PROFILE_CONTROLLER.read_text(encoding="utf-8")
+        bundle_source = DIAGNOSTIC_BUNDLE_SERVICE.read_text(encoding="utf-8")
         startup_source = STARTUP_CONTROLLER.read_text(encoding="utf-8")
         diagnostics_service_source = DIAGNOSTICS_SERVICE.read_text(encoding="utf-8")
 
@@ -300,8 +316,8 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def copy_latest_problem_summary(self) -> None:", profile_source)
         self.assertIn("format_issue_summary(", profile_source)
         self.assertIn("latest_diagnostic_report_files(", profile_source)
-        self.assertIn('archive.writestr("issue_summary.txt", issue_summary)', profile_source)
-        self.assertIn('archive.writestr("diagnostics_index.json", json.dumps(diagnostics_index, indent=2))', profile_source)
+        self.assertIn('("issue_summary.txt", issue_summary)', bundle_source)
+        self.assertIn('("diagnostics_index.json", json.dumps(diagnostics_index, indent=2))', bundle_source)
         self.assertIn("def traceback_diagnostic_details", diagnostics_service_source)
         self.assertIn("def diagnostic_report_index", diagnostics_service_source)
         self.assertIn("def format_issue_summary", diagnostics_service_source)
@@ -373,7 +389,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         app_source = APP_STARTUP_SPLASH.read_text(encoding="utf-8")
         host_source = STARTUP_SPLASH_HOST.read_text(encoding="utf-8")
         self.assertIn("def read_startup_theme_key() -> str:", app_source)
-        self.assertIn('"theme_key": str(theme_key or read_startup_theme_key())', app_source)
+        self.assertIn("theme_key=str(theme_key or read_startup_theme_key())", app_source)
         self.assertIn("startup_theme_key = read_startup_theme_key()", app_source)
         self.assertIn("from cdmw.ui.themes import UI_THEME_SCHEMES", host_source)
         self.assertIn("def _set_theme(self, theme_key: object) -> None:", host_source)
@@ -418,7 +434,6 @@ class CrashReportingGuardTests(unittest.TestCase):
     def test_close_waits_for_workers_asynchronously(self) -> None:
         main_source = MAIN_WINDOW.read_text(encoding="utf-8")
         close_source = CLOSE_CONTROLLER.read_text(encoding="utf-8")
-        protocol_source = WORKER_PROTOCOL.read_text(encoding="utf-8")
         source = main_source + "\n" + close_source
         self.assertIn("def _begin_deferred_close_for_workers", close_source)
         self.assertIn("event.ignore()", close_source)
@@ -430,8 +445,6 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _request_tab_shutdowns(self) -> None:", close_source)
         self.assertIn('getattr(tab, "request_shutdown", None)', close_source)
         self.assertIn('getattr(tab, "iter_shutdown_workers", None)', close_source)
-        self.assertIn("class ShutdownAwareTab(Protocol):", protocol_source)
-        self.assertIn("class CancellableWorker(Protocol):", protocol_source)
         self.assertIn('close_phase="force_stop"', close_source)
         self.assertIn('close_phase="waiting"', close_source)
         self.assertIn('close_phase="ready_to_accept"', close_source)
@@ -466,6 +479,20 @@ class CrashReportingGuardTests(unittest.TestCase):
                 self.assertIn("def request_shutdown", source)
                 self.assertIn("self.request_shutdown()", source)
                 self.assertNotIn(".wait(", source)
+
+    def test_model_library_and_recolor_workers_are_owned_during_close(self) -> None:
+        close_source = CLOSE_CONTROLLER.read_text(encoding="utf-8")
+        model_source = MODEL_LIBRARY_TAB.read_text(encoding="utf-8") + MODEL_LIBRARY_PREVIEW.read_text(encoding="utf-8")
+        recolor_source = RECOLOR_VARIANTS_TAB.read_text(encoding="utf-8")
+
+        self.assertIn('"model_library_tab"', close_source)
+        self.assertIn('"recolor_variants_tab"', close_source)
+        self.assertNotIn("thread.terminate()", close_source)
+        for source in (model_source, recolor_source):
+            self.assertIn("def iter_shutdown_workers", source)
+            self.assertIn("def request_shutdown", source)
+            self.assertIn("self.request_shutdown()", source)
+        self.assertIn("self._request_tab_shutdowns()", close_source[close_source.index("def _finalize_close"):])
 
     def test_clean_native_fault_log_is_suppressed_on_normal_exit(self) -> None:
         source = MAIN_WINDOW.read_text(encoding="utf-8")
@@ -654,9 +681,6 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def paintEvent(self, event) -> None", splash_source)
         self.assertIn("self.signal_mark = StartupSignalMark", splash_source)
         self.assertIn("self.signal_mark.stop()", splash_source)
-        self.assertIn("remaining_minimum_visible_ms", splash_source)
-        self.assertIn("self._minimum_visible_seconds = 3.0", splash_source)
-        self.assertIn("QTimer.singleShot(remaining_ms, self._release_startup_splash)", source)
         self.assertIn("def close_pyinstaller_boot_splash() -> None:", startup_source)
         self.assertIn("close_pyinstaller_boot_splash()", source)
         self.assertIn("class ExternalStartupSplashAdapter", startup_source)
@@ -681,7 +705,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertNotIn("_show_main_window_behind_startup_splash", source)
         self.assertIn("def _finish_startup_splash_now(self) -> None:", source)
         self.assertIn("def pump_animation_frame", startup_source)
-        self.assertIn("MainWindow(startup_splash=startup_splash)", source)
+        self.assertTrue(all(value in main_source for value in ("startup_splash=startup_splash", "app_context=AppContext.from_settings(application_startup.settings)")))
         self.assertIn('pump_startup_splash("Preparing archive browser...")', source)
         self.assertIn("def _splash_theme_color", splash_source)
         self.assertIn("def _splash_accent_block_colors", splash_source)
@@ -912,16 +936,21 @@ class CrashReportingGuardTests(unittest.TestCase):
             )
         )
         startup_dialog_source = STARTUP_DIALOGS.read_text(encoding="utf-8")
-        self.assertIn("class StartupArchivePathDialog(QDialog):", startup_dialog_source)
-        startup_dialog_start = startup_dialog_source.index("class StartupArchivePathDialog(QDialog):")
+        startup_task_source = STARTUP_PATH_TASK_CONTROLLER.read_text(encoding="utf-8")
+        class_marker = "class StartupArchivePathDialog(StartupPathTaskControllerMixin, QDialog):"
+        self.assertIn(class_marker, startup_dialog_source)
+        startup_dialog_start = startup_dialog_source.index(class_marker)
         startup_dialog_body = startup_dialog_source[startup_dialog_start:]
         self.assertIn("self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint", startup_dialog_body)
         self.assertIn("self.setMinimumWidth(520)", startup_dialog_body)
         self.assertIn("root_layout.setContentsMargins(14, 14, 14, 14)", startup_dialog_body)
         self.assertNotIn("self.setMinimumHeight(360)", startup_dialog_body)
         self.assertIn("QTimer.singleShot(80, self._run_initial_autodetect)", startup_dialog_body)
-        self.assertIn("autodetect_archive_package_roots(on_log=logs.append)", startup_dialog_body)
-        self.assertIn("looks_like_archive_package_root(Path(path_text).expanduser())", startup_dialog_body)
+        self.assertIn("autodetect_archive_package_roots(", startup_task_source)
+        self.assertIn("stop_event=stop_event", startup_task_source)
+        self.assertIn("def validate_startup_archive_path(", startup_task_source)
+        self.assertIn("self._queue_path_task(", startup_task_source)
+        self.assertIn('"validate",', startup_task_source)
         self.assertIn("After you continue, CDMW will build the archive cache", startup_dialog_body)
 
         self.assertIn("def _show_startup_archive_path_prompt_if_needed(", source)

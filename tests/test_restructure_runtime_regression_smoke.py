@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -42,12 +43,20 @@ def _entry(path: str, root: Path) -> ArchiveEntry:
 class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
     def setUp(self) -> None:
         _app()
-        self.window = MainWindow()
+        self._temp_dir = tempfile.TemporaryDirectory()
+        settings = create_settings(settings_file_path=Path(self._temp_dir.name) / "cdmw-test.cfg")
+        context = AppContext(
+            settings=settings,
+            services=ServiceContainer.create_default(settings=settings),
+            event_bus=AppEventBus(),
+        )
+        self.window = MainWindow(app_context=context)
 
     def tearDown(self) -> None:
         self.window._finalize_close()
         self.window.deleteLater()
         _app().processEvents()
+        self._temp_dir.cleanup()
 
     def test_shell_exposes_and_activates_all_primary_tools(self) -> None:
         visible_main_tabs = [
@@ -107,6 +116,33 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
                 window.deleteLater()
                 _app().processEvents()
 
+    def test_startup_archive_autoload_reaches_scan_after_root_preflight(self) -> None:
+        class ScanReached(RuntimeError):
+            pass
+
+        def stop_before_worker(*_args: object, **_kwargs: object) -> None:
+            raise ScanReached
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_root = Path(temp_dir)
+            inspected_roots: list[Path] = []
+            self.window.archive_package_root_edit.setText(str(package_root))
+            self.window.show_quick_start_on_launch = False
+            self.window._previous_session_unclean = False
+            self.window.worker_thread = None
+            self.window.archive_entries = []
+            self.window._check_archive_cache_health = lambda _root: {}  # type: ignore[method-assign]
+            self.window._warn_if_archive_cache_stale = lambda *_args: None  # type: ignore[method-assign]
+            self.window._set_archive_cache_health = stop_before_worker  # type: ignore[method-assign]
+
+            with patch(
+                "cdmw.ui.archive_browser.scan_lifecycle.find_suspicious_archive_tree_roots",
+                side_effect=lambda root: inspected_roots.append(root) or (),
+            ), self.assertRaises(ScanReached):
+                self.window._maybe_autoload_archive_on_startup()
+
+        self.assertEqual([package_root], inspected_roots)
+
     def test_retrofit_repackage_action_opens_tab_not_modal_dialog(self) -> None:
         with patch.object(self.window, "_show_mod_package_retrofit_dialog") as open_dialog:
             self.window.mod_package_tool_action.trigger()
@@ -158,7 +194,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             opened: list[tuple[ArchiveEntry, str]] = []
 
             def run_utility_task(*, task, on_complete, **_kwargs):
-                on_complete(task(lambda _message: None))
+                on_complete(task(lambda _message: None, threading.Event()))
 
             self.window._run_utility_task = run_utility_task  # type: ignore[method-assign]
             self.window.archive_entries_by_normalized_path = {}

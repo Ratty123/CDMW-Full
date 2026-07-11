@@ -14,6 +14,7 @@ class ShellWindowRuntimeStateMixin:
         self.worker_thread: Optional[QThread] = None
         self.scan_worker: Optional[ScanWorker] = None
         self.archive_scan_worker: Optional[ArchiveScanWorker] = None
+        self.archive_scan_ui_receiver: object | None = None
         self.archive_sidecar_thread: Optional[QThread] = None
         self.archive_sidecar_worker: Optional[ArchiveSidecarIndexWorker] = None
         self.archive_derived_cache_thread: Optional[QThread] = None
@@ -171,6 +172,9 @@ class ShellWindowRuntimeStateMixin:
         self.archive_entries_by_basename: Mapping[str, Sequence[ArchiveEntry]] = {}
         self.archive_entries_by_extension: Mapping[str, Sequence[ArchiveEntry]] = {}
         self.archive_entries_by_role: Mapping[str, Sequence[ArchiveEntry]] = {}
+        self.archive_mesh_entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]] = {}
+        self.archive_mesh_companion_by_identity: Mapping[object, ArchiveEntry] = {}
+        self.archive_character_appearance_swap_cache: Dict[object, Tuple[ArchiveEntry, ...]] = {}
         self.archive_extension_counts: Counter[str] = Counter()
         self.archive_entry_metadata_signature = ""
         self.archive_entry_metadata_sources: Tuple[Tuple[object, object, object], ...] = ()
@@ -178,6 +182,7 @@ class ShellWindowRuntimeStateMixin:
         self.archive_scan_shard_entry_counts: Dict[str, int] = {}
         self.archive_result_filter_signature: Tuple[object, ...] = ()
         self.archive_basic_index_state = "idle"
+        self.archive_basic_index_request_id = 0
         self.archive_basic_index_thread: Optional[QThread] = None
         self.archive_basic_index_worker: Optional[ArchiveBasicIndexWorker] = None
         self.archive_name_search_index: Optional[ArchiveNameSearchIndex] = None
@@ -186,6 +191,7 @@ class ShellWindowRuntimeStateMixin:
         self.archive_item_exact_display_names: Dict[str, str] = {}
         self.archive_item_related_display_names: Dict[str, str] = {}
         self.archive_enhanced_index_state = "idle"
+        self.archive_enhanced_index_request_id = 0
         self.archive_enhanced_index_activity = "idle"
         self.archive_enhanced_index_auto_prewarm_pending = False
         self.archive_native_derived_cache_ready = False

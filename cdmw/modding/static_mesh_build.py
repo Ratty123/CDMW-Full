@@ -86,6 +86,8 @@ def build_static_mesh_replacement(
     if report.errors:
         raise ValueError(_format_static_report_failure(report))
 
+    skin_weight_transfer_summary: list[str] = []
+    setattr(normalized_options, "_skin_weight_transfer_summary", skin_weight_transfer_summary)
     working_mesh = _build_mapped_replacement_mesh(
         original_mesh,
         replacement_mesh,
@@ -93,6 +95,7 @@ def build_static_mesh_replacement(
         normalized_options,
         output_draw_sections=report.output_draw_sections,
     )
+    report.alignment_summary.extend(skin_weight_transfer_summary)
 
     if fmt == "pac":
         from .mesh_importer import _build_pac_full_rebuild

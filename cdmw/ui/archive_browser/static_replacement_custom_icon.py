@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import os
+import tempfile
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -12,7 +14,13 @@ from typing import Callable, Optional, Sequence
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage
 
-from cdmw.core.item_icon import ITEM_ICON_SOURCE_EXTENSIONS, ItemIconOverrideSpec, choose_item_icon_source
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.library.item_icons import ITEM_ICON_SOURCE_EXTENSIONS, ItemIconOverrideSpec
+from cdmw.services.atomic_file_service import atomic_publish_files
+from cdmw.services.item_icon_service import ItemIconService
+
+
+_ITEM_ICON_SERVICE = ItemIconService()
 
 
 CUSTOM_ITEM_ICON_DISABLED_STATUS = "Custom item icon disabled."
@@ -175,7 +183,7 @@ def custom_item_icon_override_spec(
         return None, CUSTOM_ITEM_ICON_NO_SOURCE_EXPORT_MESSAGE
 
     source_root = Path(source_value).expanduser()
-    chosen, _candidates, message = choose_item_icon_source(
+    chosen, _candidates, message = _ITEM_ICON_SERVICE.choose_source(
         source_root,
         target_path=target_path,
         related_stems=related_stems,
@@ -215,7 +223,7 @@ def custom_item_icon_status_text(
         return f"Current: {target_path}. Source: choose file or folder. Final: fit + pad to existing icon template."
 
     source_root = Path(source_value).expanduser()
-    chosen, candidates, message = choose_item_icon_source(
+    chosen, candidates, message = _ITEM_ICON_SERVICE.choose_source(
         source_root,
         target_path=target_path,
         related_stems=related_stems,
@@ -406,6 +414,38 @@ def custom_item_icon_preview_image_from_pixmap(
     return custom_item_icon_preview_image(pixmap.toImage(), formatter=formatter, size=size)
 
 
+def write_custom_item_icon_image_atomic(
+    image: QImage,
+    output_path: Path | str,
+    *,
+    stop_event: object = None,
+) -> Path:
+    """Encode a detached image and publish it only after cancellation checks."""
+
+    if image.isNull():
+        raise ValueError("generated item icon image is empty")
+    target = Path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, staging_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=target.parent,
+    )
+    os.close(descriptor)
+    staging = Path(staging_name)
+    try:
+        raise_if_cancelled(stop_event, "Generated item icon save cancelled.")
+        if not image.save(str(staging), "PNG"):
+            raise OSError(f"could not encode generated item icon: {target}")
+        with staging.open("rb+") as handle:
+            os.fsync(handle.fileno())
+        raise_if_cancelled(stop_event, "Generated item icon save cancelled.")
+        atomic_publish_files({staging: target})
+        return target
+    finally:
+        staging.unlink(missing_ok=True)
+
+
 __all__ = [
     "CUSTOM_ITEM_ICON_DISABLED_STATUS",
     "CUSTOM_ITEM_ICON_NO_SOURCE_EXPORT_MESSAGE",
@@ -436,4 +476,5 @@ __all__ = [
     "custom_item_icon_target_path",
     "custom_item_icon_unique_generated_path",
     "custom_item_icon_write_failure_message",
+    "write_custom_item_icon_image_atomic",
 ]

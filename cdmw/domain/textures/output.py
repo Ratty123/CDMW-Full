@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple
 
 from cdmw.constants import (
     DDS_FORMAT_MODE_MATCH_ORIGINAL,
@@ -18,10 +18,9 @@ from cdmw.constants import (
     UPSCALE_BACKEND_NONE,
     UPSCALE_BACKEND_REALESRGAN_NCNN,
 )
-from cdmw.core.upscale_profiles import (
+from cdmw.domain.textures.semantics import (
     TextureUpscaleDecision,
     is_png_intermediate_high_risk,
-    suggest_texture_upscale_decision,
 )
 from cdmw.models import (
     DdsInfo,
@@ -216,17 +215,22 @@ def apply_automatic_texture_rule_adjustments(
     intermediate_kind: str = "visible_color_png_path",
     sidecar_texts: Sequence[str] = (),
     semantic_decision: Optional[TextureUpscaleDecision] = None,
+    decision_factory: Optional[Callable[..., TextureUpscaleDecision]] = None,
     allow_auto_format_override: bool = True,
     prefer_manual_visible_format: bool = False,
 ) -> DdsOutputSettings:
-    decision = semantic_decision or suggest_texture_upscale_decision(
-        rel_path.as_posix(),
-        preset=preset,
-        original_texconv_format=dds_info.texconv_format,
-        has_alpha=has_alpha,
-        sidecar_texts=sidecar_texts,
-        enable_automatic_rules=True,
-    )
+    decision = semantic_decision
+    if decision is None:
+        if decision_factory is None:
+            raise ValueError("semantic_decision or decision_factory is required")
+        decision = decision_factory(
+            rel_path.as_posix(),
+            preset=preset,
+            original_texconv_format=dds_info.texconv_format,
+            has_alpha=has_alpha,
+            sidecar_texts=sidecar_texts,
+            enable_automatic_rules=True,
+        )
     next_settings = DdsOutputSettings(
         texconv_format=output_settings.texconv_format,
         mip_count=output_settings.mip_count,

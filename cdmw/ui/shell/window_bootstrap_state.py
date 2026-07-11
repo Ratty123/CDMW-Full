@@ -34,7 +34,7 @@ class ShellWindowBootstrapStateMixin:
         collect_crash_context: Callable[[], dict],
         clear_active_main_window: Callable[[], None],
         write_crash_report: Callable[[dict, str], Path],
-        write_heartbeat: Callable[[str], None],
+        write_heartbeat: Callable[..., None],
     ) -> None:
         self.app_context = app_context or AppContext.create_default()
         self.app_state = AppState()

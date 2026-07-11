@@ -1,52 +1,53 @@
 from __future__ import annotations
 
-import io
+import hashlib
 import json
+import os
 import re
 import shutil
 import sqlite3
+import stat
+import tempfile
 import threading
 import time
 import zipfile
-from dataclasses import dataclass
-from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
-from urllib.parse import unquote, urljoin, urlparse, urlunparse
+from urllib.parse import unquote, urljoin
 from urllib.request import Request, urlopen
 
+from cdmw.core.atomic_file import atomic_publish_directory, atomic_write_text
+from cdmw.core.common import raise_if_cancelled
+from cdmw.core.model_catalogue_zip import (
+    safe_zip_member_name,
+    split_nested_zip_member_ref,
+    zip_contains_importable_model,
+    zip_importable_member_refs,
+    zip_importable_members,
+)
+from cdmw.domain.library.models import (
+    BROWSABLE_MODEL_EXTENSIONS,
+    DEFAULT_MODEL_MIRROR_URL,
+    IMPORTABLE_MODEL_EXTENSIONS,
+    LOCAL_MODEL_TEXTURE_EXTENSIONS,
+    MODEL_DOWNLOAD_MAX_BYTES,
+    MODEL_DOWNLOAD_MIN_FREE_BYTES,
+    ZIP_EXTRACT_MAX_COMPRESSION_RATIO,
+    ZIP_EXTRACT_MAX_MEMBER_BYTES,
+    ZIP_EXTRACT_MAX_MEMBERS,
+    ZIP_EXTRACT_MAX_TOTAL_BYTES,
+    LocalModelFile,
+    MirrorDownloadCandidate,
+    MirrorDownloadResult,
+    is_importable_model_path,
+    mirror_download_candidates,
+    normalize_mirror_base_url,
+    normalize_mirror_model_record,
+    parse_catalogue_links,
+    safe_catalogue_link_name,
+)
+from cdmw.domain.library.scene_selection import select_model_archive_member
 
-DEFAULT_MODEL_MIRROR_URL = "https://mirror.traines.eu/sketchfab-backup/"
-
-IMPORTABLE_MODEL_EXTENSIONS = {
-    ".obj",
-    ".dae",
-    ".gltf",
-    ".glb",
-    ".pac",
-    ".pam",
-    ".pamlod",
-}
-
-ZIP_IMPORTABLE_MODEL_EXTENSIONS = set(IMPORTABLE_MODEL_EXTENSIONS)
-ZIP_NESTED_IMPORTABLE_ARCHIVE_EXTENSIONS = {".zip"}
-ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES = 128 * 1024 * 1024
-
-BROWSABLE_MODEL_EXTENSIONS = IMPORTABLE_MODEL_EXTENSIONS | {
-    ".3ds",
-    ".abc",
-    ".blend",
-    ".fbx",
-    ".lwo",
-    ".ply",
-    ".stl",
-    ".usd",
-    ".usda",
-    ".usdc",
-    ".usdz",
-    ".x",
-    ".zip",
-}
 
 _GENERIC_LOCAL_MODEL_FILE_STEMS = {
     "asset",
@@ -84,116 +85,6 @@ _GENERIC_LOCAL_MODEL_DIRECTORY_NAMES = _GENERIC_LOCAL_MODEL_FILE_STEMS | {
 
 _TRAILING_MODEL_CATALOGUE_UID_RE = re.compile(r"[-_\s]+[0-9a-fA-F]{24,64}$")
 _LOCAL_MODEL_SCAN_IGNORED_DIRECTORY_NAMES = {".cdmw_extracted", ".cdmw_nested_zip"}
-LOCAL_MODEL_TEXTURE_EXTENSIONS = {".png", ".dds", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"}
-
-
-@dataclass(frozen=True)
-class LocalModelFile:
-    path: Path
-    root: Path
-    name: str
-    extension: str
-    size: int
-    modified_at: float
-    import_supported: bool
-    texture_status: str = ""
-
-    @property
-    def relative_path(self) -> str:
-        try:
-            return str(self.path.relative_to(self.root))
-        except ValueError:
-            return str(self.path)
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "kind": "local",
-            "name": self.name,
-            "path": str(self.path),
-            "root": str(self.root),
-            "relative_path": self.relative_path,
-            "extension": self.extension,
-            "size": self.size,
-            "modified_at": self.modified_at,
-            "import_supported": self.import_supported,
-            "source": "Local model library",
-            "texture_status": self.texture_status,
-        }
-
-
-@dataclass(frozen=True)
-class MirrorDownloadCandidate:
-    format: str
-    label: str
-    url: str
-    filename: str
-    import_supported: bool
-
-
-@dataclass(frozen=True)
-class MirrorDownloadResult:
-    record: Mapping[str, Any]
-    candidate: MirrorDownloadCandidate
-    archive_path: Path
-    asset_dir: Path
-    import_path: Optional[Path]
-
-
-class _CatalogueLinkParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.links: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
-        if tag.lower() != "a":
-            return
-        for key, value in attrs:
-            if key.lower() == "href" and value:
-                self.links.append(value)
-                return
-
-
-def normalize_mirror_base_url(url: str) -> str:
-    raw = str(url or "").strip()
-    if not raw:
-        raise ValueError("Enter a model mirror URL first.")
-    parsed = urlparse(raw)
-    if not parsed.scheme:
-        parsed = urlparse(f"https://{raw}")
-    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("Mirror URL must be an HTTP or HTTPS URL.")
-    path = parsed.path or "/"
-    path = re.sub(r"/+(?:\+catalogue|\+README)/?$", "/", path)
-    if not path.endswith("/"):
-        path = f"{path}/"
-    return urlunparse((parsed.scheme.lower(), parsed.netloc, path, "", "", ""))
-
-
-def parse_catalogue_links(index_html: str) -> tuple[str, ...]:
-    parser = _CatalogueLinkParser()
-    parser.feed(index_html or "")
-    links: list[str] = []
-    seen: set[str] = set()
-    for href in parser.links:
-        name = href.rsplit("/", 1)[-1]
-        if not name.lower().endswith(".json"):
-            continue
-        normalized = href.strip()
-        if not normalized or normalized in seen:
-            continue
-        seen.add(normalized)
-        links.append(normalized)
-    return tuple(sorted(links, key=lambda value: unquote(value).lower()))
-
-
-def safe_catalogue_link_name(href: str) -> str:
-    name = unquote(str(href or "").rsplit("/", 1)[-1]).strip()
-    if not name:
-        name = "catalogue.json"
-    name = name.replace("/", "_").replace("\\", "_").replace(":", "_")
-    if not name.lower().endswith(".json"):
-        name = f"{name}.json"
-    return name
 
 
 def scan_local_model_files(
@@ -345,10 +236,6 @@ def _local_model_name_token(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
 
 
-def is_importable_model_path(path: Path | str) -> bool:
-    return Path(path).suffix.lower() in IMPORTABLE_MODEL_EXTENSIONS
-
-
 def local_model_texture_status(path: Path | str, *, cache: Optional[dict[tuple[str, str], int]] = None) -> str:
     model_path = Path(path)
     suffix = model_path.suffix.lower()
@@ -447,234 +334,69 @@ def _count_zip_texture_members(
     return count
 
 
-def zip_importable_members(archive_path: Path | str) -> tuple[str, ...]:
-    archive = Path(archive_path)
-    if archive.suffix.lower() != ".zip" or not archive.is_file():
-        return ()
-    priority = {".gltf": 0, ".glb": 1, ".obj": 2, ".dae": 3}
-    members: list[str] = []
-    try:
-        with zipfile.ZipFile(archive, "r") as zip_file:
-            for member in zip_file.infolist():
-                member_name = member.filename.replace("\\", "/")
-                if member.is_dir() or not member_name or member_name.startswith("/") or "../" in f"/{member_name}":
-                    continue
-                suffix = Path(member_name).suffix.lower()
-                if suffix in ZIP_IMPORTABLE_MODEL_EXTENSIONS:
-                    members.append(member.filename)
-    except (OSError, zipfile.BadZipFile):
-        return ()
-    return tuple(sorted(members, key=lambda value: (priority.get(Path(value).suffix.lower(), 99), value.lower())))
-
-
-def zip_importable_member_refs(archive_path: Path | str) -> tuple[str, ...]:
-    """Return direct and one-level nested ZIP importable member references."""
-    archive = Path(archive_path)
-    direct_members = list(zip_importable_members(archive))
-    if archive.suffix.lower() != ".zip" or not archive.is_file():
-        return tuple(direct_members)
-    members = list(direct_members)
-    seen = {member.replace("\\", "/").lower() for member in members}
-    try:
-        with zipfile.ZipFile(archive, "r") as zip_file:
-            for member in zip_file.infolist():
-                member_name = _safe_zip_member_name(member.filename)
-                if not member_name:
-                    continue
-                if Path(member_name).suffix.lower() not in ZIP_NESTED_IMPORTABLE_ARCHIVE_EXTENSIONS:
-                    continue
-                if int(getattr(member, "file_size", 0) or 0) > ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES:
-                    continue
-                for nested_member in _nested_zip_importable_members(zip_file, member):
-                    ref = f"{member_name}::{nested_member}"
-                    key = ref.lower()
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    members.append(ref)
-    except (OSError, zipfile.BadZipFile):
-        return tuple(direct_members)
-    return tuple(sorted(members, key=_zip_importable_member_ref_sort_key))
-
-
-def _nested_zip_importable_members(parent_archive: zipfile.ZipFile, member: zipfile.ZipInfo) -> tuple[str, ...]:
-    try:
-        with parent_archive.open(member, "r") as stream:
-            payload = stream.read(ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES + 1)
-    except (OSError, zipfile.BadZipFile):
-        return ()
-    if len(payload) > ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES:
-        return ()
-    try:
-        with zipfile.ZipFile(io.BytesIO(payload), "r") as nested_archive:
-            nested_members = []
-            for nested_member in nested_archive.infolist():
-                nested_name = _safe_zip_member_name(nested_member.filename)
-                if not nested_name:
-                    continue
-                if Path(nested_name).suffix.lower() in ZIP_IMPORTABLE_MODEL_EXTENSIONS:
-                    nested_members.append(nested_name)
-    except (OSError, zipfile.BadZipFile):
-        return ()
-    return tuple(sorted(nested_members, key=lambda value: (Path(value).suffix.lower(), value.lower())))
-
-
-def _zip_importable_member_ref_sort_key(value: str) -> tuple[int, int, str, str]:
-    priority = {".gltf": 0, ".glb": 1, ".obj": 2, ".dae": 3, ".pac": 4, ".pam": 5, ".pamlod": 6}
-    outer, nested = _split_nested_zip_member_ref(value)
-    suffix = Path(nested or outer).suffix.lower()
-    return (priority.get(suffix, 99), 1 if nested else 0, outer.lower(), nested.lower())
-
-
-def _safe_zip_member_name(value: str) -> str:
-    member_name = str(value or "").replace("\\", "/")
-    if not member_name or member_name.startswith("/") or "../" in f"/{member_name}":
-        return ""
-    return member_name
-
-
-def _split_nested_zip_member_ref(value: str) -> tuple[str, str]:
-    text = str(value or "").replace("\\", "/")
-    if "::" not in text:
-        return text, ""
-    outer, nested = text.split("::", 1)
-    return outer, nested
-
-
-def zip_contains_importable_model(archive_path: Path | str) -> bool:
-    return bool(zip_importable_member_refs(archive_path))
-
-
-def resolve_importable_model_path(path: Path | str, *, extract_root: Optional[Path | str] = None) -> Optional[Path]:
+def resolve_importable_model_path(
+    path: Path | str,
+    *,
+    extract_root: Optional[Path | str] = None,
+    selected_member: str = "",
+    stop_event: Optional[threading.Event] = None,
+) -> Optional[Path]:
     source_path = Path(path).expanduser()
+    raise_if_cancelled(stop_event, "Model import resolution cancelled.")
     if source_path.is_file() and is_importable_model_path(source_path):
         return source_path
     if source_path.is_dir():
-        direct_candidates = sorted(
-            candidate
-            for candidate in source_path.iterdir()
-            if candidate.is_file() and is_importable_model_path(candidate)
-        )
+        direct_candidates: list[Path] = []
+        for candidate in source_path.iterdir():
+            raise_if_cancelled(stop_event, "Model import resolution cancelled.")
+            if candidate.is_file() and is_importable_model_path(candidate):
+                direct_candidates.append(candidate)
+        direct_candidates.sort()
         if direct_candidates:
             return direct_candidates[0]
         for folder_name in ("gltf", "glb", "source", "model", "models"):
             model_dir = source_path / folder_name
             if not model_dir.is_dir():
                 continue
-            for candidate in sorted(model_dir.rglob("*")):
+            candidates: list[Path] = []
+            for candidate in model_dir.rglob("*"):
+                raise_if_cancelled(stop_event, "Model import resolution cancelled.")
+                candidates.append(candidate)
+            for candidate in sorted(candidates):
                 if candidate.is_file() and is_importable_model_path(candidate):
                     return candidate
-        for candidate in sorted(source_path.rglob("*")):
+        candidates = []
+        for candidate in source_path.rglob("*"):
+            raise_if_cancelled(stop_event, "Model import resolution cancelled.")
+            candidates.append(candidate)
+        for candidate in sorted(candidates):
             if candidate.is_file() and is_importable_model_path(candidate):
                 return candidate
         return None
     if source_path.suffix.lower() != ".zip" or not source_path.is_file():
         return None
-    members = zip_importable_member_refs(source_path)
-    if not members:
+    members = zip_importable_member_refs(source_path, stop_event=stop_event)
+    member = select_model_archive_member(source_path, members, selected_member=selected_member)
+    if member is None:
         return None
     destination = Path(extract_root).expanduser() if extract_root is not None else source_path.parent / ".cdmw_extracted" / source_path.stem
-    safe_extract_zip(source_path, destination)
-    for member in members:
-        outer_member, nested_member = _split_nested_zip_member_ref(member)
-        if nested_member:
-            nested_archive = destination.joinpath(*PurePosixPath(outer_member).parts)
-            if not nested_archive.is_file():
-                continue
-            nested_destination = destination / ".cdmw_nested_zip" / _nested_zip_extract_dir_name(outer_member)
-            safe_extract_zip(nested_archive, nested_destination)
-            candidate = nested_destination.joinpath(*PurePosixPath(nested_member).parts)
-        else:
-            candidate = destination.joinpath(*PurePosixPath(outer_member).parts)
-        if candidate.is_file() and is_importable_model_path(candidate):
-            return candidate
-    for candidate in sorted(destination.rglob("*")):
-        if candidate.is_file() and is_importable_model_path(candidate):
-            return candidate
-    return None
+    safe_extract_zip(source_path, destination, stop_event=stop_event)
+    outer_member, nested_member = split_nested_zip_member_ref(member)
+    if not nested_member:
+        candidate = destination.joinpath(*PurePosixPath(outer_member).parts)
+        return candidate if candidate.is_file() and is_importable_model_path(candidate) else None
+    nested_archive = destination.joinpath(*PurePosixPath(outer_member).parts)
+    if not nested_archive.is_file():
+        return None
+    nested_destination = destination / ".cdmw_nested_zip" / _nested_zip_extract_dir_name(outer_member)
+    safe_extract_zip(nested_archive, nested_destination, stop_event=stop_event)
+    candidate = nested_destination.joinpath(*PurePosixPath(nested_member).parts)
+    return candidate if candidate.is_file() and is_importable_model_path(candidate) else None
 
 
 def _nested_zip_extract_dir_name(member_name: str) -> str:
     clean = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(member_name or "").replace("\\", "/")).strip("._")
     return clean[:96] or "nested_zip"
-
-
-def normalize_mirror_model_record(payload: Mapping[str, Any], mirror_url: str) -> dict[str, Any]:
-    base_url = normalize_mirror_base_url(mirror_url)
-    uid = str(payload.get("uid", "") or payload.get("id", "") or "").strip()
-    user = payload.get("user") if isinstance(payload.get("user"), Mapping) else {}
-    license_payload = payload.get("license") if isinstance(payload.get("license"), Mapping) else {}
-    archives = payload.get("archives") if isinstance(payload.get("archives"), Mapping) else {}
-    categories = _extract_named_values(payload.get("categories"))
-    tags = _extract_named_values(payload.get("tags"))
-    prefix = uid[:2] if len(uid) >= 2 else "__"
-    model_base = urljoin(base_url, f"{prefix}/{uid}") if uid else ""
-    record = {
-        "kind": "mirror",
-        "uid": uid,
-        "name": str(payload.get("name", "") or uid or "Untitled model").strip(),
-        "description": str(payload.get("description", "") or "").strip(),
-        "viewer_url": str(payload.get("viewerUrl", "") or payload.get("viewer_url", "") or "").strip(),
-        "creator_name": str(user.get("displayName", "") or user.get("display_name", "") or "").strip(),
-        "creator_username": str(user.get("username", "") or "").strip(),
-        "license_label": str(license_payload.get("label", "") or license_payload.get("name", "") or "").strip(),
-        "license_slug": str(license_payload.get("slug", "") or license_payload.get("uid", "") or "").strip(),
-        "is_downloadable": bool(payload.get("isDownloadable", payload.get("is_downloadable", True))),
-        "is_age_restricted": bool(payload.get("isAgeRestricted", payload.get("is_age_restricted", False))),
-        "face_count": _optional_int(payload.get("faceCount", payload.get("face_count"))),
-        "vertex_count": _optional_int(payload.get("vertexCount", payload.get("vertex_count"))),
-        "like_count": _optional_int(payload.get("likeCount", payload.get("like_count"))),
-        "view_count": _optional_int(payload.get("viewCount", payload.get("view_count"))),
-        "published_at": str(payload.get("publishedAt", payload.get("published_at", "")) or ""),
-        "created_at": str(payload.get("createdAt", payload.get("created_at", "")) or ""),
-        "categories": categories,
-        "tags": tags,
-        "archives": dict(archives),
-        "mirror_url": base_url,
-        "metadata_url": f"{model_base}.json" if uid else "",
-        "thumbnail_url": f"{model_base}.jpeg" if uid else "",
-        "gltf_url": f"{model_base}.zip" if uid and ("gltf" in archives or not archives) else "",
-        "glb_url": f"{model_base}.glb" if uid and ("glb" in archives or not archives) else "",
-        "source_url": f"{model_base}.source.zip" if uid and "source" in archives else "",
-        "extra_url": f"{model_base}.extra.zip" if uid and "extra" in archives else "",
-    }
-    return record
-
-
-def mirror_download_candidates(
-    record: Mapping[str, Any],
-    mirror_url: str,
-    *,
-    preferred_format: str = "gltf",
-) -> tuple[MirrorDownloadCandidate, ...]:
-    uid = str(record.get("uid", "") or "").strip()
-    if not uid:
-        return ()
-    base_url = normalize_mirror_base_url(str(record.get("mirror_url", "") or mirror_url))
-    prefix = uid[:2] if len(uid) >= 2 else "__"
-    stem_url = urljoin(base_url, f"{prefix}/{uid}")
-    archives = record.get("archives") if isinstance(record.get("archives"), Mapping) else {}
-    has_known_archives = bool(archives)
-
-    candidates: list[MirrorDownloadCandidate] = []
-
-    def add(format_key: str, label: str, url_value: str, filename: str, import_supported: bool) -> None:
-        if not url_value or any(existing.url == url_value for existing in candidates):
-            return
-        candidates.append(MirrorDownloadCandidate(format_key, label, url_value, filename, import_supported))
-
-    if "gltf" in archives or not has_known_archives or record.get("gltf_url"):
-        add("gltf", "glTF ZIP", str(record.get("gltf_url") or f"{stem_url}.zip"), f"{uid}.zip", True)
-    if "glb" in archives or not has_known_archives or record.get("glb_url"):
-        add("glb", "GLB", str(record.get("glb_url") or f"{stem_url}.glb"), f"{uid}.glb", True)
-    if "source" in archives or record.get("source_url"):
-        add("source", "Original source ZIP", str(record.get("source_url") or f"{stem_url}.source.zip"), f"{uid}.source.zip", True)
-    if "extra" in archives or record.get("extra_url"):
-        add("extra", "Extra archive", str(record.get("extra_url") or f"{stem_url}.extra.zip"), f"{uid}.extra.zip", False)
-
-    preferred = str(preferred_format or "gltf").strip().lower()
-    candidates.sort(key=lambda item: (0 if item.format == preferred else 1, 0 if item.import_supported else 1, item.format))
-    return tuple(candidates)
 
 
 def download_mirror_model(
@@ -685,6 +407,7 @@ def download_mirror_model(
     preferred_format: str = "gltf",
     require_importable: bool = False,
     timeout: float = 120.0,
+    stop_event: Optional[threading.Event] = None,
 ) -> MirrorDownloadResult:
     base_url = normalize_mirror_base_url(mirror_url)
     candidates = mirror_download_candidates(record, base_url, preferred_format=preferred_format)
@@ -701,8 +424,9 @@ def download_mirror_model(
         candidate,
         output_root=output_root,
         timeout=timeout,
+        stop_event=stop_event,
     )
-    if require_importable and result.import_path is None:
+    if require_importable and result.import_path is None and not result.importable_members:
         raise ValueError("Downloaded archive does not contain an importable OBJ, DAE, glTF, GLB, or local mesh source.")
     return result
 
@@ -713,6 +437,7 @@ def download_mirror_model_candidate(
     *,
     output_root: Path | str,
     timeout: float = 120.0,
+    stop_event: Optional[threading.Event] = None,
 ) -> MirrorDownloadResult:
     uid = str(record.get("uid", "") or "").strip()
     name = str(record.get("name", "") or uid or "model").strip()
@@ -720,39 +445,130 @@ def download_mirror_model_candidate(
     asset_dir.mkdir(parents=True, exist_ok=True)
     archive_path = asset_dir / candidate.filename
     if not archive_path.is_file():
-        _download_url_to_file(candidate.url, archive_path, timeout=timeout)
+        download_kwargs: dict[str, object] = {"timeout": timeout}
+        if stop_event is not None:
+            download_kwargs["stop_event"] = stop_event
+        _download_url_to_file(candidate.url, archive_path, **download_kwargs)
     metadata_path = asset_dir / "model_metadata.json"
-    metadata_path.write_text(json.dumps(dict(record), ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_text(metadata_path, json.dumps(dict(record), ensure_ascii=False, indent=2))
     import_path: Optional[Path] = None
+    importable_members: tuple[str, ...] = ()
     if candidate.format == "glb":
         import_path = archive_path
     elif candidate.format in {"gltf", "source"}:
         extract_name = "gltf" if candidate.format == "gltf" else "source"
-        import_path = resolve_importable_model_path(archive_path, extract_root=asset_dir / extract_name)
+        importable_members = zip_importable_member_refs(archive_path, stop_event=stop_event)
+        if len(importable_members) == 1:
+            import_path = resolve_importable_model_path(
+                archive_path,
+                extract_root=asset_dir / extract_name,
+                selected_member=importable_members[0],
+                stop_event=stop_event,
+            )
     return MirrorDownloadResult(
         record=record,
         candidate=candidate,
         archive_path=archive_path,
         asset_dir=asset_dir,
         import_path=import_path,
+        importable_members=importable_members,
     )
 
 
-def safe_extract_zip(archive_path: Path | str, destination: Path | str) -> None:
+def _zip_extract_fingerprint(members: Sequence[zipfile.ZipInfo]) -> str:
+    digest = hashlib.sha256()
+    for member in members:
+        digest.update(
+            f"{member.filename}\0{member.CRC}\0{member.file_size}\0{member.compress_size}\n".encode(
+                "utf-8", "surrogatepass"
+            )
+        )
+    return digest.hexdigest()
+
+
+def _remove_extract_path(path: Path) -> None:
+    if path.is_dir():
+        shutil.rmtree(path, ignore_errors=True)
+    else:
+        path.unlink(missing_ok=True)
+
+
+def safe_extract_zip(
+    archive_path: Path | str,
+    destination: Path | str,
+    *,
+    stop_event: Optional[threading.Event] = None,
+    max_members: int = ZIP_EXTRACT_MAX_MEMBERS,
+    max_total_bytes: int = ZIP_EXTRACT_MAX_TOTAL_BYTES,
+) -> None:
     archive = Path(archive_path)
     target_root = Path(destination)
-    target_root.mkdir(parents=True, exist_ok=True)
-    resolved_root = target_root.resolve()
+    target_parent = target_root.parent
+    target_parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive, "r") as zip_file:
-        for member in zip_file.infolist():
-            member_name = member.filename.replace("\\", "/")
-            if not member_name or member_name.startswith("/") or "../" in f"/{member_name}":
+        members = zip_file.infolist()
+        if len(members) > max(1, int(max_members)):
+            raise ValueError(f"Model archive has too many members ({len(members):,}).")
+        fingerprint = _zip_extract_fingerprint(members)
+        total_bytes = 0
+        normalized_names: set[str] = set()
+        validated: list[tuple[zipfile.ZipInfo, str]] = []
+        for member in members:
+            raise_if_cancelled(stop_event, "Model archive extraction cancelled.")
+            member_name = safe_zip_member_name(member.filename)
+            if not member_name:
                 raise ValueError(f"Unsafe path in model archive: {member.filename}")
-            target_path = target_root / member_name
-            resolved_target = target_path.resolve()
-            if resolved_root != resolved_target and resolved_root not in resolved_target.parents:
-                raise ValueError(f"Unsafe path in model archive: {member.filename}")
-        zip_file.extractall(target_root)
+            identity = member_name.casefold()
+            if identity in normalized_names:
+                raise ValueError(f"Duplicate path in model archive: {member.filename}")
+            normalized_names.add(identity)
+            mode = int(member.external_attr >> 16)
+            if stat.S_ISLNK(mode):
+                raise ValueError(f"Symlink is not allowed in model archive: {member.filename}")
+            if member.flag_bits & 0x1:
+                raise ValueError(f"Encrypted model archive member is not supported: {member.filename}")
+            member_bytes = int(member.file_size)
+            if member_bytes < 0 or member_bytes > ZIP_EXTRACT_MAX_MEMBER_BYTES:
+                raise ValueError(f"Model archive member is too large: {member.filename}")
+            total_bytes += member_bytes
+            if total_bytes > max(1, int(max_total_bytes)):
+                raise ValueError("Model archive expanded size exceeds the extraction limit.")
+            ratio = member_bytes / max(1, int(member.compress_size))
+            if member_bytes > 1024 * 1024 and ratio > ZIP_EXTRACT_MAX_COMPRESSION_RATIO:
+                raise ValueError(f"Model archive member compression ratio is unsafe: {member.filename}")
+            validated.append((member, member_name))
+
+        free_bytes = shutil.disk_usage(target_parent).free
+        if total_bytes > free_bytes:
+            raise ValueError("Model archive needs more free disk space than is available.")
+
+        temp_root = Path(tempfile.mkdtemp(prefix=f".{target_root.name}.extract-", dir=target_parent))
+        try:
+            copied_bytes = 0
+            for member, member_name in validated:
+                raise_if_cancelled(stop_event, "Model archive extraction cancelled.")
+                output_path = temp_root.joinpath(*PurePosixPath(member_name).parts)
+                if member.is_dir():
+                    output_path.mkdir(parents=True, exist_ok=True)
+                    continue
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                with zip_file.open(member, "r") as source, output_path.open("xb") as target:
+                    while True:
+                        raise_if_cancelled(stop_event, "Model archive extraction cancelled.")
+                        chunk = source.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        copied_bytes += len(chunk)
+                        if copied_bytes > max(1, int(max_total_bytes)):
+                            raise ValueError("Model archive expanded size exceeds the extraction limit.")
+                        target.write(chunk)
+            (temp_root / ".cdmw-extract.json").write_text(
+                json.dumps({"fingerprint": fingerprint, "member_count": len(validated)}),
+                encoding="utf-8",
+            )
+            atomic_publish_directory(temp_root, target_root)
+        finally:
+            _remove_extract_path(temp_root)
 
 
 def initialize_catalogue_db(db_path: Path | str) -> sqlite3.Connection:
@@ -1289,13 +1105,63 @@ def _fetch_text(url: str, *, timeout: float) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def _download_url_to_file(url: str, output_path: Path, *, timeout: float) -> None:
+def _download_url_to_file(
+    url: str,
+    output_path: Path,
+    *,
+    timeout: float,
+    stop_event: Optional[threading.Event] = None,
+    max_bytes: int = MODEL_DOWNLOAD_MAX_BYTES,
+    min_free_bytes: int = MODEL_DOWNLOAD_MIN_FREE_BYTES,
+) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = output_path.with_suffix(f"{output_path.suffix}.tmp")
     request = Request(url, headers={"User-Agent": "CrimsonDesertModWorkbench/ModelCatalogue"})
-    with urlopen(request, timeout=timeout) as response, temp_path.open("wb") as handle:
-        shutil.copyfileobj(response, handle)
-    temp_path.replace(output_path)
+    deadline = time.monotonic() + max(0.001, float(timeout))
+    temp_path: Optional[Path] = None
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            try:
+                content_length = int(response.headers.get("Content-Length", 0) or 0)
+            except (TypeError, ValueError):
+                content_length = 0
+            if content_length > max(1, int(max_bytes)):
+                raise ValueError("Model download exceeds the size limit.")
+            free_bytes = shutil.disk_usage(output_path.parent).free
+            if content_length and content_length + max(0, int(min_free_bytes)) > free_bytes:
+                raise ValueError("Model download needs more free disk space than is available.")
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                prefix=f".{output_path.name}.",
+                suffix=".tmp",
+                dir=output_path.parent,
+                delete=False,
+            ) as handle:
+                temp_path = Path(handle.name)
+                copied = 0
+                while True:
+                    raise_if_cancelled(stop_event, "Model download cancelled.")
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("Model download exceeded the total time limit.")
+                    chunk = response.read(1024 * 1024)
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("Model download exceeded the total time limit.")
+                    if not chunk:
+                        break
+                    copied += len(chunk)
+                    if copied > max(1, int(max_bytes)):
+                        raise ValueError("Model download exceeds the size limit.")
+                    if len(chunk) + max(0, int(min_free_bytes)) > shutil.disk_usage(output_path.parent).free:
+                        raise ValueError("Model download needs more free disk space than is available.")
+                    handle.write(chunk)
+                handle.flush()
+                os.fsync(handle.fileno())
+        if temp_path is None:
+            raise RuntimeError("Model download did not create a temporary output file.")
+        temp_path.replace(output_path)
+    except Exception:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+        raise
 
 
 def _row_to_record(row: sqlite3.Row) -> dict[str, Any]:
@@ -1347,29 +1213,6 @@ def _catalogue_fts_enabled(conn: sqlite3.Connection) -> bool:
 def _fts_query(query: str) -> str:
     tokens = re.findall(r"[A-Za-z0-9_]+", query)
     return " ".join(f"{token}*" for token in tokens[:8])
-
-
-def _extract_named_values(value: object) -> tuple[str, ...]:
-    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
-        return ()
-    names: list[str] = []
-    for item in value:
-        if isinstance(item, Mapping):
-            name = str(item.get("name", "") or item.get("slug", "") or item.get("label", "") or "").strip()
-        else:
-            name = str(item or "").strip()
-        if name:
-            names.append(name)
-    return tuple(names)
-
-
-def _optional_int(value: object) -> Optional[int]:
-    try:
-        if value is None or value == "":
-            return None
-        return int(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _join_values(value: object) -> str:

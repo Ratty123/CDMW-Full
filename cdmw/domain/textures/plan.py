@@ -11,7 +11,7 @@ from cdmw.constants import (
     UPSCALE_BACKEND_NONE,
     UPSCALE_BACKEND_REALESRGAN_NCNN,
 )
-from cdmw.core.upscale_profiles import (
+from cdmw.domain.textures.semantics import (
     TextureUpscaleDecision,
     is_technical_texture_type,
     should_upscale_texture,

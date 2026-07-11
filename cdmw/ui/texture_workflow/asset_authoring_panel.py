@@ -4,14 +4,17 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QThread, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
-from cdmw.services.asset_authoring_service import AssetAuthoringService, MATERIAL_MAKER_EXPORT_TEMPLATE_SETTING
+from cdmw.ui.shell.texture_panel_persistence import finish_texture_workflow_panel_body
 from cdmw.ui.widgets import CollapsibleSection
-from cdmw.workers.asset_authoring_workers import MaterialMakerExportWorker, OpenImageIOTaskWorker
+
+if TYPE_CHECKING:
+    from cdmw.services.asset_authoring_service import AssetAuthoringService
 
 
 MATERIAL_MAKER_PROJECT_SETTINGS_KEY = "asset_authoring/material_maker_project_path"
@@ -19,6 +22,7 @@ MATERIAL_MAKER_EXPORT_DIR_SETTINGS_KEY = "asset_authoring/material_maker_export_
 OPENIMAGEIO_SOURCE_SETTINGS_KEY = "asset_authoring/oiio_source_path"
 OPENIMAGEIO_OUTPUT_SETTINGS_KEY = "asset_authoring/oiio_output_path"
 OPENIMAGEIO_COMPARE_SETTINGS_KEY = "asset_authoring/oiio_compare_path"
+MATERIAL_MAKER_EXPORT_TEMPLATE_SETTING = "asset_authoring/material_maker_export_template"
 
 
 def material_maker_export_status_text(result: Mapping[str, object] | object) -> tuple[str, bool]:
@@ -153,8 +157,23 @@ def openimageio_task_report_text(result: Mapping[str, object] | object, operatio
 class TextureWorkflowAssetAuthoringPanelMixin:
     """Build and run optional asset-authoring integrations in Texture Workflow."""
 
-    def _build_texture_workflow_asset_authoring_section(self, left_layout: QVBoxLayout) -> None:
-        self.asset_authoring_section = CollapsibleSection("Asset Authoring", expanded=False)
+    def _build_texture_workflow_asset_authoring_section(
+        self,
+        left_layout: QVBoxLayout,
+        *,
+        expanded: bool = False,
+    ) -> None:
+        self.asset_authoring_section = CollapsibleSection(
+            "Asset Authoring",
+            body_builder=lambda body_layout: TextureWorkflowAssetAuthoringPanelMixin._build_texture_workflow_asset_authoring_body(
+                self,
+                body_layout,
+            ),
+        )
+        left_layout.addWidget(self.asset_authoring_section)
+        self.asset_authoring_section.set_expanded(expanded)
+
+    def _build_texture_workflow_asset_authoring_body(self, body_layout: QVBoxLayout) -> None:
 
         asset_group = QWidget()
         asset_layout = QGridLayout(asset_group)
@@ -254,17 +273,19 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         self.openimageio_report_view.document().setMaximumBlockCount(200)
         self.openimageio_report_view.setMaximumHeight(130)
 
-        self.asset_authoring_section.body_layout.addWidget(asset_group)
-        self.asset_authoring_section.body_layout.addLayout(button_row)
-        self.asset_authoring_section.body_layout.addWidget(self.material_maker_export_status_label)
-        self.asset_authoring_section.body_layout.addWidget(self.material_maker_export_report_view)
-        self.asset_authoring_section.body_layout.addWidget(oiio_group)
-        self.asset_authoring_section.body_layout.addLayout(oiio_button_row)
-        self.asset_authoring_section.body_layout.addWidget(self.openimageio_status_label)
-        self.asset_authoring_section.body_layout.addWidget(self.openimageio_report_view)
-        left_layout.addWidget(self.asset_authoring_section)
+        body_layout.addWidget(asset_group)
+        body_layout.addLayout(button_row)
+        body_layout.addWidget(self.material_maker_export_status_label)
+        body_layout.addWidget(self.material_maker_export_report_view)
+        body_layout.addWidget(oiio_group)
+        body_layout.addLayout(oiio_button_row)
+        body_layout.addWidget(self.openimageio_status_label)
+        body_layout.addWidget(self.openimageio_report_view)
+        finish_texture_workflow_panel_body(self, "asset_authoring")
 
     def _asset_authoring_service(self) -> AssetAuthoringService:
+        from cdmw.services.asset_authoring_service import AssetAuthoringService
+
         return AssetAuthoringService(settings=None)
 
     def _material_maker_configured_paths(self) -> dict[str, object]:
@@ -410,6 +431,8 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         self._start_openimageio_task("diff", (left_path, right_path))
 
     def _start_openimageio_task(self, operation: str, paths: tuple[Path, ...]) -> None:
+        from cdmw.workers.asset_authoring_workers import OpenImageIOTaskWorker
+
         if self._background_task_active():
             if self.worker_thread is not None:
                 self.set_status_message(
@@ -472,6 +495,8 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         self._handle_build_cancelled(message)
 
     def start_material_maker_export(self) -> None:
+        from cdmw.workers.asset_authoring_workers import MaterialMakerExportWorker
+
         if self._background_task_active():
             if self.worker_thread is not None:
                 self.set_status_message(

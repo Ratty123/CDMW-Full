@@ -11,11 +11,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.archive import (
-    hashlittle,
+from cdmw.core.archive_extraction import read_archive_entry_data
+from cdmw.core.archive_format import hashlittle
+from cdmw.core.archive_model_references import (
     iter_archive_character_equipment_root_alias_stems,
     iter_archive_equipment_model_alias_stems,
-    read_archive_entry_data,
 )
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.table_catalog import (

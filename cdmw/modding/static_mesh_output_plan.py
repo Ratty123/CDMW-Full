@@ -18,6 +18,23 @@ from .static_mesh_types import (
 )
 
 _STATIC_REPLACEMENT_VERTEX_LIMIT = 65535
+_MATERIAL_ATLAS_UV_INSET_FRACTION = 1.0 / 64.0
+
+
+def _atlas_uv_transform(
+    rect: StaticMaterialAtlasRect,
+    *,
+    padding: int = 0,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    width = max(0.0, float(rect.width))
+    height = max(0.0, float(rect.height))
+    fraction = _MATERIAL_ATLAS_UV_INSET_FRACTION if int(padding or 0) > 0 else 0.0
+    inset_u = min(width * fraction, width * 0.25)
+    inset_v = min(height * fraction, height * 0.25)
+    return (
+        (float(rect.x) + inset_u, float(rect.y) + inset_v),
+        (max(0.0, width - inset_u * 2.0), max(0.0, height - inset_v * 2.0)),
+    )
 
 def _dense_export_mode(options: StaticMeshReplacementOptions) -> str:
     mode = str(getattr(options, "dense_export_mode", "preserve_split") or "preserve_split").strip().lower()

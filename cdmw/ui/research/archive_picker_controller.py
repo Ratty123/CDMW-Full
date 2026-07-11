@@ -4,7 +4,7 @@ from typing import Optional
 
 from PySide6.QtWidgets import QAbstractItemView, QComboBox, QTreeWidget, QTreeWidgetItem
 
-from cdmw.core.archive import build_archive_tree_index
+from cdmw.services.archive_query_service import build_archive_tree_index
 from cdmw.models import ArchiveEntry
 from cdmw.ui.research.archive_picker_state import (
     archive_picker_available_status_text,

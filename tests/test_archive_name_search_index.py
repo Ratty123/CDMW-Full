@@ -7,6 +7,7 @@ from unittest import mock
 
 from cdmw.core import archive as archive_core
 from cdmw.models import ArchiveEntry
+from tests.native_source_text import preview_core_source
 
 
 def _entry(path: str, *, package: str = "0009", offset: int = 0, size: int = 100) -> ArchiveEntry:
@@ -137,7 +138,7 @@ class ArchiveNameSearchIndexTests(unittest.TestCase):
             call_count += 1
             return original(*args, **kwargs)
 
-        with mock.patch("cdmw.core.archive._archive_search_query_matches_entry", side_effect=counted_match):
+        with mock.patch("cdmw.core.archive_filtering._archive_search_query_matches_entry", side_effect=counted_match):
             result = _filter(entries, "axe", index=index)
 
         self.assertEqual(result, ["object/tools/cd_t0000_pickaxe_0001.pac"])
@@ -242,9 +243,10 @@ class ArchiveNameSearchIndexTests(unittest.TestCase):
             (
                 Path("cdmw/core/archive.py").read_text(encoding="utf-8"),
                 Path("cdmw/core/archive_name_search.py").read_text(encoding="utf-8"),
+                Path("cdmw/core/archive_scan_cache.py").read_text(encoding="utf-8"),
             )
         )
-        native_text = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        native_text = preview_core_source()
 
         self.assertIn("_try_build_archive_name_search_index_native", source_text)
         self.assertIn("CDMW_DISABLE_NATIVE_NAME_SEARCH", source_text)

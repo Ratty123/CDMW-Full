@@ -6,7 +6,7 @@ from typing import Optional
 
 from PySide6.QtWidgets import QTreeWidgetItem
 
-from cdmw.core.archive import format_byte_size
+from cdmw.services.archive_read_service import format_byte_size
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 
 

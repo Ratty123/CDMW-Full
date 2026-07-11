@@ -6,13 +6,14 @@ import io
 import json
 import re
 import tempfile
-import time
 import zipfile
 from collections import Counter
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping, Sequence
 
-from cdmw.core.model_catalogue import LocalModelFile, safe_extract_zip, scan_local_model_files, zip_importable_member_refs
+from cdmw.core.atomic_file import atomic_write_text
+from cdmw.core.external_model_audit_resume import build_resumable_external_model_audit_catalogue
+from cdmw.core.model_catalogue import LocalModelFile, safe_extract_zip, zip_importable_member_refs
 from cdmw.modding.scene_importer import (
     SCENE_TEXTURE_DIAGNOSTIC_ONLY_EXTENSIONS,
     SCENE_TEXTURE_SOURCE_EXTENSIONS,
@@ -45,61 +46,29 @@ def build_external_model_audit_catalogue(
     max_files: int = 50_000,
     audit_zip_contents: bool = False,
     max_zip_audits: int | None = None,
+    resume_report: Mapping[str, object] | None = None,
+    force: bool = False,
+    chunk_size: int | None = None,
+    chunk_index: int = 0,
 ) -> dict[str, object]:
     """Build a read-only material authority catalogue for external model roots."""
-    normalized_roots = tuple(_normalize_root(root) for root in roots)
-    model_files = scan_local_model_files(
-        normalized_roots,
+    return build_resumable_external_model_audit_catalogue(
+        roots,
         extensions=EXTERNAL_MODEL_AUDIT_EXTENSIONS,
-        max_files=max(1, int(max_files)),
+        max_files=max_files,
+        audit_zip_contents=audit_zip_contents,
+        max_zip_audits=max_zip_audits,
+        resume_report=resume_report,
+        force=force,
+        chunk_size=chunk_size,
+        chunk_index=chunk_index,
     )
-    zip_audit_limit = None if max_zip_audits is None or int(max_zip_audits) <= 0 else int(max_zip_audits)
-    zip_audits_used = 0
-    rows: list[dict[str, object]] = []
-    for row in model_files:
-        skip_reason = ""
-        source_path = Path(str(getattr(row, "path", "") or ""))
-        if bool(audit_zip_contents) and zip_audit_limit is not None and source_path.suffix.lower() == ".zip":
-            importable_members = zip_importable_member_refs(source_path)
-            audit_members = _zip_external_model_members(source_path, importable_members)
-            if audit_members:
-                if zip_audits_used >= zip_audit_limit:
-                    skip_reason = f"max_zip_audits:{zip_audit_limit}"
-                else:
-                    zip_audits_used += 1
-        rows.append(
-            _audit_external_model_file(
-                row,
-                audit_zip_contents=bool(audit_zip_contents),
-                zip_content_audit_skip_reason=skip_reason,
-            )
-        )
-    return {
-        "schema_version": 1,
-        "tool": "external_model_audit_catalogue",
-        "generated_at_unix": int(time.time()),
-        "roots": [str(root) for root in normalized_roots],
-        "extensions": list(EXTERNAL_MODEL_AUDIT_EXTENSIONS),
-        "audit_zip_contents": bool(audit_zip_contents),
-        "max_zip_audits": zip_audit_limit,
-        "summary": _external_catalogue_summary(rows),
-        "models": rows,
-    }
 
 
 def write_external_model_audit_catalogue(report: Mapping[str, object], path: Path | str) -> Path:
     output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    atomic_write_text(output_path, json.dumps(report, indent=2, sort_keys=True) + "\n")
     return output_path
-
-
-def _normalize_root(root: Path | str) -> Path:
-    path = Path(root).expanduser()
-    try:
-        return path.resolve()
-    except OSError:
-        return path.absolute()
 
 
 def _audit_external_model_file(
@@ -213,7 +182,7 @@ def _audit_external_model_file(
             "material_classes": material_classes,
         }
     try:
-        scene_result = import_scene_mesh_with_report(source_path)
+        scene_result = import_scene_mesh_with_report(source_path, tolerate_missing_texture_files=True)
     except Exception as exc:
         return {
             **base,
@@ -291,7 +260,7 @@ def _audit_zip_external_model_file(
                     importable_members=importable_members,
                     audit_members=audit_members,
                 )
-            scene_result = import_scene_mesh_with_report(resolved_path)
+            scene_result = import_scene_mesh_with_report(resolved_path, tolerate_missing_texture_files=True)
         except Exception as exc:
             return {
                 **base,

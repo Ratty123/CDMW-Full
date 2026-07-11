@@ -3,9 +3,9 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
-import re
 import shutil
 import textwrap
+import threading
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -15,22 +15,36 @@ from cdmw.constants import (
     APP_REPOSITORY_URL,
     APP_TITLE,
 )
+from cdmw.core.common import raise_if_cancelled
+from cdmw.domain.packages.export_policy import (
+    MOD_PACKAGE_FILES_WRAPPER_STRUCTURES,
+    MOD_PACKAGE_MANAGER_PROFILE_LABELS,
+    MOD_PACKAGE_MANAGER_PROFILES,
+    MOD_PACKAGE_METADATA_ARTIFACTS,
+    MOD_PACKAGE_METADATA_ARTIFACTS_BY_FILENAME,
+    MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY,
+    MOD_PACKAGE_STRUCTURES,
+    ModPackageExportOptions,
+    ModPackageMetadataArtifactInfo,
+    effective_mod_package_export_options_for_kind as _effective_export_options_for_kind,
+    mod_package_expanded_export_options,
+    mod_package_export_options_for_manager,
+    mod_package_export_options_for_profiles,
+    mod_package_profile_uses_manager_metadata,
+    normalize_mod_package_manager_profile,
+    normalize_mod_package_manager_targets as _normalize_manager_targets,
+)
+from cdmw.domain.packages.layout import (
+    _payload_path_text,
+    is_mod_package_payload_path,
+    normalize_mod_package_new_path_prefixes,
+    normalize_mod_package_payload_path,
+    resolve_mod_package_profile_root,
+    resolve_mod_package_root,
+    safe_mod_package_files_dir as _safe_files_dir,
+    sanitize_mod_package_folder_name,
+)
 from cdmw.models import ModPackageInfo
-
-
-_KNOWN_MOD_CONTENT_ROOTS = {
-    "actionchart",
-    "character",
-    "effect",
-    "gamedata",
-    "leveldata",
-    "meta",
-    "object",
-    "tree",
-    "ui",
-    "vehicle",
-    "world",
-}
 
 
 @dataclasses.dataclass(slots=True)
@@ -57,112 +71,12 @@ class MeshLooseModFile:
 
 
 @dataclasses.dataclass(slots=True)
-class ModPackageExportOptions:
-    manager_targets: tuple[str, ...] = ("dmm",)
-    export_profiles: tuple[str, ...] = ()
-    output_profile_suffix: str = ""
-    structure: str = "game_relative"
-    create_manifest_json: bool = True
-    create_mod_json: bool = False
-    create_modinfo_json: bool = False
-    create_info_json: bool = False
-    create_no_encrypt_file: bool = True
-    create_zip: bool = False
-    create_texture_resolution_manifest: bool = False
-    create_material_authority_report: bool = False
-    create_active_file_authority_audit: bool = False
-    conflict_mode: str = ""
-    target_language: str = ""
-    files_dir: str = "files"
-
-
-MOD_PACKAGE_STRUCTURES = frozenset(
-    {"game_relative", "files_wrapper", "custom_compact_paths", "dmm_texture", "field_json_v31"}
-)
-MOD_PACKAGE_FILES_WRAPPER_STRUCTURES = frozenset({"files_wrapper", "custom_compact_paths"})
-
-
-@dataclasses.dataclass(slots=True)
 class ModPackageFinalizeResult:
     metadata_files: list[Path]
     zip_path: Path | None = None
     payload_root: Path | None = None
     warnings: list[str] = dataclasses.field(default_factory=list)
 
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class ModPackageMetadataArtifactInfo:
-    key: str
-    filename: str
-    label: str
-    description: str
-    primary: bool = False
-
-
-MOD_PACKAGE_MANAGER_PROFILES = ("dmm", "jmm", "cdumm", "crimson_sharp", "field_json")
-MOD_PACKAGE_MANAGER_PROFILE_LABELS = {
-    "dmm": "Definitive Mod Manager",
-    "jmm": "JMM JSON",
-    "cdumm": "CDUMM",
-    "crimson_sharp": "Crimson Sharp",
-    "field_json": "Field-JSON v3.1",
-}
-
-MOD_PACKAGE_METADATA_ARTIFACTS: tuple[ModPackageMetadataArtifactInfo, ...] = (
-    ModPackageMetadataArtifactInfo(
-        key="manifest_json",
-        filename="manifest.json",
-        label="manifest.json",
-        description=(
-            "Primary Crimson Desert Mod Workbench manifest. It records the package kind, metadata, "
-            "selected layout, manager targets, files directory, and new_paths declarations."
-        ),
-        primary=True,
-    ),
-    ModPackageMetadataArtifactInfo(
-        key="mod_json",
-        filename="mod.json",
-        label="mod.json",
-        description="Compatibility metadata for mod managers that look for a mod.json descriptor.",
-    ),
-    ModPackageMetadataArtifactInfo(
-        key="modinfo_json",
-        filename="modinfo.json",
-        label="modinfo.json",
-        description=(
-            "Compatibility metadata for managers such as CDUMM. It includes normal mod info and, "
-            "when applicable, conflict mode and target language."
-        ),
-    ),
-    ModPackageMetadataArtifactInfo(
-        key="info_json",
-        filename="info.json",
-        label="info.json",
-        description="Compatibility copy of the structured package metadata for managers that look for info.json.",
-    ),
-    ModPackageMetadataArtifactInfo(
-        key="mod_field_json",
-        filename="mod.field.json",
-        label="mod.field.json",
-        description="Field-JSON v3.1 asset manifest with DDS targets, vpaths, sizes, and SHA-256 hashes.",
-    ),
-    ModPackageMetadataArtifactInfo(
-        key="no_encrypt",
-        filename=".no_encrypt",
-        label=".no_encrypt",
-        description="Marker file used by some loose-file workflows to request non-encrypted handling.",
-    ),
-    ModPackageMetadataArtifactInfo(
-        key="ready_zip",
-        filename="Ready .zip",
-        label="Ready .zip",
-        description="Writes a zip beside the package folder containing the same generated package contents.",
-    ),
-)
-MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY = {info.key: info for info in MOD_PACKAGE_METADATA_ARTIFACTS}
-MOD_PACKAGE_METADATA_ARTIFACTS_BY_FILENAME = {
-    info.filename: info for info in MOD_PACKAGE_METADATA_ARTIFACTS if info.filename not in {"Ready .zip"}
-}
 
 _README_WIDTH = 57
 _README_LABEL_WIDTH = 18
@@ -205,238 +119,12 @@ _README_LOGO_LINES = (
 )
 
 
-def mod_package_profile_uses_manager_metadata(profile: str) -> bool:
-    normalized = str(profile or "dmm").strip().lower()
-    return normalized in {"cdumm", "ultimate", "ultimate_mods_manager"}
-
-
-def normalize_mod_package_manager_profile(profile: str) -> str:
-    normalized = str(profile or "dmm").strip().lower()
-    aliases = {
-        "field_json_v31": "field_json",
-        "field-json": "field_json",
-        "field_json_v3_1": "field_json",
-        "json": "jmm",
-        "jmm_json": "jmm",
-        "crimson_browser": "crimson_sharp",
-        "sharp": "crimson_sharp",
-        "definitive": "dmm",
-        "definitive_mod_manager": "dmm",
-        "ultimate": "cdumm",
-        "ultimate_mods_manager": "cdumm",
-    }
-    normalized = aliases.get(normalized, normalized)
-    return normalized if normalized in MOD_PACKAGE_MANAGER_PROFILES else "dmm"
-
-
-def mod_package_export_options_for_manager(profile: str) -> ModPackageExportOptions:
-    normalized = normalize_mod_package_manager_profile(profile)
-    if normalized == "field_json":
-        return ModPackageExportOptions(
-            manager_targets=("field_json",),
-            structure="field_json_v31",
-            create_manifest_json=False,
-            create_mod_json=False,
-            create_modinfo_json=False,
-            create_info_json=False,
-            create_no_encrypt_file=False,
-        )
-    if normalized == "dmm":
-        return ModPackageExportOptions(
-            manager_targets=("dmm",),
-            structure="dmm_texture",
-            create_manifest_json=False,
-            create_mod_json=False,
-            create_modinfo_json=True,
-            create_info_json=False,
-            create_no_encrypt_file=False,
-        )
-    if normalized == "jmm":
-        return ModPackageExportOptions(
-            manager_targets=("jmm",),
-            structure="game_relative",
-            create_manifest_json=False,
-            create_mod_json=False,
-            create_modinfo_json=False,
-            create_info_json=False,
-            create_no_encrypt_file=False,
-        )
-    if normalized == "cdumm":
-        return ModPackageExportOptions(
-            manager_targets=("cdumm",),
-            structure="files_wrapper",
-            create_modinfo_json=True,
-        )
-    if normalized == "crimson_sharp":
-        return ModPackageExportOptions(
-            manager_targets=("crimson_sharp",),
-            structure="files_wrapper",
-            create_mod_json=True,
-        )
-    return ModPackageExportOptions(
-        manager_targets=("dmm",),
-        structure="dmm_texture",
-        create_manifest_json=False,
-        create_mod_json=False,
-        create_modinfo_json=True,
-        create_info_json=False,
-        create_no_encrypt_file=False,
-    )
-
-
-def mod_package_export_options_for_profiles(
-    profiles: Sequence[str],
-    *,
-    create_zip: bool = False,
-    create_texture_resolution_manifest: bool = False,
-    create_material_authority_report: bool = False,
-    create_active_file_authority_audit: bool = False,
-    conflict_mode: str = "",
-    target_language: str = "",
-) -> ModPackageExportOptions:
-    selected_profiles: list[str] = []
-    seen: set[str] = set()
-    for value in tuple(profiles or ()):
-        normalized = normalize_mod_package_manager_profile(str(value or ""))
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        selected_profiles.append(normalized)
-    if not selected_profiles:
-        selected_profiles.append("dmm")
-
-    primary = selected_profiles[0]
-    defaults = mod_package_export_options_for_manager(primary)
-    uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in selected_profiles)
-    return dataclasses.replace(
-        defaults,
-        export_profiles=tuple(selected_profiles) if len(selected_profiles) > 1 else (),
-        create_zip=bool(create_zip),
-        create_texture_resolution_manifest=bool(create_texture_resolution_manifest),
-        create_material_authority_report=bool(create_material_authority_report),
-        create_active_file_authority_audit=bool(create_active_file_authority_audit),
-        conflict_mode=str(conflict_mode or "").strip() if uses_manager_metadata else "",
-        target_language=str(target_language or "").strip() if uses_manager_metadata else "",
-    )
-
-
-def sanitize_mod_package_folder_name(name: str) -> str:
-    sanitized = re.sub(r'[<>:"/\\\\|?*]+', "_", name).strip(" .")
-    return sanitized or "Crimson Desert Mod Workbench Mod"
-
-
-def resolve_mod_package_root(parent_root: Path, package_info: ModPackageInfo) -> Path:
-    package_title = (package_info.title or "").strip() or "Crimson Desert Mod Workbench Mod"
-    return parent_root / sanitize_mod_package_folder_name(package_title)
-
-
-def resolve_mod_package_profile_root(parent_root: Path, package_info: ModPackageInfo, profile: str, *, multi_profile: bool) -> Path:
-    root = resolve_mod_package_root(parent_root, package_info)
-    normalized = normalize_mod_package_manager_profile(profile)
-    if multi_profile:
-        return root.with_name(f"{root.name}_{normalized}")
-    return root
-
-
-def mod_package_expanded_export_options(options: ModPackageExportOptions, *, kind: str = "") -> tuple[tuple[str, ModPackageExportOptions], ...]:
-    selected_profiles: list[str] = []
-    seen: set[str] = set()
-    for value in tuple(options.export_profiles or ()):
-        normalized = normalize_mod_package_manager_profile(value)
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        selected_profiles.append(normalized)
-    if not selected_profiles:
-        manager_targets = _normalize_manager_targets(options.manager_targets)
-        selected_profiles = [manager_targets[0] if manager_targets else "dmm"]
-
-    if len(selected_profiles) == 1:
-        profile = selected_profiles[0]
-        if tuple(options.export_profiles or ()):
-            defaults = mod_package_export_options_for_manager(profile)
-            return ((profile, dataclasses.replace(options, manager_targets=defaults.manager_targets, export_profiles=(), output_profile_suffix="")),)
-        return ((profile, dataclasses.replace(options, export_profiles=())),)
-
-    expanded: list[tuple[str, ModPackageExportOptions]] = []
-    for profile in selected_profiles:
-        defaults = mod_package_export_options_for_manager(profile)
-        create_zip = bool(options.create_zip)
-        create_texture_resolution_manifest = bool(options.create_texture_resolution_manifest)
-        create_material_authority_report = bool(options.create_material_authority_report)
-        create_active_file_authority_audit = bool(options.create_active_file_authority_audit)
-        conflict_mode = str(options.conflict_mode or "").strip() if mod_package_profile_uses_manager_metadata(profile) else ""
-        target_language = str(options.target_language or "").strip() if mod_package_profile_uses_manager_metadata(profile) else ""
-        expanded.append(
-            (
-                profile,
-                dataclasses.replace(
-                    defaults,
-                    create_zip=create_zip,
-                    create_texture_resolution_manifest=create_texture_resolution_manifest,
-                    create_material_authority_report=create_material_authority_report,
-                    create_active_file_authority_audit=create_active_file_authority_audit,
-                    conflict_mode=conflict_mode,
-                    target_language=target_language,
-                    export_profiles=(),
-                    output_profile_suffix=profile,
-                ),
-            )
-        )
-    return tuple(expanded)
-
-
 def _compact_mapping(payload: dict[str, object]) -> dict[str, object]:
     return {
         key: value
         for key, value in payload.items()
         if value not in ("", None, [], {})
     }
-
-
-def normalize_mod_package_payload_path(path_value: str | Path) -> PurePosixPath:
-    normalized = str(path_value or "").replace("\\", "/").strip().strip("/")
-    if not normalized:
-        return PurePosixPath()
-    parts = [part for part in PurePosixPath(normalized).parts if part not in ("", ".")]
-    if not parts:
-        return PurePosixPath()
-
-    lowered_parts = [part.lower() for part in parts]
-    if "files" in lowered_parts:
-        files_index = lowered_parts.index("files")
-        parts = parts[files_index + 1 :]
-        lowered_parts = lowered_parts[files_index + 1 :]
-    if parts and re.fullmatch(r"\d{4}", parts[0]):
-        parts = parts[1:]
-        lowered_parts = lowered_parts[1:]
-    if len(parts) >= 2 and lowered_parts[0] == "gamedata" and lowered_parts[1] in _KNOWN_MOD_CONTENT_ROOTS:
-        parts = parts[1:]
-        lowered_parts = lowered_parts[1:]
-    while len(parts) > 1 and lowered_parts and lowered_parts[0] not in _KNOWN_MOD_CONTENT_ROOTS:
-        parts = parts[1:]
-        lowered_parts = lowered_parts[1:]
-    return PurePosixPath(*parts)
-
-
-def is_mod_package_payload_path(path_value: str | Path) -> bool:
-    normalized = normalize_mod_package_payload_path(path_value)
-    if not normalized.parts:
-        return False
-    if any(part.startswith(".") for part in normalized.parts):
-        return False
-    if len(normalized.parts) == 1 and normalized.name.lower() in {"manifest.json", "mod.json", "modinfo.json", "info.json", "readme.txt"}:
-        return False
-    return True
-
-
-def _payload_path_text(path_value: str | Path) -> str:
-    normalized = normalize_mod_package_payload_path(path_value)
-    if not normalized.parts:
-        return ""
-    if any(part.startswith(".") for part in normalized.parts):
-        return ""
-    return normalized.as_posix().strip("/")
 
 
 def _compact_nested_value(value: object) -> object:
@@ -457,91 +145,6 @@ def _compact_nested_value(value: object) -> object:
             result.append(compacted)
         return result
     return value
-
-
-def normalize_mod_package_new_path_prefixes(
-    new_file_paths: Sequence[str | Path],
-    *,
-    all_payload_paths: Sequence[str | Path] | None = None,
-) -> list[str]:
-    # Keep exact file paths. Folder-level compaction makes unrelated mods that
-    # add different files under a shared directory look like they conflict.
-    _ = all_payload_paths
-    new_paths: list[str] = []
-    seen_new: set[str] = set()
-    for path_value in new_file_paths:
-        path_text = _payload_path_text(path_value)
-        if not path_text or path_text in seen_new:
-            continue
-        seen_new.add(path_text)
-        new_paths.append(path_text)
-
-    return new_paths
-
-
-def _normalize_manager_targets(values: Sequence[str]) -> list[str]:
-    targets: list[str] = []
-    seen: set[str] = set()
-    for value in values:
-        normalized = normalize_mod_package_manager_profile(str(value or ""))
-        if not normalized or normalized in seen or normalized not in MOD_PACKAGE_MANAGER_PROFILES:
-            continue
-        seen.add(normalized)
-        targets.append(normalized)
-    return targets or ["dmm"]
-
-
-def _safe_files_dir(value: str) -> str:
-    normalized = str(value or "files").replace("\\", "/").strip().strip("/")
-    if not normalized or normalized.startswith(".") or "/" in normalized:
-        return "files"
-    return normalized
-
-
-def _effective_export_options_for_kind(
-    kind: str,
-    options: ModPackageExportOptions,
-) -> ModPackageExportOptions:
-    normalized_kind = str(kind or "").strip().lower()
-    manager_targets = tuple(_normalize_manager_targets(options.manager_targets))
-    if "jmm" in set(manager_targets):
-        return dataclasses.replace(
-            options,
-            manager_targets=manager_targets,
-            structure="game_relative",
-            create_manifest_json=False,
-            create_mod_json=False,
-            create_modinfo_json=False,
-            create_info_json=False,
-            create_no_encrypt_file=False,
-        )
-    if "dmm" in set(manager_targets) and normalized_kind == "dds_loose_mod":
-        return dataclasses.replace(
-            options,
-            manager_targets=manager_targets,
-            structure="dmm_texture",
-            create_manifest_json=False,
-            create_mod_json=False,
-            create_modinfo_json=True,
-            create_info_json=False,
-            create_no_encrypt_file=False,
-        )
-    if "dmm" in set(manager_targets) and normalized_kind == "mesh_loose_mod":
-        requested_structure = str(options.structure or "").strip().lower()
-        mesh_structure = "game_relative" if requested_structure == "dmm_texture" else options.structure
-        return dataclasses.replace(
-            options,
-            manager_targets=manager_targets,
-            structure=mesh_structure,
-            create_manifest_json=True,
-            create_mod_json=False,
-            create_modinfo_json=True,
-            create_info_json=False,
-            create_no_encrypt_file=False,
-        )
-    if normalized_kind == "mesh_loose_mod" and str(options.structure or "").strip().lower() == "dmm_texture":
-        return dataclasses.replace(options, manager_targets=manager_targets, structure="game_relative")
-    return dataclasses.replace(options, manager_targets=manager_targets)
 
 
 def _common_mod_package_fields(
@@ -883,17 +486,41 @@ _OPTIONAL_AUTHORITY_REPORT_FILENAMES = {
 }
 
 
-def _write_package_zip(root: Path, *, include_material_authority_reports: bool = False) -> Path:
+def _write_package_zip(
+    root: Path,
+    *,
+    include_material_authority_reports: bool = False,
+    stop_event: threading.Event | None = None,
+) -> Path:
+    raise_if_cancelled(stop_event, "Mod package ZIP creation cancelled.")
     zip_path = root.with_suffix(".zip")
     if zip_path.exists():
         zip_path.unlink()
+    paths: list[Path] = []
+    for path in root.rglob("*"):
+        raise_if_cancelled(stop_event, "Mod package ZIP creation cancelled.")
+        paths.append(path)
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted(root.rglob("*")):
+        for path in sorted(paths):
+            raise_if_cancelled(stop_event, "Mod package ZIP creation cancelled.")
             if not path.is_file():
                 continue
             if not include_material_authority_reports and path.name.lower() in _OPTIONAL_AUTHORITY_REPORT_FILENAMES:
                 continue
-            archive.write(path, path.relative_to(root).as_posix())
+            archive_name = path.relative_to(root).as_posix()
+            if stop_event is None:
+                archive.write(path, archive_name)
+                continue
+            archive_info = zipfile.ZipInfo.from_file(path, archive_name)
+            archive_info.compress_type = archive.compression
+            with path.open("rb") as source, archive.open(archive_info, "w", force_zip64=True) as target:
+                while True:
+                    raise_if_cancelled(stop_event, "Mod package ZIP creation cancelled.")
+                    chunk = source.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    target.write(chunk)
+    raise_if_cancelled(stop_event, "Mod package ZIP creation cancelled.")
     return zip_path
 
 
@@ -1245,7 +872,9 @@ def write_mod_package_manifest(
     all_payload_paths: Sequence[str | Path] = (),
     export_options: ModPackageExportOptions | None = None,
     create_no_encrypt_file: bool = True,
+    stop_event: threading.Event | None = None,
 ) -> Path:
+    raise_if_cancelled(stop_event, "Mod package metadata creation cancelled.")
     root.mkdir(parents=True, exist_ok=True)
     resolved_export_options = _effective_export_options_for_kind(
         kind,
@@ -1332,7 +961,9 @@ def write_mod_package_manifest(
         _write_package_zip(
             root,
             include_material_authority_reports=bool(resolved_export_options.create_material_authority_report),
+            stop_event=stop_event,
         )
+    raise_if_cancelled(stop_event, "Mod package metadata creation cancelled.")
     return manifest_path if manifest_path.exists() else (metadata_files[0] if metadata_files else readme_path)
 
 
@@ -1347,7 +978,9 @@ def write_mesh_loose_mod_package_metadata(
     create_no_encrypt_file: bool = True,
     game_build: str = "",
     game_metadata: Mapping[str, object] | None = None,
+    stop_event: threading.Event | None = None,
 ) -> list[Path]:
+    raise_if_cancelled(stop_event, "Mod package metadata creation cancelled.")
     created_utc = datetime.now(timezone.utc).isoformat(timespec="seconds")
     resolved_export_options = _effective_export_options_for_kind(
         "mesh_loose_mod",
@@ -1471,6 +1104,7 @@ def write_mesh_loose_mod_package_metadata(
         ),
         created_utc=created_utc,
     )
+    raise_if_cancelled(stop_event, "Mod package metadata creation cancelled.")
     if resolved_export_options.create_manifest_json:
         manifest_path.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
     ready_zip_path = root.with_suffix(".zip") if resolved_export_options.create_zip else None
@@ -1508,6 +1142,7 @@ def write_mesh_loose_mod_package_metadata(
         ready_zip_path = _write_package_zip(
             root,
             include_material_authority_reports=bool(resolved_export_options.create_material_authority_report),
+            stop_event=stop_event,
         )
     return [
         *([manifest_path] if manifest_path.exists() else []),

@@ -1,6 +1,6 @@
 # Mesh Editing Pipeline
 
-Status: first safety slice, 2026-07-06.
+Status: resident .NET/Vortice editor and safe-import contract, 2026-07-11.
 
 ## Current Implementation Map
 
@@ -17,12 +17,33 @@ Status: first safety slice, 2026-07-06.
   - Static arbitrary replacement uses
     `cdmw.modding.static_mesh_build.build_static_mesh_replacement()`.
 - Editor entry points:
-  - `cdmw.services.mesh_service.MeshService` owns edit sessions and validation.
+  - `cdmw.services.mesh_service.MeshService` owns edit sessions and validation;
+    state, payload, report, history, kernel, rigging, and rebuild behavior live
+    in focused `mesh_service_*.py` owners behind that facade.
   - `cdmw.ui.mesh_editor.controller.MeshEditorController` adapts UI actions to
     `MeshService`.
   - `cdmw.ui.mesh_editor.tab.MeshEditorTab` owns standalone and embedded UI.
   - Archive-browser static replacement delegates through
     `cdmw.ui.mesh_editor.static_replacement_adapter`.
+  - `cdmw.modding.mesh_native_core` preserves the native Python API as a
+    753-line direct-export facade. Focused `mesh_native_*.py` owners hold client
+    transport, payloads, resident sessions/history, snapshots, selection,
+    preview, transforms, editing kernels, and report application; each owner is
+    at most 725 lines and each function at most 150 lines.
+  - `native/cdmw_mesh_core/src/main.cpp` is a thin executable entry. Focused C++
+    owners cover protocol types/payloads, geometry/UV, topology, interchange,
+    reports, preview, resident session state, selection, history, apply stages,
+    snapshots, command dispatch, and service I/O. CMake composes these normal
+    sources through one named unity group; no owner source includes another.
+    `tests/test_native_mesh_core_decomposition.py` enforces the 800-line file and
+    150-line real-function ceilings.
+  - `native/cdmw_d3d11_preview/src/main.cpp` is likewise a thin host entry.
+    Ordered CMake unity owners under `src/owners/` retain the existing package,
+    renderer, picking, interaction, sparse-update, command, and status protocols
+    without source-level owner includes. `tests/native_source_text.py` provides
+    the ordered aggregate used by legacy source guards, while
+    `tests/test_native_d3d11_preview_decomposition.py` enforces the same 800/150
+    ceilings.
 - Import/export formats:
   - GLB editable packages are handled by
     `cdmw.modding.mesh_glb_interchange`. They write `mesh.glb` plus the same
@@ -41,6 +62,37 @@ Status: first safety slice, 2026-07-06.
     `cdmw.ui.mesh_editor.native_preview_payloads`.
   - Archive/static replacement preview packages use `cdmw.rendering.native_*`
     helpers and archive-browser static replacement callbacks.
+  - Sparse live position, normal, and UV updates use one sender thread per
+    Python D3D11 host.
+    One pending update is retained, newer revisions replace older pending work,
+    native update acknowledgements pace delivery, and superseded `delete_after`
+    payload files are removed. Revision-capable native and .NET receivers apply
+    only monotonic `edit_revision` packets, return explicit applied/rejected
+    acknowledgements, and retain the legacy `revision` alias. Revisionless
+    acknowledgements remain accepted only until an older host is identified.
+  - The native editor session has one authoritative resident submesh map.
+    Non-topology undo units retain only changed channel/index values; topology
+    units retain one reversible affected-submesh snapshot and swap it on
+    undo/redo. Native and Python history are capped at 64 whole units and 256
+    MiB, and session/result diagnostics expose retained bytes and stack counts.
+    Auto-UV captures both a reversible topology snapshot and sparse UV channels,
+    so a same-topology unwrap remains exact and undoable.
+    Apply roots are filtered to the selection-derived candidate submeshes before
+    any kernel runs, so global cleanup kernels cannot mutate an unsnapshotted or
+    unselected part. Component material edits capture both the possible topology
+    snapshot and sparse metadata channels because a full-face assignment can
+    resolve to a metadata-only edit.
+  - The persistent mesh-core service accepts mesh-editor jobs and reports
+    inline. A failed stateful inline command is never replayed through the file
+    protocol; the standalone file protocol remains readable for direct legacy
+    callers.
+    Live transform/brush replies use inline sparse arrays and create no
+    per-command job/report files. Callers that explicitly request a delta output
+    directory still receive compact binary descriptors marked `delete_after`
+    for consume/ack cleanup.
+  - Durable archive preview packages are pinned from renderer launch through
+    reload, process failure, cancellation, or close. A loaded reload retires the
+    old pin; pruning and manual cache clearing skip every active package lease.
 - .NET experiment handoff:
   - `cdmw.services.mesh_dotnet_experiment` exports the active Mesh Editor
     session as an OBJ package plus `mesh_roundtrip_manifest_v2` sidecar,
@@ -171,11 +223,12 @@ Status: first safety slice, 2026-07-06.
 - Sectionless compact `SkinnedMesh_Box` PAC entries are parsed through a narrow
   inferred box fallback so the real archive corpus does not silently return an
   empty `ParsedMesh` for that debug mesh variant.
-- Skinned OBJ sidecars must include per-submesh `bone_layout` metadata and a
-  complete `source_vertex_map` before import. Submeshes with empty bone rows are
-  treated as unweighted within the skinned asset; only submeshes with positive
-  `max_influences` require influence-count preservation. This blocks visual-only
-  OBJ packages from pretending they can preserve bone rows.
+- Skinned OBJ sidecars must include per-submesh `bone_layout` metadata.
+  Submeshes with empty bone rows are treated as unweighted, including rigid
+  weapon meshes in skinned containers; only submeshes with positive
+  `max_influences` require a complete `source_vertex_map` for influence
+  preservation. This blocks visual-only OBJ packages from pretending they can
+  preserve real bone rows.
 - OBJ import records sidecar warnings when edited OBJ material names or MTL
   texture paths differ from the sidecar. Export validation surfaces those as
   warnings so preview can continue while rebuild/report UI stays explicit about
@@ -221,7 +274,9 @@ Status: first safety slice, 2026-07-06.
   an archive target. `Package` sends that file to the existing archive
   package/patch flow through the same preset import setup, so archive writes
   still require the normal builder confirmation. `Save` writes the last
-  generated report as JSON without rerunning rebuild work.
+  generated report as JSON without rerunning rebuild work; the tracked
+  `MeshReportWriteWorker` stages it beside the destination and atomically
+  publishes only after the write completes and cancellation remains clear.
 - Developer rebuild override is hidden behind the explicit
   `mesh_editor/developer_mode=true` and
   `mesh_editor/developer_rebuild_override=true` settings. It only allows a
@@ -258,17 +313,40 @@ Status: first safety slice, 2026-07-06.
   payload checks.
 - `Edit Mesh` is the embedded .NET entry point when the helper is available;
   the normal preview controls no longer expose a dedicated `.NET` button. The
-  helper uses `mesh_editor/dotnet_experiment_executable`,
+  classic Qt edit toolbar is hidden during embedded .NET `launching`, `ready`,
+  and `closing`. Native D3D11 stays alive below the .NET child so renderer
+  fallback and texture SRVs remain resident.
+  Renderer-blocked embedded `ready` fails closed by stopping the .NET child and
+  restoring the native/classic path. The helper uses
+  `mesh_editor/dotnet_experiment_executable`,
   `CDMW_MESH_DOTNET_EXPERIMENT_EXE`, or the bundled
-  `cdmw-mesh-dotnet-editor.exe`, builds the handoff package in
+  `cdmw-mesh-dotnet-editor.exe`; stale configured paths fall through to
+  bundled/dev discovery. A ready watchdog stops helpers that start but never
+  become interactive. Texture resources are deduplicated and hard-linked where
+  possible, .NET decode runs in the background, and native D3D11 uses Windows
+  file identity to reuse hard-linked SRVs across package paths. The host builds
+  the handoff package in
   `MeshDotNetExperimentPackageWorker`, and launches the process with input
-  metadata, status, output, and edit-operation paths. On process exit,
-  `MeshDotNetExperimentOutputImportWorker` detects `edited_mesh`,
+  metadata, status, output, and edit-operation paths. Embedded interaction
+  mirrors local selection to the resident C++ session, sends incremental
+  strokes, rejects new mutations while a topology worker owns the session, and
+  runs topology commands in `MeshEditCommandWorker`. Turning Edit Mesh off
+  waits for the ordered `deactivated` acknowledgement and active work, hides
+  the helper as `suspended`, syncs the resident session once, and restores the
+  textured preview. Re-entry reactivates the same helper and decoded texture
+  cache only when its material-input signature still matches; changed material
+  inputs synchronize through resident material protocol v2. Material generation
+  is ordered independently, so multiple newer material generations may target
+  the same resident mesh revision; stale or future mesh revisions fail instead
+  of poisoning the geometry revision stream. Helper lifecycle evidence owns the
+  actual source-parse, geometry-upload, and device-reset counters, while package,
+  process, and full-reload counters remain host-owned. Only a source or session
+  replacement, explicit legacy-v1 recovery, device loss, or process failure
+  creates another package/process. Embedded geometry is never replaced from OBJ.
+  For standalone/headless process exits, `MeshDotNetExperimentOutputImportWorker` detects `edited_mesh`,
   `edited_obj`, `output_mesh`, `edited_package`, or `output/mesh.obj`, restores
   the package sidecar if the editor wrote only OBJ geometry, imports through
-  `import_obj()`, applies any saved safe edit-operation list, syncs embedded
-  output back into the replacement preview when launched from that surface,
-  finalizes a textured/material preview rebuild from the edited working mesh,
+  `import_obj()`, applies any saved safe edit-operation list,
   and reruns export validation before rebuild can be enabled. Process exits, successful imports,
   and import failures write `dotnet_evaluation.md` in the handoff package,
   comparing reported .NET FPS, frame time, responsiveness, crash behavior,
@@ -278,8 +356,37 @@ Status: first safety slice, 2026-07-06.
   helper in headless mode, import its output, validate it, and require a
   `replace_positions_same_count` operation, the evaluation file, and positive
   FPS/frame-time metrics. `tools/dotnet_mesh_editor_experiment` is the current WinForms
-  prototype: OBJ wireframe viewport, submesh selection, basic X translation,
-  same-count position operation output, status metrics, and headless smoke mode.
+  viewport: D3D11 materials, vertex/edge/face/part selection, host-owned mesh
+  tools, status metrics, same-count diagnostic output, and headless smoke mode.
+  Its D3D11 path retains vertex/index buffers across resident edits. Live
+  position/normal/UV packets carry exact source-vertex indices; precomputed
+  source-channel-to-render-corner maps expand those indices only to incident
+  faces and upload contiguous affected buffer byte ranges. Ordinary topology
+  updates replace only affected submesh batches. Versioned replace-all packets
+  carry a complete snapshot, explicit final submesh count, and original
+  material lineage for add/remove/reindex operations. Material SRV
+  binding arrays are cached per batch instead of allocated per draw.
+  `geometry_resources` renderer status reports full rebuilds, sparse updates,
+  upload ranges, live resource ages, estimated resident bytes, and measured
+  old-plus-new geometry/texture peak estimates. It also reports stable geometry
+  buffer/material-binding identities and sampled DXGI local-memory usage.
+  `--headless-gpu-sparse-soak` creates its million-vertex fixture in memory,
+  owns a hidden/offscreen HWND without calling `Show` or `Application.Run`, and
+  drives 1,000 paced sparse uploads through this production D3D11 resource
+  path. It renders verified frames before and after the paced interval; this
+  matches production's invalidation/coalescing model instead of serializing
+  every edit handler behind `Present`. Its versioned JSON gates handler p95, topology/buffer retention,
+  upload counters, cached SRV binding arrays, VRAM estimates, post-warmup
+  working-set growth, and hidden-window proof. `--gpu-soak-smoke` permits an
+  explicitly non-release reduced diagnostic run.
+  Sparse camera bounds retain the six current extremum owners. Interior edits
+  update bounds and center in O(changed vertices); moving an extremum inward
+  triggers one exact rebase, preventing stale camera and picking coordinates.
+  The native-core release soak submits 1,000 paced 64-vertex sparse brush-size
+  batches against a million-vertex resident mesh. Latest-wins coalescing may
+  discard an overdue pending packet, but every input must be accounted for,
+  submission cadence must remain within the 60 Hz gate, and handler p95 must
+  remain below 16.7 ms.
   Headless smoke applies a deterministic `+0.001` X translation to submesh 0 so
   the package handoff proves a real same-count edit operation rather than a
   no-op save.
@@ -288,15 +395,43 @@ Status: first safety slice, 2026-07-06.
 - Embedded .NET launch diagnostics are persisted through Mesh Editor runtime
   events and the handoff package. Failed launches record executable resolution,
   package paths, parent HWND, process state, QProcess error details, exit
-  status, stdout/stderr tails, status JSON summary, and
+  status, stdout/stderr tails, status JSON summary, toolbar ownership,
+  renderer blockers, and
   `dotnet_launch_diagnostics.json` before native/classic fallback starts.
 - External static replacement/import previews clear inherited reference
   skeleton and physics overlay metadata by default. Overlays are preserved only
   through explicit diagnostic/overlay paths.
+- External OBJ/DAE/glTF/GLB imports with missing or incomplete UVs run the
+  bundled native xatlas unwrap before the mesh is exposed, forward
+  cancellation, validate every previously aligned vertex channel, refresh
+  totals, and report the result as review-required. If unwrap is unavailable or
+  incomplete, import blocks with an exact Blender/DCC TEXCOORD_0 remedy. PAC and
+  PAM imports are never auto-unwrapped. A glTF material whose slots share one
+  UV set and one complete KHR texture transform is converted losslessly: the
+  affine transform runs in raw glTF UV space before the internal V flip, and
+  published material slots are normalized to TEXCOORD_0 with an identity
+  transform. Materials with different UV sets or per-slot transforms aggregate
+  their primitives into one bundled xatlas layout, regenerate MikkTSpace
+  tangents, and raster-bake each slot through its wrap/filter sampler. Color
+  slots interpolate in linearized sRGB, data slots remain linear, and normal
+  samples transform between source and destination tangent bases. Generated
+  PNGs publish atomically with eight-pixel chart gutters, provenance/content
+  hashes, and source dimensions (or a reported 4096-ceiling downscale). The
+  versioned UV-bake report retains source slot, UV, transform, sampler, layout,
+  dimensions, warnings, and output evidence. Missing, incomplete, sparse,
+  compressed, or unsupported inputs block safely with an exact remedy.
+- Active Material Authority uses one evaluator for live/export values and one
+  revisioned resident parameter bridge. Automatic and Manual are the normal
+  profiles; obsolete aliases migrate to Automatic. Controls without a live
+  target resource-rebind or height path disable during the active editor with
+  a precise reason instead of becoming enabled no-ops. Parts selection,
+  routing, roles, visibility, duplicate/delete, and metadata-aware undo/redo
+  share the resident session and atomic all-part material packets.
 - Initial external imports and appended parts share the same work-area fit
   helper. External imports are centered against the reference/work area and
   bottom-aligned to the Y-up D3D11 preview grid, while Modify Original clones
-  keep their existing coordinates.
+  keep their existing coordinates. Full Import Model Replacement also keeps
+  the locked placement preset on grid-flat alignment.
 - Model Library D3D11 preview derives high-quality texture packaging from the
   active render setting and logs the actual value instead of forcing low-quality
   packages.
@@ -328,3 +463,35 @@ Status: first safety slice, 2026-07-06.
   edited-output import helper, and generated evaluation note, and
   `tests/test_mesh_editor_action_bar.py` covers the configured launch button,
   process wiring, output-import trigger, and native performance status label.
+- `tests/test_dotnet_gpu_geometry_resources.py` guards retained topology
+  generations, sparse incident-face uploads, cached material bindings, and the
+  renderer resource-metric contract.
+- `tests/test_dotnet_topology_channel_updates.py` covers atomic JSON/binary
+  position/normal/UV packets, malformed-packet rejection, missing/separate
+  channel alignment, affected-only topology batches, complete part
+  add/remove/reindex snapshots, and material-lineage preservation.
+- `tests/test_scene_import_uv_contract.py` covers missing/incomplete UV
+  generation and failure remedies for OBJ, DAE, glTF, and GLB, including
+  cancellation and aligned-channel preservation.
+- `tests/test_mesh_edit_revision_protocol.py` covers stale/future ack rejection,
+  revision-zero compatibility, rejected-update accounting, and native/.NET
+  capability contracts. `tests/test_native_preview_package_cache_concurrency.py`
+  covers renderer-lifetime package leases, reload retirement, prune, and cancel.
+- `tests/test_mesh_history_bounds.py` covers Python count/byte eviction, native
+  sparse exact undo/redo branching, 64-unit eviction, retained-byte evidence,
+  topology snapshot swapping, selected-submesh cleanup scope, metadata-only
+  material history, inline sparse service transport, and compatibility of the
+  existing file protocol and summary fields.
+- `tests/test_mesh_dotnet_live_stroke_dispatch.py` covers the production
+  embedded .NET queue-depth-one, latest-wins stroke path. The explicit
+  `real-archive-mesh-editor-dotnet-edit-smoke` binds real archive DDS files,
+  drives the actual Vortice viewport HWND, and gates renderer/edit backends,
+  selected-only geometry, linked texture region updates, committed assignment,
+  UV/topology undo/redo, coherent export/readback, stable PID/HWND, UI timing,
+  captures, and archive hash identity. Scenario-registry validation rejects any
+  production visual role that does not name Vortice and marks legacy/checker
+  visual roles compatibility-only outside normal/full QA.
+- `native-mesh-editor-sparse-update-soak` is the headless Phase 3 exit gate: a
+  one-million-vertex session receives 1,000 sparse updates at 60 Hz and records
+  submit p95, queue depth, exact undo/redo, retained history bytes, native
+  fallback events, and post-warmup process-memory growth.

@@ -9,7 +9,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import numpy as np
 from PySide6.QtGui import QIcon
 
-from cdmw.core.texture_editor import flatten_texture_editor_layers
+from cdmw.domain.textures.editor_composite import flatten_texture_editor_layers
 from cdmw.models import TextureEditorDocument
 
 
@@ -147,13 +147,15 @@ def create_texture_editor_session(
     *,
     label: str,
 ) -> _TextureEditorSession:
+    original_flattened = flatten_texture_editor_layers(document, layer_pixels)
+    original_flattened.setflags(write=False)
     return _TextureEditorSession(
         label=label,
         document=document,
         layer_pixels=layer_pixels,
         history_snapshots=[],
         history_index=-1,
-        original_flattened=flatten_texture_editor_layers(document, layer_pixels),
+        original_flattened=original_flattened,
         compressed_preview_flattened=None,
         layer_property_dirty=False,
         floating_pixels=None,

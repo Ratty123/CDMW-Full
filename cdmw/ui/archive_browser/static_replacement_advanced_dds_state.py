@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 
-from cdmw.modding.asset_replacement import classify_texture_binding
-from cdmw.modding.material_replacer import classify_texture_assignment_guidance
+from cdmw.services.mesh_workflow_service import classify_texture_binding
+from cdmw.services.mesh_workflow_service import classify_texture_assignment_guidance
+from cdmw.domain.cancellation import raise_if_cancelled
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +147,7 @@ def advanced_dds_override_row_scan_state(
     texture_is_shared: Callable[[str], bool],
     on_mapping_progress: Callable[[int], None] | None = None,
     on_scan_progress: Callable[[int], None] | None = None,
+    stop_event: threading.Event | None = None,
 ) -> AdvancedDdsOverrideRowScanState:
     rows_by_target: dict[str, list[dict[str, object]]] = {}
     target_source_indices: dict[str, tuple[int, ...]] = {}
@@ -152,6 +155,7 @@ def advanced_dds_override_row_scan_state(
     seen_rows = set(seen_texture_rows)
     scan_count = 0
     for mapping_index, mapping in enumerate(list(suggested_mappings or [])):
+        raise_if_cancelled(stop_event, "Advanced DDS row scan cancelled.")
         if mapping_index and mapping_index % 8 == 0 and on_mapping_progress is not None:
             on_mapping_progress(mapping_index)
         target_name = str(getattr(mapping, "target_submesh_name", "") or "")
@@ -160,6 +164,8 @@ def advanced_dds_override_row_scan_state(
         target_source_indices[target_name] = source_indices
         for binding in tuple(sidecar_bindings or ()):
             scan_count += 1
+            if scan_count % 256 == 0:
+                raise_if_cancelled(stop_event, "Advanced DDS row scan cancelled.")
             if scan_count % 150 == 0 and on_scan_progress is not None:
                 on_scan_progress(scan_count)
             target_path = str(getattr(binding, "texture_path", "") or "").replace("\\", "/").strip()

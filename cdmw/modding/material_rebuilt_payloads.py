@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import tempfile
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence
@@ -14,6 +15,12 @@ from .material_profiles import (
     normalize_global_gloss_reduction,
     _profile_is_source_only,
     _profile_ma_rgb_roles,
+)
+from .material_atlas import (
+    atlas_tile_layout as _atlas_tile_layout,
+    paste_atlas_tile_with_gutter as _paste_atlas_tile_with_gutter,
+    resize_atlas_tile as _resize_atlas_tile,
+    source_driven_atlas_texture_output_path as _source_driven_atlas_texture_output_path,
 )
 from .material_sidecar_patching import (
     _normalize_sidecar_material_name,
@@ -689,9 +696,9 @@ def _bake_complete_swap_material_atlas_png(
     rows = max(1, round(1.0 / max(1e-6, min(float(getattr(rect, "height", 1.0) or 1.0) for rect in rects))))
     max_width = max((image.width for _rect, _material_name, image in material_images), default=16)
     max_height = max((image.height for _rect, _material_name, image in material_images), default=16)
-    cell_width = min(4096 // columns, max(16, max_width + padding * 2))
-    cell_height = min(4096 // rows, max(16, max_height + padding * 2))
-    if cell_width <= padding * 2 or cell_height <= padding * 2:
+    cell_width, content_width, gutter_x = _atlas_tile_layout(max(16, max_width), 4096 // columns, padding)
+    cell_height, content_height, gutter_y = _atlas_tile_layout(max(16, max_height), 4096 // rows, padding)
+    if not cell_width or not cell_height:
         report.errors.append(f"Cannot atlas/bake {target_name}: atlas padding leaves no drawable area.")
         for _rect, _material_name, image in material_images:
             image.close()
@@ -708,14 +715,19 @@ def _bake_complete_swap_material_atlas_png(
     for rect, _material_name, image in material_images:
         column = max(0, min(columns - 1, int(round(float(getattr(rect, "x", 0.0) or 0.0) * columns))))
         row = max(0, min(rows - 1, int(round(float(getattr(rect, "y", 0.0) or 0.0) * rows))))
-        target_size = (max(1, cell_width), max(1, cell_height))
-        resampling = getattr(Image, "Resampling", Image).LANCZOS
-        resized = image.resize(target_size, resampling)
-        atlas.paste(resized, (column * cell_width, row * cell_height))
+        target_size = (content_width, content_height)
+        resized = _resize_atlas_tile(image, target_size, slot_kind)
+        _paste_atlas_tile_with_gutter(
+            atlas,
+            resized,
+            origin=(column * cell_width, (rows - 1 - row) * cell_height),
+            gutter=(gutter_x, gutter_y),
+        )
+        resized.close()
         image.close()
 
     digest = hashlib.sha1(
-        f"{target_name}|{slot_kind}|{atlas_width}x{atlas_height}|"
+        f"atlas_gutter_v2_semantic|{target_name}|{slot_kind}|{atlas_width}x{atlas_height}|padding={padding}|"
         f"{'|'.join(str(getattr(rect, 'source_material_name', '')) for rect in rects)}".encode("utf-8", errors="ignore")
     ).hexdigest()[:12]
     safe_target = _sanitize_texture_component(target_name) or "runtime_slot"
@@ -723,7 +735,15 @@ def _bake_complete_swap_material_atlas_png(
     root = Path(tempfile.gettempdir()) / "cdmw_baked_material_atlases"
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{safe_target}_{safe_role}_atlas_{digest}.png"
-    atlas.save(path)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.stem}.", suffix=".tmp", dir=root)
+    os.close(descriptor)
+    temporary_path = Path(temporary_name)
+    try:
+        atlas.save(temporary_path, format="PNG")
+        os.replace(temporary_path, path)
+    finally:
+        atlas.close()
+        temporary_path.unlink(missing_ok=True)
     return path
 
 
@@ -790,41 +810,3 @@ def _neutral_atlas_role_color(
     if normalized == "emissive":
         return (0, 0, 0, 255)
     return (128, 128, 128, 255)
-
-
-def _source_driven_atlas_texture_output_path(
-    texture_parent: str,
-    texture_prefix: str,
-    target_name: str,
-    slot_kind: str,
-    emitted_paths: set[str],
-) -> str:
-    from .material_source_driven import _sanitize_texture_component
-
-    parent = str(texture_parent or "character/texture").replace("\\", "/").strip("/")
-    prefix = _sanitize_texture_component(texture_prefix) or "static_replacement"
-    target = _sanitize_texture_component(target_name) or "runtime_slot"
-    role = _sanitize_texture_component(slot_kind) or "role"
-    role_suffix = {
-        "normal": "_n",
-        "height": "_disp",
-        "material_mask": "_ma",
-        "detail_mask": "_mg",
-        "emissive": "_emi",
-    }.get(role, "")
-    stem = f"{prefix}_{target}_baked_{role}"
-    base_name = f"{stem}{role_suffix}.dds"
-    candidate = f"{parent}/{base_name}" if parent else base_name
-    normalized = _normalize_texture_path(candidate)
-    if normalized not in emitted_paths:
-        emitted_paths.add(normalized)
-        return candidate
-    index = 2
-    while True:
-        base_name = f"{stem}_{index}{role_suffix}.dds"
-        candidate = f"{parent}/{base_name}" if parent else base_name
-        normalized = _normalize_texture_path(candidate)
-        if normalized not in emitted_paths:
-            emitted_paths.add(normalized)
-            return candidate
-        index += 1

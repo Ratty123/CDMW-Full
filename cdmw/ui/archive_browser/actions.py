@@ -11,8 +11,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QPushButton
 
-from cdmw.core.archive_modding import ARCHIVE_AUDIO_EXPORT_EXTENSIONS, ARCHIVE_AUDIO_PATCH_EXTENSIONS, ARCHIVE_MESH_EXTENSIONS
-from cdmw.core.material_sidecar_editor import is_material_sidecar_entry
+from cdmw.domain.archives.constants import (
+    ARCHIVE_AUDIO_EXPORT_EXTENSIONS,
+    ARCHIVE_AUDIO_PATCH_EXTENSIONS,
+    ARCHIVE_MESH_EXTENSIONS,
+)
+from cdmw.services.material_sidecar_service import is_material_sidecar_entry
 from cdmw.models import ArchiveEntry, AssetFamilyGraph, AssetFamilyMember
 
 

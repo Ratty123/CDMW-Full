@@ -39,6 +39,12 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         entry = _entry("character/model/body.pac", 1)
         self.assertTrue(ArchiveMeshSwapSupportMixin()._same_archive_entry(entry, entry))
 
+    def test_archive_mesh_swap_identity_distinguishes_duplicate_paths_by_offset(self) -> None:
+        first = _entry("character/model/body.pac", 1)
+        second = _entry("character/model/body.pac", 2)
+
+        self.assertFalse(ArchiveMeshSwapSupportMixin()._same_archive_entry(first, second))
+
     def test_archive_filter_worker_candidate_entries_intersect_basic_indexes(self) -> None:
         dds_texture = _entry("ui/texture/a.dds", 1)
         dds_mesh = _entry("ui/model/b.dds", 2)
@@ -76,6 +82,27 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         node = model.node_from_index(index)
         self.assertEqual(model.entry_indexes_for_node(node), (9876,))
         self.assertEqual(model.data(index), "row 9876")
+
+    def test_flat_model_100k_traversal_keeps_only_bounded_row_payloads(self) -> None:
+        entries = [_entry("ui/texture/shared.dds", 0)] * 100_000
+        model = ArchiveBrowserModel(
+            row_cache_limit=32,
+            row_provider=lambda index, _show_full_path: ArchiveBrowserRowPayload(
+                columns=(f"row {index}", "-", "-", "Texture", "20 B", "None", "pkg", "-", "")
+            ),
+        )
+        model.set_archive_state(entries, mode="flat", fetch_batch_size=5000)
+        root = model.index(-1, -1)
+        while model.canFetchMore(root):
+            model.fetchMore(root)
+
+        for row in range(100_000):
+            index = model.index(row, 0)
+            self.assertEqual(model.entry_indexes_for_node(model.node_from_index(index)), (row,))
+            self.assertEqual(model.data(index, Qt.DisplayRole), f"row {row}")
+
+        self.assertFalse(hasattr(model, "_flat_node_cache"))
+        self.assertLessEqual(len(model._row_cache), 32)
 
     def test_folder_fetch_is_bounded_and_lazy(self) -> None:
         entries = [_entry(f"ui/texture/folder/file_{index}.dds", index) for index in range(250)]
@@ -295,7 +322,8 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("prepare_archive_browser_state_accelerated", scan_worker)
         model_source = Path("cdmw/ui/archive_browser/model.py").read_text(encoding="utf-8")
         self.assertIn("self._flat_loaded_count", model_source)
-        self.assertIn('if self._mode == "flat" and node is self._root:', model_source)
+        self.assertIn("return self.createIndex(row, column)", model_source)
+        self.assertNotIn("_flat_node_cache", model_source)
         self.assertIn("def compact_hidden_columns", model_source)
         self.assertIn("def invalidate_archive_rows", model_source)
         self.assertIn("def invalidate_rows", model_source)

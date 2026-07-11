@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from cdmw.core.research import ResearchNote
+from cdmw.domain.research.contracts import ResearchNote
 from cdmw.ui.research.reference_payload_state import normalize_research_target_key
 
 __all__ = [

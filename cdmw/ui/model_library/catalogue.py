@@ -5,10 +5,9 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from cdmw.core.model_catalogue import (
+from cdmw.domain.library.models import (
     DEFAULT_MODEL_MIRROR_URL,
     MirrorDownloadCandidate,
-    catalogue_stats,
     mirror_download_candidates,
     normalize_mirror_base_url,
 )
@@ -90,7 +89,7 @@ class ModelLibraryCatalogueMixin:
         return self.catalogue_dir() / "mirror_catalogue.sqlite"
 
     def _update_catalogue_status(self) -> None:
-        stats = catalogue_stats(self.catalogue_db_path())
+        stats = self.model_library_service.catalogue_status(self.catalogue_db_path())
         self.catalogue_status_label.setText(
             f"Indexed metadata: {stats['models']:,} model(s), {stats['shards']:,} catalogue page(s). Downloads are stored under {self.catalogue_dir() / 'downloads'} after you enter the mirror URL."
         )

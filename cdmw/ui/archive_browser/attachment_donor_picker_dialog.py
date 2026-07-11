@@ -10,7 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QSize, Qt, QThread, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QComboBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QListView, QListWidget, QListWidgetItem, QMessageBox, QProgressBar, QPushButton,
@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.constants import DEFAULT_UI_THEME
-from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.models import ArchiveEntry, ArchivePreviewResult, ModelPreviewData
 from cdmw.services.diagnostics_service import write_ui_breadcrumb
 from cdmw.ui.archive_browser.attachment_donor_picker_helpers import (
@@ -32,7 +32,7 @@ from cdmw.ui.archive_browser.attachment_donor_picker_helpers import (
     attachment_donor_type,
     make_attachment_donor_candidate_item,
 )
-from cdmw.ui.archive_browser.static_preview_thumbnail import render_static_model_preview_pixmap
+from cdmw.ui.archive_browser.loose_donor_scan import LooseDonorScanController, LooseDonorScanResult
 from cdmw.ui.shell.responsiveness_controller import expand_tree_columns_to_available_width
 from cdmw.ui.themes import get_theme
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
@@ -222,14 +222,14 @@ class ArchiveAttachmentDonorPickerDialogMixin:
         def _make_placement_source_preview_controller(
             preview_widget: QLabel,
             status_label: QLabel,
-        ) -> Tuple[Callable[[object], None], Callable[[bool], None]]:
+        ) -> Tuple[Callable[[object], None], Callable[[], None]]:
             preview_state: Dict[str, object] = {"request_id": 0, "worker": None, "thread": None, "closed": False}
             preview_cache: Dict[Tuple[str, str, int], ArchivePreviewResult] = {}
 
             def _cache_key(entry: ArchiveEntry) -> Tuple[str, str, int]:
                 return attachment_donor_entry_key(entry)
 
-            def _stop_preview_worker(wait: bool = False) -> None:
+            def _stop_preview_worker() -> None:
                 preview_state["request_id"] = int(preview_state.get("request_id", 0) or 0) + 1
                 worker = preview_state.get("worker")
                 thread = preview_state.get("thread")
@@ -237,8 +237,6 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                     worker.stop()
                 if isinstance(thread, QThread):
                     thread.quit()
-                    if wait:
-                        thread.wait(1200)
                 preview_state["worker"] = None
                 preview_state["thread"] = None
 
@@ -269,37 +267,22 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                         "face_count": face_count,
                     }
                 )
-                try:
-                    preview_theme = get_theme(str(getattr(self, "current_theme_key", DEFAULT_UI_THEME) or DEFAULT_UI_THEME))
-                    pixmap = render_static_model_preview_pixmap(
-                        preview_model,
-                        width=preview_widget.width(),
-                        height=preview_widget.height(),
-                        text_color=str(preview_theme.get("text_muted", "#8b949e")),
-                    )
-                    if pixmap is None:
-                        _set_placement_source_preview_message(
-                            preview_widget,
-                            f"No renderable geometry was recovered for {entry.basename}.",
-                        )
-                    else:
-                        preview_widget.clear()
-                        preview_widget.setPixmap(pixmap)
-                except Exception as exc:
+                image = getattr(result_payload, "static_preview_image", None)
+                if not isinstance(image, QImage) or image.isNull():
                     _set_placement_source_preview_message(
                         preview_widget,
-                        f"Could not show source preview for {entry.basename}.",
+                        f"No renderable geometry was recovered for {entry.basename}.",
                     )
-                    status_label.setText(f"Preview display failed for {entry.basename}: {exc}")
                     _write_ui_breadcrumb(
                         {
-                            "phase": "placement_source_preview_apply_error",
+                            "phase": "placement_source_preview_no_geometry",
                             "target_path": target_entry.path,
                             "source_path": entry.path,
-                            "error": str(exc),
                         }
                     )
                     return
+                preview_widget.clear()
+                preview_widget.setPixmap(QPixmap.fromImage(image))
                 status_label.setText(
                     f"Previewing placement source geometry: {entry.path} | {mesh_count} mesh(es), {vertex_count:,} vertices, {face_count:,} faces"
                 )
@@ -389,6 +372,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                 texconv_text = self.texconv_path_edit.text().strip()
                 texconv_path = Path(texconv_text).expanduser() if texconv_text else None
                 preview_settings = self._current_model_preview_render_settings()
+                preview_theme = get_theme(str(getattr(self, "current_theme_key", DEFAULT_UI_THEME) or DEFAULT_UI_THEME))
                 worker = ArchivePreviewWorker(
                     request_id,
                     texconv_path,
@@ -405,6 +389,8 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                     include_loose_preview_assets=False,
                     sidecar_generation=self.archive_sidecar_generation,
                     attach_preview_images=False,
+                    static_thumbnail_size=(preview_widget.width(), preview_widget.height()),
+                    static_thumbnail_text_color=str(preview_theme.get("text_muted", "#8b949e")),
                 )
                 thread = QThread(self)
                 worker.moveToThread(thread)
@@ -419,9 +405,9 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                 preview_state["thread"] = thread
                 thread.start()
 
-            def _close_controller(wait: bool = False) -> None:
+            def _close_controller() -> None:
                 preview_state["closed"] = True
-                _stop_preview_worker(wait)
+                _stop_preview_worker()
                 _write_heartbeat("running")
 
             return _show_candidate, _close_controller
@@ -1311,6 +1297,36 @@ class ArchiveAttachmentDonorPickerDialogMixin:
             )
             return tuple(candidates[:4])
 
+        def _handle_loose_donor_scan_ready(payload: object) -> None:
+            if not isinstance(payload, LooseDonorScanResult):
+                return
+            loose_donor_candidates.extend(
+                (entry, path, note)
+                for entry, path, note in payload.candidates
+                if isinstance(entry, ArchiveEntry)
+            )
+            suffix = " Scan limit reached; narrow the folder if expected files are missing." if payload.truncated else ""
+            status.setText(
+                f"Added {len(payload.candidates):,} archive-mapped donor candidate(s) from {payload.folder}. "
+                "Loose files can be selected by their .pac/.prefab/.hkx names; CDMW resolves the archive placement family for comparison. "
+                f"These files are placement sources only; the opened target remains the asset being changed.{suffix}"
+            )
+            loose_folder_button.setEnabled(True)
+            _start_scan()
+
+        def _handle_loose_donor_scan_error(message: str) -> None:
+            loose_folder_button.setEnabled(True)
+            QMessageBox.warning(picker, "Loose Donor Folder", f"Could not read loose donor folder:\n{message}")
+
+        loose_scan_controller = LooseDonorScanController(
+            thread_parent=self,
+            map_file=_map_loose_file_to_archive_entries,
+            entry_key=attachment_donor_entry_key,
+            parent=picker,
+        )
+        loose_scan_controller.completed.connect(_handle_loose_donor_scan_ready)
+        loose_scan_controller.error.connect(_handle_loose_donor_scan_error)
+
         def _add_loose_donor_folder() -> None:
             folder_text = QFileDialog.getExistingDirectory(
                 picker,
@@ -1325,40 +1341,17 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                 ".pac", ".pam", ".pamlod", ".prefab", ".hkx", ".hkt", ".paa", ".motionblending",
                 ".sockets.xml", ".pac_xml", ".prefabdata_xml", ".prefabdata.xml",
             )
-            mapped = 0
-            existing_keys = {attachment_donor_entry_key(entry) for entry, _path, _note in loose_donor_candidates}
-            try:
-                local_files = list(files_root.rglob("*"))
-            except OSError as exc:
-                QMessageBox.warning(picker, "Loose Donor Folder", f"Could not read loose donor folder:\n{exc}")
-                return
-            for local_path in local_files:
-                if not local_path.is_file():
-                    continue
-                lower_name = local_path.name.casefold()
-                if not any(lower_name.endswith(suffix) for suffix in local_suffixes):
-                    continue
-                for entry in _map_loose_file_to_archive_entries(local_path):
-                    key = attachment_donor_entry_key(entry)
-                    if key in existing_keys:
-                        continue
-                    existing_keys.add(key)
-                    loose_donor_candidates.append(
-                        (
-                            entry,
-                            local_path,
-                            f"mapped from {local_path.name}",
-                        )
-                    )
-                    mapped += 1
-                if mapped >= 800:
-                    break
-            status.setText(
-                f"Added {mapped:,} archive-mapped donor candidate(s) from {folder}. "
-                "Loose files can be selected by their .pac/.prefab/.hkx names; CDMW resolves the archive placement family for comparison. "
-                "These files are placement sources only; the opened target remains the asset being changed."
+            loose_scan_controller.start(
+                folder=folder,
+                files_root=files_root,
+                suffixes=local_suffixes,
+                existing_keys={
+                    attachment_donor_entry_key(entry)
+                    for entry, _path, _note in loose_donor_candidates
+                },
             )
-            _start_scan()
+            loose_folder_button.setEnabled(False)
+            status.setText(f"Scanning {files_root} for placement-source files...")
 
         def _accept_current() -> None:
             item = tree.currentItem()
@@ -1441,7 +1434,8 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                 if isinstance(donor, ArchiveEntry):
                     return donor
         finally:
-            close_source_preview(wait=True)
+            loose_scan_controller.close()
+            close_source_preview()
         return None
 
 

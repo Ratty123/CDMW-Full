@@ -31,6 +31,9 @@ class TextureEditorCanvas(QWidget):
         self._edited_image: Optional[QImage] = None
         self._original_image: Optional[QImage] = None
         self._display_image: Optional[QImage] = None
+        self._channel_rgba: Optional[np.ndarray] = None
+        self._channel_image: Optional[QImage] = None
+        self._channel_mode = ""
         self._scroll_area: Optional[QScrollArea] = None
         self._fit_to_view = True
         self._zoom_factor = 1.0
@@ -121,6 +124,9 @@ class TextureEditorCanvas(QWidget):
     def set_image(self, image: Optional[QImage]) -> None:
         self._edited_rgba = None
         self._original_rgba = None
+        self._channel_rgba = None
+        self._channel_image = None
+        self._channel_mode = ""
         self._edited_image = image.copy() if image is not None else None
         self._original_image = None
         self._image = image.copy() if image is not None else None
@@ -133,12 +139,22 @@ class TextureEditorCanvas(QWidget):
         edited_rgba: Optional[np.ndarray],
         *,
         original_rgba: Optional[np.ndarray] = None,
+        dirty_bounds: Optional[Tuple[int, int, int, int]] = None,
     ) -> None:
-        self._edited_rgba = edited_rgba.copy() if edited_rgba is not None else None
-        self._original_rgba = original_rgba.copy() if original_rgba is not None else None
-        self._edited_image = _rgba_array_to_qimage(self._edited_rgba) if self._edited_rgba is not None else None
-        self._original_image = _rgba_array_to_qimage(self._original_rgba) if self._original_rgba is not None else None
-        self._refresh_display_image()
+        edited = np.ascontiguousarray(edited_rgba, dtype=np.uint8) if edited_rgba is not None else None
+        original = np.ascontiguousarray(original_rgba, dtype=np.uint8) if original_rgba is not None else None
+        edited_reused = edited is not None and edited is self._edited_rgba and self._edited_image is not None
+        original_reused = original is not None and original is self._original_rgba and self._original_image is not None
+        self._edited_rgba = edited
+        self._original_rgba = original
+        if not edited_reused:
+            self._edited_image = _rgba_array_to_qimage(edited, copy=False) if edited is not None else None
+            self._channel_rgba = None
+            self._channel_image = None
+            self._channel_mode = ""
+        if not original_reused:
+            self._original_image = _rgba_array_to_qimage(original, copy=False) if original is not None else None
+        self._refresh_display_image(dirty_bounds=dirty_bounds if edited_reused else None)
 
     def set_view_mode(self, mode: str) -> None:
         normalized = (mode or "edited").strip().lower()
@@ -162,11 +178,22 @@ class TextureEditorCanvas(QWidget):
         grid_color: Optional[QColor] = None,
         grid_opacity: int = 42,
     ) -> None:
-        self._grid_enabled = bool(enabled)
-        self._grid_size = max(2, int(grid_size))
+        next_enabled = bool(enabled)
+        next_size = max(2, int(grid_size))
+        next_color = QColor(grid_color) if grid_color is not None and grid_color.isValid() else QColor(self._grid_color)
+        next_opacity = max(5, min(100, int(grid_opacity)))
+        if (
+            next_enabled == self._grid_enabled
+            and next_size == self._grid_size
+            and next_color == self._grid_color
+            and next_opacity == self._grid_opacity
+        ):
+            return
+        self._grid_enabled = next_enabled
+        self._grid_size = next_size
         if grid_color is not None and grid_color.isValid():
-            self._grid_color = QColor(grid_color)
-        self._grid_opacity = max(5, min(100, int(grid_opacity)))
+            self._grid_color = next_color
+        self._grid_opacity = next_opacity
         self.update()
 
     def set_guide_state(
@@ -188,23 +215,55 @@ class TextureEditorCanvas(QWidget):
         self._symmetry_mode = normalized
         self.update()
 
-    def _build_channel_qimage(self, channel_key: str) -> Optional[QImage]:
-        if self._edited_rgba is None:
-            return None
+    def _build_channel_qimage(
+        self,
+        channel_key: str,
+        *,
+        dirty_bounds: Optional[Tuple[int, int, int, int]] = None,
+    ) -> Optional[QImage]:
         rgba = self._edited_rgba
-        if channel_key == "red":
-            channel = rgba[..., 0]
-        elif channel_key == "green":
-            channel = rgba[..., 1]
-        elif channel_key == "blue":
-            channel = rgba[..., 2]
+        if rgba is None:
+            return None
+        channel_index = {"red": 0, "green": 1, "blue": 2}.get(channel_key, 3)
+        reusable = (
+            self._channel_mode == channel_key
+            and self._channel_rgba is not None
+            and self._channel_rgba.shape == rgba.shape
+            and self._channel_image is not None
+        )
+        if not reusable:
+            self._channel_rgba = np.empty_like(rgba)
+            self._channel_image = _rgba_array_to_qimage(self._channel_rgba, copy=False)
+            self._channel_mode = channel_key
+            dirty_bounds = None
+        if dirty_bounds is None:
+            source = rgba[..., channel_index]
+            target = self._channel_rgba
         else:
-            channel = rgba[..., 3]
-        gray_rgba = np.stack([channel, channel, channel, np.full_like(channel, 255)], axis=-1)
-        return _rgba_array_to_qimage(gray_rgba)
+            x, y, width, height = (int(value) for value in dirty_bounds)
+            left = max(0, x)
+            top = max(0, y)
+            right = min(rgba.shape[1], x + max(0, width))
+            bottom = min(rgba.shape[0], y + max(0, height))
+            if right <= left or bottom <= top:
+                return self._channel_image
+            source = rgba[top:bottom, left:right, channel_index]
+            target = self._channel_rgba[top:bottom, left:right]
+        target[..., :3] = source[..., None]
+        target[..., 3] = 255
+        return self._channel_image
 
-    def _refresh_display_image(self) -> None:
-        self._image = self._edited_image.copy() if self._edited_image is not None else None
+    def _refresh_display_image(
+        self,
+        *,
+        dirty_bounds: Optional[Tuple[int, int, int, int]] = None,
+    ) -> None:
+        previous_size = (
+            (self._image.width(), self._image.height())
+            if self._image is not None
+            else None
+        )
+        self._image = self._edited_image
         if self._edited_image is None:
             self._display_image = None
             self._update_display_geometry()
@@ -212,13 +271,33 @@ class TextureEditorCanvas(QWidget):
             return
         mode = self._view_mode
         if mode == "original" and self._original_image is not None:
-            self._display_image = self._original_image.copy()
+            self._display_image = self._original_image
         elif mode in {"red", "green", "blue", "alpha"}:
-            self._display_image = self._build_channel_qimage(mode)
+            self._display_image = self._build_channel_qimage(mode, dirty_bounds=dirty_bounds)
         else:
-            self._display_image = self._edited_image.copy()
-        self._update_display_geometry()
-        self.update()
+            self._display_image = self._edited_image
+        current_size = (self._image.width(), self._image.height())
+        if current_size != previous_size:
+            self._update_display_geometry()
+        else:
+            self._update_dirty_image_region(dirty_bounds)
+
+    def _update_dirty_image_region(
+        self,
+        dirty_bounds: Optional[Tuple[int, int, int, int]],
+    ) -> None:
+        if dirty_bounds is None or self._view_mode == "original":
+            self.update()
+            return
+        x, y, width, height = (int(value) for value in dirty_bounds)
+        if width <= 0 or height <= 0:
+            return
+        scale = max(0.0001, float(self._display_scale))
+        left = int(math.floor(x * scale)) - 2
+        top = int(math.floor(y * scale)) - 2
+        right = int(math.ceil((x + width) * scale)) + 2
+        bottom = int(math.ceil((y + height) * scale)) + 2
+        self.update(QRect(left, top, max(1, right - left), max(1, bottom - top)))
 
     def set_tool(self, tool: str) -> None:
         self._tool = tool
@@ -354,6 +433,8 @@ class TextureEditorCanvas(QWidget):
         self._lasso_points.append(point)
 
     def set_selection(self, selection: TextureEditorSelection) -> None:
+        if selection == self._selection:
+            return
         self._selection = selection
         self.update()
 
@@ -380,6 +461,26 @@ class TextureEditorCanvas(QWidget):
         scale_y: float,
         rotation_degrees: float,
     ) -> None:
+        next_state = (
+            current_bounds,
+            origin_bounds,
+            int(offset_x),
+            int(offset_y),
+            float(scale_x),
+            float(scale_y),
+            float(rotation_degrees),
+        )
+        current_state = (
+            self._floating_bounds,
+            self._floating_origin_bounds,
+            self._floating_offset_x,
+            self._floating_offset_y,
+            self._floating_scale_x,
+            self._floating_scale_y,
+            self._floating_rotation_degrees,
+        )
+        if next_state == current_state:
+            return
         self._floating_bounds = current_bounds
         self._floating_origin_bounds = origin_bounds
         self._floating_offset_x = int(offset_x)
@@ -390,10 +491,14 @@ class TextureEditorCanvas(QWidget):
         self.update()
 
     def set_quick_mask_overlay(self, overlay: Optional[QImage]) -> None:
+        if overlay is None and self._quick_mask_image is None:
+            return
         self._quick_mask_image = overlay.copy() if overlay is not None else None
         self.update()
 
     def set_clone_source_point(self, point: Optional[Tuple[int, int]]) -> None:
+        if point == self._clone_source_point:
+            return
         self._clone_source_point = point
         self.update()
 

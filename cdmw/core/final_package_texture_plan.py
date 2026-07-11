@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.archive_modding import MeshImportPreviewResult
+from cdmw.core.archive_mesh_types import MeshImportPreviewResult
 from cdmw.models import ModelPreviewData
 from cdmw.modding.asset_replacement import classify_texture_binding
 

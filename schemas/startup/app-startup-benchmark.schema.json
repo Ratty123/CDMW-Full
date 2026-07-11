@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cdmw.local/schemas/startup/app-startup-benchmark.schema.json",
+  "title": "CDMW application startup benchmark artifact",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at_utc",
+    "environment",
+    "configuration",
+    "probes",
+    "comparison",
+    "gates",
+    "ok"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "generated_at_utc": {"type": "string"},
+    "environment": {"type": "object"},
+    "configuration": {
+      "type": "object",
+      "required": [
+        "runs",
+        "first_tab",
+        "public_import_budget_ms",
+        "required_first_window_improvement_percent",
+        "allowed_first_use_regression_percent"
+      ]
+    },
+    "probes": {
+      "type": "object",
+      "required": [
+        "public_facade_import",
+        "first_window",
+        "first_tab",
+        "helper_protocol_ready"
+      ],
+      "properties": {
+        "public_facade_import": {"$ref": "#/$defs/timingProbe"},
+        "first_window": {"$ref": "#/$defs/timingProbe"},
+        "first_tab": {"$ref": "#/$defs/timingProbe"},
+        "helper_protocol_ready": {
+          "type": "object",
+          "required": ["status"]
+        }
+      }
+    },
+    "comparison": {"type": "object"},
+    "gates": {
+      "type": "object",
+      "required": [
+        "public_facade_import_under_500_ms",
+        "public_facade_import_has_no_heavy_modules",
+        "first_window_improved_at_least_30_percent",
+        "first_tab_regression_within_10_percent",
+        "helper_protocol_ready_regression_within_10_percent"
+      ]
+    },
+    "ok": {"type": "boolean"}
+  },
+  "$defs": {
+    "timingProbe": {
+      "type": "object",
+      "required": [
+        "status",
+        "samples_ms",
+        "minimum_ms",
+        "median_ms",
+        "p95_ms",
+        "maximum_ms"
+      ],
+      "properties": {
+        "status": {"const": "ok"},
+        "samples_ms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "number", "minimum": 0}
+        },
+        "minimum_ms": {"type": "number", "minimum": 0},
+        "median_ms": {"type": "number", "minimum": 0},
+        "p95_ms": {"type": "number", "minimum": 0},
+        "maximum_ms": {"type": "number", "minimum": 0}
+      }
+    }
+  }
+}

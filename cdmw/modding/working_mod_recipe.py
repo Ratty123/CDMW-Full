@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import threading
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Mapping, Optional, Sequence
 
+from cdmw.core.common import raise_if_cancelled
+from cdmw.models import RunCancelled
 from .asset_replacement import infer_cd_texture_role_from_path
 from .static_mesh_replacer import StaticDonorMaterialPlan, StaticDonorMaterialTextureBinding
 
@@ -84,13 +87,19 @@ _TEXTURE_PATH_RE = re.compile(
 )
 
 
-def analyze_working_mod_package(path: Path | str) -> WorkingModPackageAnalysis:
+def analyze_working_mod_package(
+    path: Path | str,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> WorkingModPackageAnalysis:
     """Inspect a loose mod directory/archive without extracting assets into the app."""
 
     package_path = Path(path).expanduser()
     warnings: list[str] = []
     try:
-        members = _read_package_members(package_path, warnings)
+        members = _read_package_members(package_path, warnings, stop_event=stop_event)
+    except RunCancelled:
+        raise
     except Exception as exc:
         return WorkingModPackageAnalysis(
             package_path=str(package_path),
@@ -109,6 +118,7 @@ def analyze_working_mod_package(path: Path | str) -> WorkingModPackageAnalysis:
 
     recipes: list[WorkingModMaterialRecipe] = []
     for sidecar_path in sidecar_paths:
+        raise_if_cancelled(stop_event, "Working mod analysis cancelled.")
         try:
             sidecar_text = members[sidecar_path].decode("utf-8-sig", errors="replace")
         except Exception as exc:
@@ -171,10 +181,16 @@ def donor_plan_from_working_mod_recipe(
     )
 
 
-def _read_package_members(package_path: Path, warnings: list[str]) -> dict[str, bytes]:
+def _read_package_members(
+    package_path: Path,
+    warnings: list[str],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> dict[str, bytes]:
     if package_path.is_dir():
         members: dict[str, bytes] = {}
         for child in package_path.rglob("*"):
+            raise_if_cancelled(stop_event, "Working mod analysis cancelled.")
             if child.is_file():
                 try:
                     members[child.relative_to(package_path).as_posix()] = child.read_bytes()
@@ -184,17 +200,24 @@ def _read_package_members(package_path: Path, warnings: list[str]) -> dict[str, 
     suffix = package_path.suffix.lower()
     if suffix == ".zip":
         with zipfile.ZipFile(package_path) as archive:
-            return {
-                info.filename.replace("\\", "/"): archive.read(info)
-                for info in archive.infolist()
-                if not info.is_dir()
-            }
+            members = {}
+            for info in archive.infolist():
+                raise_if_cancelled(stop_event, "Working mod analysis cancelled.")
+                if not info.is_dir():
+                    members[info.filename.replace("\\", "/")] = archive.read(info)
+            return members
     if suffix == ".7z":
-        return _read_7z_members_with_tar(package_path, warnings)
+        return _read_7z_members_with_tar(package_path, warnings, stop_event=stop_event)
     raise ValueError(f"unsupported package type: {package_path.suffix or package_path}")
 
 
-def _read_7z_members_with_tar(package_path: Path, warnings: list[str]) -> dict[str, bytes]:
+def _read_7z_members_with_tar(
+    package_path: Path,
+    warnings: list[str],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> dict[str, bytes]:
+    raise_if_cancelled(stop_event, "Working mod analysis cancelled.")
     list_result = subprocess.run(
         ["tar", "-tf", str(package_path)],
         check=False,
@@ -206,6 +229,7 @@ def _read_7z_members_with_tar(package_path: Path, warnings: list[str]) -> dict[s
         raise ValueError((list_result.stderr or "tar could not list 7z archive").strip())
     members: dict[str, bytes] = {}
     for raw_name in list_result.stdout.splitlines():
+        raise_if_cancelled(stop_event, "Working mod analysis cancelled.")
         name = raw_name.strip().replace("\\", "/")
         if not name or name.endswith("/"):
             continue
@@ -222,6 +246,7 @@ def _read_7z_members_with_tar(package_path: Path, warnings: list[str]) -> dict[s
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        raise_if_cancelled(stop_event, "Working mod analysis cancelled.")
         if extract_result.returncode != 0:
             warnings.append(f"{name}: tar extract failed")
             continue

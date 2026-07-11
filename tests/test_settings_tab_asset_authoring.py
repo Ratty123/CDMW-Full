@@ -59,16 +59,36 @@ class SettingsTabAssetAuthoringTests(unittest.TestCase):
         self.addCleanup(tab.deleteLater)
         return tab
 
-    def test_settings_tab_shows_asset_authoring_helper_availability_without_version_probe(self) -> None:
+    def test_settings_tab_defers_helper_discovery_until_setup_is_visible(self) -> None:
         service = _AssetAuthoringServiceStub()
         tab = self._settings_tab(service)
 
+        self.assertEqual([], service.calls)
+        self.assertIn("loads when Setup is shown", tab.asset_authoring_helper_status_label.text())
+
+        tab.show()
+        _APP.processEvents()
+        _APP.processEvents()
         text = tab.asset_authoring_helper_status_label.text()
 
         self.assertIn("Material Maker: available", text)
         self.assertIn("version not checked", text)
         self.assertIn("xatlas: unavailable", text)
         self.assertEqual([{"include_versions": False}], service.calls)
+
+    def test_settings_tab_service_factory_is_lazy_and_resolves_once(self) -> None:
+        service = _AssetAuthoringServiceStub()
+        factory_calls: list[object] = []
+
+        tab = self._settings_tab(lambda: factory_calls.append(object()) or service)
+
+        self.assertEqual([], factory_calls)
+        self.assertIsNone(tab.asset_authoring_service)
+        tab.show()
+        _APP.processEvents()
+        _APP.processEvents()
+        self.assertEqual(1, len(factory_calls))
+        self.assertIs(tab.asset_authoring_service, service)
 
     def test_settings_tab_can_display_exact_helper_versions_from_report(self) -> None:
         tab = self._settings_tab(_AssetAuthoringServiceStub())

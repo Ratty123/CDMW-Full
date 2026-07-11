@@ -37,7 +37,7 @@ from cdmw.core.archive_accelerator import (
 )
 from cdmw.core.item_index import build_archive_item_search_index
 from cdmw.domain.archives.filters import build_archive_category_entry_index
-from cdmw.models import ArchiveEntry, RunCancelled
+from cdmw.models import ArchiveEntry, ArchiveEntryIdentity, RunCancelled
 
 
 def _timing_value(timings: Optional[Dict[str, float]], key: str) -> float:
@@ -60,6 +60,70 @@ def _format_timing_summary(
     for key, label in ordered_fields:
         parts.append(f"{label}={_timing_value(timings, key):.2f}s")
     return " | ".join(parts)
+
+
+_LIGHTWEIGHT_MESH_EXTENSIONS = frozenset({".pac", ".pam", ".pamlod"})
+
+
+def build_archive_lightweight_lookup_indexes(
+    entries: Sequence[ArchiveEntry],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> tuple[
+    Dict[str, List[ArchiveEntry]],
+    Counter[str],
+    Dict[str, List[ArchiveEntry]],
+    Dict[ArchiveEntryIdentity, ArchiveEntry],
+]:
+    """Build lookup data needed before deferred full path indexes are ready."""
+
+    extension_index: Dict[str, List[ArchiveEntry]] = {}
+    mesh_path_index: Dict[str, List[ArchiveEntry]] = {}
+    mesh_entries: List[ArchiveEntry] = []
+    for index, entry in enumerate(entries):
+        if index % 4096 == 0 and stop_event is not None and stop_event.is_set():
+            raise RunCancelled("Archive lookup indexing cancelled.")
+        extension = normalize_archive_extension_filter(entry.extension)
+        if not extension:
+            continue
+        extension_index.setdefault(extension, []).append(entry)
+        if extension in _LIGHTWEIGHT_MESH_EXTENSIONS:
+            normalized_path = str(entry.path or "").replace("\\", "/").strip().strip("/").casefold()
+            if normalized_path:
+                mesh_path_index.setdefault(normalized_path, []).append(entry)
+            if extension in {".pam", ".pamlod"}:
+                mesh_entries.append(entry)
+
+    companion_index: Dict[ArchiveEntryIdentity, ArchiveEntry] = {}
+    for index, entry in enumerate(mesh_entries):
+        if index % 1024 == 0 and stop_event is not None and stop_event.is_set():
+            raise RunCancelled("Archive companion indexing cancelled.")
+        normalized_path = str(entry.path or "").replace("\\", "/").strip().strip("/").casefold()
+        companion_paths: List[str] = []
+        if entry.extension == ".pam" and normalized_path.endswith(".pam"):
+            companion_paths.append(f"{normalized_path[:-4]}.pamlod")
+            stem = normalized_path[:-4]
+            if stem.endswith("_breakable"):
+                companion_paths.append(f"{stem[:-10]}.pamlod")
+        elif entry.extension == ".pamlod" and normalized_path.endswith(".pamlod"):
+            companion_paths.append(f"{normalized_path[:-7]}.pam")
+        for companion_path in companion_paths:
+            candidates = mesh_path_index.get(companion_path, ())
+            if not candidates:
+                continue
+            companion = next(
+                (candidate for candidate in candidates if candidate.pamt_path == entry.pamt_path),
+                candidates[0],
+            )
+            companion_index[entry.identity] = companion
+            break
+
+    return (
+        extension_index,
+        Counter({extension: len(items) for extension, items in extension_index.items()}),
+        mesh_path_index,
+        companion_index,
+    )
 
 
 class ArchiveScanWorker(QObject):
@@ -345,12 +409,20 @@ class ArchiveScanWorker(QObject):
             item_asset_catalog: List[Dict[str, object]] = []
             path_index: Mapping[str, Sequence[ArchiveEntry]] = {}
             basename_index: Mapping[str, Sequence[ArchiveEntry]] = {}
-            extension_index: Mapping[str, Sequence[ArchiveEntry]] = {}
             role_index: Mapping[str, Sequence[ArchiveEntry]] = {}
-            extension_counts: Counter[str] = Counter(
-                normalize_archive_extension_filter(entry.extension)
-                for entry in entries
-                if normalize_archive_extension_filter(entry.extension)
+            extension_index_started_at = time.perf_counter()
+            (
+                extension_index,
+                extension_counts,
+                mesh_path_index,
+                mesh_companion_index,
+            ) = build_archive_lightweight_lookup_indexes(
+                entries,
+                stop_event=self.stop_event,
+            )
+            timings["entry_extension_index_s"] = max(
+                0.0,
+                float(time.perf_counter() - extension_index_started_at),
             )
             name_search_index: Optional[ArchiveNameSearchIndex] = None
             derived_cache = None
@@ -523,7 +595,7 @@ class ArchiveScanWorker(QObject):
                     self.progress_changed.emit(0, 0, "Path lookup deferred until needed...")
                 timings["entry_path_index_s"] = 0.0
             timings["entry_basename_index_s"] = 0.0
-            timings["entry_extension_index_s"] = 0.0
+            timings.setdefault("entry_extension_index_s", 0.0)
             if name_search_index is None:
                 timings["entry_name_search_index_s"] = 0.0
             else:
@@ -676,6 +748,8 @@ class ArchiveScanWorker(QObject):
                     "path_index": path_index,
                     "basename_index": basename_index,
                     "extension_index": extension_index,
+                    "mesh_path_index": mesh_path_index,
+                    "mesh_companion_index": mesh_companion_index,
                     "role_index": role_index,
                     "name_search_index": name_search_index,
                     "item_search_aliases": item_search_aliases,

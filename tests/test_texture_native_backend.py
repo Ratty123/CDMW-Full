@@ -1,3 +1,4 @@
+import base64
 import json
 import threading
 import tempfile
@@ -8,6 +9,10 @@ from unittest.mock import patch
 from cdmw.core import texture_native
 from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native, inspect_dds_native_path
 from cdmw.models import RunCancelled
+
+_MINIMAL_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
 
 
 def _minimal_bc_dds(fourcc: bytes = b"DXT1", *, width: int = 4, height: int = 4, mip_count: int = 1) -> bytes:
@@ -199,7 +204,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                 for item in job["jobs"]:
                     output = Path(item["output"])
                     output.parent.mkdir(parents=True, exist_ok=True)
-                    output.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+                    output.write_bytes(_MINIMAL_PNG)
                     items.append(
                         {
                             "status": "decoded",
@@ -426,9 +431,10 @@ class NativeTextureBackendTests(unittest.TestCase):
                 report_path = Path(command[3])
                 job = json.loads(job_path.read_text(encoding="utf-8"))
                 item = job["jobs"][0]
-                self.assertEqual(str(preview_path.resolve()), item["output"])
+                self.assertNotEqual(str(preview_path.resolve()), item["output"])
+                self.assertEqual((root / "temp").resolve(), Path(item["output"]).parent.parent)
                 Path(item["output"]).parent.mkdir(parents=True, exist_ok=True)
-                Path(item["output"]).write_bytes(b"\x89PNG\r\n\x1a\nfake")
+                Path(item["output"]).write_bytes(_MINIMAL_PNG)
                 report_path.write_text(
                     json.dumps(
                         {
@@ -482,7 +488,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                 for item in job["jobs"]:
                     output = Path(item["output"])
                     output.parent.mkdir(parents=True, exist_ok=True)
-                    output.write_bytes(f"png:{item['slot']}".encode("ascii"))
+                    output.write_bytes(_MINIMAL_PNG)
                     items.append(
                         {
                             "status": "decoded",
@@ -561,7 +567,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                 for item in job["jobs"]:
                     output_path = Path(item["output"])
                     output_path.parent.mkdir(parents=True, exist_ok=True)
-                    output_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+                    output_path.write_bytes(_MINIMAL_PNG)
                     items.append(
                         {
                             "status": "decoded",

@@ -13,6 +13,7 @@ from typing import Callable, Optional
 from PySide6.QtCore import QObject, QSettings
 from PySide6.QtWidgets import QApplication, QWidget
 
+from cdmw.app.startup_smoke import gui_startup_smoke_requested, write_gui_startup_smoke_result
 from cdmw.constants import APP_NAME, APP_ORGANIZATION, DEFAULT_UI_THEME
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.app_icon import load_app_icon
@@ -20,7 +21,7 @@ from cdmw.ui.shell.icon_controller import AppWindowIconEventFilter
 from cdmw.ui.shell.responsiveness_controller import AutoTreeColumnWidthEventFilter
 from cdmw.ui.shell.theme_controller import apply_app_theme, apply_window_data_fonts, apply_window_ui_fonts
 from cdmw.ui.themes import UI_THEME_SCHEMES
-from cdmw.ui.widgets import ensure_app_wheel_guard
+from cdmw.ui.wheel_guard import ensure_app_wheel_guard
 
 
 @dataclass(slots=True)
@@ -36,13 +37,19 @@ def read_shell_startup_theme_key(settings: QSettings) -> str:
     return theme_key if theme_key in UI_THEME_SCHEMES else DEFAULT_UI_THEME
 
 
-def prepare_shell_application(app: QApplication) -> ShellApplicationStartup:
+def prepare_shell_application(
+    app: QApplication, *, settings_file_path: Path | None = None
+) -> ShellApplicationStartup:
     app.setOrganizationName(APP_ORGANIZATION)
     app.setApplicationName(APP_NAME)
     app.setStyle("Fusion")
     ensure_app_wheel_guard(app)
 
-    startup_settings = create_settings()
+    startup_settings = (
+        create_settings(settings_file_path=settings_file_path)
+        if settings_file_path is not None
+        else create_settings()
+    )
     startup_theme = read_shell_startup_theme_key(startup_settings)
     app_icon, _icon_path = load_app_icon(startup_theme)
     app_window_icon_filter: Optional[AppWindowIconEventFilter] = None
@@ -287,7 +294,7 @@ def _verify_mesh_editor_startup_smoke_target(window: object, app: QApplication) 
 
 
 def finish_gui_startup_smoke_if_requested(window: object, app: QApplication) -> bool:
-    if os.environ.get("CDMW_GUI_STARTUP_SMOKE") != "1":
+    if not gui_startup_smoke_requested():
         return False
     window._release_startup_splash()
     app.processEvents()
@@ -296,6 +303,7 @@ def finish_gui_startup_smoke_if_requested(window: object, app: QApplication) -> 
         _verify_mesh_editor_startup_smoke_target(window, app)
     elif target:
         raise RuntimeError(f"Unknown GUI startup smoke target: {target}")
+    write_gui_startup_smoke_result(ok=True, stage="post_construction", target=target)
     window._finalize_close()
     return True
 

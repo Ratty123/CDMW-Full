@@ -8,19 +8,22 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 
-from cdmw.core.texture_editor import (
+from cdmw.domain.textures.editor_brush import apply_texture_editor_stroke
+from cdmw.domain.textures.editor_composite import flatten_texture_editor_layers
+from cdmw.domain.textures.editor_layers import bump_texture_editor_layer_revision
+from cdmw.domain.textures.editor_raster_tools import (
     apply_texture_editor_fill,
     apply_texture_editor_gradient,
     apply_texture_editor_patch,
     apply_texture_editor_recolor,
+)
+from cdmw.domain.textures.editor_selection import (
     apply_texture_editor_selection_fill,
     apply_texture_editor_selection_stroke,
-    apply_texture_editor_stroke,
-    build_texture_editor_selection_mask,
-    bump_texture_editor_layer_revision,
-    flatten_texture_editor_layers,
 )
+from cdmw.domain.textures.editor_selection_masks import build_texture_editor_selection_mask
 from cdmw.models import TextureEditorDocument, TextureEditorToolSettings
+from cdmw.ui.texture_workflow.editor_history_state import capture_texture_editor_history_layer_patch
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +72,7 @@ class TextureEditorQuickMaskStrokeState:
 class TextureEditorLayerStrokeState:
     document: TextureEditorDocument
     layer_pixels: Dict[str, np.ndarray]
-    before_layer_pixels: Dict[str, np.ndarray]
+    before_layer_pixels: Dict[str, object]
     layer_id: str
     thumbnail_layer_id: Optional[str]
     dirty_bounds: Optional[Tuple[int, int, int, int]]
@@ -395,8 +398,20 @@ def texture_editor_layer_stroke_state(
         if layer_id == document.active_layer_id
         else dataclasses.replace(document, active_layer_id=layer_id)
     )
-    before_layer_pixels = {layer_id: layer_pixels[layer_id].copy()}
     tool = str(settings.tool)
+    before_patch = (
+        capture_texture_editor_history_layer_patch(
+            working_document,
+            layer_id,
+            layer_pixels[layer_id],
+            brush_dirty_bounds,
+        )
+        if tool in {"paint", "erase"}
+        else None
+    )
+    before_layer_pixels: Dict[str, object] = {
+        layer_id: before_patch if before_patch is not None else layer_pixels[layer_id].copy()
+    }
     dirty_bounds: Optional[Tuple[int, int, int, int]]
     if tool == "fill":
         updated_layer_pixels = apply_texture_editor_fill(
@@ -433,6 +448,7 @@ def texture_editor_layer_stroke_state(
             settings,
             points,
             source_snapshot=source_snapshot,
+            mutate_active_layer=tool in {"paint", "erase"},
         )
         dirty_bounds = brush_dirty_bounds
     active_layer_id = document.active_layer_id

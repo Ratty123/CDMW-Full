@@ -4,13 +4,21 @@ Owns the Mesh Editor tab shell, typed session requests, empty state, and embedde
 builder hosting. Archive internals and destructive writes stay outside this UI
 package.
 
-`workspace.py` owns the standalone Blender-style workspace layout. Its widgets
-emit action descriptors; mesh edits still execute through `MeshEditorController`
-and `MeshService`. Its Validator tab renders service/domain export validation
-findings; it does not inspect mesh geometry itself. Outliner, material, UV, and
-skeleton panel rows are populated from the service-backed workspace summary.
-Its Compare tab renders the service-backed source-vs-edited summary and emits
-preview-mode requests for edited, source, and ghost overlay views.
+`tab.py` is the stable public Qt class. Bounded `tab_*.py` owners hold shell,
+native-preview, package, .NET protocol/process, report, session, state,
+interaction, and action behavior. `tab_compat.py` keeps historical public
+monkeypatch seams live without moving behavior back into the facade.
+
+`workspace.py` is the stable standalone Blender-style workspace class. Bounded
+`workspace_*.py` owners hold state synchronization, skeleton presentation,
+shell/panel construction, reports, interaction, and the UV canvas/helpers. Its
+widgets emit action descriptors; mesh edits still execute through
+`MeshEditorController` and `MeshService`. Its Validator tab renders
+service/domain export validation findings; it does not inspect mesh geometry
+itself. Outliner, material, UV, and skeleton panel rows are populated from the
+service-backed workspace summary. Its Compare tab renders the service-backed
+source-vs-edited summary and emits preview-mode requests for edited, source,
+and ghost overlay views.
 
 `MeshEditorTab.open_mesh_session()` opens a standalone in-tab edit session for a
 `ParsedMesh` without starting the full Archive Browser builder. It routes toolbar
@@ -268,18 +276,28 @@ skeleton by matching bone names; `MeshEditorTab` carries that source skeleton
 through standalone sessions and the Skeleton panel `Transfer W` action. Direct
 local PAC/PAM/PAMLOD file sessions also load and attach a sibling or
 supplemental `.pab` skeleton when one is available.
-See `docs/mesh-editor-skeleton-discovery.md` for current read-only PAC/PAB/PABC
+See `docs/features/mesh-editor-skeleton-discovery.md` for current read-only PAC/PAB/PABC
 relationship evidence and confidence rules.
 `MeshEditorController.texture_edit_target()` exposes the selected material
 texture target. `MeshEditorTab.open_texture_source_requested` hands local or
 archive-cache-materialized DDS files to the existing Texture Editor bridge; the
 Mesh Editor does not load or export texture documents itself. Archive-only
 texture names resolve through shell-owned archive indexes and
-`ensure_archive_preview_source()` before opening. Texture Editor native DDS
-export/preview completion emits the same source binding back to Mesh Editor,
-which stores a transient per-part preview override and refreshes the D3D11
-package with local textures enabled without mutating the edit-session material
-route.
+`ensure_archive_preview_source()` before opening. Texture Editor DDS results
+carry explicit preview/assign semantics back to Mesh Editor. Compressed preview
+stores a transient per-part override without mutating the edit session.
+Export/Assign routes through the resident `material_assign` command, so the
+binding participates in revisioned undo/redo and editable-package export; a
+running .NET/Vortice session receives an authoritative `material_state_update`
+without a renderer restart.
+Linked base/albedo edits also emit deferred tight BGRA8 dirty regions after a
+history commit, undo, or redo. The .NET bridge derives the active material
+resource ID, keeps one in-flight update plus one latest-wins pending union per
+resource, leases an initial composite read-only until its worker copy completes,
+and deletes owned binary payloads on acknowledgement or shutdown. A concurrent
+Texture Editor mutation takes a copy-on-write cache instead of changing the
+emitted composite.
+Full DDS assignment remains the export-authoritative fallback.
 `shell_bridge.py` may forward action-bar signals to the active embedded builder
 handler and update shell status/active-tool state; it must not implement mesh
 edit commands. The embedded static builder handler may delegate selected-geometry

@@ -10,15 +10,15 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.archive_compact_index import ArchiveRowIndex, append_archive_row_id, compact_archive_rows_mapping
-from cdmw.core.archive import (
+from cdmw.core.archive_filtering import (
     archive_browser_sort_is_active,
     build_archive_entry_basename_index,
     build_archive_entry_extension_index,
     build_archive_entry_path_index,
     build_archive_entry_role_index,
-    load_or_update_archive_scan_shards,
-    prepare_archive_browser_state,
 )
+from cdmw.core.archive_preview_support import prepare_archive_browser_state
+from cdmw.core.archive_scan_cache import load_or_update_archive_scan_shards
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
 from cdmw.models import ArchiveEntry
 

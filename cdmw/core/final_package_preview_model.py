@@ -6,13 +6,10 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Tuple
 
-from cdmw.core.archive_modding import (
-    MESH_IMPORT_SIDECAR_EXTENSIONS,
-    MeshImportPreviewResult,
-    MeshImportSupplementalFileSpec,
-    _mesh_loose_export_payload_path,
-    parsed_mesh_to_preview_model,
-)
+from cdmw.core.archive_loose_export import _mesh_loose_export_payload_path
+from cdmw.core.archive_mesh_import_preview import parsed_mesh_to_preview_model
+from cdmw.core.archive_mesh_types import MeshImportPreviewResult, MeshImportSupplementalFileSpec
+from cdmw.core.archive_modding_constants import MESH_IMPORT_SIDECAR_EXTENSIONS
 from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.mesh_parser import parse_mesh

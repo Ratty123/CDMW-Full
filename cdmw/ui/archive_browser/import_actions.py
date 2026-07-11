@@ -6,7 +6,10 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QFileDialog
 
-from cdmw.core.archive_modding import apply_hkx_editable_geometry_json, apply_hkx_editable_geometry_xml
+from cdmw.services.hkx_edit_service import (
+    apply_hkx_editable_geometry_json,
+    apply_hkx_editable_geometry_xml,
+)
 
 
 class ArchiveImportActionsMixin:

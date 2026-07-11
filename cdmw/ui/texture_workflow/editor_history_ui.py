@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 """History list, undo, and restore coordination for the Texture Editor tab."""
-
 import time
 from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QListWidgetItem
 
 from cdmw.models import TextureEditorDocument
@@ -22,6 +20,7 @@ from cdmw.ui.texture_workflow.editor_history_state import (
     texture_editor_history_should_checkpoint,
     texture_editor_history_with_appended_record,
 )
+from cdmw.ui.texture_workflow.editor_history_list import append_texture_editor_history_list_record
 
 
 class TextureEditorHistoryUiMixin:
@@ -39,7 +38,7 @@ class TextureEditorHistoryUiMixin:
         label: str,
         *,
         before_document: TextureEditorDocument,
-        before_layer_pixels: Dict[str, np.ndarray],
+        before_layer_pixels: Dict[str, object],
         kind: str,
         dirty_bounds: Optional[Tuple[int, int, int, int]] = None,
         tracked_layer_ids: Optional[Sequence[str]] = None,
@@ -48,6 +47,8 @@ class TextureEditorHistoryUiMixin:
     ) -> None:
         if self.document is None:
             return
+        previous_count = len(self.history_snapshots)
+        previous_index = self.history_index
         if texture_editor_history_should_checkpoint(
             history_count=len(self.history_snapshots),
             force_checkpoint=force_checkpoint,
@@ -72,7 +73,8 @@ class TextureEditorHistoryUiMixin:
             self.history_index,
             record,
         )
-        self._refresh_history_list()
+        self._append_history_list_record(previous_count, previous_index)
+        self._schedule_resident_texture_patch(dirty_bounds)
 
     def _push_history(self, label: str) -> None:
         if self.document is None:
@@ -89,25 +91,55 @@ class TextureEditorHistoryUiMixin:
             record,
             direction=direction,
             current_layer_pixels=dict(self.layer_pixels),
+            copy_patch_pixels=False,
         )
         self.document = state.document
         self.layer_pixels = state.layer_pixels
         self._floating_pixels = state.floating_pixels
         self._floating_mask = state.floating_mask
-        self._invalidate_composite_cache()
+        command = record.get("command")
+        dirty_bounds = command.get("dirty_bounds") if isinstance(command, dict) else None
+        resolved_dirty_bounds = (
+            tuple(int(value) for value in dirty_bounds)
+            if isinstance(dirty_bounds, (list, tuple)) and len(dirty_bounds) == 4
+            else None
+        )
+        layer_blobs = record.get("before_layer_blobs" if direction == "before" else "after_layer_blobs")
+        if isinstance(layer_blobs, dict):
+            for layer_id in layer_blobs:
+                self._invalidate_layer_thumbnail(str(layer_id))
+        elif record.get("checkpoint") is not None:
+            self._thumbnail_cache = {}
+        self._invalidate_composite_cache(resolved_dirty_bounds)
+        self._schedule_resident_texture_patch(resolved_dirty_bounds)
 
     def _restore_history_index(self, index: int) -> None:
         state = texture_editor_history_restore_state(self.history_snapshots, index)
         if not state.can_restore:
             return
-        for replay_index in state.replay_plan.apply_indices:
-            self._apply_history_record(self.history_snapshots[replay_index], direction="after")
+        adjacent_record: Optional[Dict[str, object]] = None
+        if (
+            index == self.history_index - 1
+            and self.history_snapshots[self.history_index].get("checkpoint") is None
+        ):
+            adjacent_record = self.history_snapshots[self.history_index]
+            self._apply_history_record(adjacent_record, direction="before")
+        elif index == self.history_index + 1:
+            adjacent_record = self.history_snapshots[index]
+            self._apply_history_record(adjacent_record, direction="after")
+        else:
+            for replay_index in state.replay_plan.apply_indices:
+                self._apply_history_record(self.history_snapshots[replay_index], direction="after")
         self.history_index = index
         self._layer_property_dirty = False
         self._adjustment_property_dirty = False
         self._pending_adjustment_before_document = None
-        self._invalidate_composite_cache()
-        self._refresh_ui()
+        command = adjacent_record.get("command") if adjacent_record is not None else None
+        kind = str(command.get("kind", "") or "") if isinstance(command, dict) else ""
+        if kind.endswith("_stroke"):
+            self._refresh_editor_views(canvas=True, history=True, status=True, tool_visibility=False)
+        else:
+            self._refresh_ui()
         self._set_status(state.status_text, False)
 
     def undo(self) -> None:
@@ -126,12 +158,23 @@ class TextureEditorHistoryUiMixin:
         for index, snapshot in enumerate(self.history_snapshots):
             entry = snapshot["entry"]
             item = QListWidgetItem(entry.label)
-            item.setData(Qt.UserRole, index)
             item.setText(texture_editor_history_list_item_text(entry.label, current=index == self.history_index))
             self.history_list.addItem(item)
         if 0 <= self.history_index < self.history_list.count():
             self.history_list.setCurrentRow(self.history_index)
         self.history_list.blockSignals(False)
+        self._update_history_action_state()
+
+    def _append_history_list_record(self, previous_count: int, previous_index: int) -> None:
+        if not append_texture_editor_history_list_record(
+            self.history_list,
+            self.history_snapshots,
+            self.history_index,
+            previous_count,
+            previous_index,
+        ):
+            self._refresh_history_list()
+            return
         self._update_history_action_state()
 
     def _handle_history_row_changed(self, row: int) -> None:

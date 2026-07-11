@@ -7,6 +7,7 @@ from typing import Callable
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
 from cdmw.ui.texture_workflow.asset_authoring_panel import TextureWorkflowAssetAuthoringPanelMixin
+from cdmw.ui.shell.texture_panel_persistence import finish_texture_workflow_panel_body
 from cdmw.ui.widgets import CollapsibleSection
 
 
@@ -17,8 +18,25 @@ class TextureWorkflowSettingsPanelMixin(TextureWorkflowAssetAuthoringPanelMixin)
         self,
         left_layout: QVBoxLayout,
         pump_startup_splash: Callable[[str], None],
+        *,
+        expanded: bool = False,
     ) -> None:
-        self.settings_section = CollapsibleSection("Settings", expanded=False)
+        self.settings_section = CollapsibleSection(
+            "Settings",
+            body_builder=lambda body_layout: TextureWorkflowSettingsPanelMixin._build_texture_workflow_settings_body(
+                self,
+                body_layout,
+                pump_startup_splash,
+            ),
+        )
+        left_layout.addWidget(self.settings_section)
+        self.settings_section.set_expanded(expanded)
+
+    def _build_texture_workflow_settings_body(
+        self,
+        body_layout: QVBoxLayout,
+        pump_startup_splash: Callable[[str], None],
+    ) -> None:
         settings_group = QWidget()
         settings_layout = QVBoxLayout(settings_group)
         settings_layout.setContentsMargins(0, 0, 0, 0)
@@ -47,8 +65,8 @@ class TextureWorkflowSettingsPanelMixin(TextureWorkflowAssetAuthoringPanelMixin)
         settings_layout.addWidget(self.unique_basename_checkbox)
         settings_layout.addWidget(self.overwrite_existing_checkbox)
 
-        self.settings_section.body_layout.addWidget(settings_group)
-        left_layout.addWidget(self.settings_section)
+        body_layout.addWidget(settings_group)
+        finish_texture_workflow_panel_body(self, "settings")
 
 
 __all__ = ["TextureWorkflowSettingsPanelMixin"]

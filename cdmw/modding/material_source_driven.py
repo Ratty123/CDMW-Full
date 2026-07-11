@@ -9,6 +9,8 @@ from dataclasses import replace
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence
 
+from cdmw.domain.textures.material_parameters import effective_emissive_intensity, evaluate_material_parameters
+
 from .asset_replacement import classify_texture_binding, infer_cd_texture_role_from_path
 from .pac_xml_profiles import (
     PacXmlCorpusIndex,
@@ -37,8 +39,6 @@ from .material_profiles import (
     _profile_base_color_saturation,
     _profile_forces_neutral_layer_support,
     _profile_is_material_authority_bruteforce,
-    _profile_global_gloss_reduction,
-    _profile_gloss_reduction_mode,
     _profile_is_runtime_xml,
     _profile_is_source_only,
     _profile_ma_rgb_roles,
@@ -50,7 +50,6 @@ from .material_profiles import (
     _profile_routes_source_color_to_layer_slots,
     _profile_roughness_inverted,
     _profile_source_emissive_enabled,
-    _profile_source_emissive_parameter_intensity,
     _profile_support_policy,
     _profile_uses_cd_smoothness_mask_response,
     _profile_uses_detail_mask_material_contract,
@@ -340,7 +339,7 @@ def _complete_swap_material_divergence_reasons(
     if _profile_metallic_inverted(material_profile):
         reasons.append("metallic polarity inverted")
     if bool(material_profile.force_nonmetal):
-        reasons.append("metallic forced to profile nonmetal default")
+        reasons.append("metallic forced to exact zero")
     ao_mode = str(getattr(material_profile, "ao_mode", "") or "").strip().lower()
     if ao_mode == "white":
         reasons.append("AO forced white")
@@ -615,7 +614,7 @@ def _complete_swap_runtime_material_mask_png_path(
     material_profile: CDMaterialRuntimeProfile,
 ) -> Path:
     from PIL import Image
-
+    parameter_values = evaluate_material_parameters(material_profile)
     material_name = str(texture_set.material_name or "material").strip() or "material"
     pbr_slot = texture_set.slots.get("material") or texture_set.slots.get("roughness")
     if pbr_slot is not None and not _source_slot_is_explicit_pbr(pbr_slot):
@@ -643,9 +642,9 @@ def _complete_swap_runtime_material_mask_png_path(
         str(material_profile.ao_default),
         str(material_profile.roughness_default),
         str(material_profile.metallic_default),
-        str(int(_profile_roughness_inverted(material_profile))),
-        str(int(_profile_metallic_inverted(material_profile))),
-        str(int(bool(material_profile.force_nonmetal))),
+        str(int(parameter_values.roughness_inverted)),
+        str(int(parameter_values.metalness_inverted)),
+        str(int(parameter_values.force_nonmetal)),
         str(factor_roughness),
         str(factor_metallic),
         str(roughness_scalar),
@@ -653,14 +652,14 @@ def _complete_swap_runtime_material_mask_png_path(
         str(specular_scalar),
         str(glossiness_scalar),
         str(occlusion_strength),
-        str(_profile_optional_byte(material_profile, "roughness_min")),
-        str(_profile_optional_scale(material_profile, "roughness_scale")),
-        str(_profile_optional_byte(material_profile, "roughness_max")),
-        str(_profile_optional_byte(material_profile, "metallic_min")),
-        str(_profile_optional_scale(material_profile, "metallic_scale")),
-        str(_profile_optional_byte(material_profile, "metallic_max")),
-        str(_profile_gloss_reduction_mode(material_profile)),
-        str(_profile_global_gloss_reduction(material_profile)),
+        str(parameter_values.roughness_min),
+        str(parameter_values.roughness_scale),
+        str(parameter_values.roughness_max),
+        str(parameter_values.metallic_min),
+        str(parameter_values.metallic_scale),
+        str(parameter_values.metallic_max),
+        str(parameter_values.gloss_reduction_mode),
+        str(parameter_values.global_gloss_reduction),
     ]
     for slot in (pbr_slot, roughness_slot, glossiness_slot, metallic_slot, specular_slot, ao_slot):
         if slot is not None:
@@ -758,28 +757,28 @@ def _complete_swap_runtime_material_mask_png_path(
             metallic = _load_rgb_luminance_channel(specular_slot.source_path, size, default_value=factor_metallic)
             if specular_scalar is not None:
                 metallic = _multiply_grayscale_channel(metallic, specular_scalar)
-    if _profile_roughness_inverted(material_profile):
+    if parameter_values.roughness_inverted:
         roughness = Image.eval(roughness, lambda value: 255 - int(value))
     roughness = _apply_profile_channel_adjustments(
         roughness,
-        scale=_profile_optional_scale(material_profile, "roughness_scale"),
-        minimum=_profile_optional_byte(material_profile, "roughness_min"),
-        maximum=_profile_optional_byte(material_profile, "roughness_max"),
+        scale=parameter_values.roughness_scale,
+        minimum=parameter_values.roughness_min,
+        maximum=parameter_values.roughness_max,
     )
-    if material_profile.force_nonmetal:
-        metallic = Image.new("L", size, int(material_profile.metallic_default))
-    elif _profile_metallic_inverted(material_profile):
-        metallic = Image.eval(metallic, lambda value: 255 - int(value))
-    metallic = _apply_profile_channel_adjustments(
-        metallic,
-        scale=_profile_optional_scale(material_profile, "metallic_scale"),
-        minimum=_profile_optional_byte(material_profile, "metallic_min"),
-        maximum=_profile_optional_byte(material_profile, "metallic_max"),
-    )
-    gloss_reduction = _profile_global_gloss_reduction(material_profile)
+    if parameter_values.force_nonmetal:
+        metallic = Image.new("L", size, 0)
+    else:
+        metallic = Image.eval(metallic, lambda value: 255 - int(value)) if parameter_values.metalness_inverted else metallic
+        metallic = _apply_profile_channel_adjustments(
+            metallic,
+            scale=parameter_values.metallic_scale,
+            minimum=parameter_values.metallic_min,
+            maximum=parameter_values.metallic_max,
+        )
+    gloss_reduction = parameter_values.global_gloss_reduction
     if gloss_reduction != 0.0 and _profile_uses_cd_smoothness_mask_response(material_profile):
         strength = abs(gloss_reduction) / 100.0
-        gloss_mode = _profile_gloss_reduction_mode(material_profile)
+        gloss_mode = parameter_values.gloss_reduction_mode
         if gloss_reduction < 0.0:
             if gloss_mode == "source_roughness_high":
                 roughness = _blend_grayscale_channel_toward(roughness, 24, strength)
@@ -798,8 +797,8 @@ def _complete_swap_runtime_material_mask_png_path(
     if _profile_uses_detail_mask_material_contract(material_profile):
         roughness = _apply_profile_channel_adjustments(
             roughness,
-            minimum=_profile_optional_byte(material_profile, "roughness_min"),
-            maximum=_profile_optional_byte(material_profile, "roughness_max"),
+            minimum=parameter_values.roughness_min,
+            maximum=parameter_values.roughness_max,
         )
     Image.merge(
         "RGBA",
@@ -1371,7 +1370,7 @@ def _complete_swap_accent_emissive_slot(
     target_name: str,
     material_profile: CDMaterialRuntimeProfile,
 ) -> Optional[ReplacementTextureSlot]:
-    if _profile_accent_glow_intensity(material_profile) <= 0.0:
+    if _profile_accent_glow_strength(material_profile) <= 0.0 and not _texture_set_has_explicit_glow_authority(texture_set):
         return None
     override_rgb = _normalized_accent_glow_rgb(getattr(texture_set, "accent_glow_color_rgb", ()))
     existing = texture_set.slots.get("emissive")
@@ -1419,7 +1418,7 @@ def _complete_swap_accent_glow_skip_reason(
     target_name: str,
     material_profile: CDMaterialRuntimeProfile,
 ) -> str:
-    if _profile_accent_glow_intensity(material_profile) <= 0.0:
+    if _profile_accent_glow_strength(material_profile) <= 0.0:
         return ""
     if texture_set.slots.get("emissive") is not None:
         return ""
@@ -2344,25 +2343,19 @@ def _build_source_driven_pac_material_payloads(
             if atlas_bindings:
                 target_bindings[target_name] = atlas_bindings
                 if any(str(slot_kind or "").strip().lower() == "emissive" for _parameter, _path, slot_kind in atlas_bindings):
-                    emissive_intensity = _profile_source_emissive_parameter_intensity(material_profile)
-                    if emissive_intensity > 0.0:
-                        for rect in tuple(getattr(atlas_section, "atlas_rects", ()) or ()):
-                            material_name = str(getattr(rect, "source_material_name", "") or "").strip()
-                            texture_set = texture_sets.get(material_name.lower())
-                            if texture_set is None:
-                                continue
-                            emissive_slot = _slot_for_complete_swap_atlas_role(
-                                texture_set,
-                                "emissive",
-                                material_profile=material_profile,
-                            )
-                            if emissive_slot is None:
-                                continue
-                            target_emissive_settings[target_name] = (
-                                _texture_set_accent_glow_color_hex(texture_set, emissive_slot),
-                                emissive_intensity,
-                            )
-                            break
+                    for rect in tuple(getattr(atlas_section, "atlas_rects", ()) or ()):
+                        material_name = str(getattr(rect, "source_material_name", "") or "").strip()
+                        texture_set = texture_sets.get(material_name.lower())
+                        if texture_set is None:
+                            continue
+                        emissive_slot = _slot_for_complete_swap_atlas_role(texture_set, "emissive", material_profile=material_profile)
+                        if emissive_slot is None:
+                            continue
+                        target_emissive_settings[target_name] = (
+                            _texture_set_accent_glow_color_hex(texture_set, emissive_slot),
+                            effective_emissive_intensity(material_profile, source=texture_set),
+                        )
+                        break
             continue
         source_material = _best_source_material_for_target(target_name, target_to_source_material)
         texture_set = texture_sets.get(str(source_material or "").strip().lower()) if source_material else None
@@ -2476,12 +2469,10 @@ def _build_source_driven_pac_material_payloads(
                     )
             bindings.append((parameter_name, output_texture_path, source_slot.slot_kind))
             if str(source_slot.slot_kind or "").strip().lower() == "emissive":
-                emissive_intensity = _profile_source_emissive_parameter_intensity(material_profile)
-                if emissive_intensity > 0.0:
-                    target_emissive_settings[target_name] = (
-                        _texture_set_accent_glow_color_hex(texture_set, source_slot),
-                        emissive_intensity,
-                    )
+                target_emissive_settings[target_name] = (
+                    _texture_set_accent_glow_color_hex(texture_set, source_slot),
+                    effective_emissive_intensity(material_profile, source=texture_set),
+                )
             report.slot_mappings.append(
                 TextureSlotMapping(
                     target_material_name=target_name,
@@ -2586,7 +2577,7 @@ def _build_source_driven_pac_material_payloads(
                 preserve_shader_material_names=target_safe_preserve_wrapper_names,
             )
             if glow_wrappers:
-                if _profile_accent_glow_intensity(material_profile) > 0.0:
+                if _profile_accent_glow_strength(material_profile) > 0.0:
                     _warn_once(
                         report,
                         "Accent glow applied: "
@@ -3612,3 +3603,7 @@ def _is_direct_pac_driven_parameter(reference: object, target_path: str) -> bool
         "_colorblendingmasktexture",
         "_detailmasktexture",
     }
+from . import material_replacer as _material_replacer_facade
+
+_material_replacer_facade._bind_lazy_material_exports(__name__, globals())
+del _material_replacer_facade

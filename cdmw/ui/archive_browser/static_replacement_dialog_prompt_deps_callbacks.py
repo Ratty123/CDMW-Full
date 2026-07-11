@@ -46,6 +46,9 @@ from cdmw.ui.archive_browser.static_replacement_dialog_callback_factories import
     create_manual_material_profile_runtime_callbacks,
     create_material_authority_adjustment_callbacks,
 )
+from cdmw.ui.archive_browser.static_replacement_material_authority_history import (
+    create_material_authority_history_callbacks,
+)
 from cdmw.ui.archive_browser.static_replacement_dialog_texture_callbacks import (
     create_alignment_added_part_texture_callbacks,
     create_alignment_material_plan_column_callbacks,

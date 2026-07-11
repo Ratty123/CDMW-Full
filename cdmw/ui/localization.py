@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import ast
 import html
-import json
 import re
 from pathlib import Path
 from typing import Callable, Dict, Iterable, Mapping, Optional, Set, Tuple
@@ -26,13 +24,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.ui.localization_catalogs import BUILTIN_LANGUAGES, _FALLBACK_EXACT_TRANSLATIONS, _FALLBACK_WORD_TRANSLATIONS
-
-
-LANGUAGE_WARNING = (
-    "Translate only the values in the translations object. Keep the English keys unchanged. "
-    "Longer text can make buttons, tabs, and dialogs look crowded or clipped."
+from cdmw.ui.localization_catalogs import (
+    BUILTIN_LANGUAGES,
+    SOURCE_STRING_CATALOGUE,
+    _FALLBACK_EXACT_TRANSLATIONS,
+    _FALLBACK_WORD_TRANSLATIONS,
 )
+from cdmw.services.localization_file_service import (
+    LANGUAGE_WARNING,
+    coerce_translation_payload as _coerce_language_payload,
+    load_language_file as _load_language_file,
+    safe_language_code,
+    write_language_file as _write_language_file,
+)
+
 
 _HTML_TAG_RE = re.compile(r"(<[^>]+>)")
 _HTML_NON_TEXT_BLOCK_RE = re.compile(r"<(script|style)\b[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
@@ -94,50 +99,14 @@ def _extract_html_text_segments(value: str) -> Tuple[str, ...]:
     return tuple(sorted(segments))
 
 
-def _iter_python_string_literals(path: Path) -> Iterable[str]:
-    try:
-        source = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        source = path.read_text(encoding="utf-8", errors="ignore")
-    try:
-        tree = ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return ()
-    values: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            values.append(node.value)
-    return tuple(values)
+def bundled_translatable_source_strings() -> Dict[str, str]:
+    """Return deterministic source keys shipped in the built-in language catalogues."""
+    return dict.fromkeys(SOURCE_STRING_CATALOGUE, "")
 
 
-def collect_translatable_source_strings(source_roots: Iterable[Path]) -> Dict[str, str]:
-    """Collect English UI/help strings from Python source so export is not limited to visible widgets."""
-    strings: Dict[str, str] = {}
-
-    def add(value: str) -> None:
-        for candidate in _extract_html_text_segments(value):
-            if _looks_like_translatable_text(candidate):
-                strings.setdefault(candidate, "")
-        normalized = _normalize_translation_key(value)
-        if "<" not in str(value) and ">" not in str(value) and _looks_like_translatable_text(normalized):
-            strings.setdefault(normalized, "")
-
-    for root in source_roots:
-        root_path = Path(root)
-        if root_path.is_file() and root_path.suffix.lower() == ".py":
-            for value in _iter_python_string_literals(root_path):
-                add(value)
-            continue
-        if not root_path.is_dir():
-            continue
-        for path in sorted(root_path.rglob("*.py")):
-            if "__pycache__" in path.parts:
-                continue
-            if path.name == "localization.py":
-                continue
-            for value in _iter_python_string_literals(path):
-                add(value)
-    return dict(sorted(strings.items()))
+def collect_translatable_source_strings(_source_roots: Iterable[Path] = ()) -> Dict[str, str]:
+    """Compatibility wrapper; source trees are no longer scanned at runtime."""
+    return bundled_translatable_source_strings()
 
 
 def _translate_html_text(value: str, translate: Callable[[str], str]) -> str:
@@ -206,24 +175,11 @@ def _canonical_source_text(value: str) -> str:
 
 
 def _coerce_translation_payload(payload: object) -> Tuple[str, str, Dict[str, str]]:
-    if not isinstance(payload, dict):
-        raise ValueError("Language file must be a JSON object.")
-    code = str(payload.get("language_code") or payload.get("code") or "custom").strip() or "custom"
-    name = str(payload.get("language_name") or payload.get("name") or code).strip() or code
-    translations_raw = payload.get("translations", payload)
-    if not isinstance(translations_raw, dict):
-        raise ValueError("Language file must contain a translations object.")
-    translations = {
-        str(key): str(value)
-        for key, value in translations_raw.items()
-        if isinstance(key, str) and str(value).strip()
-    }
-    return code, name, translations
+    return _coerce_language_payload(payload)
 
 
 def load_language_file(path: Path) -> Tuple[str, str, Dict[str, str]]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return _coerce_translation_payload(payload)
+    return _load_language_file(path)
 
 
 def write_language_file(
@@ -233,14 +189,12 @@ def write_language_file(
     language_name: str,
     translations: Mapping[str, str],
 ) -> None:
-    payload = {
-        "language_code": language_code,
-        "language_name": language_name,
-        "warning": LANGUAGE_WARNING,
-        "translations": dict(sorted((str(k), str(v)) for k, v in translations.items())),
-    }
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    _write_language_file(
+        path,
+        language_code=language_code,
+        language_name=language_name,
+        translations=translations,
+    )
 
 
 class UiLocalizer:
@@ -249,18 +203,24 @@ class UiLocalizer:
         self.language_code = language_code or "en"
         self.language_name = language_name_for_code(self.language_code)
         self.translations: Dict[str, str] = {}
+        self._custom_languages: Dict[str, Tuple[str, Dict[str, str], Path]] = {}
+        self._scan_custom_languages_once()
         self.load_language(self.language_code)
 
     def available_languages(self) -> Tuple[Tuple[str, str], ...]:
         languages = [(code, language_name_for_code(code)) for code in ("en", "es", "de")]
-        for language_file in sorted(self.language_dir.glob("*.json")) if self.language_dir.is_dir() else ():
-            try:
-                code, name, _translations = load_language_file(language_file)
-            except Exception:
-                continue
+        for code, (name, _translations, _path) in sorted(self._custom_languages.items()):
             if code not in {item[0] for item in languages}:
                 languages.append((code, name))
         return tuple(languages)
+
+    def _scan_custom_languages_once(self) -> None:
+        for language_file in sorted(self.language_dir.glob("*.json")) if self.language_dir.is_dir() else ():
+            try:
+                code, name, translations = load_language_file(language_file)
+            except Exception:
+                continue
+            self._custom_languages[safe_language_code(code)] = (name, translations, language_file)
 
     def load_language(self, code: str) -> None:
         normalized_code = str(code or "en").strip() or "en"
@@ -273,16 +233,30 @@ class UiLocalizer:
             raw_translations = builtin.get("translations", {})
             if isinstance(raw_translations, dict):
                 self.translations.update({str(k): str(v) for k, v in raw_translations.items()})
-        language_file = self.language_dir / f"{normalized_code}.json"
-        if language_file.is_file():
-            _code, name, translations = load_language_file(language_file)
+        custom = self._custom_languages.get(normalized_code)
+        if custom is not None:
+            name, translations, _language_file = custom
             self.language_name = name
             self.translations.update(translations)
 
+    def install_imported_language(
+        self,
+        code: str,
+        name: str,
+        translations: Mapping[str, str],
+        target_path: Path,
+    ) -> None:
+        normalized_code = safe_language_code(code)
+        self._custom_languages[normalized_code] = (
+            str(name or normalized_code),
+            {str(key): str(value) for key, value in translations.items()},
+            Path(target_path),
+        )
+        self.load_language(normalized_code)
+
     def import_language_file(self, source_path: Path) -> Tuple[str, str, Path]:
         code, name, translations = load_language_file(source_path)
-        safe_code = "".join(ch for ch in code.lower() if ch.isalnum() or ch in {"-", "_"}) or "custom"
-        self.language_dir.mkdir(parents=True, exist_ok=True)
+        safe_code = safe_language_code(code)
         target_path = self.language_dir / f"{safe_code}.json"
         write_language_file(
             target_path,
@@ -290,7 +264,7 @@ class UiLocalizer:
             language_name=name,
             translations=translations,
         )
-        self.load_language(safe_code)
+        self.install_imported_language(safe_code, name, translations, target_path)
         return safe_code, name, target_path
 
     def translate(self, text: str) -> str:

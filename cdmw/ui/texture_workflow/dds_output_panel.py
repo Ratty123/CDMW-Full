@@ -29,14 +29,22 @@ from cdmw.constants import (
     SUPPORTED_TEXCONV_FORMAT_CHOICES,
 )
 from cdmw.ui.shell.help_widgets import make_help_button
+from cdmw.ui.shell.texture_panel_persistence import finish_texture_workflow_panel_body
 from cdmw.ui.widgets import CollapsibleSection
 
 
 class TextureWorkflowDdsOutputPanelMixin:
     """Build DDS output controls and hints."""
 
-    def _build_dds_output_section(self) -> CollapsibleSection:
-        self.dds_output_section = CollapsibleSection("DDS Output", expanded=False)
+    def _build_dds_output_section(self, *, expanded: bool = False) -> CollapsibleSection:
+        self.dds_output_section = CollapsibleSection(
+            "DDS Output",
+            body_builder=lambda body_layout: TextureWorkflowDdsOutputPanelMixin._build_dds_output_body(self, body_layout),
+        )
+        self.dds_output_section.set_expanded(expanded)
+        return self.dds_output_section
+
+    def _build_dds_output_body(self, body_layout: QVBoxLayout) -> None:
         dds_output_group = QWidget()
         dds_output_layout = QVBoxLayout(dds_output_group)
         dds_output_layout.setContentsMargins(0, 0, 0, 0)
@@ -167,8 +175,8 @@ class TextureWorkflowDdsOutputPanelMixin:
         dds_output_summary_row.addWidget(self.dds_output_flow_panel, stretch=2)
         dds_output_layout.addLayout(dds_output_summary_row)
 
-        self.dds_output_section.body_layout.addWidget(dds_output_group)
-        return self.dds_output_section
+        body_layout.addWidget(dds_output_group)
+        finish_texture_workflow_panel_body(self, "dds_output")
 
 
 __all__ = ["TextureWorkflowDdsOutputPanelMixin"]

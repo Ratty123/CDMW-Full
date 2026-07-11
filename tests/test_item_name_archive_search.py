@@ -307,7 +307,7 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         ]
 
         with mock.patch(
-            "cdmw.core.archive.build_archive_relationship_references",
+            "cdmw.core.archive_references.build_archive_relationship_references",
             side_effect=AssertionError("PAC-only item search should not expand relationships"),
         ):
             filtered = filter_archive_entries(

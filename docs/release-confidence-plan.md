@@ -1,12 +1,11 @@
 # Release Confidence Plan
 
-Last reviewed: 2026-07-08
+Last reviewed: 2026-07-11
 
 ## Goal
 
-Prove the restructured app still imports, starts, packages, and keeps core user
-workflows working. Do not start more large source splits unless validation shows
-one is required.
+Prove the completed phased restructure still imports, starts, packages, and
+keeps core user workflows working behind stable facades.
 
 ## Read First
 
@@ -19,11 +18,12 @@ one is required.
 
 ## Current Focus
 
-- Keep `cdmw_app.py` and `cdmw/ui/main_window.py` thin.
-- Preserve compatibility facades and public imports.
-- Fix concrete import, startup, source-guard, packaging, or workflow failures.
-- Prefer focused behavior fixes over new architecture cleanup.
-- Use `%TEMP%` for pytest `--basetemp` if `.pytest-tmp` is locked.
+- Preserve the completed repair baseline: compatibility facades, public imports,
+  dependency direction, bounded owners, and the one-base composed `MainWindow`.
+- Keep `docs/plans/active/` empty until new scoped implementation work starts.
+- Keep normal/full QA headless; run licensed real-game proof only through the
+  explicit local mesh gate.
+- Use `$env:TEMP` for pytest `--basetemp`; never place QA output in the repo.
 
 ## Validation Order
 
@@ -47,6 +47,96 @@ one is required.
 - Remaining failures, if any, are classified with owner, command, and reason.
 
 ## Latest Validation
+
+2026-07-11:
+
+- Resident editor/import risk completion passed its final sequence. Clean
+  headless QA reported 5,110 passed, 5 skipped, and 2 intentional visual
+  deselections; `mesh-unit` reported 679 passed. Native helpers and Release
+  .NET built with zero warnings/errors.
+- The current hidden Vortice soak passed one million vertices and 1,000 sparse
+  updates at 59.96 Hz, 0.205 ms handler p95, zero post-warmup RSS growth, and
+  passing partial tail-shrink/material-lineage checks. The canonical nude-PAC
+  proof passed all 67 gates, including real textured, neutral untextured-face,
+  wire-plus-vertices, and vertices-only captures; its handler p95 was 0.637 ms
+  and maximum heartbeat gap 36.4 ms. It completed paint/assign/UV/topology/
+  undo/export/readback and preserved every source hash. Evidence:
+  `%TEMP%\cdmw-real-archive-mesh-editor-dotnet-f1ecd54552534d918ec61fa885ab24cd\evidence_report.json`.
+- External catalogue evidence accounts for 800/800 sources with 739 supported,
+  22 review-required, 39 safely blocked, zero unclassified, and zero corpus
+  crashes. PAC_XML evidence accounts for 12,886/12,886 archive entries with
+  6,046 supported, 6,840 review-required, zero errors/crashes/unclassified,
+  and 55 actual source archives unchanged before/after.
+- Current-source fast onedir packaging passed with 488 files/447,445,766 bytes.
+  `CrimsonDesertModWorkbench.exe` is 16,359,452 bytes, SHA-256
+  `31F5871AA94CF2F403CAC6DB8072C7C370FA6D61FA7D7CB536FFAE953B027DA4`;
+  packaged startup reached `post_construction`, and the bundled self-contained
+  Vortice helper passed hidden GPU smoke.
+- The reviewed resident-editor/Material Authority follow-up passed its final
+  gates. Integrated focused coverage reported 597 passed, 39 subtests, and two
+  intentional visual deselections; `mesh-unit` reported 675 passed; the full
+  headless suite reported 4,976 passed, 5 skipped, and 2 deselected in
+  1,086.55 seconds. Architecture/import-order/docs coverage, Python compile,
+  dependency pins, Rust tests, native builds, and .NET Release build all passed.
+- The full-QA wrapper exposed a real false-negative after that passing suite:
+  PowerShell `Start-Process -PassThru` returned a process object without a
+  readable exit code. `Invoke-QAStep` now starts and owns one
+  `System.Diagnostics.Process`, preserves exact nonzero codes, and retains
+  timeout/process-tree cleanup. Four QA-runner behavior tests pass. The
+  remaining helper, PyInstaller, packaged hidden-GPU, and post-construction
+  startup steps were resumed and passed.
+- The final hidden Vortice soak passed one million vertices and 1,000 updates
+  at 8.102 ms handler p95 with zero post-warmup RSS growth, one initial full
+  build, and one affected-batch topology rebuild. Atomic position/normal/UV
+  packets, malformed/incomplete rejection, part add/remove/reindex, and
+  material-lineage proofs passed.
+- Release onefile packaging and post-construction startup passed with both
+  `cdmw.ui.shell.window_bootstrap_state` and `cdmw.core.ncnn_model_catalog`
+  collected. Artifact:
+  `dist/CrimsonDesertModWorkbench-0.10.0-alpha.2-windows-portable.exe`,
+  182,649,463 bytes, SHA-256
+  `0132F6288F44456DB81A0470A9C08ABC8567F7A10C11CB65659255FB286CC910`.
+- The explicit production nude-PAC gate passed again. It bound three real
+  archive textures, changed only 12 selected vertices, kept PID/HWND and the
+  viewport stationary, recorded 1.624 ms handler p95 and 94.048 ms maximum
+  heartbeat gap, applied resident material updates without package/process/SRV
+  churn, and left PAMT/PAZ hashes unchanged. Evidence:
+  `%TEMP%\cdmw-real-archive-mesh-editor-dotnet-1f183f23c9f04de8bbcdeecf4e6ea7c9\evidence_report.json`.
+- Canonical headless full QA passed: 4,865 passed, 5 skipped, 2 deselected in
+  893.46 seconds. Visual and licensed `real_game` scenarios remained opt-in.
+- Release onedir packaging passed at
+  `dist/CrimsonDesertModWorkbench-0.10.0-alpha.2-windows`: 447,014,232 bytes
+  across 488 files. `CrimsonDesertModWorkbench.exe` SHA-256 is
+  `00474ad34dc707aaab942e3c863c9eaf3bdf0fa3406b1fe8703cdae713f586f4`.
+  Packaged startup reached the post-construction marker, and the hidden packaged
+  Vortice GPU smoke passed with renderer `d3d11_vortice_shader` and 0.4396 ms
+  handler p95.
+- The explicit read-only real-game gate passed through the production
+  .NET/Vortice renderer (`d3d11_vortice_shader`) and resident edit backend
+  `cdmw_mesh_core_0.1`. It bound three archive-provenance textures, completed an
+  exact 40-pixel viewport drag with zero projection error, changed only 12
+  selected vertices, kept the window stationary, recorded 1.6333 ms edit-handler
+  p95 and 151.9153 ms maximum heartbeat gap, and left PAMT/PAZ fingerprints
+  unchanged. Evidence:
+  `%TEMP%\cdmw-real-archive-mesh-editor-dotnet-0bc29c1d9f474adbb8e3a10eb7771987\evidence_report.json`.
+- The whole-codebase repair plan passed its final sequence and was removed from
+  `docs/plans/active/`.
+
+2026-07-10:
+
+- Canonical `codex_check -Area mesh` now routes to
+  `real-archive-mesh-editor-dotnet-edit-smoke`, not the legacy C++ D3D11 host.
+- Read-only proof passed with the exact nude PAC
+  `character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac`, three
+  archive-provenance DDS bindings, renderer `d3d11_vortice_shader`, edit backend
+  `cdmw_mesh_core_0.1`, 12 selected-only changed vertices, 1.214 ms main-thread
+  handler p95, 101.14 ms maximum heartbeat gap, stationary renderer HWNDs, and
+  unchanged PAMT/PAZ SHA-256 fingerprints.
+- Legacy C++ D3D11 scenarios remain explicit compatibility/protocol coverage;
+  synthetic checker geometry is blocked by default. Normal/full pytest still
+  excludes only `visual` and `real_game` markers.
+- Release .NET helper publication now runs a hidden Vortice GPU smoke; helper
+  preflight requires both the .NET renderer and `cdmw-mesh-core.exe`.
 
 2026-07-08:
 

@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import copy
-import json
 import re
-import shutil
-import time
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Optional, Tuple
@@ -15,9 +11,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QTreeWidgetItem
 
-from cdmw.core.material_sidecar_editor import discover_material_sidecar_preview_overrides_for_edits
 from cdmw.models import ArchiveEntry
-from cdmw.rendering.native_preview_package_cache import create_native_preview_package_staging_dir
+from cdmw.services.material_sidecar_preview_service import (
+    fast_material_preview_package_from_manifest,
+    material_preview_package_matches_entry,
+)
 
 
 def material_editor_color_from_value(value: str) -> Optional[QColor]:
@@ -68,17 +66,6 @@ def material_value_swatch_icon(color: QColor, cache: dict[str, QIcon]) -> QIcon:
 
 def material_preview_entry_key(value: object) -> str:
     return str(value or "").replace("\\", "/").strip().casefold()
-
-
-def material_preview_package_matches_entry(package_dir: object, model_entry: ArchiveEntry) -> bool:
-    try:
-        manifest_path = Path(package_dir) / "manifest.json"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except Exception:
-        return False
-    if not isinstance(manifest, Mapping):
-        return False
-    return material_preview_entry_key(manifest.get("source_path", "")) == material_preview_entry_key(model_entry.path)
 
 
 def selected_value_ready_for_live_refresh(kind_text: str, value_text: str) -> bool:
@@ -542,137 +529,41 @@ def material_sidecar_built_package_summary(
     return "\n".join(status_parts)
 
 
-def source_package_path(source_package_dir: Path, raw_value: object, *, relative_to_package: bool = True) -> str:
-    text = str(raw_value or "").strip()
-    if not text:
-        return ""
-    try:
-        path = Path(text)
-        if relative_to_package and not path.is_absolute():
-            path = source_package_dir / text
-        return str(path)
-    except (OSError, ValueError):
-        return text
-
-
-def fast_material_preview_package_from_manifest(
-    source_package_dir: Path,
+def material_sidecar_preview_result_summary(
+    result_kind: str,
     *,
-    cache_root: Path,
-    label_normalizer: Callable[[object], str],
-    preview_sidecar_text: str,
-    edited_values: Mapping[str, str],
+    live: bool,
     color_edits_active: bool,
-) -> Optional[Tuple[Path, int, int, Tuple[str, ...]]]:
-    try:
-        source_manifest = json.loads((source_package_dir / "manifest.json").read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    if not isinstance(source_manifest, Mapping):
-        return None
-    overrides = discover_material_sidecar_preview_overrides_for_edits(preview_sidecar_text, edited_values)
-    if not overrides:
-        return None
-    manifest = copy.deepcopy(dict(source_manifest))
-    batches = manifest.get("batches")
-    if not isinstance(batches, list):
-        return None
-    package_dir = create_native_preview_package_staging_dir(cache_root)
-    manifest["created_at"] = time.time()
-    manifest["use_textures"] = not bool(color_edits_active)
-    if color_edits_active:
-        manifest["high_quality_textures"] = False
-    if manifest.get("cloth_collider_file"):
-        manifest["cloth_collider_file"] = source_package_path(source_package_dir, manifest.get("cloth_collider_file"))
-
-    def batch_labels(batch: Mapping[str, object]) -> set[str]:
-        labels = {
-            label_normalizer(batch.get("material_name", "")),
-            label_normalizer(batch.get("texture_name", "")),
-        }
-        labels.discard("")
-        return labels
-
-    def apply_override(batch: dict[str, object], override: object) -> bool:
-        changed = False
-        tint_color = tuple(getattr(override, "tint_color", ()) or ())
-        if len(tint_color) >= 3:
-            color = [
-                max(0.0, min(1.0, float(tint_color[0]))),
-                max(0.0, min(1.0, float(tint_color[1]))),
-                max(0.0, min(1.0, float(tint_color[2]))),
-            ]
-            batch["base_color"] = color
-            batch["texture_tint"] = color
-            batch["base_tint_strength"] = 0.0 if color_edits_active else 0.85
-            changed = True
-        brightness = max(0.1, min(3.0, float(getattr(override, "brightness", 1.0) or 1.0)))
-        if abs(brightness - 1.0) > 1e-6:
-            batch["texture_brightness"] = brightness
-            changed = True
-        uv_scale = max(0.05, min(64.0, float(getattr(override, "uv_scale", 1.0) or 1.0)))
-        if abs(uv_scale - 1.0) > 1e-6:
-            batch["texture_uv_scale"] = [uv_scale, uv_scale]
-            changed = True
-        return changed
-
-    matched_count = 0
-    for raw_batch in batches:
-        if not isinstance(raw_batch, dict):
-            continue
-        raw_batch["vertex_file"] = source_package_path(source_package_dir, raw_batch.get("vertex_file"))
-        editor_identity = raw_batch.get("editor_identity")
-        if isinstance(editor_identity, dict) and editor_identity.get("identity_file"):
-            editor_identity["identity_file"] = source_package_path(source_package_dir, editor_identity.get("identity_file"))
-        for cloth_key in ("cloth_particle_file", "cloth_pin_file", "cloth_constraint_file"):
-            if raw_batch.get(cloth_key):
-                raw_batch[cloth_key] = source_package_path(source_package_dir, raw_batch.get(cloth_key))
-        if color_edits_active:
-            raw_batch["textures"] = {}
-            raw_batch["dds_textures"] = {}
-            raw_batch["selected_texture_slots"] = {}
-            raw_batch["material_inputs"] = []
-            raw_batch["material_layers"] = []
-            raw_batch["primary_material_layer"] = {"active": False}
-            raw_batch["material_contract"] = {}
-            raw_batch["material_channel_contract"] = {}
-        else:
-            textures = raw_batch.get("textures")
-            if isinstance(textures, Mapping):
-                raw_batch["textures"] = {
-                    str(slot): source_package_path(source_package_dir, value)
-                    for slot, value in textures.items()
-                    if str(value or "").strip()
-                }
-        labels = batch_labels(raw_batch)
-        for override in overrides:
-            override_label = label_normalizer(getattr(override, "group_label", ""))
-            if override_label and override_label in labels and apply_override(raw_batch, override):
-                matched_count += 1
-                break
-    if matched_count <= 0 and len(overrides) == 1:
-        for raw_batch in batches:
-            if isinstance(raw_batch, dict) and apply_override(raw_batch, overrides[0]):
-                matched_count += 1
-    if matched_count <= 0:
-        shutil.rmtree(package_dir, ignore_errors=True)
-        return None
-    vertex_count = sum(
-        int(batch.get("vertex_count", 0) or 0)
-        for batch in batches
-        if isinstance(batch, Mapping)
-    )
-    (package_dir / "manifest.json").write_text(json.dumps(manifest, separators=(",", ":"), default=str), encoding="utf-8")
-    notes = [f"manifest-only material update: {matched_count:,} batch(es)"]
-    reasons = tuple(
-        dict.fromkeys(
-            str(getattr(override, "reason", "") or "").strip()
-            for override in overrides
-            if str(getattr(override, "reason", "") or "").strip()
+    material_effects_active: bool,
+    elapsed_ms: float,
+    batch_count: int,
+    vertex_count: int,
+    notes: Iterable[str],
+    warnings: Iterable[str],
+) -> str:
+    if result_kind == "reused":
+        return material_sidecar_reused_package_summary()
+    if result_kind == "manifest":
+        return material_sidecar_manifest_update_summary(
+            live=live,
+            color_edits_active=color_edits_active,
+            elapsed_ms=elapsed_ms,
+            batch_count=batch_count,
+            vertex_count=vertex_count,
+            notes=notes,
         )
+    return material_sidecar_built_package_summary(
+        live=live,
+        color_edits_active=color_edits_active,
+        material_effects_active=material_effects_active,
+        elapsed_ms=elapsed_ms,
+        batch_count=batch_count,
+        vertex_count=vertex_count,
+        notes=notes,
+        warnings=warnings,
     )
-    notes.extend(reasons[:3])
-    return package_dir, len([batch for batch in batches if isinstance(batch, Mapping)]), int(vertex_count), tuple(notes)
+
+
 
 
 __all__ = [
@@ -725,6 +616,7 @@ __all__ = [
     "material_sidecar_preview_package_cleanup_delay_ms",
     "material_sidecar_preview_process_kill_delay_ms",
     "material_sidecar_preview_process_state",
+    "material_sidecar_preview_result_summary",
     "material_sidecar_preview_status_poll_interval_ms",
     "material_sidecar_preview_lookup_pending_status",
     "material_sidecar_preview_model_status",

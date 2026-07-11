@@ -7,6 +7,7 @@ import math
 from typing import Sequence
 
 from .mesh_parser import ParsedMesh, SubMesh, _compute_smooth_normals
+from .mesh_skinning import ensure_final_target_skin_weights, finalize_merged_skin_provenance
 from .static_mesh_clone import _clone_parsed_mesh_fast, _clone_submesh_fast
 from .static_mesh_geometry import (
     _apply_alignment_roll,
@@ -20,10 +21,7 @@ from .static_mesh_geometry import (
     _rotate_between,
     _rotate_xyz,
 )
-from .static_mesh_output_plan import (
-    _STATIC_REPLACEMENT_VERTEX_LIMIT,
-    plan_static_output_draw_sections,
-)
+from .static_mesh_output_plan import _STATIC_REPLACEMENT_VERTEX_LIMIT, _atlas_uv_transform, plan_static_output_draw_sections
 from .static_mesh_source_parts import (
     _apply_source_part_adjustment,
     _apply_texture_uv_transform,
@@ -122,7 +120,6 @@ def _replacement_mesh_with_original_part_copies(
     effective_mesh.total_faces = total_faces
     effective_mesh.has_uvs = has_uvs
     return effective_mesh, preserve_source_indices
-
 def _build_mapped_replacement_mesh(
     original_mesh: ParsedMesh,
     replacement_mesh: ParsedMesh,
@@ -226,7 +223,7 @@ def _build_mapped_replacement_mesh(
                     atlas_rect,
                     target_name=str(section.target_submesh_name or target.name or target.material or target_index),
                     source_index=int(source_index),
-                    source_material_name=str(atlas_rect.source_material_name or source_part.material or source_part.name or source_index),
+                    source_material_name=str(atlas_rect.source_material_name or source_part.material or source_part.name or source_index), padding=int(getattr(section, "atlas_padding", 8) or 8),
                 )
             source_parts.append(source_part)
         if (
@@ -237,6 +234,8 @@ def _build_mapped_replacement_mesh(
             merged = _build_removed_runtime_placeholder_submesh(target)
         else:
             merged = _merge_source_submeshes(source_parts, target)
+        if enforce_vertex_limit:
+            ensure_final_target_skin_weights(merged, target, target_index=target_index, summary=getattr(options, "_skin_weight_transfer_summary", None))
         section_label = str(section.target_submesh_name or "").strip()
         if section_label:
             if bool(getattr(options, "complete_external_swap", False)):
@@ -259,7 +258,6 @@ def _build_mapped_replacement_mesh(
                 f"current serializers use 16-bit indices and support at most {_STATIC_REPLACEMENT_VERTEX_LIMIT:,} vertices per draw section."
             )
         mapped_submeshes.append(merged)
-
     for independent_part in independent_parts:
         source_index = int(independent_part.source_submesh_index)
         if source_index < 0 or source_index >= len(transformed_sources):
@@ -289,7 +287,6 @@ def _build_mapped_replacement_mesh(
         independent_submesh.vertex_count = len(independent_submesh.vertices)
         independent_submesh.face_count = len(independent_submesh.faces)
         mapped_submeshes.append(independent_submesh)
-
     bbox_min, bbox_max, total_vertices, total_faces, has_uvs = _mesh_metadata_for_submeshes(mapped_submeshes)
     return ParsedMesh(
         path=original_mesh.path,
@@ -300,7 +297,7 @@ def _build_mapped_replacement_mesh(
         total_vertices=total_vertices,
         total_faces=total_faces,
         has_uvs=has_uvs,
-        has_bones=False,
+        has_bones=any(bool(submesh.bone_indices) and bool(submesh.bone_weights) for submesh in mapped_submeshes),
     )
 
 
@@ -1085,6 +1082,7 @@ def _merge_source_submeshes(submeshes: list[SubMesh], target: SubMesh) -> SubMes
         native_merged.name = target.name
         native_merged.material = target.material
         native_merged.texture = target.texture
+        finalize_merged_skin_provenance(native_merged, submeshes, target)
         return native_merged
 
     merged = SubMesh(
@@ -1116,8 +1114,8 @@ def _merge_source_submeshes(submeshes: list[SubMesh], target: SubMesh) -> SubMes
         merged.normals = _compute_smooth_normals(merged.vertices, merged.faces)
     merged.vertex_count = len(merged.vertices)
     merged.face_count = len(merged.faces)
+    finalize_merged_skin_provenance(merged, submeshes, target)
     return merged
-
 
 def _atlas_rects_by_source_index(section: StaticOutputDrawSection) -> dict[int, StaticMaterialAtlasRect]:
     rects: dict[int, StaticMaterialAtlasRect] = {}
@@ -1137,18 +1135,20 @@ def _rewrite_submesh_uvs_for_material_atlas(
     target_name: str,
     source_index: int,
     source_material_name: str,
+    padding: int = 0,
 ) -> None:
     if not submesh.uvs or len(submesh.uvs) != len(submesh.vertices):
         raise ValueError(
             f"Cannot atlas/bake {source_material_name} into {target_name}: source submesh {source_index} has no complete UV set."
         )
+    offset, scale = _atlas_uv_transform(rect, padding=padding)
     try:
         from .mesh_native_core import apply_native_mesh_uv_atlas_submesh
 
         native_rewritten = apply_native_mesh_uv_atlas_submesh(
             submesh,
-            offset=(float(rect.x), float(rect.y)),
-            scale=(float(rect.width), float(rect.height)),
+            offset=offset,
+            scale=scale,
         )
     except ValueError as exc:
         invalid_uv = exc.args[1] if len(exc.args) > 1 else (0.0, 0.0)
@@ -1174,8 +1174,8 @@ def _rewrite_submesh_uvs_for_material_atlas(
         clamped_v = max(0.0, min(1.0, v))
         rewritten.append(
             (
-                float(rect.x) + clamped_u * float(rect.width),
-                float(rect.y) + clamped_v * float(rect.height),
+                float(offset[0]) + clamped_u * float(scale[0]),
+                float(offset[1]) + clamped_v * float(scale[1]),
             )
         )
     submesh.uvs = rewritten

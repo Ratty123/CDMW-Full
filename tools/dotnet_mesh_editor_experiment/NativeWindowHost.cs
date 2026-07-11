@@ -13,6 +13,7 @@ internal static class NativeWindowHost
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpFrameChanged = 0x0020;
     private const uint SwpShowWindow = 0x0040;
+    private static readonly IntPtr HwndTop = IntPtr.Zero;
 
     public static bool Embed(Form form, IntPtr parent)
     {
@@ -20,13 +21,19 @@ internal static class NativeWindowHost
         {
             return false;
         }
-        SetParent(form.Handle, parent);
-        var style = GetWindowLongPtrSafe(form.Handle, GwlStyle).ToInt64();
+        var child = form.Handle;
+        var style = GetWindowLongPtrSafe(child, GwlStyle).ToInt64();
         style |= WsChild;
         style &= ~WsPopup;
         style &= ~WsCaption;
-        SetWindowLongPtrSafe(form.Handle, GwlStyle, new IntPtr(style));
+        SetWindowLongPtrSafe(child, GwlStyle, new IntPtr(style));
+        SetParent(child, parent);
+        if (GetParent(child) != parent)
+        {
+            return false;
+        }
         ResizeToParent(form, parent);
+        BringEmbeddedChildToFront(form, parent);
         return true;
     }
 
@@ -41,6 +48,19 @@ internal static class NativeWindowHost
         SetWindowPos(form.Handle, IntPtr.Zero, 0, 0, width, height, SwpNoZOrder | SwpNoActivate | SwpFrameChanged | SwpShowWindow);
     }
 
+    private static void BringEmbeddedChildToFront(Form form, IntPtr parent)
+    {
+        if (parent == IntPtr.Zero || !IsWindow(parent) || !GetClientRect(parent, out var rect))
+        {
+            return;
+        }
+        var width = Math.Max(1, rect.Right - rect.Left);
+        var height = Math.Max(1, rect.Bottom - rect.Top);
+        EnableWindow(form.Handle, true);
+        SetWindowPos(form.Handle, HwndTop, 0, 0, width, height, SwpFrameChanged | SwpShowWindow);
+        SetFocus(form.Handle);
+    }
+
     private static IntPtr GetWindowLongPtrSafe(IntPtr hwnd, int index)
     {
         return IntPtr.Size == 8 ? GetWindowLongPtr64(hwnd, index) : new IntPtr(GetWindowLong32(hwnd, index));
@@ -51,8 +71,11 @@ internal static class NativeWindowHost
         return IntPtr.Size == 8 ? SetWindowLongPtr64(hwnd, index, value) : new IntPtr(SetWindowLong32(hwnd, index, value.ToInt32()));
     }
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetParent(IntPtr child, IntPtr parent);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetParent(IntPtr child);
 
     [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hwnd);
@@ -62,6 +85,12 @@ internal static class NativeWindowHost
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr hwnd, IntPtr hwndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetFocus(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnableWindow(IntPtr hwnd, bool enable);
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static extern IntPtr GetWindowLongPtr64(IntPtr hwnd, int index);

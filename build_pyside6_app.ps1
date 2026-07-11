@@ -4,6 +4,8 @@ param(
     [ValidateSet("release", "fast", "debug")]
     [string]$BuildProfile = "release",
     [switch]$SkipNativeBuild,
+    [switch]$NativeHelpersOnly,
+    [string]$DotNetGpuSmokeExecutable = "",
     [switch]$DescribeOnly
 )
 
@@ -22,8 +24,15 @@ $buildFlavor = "$Mode-$BuildProfile"
 $pyInstallerDistDir = Join-Path $stableBuildDir "pyinstaller-dist-$buildFlavor"
 $pyInstallerWorkDir = Join-Path $stableBuildDir "pyinstaller-work-$buildFlavor"
 $specPath = Join-Path $scriptDir "CrimsonDesertModWorkbench.spec"
+$releaseConstraintsPath = Join-Path $scriptDir "constraints-release.txt"
+$releaseDependencyVerifier = Join-Path $scriptDir "scripts\verify_release_dependencies.py"
+$providerMetadataGenerator = Join-Path $scriptDir "scripts\generate_window_feature_provider_members.py"
+$packagedStartupVerifier = Join-Path $scriptDir "scripts\verify_packaged_startup.ps1"
 $vgmstreamRuntimeDir = Join-Path $scriptDir ".tools\vgmstream"
-$vgmstreamDownloadUrl = "https://github.com/bnnm/vgmstream-builds/raw/master/bin/vgmstream-latest-test-u.zip"
+$vgmstreamVersion = "r1980"
+$vgmstreamBuildCommit = "21bfb6f0a513271f2e18a51322128756bb59f365"
+$vgmstreamArchiveSha256 = "110f9087e60057c4af6cff84e26c214159c224792421affdddd3aaa2091f2641"
+$vgmstreamDownloadUrl = "https://github.com/bnnm/vgmstream-builds/raw/$vgmstreamBuildCommit/bin/vgmstream-$vgmstreamVersion-test-u.zip"
 
 function Remove-PathWithRetries {
     param(
@@ -122,6 +131,69 @@ function Stop-AppProcesses {
     }
 }
 
+function Get-VgmstreamRuntimeVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CliPath
+    )
+
+    if (-not (Test-Path -LiteralPath $CliPath)) {
+        return ""
+    }
+    try {
+        $versionJson = (& $CliPath -V 2>$null | Out-String).Trim()
+        if (-not $versionJson) {
+            return ""
+        }
+        return [string](($versionJson | ConvertFrom-Json).version)
+    } catch {
+        return ""
+    }
+}
+
+function Test-VgmstreamRuntimePin {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RuntimeDir
+    )
+
+    $cliPath = Join-Path $RuntimeDir "vgmstream-cli.exe"
+    $manifestPath = Join-Path $RuntimeDir ".cdmw-dependency.json"
+    if ((Get-VgmstreamRuntimeVersion -CliPath $cliPath) -ne $vgmstreamVersion) {
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $manifestPath)) {
+        return $false
+    }
+    try {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        if (
+            [string]$manifest.version -ne $vgmstreamVersion -or
+            [string]$manifest.build_commit -ne $vgmstreamBuildCommit -or
+            [string]$manifest.archive_sha256 -ne $vgmstreamArchiveSha256
+        ) {
+            return $false
+        }
+        $fileRows = @($manifest.files.PSObject.Properties)
+        if (-not $fileRows) {
+            return $false
+        }
+        foreach ($row in $fileRows) {
+            $runtimeFile = Join-Path $RuntimeDir $row.Name
+            if (-not (Test-Path -LiteralPath $runtimeFile -PathType Leaf)) {
+                return $false
+            }
+            $actualHash = (Get-FileHash -LiteralPath $runtimeFile -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualHash -ne [string]$row.Value) {
+                return $false
+            }
+        }
+        return @(Get-ChildItem -LiteralPath $RuntimeDir -Filter "*.dll" -File).Count -gt 0
+    } catch {
+        return $false
+    }
+}
+
 function Ensure-VgmstreamRuntime {
     param(
         [Parameter(Mandatory = $true)]
@@ -129,32 +201,68 @@ function Ensure-VgmstreamRuntime {
     )
 
     $cliPath = Join-Path $RuntimeDir "vgmstream-cli.exe"
-    if (Test-Path -LiteralPath $cliPath) {
+    if (Test-VgmstreamRuntimePin -RuntimeDir $RuntimeDir) {
         return $RuntimeDir
     }
 
-    $zipPath = Join-Path $env:TEMP "vgmstream-latest-test-u.zip"
-    $extractDir = Join-Path $stableBuildDir "vgmstream-extract"
+    $zipPath = Join-Path $env:TEMP "vgmstream-$vgmstreamVersion-test-u.zip"
+    $extractDir = Join-Path $stableBuildDir "vgmstream-$vgmstreamVersion-extract"
+    $preparedDir = Join-Path $stableBuildDir "vgmstream-$vgmstreamVersion-runtime"
+    $backupDir = Join-Path $stableBuildDir "vgmstream-runtime-previous"
 
-    Write-Host "Downloading vgmstream runtime..."
-    New-Item -ItemType Directory -Path $RuntimeDir -Force | Out-Null
+    Write-Host "Downloading pinned vgmstream runtime $vgmstreamVersion..."
+    Remove-PathWithRetries -LiteralPath $zipPath
     Remove-PathWithRetries -LiteralPath $extractDir -Recurse
-    Invoke-WebRequest -Uri $vgmstreamDownloadUrl -OutFile $zipPath
-    Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
-
-    $runtimeFiles = Get-ChildItem -LiteralPath $extractDir -File | Where-Object {
-        $_.Name -eq "vgmstream-cli.exe" -or $_.Extension -ieq ".dll" -or $_.Name -eq "COPYING"
-    }
-    if (-not $runtimeFiles) {
-        throw "Downloaded vgmstream archive did not contain the expected runtime files."
-    }
-
-    foreach ($file in $runtimeFiles) {
-        Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $RuntimeDir $file.Name) -Force
-    }
-
-    if (-not (Test-Path -LiteralPath $cliPath)) {
-        throw "vgmstream runtime download completed, but vgmstream-cli.exe is still missing."
+    Remove-PathWithRetries -LiteralPath $preparedDir -Recurse
+    Remove-PathWithRetries -LiteralPath $backupDir -Recurse
+    try {
+        Invoke-WebRequest -Uri $vgmstreamDownloadUrl -OutFile $zipPath
+        $downloadHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($downloadHash -ne $vgmstreamArchiveSha256) {
+            throw "vgmstream archive SHA-256 mismatch. Expected $vgmstreamArchiveSha256, got $downloadHash."
+        }
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
+        New-Item -ItemType Directory -Path $preparedDir -Force | Out-Null
+        $runtimeFiles = @(Get-ChildItem -LiteralPath $extractDir -File | Where-Object {
+            $_.Name -eq "vgmstream-cli.exe" -or $_.Extension -ieq ".dll" -or $_.Name -eq "COPYING"
+        })
+        if (-not $runtimeFiles) {
+            throw "Downloaded vgmstream archive did not contain the expected runtime files."
+        }
+        foreach ($file in $runtimeFiles) {
+            Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $preparedDir $file.Name) -Force
+        }
+        $preparedCli = Join-Path $preparedDir "vgmstream-cli.exe"
+        if ((Get-VgmstreamRuntimeVersion -CliPath $preparedCli) -ne $vgmstreamVersion) {
+            throw "Downloaded vgmstream runtime does not report version $vgmstreamVersion."
+        }
+        $fileHashes = [ordered]@{}
+        foreach ($file in Get-ChildItem -LiteralPath $preparedDir -File | Sort-Object Name) {
+            $fileHashes[$file.Name] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        [ordered]@{
+            schema = 1
+            version = $vgmstreamVersion
+            build_commit = $vgmstreamBuildCommit
+            archive_sha256 = $vgmstreamArchiveSha256
+            files = $fileHashes
+        } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $preparedDir ".cdmw-dependency.json") -Encoding UTF8
+        if (Test-Path -LiteralPath $RuntimeDir) {
+            Move-PathWithRetries -SourcePath $RuntimeDir -DestinationPath $backupDir
+        }
+        try {
+            Move-PathWithRetries -SourcePath $preparedDir -DestinationPath $RuntimeDir
+        } catch {
+            if ((Test-Path -LiteralPath $backupDir) -and -not (Test-Path -LiteralPath $RuntimeDir)) {
+                Move-PathWithRetries -SourcePath $backupDir -DestinationPath $RuntimeDir
+            }
+            throw
+        }
+        Remove-PathWithRetries -LiteralPath $backupDir -Recurse
+    } finally {
+        Remove-PathWithRetries -LiteralPath $zipPath
+        Remove-PathWithRetries -LiteralPath $extractDir -Recurse
+        Remove-PathWithRetries -LiteralPath $preparedDir -Recurse
     }
 
     return $RuntimeDir
@@ -290,6 +398,32 @@ function Test-NativeOutputsPresent {
     return $true
 }
 
+function Invoke-DotNetMeshEditorGpuSmoke {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath,
+        [Parameter(Mandatory = $true)]
+        [string]$Context
+    )
+
+    if (-not (Test-Path -LiteralPath $ExecutablePath -PathType Leaf)) {
+        throw ".NET Mesh Editor $Context helper is missing: $ExecutablePath"
+    }
+    $smokeReport = Join-Path ([System.IO.Path]::GetTempPath()) ("cdmw-dotnet-gpu-smoke-{0}.json" -f [Guid]::NewGuid().ToString("N"))
+    try {
+        & $ExecutablePath --headless-gpu-sparse-soak --gpu-soak-smoke --gpu-soak-vertices 100000 --gpu-soak-updates 100 --gpu-soak-warmup 16 --gpu-soak-no-cadence --gpu-soak-report $smokeReport | Out-Null
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $smokeReport)) {
+            throw ".NET Mesh Editor $Context hidden GPU smoke failed with exit code $LASTEXITCODE."
+        }
+        $smoke = Get-Content -LiteralPath $smokeReport -Raw | ConvertFrom-Json
+        if ($smoke.ok -ne $true -or $smoke.backend_proof.backend -ne "d3d11_vortice_shader" -or $smoke.gates.native_windows_remained_hidden -ne $true) {
+            throw ".NET Mesh Editor $Context hidden GPU smoke did not prove the production Vortice backend."
+        }
+    } finally {
+        Remove-Item -LiteralPath $smokeReport -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Invoke-DotNetMeshEditorBuild {
     param(
         [Parameter(Mandatory = $true)]
@@ -316,9 +450,10 @@ function Invoke-DotNetMeshEditorBuild {
     }
 
     $outputDir = Join-Path $scriptDir "native\cdmw_mesh_dotnet_editor\build\$Configuration"
+    Remove-PathWithRetries -LiteralPath $outputDir -Recurse
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
     Write-Host "Publishing .NET Mesh Editor experiment helper ($Configuration)..."
-    & $dotnet.Source publish $projectPath -c $Configuration -r win-x64 --self-contained false -p:PublishSingleFile=true -o $outputDir
+    & $dotnet.Source publish $projectPath -c $Configuration -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o $outputDir
     if ($LASTEXITCODE -ne 0) {
         if ($Required) {
             throw ".NET Mesh Editor experiment helper publish failed with exit code $LASTEXITCODE."
@@ -333,7 +468,32 @@ function Invoke-DotNetMeshEditorBuild {
             throw ".NET Mesh Editor experiment helper publish did not create $exePath."
         }
         Write-Warning ".NET Mesh Editor experiment helper publish did not create $exePath."
+        return
     }
+    if ($Required) {
+        Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $exePath -Context "published"
+    }
+}
+
+function Invoke-NativeHelperPreparation {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Release", "Debug")]
+        [string]$Configuration,
+        [switch]$Clean,
+        [switch]$RequireDotNet
+    )
+
+    Write-Host "Building native helpers ($Configuration)..."
+    $nativeBuildArgs = @{ Configuration = $Configuration }
+    if ($Clean) {
+        $nativeBuildArgs.Clean = $true
+    }
+    & (Join-Path $scriptDir "build_native_windows.ps1") @nativeBuildArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Native helper build failed with exit code $LASTEXITCODE."
+    }
+    Invoke-DotNetMeshEditorBuild -Configuration $Configuration -Required:$RequireDotNet
 }
 
 function Assert-CleanPythonSitePackages {
@@ -379,7 +539,31 @@ function Write-BuildSummary {
     Write-Host "  Work cache: $pyInstallerWorkDir"
     Write-Host "  Temporary output: $pyInstallerDistDir"
     Write-Host "  Final output: $OutputPath"
+    Write-Host "  .NET helper: win-x64 self-contained single-file"
     Write-Host ""
+}
+
+if ($DotNetGpuSmokeExecutable) {
+    Invoke-DotNetMeshEditorGpuSmoke `
+        -ExecutablePath $DotNetGpuSmokeExecutable `
+        -Context "packaged QA"
+    return
+}
+
+if ($NativeHelpersOnly) {
+    if ($SkipNativeBuild) {
+        throw "-NativeHelpersOnly cannot be combined with -SkipNativeBuild."
+    }
+    $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
+    if ($DescribeOnly) {
+        Write-Host "Native helper-only gate: rebuild $nativeConfig helpers, publish the self-contained .NET Mesh Editor, and require its hidden d3d11_vortice_shader smoke."
+        return
+    }
+    Invoke-NativeHelperPreparation `
+        -Configuration $nativeConfig `
+        -Clean:($BuildProfile -ne "fast") `
+        -RequireDotNet:($BuildProfile -eq "release")
+    return
 }
 
 $pythonExe = Join-Path $scriptDir ".venv\Scripts\python.exe"
@@ -389,6 +573,12 @@ if (-not (Test-Path -LiteralPath $pythonExe)) {
 
 if (-not (Test-Path -LiteralPath $specPath)) {
     throw "PyInstaller spec file not found: $specPath"
+}
+
+Write-BuildProgress -Percent 3 -Stage "Checking generated feature metadata"
+& $pythonExe $providerMetadataGenerator --check
+if ($LASTEXITCODE -ne 0) {
+    throw "Generated MainWindow feature metadata is stale. Run scripts\generate_window_feature_provider_members.py before packaging."
 }
 
 $appVersion = (& $pythonExe -c "from cdmw.constants import APP_VERSION; print(APP_VERSION)").Trim()
@@ -417,6 +607,14 @@ if ($DescribeOnly) {
     return
 }
 
+if ($BuildProfile -eq "release") {
+    Write-BuildProgress -Percent 4 -Stage "Verifying release dependency pins"
+    & $pythonExe $releaseDependencyVerifier --constraints $releaseConstraintsPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release dependency verification failed. Install requirements-build.txt with constraints-release.txt."
+    }
+}
+
 Write-BuildProgress -Percent 5 -Stage "Preparing output folders"
 Stop-AppProcesses -NamePrefixes @($appName, $legacyAppNames)
 New-Item -ItemType Directory -Path $stableDistDir -Force | Out-Null
@@ -441,16 +639,10 @@ if ($BuildProfile -eq "release") {
 if (-not $SkipNativeBuild) {
     $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
     Write-BuildProgress -Percent 12 -Stage "Building native helpers"
-    Write-Host "Building native helpers ($nativeConfig)..."
-    $nativeBuildArgs = @{ Configuration = $nativeConfig }
-    if ($BuildProfile -ne "fast") {
-        $nativeBuildArgs.Clean = $true
-    }
-    & (Join-Path $scriptDir "build_native_windows.ps1") @nativeBuildArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Native helper build failed with exit code $LASTEXITCODE."
-    }
-    Invoke-DotNetMeshEditorBuild -Configuration $nativeConfig -Required:($BuildProfile -eq "release")
+    Invoke-NativeHelperPreparation `
+        -Configuration $nativeConfig `
+        -Clean:($BuildProfile -ne "fast") `
+        -RequireDotNet:($BuildProfile -eq "release")
     Write-BuildProgress -Percent 20 -Stage "Native helpers ready"
 } else {
     Write-Warning "Skipping native helper build. Release packaging still requires existing native binaries."
@@ -504,6 +696,23 @@ if ($Mode -eq "onefile" -and $BuildProfile -ne "fast") {
 } elseif ($Mode -eq "onefile") {
     Write-Host "Skipping onefile archive validation for fast profile."
     Write-BuildProgress -Percent 94 -Stage "Onefile validation skipped"
+}
+
+if ($BuildProfile -eq "release") {
+    if ($Mode -eq "onedir") {
+        Write-BuildProgress -Percent 95 -Stage "Verifying packaged .NET Mesh Editor GPU backend"
+        $packagedDotNetHelper = Join-Path $pyInstallerDistDir "$appName\_internal\native\cdmw-mesh-dotnet-editor.exe"
+        Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"
+    } else {
+        Write-Host "Direct packaged .NET helper smoke is deferred for onefile because PyInstaller extracts helpers at app runtime."
+    }
+    Write-BuildProgress -Percent 96 -Stage "Verifying packaged startup"
+    $startupSmokeExecutable = if ($Mode -eq "onefile") {
+        Join-Path $pyInstallerDistDir "$appName.exe"
+    } else {
+        Join-Path (Join-Path $pyInstallerDistDir $appName) "$appName.exe"
+    }
+    & $packagedStartupVerifier -ExecutablePath $startupSmokeExecutable
 }
 
 Write-BuildProgress -Percent 97 -Stage "Publishing build output"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -14,6 +15,7 @@ from .scene_geometry_utils import (
     _copy_submesh_with_transform,
     _dedupe_paths,
     _identity_matrix,
+    _multiply_matrix,
     _parse_float_list,
     _resolve_scene_uri,
 )
@@ -51,13 +53,14 @@ def import_dae(path: str | Path) -> ParsedMesh:
     material_names = _collada_material_names(root, prefix, ns)
     material_texture_slots = _collada_material_texture_slots(root, prefix, ns, dae_path)
     material_parameters = _collada_material_parameters(root, prefix, ns)
+    asset_matrix = _collada_asset_matrix(root, prefix, ns)
     geometries: dict[str, _ColladaGeometry] = {}
     for geometry in root.findall(f".//{prefix}library_geometries/{prefix}geometry", ns):
         parsed = _parse_collada_geometry(geometry, material_names, prefix, ns)
         geometries[parsed.geometry_id] = parsed
 
     submeshes: list[SubMesh] = []
-    for instance in _iter_collada_geometry_instances(root, prefix, ns):
+    for instance in _iter_collada_geometry_instances(root, prefix, ns, asset_matrix=asset_matrix):
         geometry = geometries.get(instance["geometry_id"])
         if geometry is None:
             continue
@@ -90,7 +93,7 @@ def import_dae(path: str | Path) -> ParsedMesh:
     if not submeshes:
         for geometry in geometries.values():
             for primitive in geometry.primitives:
-                copied = _copy_submesh_with_transform(primitive, _identity_matrix())
+                copied = _copy_submesh_with_transform(primitive, asset_matrix)
                 copied.name = geometry.name or primitive.name or geometry.geometry_id
                 copied.material = material_names.get(primitive.material, primitive.material) or copied.name
                 copied.texture = _guess_scene_material_texture(dae_path, copied.material)
@@ -202,6 +205,8 @@ def _parse_collada_primitive(
         inputs.append((offset, semantic, source_id))
     if not inputs:
         return SubMesh(name=name, material=material)
+    has_uv_input = any(semantic == "TEXCOORD" for _offset, semantic, _source in inputs)
+    has_normal_input = any(semantic == "NORMAL" for _offset, semantic, _source in inputs)
     index_stride = max(offset for offset, _semantic, _source in inputs) + 1
     p_element = primitive.find(f"{prefix}p", ns)
     if p_element is None or not (p_element.text or "").strip():
@@ -234,17 +239,21 @@ def _parse_collada_primitive(
                 local_index = corner_to_index.get(corner)
                 if local_index is None:
                     position = _source_tuple(sources, corner[0], corner[1], 3)
-                    uv = _source_tuple(sources, corner[2], corner[3], 2) if corner[3] >= 0 else (0.0, 0.0)
-                    normal = _source_tuple(sources, corner[4], corner[5], 3) if corner[5] >= 0 else (0.0, 1.0, 0.0)
                     local_index = len(vertices)
                     corner_to_index[corner] = local_index
                     vertices.append(position)  # type: ignore[arg-type]
-                    uvs.append((float(uv[0]), 1.0 - float(uv[1])))
-                    normals.append(normal)  # type: ignore[arg-type]
+                    if has_uv_input:
+                        uv = _source_tuple(sources, corner[2], corner[3], 2)
+                        uvs.append((float(uv[0]), 1.0 - float(uv[1])))
+                    if has_normal_input:
+                        normal = _source_tuple(sources, corner[4], corner[5], 3)
+                        normals.append(normal)  # type: ignore[arg-type]
                 face_indices.append(local_index)
             if len(face_indices) == 3:
                 faces.append((face_indices[0], face_indices[1], face_indices[2]))
-    if not normals or len(normals) != len(vertices):
+    if len(uvs) != len(vertices):
+        uvs = []
+    if len(normals) != len(vertices):
         normals = _compute_smooth_normals(vertices, faces)
     return SubMesh(
         name=name,
@@ -521,11 +530,17 @@ def _iter_collada_geometry_instances(
     root: ET.Element,
     prefix: str,
     ns: dict[str, str],
+    *,
+    asset_matrix: Optional[tuple[float, ...]] = None,
 ) -> list[dict[str, object]]:
     instances: list[dict[str, object]] = []
-    for node in root.findall(f".//{prefix}library_visual_scenes/{prefix}visual_scene//{prefix}node", ns):
+    visual_scene = _collada_visual_scene(root, prefix, ns)
+    if visual_scene is None:
+        return instances
+
+    def walk(node: ET.Element, parent_matrix: tuple[float, ...]) -> None:
+        world_matrix = _multiply_matrix(parent_matrix, _collada_node_matrix(node, prefix, ns))
         node_name = node.attrib.get("name", "") or node.attrib.get("id", "")
-        matrix = _collada_node_matrix(node, prefix, ns)
         for instance_geometry in node.findall(f"{prefix}instance_geometry", ns):
             geometry_id = instance_geometry.attrib.get("url", "").lstrip("#")
             if not geometry_id:
@@ -540,11 +555,67 @@ def _iter_collada_geometry_instances(
                 {
                     "geometry_id": geometry_id,
                     "node_name": node_name,
-                    "matrix": matrix,
+                    "matrix": world_matrix,
                     "materials": materials,
                 }
             )
+        for child in node.findall(f"{prefix}node", ns):
+            walk(child, world_matrix)
+
+    root_matrix = asset_matrix or _collada_asset_matrix(root, prefix, ns)
+    for node in visual_scene.findall(f"{prefix}node", ns):
+        walk(node, root_matrix)
     return instances
+
+
+def _collada_visual_scene(
+    root: ET.Element,
+    prefix: str,
+    ns: dict[str, str],
+) -> Optional[ET.Element]:
+    visual_scenes = root.findall(f".//{prefix}library_visual_scenes/{prefix}visual_scene", ns)
+    selected = root.find(f"{prefix}scene/{prefix}instance_visual_scene", ns)
+    selected_id = selected.attrib.get("url", "").lstrip("#") if selected is not None else ""
+    if selected_id:
+        for visual_scene in visual_scenes:
+            if visual_scene.attrib.get("id", "") == selected_id:
+                return visual_scene
+    return visual_scenes[0] if visual_scenes else None
+
+
+def _collada_asset_matrix(
+    root: ET.Element,
+    prefix: str,
+    ns: dict[str, str],
+) -> tuple[float, ...]:
+    unit_scale = 1.0
+    unit = root.find(f"{prefix}asset/{prefix}unit", ns)
+    if unit is not None:
+        try:
+            candidate = float(unit.attrib.get("meter", "1") or 1.0)
+            if math.isfinite(candidate) and candidate > 0.0:
+                unit_scale = candidate
+        except ValueError:
+            pass
+    up_axis = str(root.findtext(f"{prefix}asset/{prefix}up_axis", default="Y_UP", namespaces=ns) or "Y_UP").strip().upper()
+    if up_axis == "Z_UP":
+        axis_matrix = (
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, -1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0,
+        )
+    elif up_axis == "X_UP":
+        axis_matrix = (0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+    else:
+        axis_matrix = _identity_matrix()
+    scale_matrix = (
+        unit_scale, 0.0, 0.0, 0.0,
+        0.0, unit_scale, 0.0, 0.0,
+        0.0, 0.0, unit_scale, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+    )
+    return _multiply_matrix(axis_matrix, scale_matrix)
 
 
 def _collada_node_matrix(
@@ -552,25 +623,45 @@ def _collada_node_matrix(
     prefix: str,
     ns: dict[str, str],
 ) -> tuple[float, ...]:
-    matrix_element = node.find(f"{prefix}matrix", ns)
-    if matrix_element is not None:
-        values = _parse_float_list(matrix_element.text or "")
-        if len(values) >= 16:
-            return tuple(values[:16])
-    matrix = list(_identity_matrix())
-    for translate in node.findall(f"{prefix}translate", ns):
-        values = _parse_float_list(translate.text or "")
-        if len(values) >= 3:
-            matrix[3] += values[0]
-            matrix[7] += values[1]
-            matrix[11] += values[2]
-    for scale in node.findall(f"{prefix}scale", ns):
-        values = _parse_float_list(scale.text or "")
-        if len(values) >= 3:
-            matrix[0] *= values[0]
-            matrix[5] *= values[1]
-            matrix[10] *= values[2]
-    return tuple(matrix)
+    del prefix, ns
+    matrix = _identity_matrix()
+    for child in list(node):
+        operation = _collada_transform_matrix(_collada_local_name(child.tag), _parse_float_list(child.text or ""))
+        if operation is not None:
+            matrix = _multiply_matrix(matrix, operation)
+    return matrix
+
+
+def _collada_local_name(tag: str) -> str:
+    return str(tag).rsplit("}", 1)[-1].lower()
+
+
+def _collada_transform_matrix(kind: str, values: list[float]) -> Optional[tuple[float, ...]]:
+    if kind == "matrix" and len(values) >= 16:
+        return tuple(values[column * 4 + row] for row in range(4) for column in range(4))
+    if kind == "translate" and len(values) >= 3:
+        return (1.0, 0.0, 0.0, values[0], 0.0, 1.0, 0.0, values[1], 0.0, 0.0, 1.0, values[2], 0.0, 0.0, 0.0, 1.0)
+    if kind == "scale" and len(values) >= 3:
+        return (values[0], 0.0, 0.0, 0.0, 0.0, values[1], 0.0, 0.0, 0.0, 0.0, values[2], 0.0, 0.0, 0.0, 0.0, 1.0)
+    if kind == "rotate" and len(values) >= 4:
+        return _collada_axis_rotation(values[0], values[1], values[2], values[3])
+    return None
+
+
+def _collada_axis_rotation(x: float, y: float, z: float, degrees: float) -> tuple[float, ...]:
+    length = math.sqrt(x * x + y * y + z * z)
+    if length <= 1e-12:
+        return _identity_matrix()
+    x, y, z = x / length, y / length, z / length
+    angle = math.radians(degrees)
+    cosine, sine = math.cos(angle), math.sin(angle)
+    complement = 1.0 - cosine
+    return (
+        cosine + x * x * complement, x * y * complement - z * sine, x * z * complement + y * sine, 0.0,
+        y * x * complement + z * sine, cosine + y * y * complement, y * z * complement - x * sine, 0.0,
+        z * x * complement - y * sine, z * y * complement + x * sine, cosine + z * z * complement, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+    )
 
 
 def _collada_image_paths(dae_path: Path) -> list[Path]:

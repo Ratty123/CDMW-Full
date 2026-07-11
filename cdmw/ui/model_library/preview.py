@@ -14,16 +14,20 @@ from PySide6.QtCore import QProcess, Qt, QTimer
 from PySide6.QtGui import QImage
 
 from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_COLOR
-from cdmw.core.model_catalogue import is_importable_model_path
+from cdmw.domain.library.models import is_importable_model_path
 from cdmw.services.model_library_preview import (
     prepare_model_library_inline_preview,
 )
 from cdmw.services.workspace_layout import workspace_paths
+from cdmw.ui.model_library.icon_output import ModelLibraryIconOutputMixin
 from cdmw.ui.native_d3d11_preview_host import native_d3d11_renderer_command
-from cdmw.workers.model_library_workers import remove_model_library_preview_package_dir
+from cdmw.workers.model_library_workers import (
+    prepare_model_library_preview_icon,
+    remove_model_library_preview_package_dir,
+)
 
 
-class ModelLibraryInlinePreviewMixin:
+class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
     """Manage inline Model Library previews and generated icon captures."""
 
     def _record_model_library_preview_event(self, event: str, **fields: object) -> None:
@@ -40,14 +44,21 @@ class ModelLibraryInlinePreviewMixin:
         if not payload:
             self._set_inline_preview_status("Select a model first.", error=True)
             return
-        source_path = self._inline_preview_source_path_for_payload(payload)
-        if source_path is None:
+        def resolved(source_path: Path) -> None:
+            self._load_inline_model_preview(source_path, payload)
+
+        def missing() -> None:
             if payload.get("kind") == "mirror":
                 self._set_inline_preview_status("Download this mirror model first, then Preview Here.", error=True)
             else:
                 self._set_inline_preview_status("This local item is not an importable model or ZIP.", error=True)
-            return
-        self._load_inline_model_preview(source_path, payload)
+
+        self._request_payload_import_path(
+            payload,
+            status="Resolving model for inline preview...",
+            on_resolved=resolved,
+            on_missing=missing,
+        )
 
     def _inline_preview_renderer_backend(self) -> str:
         return "native_d3d11"
@@ -275,7 +286,11 @@ class ModelLibraryInlinePreviewMixin:
             )
             self._stop_inline_d3d11_process(cleanup_packages=True)
 
-    def _stop_inline_d3d11_process(self, *, cleanup_packages: bool = False) -> None:
+    def _stop_inline_d3d11_process(
+        self,
+        *,
+        cleanup_packages: bool = False,
+    ) -> None:
         process = self._inline_d3d11_process
         active_package = self._inline_d3d11_active_package if cleanup_packages else None
         self._inline_d3d11_process = None
@@ -454,6 +469,7 @@ class ModelLibraryInlinePreviewMixin:
                 self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
                 self.inline_preview_widget.set_prepared_model(preview_model, prepared_preview)
             resolved_import_path = Path(str(result.get("import_path", "") or source_path))
+            self._invalidate_prepared_row_source(payload)
             self._inline_preview_loaded_import_path = resolved_import_path
             self._inline_preview_loaded_payload = dict(payload)
             self._inline_preview_loaded_renderer_backend = loaded_renderer_backend
@@ -464,7 +480,7 @@ class ModelLibraryInlinePreviewMixin:
             if source_path.suffix.lower() == ".zip":
                 payload["archive_path"] = str(source_path)
             if payload.get("kind") == "mirror":
-                payload["local_status"] = self._mirror_local_status(payload)
+                payload["local_status"] = "Ready"
             payload["texture_status"] = f"Resolved ({texture_count})" if texture_count > 0 else "None resolved"
             audit_category = str(result.get("audit_category", "") or "")
             if audit_category:
@@ -516,6 +532,11 @@ class ModelLibraryInlinePreviewMixin:
         )
 
     def _after_model_library_task_finished(self) -> None:
+        self._icon_output_active = False
+        pending_action = self._pending_model_action_after_task
+        self._pending_model_action_after_task = None
+        if pending_action is not None:
+            QTimer.singleShot(0, pending_action)
         if not bool(getattr(self, "_inline_preview_task_running", False)):
             return
         self._inline_preview_task_running = False
@@ -538,27 +559,23 @@ class ModelLibraryInlinePreviewMixin:
         if not payload:
             self._set_inline_preview_status("Select a model first.", error=True)
             return
-        import_path = self._resolve_payload_import_path(payload)
-        if import_path is None:
-            self._set_inline_preview_status("Preview a downloaded or local importable model before generating an icon.", error=True)
-            return
-        if not self._inline_preview_matches(import_path):
+        if not self._inline_preview_matches_payload(payload):
             if self._task_thread is not None and self._task_thread.isRunning():
                 self._set_inline_preview_status("A model library task is already running.", error=True)
                 return
             self._pending_icon_generation_request_id = self._inline_preview_request_id + 1
-            self._load_inline_model_preview(import_path, payload)
+            self.preview_selected_model_here()
             return
         self._capture_inline_preview_icon()
 
-    def _inline_preview_matches(self, import_path: Path) -> bool:
-        loaded = self._inline_preview_loaded_import_path
-        if loaded is None:
+    def _inline_preview_matches_payload(self, payload: dict[str, object]) -> bool:
+        loaded = self._inline_preview_loaded_payload
+        if not isinstance(loaded, dict):
             return False
-        try:
-            return loaded.resolve() == import_path.resolve()
-        except OSError:
-            return str(loaded.absolute()).casefold() == str(import_path.absolute()).casefold()
+        keys = ("kind", "uid", "id", "archive_path", "path", "name")
+        return tuple(str(payload.get(key, "") or "") for key in keys) == tuple(
+            str(loaded.get(key, "") or "") for key in keys
+        )
 
     def _capture_inline_preview_icon(self) -> None:
         payload = self._selected_payload()
@@ -566,69 +583,52 @@ class ModelLibraryInlinePreviewMixin:
         if payload is None or loaded_path is None:
             self._set_inline_preview_status("Preview a model first, then generate an icon.", error=True)
             return
-        current_import_path = self._resolve_payload_import_path(payload)
-        if current_import_path is None or not self._inline_preview_matches(current_import_path):
+        if not self._inline_preview_matches_payload(payload):
             self._set_inline_preview_status("The selected model preview is no longer active.", error=True)
             return
-        if self.inline_preview_stack.currentWidget() is self.inline_d3d11_preview_host:
-            output_dir = self.catalogue_dir() / "generated_icons"
-            output_dir.mkdir(parents=True, exist_ok=True)
-            output_stem = self._generated_icon_stem(payload, loaded_path)
-            output_path = output_dir / f"{output_stem}.png"
-            counter = 1
-            while output_path.exists():
-                counter += 1
-                output_path = output_dir / f"{output_stem}_{counter}.png"
-            if not self.inline_d3d11_preview_host.capture_replacement_icon(output_path):
+        if self._task_thread is not None and self._task_thread.isRunning():
+            self._set_inline_preview_status("A model library task is already running.", error=True)
+            return
+        native_capture = self.inline_preview_stack.currentWidget() is self.inline_d3d11_preview_host
+        if native_capture:
+            try:
+                image = self.inline_d3d11_preview_host.capture_replacement_icon_image()
+            except Exception as exc:
+                self._set_inline_preview_status(f"Icon capture failed: {exc}", error=True)
+                return
+            if image.isNull() or image.width() <= 0 or image.height() <= 0:
                 self._set_inline_preview_status("Icon capture failed: native D3D11 preview framebuffer is empty.", error=True)
                 return
-            self._set_inline_preview_status(f"Generated native D3D11 model preview icon: {output_path.name}")
-            self.item_icon_source_generated.emit(str(output_path), dict(self._inline_preview_loaded_payload or payload))
-            return
-        if int(getattr(self.inline_preview_widget, "_vertex_count", 0) or 0) <= 0:
-            self._set_inline_preview_status("The preview is not render-ready yet.", error=True)
-            return
-        try:
-            self.inline_preview_widget.repaint()
-            pixmap = self.inline_preview_widget.grab()
-            image = pixmap.toImage() if not pixmap.isNull() else QImage()
-        except Exception as exc:
-            self._set_inline_preview_status(f"Icon capture failed: {exc}", error=True)
-            return
-        if image.isNull() or image.width() <= 0 or image.height() <= 0:
-            self._set_inline_preview_status("Icon capture failed: preview framebuffer is empty.", error=True)
-            return
-        icon_image = self._model_preview_icon_image(image)
-        output_dir = self.catalogue_dir() / "generated_icons"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_stem = self._generated_icon_stem(payload, loaded_path)
-        output_path = output_dir / f"{output_stem}.png"
-        counter = 1
-        while output_path.exists():
-            counter += 1
-            output_path = output_dir / f"{output_stem}_{counter}.png"
-        if not icon_image.save(str(output_path), "PNG"):
-            self._set_inline_preview_status(f"Icon capture failed: could not write {output_path}.", error=True)
-            return
-        self._set_inline_preview_status(f"Generated model preview icon: {output_path.name}")
-        self.item_icon_source_generated.emit(str(output_path), dict(self._inline_preview_loaded_payload or payload))
+        else:
+            if int(getattr(self.inline_preview_widget, "_vertex_count", 0) or 0) <= 0:
+                self._set_inline_preview_status("The preview is not render-ready yet.", error=True)
+                return
+            try:
+                self.inline_preview_widget.repaint()
+                pixmap = self.inline_preview_widget.grab()
+                image = pixmap.toImage().copy() if not pixmap.isNull() else QImage()
+            except Exception as exc:
+                self._set_inline_preview_status(f"Icon capture failed: {exc}", error=True)
+                return
+            if image.isNull() or image.width() <= 0 or image.height() <= 0:
+                self._set_inline_preview_status("Icon capture failed: preview framebuffer is empty.", error=True)
+                return
+        self._queue_inline_preview_icon_output(
+            image,
+            payload=dict(self._inline_preview_loaded_payload or payload),
+            loaded_path=loaded_path,
+            native_capture=native_capture,
+        )
 
     def closeEvent(self, event: object) -> None:  # type: ignore[override]
-        if self._stop_event is not None and hasattr(self._stop_event, "set"):
-            self._stop_event.set()
-        self._pending_inline_preview_request = None
-        self._stop_inline_d3d11_process(cleanup_packages=True)
+        self.request_shutdown()
         try:
             super().closeEvent(event)  # type: ignore[arg-type]
         except TypeError:
             return
 
     def _model_preview_icon_image(self, image: QImage, *, size: int = 512) -> QImage:
-        source = image.convertToFormat(QImage.Format.Format_RGBA8888)
-        scaled = source.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-        x = max(0, (scaled.width() - size) // 2)
-        y = max(0, (scaled.height() - size) // 2)
-        return scaled.copy(x, y, min(size, scaled.width()), min(size, scaled.height()))
+        return prepare_model_library_preview_icon(image, size=size)
 
     def _generated_icon_stem(self, payload: dict[str, object], import_path: Path) -> str:
         name = str(payload.get("name", "") or import_path.stem or "model_icon").strip()
@@ -652,24 +652,12 @@ class ModelLibraryInlinePreviewMixin:
             if not path_text:
                 continue
             path = Path(path_text)
-            if payload.get("kind") != "mirror" and (
-                is_importable_model_path(path) or path.suffix.lower() == ".zip"
-            ):
-                return path
-            if path.is_file() and (is_importable_model_path(path) or path.suffix.lower() == ".zip"):
+            if is_importable_model_path(path) or path.suffix.lower() == ".zip":
                 return path
         if payload.get("kind") != "mirror":
             return None
-        asset_dir = self._existing_mirror_asset_dir(payload)
-        if asset_dir is not None:
-            payload["asset_dir"] = str(asset_dir)
-        archive_path = self._existing_mirror_archive_path(payload, asset_dir)
-        if archive_path is not None and archive_path.is_file() and (
-            is_importable_model_path(archive_path) or archive_path.suffix.lower() == ".zip"
-        ):
-            payload["archive_path"] = str(archive_path)
-            return archive_path
-        return None
+        asset_dir = str(payload.get("asset_dir", "") or "").strip()
+        return Path(asset_dir) if asset_dir else None
 
     def _inline_preview_extract_root_for_source(self, source_path: Path, payload: dict[str, object]) -> Optional[Path]:
         if source_path.suffix.lower() != ".zip":

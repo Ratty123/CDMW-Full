@@ -1,176 +1,39 @@
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import tempfile
+import threading
 import zipfile
 from collections import deque
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence
 
 from PIL import Image, ImageFilter
 
-from cdmw.core.common import run_process_with_cancellation
+from cdmw.core.atomic_file import atomic_publish_directory, atomic_publish_files, atomic_write_text
+from cdmw.core.common import raise_if_cancelled, run_process_with_cancellation
 from cdmw.core.texture_pipeline.inspection import parse_dds
 from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
 from cdmw.core.texture_pipeline.texconv import build_texconv_command
 from cdmw.core.texture_native import encode_dds_with_directxtex
+from cdmw.domain.library.item_icons import (
+    ITEM_ICON_BACKGROUND_MODES,
+    ITEM_ICON_DEFAULT_BACKGROUND_MODE,
+    ITEM_ICON_SOURCE_EXTENSIONS,
+    ItemIconBuildResult,
+    ItemIconLibraryRecord,
+    ItemIconLooseModPatchResult,
+    ItemIconOverrideSpec,
+    ItemIconPreparedImageResult,
+    ItemIconSourceCandidate,
+    ItemIconTemplateInfo,
+    normalize_item_icon_background_mode,
+    score_item_icon_source_candidate as _candidate_score,
+    select_item_icon_source_candidate,
+)
 from cdmw.domain.textures.output import max_mips_for_size
 from cdmw.core.mod_package import is_mod_package_payload_path, normalize_mod_package_payload_path
-
-
-ITEM_ICON_SOURCE_EXTENSIONS = {
-    ".bmp",
-    ".dds",
-    ".jpeg",
-    ".jpg",
-    ".png",
-    ".tga",
-    ".tif",
-    ".tiff",
-    ".webp",
-}
-
-ITEM_ICON_BACKGROUND_MODES = {
-    "auto_transparent",
-    "keep_source",
-    "target_underlay",
-}
-ITEM_ICON_DEFAULT_BACKGROUND_MODE = "auto_transparent"
-
-
-@dataclass(frozen=True, slots=True)
-class ItemIconSourceCandidate:
-    path: Path
-    score: int
-    reason: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class ItemIconOverrideSpec:
-    source_path: Path
-    target_entry: object
-    target_path: str
-    source_mode: str
-    fit_mode: str = "fit_pad"
-    background_mode: str = ITEM_ICON_DEFAULT_BACKGROUND_MODE
-
-
-@dataclass(frozen=True, slots=True)
-class ItemIconBuildResult:
-    payload_data: bytes
-    target_path: str
-    source_path: Path
-    source_width: int
-    source_height: int
-    target_width: int
-    target_height: int
-    target_format: str
-    target_mip_count: int
-    warnings: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class ItemIconLooseModPatchResult:
-    source_root: Path
-    output_root: Path
-    icon_path: Path
-    manifest_path: Optional[Path] = None
-    zip_path: Optional[Path] = None
-    copied_file_count: int = 0
-    warnings: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class ItemIconLibraryRecord:
-    path: Path
-    root_path: Path
-    relative_path: str
-    file_size: int
-    mtime_ns: int
-    width: int = 0
-    height: int = 0
-    tags: tuple[str, ...] = ()
-    notes: str = ""
-    favorite: bool = False
-    source_kind: str = "folder"
-    warning: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class ItemIconTemplateInfo:
-    width: int
-    height: int
-    target_format: str
-    mip_count: int
-    suffix: str
-
-
-@dataclass(frozen=True, slots=True)
-class ItemIconPreparedImageResult:
-    source_width: int
-    source_height: int
-    output_path: Path
-    background_mode: str
-    warnings: tuple[str, ...] = ()
-
-
-def _icon_match_stem(value: object) -> str:
-    stem = PurePosixPath(str(value or "").replace("\\", "/")).stem.casefold().strip()
-    for prefix in ("itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_"):
-        if stem.startswith(prefix):
-            stem = stem[len(prefix) :].strip("_")
-            break
-    return stem
-
-
-def _tokens(value: object) -> set[str]:
-    return {token for token in re.findall(r"[a-z0-9]+", str(value or "").casefold()) if len(token) >= 2}
-
-
-def _candidate_score(
-    path: Path,
-    *,
-    target_path: str,
-    related_stems: Sequence[str] = (),
-    display_name: str = "",
-) -> ItemIconSourceCandidate:
-    candidate_stem = _icon_match_stem(path.name)
-    target_stem = _icon_match_stem(target_path)
-    related = tuple(dict.fromkeys(_icon_match_stem(stem) for stem in related_stems if _icon_match_stem(stem)))
-    reasons: list[str] = []
-    score = 0
-
-    if candidate_stem and target_stem and candidate_stem == target_stem:
-        score += 240
-        reasons.append("exact target icon stem")
-    elif candidate_stem and target_stem and (candidate_stem in target_stem or target_stem in candidate_stem):
-        score += 150
-        reasons.append("target icon stem contains match")
-
-    for related_stem in related:
-        if candidate_stem == related_stem:
-            score += 210
-            reasons.append("exact related model stem")
-            break
-        if candidate_stem and related_stem and (candidate_stem in related_stem or related_stem in candidate_stem):
-            score += 120
-            reasons.append("related model stem contains match")
-            break
-
-    target_tokens = _tokens(target_stem) | set().union(*(_tokens(stem) for stem in related)) | _tokens(display_name)
-    candidate_tokens = _tokens(candidate_stem)
-    overlap = candidate_tokens & target_tokens
-    if overlap:
-        score += min(90, len(overlap) * 18)
-        reasons.append("token overlap: " + ", ".join(sorted(overlap)[:5]))
-    if any(token in candidate_tokens for token in {"icon", "itemicon", "inventory", "ui"}):
-        score += 20
-        reasons.append("icon filename hint")
-
-    return ItemIconSourceCandidate(path=path, score=score, reason="; ".join(reasons) or "weak filename match")
 
 
 def find_item_icon_source_candidates(
@@ -196,8 +59,7 @@ def find_item_icon_source_candidates(
         candidate = _candidate_score(path, target_path=target_path, related_stems=related_stems, display_name=display_name)
         if candidate.score >= min_score:
             candidates.append(candidate)
-    candidates.sort(key=lambda candidate: (-candidate.score, candidate.path.as_posix().casefold()))
-    return tuple(candidates)
+    return select_item_icon_source_candidate(candidates)[1]
 
 
 def choose_item_icon_source(
@@ -215,18 +77,7 @@ def choose_item_icon_source(
         display_name=display_name,
         min_score=min_score,
     )
-    if not candidates:
-        return None, (), "No supported icon source image matched the selected target icon."
-    if len(candidates) == 1:
-        return candidates[0], candidates, candidates[0].reason
-    if candidates[0].score == candidates[1].score:
-        return None, candidates, "Icon source folder match is ambiguous; choose an explicit image file."
-    return candidates[0], candidates, candidates[0].reason
-
-
-def normalize_item_icon_background_mode(value: object) -> str:
-    mode = str(value or "").strip().casefold()
-    return mode if mode in ITEM_ICON_BACKGROUND_MODES else ITEM_ICON_DEFAULT_BACKGROUND_MODE
+    return select_item_icon_source_candidate(candidates)
 
 
 def _resampling_lanczos() -> int:
@@ -343,7 +194,13 @@ def _background_removal_is_useful(before: Image.Image, after: Image.Image) -> bo
     return after_area <= int(before_area * 0.94) or alpha_after <= int(alpha_before * 0.94)
 
 
-def _remove_edge_connected_background(image: Image.Image, *, tolerance: int = 34) -> Optional[Image.Image]:
+def _remove_edge_connected_background(
+    image: Image.Image,
+    *,
+    tolerance: int = 34,
+    stop_event: Optional[threading.Event] = None,
+) -> Optional[Image.Image]:
+    raise_if_cancelled(stop_event, "Item icon background removal cancelled.")
     background_color = _common_border_color(image)
     if background_color is None:
         return None
@@ -371,8 +228,12 @@ def _remove_edge_connected_background(image: Image.Image, *, tolerance: int = 34
         enqueue_if_background(0, y)
         enqueue_if_background(width - 1, y)
 
+    visited_count = 0
     while queue:
         x, y = queue.popleft()
+        visited_count += 1
+        if visited_count % 4096 == 0:
+            raise_if_cancelled(stop_event, "Item icon background removal cancelled.")
         background_pixels[x, y] = 255
         for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
             if nx < 0 or ny < 0 or nx >= width or ny >= height:
@@ -390,6 +251,8 @@ def _remove_edge_connected_background(image: Image.Image, *, tolerance: int = 34
     bg_pixels = blurred_background.load()
     out_pixels = new_alpha.load()
     for y in range(height):
+        if y % 32 == 0:
+            raise_if_cancelled(stop_event, "Item icon background removal cancelled.")
         for x in range(width):
             out_pixels[x, y] = max(0, min(255, int(alpha_pixels[x, y] * (255 - bg_pixels[x, y]) / 255)))
 
@@ -412,13 +275,16 @@ def _prepare_item_icon_image(
     *,
     background_mode: str,
     target_underlay_path: Optional[Path] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> ItemIconPreparedImageResult:
+    raise_if_cancelled(stop_event, "Item icon preview preparation cancelled.")
     if width <= 0 or height <= 0:
         raise ValueError(f"Icon dimensions are invalid: {width}x{height}.")
     mode = normalize_item_icon_background_mode(background_mode)
     with Image.open(source_path) as image:
         source_width, source_height = int(image.width), int(image.height)
         working = image.convert("RGBA")
+    raise_if_cancelled(stop_event, "Item icon preview preparation cancelled.")
     warnings: list[str] = []
     underlay: Optional[Image.Image] = None
     if mode == "target_underlay" and target_underlay_path is not None:
@@ -436,13 +302,13 @@ def _prepare_item_icon_image(
             bbox = _alpha_content_bbox(processed, threshold=8)
             if bbox is not None:
                 cropped = processed.crop(bbox)
-                removed = _remove_edge_connected_background(cropped, tolerance=12)
+                removed = _remove_edge_connected_background(cropped, tolerance=12, stop_event=stop_event)
                 if removed is not None and _background_removal_is_useful(cropped, removed):
                     processed = removed
                 else:
                     processed = cropped
         else:
-            removed = _remove_edge_connected_background(processed, tolerance=34)
+            removed = _remove_edge_connected_background(processed, tolerance=34, stop_event=stop_event)
             if removed is None:
                 warnings.append("Auto transparent background removal could not isolate a foreground; preserved source background.")
             else:
@@ -453,6 +319,7 @@ def _prepare_item_icon_image(
         prepared = _fit_rgba_on_canvas(processed, width=width, height=height, scale=0.86, underlay=underlay)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    raise_if_cancelled(stop_event, "Item icon preview preparation cancelled.")
     prepared.save(output_path, "PNG")
     return ItemIconPreparedImageResult(
         source_width=source_width,
@@ -471,6 +338,7 @@ def prepare_item_icon_png(
     *,
     background_mode: str = ITEM_ICON_DEFAULT_BACKGROUND_MODE,
     target_underlay_path: Optional[Path] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> ItemIconPreparedImageResult:
     return _prepare_item_icon_image(
         source_path,
@@ -479,6 +347,7 @@ def prepare_item_icon_png(
         height,
         background_mode=background_mode,
         target_underlay_path=target_underlay_path,
+        stop_event=stop_event,
     )
 
 
@@ -490,6 +359,7 @@ def prepare_fit_pad_icon_png(
     *,
     background_mode: str = ITEM_ICON_DEFAULT_BACKGROUND_MODE,
     target_underlay_path: Optional[Path] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> tuple[int, int]:
     result = prepare_item_icon_png(
         source_path,
@@ -498,6 +368,7 @@ def prepare_fit_pad_icon_png(
         height,
         background_mode=background_mode,
         target_underlay_path=target_underlay_path,
+        stop_event=stop_event,
     )
     return result.source_width, result.source_height
 
@@ -509,13 +380,21 @@ def _copy_preview_to_output(preview_path: Path, output_path: Path) -> Path:
     return output_path
 
 
-def _convert_dds_to_png(texconv_path: Optional[Path], dds_path: Path, output_dir: Path) -> Path:
+def _convert_dds_to_png(
+    texconv_path: Optional[Path],
+    dds_path: Path,
+    output_dir: Path,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> Path:
+    raise_if_cancelled(stop_event, "Item icon DDS preview conversion cancelled.")
     output_dir.mkdir(parents=True, exist_ok=True)
     preview_path = ensure_dds_display_preview_png(
         texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None,
         dds_path,
         dds_info=parse_dds(dds_path),
         max_dimension=0,
+        stop_event=stop_event,
     )
     expected = output_dir / f"{dds_path.stem}.png"
     return _copy_preview_to_output(Path(preview_path), expected)
@@ -578,11 +457,14 @@ def save_item_icon_library_index(
     *,
     roots: Sequence[Path],
     records: Sequence[ItemIconLibraryRecord],
+    stop_event: Optional[threading.Event] = None,
 ) -> None:
     resolved = index_path.expanduser()
     resolved.parent.mkdir(parents=True, exist_ok=True)
     payload_records: dict[str, dict[str, object]] = {}
-    for record in records:
+    for index, record in enumerate(records):
+        if index % 256 == 0:
+            raise_if_cancelled(stop_event, "Item icon library index save cancelled.")
         key = _normalize_library_path_key(record.path)
         payload_records[key] = {
             "path": str(record.path),
@@ -603,7 +485,8 @@ def save_item_icon_library_index(
         "roots": [str(root) for root in roots],
         "records": payload_records,
     }
-    resolved.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    raise_if_cancelled(stop_event, "Item icon library index save cancelled.")
+    atomic_write_text(resolved, json.dumps(payload, indent=2, sort_keys=True))
 
 
 def _relative_to_root(path: Path, root: Path) -> str:
@@ -620,12 +503,55 @@ def _read_source_dimensions(path: Path) -> tuple[int, int]:
     return _image_dimensions(path)
 
 
+def inspect_item_icon_library_source(
+    source_path: Path,
+    *,
+    record_path: Optional[Path] = None,
+    root_path: Optional[Path] = None,
+    tags: Sequence[str] = (),
+    notes: str = "",
+    favorite: bool = False,
+    source_kind: str = "edited",
+    stop_event: Optional[threading.Event] = None,
+) -> ItemIconLibraryRecord:
+    """Build one library record without scanning its containing directory."""
+
+    source = source_path.expanduser()
+    raise_if_cancelled(stop_event, "Item icon source inspection cancelled.")
+    stat = source.stat()
+    width = height = 0
+    warning = ""
+    try:
+        width, height = _read_source_dimensions(source)
+    except Exception as exc:
+        warning = str(exc)
+    raise_if_cancelled(stop_event, "Item icon source inspection cancelled.")
+    stored = (record_path or source).expanduser()
+    root = (root_path or stored.parent).expanduser()
+    return ItemIconLibraryRecord(
+        path=stored,
+        root_path=root,
+        relative_path=_relative_to_root(stored, root),
+        file_size=int(stat.st_size),
+        mtime_ns=int(stat.st_mtime_ns),
+        width=int(width),
+        height=int(height),
+        tags=tuple(str(tag).strip() for tag in tags if str(tag).strip()),
+        notes=str(notes or ""),
+        favorite=bool(favorite),
+        source_kind=str(source_kind or "edited"),
+        warning=warning,
+    )
+
+
 def scan_item_icon_library(
     root_paths: Sequence[Path],
     *,
     index_path: Optional[Path] = None,
     edited_root: Optional[Path] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> tuple[ItemIconLibraryRecord, ...]:
+    raise_if_cancelled(stop_event, "Item icon library scan cancelled.")
     existing_records: Mapping[str, object] = {}
     if index_path is not None:
         loaded = load_item_icon_library_index(index_path)
@@ -636,6 +562,7 @@ def scan_item_icon_library(
     roots: list[Path] = []
     seen_roots: set[str] = set()
     for root in tuple(root_paths) + ((edited_root,) if edited_root is not None else ()):
+        raise_if_cancelled(stop_event, "Item icon library scan cancelled.")
         if root is None:
             continue
         candidate = Path(root).expanduser()
@@ -653,8 +580,10 @@ def scan_item_icon_library(
 
     records: list[ItemIconLibraryRecord] = []
     for root in roots:
+        raise_if_cancelled(stop_event, "Item icon library scan cancelled.")
         source_kind = "edited" if edited_root is not None and _normalize_library_path_key(root) == _normalize_library_path_key(edited_root) else "folder"
         for path in root.rglob("*"):
+            raise_if_cancelled(stop_event, "Item icon library scan cancelled.")
             if not path.is_file() or path.suffix.lower() not in ITEM_ICON_SOURCE_EXTENSIONS:
                 continue
             key = _normalize_library_path_key(path)
@@ -704,7 +633,9 @@ def update_item_icon_library_record_metadata(
     tags: Sequence[str] = (),
     notes: str = "",
     favorite: bool = False,
+    stop_event: Optional[threading.Event] = None,
 ) -> None:
+    raise_if_cancelled(stop_event, "Item icon metadata save cancelled.")
     loaded = load_item_icon_library_index(index_path)
     records = loaded.setdefault("records", {})
     if not isinstance(records, dict):
@@ -719,7 +650,8 @@ def update_item_icon_library_record_metadata(
     record["notes"] = str(notes or "")
     record["favorite"] = bool(favorite)
     index_path.expanduser().parent.mkdir(parents=True, exist_ok=True)
-    index_path.expanduser().write_text(json.dumps(loaded, indent=2, sort_keys=True), encoding="utf-8")
+    raise_if_cancelled(stop_event, "Item icon metadata save cancelled.")
+    atomic_write_text(index_path.expanduser(), json.dumps(loaded, indent=2, sort_keys=True))
 
 
 def import_edited_item_icon_source(source_path: Path, edited_root: Path) -> Path:
@@ -762,12 +694,19 @@ def build_item_icon_source_preview_png(
     *,
     output_dir: Path,
     texconv_path: Optional[Path] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> Path:
+    raise_if_cancelled(stop_event, "Item icon source preview cancelled.")
     source = source_path.expanduser().resolve()
     if source.suffix.lower() != ".dds":
         return source
     resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
-    return _convert_dds_to_png(resolved_texconv, source, output_dir.expanduser())
+    return _convert_dds_to_png(
+        resolved_texconv,
+        source,
+        output_dir.expanduser(),
+        stop_event=stop_event,
+    )
 
 
 def build_item_icon_fit_pad_preview(
@@ -778,7 +717,9 @@ def build_item_icon_fit_pad_preview(
     output_path: Path,
     texconv_path: Optional[Path] = None,
     background_mode: str = ITEM_ICON_DEFAULT_BACKGROUND_MODE,
+    stop_event: Optional[threading.Event] = None,
 ) -> tuple[Path, ItemIconTemplateInfo, tuple[int, int], tuple[str, ...]]:
+    raise_if_cancelled(stop_event, "Item icon final preview cancelled.")
     target_info = read_item_icon_template_info(target_path, target_template_path)
     source = source_path.expanduser().resolve()
     working_source = source
@@ -786,12 +727,22 @@ def build_item_icon_fit_pad_preview(
         temp_dir = Path(temp_text)
         if source.suffix.lower() == ".dds":
             resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
-            working_source = _convert_dds_to_png(resolved_texconv, source, temp_dir / "decoded")
+            working_source = _convert_dds_to_png(
+                resolved_texconv,
+                source,
+                temp_dir / "decoded",
+                stop_event=stop_event,
+            )
         target_underlay_path: Optional[Path] = None
         if normalize_item_icon_background_mode(background_mode) == "target_underlay":
             if target_info.suffix == ".dds":
                 resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
-                target_underlay_path = _convert_dds_to_png(resolved_texconv, target_template_path, temp_dir / "target_underlay")
+                target_underlay_path = _convert_dds_to_png(
+                    resolved_texconv,
+                    target_template_path,
+                    temp_dir / "target_underlay",
+                    stop_event=stop_event,
+                )
             else:
                 target_underlay_path = target_template_path
         prepared = prepare_item_icon_png(
@@ -801,6 +752,7 @@ def build_item_icon_fit_pad_preview(
             target_info.height,
             background_mode=background_mode,
             target_underlay_path=target_underlay_path,
+            stop_event=stop_event,
         )
         source_dimensions = (prepared.source_width, prepared.source_height)
         warnings = prepared.warnings
@@ -818,7 +770,12 @@ def _safe_loose_mod_payload_path(path_value: str | Path) -> PurePosixPath:
     return PurePosixPath(*parts)
 
 
-def _item_icon_manifest_payload_prefix(manifest: Mapping[str, object] | None, source_root: Path) -> PurePosixPath:
+def _item_icon_manifest_payload_prefix(
+    manifest: Mapping[str, object] | None,
+    source_root: Path,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> PurePosixPath:
     if manifest is not None:
         for key in ("files_root", "files_dir"):
             value = str(manifest.get(key) or "").replace("\\", "/").strip().strip("/")
@@ -833,6 +790,7 @@ def _item_icon_manifest_payload_prefix(manifest: Mapping[str, object] | None, so
     files_root = source_root / "files"
     if files_root.is_dir():
         for path in files_root.rglob("*"):
+            raise_if_cancelled(stop_event, "Item icon loose-mod inspection cancelled.")
             if not path.is_file() or path.suffix.lower() == ".zip":
                 continue
             try:
@@ -844,10 +802,15 @@ def _item_icon_manifest_payload_prefix(manifest: Mapping[str, object] | None, so
     return PurePosixPath()
 
 
-def _looks_like_loose_mod_root(root: Path) -> bool:
+def _looks_like_loose_mod_root(
+    root: Path,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> bool:
     if (root / "manifest.json").is_file():
         return True
     for path in root.rglob("*"):
+        raise_if_cancelled(stop_event, "Item icon loose-mod inspection cancelled.")
         if not path.is_file():
             continue
         try:
@@ -874,10 +837,16 @@ def _next_item_icon_patch_root(source_root: Path, suffix: str) -> Path:
     raise FileExistsError(f"Could not choose a free patched output folder beside {source_root}")
 
 
-def _copy_loose_mod_tree_without_root_zips(source_root: Path, output_root: Path) -> int:
+def _copy_loose_mod_tree_without_root_zips(
+    source_root: Path,
+    output_root: Path,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> int:
     copied = 0
     output_root.mkdir(parents=True, exist_ok=False)
     for path in sorted(source_root.rglob("*")):
+        raise_if_cancelled(stop_event, "Item icon loose-mod copy cancelled.")
         try:
             relative = path.relative_to(source_root)
         except ValueError:
@@ -896,12 +865,17 @@ def _copy_loose_mod_tree_without_root_zips(source_root: Path, output_root: Path)
     return copied
 
 
-def _write_item_icon_patch_zip(output_root: Path) -> Path:
+def _write_item_icon_patch_zip(
+    output_root: Path,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> Path:
     zip_path = output_root.with_suffix(".zip")
     if zip_path.exists():
         zip_path.unlink()
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(output_root.rglob("*")):
+            raise_if_cancelled(stop_event, "Item icon loose-mod zip cancelled.")
             if not path.is_file() or path.suffix.lower() == ".zip":
                 continue
             archive.write(path, path.relative_to(output_root).as_posix())
@@ -924,7 +898,9 @@ def _update_loose_mod_manifest_for_item_icon(
     *,
     target_path: PurePosixPath,
     target_entry: object | None,
+    stop_event: Optional[threading.Event] = None,
 ) -> None:
+    raise_if_cancelled(stop_event, "Item icon loose-mod manifest update cancelled.")
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -968,7 +944,8 @@ def _update_loose_mod_manifest_for_item_icon(
             else:
                 manifest.pop("new_paths", None)
 
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    raise_if_cancelled(stop_event, "Item icon loose-mod manifest update cancelled.")
+    atomic_write_text(manifest_path, json.dumps(manifest, indent=2))
 
 
 def patch_existing_loose_mod_with_item_icon(
@@ -978,53 +955,97 @@ def patch_existing_loose_mod_with_item_icon(
     payload_data: bytes,
     target_entry: object | None = None,
     output_suffix: str = "_with_icon",
+    stop_event: Optional[threading.Event] = None,
 ) -> ItemIconLooseModPatchResult:
+    raise_if_cancelled(stop_event, "Item icon loose-mod patch cancelled.")
     source_root = loose_mod_root.expanduser().resolve()
     if not source_root.is_dir():
         raise FileNotFoundError(f"Choose an existing loose mod folder: {source_root}")
-    if not _looks_like_loose_mod_root(source_root):
+    if not _looks_like_loose_mod_root(source_root, stop_event=stop_event):
         raise ValueError(f"{source_root} does not look like a loose mod package or game-relative loose file tree.")
     if not payload_data:
         raise ValueError("Generated item icon payload is empty.")
 
     normalized_target_path = _safe_loose_mod_payload_path(target_path)
     output_root = _next_item_icon_patch_root(source_root, output_suffix)
-    had_source_zip = any(path.is_file() and path.suffix.lower() == ".zip" for path in source_root.iterdir())
+    had_source_zip = False
+    for path in source_root.iterdir():
+        raise_if_cancelled(stop_event, "Item icon loose-mod patch cancelled.")
+        if path.is_file() and path.suffix.lower() == ".zip":
+            had_source_zip = True
+            break
 
-    copied_file_count = _copy_loose_mod_tree_without_root_zips(source_root, output_root)
-    manifest_path = output_root / "manifest.json"
-    manifest: Mapping[str, object] | None = None
-    if manifest_path.is_file():
-        try:
-            raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Could not parse loose mod manifest.json: {exc}") from exc
-        if not isinstance(raw_manifest, dict):
-            raise ValueError("Loose mod manifest.json must contain a JSON object.")
-        manifest = raw_manifest
-
-    payload_prefix = _item_icon_manifest_payload_prefix(manifest, source_root)
-    destination_relative = PurePosixPath(*(payload_prefix.parts + normalized_target_path.parts))
-    icon_path = output_root.joinpath(*destination_relative.parts)
-    icon_path.parent.mkdir(parents=True, exist_ok=True)
-    icon_path.write_bytes(payload_data)
-
-    if manifest_path.is_file():
-        _update_loose_mod_manifest_for_item_icon(
-            manifest_path,
-            target_path=normalized_target_path,
-            target_entry=target_entry,
-        )
-
-    zip_path = _write_item_icon_patch_zip(output_root) if had_source_zip else None
-    return ItemIconLooseModPatchResult(
-        source_root=source_root,
-        output_root=output_root,
-        icon_path=icon_path,
-        manifest_path=manifest_path if manifest_path.is_file() else None,
-        zip_path=zip_path,
-        copied_file_count=copied_file_count,
+    staging_parent = Path(
+        tempfile.mkdtemp(prefix=f".{output_root.name}.", suffix=".tmp", dir=output_root.parent)
     )
+    staged_root = staging_parent / "package"
+    final_zip_path = output_root.with_suffix(".zip") if had_source_zip else None
+    published_root = False
+    try:
+        copied_file_count = _copy_loose_mod_tree_without_root_zips(
+            source_root,
+            staged_root,
+            stop_event=stop_event,
+        )
+        staged_manifest_path = staged_root / "manifest.json"
+        had_manifest = staged_manifest_path.is_file()
+        manifest: Mapping[str, object] | None = None
+        if had_manifest:
+            try:
+                raw_manifest = json.loads(staged_manifest_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Could not parse loose mod manifest.json: {exc}") from exc
+            if not isinstance(raw_manifest, dict):
+                raise ValueError("Loose mod manifest.json must contain a JSON object.")
+            manifest = raw_manifest
+
+        payload_prefix = _item_icon_manifest_payload_prefix(
+            manifest,
+            staged_root,
+            stop_event=stop_event,
+        )
+        destination_relative = PurePosixPath(*(payload_prefix.parts + normalized_target_path.parts))
+        staged_icon_path = staged_root.joinpath(*destination_relative.parts)
+        staged_icon_path.parent.mkdir(parents=True, exist_ok=True)
+        raise_if_cancelled(stop_event, "Item icon loose-mod patch cancelled.")
+        staged_icon_path.write_bytes(payload_data)
+        raise_if_cancelled(stop_event, "Item icon loose-mod patch cancelled.")
+
+        if had_manifest:
+            _update_loose_mod_manifest_for_item_icon(
+                staged_manifest_path,
+                target_path=normalized_target_path,
+                target_entry=target_entry,
+                stop_event=stop_event,
+            )
+
+        staged_zip_path = (
+            _write_item_icon_patch_zip(staged_root, stop_event=stop_event)
+            if had_source_zip
+            else None
+        )
+        raise_if_cancelled(stop_event, "Item icon loose-mod patch cancelled.")
+        atomic_publish_directory(staged_root, output_root)
+        published_root = True
+        if staged_zip_path is not None and final_zip_path is not None:
+            atomic_publish_files({staged_zip_path: final_zip_path})
+
+        return ItemIconLooseModPatchResult(
+            source_root=source_root,
+            output_root=output_root,
+            icon_path=output_root.joinpath(*destination_relative.parts),
+            manifest_path=(output_root / "manifest.json") if had_manifest else None,
+            zip_path=final_zip_path,
+            copied_file_count=copied_file_count,
+        )
+    except Exception:
+        if published_root:
+            shutil.rmtree(output_root, ignore_errors=True)
+        if final_zip_path is not None:
+            final_zip_path.unlink(missing_ok=True)
+        raise
+    finally:
+        shutil.rmtree(staging_parent, ignore_errors=True)
 
 
 def _log(on_log: Optional[Callable[[str], None]], message: str) -> None:
@@ -1038,7 +1059,9 @@ def build_item_icon_payload(
     target_template_path: Path,
     texconv_path: Optional[Path],
     on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> ItemIconBuildResult:
+    raise_if_cancelled(stop_event, "Item icon build cancelled.")
     source_path = spec.source_path.expanduser().resolve()
     if not source_path.is_file():
         raise FileNotFoundError(f"Custom icon source was not found: {source_path}")
@@ -1082,6 +1105,7 @@ def build_item_icon_payload(
                 )
                 if source_matches_target and background_mode == "keep_source":
                     _log(on_log, f"Copying custom DDS icon without conversion: {source_path.name} -> {target_path}")
+                    raise_if_cancelled(stop_event, "Item icon build cancelled.")
                     return ItemIconBuildResult(
                         payload_data=source_path.read_bytes(),
                         target_path=target_path,
@@ -1095,7 +1119,12 @@ def build_item_icon_payload(
                         warnings=(),
                     )
             resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
-            working_source = _convert_dds_to_png(resolved_texconv, source_path, temp_dir / "decoded")
+            working_source = _convert_dds_to_png(
+                resolved_texconv,
+                source_path,
+                temp_dir / "decoded",
+                stop_event=stop_event,
+            )
             warnings.append(f"Decoded DDS custom icon source with DirectXTex/native path before fitting: {source_path.name}")
 
         prepared_png = temp_dir / f"{target_stem}.png"
@@ -1103,7 +1132,12 @@ def build_item_icon_payload(
         if background_mode == "target_underlay":
             if target_suffix == ".dds":
                 resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
-                target_underlay_path = _convert_dds_to_png(resolved_texconv, target_template, temp_dir / "target_underlay")
+                target_underlay_path = _convert_dds_to_png(
+                    resolved_texconv,
+                    target_template,
+                    temp_dir / "target_underlay",
+                    stop_event=stop_event,
+                )
             else:
                 target_underlay_path = target_template
         prepared = prepare_item_icon_png(
@@ -1113,12 +1147,14 @@ def build_item_icon_payload(
             target_height,
             background_mode=background_mode,
             target_underlay_path=target_underlay_path,
+            stop_event=stop_event,
         )
         source_width, source_height = prepared.source_width, prepared.source_height
         warnings.extend(prepared.warnings)
 
         if target_suffix != ".dds":
             _log(on_log, f"Writing custom image icon payload: {source_path.name} -> {target_path}")
+            raise_if_cancelled(stop_event, "Item icon build cancelled.")
             return ItemIconBuildResult(
                 payload_data=prepared_png.read_bytes(),
                 target_path=target_path,
@@ -1146,6 +1182,7 @@ def build_item_icon_payload(
             width=target_width,
             height=target_height,
             mip_count=target_mip_count,
+            stop_event=stop_event,
         )
         if native_report and produced.is_file() and produced.stat().st_size > 0:
             _log(on_log, "Generated custom item icon with DirectXTex native DDS encode.")
@@ -1164,7 +1201,7 @@ def build_item_icon_payload(
                 target_height,
                 overwrite_existing_dds=True,
             )
-            return_code, stdout, stderr = run_process_with_cancellation(cmd)
+            return_code, stdout, stderr = run_process_with_cancellation(cmd, stop_event=stop_event)
             if return_code != 0:
                 detail = stderr.strip() or stdout.strip() or f"texconv exited with code {return_code}"
                 raise RuntimeError(f"texconv fallback failed while generating custom item icon: {detail}")
@@ -1179,6 +1216,7 @@ def build_item_icon_payload(
             warnings.append(
                 f"Generated icon format {produced_info.texconv_format} did not match target {target_format}."
             )
+        raise_if_cancelled(stop_event, "Item icon build cancelled.")
         return ItemIconBuildResult(
             payload_data=produced.read_bytes(),
             target_path=target_path,

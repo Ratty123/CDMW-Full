@@ -26,8 +26,11 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.constants import DEFAULT_UI_THEME
-from cdmw.core.archive import autodetect_archive_package_roots, looks_like_archive_package_root
 from cdmw.ui.shell.startup_splash import format_startup_splash_detail as _format_startup_splash_detail
+from cdmw.ui.shell.startup_path_task_controller import (
+    StartupPathTaskControllerMixin,
+    validate_startup_archive_path,
+)
 from cdmw.ui.themes import UI_THEME_SCHEMES, get_theme
 
 
@@ -381,9 +384,6 @@ class StartupSplashDialog(QDialog):
         self.setFixedSize(420, 210)
         self.setObjectName("StartupSplash")
         self._last_event_flush = 0.0
-        self._shown_at = time.monotonic()
-        self._minimum_visible_seconds = 3.0
-
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
@@ -487,9 +487,7 @@ class StartupSplashDialog(QDialog):
             app.processEvents()
 
     def remaining_minimum_visible_ms(self) -> int:
-        elapsed = max(0.0, time.monotonic() - self._shown_at)
-        remaining = max(0.0, self._minimum_visible_seconds - elapsed)
-        return int(math.ceil(remaining * 1000.0))
+        return 0
 
     def finish(self) -> None:
         self.signal_mark.stop()
@@ -497,7 +495,7 @@ class StartupSplashDialog(QDialog):
         self.hide()
         self.deleteLater()
 
-class StartupArchivePathDialog(QDialog):
+class StartupArchivePathDialog(StartupPathTaskControllerMixin, QDialog):
     def __init__(
         self,
         *,
@@ -511,6 +509,7 @@ class StartupArchivePathDialog(QDialog):
         self._selected_path = ""
         self._autodetect_started = False
         self._autodetect_busy = False
+        self._initialize_startup_path_tasks()
         self.setWindowTitle("Set Crimson Desert Path")
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
         self.setWindowModality(Qt.ApplicationModal)
@@ -669,27 +668,26 @@ class StartupArchivePathDialog(QDialog):
         self.browse_button.setEnabled(not busy)
         self.path_edit.setEnabled(not busy)
         self.candidates_combo.setEnabled(not busy)
-        self.continue_button.setEnabled(not busy and self._path_is_valid(self.path_edit.text()))
-
-    def _path_is_valid(self, text: str) -> bool:
-        path_text = str(text or "").strip()
-        if not path_text:
-            return False
-        return looks_like_archive_package_root(Path(path_text).expanduser())
+        current_path = self.path_edit.text().strip()
+        self.continue_button.setEnabled(
+            not busy
+            and self._validated_path_ok
+            and current_path == self._validated_path_text
+        )
 
     def _validate_path_text(self, text: str) -> None:
         if self._autodetect_busy:
             return
         path_text = str(text or "").strip()
+        self._validated_path_ok = False
+        self._validated_path_text = ""
+        self._validated_resolved_path = ""
+        self._path_validation_timer.stop()
+        self.continue_button.setEnabled(False)
         if not path_text:
-            self.continue_button.setEnabled(False)
             return
-        valid = self._path_is_valid(path_text)
-        self.continue_button.setEnabled(valid)
-        if valid:
-            self._set_status("Ready to build the archive cache for this path.")
-        else:
-            self._set_status("Waiting for a valid Crimson Desert folder or package root.")
+        self._set_status("Checking the selected folder...")
+        self._path_validation_timer.start()
 
     def _candidate_changed(self, text: str) -> None:
         candidate = str(text or "").strip()
@@ -702,81 +700,28 @@ class StartupArchivePathDialog(QDialog):
         selected = QFileDialog.getExistingDirectory(self, "Select Crimson Desert Folder", start_dir)
         if selected:
             self.path_edit.setText(selected)
-            if self._path_is_valid(selected):
-                self._set_status("Ready to build the archive cache for this path.")
-            else:
-                self._set_status(
-                    "That folder does not look like a Crimson Desert package root. Choose the install folder or the folder containing .pamt archives.",
-                    error=True,
-                )
 
-    def _run_initial_autodetect(self) -> None:
-        if self._autodetect_started or self.path_edit.text().strip():
-            return
-        self._run_autodetect()
+    def accept(self) -> None:
+        self.request_shutdown()
+        super().accept()
 
-    def _run_autodetect(self) -> None:
-        if self._autodetect_busy:
-            return
-        self._autodetect_started = True
-        self._set_busy(True)
-        self._set_status("Checking Steam libraries and common custom install locations...")
-        if self._startup_splash is not None:
-            try:
-                self._startup_splash.set_detail("Auto-detecting Crimson Desert path...")
-            except Exception:
-                pass
-        app = QApplication.instance()
-        if app is not None:
-            app.processEvents()
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        logs: List[str] = []
-        candidates: List[str] = []
-        error_text = ""
-        try:
-            candidates = [str(path) for path in autodetect_archive_package_roots(on_log=logs.append)]
-        except Exception as exc:
-            error_text = str(exc)
-        finally:
-            QApplication.restoreOverrideCursor()
-            self._set_busy(False)
-        self.candidates_combo.blockSignals(True)
-        try:
-            self.candidates_combo.clear()
-            self.candidates_combo.addItems(candidates)
-            self.candidates_combo.setVisible(len(candidates) > 1)
-        finally:
-            self.candidates_combo.blockSignals(False)
-        if candidates:
-            self.path_edit.setText(candidates[0])
-            if len(candidates) == 1:
-                self._set_status("Auto-detected a Crimson Desert package root. Continue to build the cache.")
-            else:
-                self._set_status("Auto-detected multiple package roots. Pick one, then continue to build the cache.")
-            return
-        if error_text:
-            self._set_status(f"Auto-detect failed: {error_text}. Use Browse to select the folder manually.", error=True)
-            return
-        detail = logs[-1] if logs else "No valid Crimson Desert package root was auto-detected."
-        self._set_status(f"{detail} Use Browse to select the folder manually.", error=True)
+    def reject(self) -> None:
+        self.request_shutdown()
+        super().reject()
 
     def _accept_if_valid(self) -> None:
         path_text = self.path_edit.text().strip()
         if not path_text:
             self._set_status("Choose the Crimson Desert folder before continuing.", error=True)
             return
-        package_root = Path(path_text).expanduser()
-        if not looks_like_archive_package_root(package_root):
+        if not self._validated_path_ok or path_text != self._validated_path_text:
             self._set_status(
-                "That folder does not look like a Crimson Desert package root. Choose the install folder or the folder containing .pamt archives.",
+                "Wait for the selected folder check to finish, or choose a valid Crimson Desert package root.",
                 error=True,
             )
+            self._path_validation_timer.start()
             return
-        try:
-            package_root = package_root.resolve()
-        except OSError:
-            pass
-        self._selected_path = str(package_root)
+        self._selected_path = self._validated_resolved_path or path_text
         self.accept()
 
 

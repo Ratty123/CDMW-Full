@@ -7,12 +7,12 @@ from collections.abc import Mapping, Sequence
 from pathlib import PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
-from cdmw.core.archive import (
+from cdmw.services.archive_workflow_service import (
     _strip_archive_model_family_variant_suffix,
-    derive_texture_group_key,
     iter_archive_character_equipment_root_alias_stems,
     iter_archive_equipment_model_alias_stems,
 )
+from cdmw.services.texture_workflow_service import derive_texture_group_key
 from cdmw.models import ArchiveEntry
 
 

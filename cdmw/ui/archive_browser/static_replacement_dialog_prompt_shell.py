@@ -21,6 +21,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
     embedded_host = context.get("embedded_host")
     runtime_export_target_entry = context.get("runtime_export_target_entry")
     defer_original_texture_preview = context["defer_original_texture_preview"]
+    prompt_preflight = context["prompt_preflight"]
     _record_runtime_event = context.get("_record_runtime_event")
     if not callable(_record_runtime_event):
         _record_runtime_event = getattr(self, "_record_runtime_event", lambda *_args, **_kwargs: {})
@@ -37,11 +38,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         if isinstance(runtime_export_target_entry, ArchiveEntry)
         else entry
     )
-    modify_original_clone_mode = (
-        obj_path.suffix.lower() == ".obj"
-        and self._has_valid_obj_roundtrip_sidecar(obj_path)
-        and self._obj_roundtrip_source_matches_entry(obj_path, entry)
-    )
+    modify_original_clone_mode = bool(prompt_preflight.modify_original_clone_mode)
     original_texture_preview_default = bool(modify_original_clone_mode)
     original_texture_preview_state = _original_texture_preview_initial_state_helper(
         original_texture_preview_default
@@ -58,7 +55,6 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
     startup_progress.setAutoClose(False)
     startup_progress.setWindowModality(Qt.NonModal)
     startup_progress.show()
-    QApplication.processEvents()
     startup_progress_closed = _alignment_startup_progress_initial_state_helper()
     alignment_startup_step_state = _alignment_startup_step_initial_state_helper()
 
@@ -80,13 +76,11 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         )
         startup_progress.setLabelText(message)
         startup_progress.setValue(0)
-        QApplication.processEvents()
 
     def _finish_alignment_startup_progress() -> None:
         if not _alignment_startup_progress_mark_closed_helper(startup_progress_closed):
             return
         startup_progress.close()
-        QApplication.processEvents()
 
     _alignment_startup_step(alignment_startup_text["creating_window"])
     dialog = QDialog(embedded_host if embedded_alignment_builder else self)
@@ -147,72 +141,34 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         return None
 
     alignment_texture_lookup_cache: Dict[str, object] = {
-        "path": None,
-        "basename": None,
-        "source": "",
+        "path": prompt_preflight.texture_entries_by_normalized_path,
+        "basename": prompt_preflight.texture_entries_by_basename,
+        "source": prompt_preflight.texture_lookup_source,
     }
 
     def _alignment_texture_lookup_indexes() -> Tuple[
         Dict[str, Sequence[ArchiveEntry]],
         Dict[str, Sequence[ArchiveEntry]],
     ]:
-        if self.archive_entries_by_normalized_path and self.archive_entries_by_basename:
-            return self.archive_entries_by_normalized_path, self.archive_entries_by_basename
-        cached_path = alignment_texture_lookup_cache.get("path")
-        cached_basename = alignment_texture_lookup_cache.get("basename")
-        if isinstance(cached_path, dict) and isinstance(cached_basename, dict):
-            return cached_path, cached_basename
-
-        _alignment_startup_step(alignment_startup_text["local_texture_lookup"])
-        started_at = time.perf_counter()
-        try:
-            graph, references = self._archive_asset_family_graph_for_entry(entry)
-        except Exception:
-            graph = None
-            references = ()
-        graph_entries: Sequence[object] = ()
-        if isinstance(graph, AssetFamilyGraph):
-            graph_entries = tuple(
-                self._archive_entries_from_asset_family_graph(graph, include_hints=True)
-            )
-
-        related_target_basenames: set[str] = set()
-        try:
-            related_target_basenames.update(_collect_same_stem_related_target_basenames(entry))
-        except Exception:
-            related_target_basenames = set()
-        extension_index = getattr(self, "archive_entries_by_extension", {}) or {}
-        lookup_indexes = _archive_texture_lookup_indexes_for_alignment_helper(
-            target_entry=entry,
-            graph_entries=graph_entries,
-            graph_references=references or (),
-            related_target_basenames=tuple(related_target_basenames),
-            extension_index=extension_index if isinstance(extension_index, Mapping) else None,
+        return (
+            prompt_preflight.texture_entries_by_normalized_path,
+            prompt_preflight.texture_entries_by_basename,
         )
-        path_index = lookup_indexes.path_index
-        basename_index = lookup_indexes.basename_index
-        graph_reference_count = lookup_indexes.graph_reference_count
-        dds_count = lookup_indexes.dds_count
-        sidecar_count = lookup_indexes.sidecar_count
-        alignment_texture_lookup_cache["path"] = path_index
-        alignment_texture_lookup_cache["basename"] = basename_index
-        alignment_texture_lookup_cache["source"] = "local_dds_extension"
-        _record_runtime_event(
-            "mesh_alignment_texture_lookup_ready",
-            path=getattr(entry, "path", ""),
-            dialog_title=dialog_title,
-            source="local_dds_extension",
-            dds_entries=dds_count,
-            related_entries=sidecar_count,
-            graph_entries=graph_reference_count,
-            path_keys=len(path_index),
-            basename_keys=len(basename_index),
-            elapsed_ms=int((time.perf_counter() - started_at) * 1000),
-            modify_original_clone=modify_original_clone_mode,
-            global_path_index_ready=bool(self.archive_entries_by_normalized_path),
-            global_basename_index_ready=bool(self.archive_entries_by_basename),
-        )
-        return path_index, basename_index
+
+    _record_runtime_event(
+        "mesh_alignment_texture_lookup_ready",
+        path=getattr(entry, "path", ""),
+        dialog_title=dialog_title,
+        source=prompt_preflight.texture_lookup_source,
+        dds_entries=prompt_preflight.texture_lookup_dds_count,
+        related_entries=prompt_preflight.texture_lookup_sidecar_count,
+        graph_entries=prompt_preflight.texture_lookup_reference_count,
+        path_keys=len(prompt_preflight.texture_entries_by_normalized_path),
+        basename_keys=len(prompt_preflight.texture_entries_by_basename),
+        modify_original_clone=modify_original_clone_mode,
+        global_path_index_ready=bool(self.archive_entries_by_normalized_path),
+        global_basename_index_ready=bool(self.archive_entries_by_basename),
+    )
 
     alignment_dialog_base_stylesheet = dialog.styleSheet()
 

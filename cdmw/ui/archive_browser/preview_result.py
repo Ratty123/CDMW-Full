@@ -9,9 +9,10 @@ from typing import Dict, Optional
 
 from PySide6.QtWidgets import QTreeWidgetItem
 
-from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
+from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.models import ArchivePreviewResult
-from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
+from cdmw.services.preview_rendering_service import find_native_d3d11_host
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 from cdmw.workers.archive_preview_workers import _merge_timing_maps
 
@@ -405,11 +406,12 @@ class ArchivePreviewResultMixin:
             and current_entry is not None
             and current_entry.extension == ".dds"
         )
-        if hasattr(self, "mesh_editor_tab"):
+        mesh_editor_tab = created_tool_widget(getattr(self, "mesh_editor_tab", None))
+        if mesh_editor_tab is not None:
             mesh_selection = (
                 current_entry
                 if current_entry is not None and current_entry.extension in ARCHIVE_MESH_EXTENSIONS
                 else None
             )
-            self.mesh_editor_tab.set_archive_selection(mesh_selection)
+            mesh_editor_tab.set_archive_selection(mesh_selection)
         self._update_archive_model_action_controls(self._archive_model_preview_controls_target())

@@ -45,7 +45,7 @@ def test_prefab_json_actions_write_loose_package_not_archive_patch() -> None:
 
 
 def test_prefab_json_mixin_is_composed_into_main_window() -> None:
-    source = _read("cdmw/ui/shell/app_window.py")
+    source = _read("cdmw/ui/shell/window_feature_providers.py")
 
-    assert "ArchivePrefabJsonActionsMixin" in source
     assert "from cdmw.ui.archive_browser.prefab_json_actions import ArchivePrefabJsonActionsMixin" in source
+    assert "ArchivePrefabJsonActionsMixin," in source

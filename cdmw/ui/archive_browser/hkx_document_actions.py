@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
@@ -20,17 +21,23 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.archive import ensure_archive_preview_source
-from cdmw.core.archive_modding import (
-    ArchiveLooseExportResult,
-    ArchivePatchRequest,
+from cdmw.services.archive_preview_service import ensure_archive_preview_source
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.atomic_file_service import atomic_write_text
+from cdmw.services.cancellable_file_service import (
+    read_file_bytes_cancellable,
+    read_text_file_cancellable,
+)
+from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
+from cdmw.services.hkx_edit_service import (
     HkxGeometryPatchResult,
     build_hkx_descriptor_hint_from_xml_text,
     build_hkx_editable_geometry_json,
     build_hkx_editable_geometry_xml,
     build_hkx_havok_xml_view_xml,
-    export_archive_payloads_to_mod_ready_loose,
 )
+from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
 from cdmw.models import ArchiveEntry, AssetFamilyGraph, AssetFamilyMember
 
 
@@ -79,12 +86,18 @@ class ArchiveHkxDocumentActionsMixin:
         descriptor_entries: Sequence[ArchiveEntry],
         *,
         log: Optional[Callable[[str], None]] = None,
+        stop_event: Optional[threading.Event] = None,
         ) -> List[Dict[str, object]]:
         hints: List[Dict[str, object]] = []
         for descriptor_entry in descriptor_entries:
             try:
                 descriptor_path, _note = ensure_archive_preview_source(descriptor_entry)
-                descriptor_text = descriptor_path.read_text(encoding="utf-8", errors="replace")
+                descriptor_text = read_text_file_cancellable(
+                    descriptor_path,
+                    stop_event=stop_event,
+                    encoding="utf-8",
+                    errors="replace",
+                )
                 hint = build_hkx_descriptor_hint_from_xml_text(descriptor_text, descriptor_entry.path)
             except Exception as exc:
                 if log is not None:
@@ -242,17 +255,22 @@ class ArchiveHkxDocumentActionsMixin:
             output_path = output_path.with_name(f"{output_path.name}{default_suffix}")
         descriptor_entries = self._archive_hkx_companion_descriptor_entries(entry)
 
-        def _task(log: Callable[[str], None]) -> Path:
+        def _task(log: Callable[[str], None], stop_event: threading.Event) -> Path:
             export_kind = "editable HKX geometry" if editable_document else "read-only HKX browser"
             log(f"Exporting {export_kind} {document_label} for {entry.path}...")
             source_path, _note = ensure_archive_preview_source(entry)
             descriptor_hints = self._build_archive_hkx_companion_descriptor_hints(
                 descriptor_entries,
                 log=log,
+                stop_event=stop_event,
             )
-            document_text = build_document(source_path.read_bytes(), entry.path, descriptor_hints)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(document_text, encoding="utf-8")
+            document_text = build_document(
+                read_file_bytes_cancellable(source_path, stop_event=stop_event),
+                entry.path,
+                descriptor_hints,
+            )
+            raise_if_cancelled(stop_event, "HKX document export cancelled.")
+            atomic_write_text(output_path, document_text)
             return output_path
 
         def _handle_complete(result: object) -> None:
@@ -276,6 +294,7 @@ class ArchiveHkxDocumentActionsMixin:
             task=_task,
             on_complete=_handle_complete,
             show_archive_progress=True,
+            task_accepts_cancel=True,
         )
 
     def _export_current_archive_hkx_json(self) -> None:
@@ -345,12 +364,13 @@ class ArchiveHkxDocumentActionsMixin:
             return
         parent_root, package_info, create_no_encrypt_file, _include_related_files, export_options = loose_export_settings
 
-        def _task(log: Callable[[str], None]) -> Dict[str, object]:
+        def _task(log: Callable[[str], None], stop_event: threading.Event) -> Dict[str, object]:
             log(f"Reading current HKX payload for {entry.path}...")
             source_path, _note = ensure_archive_preview_source(entry)
-            source_data = source_path.read_bytes()
+            source_data = read_file_bytes_cancellable(source_path, stop_event=stop_event)
             log(f"Applying HKX {document_label} patch document from {document_source_label}...")
             patch_result = apply_document(source_data, document_text)
+            raise_if_cancelled(stop_event, "HKX document import cancelled.")
             for warning in patch_result.warnings:
                 log(f"Warning: {warning}")
             if not patch_result.changed_fields:
@@ -416,6 +436,7 @@ class ArchiveHkxDocumentActionsMixin:
             task=_task,
             on_complete=_handle_complete,
             show_archive_progress=True,
+            task_accepts_cancel=True,
         )
 
     def _start_current_archive_hkx_document_import(
@@ -426,19 +447,49 @@ class ArchiveHkxDocumentActionsMixin:
         document_label: str,
         apply_document: Callable[[bytes, str], HkxGeometryPatchResult],
         ) -> None:
-        try:
-            document_text = document_path.read_text(encoding="utf-8")
-        except Exception as exc:
-            QMessageBox.warning(self, f"HKX {document_label} Import", f"Could not read HKX {document_label} document:\n{exc}")
-            self.set_status_message(f"HKX {document_label} import failed: {exc}", error=True)
-            return
+        request_id = int(getattr(self, "_hkx_document_import_request_id", 0) or 0) + 1
+        self._hkx_document_import_request_id = request_id
+        self._run_utility_task(
+            status_message=f"Reading HKX {document_label} import document...",
+            task=lambda _log, stop_event: read_text_file_cancellable(
+                document_path,
+                stop_event=stop_event,
+                max_bytes=512 * 1024 * 1024,
+            ),
+            on_complete=lambda document_text: self._handle_hkx_import_document_loaded(
+                request_id,
+                entry,
+                document_path,
+                document_label,
+                apply_document,
+                document_text,
+            ),
+            task_accepts_cancel=True,
+        )
 
-        self._start_current_archive_hkx_document_import_content(
-            entry=entry,
-            document_text=document_text,
-            document_source_label=str(document_path),
-            document_label=document_label,
-            apply_document=apply_document,
+    def _handle_hkx_import_document_loaded(
+        self,
+        request_id: int,
+        entry: ArchiveEntry,
+        document_path: Path,
+        document_label: str,
+        apply_document: Callable[[bytes, str], HkxGeometryPatchResult],
+        document_text: object,
+    ) -> None:
+        if request_id != int(getattr(self, "_hkx_document_import_request_id", 0) or 0):
+            return
+        if not isinstance(document_text, str):
+            self.set_status_message(f"HKX {document_label} import reader returned invalid data.", error=True)
+            return
+        self._run_when_background_idle(
+            lambda: self._start_current_archive_hkx_document_import_content(
+                entry=entry,
+                document_text=document_text,
+                document_source_label=str(document_path),
+                document_label=document_label,
+                apply_document=apply_document,
+            ),
+            label=f"opening the HKX {document_label} import options",
         )
 
     def _edit_current_archive_hkx(self) -> None:
@@ -451,11 +502,19 @@ class ArchiveHkxDocumentActionsMixin:
     def _edit_archive_hkx_entry(self, entry: ArchiveEntry, *, initial_section: str = "") -> None:
         descriptor_entries = self._archive_hkx_companion_descriptor_entries(entry)
 
-        def _task(log: Callable[[str], None]) -> str:
+        def _task(log: Callable[[str], None], stop_event: threading.Event) -> str:
             log(f"Building editable HKX XML for {entry.path}...")
             source_path, _note = ensure_archive_preview_source(entry)
-            descriptor_hints = self._build_archive_hkx_companion_descriptor_hints(descriptor_entries, log=log)
-            return build_hkx_editable_geometry_xml(source_path.read_bytes(), entry.path, descriptor_hints)
+            descriptor_hints = self._build_archive_hkx_companion_descriptor_hints(
+                descriptor_entries,
+                log=log,
+                stop_event=stop_event,
+            )
+            return build_hkx_editable_geometry_xml(
+                read_file_bytes_cancellable(source_path, stop_event=stop_event),
+                entry.path,
+                descriptor_hints,
+            )
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, str):
@@ -468,6 +527,7 @@ class ArchiveHkxDocumentActionsMixin:
             task=_task,
             on_complete=_handle_complete,
             show_archive_progress=True,
+            task_accepts_cancel=True,
         )
 
     def _edit_archive_hkx_entry_when_idle(

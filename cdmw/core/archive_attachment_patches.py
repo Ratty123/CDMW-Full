@@ -5,7 +5,6 @@ import re
 import struct
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
@@ -19,6 +18,11 @@ from cdmw.models import (
     AttachmentSocketInfo,
     AttachmentStackEquipInfo,
     AttachmentStackEquipTypePatchResult,
+)
+from cdmw.domain.archives.attachments import (
+    PrefabAttachmentProfilePatchResult,
+    PrefabSocketNameField,
+    PrefabSocketNamePatchResult,
 )
 from cdmw.core.archive_binary_preview import _binary_sidecar_schema_declarations
 
@@ -890,30 +894,6 @@ def build_socket_bone_data_profile_patch(
         diffs=tuple(diffs),
         patched_part_names=tuple(dict.fromkeys(patched_names)),
     )
-
-
-@dataclass(slots=True, frozen=True)
-class PrefabSocketNameField:
-    field_name: str
-    value: str
-    length_offset: int
-    value_offset: int
-    byte_length: int
-
-
-@dataclass(slots=True, frozen=True)
-class PrefabSocketNamePatchResult:
-    data: bytes
-    fields: Tuple[PrefabSocketNameField, ...]
-    proof_lines: Tuple[str, ...]
-
-
-@dataclass(slots=True, frozen=True)
-class PrefabAttachmentProfilePatchResult:
-    data: bytes
-    fields: Tuple[PrefabSocketNameField, ...]
-    changed_fields: Tuple[PrefabSocketNameField, ...]
-    proof_lines: Tuple[str, ...]
 
 
 def _iter_prefab_length_prefixed_ascii_values(

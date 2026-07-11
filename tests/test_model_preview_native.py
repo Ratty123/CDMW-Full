@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 import os
 from pathlib import Path
 import struct
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
 from PySide6.QtCore import QUrl
+
+from tests.native_source_text import d3d11_preview_source
 
 from cdmw.models import (
     HkxPhysicsOverlayBone,
@@ -78,6 +82,20 @@ def _vertex(
 
 
 class NativePreviewPayloadTests(unittest.TestCase):
+    def test_native_d3d11_mesh_edit_ack_echoes_packet_revision(self) -> None:
+        source = d3d11_preview_source()
+
+        assert 'json_int_field(payload, "revision", 0)' in source
+        assert 'event << ",\\\"revision\\\":" << revision;' in source
+
+    def test_native_d3d11_mesh_edit_ack_echoes_packet_revision(self) -> None:
+        source = d3d11_preview_source()
+
+        assert 'mesh_edit_revision_field(payload)' in source
+        assert '",\\\"edit_revision\\\":" << revision << ",\\\"revision\\\":" << revision' in source
+        assert 'send_mesh_edit_vertices_ack(effective_revision, "applied"' in source
+        assert '"stale_or_out_of_order"' in source
+
     def test_direct_preview_identity_sparse_source_ids_use_native_sidecars(self) -> None:
         from cdmw.modding import mesh_native_core
 
@@ -228,9 +246,9 @@ class NativePreviewPayloadTests(unittest.TestCase):
                     ],
                 }
 
-            with patch("cdmw.modding.mesh_native_core.find_native_mesh_core_binary", return_value=Path("mesh-core.exe")):
-                with patch("cdmw.modding.mesh_native_core._ensure_native_mesh_session_submesh", return_value="session-0"):
-                    with patch("cdmw.modding.mesh_native_core.write_native_preview_geometry_blob", side_effect=_fake_writer):
+            with patch("cdmw.services.mesh_workflow_service.find_native_mesh_core_binary", return_value=Path("mesh-core.exe")):
+                with patch("cdmw.services.mesh_workflow_service._ensure_native_mesh_session_submesh", return_value="session-0"):
+                    with patch("cdmw.services.mesh_workflow_service.write_native_preview_geometry_blob", side_effect=_fake_writer):
                         prepared = mesh_to_native_preview(mesh)
 
         batch = prepared.batches[0]
@@ -910,10 +928,129 @@ class NativePreviewPayloadTests(unittest.TestCase):
         try:
             self.assertTrue(host.update_mesh_edit_vertices(groups))
             self.assertIs(groups, commands[-1]["groups"])
+            self.assertEqual(1, commands[-1]["revision"])
         finally:
             host.close()
             host.deleteLater()
             app.processEvents()
+
+    def test_native_d3d11_mesh_edit_vertex_sender_coalesces_latest_in_order(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+
+        app = QApplication.instance() or QApplication([])
+        host = NativeD3D11PreviewHostFrame()
+        host._MESH_EDIT_ACK_TIMEOUT_SECONDS = 1.0
+        host._MESH_EDIT_VERTEX_FILE_THRESHOLD = 1
+        host._host_hwnd = lambda: 1  # type: ignore[method-assign]
+        first_send_started = threading.Event()
+        release_first_send = threading.Event()
+        second_send_started = threading.Event()
+        sent: list[dict[str, object]] = []
+
+        def send(_hwnd: int, _sender_hwnd: int, payload: Mapping[str, object]) -> bool:
+            sent.append(dict(payload))
+            if len(sent) == 1:
+                first_send_started.set()
+                release_first_send.wait(2.0)
+            elif len(sent) == 2:
+                second_send_started.set()
+            return True
+
+        host._send_host_json_command_to_hwnd = send  # type: ignore[method-assign]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dropped_path = Path(temp_dir) / "dropped.bin"
+            dropped_path.write_bytes(b"drop me")
+            try:
+                self.assertTrue(host.update_mesh_edit_vertices(({"source_submesh_index": 0},), revision=1))
+                self.assertTrue(first_send_started.wait(1.0))
+                sender_thread = host._mesh_edit_sender_thread
+                self.assertTrue(
+                    host.update_mesh_edit_vertices(
+                        (
+                            {
+                                "source_submesh_index": 0,
+                                "positions_binary": {
+                                    "path": str(dropped_path),
+                                    "count": 1,
+                                    "components": 3,
+                                    "type": "f64",
+                                    "delete_after": True,
+                                },
+                            },
+                        ),
+                        revision=2,
+                    )
+                )
+                with host._mesh_edit_sender_condition:
+                    dropped_payload_path = Path(str(host._mesh_edit_sender_pending[4]["payload_file"]))
+                self.assertTrue(host.update_mesh_edit_vertices(({"source_submesh_index": 0},), revision=3))
+                self.assertFalse(dropped_path.exists())
+                self.assertFalse(dropped_payload_path.exists())
+                self.assertIs(sender_thread, host._mesh_edit_sender_thread)
+
+                release_first_send.set()
+                self.assertTrue(host._accept_mesh_edit_update_ack({"event": "mesh_edit_vertices_updated"}))
+                self.assertTrue(second_send_started.wait(1.0))
+                self.assertEqual([1, 3], [int(payload["revision"]) for payload in sent])
+                self.assertTrue(host._accept_mesh_edit_update_ack({"event": "mesh_edit_vertices_updated", "revision": 3}))
+                self.assertTrue(host._wait_for_mesh_edit_sender_idle(1.0))
+                self.assertFalse(host._accept_mesh_edit_update_ack({"event": "mesh_edit_vertices_updated", "revision": 1}))
+                metrics = host.last_mesh_edit_send_metrics()
+                self.assertEqual(0, metrics["queue_depth"])
+                self.assertEqual(1, metrics["coalesced_updates"])
+                self.assertEqual(3, metrics["last_acked_revision"])
+            finally:
+                release_first_send.set()
+                host._accept_mesh_edit_update_ack({"event": "mesh_edit_vertices_updated"})
+                for payload in sent:
+                    payload_file = str(payload.get("payload_file") or "").strip()
+                    if payload_file:
+                        Path(payload_file).unlink(missing_ok=True)
+                host.close()
+                host.deleteLater()
+                app.processEvents()
+
+    def test_native_d3d11_mesh_edit_vertex_sender_rejects_stale_revision_and_cleans_temp(self) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+
+        app = QApplication.instance() or QApplication([])
+        commands: list[dict[str, object]] = []
+        host = NativeD3D11PreviewHostFrame()
+        host._send_host_json_command = lambda payload: commands.append(dict(payload)) or True  # type: ignore[method-assign]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stale_path = Path(temp_dir) / "stale.bin"
+            stale_path.write_bytes(b"stale")
+            try:
+                self.assertTrue(host.update_mesh_edit_vertices(({"source_submesh_index": 0},), revision=7))
+                self.assertFalse(
+                    host.update_mesh_edit_vertices(
+                        (
+                            {
+                                "source_submesh_index": 0,
+                                "positions_binary": {
+                                    "path": str(stale_path),
+                                    "count": 1,
+                                    "components": 3,
+                                    "type": "f64",
+                                    "delete_after": True,
+                                },
+                            },
+                        ),
+                        revision=6,
+                    )
+                )
+                self.assertFalse(stale_path.exists())
+                self.assertEqual([7], [int(payload["revision"]) for payload in commands])
+            finally:
+                host.close()
+                host.deleteLater()
+                app.processEvents()
 
     def test_native_d3d11_mesh_edit_vertex_updates_use_file_for_large_payloads(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -941,9 +1078,11 @@ class NativePreviewPayloadTests(unittest.TestCase):
                 )
             )
             self.assertEqual("update_mesh_edit_vertices_file", commands[-1]["command"])
+            self.assertEqual(1, commands[-1]["revision"])
             payload_path = Path(str(commands[-1]["payload_file"]))
             payload = json.loads(payload_path.read_text(encoding="utf-8"))
             self.assertEqual("update_mesh_edit_vertices", payload["command"])
+            self.assertEqual(1, payload["revision"])
             self.assertEqual(1, len(payload["groups"]))
         finally:
             if payload_path is not None:

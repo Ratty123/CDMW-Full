@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import struct
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
+
+from cdmw.core.atomic_file import atomic_write_bytes
 
 from .mesh_exporter import write_roundtrip_manifest
 from .mesh_obj_importer import (
@@ -31,12 +33,18 @@ from .mesh_parser import ParsedMesh, SubMesh
 from .scene_importer import import_scene_mesh
 
 
-def export_glb(mesh: ParsedMesh, output_dir: str | Path, name: str = "mesh") -> list[str]:
+def export_glb(
+    mesh: ParsedMesh,
+    output_dir: str | Path,
+    name: str = "mesh",
+    *,
+    extra_payload: Mapping[str, object] | None = None,
+) -> list[str]:
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     glb_path = root / f"{name or 'mesh'}.glb"
-    glb_path.write_bytes(_build_glb(mesh))
-    sidecar_path = write_roundtrip_manifest(mesh, glb_path)
+    atomic_write_bytes(glb_path, _build_glb(mesh))
+    sidecar_path = write_roundtrip_manifest(mesh, glb_path, extra_payload=dict(extra_payload or {}))
     return [str(glb_path), str(sidecar_path)]
 
 
@@ -100,6 +108,7 @@ def _attach_glb_submesh_sidecar(submesh: SubMesh, entry: object) -> None:
         return
     source_vertex_map = _normalize_obj_sidecar_source_vertex_map(entry, expected_count=len(submesh.vertices))
     submesh.source_vertex_map = source_vertex_map
+    submesh.source_vertex_map_authority = "target_donor_record" if source_vertex_map else ""
     submesh.source_vertex_offsets = _obj_sidecar_source_vertex_offsets(entry, source_vertex_map)
     submesh.source_index_offset = _obj_sidecar_int(entry, "original_index_offset")
     submesh.source_index_count = _obj_sidecar_original_index_count(entry)

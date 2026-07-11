@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import threading
 import time
 from collections.abc import Callable, Mapping
 from pathlib import Path, PurePosixPath
@@ -28,20 +29,22 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.archive import find_available_output_path, read_archive_entry_data
-from cdmw.core.archive_modding import (
-    ARCHIVE_MESH_EXTENSIONS,
-    export_archive_mesh,
-    mesh_import_runtime_sibling_mesh_candidates,
-)
-from cdmw.core.mesh_baseline import read_archive_entry_baseline_data
+from cdmw.services.archive_extraction_service import find_available_output_path
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
+from cdmw.services.archive_workflow_service import export_archive_mesh
+from cdmw.services.preview_workflow_service import mesh_import_runtime_sibling_mesh_candidates
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.atomic_file_service import atomic_write_text
+from cdmw.services.mesh_workflow_service import read_archive_entry_baseline_data
 from cdmw.domain.mesh.session import MeshImportSetupSelection, ModifyOriginalWorkflowSelection
 from cdmw.models import ArchiveEntry
-from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
-from cdmw.modding.scene_importer import SceneImportResult, import_scene_mesh_with_report
-from cdmw.modding.static_mesh_replacer import StaticMeshReplacementOptions, StaticSubmeshMapping
+from cdmw.services.mesh_workflow_service import ParsedMesh, parse_mesh
+from cdmw.services.mesh_workflow_service import SceneImportResult, import_scene_mesh_with_report
+from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions, StaticSubmeshMapping
 from cdmw.services.diagnostics_service import process_is_alive as _process_is_alive
 from cdmw.services.workspace_layout import workspace_paths
+from cdmw.workers.directory_scan_workers import DirectoryScanRequest, scan_directory_files
 
 
 class ArchiveMeshModifyOriginalMixin:
@@ -168,7 +171,11 @@ class ArchiveMeshModifyOriginalMixin:
         return safe_name or re.sub(r"[^A-Za-z0-9_.-]+", "_", entry.basename).strip("._") or "archive_mesh"
 
     @staticmethod
-    def _modify_original_workspace_supplemental_files(workspace_dir: Path) -> Tuple[Path, ...]:
+    def _modify_original_workspace_supplemental_files(
+        workspace_dir: Path,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Tuple[Path, ...]:
         referenced_root = workspace_dir / "referenced_files"
         if not referenced_root.is_dir():
             return ()
@@ -182,16 +189,14 @@ class ArchiveMeshModifyOriginalMixin:
             ".app_xml",
             ".prefabdata_xml",
         }
-        return tuple(
-            sorted(
-                (
-                    path
-                    for path in referenced_root.rglob("*")
-                    if path.is_file() and path.suffix.lower() in supported_suffixes
-                ),
-                key=lambda path: path.as_posix().lower(),
-            )
-        )
+        return scan_directory_files(
+            DirectoryScanRequest(
+                request_id=0,
+                root=referenced_root,
+                suffixes=tuple(supported_suffixes),
+            ),
+            stop_event=stop_event,
+        ).paths
 
     def _cleanup_stale_modify_original_sessions(
         self,
@@ -298,6 +303,7 @@ class ArchiveMeshModifyOriginalMixin:
         fallback_source_mesh: Optional[ParsedMesh],
         *,
         on_log: Optional[Callable[[str], None]] = None,
+        stop_event: Optional[threading.Event] = None,
         ) -> Optional[StaticMeshReplacementOptions]:
         if options is None or self._same_archive_entry(selected_entry, runtime_entry):
             return options
@@ -311,10 +317,14 @@ class ArchiveMeshModifyOriginalMixin:
         try:
             runtime_data = read_archive_entry_baseline_data(
                 runtime_entry,
-                read_entry_data=read_archive_entry_data,
+                read_entry_data=lambda archive_entry: read_archive_entry_data(
+                    archive_entry,
+                    stop_event=stop_event,
+                ),
             ).data
             runtime_mesh = parse_mesh(runtime_data, runtime_entry.path)
         except Exception as exc:
+            raise_if_cancelled(stop_event, "Mesh import preview cancelled.")
             if on_log is not None:
                 on_log(f"Runtime target remap skipped; could not parse {runtime_entry.path}: {exc}")
             return options
@@ -419,7 +429,12 @@ class ArchiveMeshModifyOriginalMixin:
             cached_texture_references = tuple(getattr(self, "current_archive_model_texture_references", ()) or ())
         cached_family_graph = getattr(current_preview_result, "asset_family_graph", None) if preview_matches_entry else None
 
-        def _task(log: Callable[[str], None], progress: Callable[[int, int, str], None]) -> dict[str, object]:
+        def _task(
+            log: Callable[[str], None],
+            progress: Callable[[int, int, str], None],
+            stop_event: threading.Event,
+        ) -> dict[str, object]:
+            raise_if_cancelled(stop_event, "Modify Original preparation cancelled.")
             total_steps = 5
             progress(1, total_steps, "Modify Original: creating safe clone folder...")
             if cleanup_stale_sessions:
@@ -450,24 +465,35 @@ class ArchiveMeshModifyOriginalMixin:
                 build_preview_context=create_workspace,
                 on_log=log,
             )
+            raise_if_cancelled(stop_event, "Modify Original preparation cancelled.")
             obj_paths = [path for path in result.output_paths if path.suffix.lower() == ".obj"]
             if not obj_paths:
                 raise ValueError("OBJ export did not produce an editable clone file.")
             obj_path = obj_paths[0]
             log("Preloading Modify Original clone geometry off the UI thread...")
             progress(3, total_steps, "Modify Original: loading editable clone geometry...")
-            scene_import_result = import_scene_mesh_with_report(obj_path)
+            scene_import_result = import_scene_mesh_with_report(obj_path, stop_event=stop_event)
             log("Preloading original archive mesh for Geometry alignment...")
             progress(4, total_steps, "Modify Original: loading original archive mesh...")
-            original_data = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data).data
+            original_data = read_archive_entry_baseline_data(
+                entry,
+                read_entry_data=lambda archive_entry: read_archive_entry_data(
+                    archive_entry,
+                    stop_event=stop_event,
+                ),
+            ).data
             original_mesh = parse_mesh(original_data, entry.path)
             source_skeleton = None
-            supplemental_files = self._modify_original_workspace_supplemental_files(workspace_dir)
+            supplemental_files = self._modify_original_workspace_supplemental_files(
+                workspace_dir,
+                stop_event=stop_event,
+            )
             readme_path: Optional[Path] = None
             manifest_path = workspace_dir / "modify_original_workspace.json"
             if create_workspace:
                 readme_path = workspace_dir / "MODIFY_ORIGINAL_README.txt"
-                readme_path.write_text(
+                atomic_write_text(
+                    readme_path,
                     "\n".join(
                         [
                             "Crimson Desert Mod Workbench - Modify Original Workspace",
@@ -489,9 +515,9 @@ class ArchiveMeshModifyOriginalMixin:
                             "Back in the app, use Mesh Replacement Setup and Geometry to review the clone and write a mod-ready loose package.",
                         ]
                     ),
-                    encoding="utf-8",
                 )
-            manifest_path.write_text(
+            atomic_write_text(
+                manifest_path,
                 json.dumps(
                     {
                         "format": "cdmw_modify_original_workspace_v1",
@@ -512,7 +538,6 @@ class ArchiveMeshModifyOriginalMixin:
                     },
                     indent=2,
                 ),
-                encoding="utf-8",
             )
             progress(5, total_steps, "Modify Original: opening Geometry workspace...")
             return {
@@ -563,6 +588,7 @@ class ArchiveMeshModifyOriginalMixin:
             on_complete=_handle_complete,
             show_archive_progress=True,
             task_accepts_progress=True,
+            task_accepts_cancel=True,
         )
 
     def _open_modify_original_mesh_setup(
@@ -607,10 +633,22 @@ class ArchiveMeshModifyOriginalMixin:
             )
             self._start_archive_mesh_patch(entry, preset_setup=setup)
             return
-        setup = self._prompt_archive_mesh_import_setup(
+        def _continue_modify_original_setup(setup: Optional[MeshImportSetupSelection]) -> None:
+            if setup is None:
+                return
+            setup.supplemental_files = supplemental_files
+            setup.source_label = setup.source_label or f"Modify Original clone: {obj_path}"
+            setup.source_skeleton = source_skeleton
+            setup.defer_original_texture_preview = True
+            if runtime_target_note:
+                setup.placement_context_note = f"{setup.placement_context_note}{runtime_target_note}"
+            self._start_archive_mesh_patch(entry, preset_setup=setup)
+
+        self._prepare_archive_mesh_import_setup_async(
             entry,
             obj_path,
             title="Modify Original Mesh Setup",
+            on_complete=_continue_modify_original_setup,
             scene_import_result=scene_import_result,
             source_skeleton=source_skeleton,
             original_mesh=original_mesh,
@@ -622,14 +660,5 @@ class ArchiveMeshModifyOriginalMixin:
                 "Mesh Replacement is preselected so the Geometry tab can resize or move existing parts."
             ),
         )
-        if setup is None:
-            return
-        setup.supplemental_files = supplemental_files
-        setup.source_label = setup.source_label or f"Modify Original clone: {obj_path}"
-        setup.source_skeleton = source_skeleton
-        setup.defer_original_texture_preview = True
-        if runtime_target_note:
-            setup.placement_context_note = f"{setup.placement_context_note}{runtime_target_note}"
-        self._start_archive_mesh_patch(entry, preset_setup=setup)
 
 __all__ = ["ArchiveMeshModifyOriginalMixin"]

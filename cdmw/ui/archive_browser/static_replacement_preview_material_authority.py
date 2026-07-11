@@ -4,22 +4,17 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from cdmw.domain.textures.material_parameters import (
+    evaluate_material_parameters,
+    material_parameter_renderer_overrides,
+    profile_source_emissive_enabled,
+    source_emissive_strength,
+)
 from cdmw.models import PreviewMaterialParameterInput
 
 
 _MATERIAL_AUTHORITY_PREVIEW_HINT_MARKER = "_material_authority_preview_native_hint_keys"
 _MATERIAL_AUTHORITY_PREVIEW_PREVIOUS_HINTS = "_material_authority_preview_previous_native_hints"
-
-
-def _safe_float(value: object, fallback: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError, OverflowError):
-        return float(fallback)
-
-
-def _clamp_float(value: object, minimum: float, maximum: float, fallback: float) -> float:
-    return max(float(minimum), min(float(maximum), _safe_float(value, fallback)))
 
 
 def material_authority_preview_parameters(
@@ -86,49 +81,30 @@ def material_authority_preview_native_override_values(
     *,
     enabled: bool,
     base_brightness: object = 1.0,
+    source: object | None = None,
+    part_adjustment: object | None = None,
 ) -> dict[str, object]:
     if not enabled or profile is None:
         return {}
-
-    brightness = _clamp_float(base_brightness, 0.1, 3.0, 1.0)
-    base_scale = _clamp_float(getattr(profile, "base_color_scale", 1.0), 0.1, 4.0, 1.0)
-    shadow_lift = _clamp_float(getattr(profile, "base_color_shadow_lift", 0.0), 0.0, 100.0, 0.0)
-    auto_balance = _clamp_float(getattr(profile, "base_color_auto_balance", 0.0), 0.0, 100.0, 0.0)
-    gamma = _clamp_float(getattr(profile, "base_color_gamma", 1.0), 0.25, 4.0, 1.0)
-    tone = _clamp_float(getattr(profile, "base_color_tone_contrast", 0.0), -100.0, 100.0, 0.0)
-    brightness *= base_scale
-    brightness *= 1.0 + shadow_lift * 0.006
-    brightness *= 1.0 + auto_balance * 0.002
-    if gamma < 1.0:
-        brightness *= 1.0 + (1.0 - gamma) * 0.75
-    if tone < 0.0:
-        brightness *= 1.0 + abs(tone) * 0.0015
-    elif tone > 0.0:
-        brightness *= max(0.55, 1.0 - tone * 0.001)
-
-    native_hints: dict[str, float] = {}
-    scratch_roughness = getattr(profile, "scratch_roughness", None)
-    if scratch_roughness is not None:
-        native_hints["roughness"] = _clamp_float(scratch_roughness, 0.0, 1.0, 0.55)
-    scratch_metallic = getattr(profile, "scratch_metallic", None)
-    if scratch_metallic is not None:
-        native_hints["metalness"] = _clamp_float(scratch_metallic, 0.0, 1.0, 0.0)
-    shine_scalar = getattr(profile, "shine_scalar", None)
-    if shine_scalar is not None:
-        native_hints["specular"] = _clamp_float(shine_scalar, 0.0, 1.0, 0.08)
-    height_scale = max(
-        _clamp_float(getattr(profile, "displacement_scale_multiplier", 0.0), 0.0, 1.0, 0.0),
-        _clamp_float(getattr(profile, "edge_relief_strength", 0.0), 0.0, 100.0, 0.0) / 100.0,
+    manual_role = str(getattr(part_adjustment, "material_role", "") or "").strip().lower() in {"glow", "emissive"}
+    source_role = source is None or source_emissive_strength(source) is not None
+    evaluated = evaluate_material_parameters(
+        profile,
+        source_slot=source,
+        part_adjustment=part_adjustment,
+        base_brightness=base_brightness,
+        emissive_role=manual_role or (profile_source_emissive_enabled(profile) and source_role),
     )
-    if height_scale > 0.0:
-        native_hints["height_scale"] = height_scale
-    if bool(getattr(profile, "force_nonmetal", False)):
-        native_hints["metalness"] = 0.0
-        native_hints["specular"] = min(native_hints.get("specular", 0.08), 0.04)
-        native_hints["roughness"] = max(native_hints.get("roughness", 0.55), 0.65)
+    renderer_parameters = material_parameter_renderer_overrides(evaluated)
+    native_hints = {
+        key: renderer_parameters[key]
+        for key in ("roughness", "metalness", "specular", "height_scale")
+        if key in renderer_parameters
+    }
     return {
-        "texture_brightness": max(0.1, min(3.0, brightness)),
+        "texture_brightness": renderer_parameters["texture_brightness"],
         "native_material_hints": native_hints,
+        "renderer_parameters": renderer_parameters,
     }
 
 
@@ -137,12 +113,16 @@ def apply_material_authority_preview_native_hints(
     profile: object | None,
     *,
     enabled: bool,
+    source: object | None = None,
+    part_adjustment: object | None = None,
 ) -> None:
     clear_material_authority_preview_native_hints(mesh)
     override_values = material_authority_preview_native_override_values(
         profile,
         enabled=enabled,
         base_brightness=getattr(mesh, "preview_texture_brightness", 1.0),
+        source=source,
+        part_adjustment=part_adjustment,
     )
     if not override_values:
         return

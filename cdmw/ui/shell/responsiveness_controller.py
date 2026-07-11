@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QLineEdit,
+    QMainWindow,
     QProgressBar,
     QPushButton,
     QSpinBox,
@@ -20,7 +21,8 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.shell.diagnostics_controller import qt_wrapper_is_valid
-from cdmw.ui.widgets import (
+from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+from cdmw.ui.layout_utils import (
     available_layout_size_for,
     build_responsive_splitter_sizes,
     clamp_splitter_sizes,
@@ -32,7 +34,7 @@ class ResponsivenessControllerMixin:
     """Responsive shell layout, splitter, and control-density behavior."""
 
     def resizeEvent(self, event: object) -> None:
-        super().resizeEvent(event)  # type: ignore[arg-type]
+        QMainWindow.resizeEvent(self, event)  # type: ignore[arg-type]
         theme_overlay = getattr(self, "theme_change_overlay", None)
         central_widget = self.centralWidget()
         if theme_overlay is not None and central_widget is not None:
@@ -45,7 +47,7 @@ class ResponsivenessControllerMixin:
             self._responsive_resize_timer.start()
 
     def changeEvent(self, event: object) -> None:
-        super().changeEvent(event)  # type: ignore[arg-type]
+        QMainWindow.changeEvent(self, event)  # type: ignore[arg-type]
         try:
             event_type = event.type()  # type: ignore[attr-defined]
         except AttributeError:
@@ -233,10 +235,12 @@ class ResponsivenessControllerMixin:
         if hasattr(self, "_sync_archive_controls_font"):
             self._sync_archive_controls_font(ui_font)
         apply_window_data_fonts(self)
-        if hasattr(self, "texture_editor_tab"):
-            self.texture_editor_tab.sync_ui_font(ui_font)
-        if hasattr(self, "mesh_editor_tab"):
-            self.mesh_editor_tab.sync_ui_font(ui_font, data_font)
+        texture_editor_tab = created_tool_widget(getattr(self, "texture_editor_tab", None))
+        if texture_editor_tab is not None:
+            texture_editor_tab.sync_ui_font(ui_font)
+        mesh_editor_tab = created_tool_widget(getattr(self, "mesh_editor_tab", None))
+        if mesh_editor_tab is not None:
+            mesh_editor_tab.sync_ui_font(ui_font, data_font)
         if hasattr(self, "settings_tab"):
             self.settings_tab.sync_appearance_controls(self.current_theme_key)
 
@@ -350,9 +354,13 @@ class ResponsivenessControllerMixin:
                 total_width,
             )
         )
-        self.replace_assistant_tab.apply_responsive_splitter_sizes(total_width)
-        self.research_tab.apply_responsive_splitter_sizes(total_width)
-        self.text_search_tab.apply_responsive_splitter_sizes(total_width)
+        for tab in (
+            created_tool_widget(getattr(self, "replace_assistant_tab", None)),
+            created_tool_widget(getattr(self, "research_tab", None)),
+            created_tool_widget(getattr(self, "text_search_tab", None)),
+        ):
+            if tab is not None:
+                tab.apply_responsive_splitter_sizes(total_width)
         self._apply_archive_preview_content_responsive_sizes()
 
     def _apply_saved_splitter_sizes_if_enabled(self, total_width: int) -> None:
@@ -394,29 +402,32 @@ class ResponsivenessControllerMixin:
         self._schedule_archive_files_pane_fit_to_columns()
 
         text_search_sizes = self._load_saved_splitter_sizes("ui/text_search_splitter_sizes")
-        if text_search_sizes:
-            self.text_search_tab.set_splitter_sizes(text_search_sizes)
+        text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
+        if text_search_sizes and text_search_tab is not None:
+            text_search_tab.set_splitter_sizes(text_search_sizes)
         replace_assistant_sizes = self._load_saved_splitter_sizes("ui/replace_assistant_splitter_sizes")
-        if replace_assistant_sizes:
-            self.replace_assistant_tab.set_splitter_sizes(replace_assistant_sizes, total_width=total_width)
+        replace_assistant_tab = created_tool_widget(getattr(self, "replace_assistant_tab", None))
+        if replace_assistant_sizes and replace_assistant_tab is not None:
+            replace_assistant_tab.set_splitter_sizes(replace_assistant_sizes, total_width=total_width)
+        research_tab = created_tool_widget(getattr(self, "research_tab", None))
         research_main_sizes = self._load_saved_splitter_sizes("ui/research_main_splitter_sizes")
-        if research_main_sizes:
-            self.research_tab.set_main_splitter_sizes(research_main_sizes, total_width=total_width)
+        if research_main_sizes and research_tab is not None:
+            research_tab.set_main_splitter_sizes(research_main_sizes, total_width=total_width)
         research_groups_sizes = self._load_saved_splitter_sizes("ui/research_groups_splitter_sizes")
-        if research_groups_sizes:
-            self.research_tab.set_groups_splitter_sizes(research_groups_sizes, total_width=total_width)
+        if research_groups_sizes and research_tab is not None:
+            research_tab.set_groups_splitter_sizes(research_groups_sizes, total_width=total_width)
         research_unknown_sizes = self._load_saved_splitter_sizes("ui/research_unknown_splitter_sizes")
-        if research_unknown_sizes:
-            self.research_tab.set_unknown_splitter_sizes(research_unknown_sizes, total_width=total_width)
+        if research_unknown_sizes and research_tab is not None:
+            research_tab.set_unknown_splitter_sizes(research_unknown_sizes, total_width=total_width)
         research_reference_sizes = self._load_saved_splitter_sizes("ui/research_reference_splitter_sizes")
-        if research_reference_sizes:
-            self.research_tab.set_reference_splitter_sizes(research_reference_sizes, total_width=total_width)
+        if research_reference_sizes and research_tab is not None:
+            research_tab.set_reference_splitter_sizes(research_reference_sizes, total_width=total_width)
         research_analysis_sizes = self._load_saved_splitter_sizes("ui/research_analysis_splitter_sizes")
-        if research_analysis_sizes:
-            self.research_tab.set_analysis_splitter_sizes(research_analysis_sizes, total_width=total_width)
+        if research_analysis_sizes and research_tab is not None:
+            research_tab.set_analysis_splitter_sizes(research_analysis_sizes, total_width=total_width)
         research_notes_sizes = self._load_saved_splitter_sizes("ui/research_notes_splitter_sizes")
-        if research_notes_sizes:
-            self.research_tab.set_notes_splitter_sizes(research_notes_sizes, total_width=total_width)
+        if research_notes_sizes and research_tab is not None:
+            research_tab.set_notes_splitter_sizes(research_notes_sizes, total_width=total_width)
         self._apply_archive_preview_content_responsive_sizes()
 
     def _apply_responsive_window_defaults(
@@ -601,9 +612,13 @@ class ResponsivenessControllerMixin:
 
     def _apply_column_autofit(self) -> None:
         self._autofit_archive_tree_columns()
-        self.replace_assistant_tab.auto_fit_columns()
-        self.text_search_tab.auto_fit_columns()
-        self.research_tab.auto_fit_columns()
+        for tab in (
+            created_tool_widget(getattr(self, "replace_assistant_tab", None)),
+            created_tool_widget(getattr(self, "text_search_tab", None)),
+            created_tool_widget(getattr(self, "research_tab", None)),
+        ):
+            if tab is not None:
+                tab.auto_fit_columns()
 
 
 

@@ -383,7 +383,7 @@ def _morph_slider_native_post_edit_deltas(
     slider_only_mesh: object,
 ) -> list[list[tuple[float, float, float]]] | None:
     try:
-        from cdmw.modding.mesh_native_core import (
+        from cdmw.services.mesh_workflow_service import (
             build_native_morph_post_edit_deltas,
             native_mesh_core_available,
             record_native_mesh_core_fallback,
@@ -408,7 +408,7 @@ def _allow_python_morph_post_edit_delta_fallback(working_mesh: object, slider_on
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
         return True
     try:
-        from cdmw.modding.mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+        from cdmw.services.mesh_workflow_service import native_mesh_core_available, record_native_mesh_core_fallback
     except Exception:
         return True
     if not native_mesh_core_available():

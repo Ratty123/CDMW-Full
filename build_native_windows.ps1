@@ -173,6 +173,16 @@ Invoke-NativeBuild `
     -ProjectDir (Join-Path $scriptDir "native\cdmw_mesh_core") `
     -ExeRelativePath ("build\$Configuration\cdmw-mesh-core.exe")
 
+$dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+if (-not $dotnet) {
+    throw "dotnet was not found; required Mesh Editor renderer cannot be built."
+}
+$dotnetProject = Join-Path $scriptDir "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
+& $dotnet.Source build $dotnetProject -c $Configuration --nologo
+if ($LASTEXITCODE -ne 0) {
+    throw ".NET Mesh Editor build failed with exit code $LASTEXITCODE."
+}
+
 $cargo = Get-Command cargo -ErrorAction SilentlyContinue
 if ($cargo) {
     Push-Location (Join-Path $scriptDir "native\cd_hkx")

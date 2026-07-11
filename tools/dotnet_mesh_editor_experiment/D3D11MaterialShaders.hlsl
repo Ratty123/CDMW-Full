@@ -18,6 +18,17 @@ cbuffer CameraConstants : register(b0)
     float MaterialHasEmissive;
     float MaterialDebugMode;
     float MaterialPadding;
+    float4 MaterialBaseAdjustments;
+    float4 MaterialTint;
+    float4 MaterialBaseAdvanced;
+    float4 MaterialBasePost;
+    float4 MaterialSurfaceOverrides;
+    float4 MaterialSurfaceOverrideFlags;
+    float4 MaterialSurfaceTransforms;
+    float4 MaterialSurfaceTransforms2;
+    float4 MaterialSurfaceBlends;
+    float4 MaterialEmissiveOverride;
+    float4 MaterialEmissiveOverrideFlags;
 };
 
 Texture2D BaseTexture : register(t0);
@@ -105,6 +116,13 @@ float4 PSOverlay(OverlayVSOutput input) : SV_Target
 
 float4 PSMain(VSOutput input) : SV_Target
 {
+    if (MaterialDebugMode > 6.5f)
+    {
+        float3 geometryNormal = normalize(input.Normal);
+        float geometryLight = saturate(dot(geometryNormal, normalize(-LightDirection)));
+        float3 geometryColor = float3(0.55f, 0.62f, 0.72f);
+        return float4(saturate(geometryColor * (AmbientColor + LightColor * geometryLight)), 1.0f);
+    }
     float2 uv = input.TexCoord;
     if (MaterialHasHeight > 0.5f)
     {
@@ -114,16 +132,69 @@ float4 PSMain(VSOutput input) : SV_Target
     }
 
     float4 baseColor = MaterialHasBase > 0.5f ? BaseTexture.Sample(MaterialSampler, uv) : float4(0.55f, 0.62f, 0.72f, 1.0f);
+    baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x, 0.1f));
+    baseColor.rgb *= max(MaterialTint.rgb, float3(0.0f, 0.0f, 0.0f));
+    float materialGamma = max(MaterialBaseAdjustments.w, 0.01f);
+    baseColor.rgb = pow(saturate(baseColor.rgb), float3(materialGamma, materialGamma, materialGamma));
+    float baseLift = saturate(MaterialBaseAdvanced.x);
+    baseColor.rgb = saturate(baseLift.xxx + baseColor.rgb * (1.0f - baseLift));
+    float baseLuma = dot(baseColor.rgb, float3(0.299f, 0.587f, 0.114f));
+    baseColor.rgb = saturate(baseLuma.xxx + (baseColor.rgb - baseLuma.xxx) * max(MaterialBaseAdjustments.z, 0.0f));
+    baseLuma = dot(baseColor.rgb, float3(0.299f, 0.587f, 0.114f));
+    float autoBalanceStrength = saturate(MaterialBaseAdvanced.z);
+    float autoBalanceTarget = baseLuma < (96.0f / 255.0f)
+        ? (116.0f / 255.0f)
+        : (baseLuma > (158.0f / 255.0f) ? (138.0f / 255.0f) : baseLuma);
+    float autoBalanceCorrection = autoBalanceStrength > 0.0f
+        ? clamp(pow(autoBalanceTarget / max(baseLuma, 1.0f / 255.0f), autoBalanceStrength), 0.68f, 1.42f)
+        : 1.0f;
+    baseColor.rgb = saturate(baseColor.rgb * autoBalanceCorrection);
+    baseLuma = dot(baseColor.rgb, float3(0.299f, 0.587f, 0.114f));
+    float shadowMask = pow(saturate(((96.0f / 255.0f) - baseLuma) / (96.0f / 255.0f)), 1.5f);
+    float shadowBoost = (72.0f / 255.0f) * saturate(MaterialBaseAdvanced.w);
+    baseColor.rgb = lerp(baseColor.rgb, saturate(baseColor.rgb + shadowBoost), shadowMask);
+    baseColor.rgb = saturate((baseColor.rgb - 0.5f) * max(MaterialBaseAdjustments.y, 0.01f) + 0.5f);
+    baseColor.rgb = saturate(baseColor.rgb * max(MaterialBasePost.x, 0.0f));
+    float valueCap = saturate(MaterialBaseAdvanced.y);
+    baseColor.rgb = min(baseColor.rgb, valueCap.xxx);
     float3 normal = SampleNormal(input);
     float3 lightDirection = normalize(-LightDirection);
     float3 viewDirection = normalize(CameraPosition - input.WorldPosition);
     float3 halfVector = normalize(lightDirection + viewDirection);
 
     float roughness = MaterialHasRoughness > 0.5f ? RoughnessTexture.Sample(MaterialSampler, uv).r : MaterialRoughness;
+    if (MaterialSurfaceTransforms.w > 0.5f)
+    {
+        roughness = 1.0f - roughness;
+    }
+    roughness *= max(MaterialSurfaceTransforms.x, 0.0f);
+    roughness = max(roughness, MaterialSurfaceTransforms.y);
+    roughness = min(roughness, MaterialSurfaceTransforms.z);
+    roughness = lerp(roughness, MaterialSurfaceBlends.x, saturate(MaterialSurfaceBlends.y));
+    if (MaterialSurfaceOverrideFlags.x > 0.5f)
+    {
+        roughness = MaterialSurfaceOverrides.x;
+    }
     roughness = clamp(roughness, 0.04f, 1.0f);
     float metallic = MaterialHasMetallic > 0.5f ? MetallicTexture.Sample(MaterialSampler, uv).r : MaterialMetallic;
+    if (MaterialSurfaceTransforms2.w > 0.5f)
+    {
+        metallic = 1.0f - metallic;
+    }
+    metallic *= max(MaterialSurfaceTransforms2.x, 0.0f);
+    metallic = max(metallic, MaterialSurfaceTransforms2.y);
+    metallic = min(metallic, MaterialSurfaceTransforms2.z);
+    metallic = lerp(metallic, MaterialSurfaceBlends.z, saturate(MaterialSurfaceBlends.w));
+    if (MaterialSurfaceOverrideFlags.y > 0.5f)
+    {
+        metallic = MaterialSurfaceOverrides.y;
+    }
     metallic = saturate(metallic);
     float3 specularColor = MaterialHasSpecular > 0.5f ? SpecularTexture.Sample(MaterialSampler, uv).rgb : lerp(float3(0.04f, 0.04f, 0.04f), baseColor.rgb, metallic);
+    if (MaterialSurfaceOverrideFlags.z > 0.5f)
+    {
+        specularColor *= saturate(MaterialSurfaceOverrides.z);
+    }
 
     float ndotl = saturate(dot(normal, lightDirection));
     float ndoth = saturate(dot(normal, halfVector));
@@ -131,7 +202,20 @@ float4 PSMain(VSOutput input) : SV_Target
     float specular = pow(ndoth, specPower) * (1.0f - roughness * 0.65f);
     float3 diffuse = baseColor.rgb * LightColor * ndotl;
     float3 spec = specularColor * specular;
-    float3 emissive = MaterialHasEmissive > 0.5f ? EmissiveTexture.Sample(MaterialSampler, uv).rgb : float3(0.0f, 0.0f, 0.0f);
+    float3 emissive = float3(0.0f, 0.0f, 0.0f);
+    if (MaterialHasEmissive > 0.5f)
+    {
+        emissive = EmissiveTexture.Sample(MaterialSampler, uv).rgb;
+        if (MaterialEmissiveOverrideFlags.x > 0.5f)
+        {
+            emissive *= MaterialEmissiveOverride.rgb;
+        }
+        emissive *= MaterialEmissiveOverrideFlags.y > 0.5f ? MaterialEmissiveOverride.w : 1.0f;
+    }
+    else if (MaterialEmissiveOverrideFlags.x > 0.5f && MaterialEmissiveOverrideFlags.y > 0.5f)
+    {
+        emissive = MaterialEmissiveOverride.rgb * MaterialEmissiveOverride.w;
+    }
     if (MaterialDebugMode > 0.5f && MaterialDebugMode < 1.5f)
     {
         return baseColor;

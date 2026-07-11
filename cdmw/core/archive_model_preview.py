@@ -33,42 +33,52 @@ if TYPE_CHECKING:
 _FAST_ARCHIVE_PREVIEW_MAX_FACES = 35_000
 
 
-def _archive_core():
-    from cdmw.core import archive as archive_core
-
-    return archive_core
-
-
 def build_hkx_descriptor_hint_from_xml_text(*args, **kwargs):
-    return _archive_core().build_hkx_descriptor_hint_from_xml_text(*args, **kwargs)
+    from cdmw.core.archive_hkx_descriptor import build_hkx_descriptor_hint_from_xml_text as owner
+
+    return owner(*args, **kwargs)
 
 
 def build_hkx_editable_geometry_document(*args, **kwargs):
-    return _archive_core().build_hkx_editable_geometry_document(*args, **kwargs)
+    from cdmw.core.archive_hkx_editable_geometry import build_hkx_editable_geometry_document as owner
+
+    return owner(*args, **kwargs)
 
 
 def build_hkx_physics_overlay_from_document(*args, **kwargs):
-    return _archive_core().build_hkx_physics_overlay_from_document(*args, **kwargs)
+    from cdmw.core.archive_hkx_overlay import build_hkx_physics_overlay_from_document as owner
+
+    return owner(*args, **kwargs)
 
 
 def build_mesh_preview_from_bytes(*args, **kwargs):
-    return _archive_core().build_mesh_preview_from_bytes(*args, **kwargs)
+    from cdmw.core.archive_mesh_import_preview import build_mesh_preview_from_bytes as owner
+
+    return owner(*args, **kwargs)
 
 
 def merge_hkx_physics_overlays(*args, **kwargs):
-    return _archive_core().merge_hkx_physics_overlays(*args, **kwargs)
+    from cdmw.core.archive_hkx_overlay import merge_hkx_physics_overlays as owner
+
+    return owner(*args, **kwargs)
 
 
 def build_pam_model_preview(*args, **kwargs):
-    return _archive_core().build_pam_model_preview(*args, **kwargs)
+    from cdmw.core.model_preview import build_pam_model_preview as owner
+
+    return owner(*args, **kwargs)
 
 
 def build_pamlod_model_preview(*args, **kwargs):
-    return _archive_core().build_pamlod_model_preview(*args, **kwargs)
+    from cdmw.core.model_preview import build_pamlod_model_preview as owner
+
+    return owner(*args, **kwargs)
 
 
 def ensure_model_preview_is_reasonable(*args, **kwargs):
-    return _archive_core().ensure_model_preview_is_reasonable(*args, **kwargs)
+    from cdmw.core.model_preview import ensure_model_preview_is_reasonable as owner
+
+    return owner(*args, **kwargs)
 
 
 def parse_archive_note_flags(note: str) -> set[str]:

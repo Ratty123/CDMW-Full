@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Dict, Mapping, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Dict, Optional
 
-from PySide6.QtCore import QSize, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -68,39 +69,18 @@ from cdmw.models import (
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
-from cdmw.services.asset_authoring_service import AssetAuthoringService
 from cdmw.ui.localization import BUILTIN_LANGUAGES
+from cdmw.ui.settings_helper_discovery import (
+    SettingsHelperDiscoveryMixin,
+    asset_authoring_helper_status_text as _asset_authoring_helper_status_text,
+)
 from cdmw.ui.themes import UI_THEME_SCHEMES
-from cdmw.workers.utility_workers import UtilityWorker
+
+if TYPE_CHECKING:
+    from cdmw.services.asset_authoring_service import AssetAuthoringService
 
 
-def _asset_authoring_helper_status_text(report: Mapping[str, object]) -> str:
-    helpers = report.get("helpers", {})
-    if not isinstance(helpers, Mapping) or not helpers:
-        return "No asset authoring helpers reported."
-    lines: list[str] = []
-    for helper in helpers.values():
-        if not isinstance(helper, Mapping):
-            continue
-        label = str(helper.get("label") or helper.get("key") or "Helper")
-        status = str(helper.get("status") or "unknown")
-        version_status = str(helper.get("version_status") or "")
-        version = str(helper.get("version") or "").strip()
-        if version:
-            version_text = version
-        elif version_status == "not_checked":
-            version_text = "version not checked"
-        elif version_status:
-            version_text = f"version {version_status}"
-        else:
-            version_text = "version unavailable"
-        path = str(helper.get("path") or "").strip()
-        path_text = f" | {path}" if path else ""
-        lines.append(f"{label}: {status} | {version_text}{path_text}")
-    return "\n".join(lines) if lines else "No asset authoring helpers reported."
-
-
-class SettingsTab(QWidget):
+class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
     theme_changed = Signal(str)
     appearance_change_started = Signal(object)
     appearance_changed = Signal(object)
@@ -116,15 +96,18 @@ class SettingsTab(QWidget):
         *,
         settings,
         theme_key: str,
-        asset_authoring_service: AssetAuthoringService | None = None,
+        asset_authoring_service: AssetAuthoringService | Callable[[], AssetAuthoringService] | None = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.settings = settings
-        self.asset_authoring_service = asset_authoring_service or AssetAuthoringService(settings=settings)
+        self.asset_authoring_service = asset_authoring_service if not callable(asset_authoring_service) else None
+        self._asset_authoring_service_factory = asset_authoring_service if callable(asset_authoring_service) else None
         self._settings_ready = False
-        self._asset_authoring_helper_thread: QThread | None = None
-        self._asset_authoring_helper_worker: UtilityWorker | None = None
+        self._asset_authoring_helper_thread: object | None = None
+        self._asset_authoring_helper_worker: object | None = None
+        self._asset_authoring_helpers_loaded = False
+        self._asset_authoring_helper_discovery_scheduled = False
         self._settings_save_timer = QTimer(self)
         self._settings_save_timer.setSingleShot(True)
         self._settings_save_timer.setInterval(250)
@@ -1037,7 +1020,7 @@ class SettingsTab(QWidget):
         )
         asset_authoring_hint.setWordWrap(True)
         asset_authoring_hint.setObjectName("HintLabel")
-        self.asset_authoring_helper_status_label = QLabel("")
+        self.asset_authoring_helper_status_label = QLabel("Helper status loads when Setup is shown.")
         self.asset_authoring_helper_status_label.setWordWrap(True)
         self.asset_authoring_helper_status_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.asset_authoring_helper_refresh_button = QPushButton("Refresh Helper Versions")
@@ -1054,7 +1037,7 @@ class SettingsTab(QWidget):
         asset_authoring_layout.addWidget(self.asset_authoring_helper_status_label)
         asset_authoring_layout.addWidget(asset_authoring_button_widget)
         self.setup_page_layout.addWidget(asset_authoring_group)
-        self._refresh_asset_authoring_helper_status(include_versions=False)
+        self.section_nav_list.currentRowChanged.connect(self._handle_settings_section_changed)
 
         notes = QLabel(
             "These preferences are stored in the local config beside the EXE and apply across sessions."
@@ -1185,63 +1168,6 @@ class SettingsTab(QWidget):
                 self.section_nav_list.setCurrentRow(row)
                 return
 
-    def iter_shutdown_workers(self) -> tuple[tuple[str, QThread | None, object | None], ...]:
-        return (("asset_authoring_helper_versions", self._asset_authoring_helper_thread, self._asset_authoring_helper_worker),)
-
-    def request_shutdown(self) -> None:
-        worker = self._asset_authoring_helper_worker
-        if worker is not None and hasattr(worker, "stop"):
-            worker.stop()
-        thread = self._asset_authoring_helper_thread
-        if thread is not None and thread.isRunning():
-            thread.quit()
-
-    def _refresh_asset_authoring_helper_status(self, *, include_versions: bool) -> None:
-        try:
-            report = self.asset_authoring_service.discovery_report(include_versions=include_versions)
-        except Exception as exc:
-            self.asset_authoring_helper_status_label.setText(f"Asset authoring helper discovery failed: {exc}")
-            return
-        self._apply_asset_authoring_helper_report(report)
-
-    def _start_asset_authoring_helper_version_refresh(self) -> None:
-        thread = self._asset_authoring_helper_thread
-        if thread is not None and thread.isRunning():
-            return
-        self.asset_authoring_helper_refresh_button.setEnabled(False)
-        self.asset_authoring_helper_status_label.setText("Checking asset authoring helper versions...")
-        thread = QThread(self)
-        worker = UtilityWorker(lambda _log: self.asset_authoring_service.discovery_report(include_versions=True))
-        worker.moveToThread(thread)
-        thread.started.connect(worker.run)
-        worker.completed.connect(self._handle_asset_authoring_helper_report, Qt.ConnectionType.QueuedConnection)
-        worker.error.connect(self._handle_asset_authoring_helper_error, Qt.ConnectionType.QueuedConnection)
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(lambda: self._finish_asset_authoring_helper_version_refresh(thread, worker))
-        self._asset_authoring_helper_thread = thread
-        self._asset_authoring_helper_worker = worker
-        thread.start(QThread.LowPriority)
-
-    def _handle_asset_authoring_helper_report(self, report: object) -> None:
-        if isinstance(report, Mapping):
-            self._apply_asset_authoring_helper_report(report)
-            return
-        self.asset_authoring_helper_status_label.setText("Asset authoring helper discovery returned an invalid report.")
-
-    def _handle_asset_authoring_helper_error(self, message: str) -> None:
-        self.asset_authoring_helper_status_label.setText(f"Asset authoring helper version check failed: {message}")
-
-    def _finish_asset_authoring_helper_version_refresh(self, thread: QThread, worker: object) -> None:
-        if self._asset_authoring_helper_thread is thread:
-            self._asset_authoring_helper_thread = None
-        if self._asset_authoring_helper_worker is worker:
-            self._asset_authoring_helper_worker = None
-        self.asset_authoring_helper_refresh_button.setEnabled(True)
-
-    def _apply_asset_authoring_helper_report(self, report: Mapping[str, object]) -> None:
-        self.asset_authoring_helper_status_label.setText(_asset_authoring_helper_status_text(report))
 
     def _create_int_spin(self, *, minimum: int, maximum: int, step: int, suffix: str = "") -> QSpinBox:
         spin = QSpinBox()

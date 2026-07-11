@@ -565,6 +565,61 @@ class MeshImportRegressionTests(unittest.TestCase):
             self.assertTrue(getattr(mesh, "_cdmw_obj_sidecar_present"))
             self.assertEqual(2, len(mesh.submeshes))
 
+    def test_obj_import_accepts_legacy_sword_sidecar_with_only_empty_bone_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            obj_path = Path(temp_dir) / "sword.obj"
+            obj_path.write_text(
+                "\n".join(
+                    [
+                        "# source_path: weapon/model/sword.pac",
+                        "# source_format: pac",
+                        "o Blade",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "f 1 2 3",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            Path(f"{obj_path}.meta.json").write_text(
+                json.dumps(
+                    {
+                        "format": "mesh_roundtrip_manifest_v2",
+                        "schema_version": 1,
+                        "source_path": "weapon/model/sword.pac",
+                        "source_format": "pac",
+                        "import_rules": {"preserve_bone_weights": True},
+                        "skeleton_info": {"skinned": True},
+                        "lods": [
+                            {
+                                "lod_index": 0,
+                                "submeshes": [
+                                    {
+                                        "stable_id": "lod0_submesh0",
+                                        "original_vertex_count": 3,
+                                        "original_index_count": 3,
+                                        "source_vertex_map": [0, 1, 2],
+                                        "source_index_map": [0, 1, 2],
+                                        "bone_layout": {
+                                            "has_bones": False,
+                                            "vertex_count": 3,
+                                            "max_influences": 0,
+                                        },
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            mesh = import_obj(str(obj_path))
+
+            self.assertTrue(getattr(mesh, "_cdmw_obj_sidecar_present"))
+            self.assertFalse(mesh.has_bones)
+
     def test_obj_import_warns_when_sidecar_material_or_texture_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             obj_path = Path(temp_dir) / "changed_material.obj"
@@ -882,8 +937,8 @@ class MeshImportRegressionTests(unittest.TestCase):
         imported = SubMesh(
             vertices=[(99.0, 99.0, 99.0), (0.0, 0.0, 0.0)],
             source_vertex_map=[2, 1],
+            source_vertex_map_authority="target_donor_record",
         )
-
         self.assertEqual(_choose_pac_donor_indices(original, imported), [2, 1])
 
     def test_static_donor_mapping_uses_native_alignment_before_python_fallback(self) -> None:

@@ -104,9 +104,6 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     if hasattr(control_tabs, "setTabVisible"):
         control_tabs.setTabVisible(control_tabs.indexOf(mesh_edit_tab), False)
         control_tabs.setTabVisible(control_tabs.indexOf(textures_tab), False)
-    if full_import_model_replacement and hasattr(control_tabs, "setTabVisible"):
-        for advanced_tab in (parts_tab,):
-            control_tabs.setTabVisible(control_tabs.indexOf(advanced_tab), False)
     diagnostics_page.setMinimumWidth(0 if embedded_alignment_builder else alignment_control_content_min_width)
     diagnostics_toolbar = QHBoxLayout()
     diagnostics_toolbar.setContentsMargins(5, 3, 5, 3)
@@ -159,7 +156,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     setup_summary_layout = summary_section.body_layout
     setup_layout.addWidget(summary_section)
     advanced_setup_section = CollapsibleSection("Advanced", expanded=False)
-    advanced_setup_section.setVisible(not full_import_model_replacement)
+    advanced_setup_section.setVisible(True)
     setup_advanced_layout = advanced_setup_section.body_layout
     placement_note = None
     source_mix_control_text = _alignment_source_mix_control_text_helper()

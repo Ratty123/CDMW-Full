@@ -1,0 +1,178 @@
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+DOTNET_EDITOR = ROOT / "tools" / "dotnet_mesh_editor_experiment"
+
+
+def _source(name: str) -> str:
+    return (DOTNET_EDITOR / name).read_text(encoding="utf-8")
+
+
+def test_parameter_protocol_is_versioned_session_scoped_and_independently_ordered() -> None:
+    protocol = _source("ExperimentForm.Protocol.cs")
+    material_protocol = _source("ExperimentForm.MaterialProtocol.cs")
+    state = _source("NetMaterialSet.Parameters.cs")
+
+    assert 'ResidentMaterialParameterUpdatesCapability = "resident_material_parameter_updates_v1"' in protocol
+    assert 'case "material_parameter_update":' in protocol
+    assert 'WriteProtocolEvent("material_parameter_applied"' in material_protocol
+    assert 'WriteProtocolEvent("material_parameter_failed"' in material_protocol
+    assert 'const string expectedSchema = "cdmw_mesh_material_parameters_v1"' in state
+    assert 'if (version != 1)' in state
+    assert 'RequiredParameterLong(root, "edit_revision")' in state
+    assert 'RequiredParameterLong(root, "parameter_generation")' in state
+    assert "AcceptMaterialSession(update.SessionId" in material_protocol
+    assert "update.ParameterGeneration <= _lastRequestedMaterialParameterGeneration" in material_protocol
+    assert "update.EditRevision < _lastAppliedEditRevision" in material_protocol
+    assert 'CanApplyEditRevision(update.EditRevision, "material_parameter_update"' not in material_protocol
+    assert 'MarkEditRevisionApplied(update.EditRevision, "material_parameter_update"' not in material_protocol
+
+
+def test_parameter_groups_validate_atomically_and_preserve_null_zero_semantics() -> None:
+    state = _source("NetMaterialSet.Parameters.cs")
+    material_protocol = _source("ExperimentForm.MaterialProtocol.cs")
+
+    parse = state.split("public static NetMaterialParameterUpdate ParseParameterUpdate", maxsplit=1)[1]
+    apply = state.split("public void ApplyParameterUpdate", maxsplit=1)[1].split("public static NetMaterialParameterUpdate", maxsplit=1)[0]
+    handler = material_protocol.split("private void HandleMaterialParameterUpdate", maxsplit=1)[1].split("private static long ProtocolParameterGeneration", maxsplit=1)[0]
+    assert "ValidateParameterGroupFields(item);" in parse
+    assert "replacement_preview" in parse
+    assert "unique non-negative integers" in parse
+    assert "an empty array means all submeshes" in parse
+    assert "An all-submesh material parameter group must be the only group." in parse
+    assert "affected.Order().ToArray()" in parse
+    assert 'OptionalFloat(group, "metalness", 0.0f, 1.0f, "metallic")' in parse
+    assert 'OptionalInteger(group, "base_color_lift", 0, 254)' in parse
+    assert 'OptionalInteger(group, "value_max", 0, 255)' in parse
+    assert 'OptionalInteger(group, "auto_balance", 0, 100)' in parse
+    assert 'OptionalInteger(group, "shadow_lift", 0, 100)' in parse
+    assert 'OptionalBoolean(group, "roughness_inverted", "roughness_invert")' in parse
+    assert 'OptionalBoolean(group, "metalness_inverted", "metallic_inverted", "metalness_invert", "metallic_invert")' in parse
+    assert 'OptionalFloat(group, "metalness_scale", 0.0f, 4.0f, "metallic_scale")' in parse
+    assert 'OptionalInteger(group, "roughness_min", 0, 255)' in parse
+    assert 'OptionalInteger(group, "metalness_max", 0, 255, "metallic_max")' in parse
+    assert 'OptionalFloat(group, "roughness_blend_target", 0.0f, 1.0f)' in parse
+    assert 'OptionalFloat(group, "metalness_blend_strength", 0.0f, 1.0f, "metallic_blend_strength")' in parse
+    assert "MaterialRole = OptionalMaterialRole(group)" in parse
+    assert 'Visible = OptionalBoolean(group, "visible")' in parse
+    assert "value.ValueKind == JsonValueKind.Null" in parse
+    assert "new NetOptionalParameter<float>(true, null)" in parse
+    assert "new NetOptionalParameter<float>(true, (float)number)" in parse
+    assert "new NetOptionalParameter<int>(true, null)" in parse
+    assert "new NetOptionalParameter<bool>(true, null)" in parse
+    assert "Material parameter material_role must be 1-64" in parse
+    assert "var next = new Dictionary<int, NetMaterialParameters>(ParameterStates);" in apply
+    assert apply.index("foreach (var group") < apply.index("ParameterStates = next;")
+    assert handler.index("NetMaterialSet.ParseParameterUpdate(root)") < handler.index("_materials.ApplyParameterUpdate(update)")
+    assert handler.index("update.AffectedSubmeshes.Any") < handler.index("_materials.ApplyParameterUpdate(update)")
+    assert "_materials.ReplaceParameterState(previous);" in handler
+    assert "ExpandAllSubmeshes(" in handler
+
+
+def test_parameter_apply_updates_only_d3d_constants_and_exposes_counters_and_roles() -> None:
+    renderer = _source("D3D11MaterialViewport.cs")
+    resources = _source("D3D11MaterialViewport.Resources.cs")
+    metrics = _source("D3D11MaterialViewport.Metrics.cs")
+    viewport = _source("MeshViewport.Renderer.cs")
+    status = _source("MeshViewport.Status.cs")
+
+    apply = renderer.split("public bool TryApplyMaterialParameters", maxsplit=1)[1].split("private D3D11CameraConstants", maxsplit=1)[0]
+    assert "_affectedMaterialParameterBatchCount" in apply
+    assert "_materialParameterApplyCount++" in apply
+    assert "Invalidate();" in apply
+    for forbidden in ("RefreshTextures", "TryApplyMaterialState", "CreateTextureSrv", "RebuildGeometry", "DisposeBatches"):
+        assert forbidden not in apply
+    assert "BuildCameraConstants(batch)" in renderer
+    assert "ParametersForSubmesh(batch.SubmeshIndex)" in renderer
+    assert "ParametersForSubmesh(batch.SubmeshIndex).Visible is false" in renderer
+    assert "MaterialSurfaceOverrideFlags" in renderer
+    assert "MaterialBaseAdvanced" in renderer
+    assert "MaterialBasePost" in renderer
+    assert "MaterialSurfaceTransforms" in renderer
+    assert "MaterialSurfaceTransforms2" in renderer
+    assert "MaterialSurfaceBlends" in renderer
+    assert "(parameters.BaseColorLift ?? 0) / 255.0f" in renderer
+    assert "(parameters.ValueMax ?? 255) / 255.0f" in renderer
+    assert "(parameters.AutoBalance ?? 0) / 100.0f" in renderer
+    assert "(parameters.RoughnessMin ?? 0) / 255.0f" in renderer
+    assert "(parameters.MetalnessMax ?? 255) / 255.0f" in renderer
+    assert "MaterialEmissiveOverrideFlags" in renderer
+    assert '"material_parameter_apply_count"' in metrics
+    assert '"affected_material_parameter_batches"' in metrics
+    assert "TryApplyMaterialParameters" not in resources
+    assert "WPF/GDI fallback is unsupported" in viewport
+    assert 'capabilities.Add("resident_material_parameter_updates_v1")' in status
+    assert '["material_parameter_roles"] = _materials.ParameterRoles' in status
+
+
+def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
+    shader = _source("D3D11MaterialShaders.hlsl")
+
+    for constant in (
+        "MaterialBaseAdjustments",
+        "MaterialTint",
+        "MaterialBaseAdvanced",
+        "MaterialBasePost",
+        "MaterialSurfaceOverrides",
+        "MaterialSurfaceOverrideFlags",
+        "MaterialSurfaceTransforms",
+        "MaterialSurfaceTransforms2",
+        "MaterialSurfaceBlends",
+        "MaterialEmissiveOverride",
+        "MaterialEmissiveOverrideFlags",
+    ):
+        assert constant in shader
+    assert "roughness = MaterialSurfaceOverrides.x;" in shader
+    assert "metallic = MaterialSurfaceOverrides.y;" in shader
+    assert "specularColor *= saturate(MaterialSurfaceOverrides.z);" in shader
+    assert "baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x" in shader
+    brightness = shader.index("baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x")
+    tint = shader.index("baseColor.rgb *= max(MaterialTint.rgb")
+    gamma = shader.index("baseColor.rgb = pow(")
+    lift = shader.index("float baseLift =")
+    saturation = shader.index("baseColor.rgb = saturate(baseLuma.xxx")
+    auto_balance = shader.index("float autoBalanceStrength =")
+    shadow_lift = shader.index("float shadowMask =")
+    contrast = shader.index("baseColor.rgb = saturate((baseColor.rgb - 0.5f)")
+    post_brightness = shader.index("baseColor.rgb = saturate(baseColor.rgb * max(MaterialBasePost.x")
+    value_cap = shader.index("float valueCap =")
+    assert brightness < tint < gamma < lift < saturation < auto_balance < shadow_lift < contrast < post_brightness < value_cap
+    roughness_sample = shader.index("float roughness =")
+    roughness_invert = shader.index("if (MaterialSurfaceTransforms.w > 0.5f)")
+    roughness_scale = shader.index("roughness *=")
+    roughness_min = shader.index("roughness = max(")
+    roughness_max = shader.index("roughness = min(")
+    roughness_blend = shader.index("roughness = lerp(")
+    roughness_override = shader.index("roughness = MaterialSurfaceOverrides.x;")
+    assert roughness_sample < roughness_invert < roughness_scale < roughness_min < roughness_max < roughness_blend < roughness_override
+    metalness_sample = shader.index("float metallic =")
+    metalness_invert = shader.index("if (MaterialSurfaceTransforms2.w > 0.5f)")
+    metalness_scale = shader.index("metallic *=")
+    metalness_min = shader.index("metallic = max(")
+    metalness_max = shader.index("metallic = min(")
+    metalness_blend = shader.index("metallic = lerp(")
+    metalness_override = shader.index("metallic = MaterialSurfaceOverrides.y;")
+    assert metalness_sample < metalness_invert < metalness_scale < metalness_min < metalness_max < metalness_blend < metalness_override
+    assert "MaterialHasEmissive > 0.5f" in shader
+    assert "MaterialEmissiveOverrideFlags.y > 0.5f ? MaterialEmissiveOverride.w : 1.0f" in shader
+
+
+def test_hidden_gpu_smoke_proves_parameter_updates_do_not_churn_resources() -> None:
+    soak = _source("HeadlessGpuSparseSoak.cs")
+
+    assert "ApplyMaterialParameterProof(materials, viewport)" in soak
+    assert '"cdmw_mesh_material_parameters_v1"' in soak
+    assert '"metalness": 0.0' in soak
+    assert '"specular": null' in soak
+    assert '"base_color_lift": 0' in soak
+    assert '"value_max": 222' in soak
+    assert '"auto_balance": 100' in soak
+    assert '"shadow_lift": 25' in soak
+    assert '"roughness_inverted": true' in soak
+    assert '"metalness_inverted": false' in soak
+    assert '"roughness_scale": 0.0' in soak
+    assert '"metalness_blend_strength": null' in soak
+    assert 'gates["material_parameter_state_exact"]' in soak
+    assert 'gates["material_parameter_no_resource_churn"]' in soak
+    assert 'gates["material_parameter_apply_counted"]' in soak

@@ -56,14 +56,38 @@ class ModifyOriginalWorkflowSelection:
     open_workspace_after_create: bool = False
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
+class PlacementLooseFileSpec:
+    source_path: Path
+    target_path: str
+    kind: str
+    target_entry: Optional[ArchiveEntry] = None
+    note: str = ""
+
+
+@dataclass(slots=True, frozen=True)
+class PlacementLooseRootPreparation:
+    root: Path
+    specs: Tuple[PlacementLooseFileSpec, ...] = ()
+    warning: str = ""
+
+
+@dataclass(slots=True, frozen=True)
 class PlacementWorkspacePreparation:
+    request_id: int
     target_entry: ArchiveEntry
     donor_entry: Optional[ArchiveEntry] = None
     target_graph: Optional[AssetFamilyGraph] = None
     target_references: Tuple[ArchiveModelTextureReference, ...] = ()
     donor_graph: Optional[AssetFamilyGraph] = None
     donor_references: Tuple[ArchiveModelTextureReference, ...] = ()
+    target_subclass_tokens: Tuple[str, ...] = ()
+    donor_subclass_tokens: Tuple[str, ...] = ()
+    target_socket_document: object | None = None
+    donor_socket_document: object | None = None
+    character_socket_document: object | None = None
+    archive_payloads: Tuple[Tuple[ArchiveEntryIdentity, bytes], ...] = ()
+    target_loose_roots: Tuple[PlacementLooseRootPreparation, ...] = ()
 
 
 __all__ = [
@@ -71,5 +95,7 @@ __all__ = [
     "MeshImportSetupSelection",
     "MeshSessionPlan",
     "ModifyOriginalWorkflowSelection",
+    "PlacementLooseFileSpec",
+    "PlacementLooseRootPreparation",
     "PlacementWorkspacePreparation",
 ]

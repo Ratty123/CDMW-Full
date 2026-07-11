@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
 
-from cdmw.core.final_package_preview import (
+from cdmw.services.preview_workflow_service import (
     TEXTURE_PLAN_STATUS_READY,
     TEXTURE_PLAN_STATUS_REVIEW,
     TEXTURE_PLAN_STATUS_SUPPORT_ONLY,

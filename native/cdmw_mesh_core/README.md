@@ -113,7 +113,8 @@ sidecars so Python remains a snapshot/fallback bridge instead of the blend loop.
 `auto-uv-json` uses bundled xatlas and reports generated UVs, output faces,
 vertex remap, chart counts, and topology deltas. Python can apply the output
 through undoable Mesh Edit UV commands, and topology-changing output is gated by
-an explicit command flag.
+an explicit command flag. Its optional `auto_uv.padding` pixel value is passed
+to xatlas chart packing; the compatibility default remains zero.
 `import-scene-json` uses bundled ufbx for read-only FBX scene evidence: mesh,
 material, texture, rig, and animation counts are reported while Crimson
 compatibility remains unmapped until a target asset assignment exists.

@@ -9,12 +9,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QPushButton
 
 from cdmw.constants import MOD_READY_PACKAGE_TITLE, MOD_READY_PACKAGE_VERSION
-from cdmw.core.mod_package import (
+from cdmw.domain.packages.export_policy import (
     mod_package_export_options_for_manager,
     mod_package_export_options_for_profiles,
     mod_package_profile_uses_manager_metadata,
 )
-from cdmw.core.texture_pipeline.package_export import resolve_default_mod_ready_export_root
+from cdmw.services.texture_workflow_service import resolve_default_mod_ready_export_root
 
 
 class TextureWorkflowShellControlsMixin:
@@ -103,7 +103,7 @@ class TextureWorkflowShellControlsMixin:
             self._save_settings()
 
     def _refresh_chainner_chain_info(self) -> None:
-        if self._shutting_down:
+        if self._shutting_down or not self.chainner_section.is_body_built():
             return
         _analysis, text = self._resolve_chainner_analysis()
         self.chainner_chain_info_view.setPlainText(text)
@@ -114,6 +114,8 @@ class TextureWorkflowShellControlsMixin:
         self._chainner_analysis_timer.start()
 
     def _apply_mod_ready_export_state(self) -> None:
+        if not self.chainner_section.is_body_built():
+            return
         enabled = self.enable_mod_ready_loose_export_checkbox.isChecked()
         checked_profiles = tuple(
             profile

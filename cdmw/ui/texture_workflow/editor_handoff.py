@@ -29,13 +29,12 @@ from cdmw.constants import (
     MOD_READY_PACKAGE_VERSION,
     UPSCALE_BACKEND_CHAINNER,
 )
-from cdmw.core.archive import (
+from cdmw.services.archive_extraction_service import (
     clear_directory_contents,
     directory_has_contents,
     extract_archive_entries,
     extract_archive_entry,
 )
-from cdmw.core.mod_package import resolve_mod_package_root
 from cdmw.models import AppConfig, ArchiveEntry, ModPackageInfo, TextureEditorSourceBinding
 
 
@@ -324,7 +323,10 @@ class TextureWorkflowEditorHandoffMixin:
                     (
                         "mod_ready_output",
                         "Ready mod package output",
-                        resolve_mod_package_root(Path(export_root_text).expanduser(), package_info),
+                        self.app_context.services.require_packages().resolve_export_root(
+                            Path(export_root_text).expanduser(),
+                            package_info,
+                        ),
                     )
                 )
         return targets

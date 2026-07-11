@@ -4,6 +4,18 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from cdmw.ui.archive_browser.source_mix_task_controller import (
+    source_mix_task_controller_for_guard,
+)
+from cdmw.workers.source_mix_workers import (
+    SceneImportRequest,
+    SceneImportTaskResult,
+    SourceMixScanRequest,
+    SourceMixScanResult,
+    run_scene_import,
+    run_source_mix_scan,
+)
+
 
 def create_alignment_source_mix_callbacks(context: dict[str, object]) -> SimpleNamespace:
     ARCHIVE_MESH_EXTENSIONS = context.get('ARCHIVE_MESH_EXTENSIONS')
@@ -24,12 +36,44 @@ def create_alignment_source_mix_callbacks(context: dict[str, object]) -> SimpleN
     _alignment_source_mix_reopening_mod_archive_status_helper = context.get('_alignment_source_mix_reopening_mod_archive_status_helper')
     dialog = context.get('dialog')
     entry = context.get('entry')
-    import_scene_mesh_with_report = context.get('import_scene_mesh_with_report')
-    scan_loose_folder_source = context.get('scan_loose_folder_source')
-    scan_mod_archive_source = context.get('scan_mod_archive_source')
     self = context.get('self')
+    add_archive_source_button = context.get('add_archive_source_button')
+    add_loose_source_button = context.get('add_loose_source_button')
+    add_mod_archive_source_button = context.get('add_mod_archive_source_button')
     source_mix_control_text = context.get('source_mix_control_text')
     source_mix_status_label = context.get('source_mix_status_label')
+    source_task_controller = source_mix_task_controller_for_guard(self, dialog)
+
+    def _set_source_controls_enabled(enabled: bool) -> None:
+        for button in (
+            add_archive_source_button,
+            add_loose_source_button,
+            add_mod_archive_source_button,
+        ):
+            try:
+                button.setEnabled(enabled)
+            except (AttributeError, RuntimeError):
+                pass
+
+    def _start_source_task(
+        request: object,
+        operation: object,
+        *,
+        status_message: str,
+        title: str,
+        on_complete: object,
+    ) -> bool:
+        started = source_task_controller.start(
+            request,
+            operation,
+            status_message=status_message,
+            on_complete=on_complete,
+            on_error=lambda message: QMessageBox.warning(dialog, title, message),
+            on_idle=lambda: _set_source_controls_enabled(True),
+        )
+        if started:
+            _set_source_controls_enabled(False)
+        return started
 
     def _choose_loaded_archive_mesh_source_for_alignment() -> None:
         entries_by_extension = getattr(self, "archive_entries_by_extension", {}) or {}
@@ -77,18 +121,25 @@ def create_alignment_source_mix_callbacks(context: dict[str, object]) -> SimpleN
         )
         if not selected_dir:
             return
-        try:
-            candidates = scan_loose_folder_source(Path(selected_dir))
-        except Exception as exc:
-            # User-visible: source scanning may raise parser, archive, filesystem, or validation errors.
-            QMessageBox.warning(dialog, source_mix_control_text["add_loose"], str(exc))
+
+        _start_source_task(
+            SourceMixScanRequest(source_path=Path(selected_dir), source_kind="loose"),
+            run_source_mix_scan,
+            status_message=f"Scanning loose mesh source: {Path(selected_dir).name}...",
+            title=source_mix_control_text["add_loose"],
+            on_complete=lambda result: _handle_loose_source_scan(selected_dir, result),
+        )
+
+    def _handle_loose_source_scan(selected_dir: str, result: object) -> None:
+        if not isinstance(result, SourceMixScanResult):
+            QMessageBox.warning(dialog, source_mix_control_text["add_loose"], "Source scan returned an unexpected result.")
             return
+        candidates = result.candidates
         mesh_candidates = [
             candidate
             for candidate in candidates
             if candidate.extension in ARCHIVE_MESH_EXTENSIONS
             and isinstance(candidate.source_path, Path)
-            and candidate.source_path.is_file()
         ]
         mesh_count = sum(1 for candidate in candidates if candidate.extension in ARCHIVE_MESH_EXTENSIONS)
         supplemental_count = sum(
@@ -116,33 +167,12 @@ def create_alignment_source_mix_callbacks(context: dict[str, object]) -> SimpleN
                 source_candidate = selected_candidate
                 source_path = source_candidate.source_path
                 if isinstance(source_path, Path):
-                    try:
-                        source_scene_result = import_scene_mesh_with_report(source_path)
-                    except Exception as exc:
-                        # User-visible: scene import reports format, parser, and dependency failures directly.
-                        QMessageBox.warning(dialog, source_mix_control_text["use_loose_mesh_title"], str(exc))
-                        return
-                    supplemental_paths = (
-                        tuple(source_scene_result.discovered_texture_files)
-                        + tuple(source_scene_result.extracted_embedded_files)
-                        + tuple(getattr(source_scene_result, "discovered_supplemental_files", ()) or ())
-                    )
-                    source_mix_status_label.setText(_alignment_source_mix_reopening_loose_status_helper(source_path))
-                    dialog.reject()
-                    QTimer.singleShot(
-                        0,
-                        lambda target_entry=entry, selected_source=source_path, scene_result=source_scene_result, source_supplementals=supplemental_paths: self._start_archive_mesh_patch(
-                            target_entry,
-                            preset_setup=MeshImportSetupSelection(
-                                scene_path=selected_source,
-                                import_mode="static_replacement",
-                                supplemental_files=tuple(source_supplementals),
-                                scene_import_result=scene_result,
-                                source_label=f"{source_mix_control_text['loose_source_label_prefix']}{selected_source}",
-                                placement_review_title=source_mix_control_text["loose_placement_review_title"],
-                                placement_context_note=source_mix_control_text["loose_placement_context_note"],
-                            ),
-                        ),
+                    _start_source_task(
+                        SceneImportRequest(source_path=source_path),
+                        run_scene_import,
+                        status_message=f"Importing loose mesh source: {source_path.name}...",
+                        title=source_mix_control_text["use_loose_mesh_title"],
+                        on_complete=lambda scene_result: _handle_loose_scene_import(source_path, scene_result),
                     )
                     return
         QMessageBox.information(
@@ -155,6 +185,34 @@ def create_alignment_source_mix_callbacks(context: dict[str, object]) -> SimpleN
             ),
         )
 
+    def _handle_loose_scene_import(source_path: object, result: object) -> None:
+        if not isinstance(source_path, Path) or not isinstance(result, SceneImportTaskResult):
+            QMessageBox.warning(dialog, source_mix_control_text["use_loose_mesh_title"], "Scene import returned an unexpected result.")
+            return
+        source_scene_result = result.scene
+        supplemental_paths = (
+            tuple(source_scene_result.discovered_texture_files)
+            + tuple(source_scene_result.extracted_embedded_files)
+            + tuple(getattr(source_scene_result, "discovered_supplemental_files", ()) or ())
+        )
+        source_mix_status_label.setText(_alignment_source_mix_reopening_loose_status_helper(source_path))
+        dialog.reject()
+        QTimer.singleShot(
+            0,
+            lambda target_entry=entry, selected_source=source_path, scene_result=source_scene_result, source_supplementals=supplemental_paths: self._start_archive_mesh_patch(
+                target_entry,
+                preset_setup=MeshImportSetupSelection(
+                    scene_path=selected_source,
+                    import_mode="static_replacement",
+                    supplemental_files=tuple(source_supplementals),
+                    scene_import_result=scene_result,
+                    source_label=f"{source_mix_control_text['loose_source_label_prefix']}{selected_source}",
+                    placement_review_title=source_mix_control_text["loose_placement_review_title"],
+                    placement_context_note=source_mix_control_text["loose_placement_context_note"],
+                ),
+            ),
+        )
+
     def _choose_mod_archive_mesh_source_for_alignment() -> None:
         selected_path, _selected_filter = QFileDialog.getOpenFileName(
             dialog,
@@ -164,12 +222,19 @@ def create_alignment_source_mix_callbacks(context: dict[str, object]) -> SimpleN
         )
         if not selected_path:
             return
-        try:
-            candidates = scan_mod_archive_source(Path(selected_path))
-        except Exception as exc:
-            # User-visible: mod archive scanning may fail from archive, format, or validation errors.
-            QMessageBox.warning(dialog, source_mix_control_text["add_mod_archive"], str(exc))
+        _start_source_task(
+            SourceMixScanRequest(source_path=Path(selected_path), source_kind="mod_archive"),
+            run_source_mix_scan,
+            status_message=f"Scanning source mod archive: {Path(selected_path).name}...",
+            title=source_mix_control_text["add_mod_archive"],
+            on_complete=_handle_mod_archive_scan,
+        )
+
+    def _handle_mod_archive_scan(result: object) -> None:
+        if not isinstance(result, SourceMixScanResult):
+            QMessageBox.warning(dialog, source_mix_control_text["add_mod_archive"], "Source scan returned an unexpected result.")
             return
+        candidates = result.candidates
         mesh_candidates = [candidate for candidate in candidates if candidate.extension in ARCHIVE_MESH_EXTENSIONS and isinstance(candidate.source_archive_entry, ArchiveEntry)]
         if not mesh_candidates:
             QMessageBox.information(

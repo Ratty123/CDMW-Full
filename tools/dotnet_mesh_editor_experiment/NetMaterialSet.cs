@@ -4,20 +4,25 @@ using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
 
-internal sealed class NetMaterialSet
+internal sealed partial class NetMaterialSet
 {
-    public static NetMaterialSet Empty { get; } = new(Array.Empty<NetMaterialSlot>(), Array.Empty<NetSubmeshMaterialBinding>(), string.Empty);
+    public static NetMaterialSet Empty => new(Array.Empty<NetMaterialSlot>(), Array.Empty<NetSubmeshMaterialBinding>(), string.Empty, string.Empty);
 
-    private NetMaterialSet(IReadOnlyList<NetMaterialSlot> slots, IReadOnlyList<NetSubmeshMaterialBinding> submeshes, string manifestDirectory)
+    private NetMaterialSet(IReadOnlyList<NetMaterialSlot> slots, IReadOnlyList<NetSubmeshMaterialBinding> submeshes, string manifestDirectory, string signature)
     {
         Slots = slots;
         Submeshes = submeshes;
         ManifestDirectory = manifestDirectory;
+        Signature = signature;
     }
 
-    public IReadOnlyList<NetMaterialSlot> Slots { get; }
-    public IReadOnlyList<NetSubmeshMaterialBinding> Submeshes { get; }
-    public string ManifestDirectory { get; }
+    public IReadOnlyList<NetMaterialSlot> Slots { get; private set; }
+    public IReadOnlyList<NetSubmeshMaterialBinding> Submeshes { get; private set; }
+    public string ManifestDirectory { get; private set; }
+    public string Signature { get; private set; }
+    public long Generation { get; private set; }
+    private IReadOnlyDictionary<string, NetMaterialResource> Resources { get; set; }
+        = new Dictionary<string, NetMaterialResource>(StringComparer.Ordinal);
     public int SlotCount => Slots.Count;
     public int TextureReferenceCount => Slots.Sum(slot => slot.Channels.Values.Count(value => !string.IsNullOrWhiteSpace(value)))
         + SubmeshTexturePaths().Count(value => !string.IsNullOrWhiteSpace(value));
@@ -29,14 +34,18 @@ internal sealed class NetMaterialSet
     {
         foreach (var submesh in Submeshes)
         {
-            foreach (var value in submesh.PackageChannels.Values)
+            foreach (var reference in TextureReferencesForSubmesh(submesh.SubmeshIndex))
             {
-                yield return ResolveManifestPath(value);
+                yield return reference.Path;
             }
-            foreach (var value in submesh.ResolvedChannels.Values)
-            {
-                yield return value;
-            }
+        }
+    }
+
+    public IEnumerable<string> TextureLoadPaths()
+    {
+        foreach (var resource in TextureLoadResources())
+        {
+            yield return resource.Path;
         }
     }
 
@@ -53,23 +62,7 @@ internal sealed class NetMaterialSet
 
     public string TexturePathForSubmesh(int submeshIndex, params string[] keys)
     {
-        var binding = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex);
-        if (binding is null)
-        {
-            return string.Empty;
-        }
-        foreach (var key in keys)
-        {
-            if (binding.PackageChannels.TryGetValue(key, out var packaged) && !string.IsNullOrWhiteSpace(packaged))
-            {
-                return ResolveManifestPath(packaged);
-            }
-            if (binding.ResolvedChannels.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-        }
-        return string.Empty;
+        return TextureReferenceForSubmesh(submeshIndex, keys).Path;
     }
 
     public string BaseTexturePathForSubmesh(int submeshIndex)
@@ -115,10 +108,18 @@ internal sealed class NetMaterialSet
         }
         using var document = JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8));
         var root = document.RootElement;
-        return new NetMaterialSet(
+        var manifestDirectory = Path.GetDirectoryName(path) ?? string.Empty;
+        var result = new NetMaterialSet(
             ParseSlots(root, "material_slots"),
             ParseSubmeshes(root, "submeshes"),
-            Path.GetDirectoryName(path) ?? string.Empty);
+            manifestDirectory,
+            JsonString(root, "material_signature"));
+        result.Resources = ParseResources(root)
+            .Select(resource => Path.IsPathRooted(resource.Path) || string.IsNullOrWhiteSpace(manifestDirectory)
+                ? resource
+                : resource with { Path = Path.GetFullPath(Path.Combine(manifestDirectory, resource.Path)) })
+            .ToDictionary(resource => resource.ResourceId, StringComparer.Ordinal);
+        return result;
     }
 
     private static IReadOnlyList<NetMaterialSlot> ParseSlots(JsonElement root, string name)
@@ -162,7 +163,8 @@ internal sealed class NetMaterialSet
                 JsonString(item, "material"),
                 JsonString(item, "texture"),
                 JsonStringMap(item, "resolved_channels"),
-                JsonStringMap(item, "packaged_channels")));
+                JsonStringMap(item, "packaged_channels"),
+                JsonStringMap(item, "resource_channels")));
         }
         return result;
     }
@@ -217,4 +219,5 @@ internal sealed record NetSubmeshMaterialBinding(
     string Material,
     string Texture,
     Dictionary<string, string> ResolvedChannels,
-    Dictionary<string, string> PackageChannels);
+    Dictionary<string, string> PackageChannels,
+    Dictionary<string, string> ResourceChannels);

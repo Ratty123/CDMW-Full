@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import re
 import threading
@@ -22,18 +21,23 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.archive import (
+from cdmw.services.preview_workflow_service import (
     build_binary_sidecar_analysis_json,
     build_binary_sidecar_corpus_json,
-    ensure_archive_preview_source,
-    read_archive_entry_data,
 )
-from cdmw.core.archive_modding import build_hkx_converter_corpus_csv, build_hkx_converter_corpus_json
-from cdmw.core.structured_binary_editor import (
-    parse_length_prefixed_string_fields,
-    parse_pabgh_table,
-    patch_length_prefixed_string,
-    rebuild_pabgh_table,
+from cdmw.services.archive_preview_service import ensure_archive_preview_source
+from cdmw.services.hkx_edit_service import (
+    build_hkx_converter_corpus_csv,
+    build_hkx_converter_corpus_json,
+)
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.atomic_file_service import atomic_write_text
+from cdmw.services.structured_sidecar_edit_service import (
+    StructuredSidecarDocument,
+    StructuredSidecarEditRequest,
+    StructuredSidecarEditResult,
+    load_structured_sidecar_document,
+    write_structured_sidecar_edit,
 )
 from cdmw.models import ArchiveEntry
 from cdmw.ui.shell.theme_controller import build_monospace_font
@@ -129,8 +133,7 @@ class ArchiveBinarySidecarActionsMixin:
 
         def _task(log: Callable[[str], None]) -> Path:
             document_text = self._build_archive_binary_sidecar_json_document(entry, log=log)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(document_text, encoding="utf-8")
+            atomic_write_text(output_path, document_text)
             return output_path
 
         def _handle_complete(result: object) -> None:
@@ -203,13 +206,26 @@ class ArchiveBinarySidecarActionsMixin:
             output_path = Path(selected)
             if not output_path.suffix:
                 output_path = output_path.with_name(f"{output_path.name}.sidecar.json")
-            try:
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                output_path.write_text(editor.toPlainText(), encoding="utf-8")
-            except Exception as exc:
-                QMessageBox.warning(dialog, "Sidecar Decode Export", str(exc))
-                return
-            self.set_status_message(f"Exported sidecar decode JSON for {entry.basename}.")
+            document_text = editor.toPlainText()
+            request_id = int(getattr(self, "_sidecar_dialog_export_request_id", 0) or 0) + 1
+            self._sidecar_dialog_export_request_id = request_id
+
+            def _task(_log: Callable[[str], None], stop_event: threading.Event) -> Path:
+                raise_if_cancelled(stop_event, "Sidecar JSON export cancelled.")
+                atomic_write_text(output_path, document_text)
+                return output_path
+
+            self._run_utility_task_when_idle(
+                status_message=f"Exporting sidecar decode JSON for {entry.basename}...",
+                task=_task,
+                on_complete=lambda result: (
+                    self.set_status_message(f"Exported sidecar decode JSON for {entry.basename}.")
+                    if request_id == int(getattr(self, "_sidecar_dialog_export_request_id", 0) or 0)
+                    and isinstance(result, Path)
+                    else None
+                ),
+                task_accepts_cancel=True,
+            )
 
         export_button.clicked.connect(_export_dialog_json)
         close_button.clicked.connect(dialog.accept)
@@ -242,19 +258,32 @@ class ArchiveBinarySidecarActionsMixin:
         if extension not in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
             self.set_status_message("This archive entry does not have a safe structured editor.", error=True)
             return
-        try:
-            data, _decompressed, _note = read_archive_entry_data(entry)
-        except Exception as exc:
-            QMessageBox.warning(self, "Edit Structured Data Safely", f"Could not read archive entry:\n{exc}")
-            return
+        request_id = int(getattr(self, "_structured_sidecar_request_id", 0) or 0) + 1
+        self._structured_sidecar_request_id = request_id
+        self._run_utility_task(
+            status_message=f"Reading structured sidecar {entry.basename}...",
+            task=lambda _log, stop_event: load_structured_sidecar_document(
+                entry,
+                stop_event=stop_event,
+            ),
+            on_complete=lambda result: self._prompt_structured_sidecar_edit(request_id, result),
+            task_accepts_cancel=True,
+        )
 
-        edited_data = bytes(data)
-        proof_lines: Tuple[str, ...] = ()
-        if extension == ".pabgh":
-            try:
-                table = parse_pabgh_table(data)
-            except Exception as exc:
-                QMessageBox.warning(self, "Edit PABGH Table", str(exc))
+    def _prompt_structured_sidecar_edit(self, request_id: int, result: object) -> None:
+        if request_id != int(getattr(self, "_structured_sidecar_request_id", 0) or 0):
+            return
+        if not isinstance(result, StructuredSidecarDocument):
+            self.set_status_message("Structured sidecar worker returned invalid data.", error=True)
+            return
+        entry = result.entry
+        selected_index = -1
+        replacement_text = ""
+        replacement_offset: int | None = None
+        if result.extension == ".pabgh":
+            table = result.table
+            if table is None:
+                QMessageBox.warning(self, "Edit PABGH Table", "The sidecar table could not be parsed.")
                 return
             labels = [
                 f"{row.index}: id={row.row_id} offset=0x{row.offset:X}"
@@ -275,27 +304,19 @@ class ArchiveBinarySidecarActionsMixin:
                 return
             selected_index = int(str(selected).split(":", 1)[0])
             row = table.rows[selected_index]
-            new_offset, offset_ok = QInputDialog.getInt(
+            replacement_offset, offset_ok = QInputDialog.getInt(
                 self,
                 "Edit PABGH Row Offset",
                 "Target offset:",
                 int(row.offset),
                 0,
-                max(0, len(data)),
+                max(0, len(result.data)),
                 1,
             )
             if not offset_ok:
                 return
-            rows = list(table.rows)
-            rows[selected_index] = dataclasses.replace(row, offset=int(new_offset))
-            try:
-                edited_data = rebuild_pabgh_table(data, rows, row_size=table.row_size)
-            except Exception as exc:
-                QMessageBox.warning(self, "Edit PABGH Table", str(exc))
-                return
-            proof_lines = (*table.proof_lines, f"Edited row {selected_index} offset to 0x{int(new_offset):X}.")
         else:
-            fields = parse_length_prefixed_string_fields(data)
+            fields = result.fields
             if not fields:
                 QMessageBox.information(
                     self,
@@ -327,13 +348,7 @@ class ArchiveBinarySidecarActionsMixin:
             )
             if not text_ok:
                 return
-            try:
-                result = patch_length_prefixed_string(data, field, str(replacement), allow_size_change=False)
-            except Exception as exc:
-                QMessageBox.warning(self, "Edit Structured String", str(exc))
-                return
-            edited_data = result.data
-            proof_lines = result.proof_lines
+            replacement_text = str(replacement)
 
         default_path = self.settings_file_path.parent / "structured_edits" / PurePosixPath(entry.path.replace("\\", "/")).name
         selected_path, _selected_filter = QFileDialog.getSaveFileName(
@@ -344,18 +359,39 @@ class ArchiveBinarySidecarActionsMixin:
         )
         if not selected_path:
             return
-        output_path = Path(selected_path)
-        try:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_bytes(edited_data)
-        except Exception as exc:
-            QMessageBox.warning(self, "Edit Structured Data Safely", f"Could not save edited copy:\n{exc}")
+        write_request = StructuredSidecarEditRequest(
+            document=result,
+            output_path=Path(selected_path),
+            selected_index=selected_index,
+            replacement_text=replacement_text,
+            replacement_offset=replacement_offset,
+        )
+        write_request_id = request_id + 1
+        self._structured_sidecar_request_id = write_request_id
+        self._run_utility_task_when_idle(
+            status_message=f"Writing structured sidecar copy for {entry.basename}...",
+            task=lambda _log, stop_event: write_structured_sidecar_edit(
+                write_request,
+                stop_event=stop_event,
+            ),
+            on_complete=lambda write_result: self._handle_structured_sidecar_edit_complete(
+                write_request_id,
+                write_result,
+            ),
+            task_accepts_cancel=True,
+        )
+
+    def _handle_structured_sidecar_edit_complete(self, request_id: int, result: object) -> None:
+        if request_id != int(getattr(self, "_structured_sidecar_request_id", 0) or 0):
+            return
+        if not isinstance(result, StructuredSidecarEditResult):
+            self.set_status_message("Structured sidecar writer returned invalid data.", error=True)
             return
         self.append_log(
-            f"Saved safe structured sidecar edit for {entry.path} to {output_path}. "
-            + " ".join(proof_lines[:3])
+            f"Saved safe structured sidecar edit to {result.output_path}. "
+            + " ".join(result.proof_lines[:3])
         )
-        self.set_status_message(f"Saved structured sidecar edit: {output_path}")
+        self.set_status_message(f"Saved structured sidecar edit: {result.output_path}")
 
     def _export_hkx_converter_corpus_report(self) -> None:
         source_mode, source_ok = QInputDialog.getItem(
@@ -520,8 +556,7 @@ class ArchiveBinarySidecarActionsMixin:
                     if isinstance(native_status, Mapping) and native_status.get("available") is not True:
                         evidence_line += " | native scan unavailable"
                     proof_summary_lines.append(evidence_line)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(report_text, encoding="utf-8", newline="")
+            atomic_write_text(output_path, report_text)
             return {
                 "path": output_path,
                 "kind": output_kind,
@@ -679,8 +714,7 @@ class ArchiveBinarySidecarActionsMixin:
                 stop_event=stop_event,
                 progress_callback=progress,
             )
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(report_text, encoding="utf-8")
+            atomic_write_text(output_path, report_text)
             try:
                 parsed_report = json.loads(report_text)
             except json.JSONDecodeError:

@@ -15,6 +15,7 @@ import mimetypes
 import re
 import struct
 import tempfile
+import threading
 import xml.etree.ElementTree as ET
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ from .logging import get_logger
 from .mesh_importer import import_obj
 from .mesh_parser import ParsedMesh, SubMesh, _compute_smooth_normals, parse_mesh
 from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
+from cdmw.core.common import raise_if_cancelled
 from .scene_geometry_utils import _bbox, _dedupe_text, _safe_int
 from .scene_geometry_utils import _copy_submesh_with_transform
 from .scene_gltf_import import (
@@ -207,33 +209,52 @@ from .scene_import_result_ops import (
     reduce_scene_import_result_quality,
     refresh_parsed_mesh_totals,
 )
+from .scene_import_uv import ensure_external_scene_uvs
 
 
-def import_scene_mesh(path: str | Path) -> ParsedMesh:
-    return import_scene_mesh_with_report(path).mesh
+def import_scene_mesh(path: str | Path, *, selected_member: str = "") -> ParsedMesh:
+    return import_scene_mesh_with_report(path, selected_member=selected_member).mesh
 
 
-def import_scene_mesh_with_report(path: str | Path, *, include_external_audit: bool = True) -> SceneImportResult:
+def import_scene_mesh_with_report(
+    path: str | Path,
+    *,
+    include_external_audit: bool = True,
+    tolerate_missing_texture_files: bool = False,
+    selected_member: str = "",
+    stop_event: Optional[threading.Event] = None,
+) -> SceneImportResult:
+    raise_if_cancelled(stop_event, "Scene import cancelled.")
     source_path = Path(path).expanduser().resolve()
     suffix = source_path.suffix.lower()
     if suffix == ".zip":
-        from cdmw.core.model_catalogue import resolve_importable_model_path, zip_importable_members
+        from cdmw.core.model_catalogue import resolve_importable_model_path, zip_importable_member_refs
 
-        members = zip_importable_members(source_path)
-        resolved_path = resolve_importable_model_path(source_path)
+        members = zip_importable_member_refs(source_path, stop_event=stop_event)
+        resolved_path = resolve_importable_model_path(
+            source_path,
+            selected_member=selected_member,
+            stop_event=stop_event,
+        )
         if resolved_path is None:
             raise ValueError(
                 f"ZIP file does not contain an importable model: {source_path}. "
                 "Expected OBJ, DAE, glTF, GLB, PAC, PAM, or PAMLOD."
             )
-        result = import_scene_mesh_with_report(resolved_path, include_external_audit=include_external_audit)
-        member_label = members[0] if members else resolved_path.name
+        result = import_scene_mesh_with_report(
+            resolved_path,
+            include_external_audit=include_external_audit,
+            tolerate_missing_texture_files=tolerate_missing_texture_files,
+            stop_event=stop_event,
+        )
+        member_label = str(selected_member or (members[0] if members else resolved_path.name)).replace("\\", "/")
         result.diagnostics = (
             f"Resolved ZIP archive {source_path.name} to {member_label}.",
         ) + tuple(result.diagnostics or ())
         return result
     if suffix == ".obj":
         mesh = import_obj(str(source_path))
+        raise_if_cancelled(stop_event, "Scene import cancelled.")
         if not str(getattr(mesh, "format", "") or "").strip():
             mesh.format = "obj"
         if not str(getattr(mesh, "path", "") or "").strip():
@@ -249,6 +270,7 @@ def import_scene_mesh_with_report(path: str | Path, *, include_external_audit: b
             if slots or parameters:
                 _apply_scene_material_slots_to_submesh(submesh, slots, material_parameters=parameters, confidence="obj_mtl")
         discovered_textures = discover_scene_texture_files(source_path, mesh)
+        raise_if_cancelled(stop_event, "Scene import cancelled.")
         _attach_fallback_texture_references(mesh, discovered_textures)
         attached_slots = _attach_sibling_material_texture_slots(mesh, discovered_textures)
         diagnostics = (
@@ -256,32 +278,51 @@ def import_scene_mesh_with_report(path: str | Path, *, include_external_audit: b
             if attached_slots
             else ()
         )
-        return _result_with_external_audit(
+        return ensure_external_scene_uvs(
+            _result_with_external_audit(
+                source_path,
+                SceneImportResult(mesh=mesh, diagnostics=diagnostics, discovered_texture_files=discovered_textures),
+                enabled=include_external_audit,
+            ),
             source_path,
-            SceneImportResult(mesh=mesh, diagnostics=diagnostics, discovered_texture_files=discovered_textures),
-            enabled=include_external_audit,
+            stop_event=stop_event,
         )
     if suffix == ".dae":
         mesh = import_dae(source_path)
+        raise_if_cancelled(stop_event, "Scene import cancelled.")
         discovered_textures = discover_scene_texture_files(source_path, mesh)
+        raise_if_cancelled(stop_event, "Scene import cancelled.")
         attached_slots = _attach_sibling_material_texture_slots(mesh, discovered_textures)
         diagnostics = (
             (f"Attached {attached_slots:,} sibling DAE texture support slot(s) by filename fallback.",)
             if attached_slots
             else ()
         )
-        return _result_with_external_audit(
+        return ensure_external_scene_uvs(
+            _result_with_external_audit(
+                source_path,
+                SceneImportResult(mesh=mesh, diagnostics=diagnostics, discovered_texture_files=discovered_textures),
+                enabled=include_external_audit,
+            ),
             source_path,
-            SceneImportResult(mesh=mesh, diagnostics=diagnostics, discovered_texture_files=discovered_textures),
-            enabled=include_external_audit,
+            stop_event=stop_event,
         )
     if suffix in {".gltf", ".glb"}:
-        return import_gltf(source_path, include_external_audit=include_external_audit)
+        result = import_gltf(
+            source_path,
+            include_external_audit=include_external_audit,
+            tolerate_missing_texture_files=tolerate_missing_texture_files,
+            stop_event=stop_event,
+        )
+        raise_if_cancelled(stop_event, "Scene import cancelled.")
+        return ensure_external_scene_uvs(result, source_path, stop_event=stop_event)
     if suffix in LOCAL_ARCHIVE_MESH_IMPORT_EXTENSIONS:
         mesh = parse_mesh(source_path.read_bytes(), source_path.as_posix())
+        raise_if_cancelled(stop_event, "Scene import cancelled.")
         if not mesh.submeshes or mesh.total_faces <= 0:
             raise ValueError(f"{source_path.suffix.upper().lstrip('.')} source did not contain recoverable mesh geometry: {source_path}")
         discovered_files = discover_local_mesh_supplemental_files(source_path, mesh)
+        raise_if_cancelled(stop_event, "Scene import cancelled.")
         discovered_textures = tuple(path for path in discovered_files if path.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS)
         discovered_supplemental = tuple(
             path

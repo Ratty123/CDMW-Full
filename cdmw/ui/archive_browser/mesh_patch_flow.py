@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Callable, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Dict, Optional, Tuple
@@ -10,23 +11,27 @@ from PySide6.QtCore import QSize, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QDialog, QFileDialog, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
-from cdmw.core.archive import ensure_archive_preview_source
-from cdmw.core.archive_modding import ArchiveLooseExportResult, ArchivePatchRequest, ArchivePatchResult, MeshImportPreviewResult, MeshImportSupplementalFileSpec, build_mesh_import_preview, export_archive_mesh_payloads_to_mod_ready_loose, patch_archive_entries
-from cdmw.core.final_package_preview import FinalPackagePreviewResult, MATERIAL_PREFLIGHT_OVERRIDE_WARNING, apply_material_preflight_override, build_final_package_preview, material_preflight_hard_blockers
-from cdmw.core.item_icon import ItemIconOverrideSpec
+from cdmw.services.archive_preview_service import ensure_archive_preview_source
+from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult, MeshImportPreviewResult, MeshImportSupplementalFileSpec
+from cdmw.services.preview_workflow_service import build_mesh_import_preview
+from cdmw.services.archive_workflow_service import export_archive_mesh_payloads_to_mod_ready_loose
+from cdmw.services.preview_workflow_service import FinalPackagePreviewResult, MATERIAL_PREFLIGHT_OVERRIDE_WARNING, apply_material_preflight_override, build_final_package_preview, material_preflight_hard_blockers
+from cdmw.domain.library.item_icons import ItemIconOverrideSpec
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.mesh_workflow_service import check_material_authority_report as _check_material_authority_report
 from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.domain.textures.policy import check_final_preview_material_authority as _check_final_preview_material_authority, complete_swap_allows_inherited_layer_color_bindings as _complete_swap_allows_inherited_layer_color_bindings, complete_swap_authority_contract as _complete_swap_authority_contract, complete_swap_requires_true_source_authority as _complete_swap_requires_true_source_authority, material_authority_check_blockers as _material_authority_check_blockers, material_authority_check_review_lines as _material_authority_check_review_lines
 from cdmw.models import ArchiveEntry
-from cdmw.modding.scene_importer import SceneImportResult
-from cdmw.modding.static_mesh_replacer import StaticMeshReplacementOptions
-from cdmw.ui.archive_browser.dds_preview_resolvers import (
-    archive_dds_preview_resolver_pair as _archive_dds_preview_resolver_pair_helper,
-)
+from cdmw.services.mesh_workflow_service import SceneImportResult
+from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions
+from cdmw.services.archive_mutation_service import ArchivePatchRequest, ArchivePatchResult
+from cdmw.ui.archive_browser.dds_preview_resolvers import archive_dds_preview_resolver_pair as _archive_dds_preview_resolver_pair_helper
 from cdmw.ui.archive_browser.mesh_import_setup_state import (
     mesh_import_file_dialog_title,
     mesh_import_replacement_mode_log,
     mesh_import_setup_dialog_title,
 )
+from cdmw.ui.archive_browser.static_replacement_sparse_history import clone_static_replacement_options_for_worker
 from cdmw.ui.archive_browser.static_replacement_alignment_setup_state import (
     alignment_builder_window_title,
     alignment_preview_build_failed_status,
@@ -49,13 +54,17 @@ class ArchiveMeshPatchFlowMixin:
             )
             if not scene_path:
                 return
-            setup = self._prompt_archive_mesh_import_setup(
+            self._prepare_archive_mesh_import_setup_async(
                 entry,
                 Path(scene_path),
                 title=mesh_import_setup_dialog_title(),
+                on_complete=lambda setup: (
+                    self._start_archive_mesh_patch(entry, preset_setup=setup)
+                    if isinstance(setup, MeshImportSetupSelection)
+                    else None
+                ),
             )
-            if setup is None:
-                return
+            return
         else:
             setup = preset_setup
         scene_path_obj = setup.scene_path
@@ -157,13 +166,18 @@ class ArchiveMeshPatchFlowMixin:
             texconv_text = self.texconv_path_edit.text().strip()
             require_source_owned_colors = bool(getattr(static_replacement_options, "complete_external_swap", False))
 
-            def _preview_task(log: Callable[[str], None]) -> MeshImportPreviewResult:
+            def _preview_task(
+                log: Callable[[str], None],
+                stop_event: threading.Event,
+            ) -> MeshImportPreviewResult:
+                worker_options = clone_static_replacement_options_for_worker(static_replacement_options, stop_event)
                 active_static_options = self._retarget_static_options_for_runtime_entry(
                     entry,
                     build_entry,
-                    static_replacement_options,
+                    worker_options,
                     setup.scene_import_result.mesh if isinstance(setup.scene_import_result, SceneImportResult) else None,
                     on_log=log,
+                    stop_event=stop_event,
                 )
                 log(f"Rebuilding {build_entry.path} from {scene_path_obj.name}...")
                 preview_settings = self._current_model_preview_render_settings()
@@ -180,9 +194,9 @@ class ArchiveMeshPatchFlowMixin:
                     texture_entries_by_basename=self.archive_entries_by_basename,
                     visible_texture_mode=preview_settings.visible_texture_mode,
                     supplemental_files=supplemental_files,
+                    stop_event=stop_event,
                 )
                 return preview_result
-
             _archive_dds_preview_source_for_path, _archive_dds_preview_sources_for_basename = (
                 _archive_dds_preview_resolver_pair_helper(
                     self.archive_entries_by_normalized_path,
@@ -193,8 +207,13 @@ class ArchiveMeshPatchFlowMixin:
 
             def _start_commit(preview_result: MeshImportPreviewResult) -> None:
                 material_report_render_settings = self._current_model_preview_render_settings()
+                mutation_service = self.app_context.services.require_archive_mutations() if destination == "patch" else None
 
-                def _commit_task(log: Callable[[str], None]) -> object:
+                def _commit_task(
+                    log: Callable[[str], None],
+                    stop_event: threading.Event,
+                ) -> object:
+                    raise_if_cancelled(stop_event, "Mesh replacement export cancelled.")
                     unsafe_material_preflight_override = bool(
                         destination == "loose"
                         and getattr(static_replacement_options, "allow_unsafe_material_preflight_export", False)
@@ -313,7 +332,10 @@ class ArchiveMeshPatchFlowMixin:
                                 "preflight_hard_blocked": blocker_lines,
                             }
                     if pre_export_preview is not None:
-                        pre_export_authority_check = _check_final_preview_material_authority(pre_export_preview)
+                        pre_export_authority_check = _check_final_preview_material_authority(
+                            pre_export_preview,
+                            report_checker=_check_material_authority_report,
+                        )
                         pre_export_authority_blockers = _material_authority_check_blockers(pre_export_authority_check)
                         if pre_export_authority_blockers:
                             blockers = "\n".join(f"- {line}" for line in pre_export_authority_blockers[:12])
@@ -376,7 +398,11 @@ class ArchiveMeshPatchFlowMixin:
                         if not requests:
                             raise ValueError("No archive patch requests could be built for the rebuilt mesh.")
                         log(f"Patching {len(requests)} rebuilt/generated entries directly into game archives...")
-                        patch_result = patch_archive_entries(requests, on_log=log)
+                        assert mutation_service is not None
+                        plan = mutation_service.prepare_patch(
+                            requests, confirmed=True, description=f"Patch rebuilt mesh {build_entry.path}",
+                        )
+                        patch_result = mutation_service.apply_patch(plan, on_log=log, stop_event=stop_event)
                         return {
                             "preview": preview_result,
                             "patch": patch_result,
@@ -455,7 +481,10 @@ class ArchiveMeshPatchFlowMixin:
                             elif texture_resolution_manifest_path.exists():
                                 texture_resolution_manifest_path.unlink()
                                 log(f"Removed empty texture resolution manifest: {texture_resolution_manifest_path}")
-                        material_authority_check = _check_final_preview_material_authority(final_preview)
+                        material_authority_check = _check_final_preview_material_authority(
+                            final_preview,
+                            report_checker=_check_material_authority_report,
+                        )
                         if bool(getattr(export_options, "create_material_authority_report", False)):
                             material_authority_report_path.write_text(
                                 json.dumps(final_preview.material_authority_report.to_dict(), indent=2),
@@ -679,6 +708,7 @@ class ArchiveMeshPatchFlowMixin:
                         False,
                     ),
                     show_archive_progress=True,
+                    task_accepts_cancel=True,
                 )
 
             def _handle_preview_complete(result: object) -> None:
@@ -737,6 +767,7 @@ class ArchiveMeshPatchFlowMixin:
                     False,
                 ),
                 show_archive_progress=True,
+                task_accepts_cancel=True,
             )
             return True
 

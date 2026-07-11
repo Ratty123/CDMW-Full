@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from cdmw.ui.archive_browser.static_replacement_dotnet_material_bridge import (
+    resident_material_parameters_available,
+    send_source_role_material_parameters,
+)
+
 
 def _safe_call(func, *args, default=None, **kwargs):
     if not callable(func):
@@ -12,6 +17,31 @@ def _safe_call(func, *args, default=None, **kwargs):
         return func(*args, **kwargs)
     except (KeyError, NameError):
         return default
+
+
+def _mesh_edit_material_override_blocked(active: bool, dialog: object, owner: object) -> bool:
+    if not active or resident_material_parameters_available(dialog):
+        return False
+    message = (
+        "Active Mesh Editor source material overrides require native material execution; "
+        "Python adjustment mutation fallback is disabled."
+    )
+    set_status_message = getattr(owner, "set_status_message", None)
+    if callable(set_status_message):
+        set_status_message(message, error=True)
+    return True
+
+
+def _send_source_role_update(dialog: object, mesh: object, source_index: int, role: str, adjustment: object) -> None:
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    send_source_role_material_parameters(
+        dialog,
+        source_index,
+        role,
+        getattr(adjustment, "emissive_color_rgb", ()),
+        emissive_strength=getattr(adjustment, "emissive_strength", None),
+        source=submeshes[source_index] if 0 <= source_index < len(submeshes) else None,
+    )
 
 
 def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> SimpleNamespace:
@@ -104,6 +134,7 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
 
     copied_original_texture_intents_by_source = context.get("copied_original_texture_intents_by_source")
     control_tabs = context.get("control_tabs")
+    dialog = context.get("dialog")
     independent_output_source_indices = context.get("independent_output_source_indices")
     mapping_edits = context.get("mapping_edits")
     mapping_edits_by_target = context.get("mapping_edits_by_target")
@@ -399,16 +430,9 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
         return adjustment
 
     def _active_mesh_edit_material_override_mutation_blocked() -> bool:
-        if not (callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()):
-            return False
-        message = (
-            "Active Mesh Editor source material overrides require native material execution; "
-            "Python adjustment mutation fallback is disabled."
+        return _mesh_edit_material_override_blocked(
+            bool(callable(_alignment_mesh_edit_tab_active) and _alignment_mesh_edit_tab_active()), dialog, self
         )
-        set_status_message = getattr(self, "set_status_message", None)
-        if callable(set_status_message):
-            set_status_message(message, error=True)
-        return True
 
     _current_source_part_adjustments = lambda: _current_source_part_adjustments_helper(
         source_part_adjustments,
@@ -436,6 +460,9 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
         adjustment = _ensure_source_part_adjustment(role_state.source_index)
         adjustment.material_role = role_state.normalized_role
         adjustment.emissive_color_rgb = role_state.emissive_color_rgb
+        if role_state.normalized_role != "glow":
+            adjustment.emissive_strength = None
+        _send_source_role_update(dialog, _replacement_mesh(), role_state.source_index, role_state.normalized_role, adjustment)
         if _is_default_source_part_adjustment(adjustment):
             source_part_adjustments.pop(role_state.source_index, None)
         _safe_call(_refresh_ui_texture_sets_after_source_part_material_override)

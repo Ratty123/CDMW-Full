@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -12,6 +11,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from cdmw.core.atomic_file import atomic_copy_file, atomic_write_bytes, atomic_write_text
 from cdmw.modding.mesh_asset import mesh_asset_from_bytes, mesh_asset_to_inspect_dict
 from cdmw.modding.mesh_exporter import export_obj
 from cdmw.modding.mesh_glb_interchange import export_glb, import_glb_with_sidecar
@@ -99,7 +99,7 @@ def _inspect(asset_path: Path, out_path: Path | None) -> int:
     payload = json.dumps(mesh_asset_to_inspect_dict(asset), indent=2)
     if out_path is not None:
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(payload + "\n", encoding="utf-8")
+        atomic_write_text(out_path, payload + "\n")
     else:
         print(payload)
     return 0
@@ -118,9 +118,9 @@ def _export(asset_path: Path, output_dir: Path, *, name: str, manifest_path: Pat
     cdmeta_path = output_dir / "mesh.cdmeta.json"
     original_hash_path = output_dir / "original_asset_hash.txt"
     if sidecar_path.is_file():
-        shutil.copyfile(sidecar_path, cdmeta_path)
+        atomic_copy_file(sidecar_path, cdmeta_path)
         sidecar = json.loads(cdmeta_path.read_text(encoding="utf-8"))
-        original_hash_path.write_text(str(sidecar.get("source_asset_hash", "") or ""), encoding="utf-8")
+        atomic_write_text(original_hash_path, str(sidecar.get("source_asset_hash", "") or ""))
     manifest = {
         "format": "cdmw_mesh_pipeline_export_v1",
         "asset": str(asset_path),
@@ -203,7 +203,7 @@ def _rebuild(asset_path: Path, edited_path: Path, output_path: Path, report_path
         output_path=str(output_path),
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_bytes(result.data)
+    atomic_write_bytes(output_path, result.data)
     _write_json(report_path, asdict(result.report))
     print(f"Rebuild: {'byte-identical' if result.report.byte_identical else 'changed'}")
     return 0
@@ -235,7 +235,7 @@ def _ensure_cdmeta_sidecar_alias(mesh_path: Path) -> None:
         return
     cdmeta_path = mesh_path.parent / "mesh.cdmeta.json"
     if cdmeta_path.is_file():
-        shutil.copyfile(cdmeta_path, sidecar_path)
+        atomic_copy_file(cdmeta_path, sidecar_path)
 
 
 def _validation_report_payload(report) -> dict[str, object]:
@@ -317,7 +317,7 @@ def _public_validation_severity(severity: object) -> str:
 
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(path, json.dumps(payload, indent=2) + "\n")
 
 
 if __name__ == "__main__":

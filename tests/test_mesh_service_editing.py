@@ -5568,12 +5568,12 @@ class MeshServiceEditingTests(unittest.TestCase):
         view = service.open_edit_session(_quad_mesh(), session_id="strict-selection-prune", mode="edit")
         clear_native_mesh_core_fallback_counts()
         with (
-            patch("cdmw.services.mesh_service.native_mesh_core_available", return_value=True),
+            patch("cdmw.services.mesh_service_selection.native_mesh_core_available", return_value=True),
             patch("cdmw.services.mesh_service.open_native_mesh_editor_session", return_value={"metrics": {"cpp_ms": 1.0}}),
             patch("cdmw.services.mesh_service.select_native_mesh_editor_session", return_value=None),
-            patch("cdmw.services.mesh_service.prune_native_mesh_selection", side_effect=AssertionError("obsolete prune fallback")),
+            patch("cdmw.services.mesh_service_selection.prune_native_mesh_selection", side_effect=AssertionError("obsolete prune fallback")),
             patch(
-                "cdmw.services.mesh_service._valid_selected_edges_for_submesh",
+                "cdmw.services.mesh_service_selection._valid_selected_edges_for_submesh",
                 side_effect=AssertionError("python selection prune fallback"),
             ),
         ):
@@ -8030,7 +8030,7 @@ class MeshServiceEditingTests(unittest.TestCase):
             restored = mesh_native_core.restore_native_mesh_submesh_snapshot(mesh, snapshot)  # type: ignore[arg-type]
 
         self.assertTrue(restored)
-        self.assertEqual(["snapshot_submeshes", "restore_snapshot", "export_snapshot"], snapshot_operations)
+        self.assertEqual(["snapshot_submeshes", "restore_snapshot"], snapshot_operations)
         self.assertEqual("quad", mesh.submeshes[0].name)
         self.assertEqual("mat_a", mesh.submeshes[0].material)
         self.assertEqual((0.0, 0.0, 0.0), mesh.submeshes[0].vertices[0])

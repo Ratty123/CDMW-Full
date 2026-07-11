@@ -26,13 +26,20 @@ from cdmw.constants import (
 )
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
 from cdmw.core.archive_format import try_decrypt_archive_entry_data
+from cdmw.core.dds_resource_limits import (
+    DDS_MAX_DIMENSION,
+    DDS_MAX_PAYLOAD_BYTES,
+    checked_allocation_size,
+    checked_dds_surface_byte_count,
+    validate_dds_dimensions,
+)
 from cdmw.models import ArchiveEntry, RunCancelled
 
 
 def get_archive_partial_dds_header(entry: ArchiveEntry) -> bytes:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_preview_support import get_archive_partial_dds_header as owner
 
-    return archive_core.get_archive_partial_dds_header(entry)
+    return owner(entry)
 
 
 def _dds_bytes_per_block(dxgi_format: int, four_cc: bytes) -> Optional[int]:
@@ -63,10 +70,19 @@ def _dds_uncompressed_surface_size(
         return None
     if pf_flags & (DDPF_LUMINANCE | DDPF_RGB | DDPF_ALPHAPIXELS | DDPF_ALPHA):
         if rgb_bit_count > 0 and rgb_bit_count % 8 == 0:
-            return width * height * max(1, rgb_bit_count // 8)
+            return checked_dds_surface_byte_count(
+                width,
+                height,
+                max(1, rgb_bit_count // 8),
+                label="DDS surface",
+            )
     if pitch_or_linear_size > 0:
         row_pitch = max(1, pitch_or_linear_size >> max(0, mip_level))
-        return row_pitch * max(1, height)
+        return checked_allocation_size(
+            row_pitch,
+            max(1, height),
+            label="DDS surface",
+        )
     return None
 
 
@@ -83,9 +99,14 @@ def _dds_surface_size(
 ) -> int:
     bytes_per_block = _dds_bytes_per_block(dxgi_format, four_cc)
     if bytes_per_block is not None:
-        block_w = max(1, (max(1, width) + 3) // 4)
-        block_h = max(1, (max(1, height) + 3) // 4)
-        return block_w * block_h * bytes_per_block
+        return checked_dds_surface_byte_count(
+            width,
+            height,
+            bytes_per_block,
+            block_width=4,
+            block_height=4,
+            label="DDS surface",
+        )
     raw_surface_size = _dds_uncompressed_surface_size(
         width,
         height,
@@ -105,6 +126,8 @@ def reconstruct_partial_dds(entry: ArchiveEntry, data: bytes) -> bytes:
     header = get_archive_partial_dds_header(entry)
     if len(header) < 0x80 or header[:4] != DDS_MAGIC:
         raise ValueError("Partial DDS header is missing or invalid.")
+    if struct.unpack_from("<I", header, 4)[0] != 124:
+        raise ValueError("Partial DDS header size is invalid.")
     payload_header = bytes(data[: len(header)])
     (
         _header_size,
@@ -123,6 +146,11 @@ def reconstruct_partial_dds(entry: ArchiveEntry, data: bytes) -> bytes:
     caps2 = struct.unpack_from("<I", header, 112)[0]
     is_dx10 = ddspf_four_cc == b"DX10"
     header_size = 0x94 if is_dx10 else 0x80
+    if len(header) < header_size:
+        raise ValueError("Partial DDS DX10 header is truncated.")
+    width, height, mip_map_count = validate_dds_dimensions(width, height, mip_map_count or 1)
+    if depth > DDS_MAX_DIMENSION:
+        raise ValueError(f"DDS depth {depth} exceeds the {DDS_MAX_DIMENSION}px resource limit.")
     dxgi_format = struct.unpack_from("<I", header, 0x80)[0] if is_dx10 and len(header) >= 0x94 else 0
     dx10_array_size = struct.unpack_from("<I", header, 0x8C)[0] if is_dx10 and len(header) >= 0x94 else 1
 
@@ -181,6 +209,25 @@ def reconstruct_partial_dds(entry: ArchiveEntry, data: bytes) -> bytes:
             if use_single_chunk:
                 decompressed_block_sizes = payload_decompressed
 
+    compressed_total = 0
+    decompressed_total = 0
+    for compressed_size, decompressed_size in zip(compressed_block_sizes, decompressed_block_sizes):
+        if compressed_size <= 0 or decompressed_size <= 0:
+            continue
+        if compressed_size > len(data) - header_size - compressed_total:
+            raise ValueError("Partial DDS block is truncated.")
+        if decompressed_size > DDS_MAX_PAYLOAD_BYTES - header_size - decompressed_total:
+            raise ValueError(
+                f"Partial DDS output exceeds the {DDS_MAX_PAYLOAD_BYTES:,}-byte resource limit."
+            )
+        compressed_total += compressed_size
+        decompressed_total += decompressed_size
+    trailing_size = len(data) - header_size - compressed_total
+    if trailing_size < 0:
+        raise ValueError("Partial DDS block is truncated.")
+    if header_size + decompressed_total + trailing_size > DDS_MAX_PAYLOAD_BYTES:
+        raise ValueError(f"Partial DDS output exceeds the {DDS_MAX_PAYLOAD_BYTES:,}-byte resource limit.")
+
     current_data_offset = header_size
     output_data = bytearray(header[:header_size])
     for compressed_size, decompressed_size in zip(compressed_block_sizes, decompressed_block_sizes):
@@ -198,7 +245,10 @@ def reconstruct_partial_dds(entry: ArchiveEntry, data: bytes) -> bytes:
         compressed_data = data[current_data_offset : current_data_offset + compressed_size]
         if len(compressed_data) != compressed_size:
             raise ValueError("Partial DDS block is truncated.")
-        output_data.extend(lz4_block.decompress(compressed_data, uncompressed_size=decompressed_size))
+        block = lz4_block.decompress(compressed_data, uncompressed_size=decompressed_size)
+        if len(block) != decompressed_size:
+            raise ValueError("Partial DDS block decompressed to an unexpected size.")
+        output_data.extend(block)
         current_data_offset += compressed_size
     if current_data_offset < len(data):
         output_data.extend(data[current_data_offset:])
@@ -264,6 +314,14 @@ def maybe_reconstruct_sparse_dds(entry: ArchiveEntry, data: bytes) -> Optional[T
         return None
     if len(data) >= entry.orig_size:
         return None
+    if len(data) < 128:
+        raise ValueError("Sparse DDS header is truncated.")
+    height = struct.unpack_from("<I", data, 12)[0]
+    width = struct.unpack_from("<I", data, 16)[0]
+    mip_count = struct.unpack_from("<I", data, 28)[0] or 1
+    validate_dds_dimensions(width, height, mip_count)
+    if entry.orig_size > DDS_MAX_PAYLOAD_BYTES:
+        raise ValueError(f"Sparse DDS output exceeds the {DDS_MAX_PAYLOAD_BYTES:,}-byte resource limit.")
     padded = data + (b"\x00" * (entry.orig_size - len(data)))
     return padded, "SparseDDS"
 
@@ -375,8 +433,15 @@ def _decode_archive_entry_data(
         elif entry.compression_type == 2:
             if lz4_block is None:
                 raise ValueError("This entry uses LZ4 compression, but the lz4 Python package is not installed.")
+            if entry.extension == ".dds" and (entry.orig_size <= 0 or entry.orig_size > DDS_MAX_PAYLOAD_BYTES):
+                raise ValueError(
+                    f"DDS output size {entry.orig_size:,} exceeds the "
+                    f"{DDS_MAX_PAYLOAD_BYTES:,}-byte resource limit."
+                )
             raise_if_cancelled(stop_event)
             data = lz4_block.decompress(data, uncompressed_size=entry.orig_size)
+            if entry.extension == ".dds" and len(data) != entry.orig_size:
+                raise ValueError("DDS block decompressed to an unexpected size.")
             decompressed = True
             note = ",".join(part for part in [note, "LZ4"] if part)
         else:

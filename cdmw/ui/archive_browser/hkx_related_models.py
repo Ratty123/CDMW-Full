@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from pathlib import PurePosixPath
 from typing import List, Tuple
 
-from cdmw.modding.static_mesh_replacer import _semantic_tokens
+from cdmw.services.mesh_workflow_service import _semantic_tokens
 from cdmw.ui.archive_browser.hkx_editor_dialog_helpers import filter_terms
 
 

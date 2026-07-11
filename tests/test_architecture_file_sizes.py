@@ -1,11 +1,38 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 
 LIMITS = {
     "cdmw_app.py": 120,
     "cdmw/rendering/material_combiner.py": 3200,
+    "cdmw/core/archive_hkx.py": 16500,
+    "cdmw/core/archive_hkx_collision_parser.py": 800,
+    "cdmw/core/archive_hkx_corpus_evidence.py": 800,
+    "cdmw/core/archive_hkx_corpus_files.py": 800,
+    "cdmw/core/archive_hkx_corpus_planning.py": 800,
+    "cdmw/core/archive_hkx_corpus_report.py": 800,
+    "cdmw/core/archive_hkx_corpus_scan.py": 800,
+    "cdmw/core/archive_hkx_descriptor.py": 800,
+    "cdmw/core/archive_hkx_editable_geometry.py": 800,
+    "cdmw/core/archive_hkx_editing.py": 800,
+    "cdmw/core/archive_hkx_havok_xml.py": 800,
+    "cdmw/core/archive_hkx_overlay.py": 800,
+    "cdmw/core/archive_hkx_overlay_support.py": 800,
+    "cdmw/core/archive_hkx_preview.py": 800,
+    "cdmw/core/archive_hkx_preview_geometry.py": 800,
+    "cdmw/core/archive_hkx_parser.py": 800,
+    "cdmw/core/archive_hkx_patch_ops.py": 800,
+    "cdmw/core/archive_hkx_record_constants.py": 800,
+    "cdmw/core/archive_hkx_roles.py": 800,
+    "cdmw/core/archive_hkx_summary.py": 800,
+    "cdmw/core/archive_hkx_types.py": 800,
+    "cdmw/core/archive_hkx_xml_import.py": 800,
+    "cdmw/core/archive_hkx_xml_export_content.py": 800,
+    "cdmw/core/archive_hkx_xml_export_physics.py": 800,
+    "cdmw/core/archive_hkx_xml_export_reports.py": 800,
+    "cdmw/core/archive_hkx_xml_export_semantics.py": 800,
     "cdmw/ui/main_window.py": 120,
     "cdmw/ui/shell/app_startup.py": 330,
     "cdmw/ui/shell/app_window.py": 760,
@@ -20,6 +47,7 @@ LIMITS = {
     "cdmw/ui/model_library/catalogue.py": 700,
     "cdmw/ui/model_library/commands.py": 700,
     "cdmw/ui/model_library/controller.py": 800,
+    "cdmw/ui/model_library/icon_output.py": 200,
     "cdmw/ui/model_library/local_rows.py": 700,
     "cdmw/ui/model_library/panels.py": 700,
     "cdmw/ui/model_library/preview.py": 700,
@@ -41,9 +69,10 @@ LIMITS = {
     "cdmw/ui/archive_browser/static_preview_thumbnail.py": 800,
     "cdmw/ui/archive_browser/static_replacement_dialog.py": 200,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt.py": 1800,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py": 400,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py": 360,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py": 200,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py": 620,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py": 520,
+    "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py": 500,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_state_callbacks.py": 530,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_transform.py": 120,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps.py": 1800,
@@ -120,7 +149,6 @@ LIMITS = {
     "cdmw/ui/archive_browser/icon_pipeline.py": 800,
     "cdmw/ui/archive_browser/index_workers.py": 800,
     "cdmw/ui/archive_browser/import_actions.py": 800,
-    "cdmw/ui/archive_browser/weapon_placement_map.py": 800,
     "cdmw/ui/archive_browser/weapon_placement_studio.py": 800,
     "cdmw/ui/archive_browser/material_finder.py": 800,
     "cdmw/ui/archive_browser/material_sidecar_actions.py": 800,
@@ -130,7 +158,10 @@ LIMITS = {
     "cdmw/ui/archive_browser/mod_package_retrofit_dialog.py": 800,
     "cdmw/ui/archive_browser/mod_package_retrofit_view.py": 800,
     "cdmw/ui/tools/mod_package_retrofit.py": 800,
+    "cdmw/ui/tools/mod_package_retrofit_tasks.py": 800,
+    "cdmw/ui/tools/mod_package_retrofit_widget.py": 800,
     "cdmw/ui/tools/mod_package_retrofit_view.py": 800,
+    "cdmw/workers/mod_package_retrofit_workers.py": 800,
     "cdmw/ui/archive_browser/mesh_dds_preview.py": 800,
     "cdmw/ui/archive_browser/mesh_direct_patch.py": 800,
     "cdmw/ui/archive_browser/mesh_import_export.py": 800,
@@ -263,3 +294,20 @@ def test_selected_architecture_file_size_limits() -> None:
         source = Path(path_text).read_text(encoding="utf-8")
         line_count = len(source.splitlines())
         assert line_count <= limit, f"{path_text} has {line_count} lines, limit is {limit}"
+
+
+def test_main_window_owns_feature_controllers_instead_of_feature_mixins() -> None:
+    tree = ast.parse(Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"))
+    main_window = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef) and node.name == "MainWindow"
+    )
+
+    assert [ast.unparse(base) for base in main_window.bases] == ["QMainWindow"]
+
+    source = Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
+    assert "WindowFeatureController(self, SHELL_FEATURE_PROVIDERS)" in source
+    assert "WindowFeatureController(self, ARCHIVE_FEATURE_PROVIDERS)" in source
+    assert "WindowFeatureController(self, TEXTURE_FEATURE_PROVIDERS)" in source
+    assert "WindowFeatureController(self, MESH_FEATURE_PROVIDERS)" in source

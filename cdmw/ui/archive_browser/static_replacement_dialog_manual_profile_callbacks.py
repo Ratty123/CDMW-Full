@@ -4,6 +4,32 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from cdmw.ui.archive_browser.static_replacement_manual_material_profile import (
+    material_authority_target_height_supported,
+)
+from cdmw.ui.archive_browser.static_replacement_dotnet_material_bridge import (
+    resident_material_parameters_available,
+    resident_material_resources_available,
+)
+
+
+def _material_editor_active(callback: object) -> bool:
+    try:
+        return bool(callback()) if callable(callback) else False
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+
+
+def _refresh_preview_for_session(dialog: object, editor_active: bool, resident_callback: object, package_callback: object) -> None:
+    if editor_active:
+        if (
+            resident_material_parameters_available(dialog) or resident_material_resources_available(dialog)
+        ) and callable(resident_callback):
+            resident_callback(resource_keys=("*",))
+        return
+    if callable(package_callback):
+        package_callback()
+
 
 def create_manual_material_profile_runtime_callbacks(context: dict[str, object]) -> SimpleNamespace:
     Dict = context.get('Dict')
@@ -59,7 +85,8 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
     self = context.get('self')
     serialize_complete_swap_manual_material_profile = context.get('serialize_complete_swap_manual_material_profile')
     write_complete_swap_calibrated_material_profile = context.get('write_complete_swap_calibrated_material_profile')
-
+    _editor_active = lambda: _material_editor_active(context.get('_alignment_mesh_edit_tab_active'))
+    _refresh_preview_for_current_session = lambda: _refresh_preview_for_session(dialog, _editor_active(), context.get('_queue_material_authority_adjustment_preview_refresh'), _queue_texture_preview_refresh)
     def _modify_original_tuning_enabled_value() -> bool:
         if not callable(_modify_original_texture_tuning_enabled):
             return False
@@ -101,6 +128,8 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
             current_values,
             control_keys=tuple(manual_profile_effect_widgets),
             control_tooltips=manual_profile_control_tooltips,
+            target_height_supported=material_authority_target_height_supported(context.get('sidecar_bindings')), resident_parameter_only=_editor_active(), resident_parameters_available=resident_material_parameters_available(dialog),
+            resident_resources_available=resident_material_resources_available(dialog),
         )
         for key, widgets in manual_profile_effect_widgets.items():
             state = control_states.get(key, {})
@@ -158,7 +187,7 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
             if refresh_preview:
                 _set_manual_profile_dirty(False)
                 _refresh_output_impact_review()
-                _queue_texture_preview_refresh()
+                _refresh_preview_for_current_session()
             else:
                 _set_manual_profile_dirty(True)
 
@@ -178,12 +207,9 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
         _save_complete_swap_material_profile()
         _set_manual_profile_dirty(False)
         _refresh_output_impact_review()
-        _queue_texture_preview_refresh()
+        _refresh_preview_for_current_session()
 
-    _selected_manual_profile_preset = lambda: _selected_manual_material_profile_preset_helper(
-            manual_profile_presets,
-            manual_profile_preset_combo.currentData(),
-        )
+    _selected_manual_profile_preset = lambda: _selected_manual_material_profile_preset_helper(manual_profile_presets, manual_profile_preset_combo.currentData())
 
     def _refresh_manual_profile_preset_combo(select_name: str = "") -> None:
         current_name = str(select_name or manual_profile_preset_combo.currentData() or "").strip()

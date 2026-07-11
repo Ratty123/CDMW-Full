@@ -312,7 +312,7 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertEqual(1, section["face_count"])
         self.assertTrue(section["has_uvs"])
         self.assertTrue(section["has_normals"])
-        self.assertFalse(section["has_tangents"])
+        self.assertTrue(section["has_tangents"])
         self.assertFalse(section["has_skinning"])
         self.assertEqual((0,), section["texture_texcoord_sets"])
         self.assertEqual((0.0, 0.0, 0.0), section["bounds_min"])

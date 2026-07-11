@@ -6,7 +6,7 @@ import dataclasses
 from collections.abc import Callable, Iterable, Mapping, Sequence
 
 from cdmw.models import ModelPreviewData
-from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.services.mesh_workflow_service import ParsedMesh
 from cdmw.ui.archive_browser.static_replacement_preview_frame import (
     alignment_preview_frame_from_model,
     apply_alignment_preview_frame,
@@ -299,7 +299,7 @@ def combine_preview_with_overlay(preview_model: object, overlay_model: object | 
 
 def _preview_submesh_native_metadata(submesh_list: Sequence[object]) -> Mapping[str, object] | None:
     try:
-        from cdmw.modding.mesh_native_core import summarize_native_mesh_submesh_metadata
+        from cdmw.services.mesh_workflow_service import summarize_native_mesh_submesh_metadata
 
         report = summarize_native_mesh_submesh_metadata(submesh_list)  # type: ignore[arg-type]
     except Exception:

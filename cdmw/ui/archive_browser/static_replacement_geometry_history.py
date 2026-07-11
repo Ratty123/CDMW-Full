@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -46,6 +46,8 @@ class GeometryHistoryRestoreState:
     selected_target_original_highlights: set[int]
     original_copy_text_by_index: dict[int, str]
     mapping_text_by_target: dict[int, str]
+    metadata_only: bool = False
+    material_authority_state: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +164,8 @@ def geometry_history_capture_state(
     transform_source_indices: Sequence[int],
     selected_original_highlights: Sequence[int],
     selected_target_original_highlights: Sequence[int],
+    metadata_only: bool = False,
+    material_authority_state: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     return {
         "reason": str(reason or "Geometry change"),
@@ -211,6 +215,8 @@ def geometry_history_capture_state(
         "transform_source_indices": _int_set(transform_source_indices),
         "selected_original_highlights": _int_set(selected_original_highlights),
         "selected_target_original_highlights": _int_set(selected_target_original_highlights),
+        "metadata_only": bool(metadata_only),
+        "material_authority_state": copy.deepcopy(dict(material_authority_state or {})),
     }
 
 
@@ -304,6 +310,8 @@ def geometry_history_restore_state(
             int(index): str(text)
             for index, text in dict(snapshot.get("mapping_text_by_target", {})).items()
         },
+        metadata_only=bool(snapshot.get("metadata_only", False)),
+        material_authority_state=copy.deepcopy(dict(snapshot.get("material_authority_state", {}) or {})),
     )
 
 

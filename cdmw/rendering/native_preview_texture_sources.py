@@ -578,6 +578,16 @@ def _batch_dds_manifest_cache_key(
     return hashlib.sha1(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8", errors="replace")).hexdigest()
 
 
+def _source_path_key(value: object) -> str:
+    source_path = str(value or "").strip()
+    if not source_path:
+        return ""
+    try:
+        return str(Path(source_path).expanduser().resolve()).casefold()
+    except OSError:
+        return source_path.casefold()
+
+
 def _filter_dds_textures_for_preview_settings(
     dds_textures: Mapping[str, object],
     batch: PreparedModelPreviewBatch,
@@ -594,15 +604,6 @@ def _filter_dds_textures_for_preview_settings(
         and not bool(getattr(batch, "preview_debug_disable_support_maps", False))
         and not bool(getattr(render_settings, "disable_all_support_maps", False))
     )
-
-    def entry_source_key(entry: Mapping[str, object]) -> str:
-        source_path = str(entry.get("source_path", "") or "").strip()
-        if not source_path:
-            return ""
-        try:
-            return str(Path(source_path).expanduser().resolve()).casefold()
-        except OSError:
-            return source_path.casefold()
 
     def entry_is_layer_only(entry: Mapping[str, object]) -> bool:
         disposition = str(entry.get("disposition", "") or "").strip().lower()
@@ -633,10 +634,10 @@ def _filter_dds_textures_for_preview_settings(
     def base_entry_is_layer_only_input(base_entry_value: object) -> bool:
         if not isinstance(base_entry_value, Mapping):
             return False
-        base_key = entry_source_key(base_entry_value)
+        base_key = _source_path_key(base_entry_value.get("source_path"))
         if not base_key:
             return False
-        matching_inputs = [entry for entry in raw_input_entries if entry_source_key(entry) == base_key]
+        matching_inputs = [entry for entry in raw_input_entries if _source_path_key(entry.get("source_path")) == base_key]
         return bool(
             matching_inputs
             and any(entry_is_layer_only(entry) for entry in matching_inputs)
@@ -812,32 +813,16 @@ def _texture_sources_for_batch(
     def has_direct_dds(slot_name: str) -> bool:
         entry = direct_dds_slots.get(slot_name)
         return _direct_dds_entry_available(entry)
-
     def _direct_material_input_entries() -> Tuple[Mapping[str, object], ...]:
         entries = direct_dds_slots.get("material_inputs")
         if not isinstance(entries, Sequence) or isinstance(entries, (str, bytes, bytearray)):
             return ()
         return tuple(entry for entry in entries if isinstance(entry, Mapping))
-
     def _direct_material_descriptor(entry: Mapping[str, object]) -> str:
         return " ".join(
             str(entry.get(field, "") or "")
             for field in ("slot", "parameter_name", "semantic_type", "semantic_subtype", "source_path")
         ).lower()
-
-    def _direct_material_source(entry: Mapping[str, object]) -> str:
-        try:
-            return str(Path(str(entry.get("source_path", "") or "")).expanduser().resolve()).casefold()
-        except OSError:
-            return str(entry.get("source_path", "") or "").casefold()
-
-    def _source_identity(source_path: str) -> str:
-        if not str(source_path or "").strip():
-            return ""
-        try:
-            return str(Path(str(source_path or "")).expanduser().resolve()).casefold()
-        except OSError:
-            return str(source_path or "").casefold()
 
     def _direct_material_input_available_for(kind: str, texture_input: Optional[PreviewMaterialTextureInput] = None) -> bool:
         normalized_kind = str(kind or "").strip().lower()
@@ -846,12 +831,14 @@ def _texture_sources_for_batch(
             direct_source = str(getattr(texture_input, "source_dds_path", "") or "").strip()
             if not direct_source:
                 direct_source = _source_dds_for_preview_path(str(getattr(texture_input, "preview_texture_path", "") or ""))
-        direct_source_key = _source_identity(direct_source) if direct_source else ""
+        direct_source_key = _source_path_key(direct_source)
         for entry in _direct_material_input_entries():
             if not _direct_dds_entry_available(entry):
                 continue
-            if direct_source_key and _direct_material_source(entry) == direct_source_key:
+            if direct_source_key and _source_path_key(entry.get("source_path")) == direct_source_key:
                 return True
+            if texture_input is not None:
+                continue
             descriptor = _direct_material_descriptor(entry)
             technical = _technical_texture_kind(str(entry.get("source_path", "") or ""))
             if normalized_kind == "base":
@@ -889,7 +876,6 @@ def _texture_sources_for_batch(
             ):
                 return True
         return False
-
     def _direct_material_response_available() -> bool:
         return bool(
             has_direct_dds("material")
@@ -901,15 +887,15 @@ def _texture_sources_for_batch(
         )
 
     def _direct_dds_available_for_source(source_path: str) -> bool:
-        source_key = _source_identity(source_path)
+        source_key = _source_path_key(source_path)
         if not source_key:
             return False
         for slot_name in ("base", "normal", "material", "height", "emissive"):
             entry = direct_dds_slots.get(slot_name)
-            if _direct_dds_entry_available(entry) and _direct_material_source(entry) == source_key:
+            if _direct_dds_entry_available(entry) and _source_path_key(entry.get("source_path")) == source_key:
                 return True
         for entry in _direct_material_input_entries():
-            if _direct_dds_entry_available(entry) and _direct_material_source(entry) == source_key:
+            if _direct_dds_entry_available(entry) and _source_path_key(entry.get("source_path")) == source_key:
                 return True
         return False
 
@@ -928,7 +914,7 @@ def _texture_sources_for_batch(
             source_text = str(raw_source or "").strip()
             if not source_text:
                 continue
-            keys.add(_source_identity(source_text))
+            keys.add(_source_path_key(source_text))
             try:
                 keys.add(Path(source_text).expanduser().name.casefold())
             except OSError:
@@ -937,8 +923,8 @@ def _texture_sources_for_batch(
 
     def _base_preview_is_layer_only_input() -> bool:
         base_sources = {
-            _source_identity(str(getattr(batch, "preview_texture_dds_path", "") or "")),
-            _source_identity(str(getattr(batch, "preview_texture_path", "") or "")),
+            _source_path_key(getattr(batch, "preview_texture_dds_path", "")),
+            _source_path_key(getattr(batch, "preview_texture_path", "")),
         }
         try:
             base_sources.add(Path(str(getattr(batch, "preview_texture_path", "") or "")).expanduser().name.casefold())

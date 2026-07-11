@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import copy
 import hashlib
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 from cdmw.domain.mesh.operations import (
     mesh_edit_operation_changed_channel,
@@ -114,6 +115,7 @@ class MeshRebuildReport:
     developer_overrides: tuple[str, ...] = ()
     edit_operations: tuple[dict[str, object], ...] = ()
     output_path: str = ""
+    export_snapshot: Mapping[str, object] = field(default_factory=dict)
 
     @property
     def changed_range_count(self) -> int:
@@ -137,10 +139,15 @@ def rebuild_mesh_with_report(
     *,
     validation_status: str = "not_run",
     output_path: str = "",
+    original_mesh: ParsedMesh | None = None,
 ) -> MeshRebuildResult:
     """Rebuild mesh bytes and return the structured binary-diff report."""
-    fmt, rebuild_mesh, original_mesh = _prepare_mesh_for_rebuild(mesh, original_data)
-    rebuilt = original_data if original_mesh is not None and _mesh_matches_no_edit(original_mesh, rebuild_mesh) else _build_prepared_mesh_bytes(fmt, rebuild_mesh, original_data)
+    fmt, rebuild_mesh, parsed_original = _prepare_mesh_for_rebuild(
+        mesh,
+        original_data,
+        original_mesh=original_mesh,
+    )
+    rebuilt = original_data if parsed_original is not None and _mesh_matches_no_edit(parsed_original, rebuild_mesh) else _build_prepared_mesh_bytes(fmt, rebuild_mesh, original_data)
     return MeshRebuildResult(
         data=rebuilt,
         report=_build_rebuild_report(
@@ -149,6 +156,7 @@ def rebuild_mesh_with_report(
             rebuilt,
             validation_status=validation_status,
             output_path=output_path,
+            original_mesh=parsed_original,
         ),
     )
 
@@ -160,14 +168,20 @@ def _build_mesh_bytes(mesh: ParsedMesh, original_data: bytes) -> bytes:
     return _build_prepared_mesh_bytes(fmt, rebuild_mesh, original_data)
 
 
-def _prepare_mesh_for_rebuild(mesh: ParsedMesh, original_data: bytes) -> tuple[str, ParsedMesh, ParsedMesh | None]:
+def _prepare_mesh_for_rebuild(
+    mesh: ParsedMesh,
+    original_data: bytes,
+    *,
+    original_mesh: ParsedMesh | None = None,
+) -> tuple[str, ParsedMesh, ParsedMesh | None]:
     fmt = mesh.format.lower()
     validate_obj_sidecar_source_identity(mesh, original_data)
     _validate_mesh_rebuild_sidecar_warnings(mesh)
-    try:
-        original_mesh = _parse_original_mesh_for_no_edit(fmt, original_data, mesh.path)
-    except Exception:
-        original_mesh = None
+    if original_mesh is None:
+        try:
+            original_mesh = _parse_original_mesh_for_no_edit(fmt, original_data, mesh.path)
+        except Exception:
+            original_mesh = None
     if original_mesh is not None:
         _validate_mesh_rebuild_operations(mesh, original_mesh=original_mesh)
         return fmt, _apply_operation_channels_to_original(original_mesh, mesh), original_mesh
@@ -212,10 +226,12 @@ def _build_rebuild_report(
     *,
     validation_status: str,
     output_path: str,
+    original_mesh: ParsedMesh | None = None,
 ) -> MeshRebuildReport:
     fmt = str(mesh.format or "").lower()
     changed_ranges = _diff_byte_ranges(original_data, rebuilt_data)
-    original_mesh = _parse_original_mesh_for_report(fmt, original_data, mesh.path)
+    if original_mesh is None:
+        original_mesh = _parse_original_mesh_for_report(fmt, original_data, mesh.path)
     edited_lods, edited_submeshes, changed_channels = _merge_mesh_scopes(
         _changed_mesh_scope(original_mesh, mesh),
         _operation_mesh_scope(mesh),

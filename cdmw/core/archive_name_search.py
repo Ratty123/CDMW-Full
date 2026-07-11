@@ -26,39 +26,39 @@ _ARCHIVE_NAME_SEARCH_SHARD_META_SUPPORTED_VERSIONS = {1, _ARCHIVE_NAME_SEARCH_SH
 
 
 def _archive_base_dir(package_root: Path) -> Path:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_scan_cache import _archive_base_dir as owner
 
-    return archive_core._archive_base_dir(package_root)
+    return owner(package_root)
 
 
 def _archive_relative_source_path(base_dir: Path, path: Path) -> str:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_scan_cache import _archive_relative_source_path as owner
 
-    return archive_core._archive_relative_source_path(base_dir, path)
+    return owner(base_dir, path)
 
 
 def _archive_entry_item_alias_text(entry: ArchiveEntry, item_search_aliases: Optional[Mapping[str, str]]) -> str:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_filtering import _archive_entry_item_alias_text as owner
 
-    return archive_core._archive_entry_item_alias_text(entry, item_search_aliases)
+    return owner(entry, item_search_aliases)
 
 
 def _archive_entry_shard_groups(*args: Any, **kwargs: Any) -> Any:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_scan_cache import _archive_entry_shard_groups as owner
 
-    return archive_core._archive_entry_shard_groups(*args, **kwargs)
+    return owner(*args, **kwargs)
 
 
 def _archive_scan_shard_id(relative_pamt_path: str) -> str:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_scan_cache import _archive_scan_shard_id as owner
 
-    return archive_core._archive_scan_shard_id(relative_pamt_path)
+    return owner(relative_pamt_path)
 
 
 def resolve_archive_name_search_shard_cache_dir(package_root: Path, cache_root: Path) -> Path:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_scan_cache import resolve_archive_name_search_shard_cache_dir as owner
 
-    return archive_core.resolve_archive_name_search_shard_cache_dir(package_root, cache_root)
+    return owner(package_root, cache_root)
 
 
 _ARCHIVE_SEARCH_DEFAULT_FIELD = "any"

@@ -6,9 +6,18 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from cdmw.ui.localization import (
     LANGUAGE_WARNING,
-    collect_translatable_source_strings,
+    bundled_translatable_source_strings,
     language_name_for_code,
-    write_language_file,
+)
+from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+from cdmw.ui.shell.request_task_controller import request_task_controller_for_guard
+from cdmw.workers.localization_workers import (
+    LanguageExportRequest,
+    LanguageExportResult,
+    LanguageImportRequest,
+    LanguageImportResult,
+    run_language_export,
+    run_language_import,
 )
 
 
@@ -20,9 +29,17 @@ class LanguageControllerMixin:
             self.ui_localizer.available_languages(),
             current_code=self.ui_localizer.language_code,
         )
-        if hasattr(self, "texture_editor_tab"):
-            self.texture_editor_tab.set_ui_translator(self.ui_localizer.translate)
-        self.ui_localizer.apply(self)
+        texture_editor_tab = created_tool_widget(getattr(self, "texture_editor_tab", None))
+        if texture_editor_tab is not None:
+            texture_editor_tab.set_ui_translator(self.ui_localizer.translate)
+        # A newly constructed English UI already contains its source strings.
+        # Walking the whole widget tree only becomes necessary after a real
+        # translation has been applied (including when switching back to
+        # English).
+        translation_applied = bool(getattr(self, "_ui_translation_applied", False))
+        if self.ui_localizer.language_code != "en" or translation_applied:
+            self.ui_localizer.apply(self)
+            self._ui_translation_applied = True
         self._update_ncnn_preset_hint()
         self._schedule_column_autofit()
 
@@ -49,27 +66,37 @@ class LanguageControllerMixin:
         )
         if not selected:
             return
-        try:
-            source_roots = (
-                Path(__file__).resolve().parents[2],
-            )
-            translations = collect_translatable_source_strings(source_roots)
-            translations.update(self.ui_localizer.collect_source_strings(self))
-            for key in list(translations):
-                translations[key] = self.ui_localizer.translations.get(key, translations.get(key, ""))
-            write_language_file(
-                Path(selected),
-                language_code=language_code,
-                language_name=language_name,
-                translations=translations,
-            )
-        except Exception as exc:
-            QMessageBox.warning(self, "Export Language File", f"Could not export language file:\n{exc}")
-            return
-        QMessageBox.information(
+        translations = bundled_translatable_source_strings()
+        translations.update(self.ui_localizer.collect_source_strings(self))
+        for key in list(translations):
+            translations[key] = self.ui_localizer.translations.get(key, translations.get(key, ""))
+        controller = request_task_controller_for_guard(
             self,
-            "Export Language File",
-            f"Exported language file:\n{selected}\n\n{LANGUAGE_WARNING}",
+            self,
+            attribute="_language_task_controller",
+            worker_label="language_io",
+        )
+        controller.start(
+            LanguageExportRequest(
+                Path(selected),
+                language_code,
+                language_name,
+                tuple(sorted(translations.items())),
+            ),
+            run_language_export,
+            status_message=f"Exporting language file {Path(selected).name}...",
+            on_complete=lambda result: QMessageBox.information(
+                self,
+                "Export Language File",
+                f"Exported language file:\n{result.output_path}\n\n{LANGUAGE_WARNING}",
+            )
+            if isinstance(result, LanguageExportResult)
+            else None,
+            on_error=lambda message: QMessageBox.warning(
+                self,
+                "Export Language File",
+                f"Could not export language file:\n{message}",
+            ),
         )
 
     def _import_language_file(self) -> None:
@@ -81,16 +108,40 @@ class LanguageControllerMixin:
         )
         if not selected:
             return
-        try:
-            language_code, language_name, target_path = self.ui_localizer.import_language_file(Path(selected))
-        except Exception as exc:
-            QMessageBox.warning(self, "Import Language File", f"Could not import language file:\n{exc}")
-            return
-        self.settings.setValue("appearance/language", language_code)
-        self.settings.sync()
-        self._apply_ui_language()
-        QMessageBox.information(
+
+        def _complete(result: object) -> None:
+            if not isinstance(result, LanguageImportResult):
+                QMessageBox.warning(self, "Import Language File", "Language importer returned an unexpected result.")
+                return
+            self.ui_localizer.install_imported_language(
+                result.language_code,
+                result.language_name,
+                dict(result.translations),
+                result.target_path,
+            )
+            self.settings.setValue("appearance/language", result.language_code)
+            self.settings.sync()
+            self._apply_ui_language()
+            QMessageBox.information(
+                self,
+                "Import Language File",
+                f"Imported language: {result.language_name} ({result.language_code})\nStored at:\n{result.target_path}\n\n{LANGUAGE_WARNING}",
+            )
+
+        controller = request_task_controller_for_guard(
             self,
-            "Import Language File",
-            f"Imported language: {language_name} ({language_code})\nStored at:\n{target_path}\n\n{LANGUAGE_WARNING}",
+            self,
+            attribute="_language_task_controller",
+            worker_label="language_io",
+        )
+        controller.start(
+            LanguageImportRequest(Path(selected), self.language_dir),
+            run_language_import,
+            status_message=f"Importing language file {Path(selected).name}...",
+            on_complete=_complete,
+            on_error=lambda message: QMessageBox.warning(
+                self,
+                "Import Language File",
+                f"Could not import language file:\n{message}",
+            ),
         )

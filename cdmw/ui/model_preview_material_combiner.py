@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from cdmw.rendering.material_combiner import (
+from cdmw.services.preview_rendering_service import (
     MaterialPreviewCombinerResult,
     MaterialPreviewCombinerSettings,
     _decode_mode_for_input,

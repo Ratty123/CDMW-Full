@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
+from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.mesh.asset import validate_mesh_asset_rebuild
 
 from .mesh_asset import mesh_asset_from_parsed_mesh, mesh_asset_to_inspect_dict
@@ -45,7 +46,7 @@ def roundtrip_mesh_file(
     if output_path is not None and result.rebuilt_bytes:
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(result.rebuilt_bytes)
+        atomic_write_bytes(out, result.rebuilt_bytes)
     if report_path is not None:
         write_roundtrip_report(report_path, result.report)
     return result
@@ -182,7 +183,7 @@ def roundtrip_summary_lines(report: dict[str, object]) -> list[str]:
 def write_roundtrip_report(path: Path | str, report: dict[str, object]) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(target, json.dumps(report, indent=2) + "\n")
 
 
 def parse_allowed_difference(value: str) -> AllowedDifference:

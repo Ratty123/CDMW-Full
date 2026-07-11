@@ -18,6 +18,7 @@ from cdmw.constants import (
     PNG_MAGIC,
 )
 from cdmw.core.common import read_u32_le
+from cdmw.core.dds_resource_limits import validate_dds_dimensions
 from cdmw.domain.textures.plan import _dds_colorspace_intent_from_format
 from cdmw.models import CrimsonDdsFinding, CrimsonDdsInfo, DdsInfo
 
@@ -117,6 +118,7 @@ def parse_dds(dds_path: Path) -> DdsInfo:
     height = read_u32_le(header, 8)
     width = read_u32_le(header, 12)
     mip_count = read_u32_le(header, 24) or 1
+    width, height, mip_count = validate_dds_dimensions(width, height, mip_count)
 
     pf_size = read_u32_le(header, 72)
     if pf_size != 32:

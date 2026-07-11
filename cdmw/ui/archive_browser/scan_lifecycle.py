@@ -2,37 +2,101 @@
 
 from __future__ import annotations
 
-import time
 from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-from PySide6.QtCore import QThread, QTimer
+from PySide6.QtCore import QObject, QThread, QTimer, QUrl, Qt, Slot
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import QMessageBox
 
 from cdmw.constants import ARCHIVE_BROWSER_VIEW_MODE
-from cdmw.core.archive import (
-    ArchiveNameSearchIndex,
-    archive_browser_sort_is_active,
-    normalize_archive_extension_filter,
-)
-from cdmw.models import ArchiveEntry
+from cdmw.services.archive_workflow_service import ArchiveNameSearchIndex
+from cdmw.domain.archives.filters import archive_browser_sort_is_active
 from cdmw.services.diagnostics_service import timing_value as _timing_value
+from cdmw.services.archive_environment_service import find_suspicious_archive_tree_roots
+from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.workers.archive_scan_workers import ArchiveScanWorker
+
+
+class _ArchiveScanUiReceiver(QObject):
+    """Deliver archive worker results on the window's Qt thread."""
+
+    def __init__(self, window: object) -> None:
+        super().__init__(window)  # type: ignore[arg-type]
+        self._window = window
+
+    @Slot(str)
+    def handle_log(self, message: str) -> None:
+        self._window.append_log(message)
+        self._window.append_archive_log(message)
+
+    @Slot(int, int, str)
+    def handle_progress(self, current: int, total: int, detail: str) -> None:
+        self._window._handle_archive_scan_progress(current, total, detail)
+
+    @Slot(object)
+    def handle_completed(self, result: object) -> None:
+        self._window._handle_archive_scan_complete(result)
+
+    @Slot(str)
+    def handle_error(self, message: str) -> None:
+        self._window._handle_worker_error(message)
+
+    @Slot()
+    def handle_thread_finished(self) -> None:
+        self._window._cleanup_worker_refs()
+        if getattr(self._window, "archive_scan_ui_receiver", None) is self:
+            self._window.archive_scan_ui_receiver = None
+        self.deleteLater()
 
 
 class ArchiveScanLifecycleMixin:
     """Archive scan start, result intake, and scan finalization."""
+
+    def _confirm_suspicious_archive_tree_scan(self, package_root: Path) -> bool:
+        try:
+            suspicious_roots = find_suspicious_archive_tree_roots(package_root)
+        except (OSError, ValueError) as exc:
+            self.append_log(f"Archive root preflight could not inspect the selected folder: {exc}")
+            return True
+        if not suspicious_roots:
+            return True
+        shown = suspicious_roots[:8]
+        locations = "\n".join(f"- {path}" for path in shown)
+        if len(suspicious_roots) > len(shown):
+            locations += f"\n- ...and {len(suspicious_roots) - len(shown)} more"
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle("Possible Duplicate Game Archives")
+        box.setText(
+            "CDMW found archive indexes outside the normal game archive layout. "
+            "Backup or copied archives can create duplicate results and inflated file counts."
+        )
+        box.setInformativeText(
+            f"Suspicious locations:\n{locations}\n\n"
+            "Verify or repair the game installation and move archive backups outside the game folder."
+        )
+        scan_button = box.addButton("Scan Anyway", QMessageBox.AcceptRole)
+        open_button = box.addButton("Open Folder", QMessageBox.ActionRole)
+        box.addButton("Cancel Scan", QMessageBox.RejectRole)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is open_button:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(suspicious_roots[0])))
+        if clicked is scan_button:
+            return True
+        self.set_status_message("Archive scan cancelled: possible duplicate game archives found.")
+        return False
 
     def scan_archives(self, force_refresh: bool = False, *, activate_archive_tab: bool = True) -> None:
         self._archive_scan_progress_timer.stop()
         self._archive_scan_progress_pending = None
         self._mark_archive_browser_render_stale()
         self.archive_browser_first_visible_paint_done = False
-        self.archive_deferred_basic_index_start_pending = False
-        self.archive_deferred_enhanced_index_start_pending = False
-        self.archive_deferred_derived_cache_write_pending = False
-        self.archive_deferred_sidecar_start_pending = False
+        self.archive_deferred_basic_index_start_pending = self.archive_deferred_enhanced_index_start_pending = False
+        self.archive_deferred_derived_cache_write_pending = self.archive_deferred_sidecar_start_pending = False
         self.archive_item_icon_preload_pending_after_ready = False
         self.archive_enhanced_filter_refresh_pending = False
         self.archive_basic_index_state = "idle"
@@ -46,7 +110,7 @@ class ArchiveScanLifecycleMixin:
         self.archive_structure_filter_children = {}
         if not bool(getattr(self, "archive_startup_hold_until_ready", False)):
             self.archive_startup_index_warmup_required = False
-        if self._background_task_active():
+        if self._background_task_active(block_on_archive_index=False):
             return
         package_root_text = self.archive_package_root_edit.text().strip()
         if not package_root_text:
@@ -63,10 +127,13 @@ class ArchiveScanLifecycleMixin:
                 return
         self._stop_archive_sidecar_worker()
         self._stop_archive_derived_cache_worker()
+        self._stop_archive_basic_index_worker()
         self.archive_sidecar_request_id += 1
         self.archive_sidecar_pending_start = False
 
         package_root = Path(package_root_text).expanduser()
+        if not self._confirm_suspicious_archive_tree_scan(package_root):
+            return
         self._activate_archive_browser_on_scan_complete = activate_archive_tab
         if activate_archive_tab:
             self._activate_tool_widget(self.archive_browser_tab)
@@ -242,18 +309,18 @@ class ArchiveScanLifecycleMixin:
         )
         thread = QThread(self)
         worker.moveToThread(thread)
-
+        receiver = _ArchiveScanUiReceiver(self)
         thread.started.connect(worker.run)
-        worker.log_message.connect(self.append_log)
-        worker.log_message.connect(self.append_archive_log)
-        worker.progress_changed.connect(self._handle_archive_scan_progress)
-        worker.completed.connect(self._handle_archive_scan_complete)
-        worker.error.connect(self._handle_worker_error)
+        worker.log_message.connect(receiver.handle_log, Qt.ConnectionType.QueuedConnection)
+        worker.progress_changed.connect(receiver.handle_progress, Qt.ConnectionType.QueuedConnection)
+        worker.completed.connect(receiver.handle_completed, Qt.ConnectionType.QueuedConnection)
+        worker.error.connect(receiver.handle_error, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_worker_refs)
+        thread.finished.connect(receiver.handle_thread_finished, Qt.ConnectionType.QueuedConnection)
 
+        self.archive_scan_ui_receiver = receiver
         self.archive_scan_worker = worker
         self.worker_thread = thread
         self.set_busy(True, build_mode=False)
@@ -262,29 +329,7 @@ class ArchiveScanLifecycleMixin:
     def _ensure_archive_extension_index_ready(self) -> None:
         if self.archive_entries_by_extension or not self.archive_entries:
             return
-        started_at = time.perf_counter()
-        extension_index: Dict[str, List[ArchiveEntry]] = {}
-        for entry in self.archive_entries:
-            extension = normalize_archive_extension_filter(getattr(entry, "extension", ""))
-            if not extension:
-                continue
-            extension_index.setdefault(extension, []).append(entry)
-        self.archive_entries_by_extension = extension_index
-        if not self.archive_extension_counts:
-            self.archive_extension_counts = Counter(
-                {extension: len(items) for extension, items in extension_index.items()}
-            )
-        elapsed_s = max(0.0, time.perf_counter() - started_at)
-        self._record_runtime_event(
-            "archive_extension_index_ready",
-            elapsed_s=elapsed_s,
-            extension_keys=len(extension_index),
-            entry_refs=sum(len(items) for items in extension_index.values()),
-        )
-        self.append_archive_log(
-            f"Archive extension filter index ready in {elapsed_s:.2f}s.",
-            verbose=True,
-        )
+        self._ensure_archive_basic_index_worker_started()
 
     def _handle_archive_scan_complete(self, result: object) -> None:
         self._flush_archive_scan_progress()
@@ -310,6 +355,16 @@ class ArchiveScanLifecycleMixin:
             if isinstance(payload.get("extension_index"), Mapping)
             else {}
         )
+        self.archive_mesh_entries_by_normalized_path = (
+            payload.get("mesh_path_index", {})
+            if isinstance(payload.get("mesh_path_index"), Mapping)
+            else {}
+        )
+        self.archive_mesh_companion_by_identity = (
+            payload.get("mesh_companion_index", {})
+            if isinstance(payload.get("mesh_companion_index"), Mapping)
+            else {}
+        )
         self.archive_entries_by_role = (
             payload.get("role_index", {})
             if isinstance(payload.get("role_index"), Mapping)
@@ -332,6 +387,7 @@ class ArchiveScanLifecycleMixin:
                 }
             )
         self._ensure_archive_extension_index_ready()
+        self.archive_character_appearance_swap_cache = {}
         self.archive_entry_metadata_signature = str(payload.get("entry_metadata_signature", "") or "").strip()
         self.archive_entry_metadata_sources = tuple(
             tuple(row)
@@ -497,13 +553,12 @@ class ArchiveScanLifecycleMixin:
             self.archive_sidecar_entries_by_texture_path = {}
             self.archive_sidecar_entries_by_texture_basename = {}
         package_root_text = self.archive_package_root_edit.text().strip()
-        QTimer.singleShot(
-            0,
-            lambda entries=self.archive_entries, package_root_text=package_root_text: self.text_search_tab.set_archive_entries(
-                entries,
-                package_root_text,
-            ),
-        )
+        def update_text_search_entries() -> None:
+            text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
+            if text_search_tab is not None:
+                text_search_tab.set_archive_entries(self.archive_entries, package_root_text)
+
+        QTimer.singleShot(0, update_text_search_entries)
         browser_state = payload.get("browser_state") if isinstance(payload.get("browser_state"), dict) else {}
         self.archive_structure_filter_children = (
             browser_state.get("structure_children", {})
@@ -546,13 +601,12 @@ class ArchiveScanLifecycleMixin:
         self.archive_filtered_dds_count = int(browser_state.get("dds_count", 0))
         self.archive_filters_dirty = False
         self._update_archive_filter_button_state()
-        QTimer.singleShot(
-            0,
-            lambda entries=self.archive_entries, package_root_text=package_root_text: self.replace_assistant_tab.set_archive_entries(
-                entries,
-                package_root_text,
-            ),
-        )
+        def update_replace_assistant_entries() -> None:
+            replace_assistant_tab = created_tool_widget(getattr(self, "replace_assistant_tab", None))
+            if replace_assistant_tab is not None:
+                replace_assistant_tab.set_archive_entries(self.archive_entries, package_root_text)
+
+        QTimer.singleShot(0, update_replace_assistant_entries)
         source = str(payload.get("source", "scan"))
         cache_path_text = str(payload.get("cache_path", "")).strip()
         timings = payload.get("timings", {}) if isinstance(payload.get("timings"), dict) else {}

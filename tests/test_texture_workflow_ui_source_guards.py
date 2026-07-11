@@ -8,6 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MAIN_WINDOW = REPO_ROOT / "cdmw" / "ui" / "shell" / "app_window.py"
 SETTINGS_AUTOSAVE = REPO_ROOT / "cdmw" / "ui" / "shell" / "settings_autosave.py"
 SETTINGS_PERSISTENCE = REPO_ROOT / "cdmw" / "ui" / "shell" / "settings_persistence.py"
+TEXTURE_PANEL_PERSISTENCE = REPO_ROOT / "cdmw" / "ui" / "shell" / "texture_panel_persistence.py"
 SHELL_MENUS = REPO_ROOT / "cdmw" / "ui" / "shell" / "menus.py"
 SHELL_TOOL_TABS = REPO_ROOT / "cdmw" / "ui" / "shell" / "tool_tabs.py"
 TEXTURE_WORKFLOW_ASSET_AUTHORING_PANEL = REPO_ROOT / "cdmw" / "ui" / "texture_workflow" / "asset_authoring_panel.py"
@@ -18,6 +19,7 @@ ARCHIVE_CONTROLS_PANEL = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "contro
 DASHBOARD_CONTROLLER = REPO_ROOT / "cdmw" / "ui" / "shell" / "dashboard_controller.py"
 SHELL_ROOT_LAYOUT = REPO_ROOT / "cdmw" / "ui" / "shell" / "root_layout.py"
 SHELL_WORKSPACE_LAYOUT = REPO_ROOT / "cdmw" / "ui" / "shell" / "workspace_layout.py"
+TEXTURE_WORKSPACE_LAYOUT = REPO_ROOT / "cdmw" / "ui" / "shell" / "texture_workspace_layout.py"
 REPLACE_ASSISTANT_TAB = REPO_ROOT / "cdmw" / "ui" / "replace_assistant_tab.py"
 REPLACE_ASSISTANT_REVIEW_DIALOG = REPO_ROOT / "cdmw" / "ui" / "replace_assistant" / "review_dialog.py"
 RESEARCH_TAB = REPO_ROOT / "cdmw" / "ui" / "research" / "tab.py"
@@ -32,9 +34,11 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
     def test_material_maker_panel_uses_worker_and_existing_preview_refresh(self) -> None:
         panel_source = TEXTURE_WORKFLOW_ASSET_AUTHORING_PANEL.read_text(encoding="utf-8")
         settings_panel_source = TEXTURE_WORKFLOW_SETTINGS_PANEL.read_text(encoding="utf-8")
-        workspace_source = SHELL_WORKSPACE_LAYOUT.read_text(encoding="utf-8")
         autosave_source = SETTINGS_AUTOSAVE.read_text(encoding="utf-8")
-        persistence_source = SETTINGS_PERSISTENCE.read_text(encoding="utf-8")
+        persistence_source = (
+            SETTINGS_PERSISTENCE.read_text(encoding="utf-8")
+            + TEXTURE_PANEL_PERSISTENCE.read_text(encoding="utf-8")
+        )
 
         self.assertIn("class TextureWorkflowAssetAuthoringPanelMixin", panel_source)
         self.assertIn("MaterialMakerExportWorker", panel_source)
@@ -49,9 +53,8 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         self.assertIn("_force_refresh_current_model_preview_assets", panel_source)
         self.assertNotIn("subprocess", panel_source)
         self.assertIn("class TextureWorkflowSettingsPanelMixin(TextureWorkflowAssetAuthoringPanelMixin)", settings_panel_source)
-        self.assertIn("self._build_texture_workflow_asset_authoring_section(left_layout)", workspace_source)
         self.assertIn("self.material_maker_project_edit", autosave_source)
-        self.assertIn("self.asset_authoring_section.toggled.connect(self.schedule_settings_save)", autosave_source)
+        self.assertIn("self.asset_authoring_section,", autosave_source)
         self.assertIn('"asset_authoring/material_maker_project_path"', persistence_source)
         self.assertIn('"asset_authoring/oiio_source_path"', persistence_source)
         self.assertIn('"sections/asset_authoring_expanded"', persistence_source)
@@ -85,6 +88,8 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
             + "\n"
             + SHELL_WORKSPACE_LAYOUT.read_text(encoding="utf-8")
             + "\n"
+            + TEXTURE_WORKSPACE_LAYOUT.read_text(encoding="utf-8")
+            + "\n"
             + TEXTURE_WORKFLOW_SHELL_CONTROLS.read_text(encoding="utf-8")
             + "\n"
             + ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8")
@@ -110,19 +115,24 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         self.assertLess(main_source.index(textures_nav), main_source.index(research_nav))
         self.assertLess(main_source.index(research_nav), main_source.index(tools_nav))
         self.assertIn('self.texture_tabs.addTab(self.workflow_tab, "Workflow")', main_source)
-        self.assertIn('self.texture_tabs.addTab(self.replace_assistant_tab, "Replacer")', main_source)
-        self.assertIn('self.texture_tabs.addTab(self.texture_editor_tab, "Editor")', main_source)
         self.assertIn('self.assets_tabs.addTab(self.archive_browser_tab, "Archive Browser")', main_source)
-        self.assertIn('self.assets_tabs.addTab(self.model_library_tab, "Model Library")', main_source)
-        self.assertIn('self.assets_tabs.addTab(self.item_icons_tab, "Icon Creator")', main_source)
-        self.assertIn('self.research_tabs.addTab(self.research_tab, "Texture Research")', main_source)
-        self.assertIn('self.research_tabs.addTab(self.text_search_tab, "Text Search")', main_source)
-        self.assertIn('self.tools_tabs.addTab(self.mod_package_retrofit_tab, "Retrofit/Repackage")', main_source)
+        for expected in (
+            'self.texture_tabs, "Replacer", "replace_assistant", self._create_replace_assistant_tab',
+            'self.texture_tabs, "Editor", "texture_editor", self._create_texture_editor_tab',
+            'self.assets_tabs, "Model Library", "model_library", self._create_model_library_tab',
+            'self.assets_tabs, "Icon Creator", "item_icons", self._create_item_icons_tab',
+            'self.research_tabs, "Texture Research", "research", self._create_research_tab',
+            'self.research_tabs, "Text Search", "text_search", self._create_text_search_tab',
+        ):
+            self.assertIn(expected, main_source)
+        self.assertIn('"Retrofit/Repackage",', main_source)
+        self.assertIn('"mod_package_retrofit",', main_source)
+        self.assertIn("self._create_mod_package_retrofit_tab,", main_source)
         self.assertIn('self._register_detachable_tool("research", self.research_tab, "Texture Research")', main_source)
         self.assertIn('self._register_detachable_tool("replace_assistant", self.replace_assistant_tab, "Texture Replacer")', main_source)
         self.assertIn('self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")', main_source)
         self.assertIn('self._register_detachable_tool("mod_package_retrofit", self.mod_package_retrofit_tab, "Retrofit/Repackage")', main_source)
-        self.assertIn("self.item_icons_tab.open_target_in_archive_requested.connect(", main_source)
+        self.assertIn("tab.open_target_in_archive_requested.connect(", main_source)
         self.assertIn("self.archive_cache_status_chip = QLabel(\"Cache: Unknown\")", main_source)
         self.assertIn('self.archive_cache_status_chip.setObjectName("ArchiveCacheStatusChip")', main_source)
         self.assertIn("self.archive_cache_status_chip.setFixedWidth(132)", main_source)
@@ -170,9 +180,13 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         tab_source = ITEM_ICONS_TAB.read_text(encoding="utf-8")
         panels_source = ITEM_ICONS_PANELS.read_text(encoding="utf-8")
         controller_source = Path("cdmw/ui/item_icons/controller.py").read_text(encoding="utf-8")
+        output_worker_source = Path("cdmw/workers/item_icon_workers.py").read_text(encoding="utf-8")
         source = tab_source + "\n" + panels_source + "\n" + controller_source
 
-        self.assertIn("class ItemIconLibraryTab(ItemIconRecordListMixin, QWidget)", tab_source)
+        self.assertIn(
+            "class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget)",
+            tab_source,
+        )
         self.assertIn("class ItemIconRecordListMixin:", controller_source)
         self.assertNotIn('header = QLabel("Icon Creator")', source)
         self.assertIn('self.settings.value("item_icons/library_roots", "[]")', source)
@@ -186,17 +200,20 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         self.assertIn("def _matching_target_entries", source)
         self.assertIn("display_limit = 300", source)
         self.assertIn("choose_source_dialog", source)
-        self.assertIn("build_item_icon_payload(", source)
-        self.assertIn("target_template_path=template_path", source)
+        self.assertIn("_queue_item_icon_output(", tab_source)
+        self.assertIn("build_item_icon_payload(", output_worker_source)
+        self.assertIn("target_template_path=template_path", output_worker_source)
         self.assertIn('add_to_loose_mod_button = QPushButton("Add To Existing Loose Mod...")', source)
         self.assertIn("add_to_loose_mod_button.clicked.connect(", source)
         self.assertIn("add_to_existing_loose_mod", source)
         self.assertIn("def add_to_existing_loose_mod", source)
-        self.assertIn("patch_existing_loose_mod_with_item_icon(", source)
+        self.assertIn("patch_existing_loose_mod_with_item_icon(", output_worker_source)
         self.assertIn("background_mode=self._background_mode()", source)
         self.assertIn('delete_source_button = QPushButton("Delete Source")', source)
         self.assertIn("def delete_selected_source", source)
-        self.assertIn("path.unlink()", source)
+        self.assertNotIn("path.unlink(", source)
+        self.assertIn("class ItemIconLibraryMutationWorker", output_worker_source)
+        self.assertIn("path.unlink(missing_ok=True)", output_worker_source)
         self.assertIn("customContextMenuRequested", source)
         self.assertIn("def _show_records_context_menu", source)
 

@@ -1,9 +1,12 @@
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from cdmw.core import archive
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
+from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
 
 
 def _entry(path: str, extension: str) -> ArchiveEntry:
@@ -45,6 +48,65 @@ def _preview_model(face_count: int, *, fmt: str = "pac", lod_index: int = -1, lo
 
 
 class ProgressiveArchivePreviewTests(unittest.TestCase):
+    def test_loose_preview_bypasses_cache_so_dependency_changes_refresh(self) -> None:
+        class CacheKeyHarness(ArchivePreviewCacheMixin):
+            archive_sidecar_generation = 0
+
+            @staticmethod
+            def _archive_model_renderer_backend() -> str:
+                return "software"
+
+            @staticmethod
+            def _current_model_preview_render_settings() -> object:
+                return SimpleNamespace(
+                    disable_all_support_maps=False,
+                    disable_normal_map=False,
+                    disable_material_map=False,
+                    disable_height_map=False,
+                    visible_texture_mode="mesh_base_first",
+                    preview_texture_max_dimension=2048,
+                    low_quality_texture_max_dimension=512,
+                    flip_texture_v=False,
+                    high_quality_by_default=True,
+                    use_textures_by_default=True,
+                )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            loose_root = root / "loose"
+            loose_path = loose_root / "ui" / "texture" / "icon.dds"
+            loose_path.parent.mkdir(parents=True)
+            loose_path.write_bytes(b"first")
+            entry = ArchiveEntry(
+                path="ui/texture/icon.dds",
+                pamt_path=root / "0001" / "0.pamt",
+                paz_file=root / "0001" / "0.paz",
+                offset=0,
+                comp_size=5,
+                orig_size=5,
+                flags=0,
+                paz_index=0,
+            )
+            harness = CacheKeyHarness()
+            archive_key = harness._archive_preview_cache_key(entry, None, [loose_root])
+            first_key = harness._archive_preview_cache_key(
+                entry,
+                None,
+                [loose_root],
+                include_loose_preview_assets=True,
+            )
+            loose_path.write_bytes(b"second payload")
+            second_key = harness._archive_preview_cache_key(
+                entry,
+                None,
+                [loose_root],
+                include_loose_preview_assets=True,
+            )
+
+            self.assertEqual("", first_key)
+            self.assertEqual("", second_key)
+            self.assertEqual(archive_key, harness._archive_preview_cache_key(entry, None, [loose_root]))
+
     def test_fast_preview_reduces_preview_only_geometry(self) -> None:
         full_model = _preview_model(60_000)
         reduced = archive._reduce_archive_preview_model_geometry(full_model, max_faces=10_000)
@@ -61,7 +123,7 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
             calls.append(lod_index)
             return _preview_model(3, fmt="pamlod", lod_index=2 if lod_index == -1 else 0, lod_count=3)
 
-        with patch.object(archive, "build_pamlod_model_preview", side_effect=fake_build):
+        with patch("cdmw.core.archive_model_preview.build_pamlod_model_preview", side_effect=fake_build):
             fast_model, _notes = archive._build_pamlod_model_preview_with_fallback(
                 _entry("character/model/body.pamlod", ".pamlod"),
                 b"data",
@@ -83,7 +145,10 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         source_model = _preview_model(60_000, fmt="pac")
         parsed_mesh = object()
 
-        with patch.object(archive, "build_mesh_preview_from_bytes", return_value=(source_model, parsed_mesh)):
+        with patch(
+            "cdmw.core.archive_model_preview.build_mesh_preview_from_bytes",
+            return_value=(source_model, parsed_mesh),
+        ):
             fast_model, fast_parsed, _notes = archive._build_pac_model_preview_with_fallback(
                 _entry("character/model/body.pac", ".pac"),
                 b"data",

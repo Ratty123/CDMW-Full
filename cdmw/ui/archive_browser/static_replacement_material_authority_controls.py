@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 
-
 @dataclass(frozen=True)
 class MaterialAuthorityPerformanceStatus:
     summary: str
@@ -58,7 +57,6 @@ MATERIAL_AUTHORITY_RESET_VALUES = {
 
 MATERIAL_AUTHORITY_VISIBLE_COMPLETE_SWAP_PROFILE_NAMES = (
     "material_authority_detail_mask",
-    "material_authority_placeholder_safe_test",
     "material_authority_manual",
 )
 
@@ -329,6 +327,7 @@ def material_authority_source_role_signature_rows(
     for source_index, adjustment in sorted(items):
         material_role = str(getattr(adjustment, "material_role", "") or "")
         glow_rgb = tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())
+        emissive_strength = getattr(adjustment, "emissive_strength", None)
         try:
             material_brightness = round(float(getattr(adjustment, "material_brightness", 0.0) or 0.0), 4)
             material_contrast = round(float(getattr(adjustment, "material_contrast", 0.0) or 0.0), 4)
@@ -346,13 +345,14 @@ def material_authority_source_role_signature_rows(
             or abs(material_gamma - 1.0) > 0.0001
             or bool(material_tint_rgb)
         )
-        if not material_role.strip() and not glow_rgb and not has_material_adjustment:
+        if not material_role.strip() and not glow_rgb and emissive_strength is None and not has_material_adjustment:
             continue
         rows.append(
             (
                 int(source_index),
                 material_role,
                 tuple(int(value) for value in glow_rgb),
+                None if emissive_strength is None else max(0.0, round(float(emissive_strength), 4)),
                 material_brightness,
                 material_contrast,
                 material_saturation,
@@ -794,7 +794,7 @@ def material_authority_sidecar_control_application_state(
             "global_gloss_reduction",
             "auto_brightness",
             "source_brightness",
-            "tone_contrast",
+            "tone_contrast", "edge_relief", "edge_relief_source",
             "accent_glow",
             "reset_adjustments",
         ),

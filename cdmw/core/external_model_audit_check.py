@@ -95,7 +95,7 @@ def check_external_model_audit_report(
     examples: dict[str, list[dict[str, object]]] = {}
 
     schema_version = report.get("schema_version")
-    if schema_version != 1:
+    if schema_version not in {1, 2}:
         errors.append(f"Unsupported external model audit schema_version: {schema_version or '<missing>'}.")
     tool = str(report.get("tool", "") or "")
     if tool != "external_model_audit_catalogue":

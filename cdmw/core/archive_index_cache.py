@@ -58,13 +58,13 @@ from cdmw.core.archive_scan_cache import (
 )
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.table_catalog import table_catalog_cache_metadata, table_catalog_cache_metadata_matches
-from cdmw.models import ArchiveEntry
+from cdmw.models import ArchiveEntry, ArchiveEntryIdentity
 
 
 def format_byte_size(value: int) -> str:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_extraction import format_byte_size as owner
 
-    return archive_core.format_byte_size(value)
+    return owner(value)
 
 
 _ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {10, 11}
@@ -101,7 +101,7 @@ def _encode_archive_entry_index_rows(
         return rows
 
     entry_indexes_by_id = {id(entry): entry_index for entry_index, entry in enumerate(entries)}
-    entry_indexes_by_identity: Dict[Tuple[str, str, int, int], int] = {}
+    entry_indexes_by_identity: Dict[ArchiveEntryIdentity, int] = {}
     rows: List[Tuple[str, Tuple[int, ...]]] = []
     for entry_index, entry in enumerate(entries):
         entry_indexes_by_identity.setdefault(archive_entry_identity_key(entry), entry_index)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ def _args(**overrides: object) -> argparse.Namespace:
         "profile": "quick",
         "output": Path("unused"),
         "game_root": None,
+        "include_native_visual": False,
         "model_root": Path("Z:/missing-model-root"),
         "soak_minutes": stress.SOAK_MINUTES_DEFAULT,
         "max_model_files": None,
@@ -29,6 +31,32 @@ def _args(**overrides: object) -> argparse.Namespace:
 
 
 class HeadlessFeatureStressTests(unittest.TestCase):
+    def test_facade_preserves_owner_identity(self) -> None:
+        from tools.headless_stress.cache_probe import run_cache_probe
+        from tools.headless_stress.task_builders import Task, build_profile_tasks
+
+        self.assertIs(stress.Task, Task)
+        self.assertIs(stress.build_profile_tasks, build_profile_tasks)
+        self.assertIs(stress.run_cache_probe, run_cache_probe)
+
+    def test_clean_facade_import_stays_lazy(self) -> None:
+        code = (
+            "import sys\n"
+            "import tools.headless_feature_stress\n"
+            "print(any(name.startswith('tools.headless_stress.') for name in sys.modules))\n"
+            "print('cdmw_app' in sys.modules or 'cdmw.ui.main_window' in sys.modules)\n"
+        )
+
+        completed = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=Path(__file__).resolve().parents[1],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        self.assertEqual(["False", "False"], completed.stdout.splitlines())
+
     def test_command_construction_uses_argv_lists_and_preserves_spaces(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output_root = stress.prepare_output_root(Path(temp_dir) / "out dir")
@@ -49,6 +77,8 @@ class HeadlessFeatureStressTests(unittest.TestCase):
         self.assertIn("--audit-zip-contents", audit.argv)
 
     def test_safe_child_dir_rejects_paths_outside_output_root(self) -> None:
+        from tools.headless_stress.cache_probe import _corrupt_cache_target
+
         with tempfile.TemporaryDirectory() as temp_dir:
             output_root = stress.prepare_output_root(Path(temp_dir) / "out")
 
@@ -57,6 +87,11 @@ class HeadlessFeatureStressTests(unittest.TestCase):
             self.assertTrue(child.is_dir())
             with self.assertRaises(ValueError):
                 stress.safe_child_dir(output_root, "..", "escape")
+            real_root = Path(temp_dir) / "game"
+            real_root.mkdir()
+            (real_root / "source.bin").write_bytes(b"read-only")
+            self.assertIsNone(_corrupt_cache_target(real_root, output_root))
+            self.assertEqual(b"read-only", (real_root / "source.bin").read_bytes())
 
     def test_report_merging_preserves_counts_reasons_and_timings(self) -> None:
         started = stress.time.perf_counter()
@@ -89,7 +124,7 @@ class HeadlessFeatureStressTests(unittest.TestCase):
         skipped = {task.name: task.skip_reason for task in tasks if task.skip_reason}
         self.assertIn("external-model-audit", skipped)
         self.assertIn("mesh-real-archive-rigging-smoke", skipped)
-        self.assertIn("mesh-real-archive-mesh-editor-d3d11-side-by-side-edit-smoke", skipped)
+        self.assertNotIn("mesh-real-archive-mesh-editor-dotnet-edit-smoke", skipped)
         self.assertIn("Model root not found", skipped["external-model-audit"])
         self.assertIn("Game root not found", skipped["mesh-real-archive-rigging-smoke"])
 
@@ -113,7 +148,29 @@ class HeadlessFeatureStressTests(unittest.TestCase):
         self.assertNotIn("full-suite-smoke", mesh_argv)
         self.assertIn("codex-mesh-unit", names)
         self.assertNotIn("codex-mesh", names)
-        self.assertIn("mesh-real-archive-mesh-editor-d3d11-side-by-side-edit-smoke", names)
+        self.assertNotIn("mesh-real-archive-mesh-editor-dotnet-edit-smoke", names)
+
+    def test_corpus_profile_adds_dotnet_visual_only_when_explicitly_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_root = stress.prepare_output_root(Path(temp_dir) / "out")
+            model_root = Path(temp_dir) / "models"
+            game_root = Path(temp_dir) / "game"
+            model_root.mkdir()
+            game_root.mkdir()
+            tasks = stress.build_profile_tasks(
+                _args(
+                    profile="corpus",
+                    game_root=game_root,
+                    model_root=model_root,
+                    include_native_visual=True,
+                ),
+                output_root,
+            )
+
+        self.assertIn(
+            "mesh-real-archive-mesh-editor-dotnet-edit-smoke",
+            [task.name for task in tasks],
+        )
 
     def test_import_does_not_start_full_app_or_main_window(self) -> None:
         before = set(sys.modules)
@@ -196,6 +253,13 @@ class HeadlessFeatureStressTests(unittest.TestCase):
         self.assertEqual("passed", result["status"])
         self.assertFalse(result["build_ran"])
         self.assertEqual([], result["missing_after"])
+
+    def test_native_helper_preflight_targets_production_dotnet_renderer_and_mesh_core(self) -> None:
+        helpers = {path.as_posix() for path in stress.native_helper_paths()}
+
+        self.assertTrue(any(path.endswith("cdmw-mesh-dotnet-editor.exe") for path in helpers))
+        self.assertTrue(any(path.endswith("cdmw-mesh-core.exe") for path in helpers))
+        self.assertIn("Cdmw.MeshEditorExperiment.csproj", Path("build_native_windows.ps1").read_text(encoding="utf-8-sig"))
 
 
 if __name__ == "__main__":

@@ -2,28 +2,39 @@
 from __future__ import annotations
 
 import dataclasses
+import threading
+from dataclasses import dataclass
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Tuple
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QProgressDialog
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from cdmw.core.archive import read_archive_entry_data
-from cdmw.core.archive_modding import (
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.domain.archives.mesh_contracts import (
     ArchiveLooseExportResult,
-    ArchivePatchRequest,
     MeshImportPreviewResult,
     MeshImportSupplementalFileSpec,
+)
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
+from cdmw.services.preview_workflow_service import (
     build_mesh_import_preview,
-    export_archive_mesh_payloads_to_mod_ready_loose,
     parsed_mesh_to_preview_model,
 )
-from cdmw.core.archive_relationships import SWAP_SCOPE_BODY_HEAD, build_character_swap_plan
+from cdmw.services.archive_workflow_service import export_archive_mesh_payloads_to_mod_ready_loose
+from cdmw.domain.archives.relationships import SWAP_SCOPE_BODY_HEAD
+from cdmw.services.archive_workflow_service import build_character_swap_plan
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.mesh.session import InGameMeshSwapScopeSelection, MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
-from cdmw.modding.scene_importer import SceneImportResult
-from cdmw.modding.static_mesh_replacer import StaticMeshReplacementOptions
+from cdmw.services.mesh_workflow_service import SceneImportResult
+from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions
+from cdmw.services.diagnostics_service import is_expected_cancellation_message
+from cdmw.ui.archive_browser.mesh_swap_scope_preflight import (
+    ArchiveMeshSwapScopePreflightRequest,
+    ArchiveMeshSwapScopePreflightResult,
+    prepare_archive_mesh_swap_scope,
+)
 from cdmw.ui.archive_browser.mesh_import_setup_state import (
     direct_source_model_swap_incomplete_payload_status,
     direct_source_model_swap_task_status,
@@ -43,13 +54,32 @@ from cdmw.ui.archive_browser.mesh_import_setup_state import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class ArchiveInGameMeshSwapPreparationRequest:
+    request_id: int
+    target_entry: ArchiveEntry
+    source_entry: ArchiveEntry
+    scope: InGameMeshSwapScopeSelection
+
+
+@dataclass(frozen=True, slots=True)
+class ArchiveInGameMeshSwapPreparationResult:
+    request_id: int
+    scene_import_result: SceneImportResult
+    source_texture_evidence: Tuple[object, ...]
+    extra_specs: Tuple[MeshImportSupplementalFileSpec, ...]
+
+
 class ArchiveMeshLaunchFlowMixin:
     def _build_in_game_mesh_swap_extra_specs(
         self,
         target_entry: ArchiveEntry,
         source_entry: ArchiveEntry,
         scope: InGameMeshSwapScopeSelection,
+        *,
+        stop_event: Optional[threading.Event] = None,
     ) -> Tuple[MeshImportSupplementalFileSpec, ...]:
+        raise_if_cancelled(stop_event, "In-game mesh companion preparation cancelled.")
         specs: List[MeshImportSupplementalFileSpec] = []
         selected_entries = list(scope.companion_entries or ())
         if scope.use_character_swap_plan:
@@ -85,8 +115,12 @@ class ArchiveMeshLaunchFlowMixin:
             if not selected_sidecars:
                 selected_sidecars = list(self._archive_model_sidecar_entries_for_swap(source_entry))[:1]
             for source_sidecar in selected_sidecars:
+                raise_if_cancelled(stop_event, "In-game mesh companion preparation cancelled.")
                 try:
-                    payload_data, _decompressed, _note = read_archive_entry_data(source_sidecar)
+                    payload_data, _decompressed, _note = read_archive_entry_data(
+                        source_sidecar,
+                        stop_event=stop_event,
+                    )
                 except Exception:
                     continue
                 target_path, target_sidecar = self._target_sidecar_path_for_source_sidecar(target_entry, source_sidecar)
@@ -111,10 +145,19 @@ class ArchiveMeshLaunchFlowMixin:
                 entry for entry in selected_entries if self._archive_entry_is_appearance_descriptor(entry)
             ]
             if not selected_appearances:
-                selected_appearances = list(self._archive_character_appearance_entries_for_swap(source_entry))[:1]
+                selected_appearances = list(
+                    self._archive_character_appearance_entries_for_swap(
+                        source_entry,
+                        stop_event=stop_event,
+                    )
+                )[:1]
             for source_appearance in selected_appearances:
+                raise_if_cancelled(stop_event, "In-game mesh companion preparation cancelled.")
                 try:
-                    payload_data, _decompressed, _note = read_archive_entry_data(source_appearance)
+                    payload_data, _decompressed, _note = read_archive_entry_data(
+                        source_appearance,
+                        stop_event=stop_event,
+                    )
                 except Exception:
                     continue
                 target_path, target_appearance = self._target_appearance_path_for_source_appearance(
@@ -140,6 +183,7 @@ class ArchiveMeshLaunchFlowMixin:
             if "Source appearance descriptor copied from " in str(getattr(spec, "note", "") or "")
         }
         for source_companion in selected_entries:
+            raise_if_cancelled(stop_event, "In-game mesh companion preparation cancelled.")
             if source_companion.path in replaced_source_sidecar_paths:
                 continue
             if source_companion.path in replaced_source_appearance_paths:
@@ -149,7 +193,10 @@ class ArchiveMeshLaunchFlowMixin:
             if scope.complete_swap and self._archive_entry_is_appearance_descriptor(source_companion):
                 continue
             try:
-                payload_data, _decompressed, _note = read_archive_entry_data(source_companion)
+                payload_data, _decompressed, _note = read_archive_entry_data(
+                    source_companion,
+                    stop_event=stop_event,
+                )
             except Exception:
                 continue
             target_path = source_companion.path
@@ -190,6 +237,8 @@ class ArchiveMeshLaunchFlowMixin:
         source_entry: ArchiveEntry,
         scene_import_result: SceneImportResult,
         scope: InGameMeshSwapScopeSelection,
+        *,
+        extra_specs: Tuple[MeshImportSupplementalFileSpec, ...],
     ) -> None:
         loose_export_settings = self._collect_archive_mod_ready_export_target(
             browse_title="Select Mod-Ready Export Parent Root",
@@ -202,11 +251,12 @@ class ArchiveMeshLaunchFlowMixin:
         )
         if loose_export_settings is None:
             return
-        extra_specs = self._build_in_game_mesh_swap_extra_specs(target_entry, source_entry, scope)
-
-        def _task(log: Callable[[str], None]) -> object:
+        def _task(log: Callable[[str], None], stop_event: threading.Event) -> object:
             log(f"Reading source model payload: {source_entry.path}")
-            source_payload, _decompressed, _note = read_archive_entry_data(source_entry)
+            source_payload, _decompressed, _note = read_archive_entry_data(
+                source_entry,
+                stop_event=stop_event,
+            )
             preview_model = parsed_mesh_to_preview_model(scene_import_result.mesh)
             preview_result = MeshImportPreviewResult(
                 rebuilt_data=source_payload,
@@ -259,6 +309,7 @@ class ArchiveMeshLaunchFlowMixin:
             task=_task,
             on_complete=_handle_complete,
             show_archive_progress=True,
+            task_accepts_cancel=True,
         )
 
     def _handle_archive_in_game_mesh_swap_entry(self, entry: ArchiveEntry) -> None:
@@ -292,13 +343,17 @@ class ArchiveMeshLaunchFlowMixin:
             )
             if not scene_path:
                 return
-            setup = self._prompt_archive_mesh_import_setup(
+            self._prepare_archive_mesh_import_setup_async(
                 entry,
                 Path(scene_path),
                 title=mesh_import_setup_dialog_title(),
+                on_complete=lambda setup: (
+                    self._start_archive_mesh_import_preview(entry, preset_setup=setup)
+                    if isinstance(setup, MeshImportSetupSelection)
+                    else None
+                ),
             )
-            if setup is None:
-                return
+            return
         else:
             setup = preset_setup
         scene_path_obj = setup.scene_path
@@ -390,75 +445,188 @@ class ArchiveMeshLaunchFlowMixin:
             source_entry=source_entry,
             activate=True,
         )
-        swap_scope = self._prompt_archive_in_game_mesh_swap_scope(target_entry, source_entry)
-        if swap_scope is None:
-            return
+        request_id = int(getattr(self, "archive_in_game_mesh_swap_scope_request_id", 0) or 0) + 1
+        self.archive_in_game_mesh_swap_scope_request_id = request_id
+        request = ArchiveMeshSwapScopePreflightRequest(
+            request_id=request_id,
+            target_entry=target_entry,
+            source_entry=source_entry,
+            archive_entries=self.archive_entries,
+        )
+
+        def _task(
+            _log: Callable[[str], None],
+            progress: Callable[[int, int, str], None],
+            stop_event: threading.Event,
+        ) -> object:
+            progress(0, 1, "Scanning source relationships and material contracts...")
+            result = prepare_archive_mesh_swap_scope(self, request, stop_event=stop_event)
+            progress(1, 1, "In-game mesh swap scope ready.")
+            return result
+
+        def _failed(message: str) -> None:
+            if (
+                request_id != int(getattr(self, "archive_in_game_mesh_swap_scope_request_id", 0) or 0)
+                or bool(getattr(self, "_shutting_down", False))
+                or is_expected_cancellation_message(message)
+                or "cancel" in str(message).casefold()
+            ):
+                return
+            QMessageBox.warning(self, "In-Game Mesh Swap Scope", message)
+
+        def _ready(payload: object) -> None:
+            if (
+                not isinstance(payload, ArchiveMeshSwapScopePreflightResult)
+                or payload.request_id
+                != int(getattr(self, "archive_in_game_mesh_swap_scope_request_id", 0) or 0)
+                or bool(getattr(self, "_shutting_down", False))
+            ):
+                return
+            swap_scope = self._prompt_archive_in_game_mesh_swap_scope(
+                target_entry,
+                source_entry,
+                prepared_scope=payload,
+            )
+            if swap_scope is not None:
+                self._continue_archive_in_game_mesh_swap(target_entry, source_entry, swap_scope)
+
+        self._run_utility_task_when_idle(
+            status_message="Preparing in-game mesh swap scope...",
+            task=_task,
+            on_complete=_ready,
+            on_error=_failed,
+            show_archive_progress=True,
+            task_accepts_progress=True,
+            task_accepts_cancel=True,
+        )
+
+    def _continue_archive_in_game_mesh_swap(
+        self,
+        target_entry: ArchiveEntry,
+        source_entry: ArchiveEntry,
+        swap_scope: InGameMeshSwapScopeSelection,
+    ) -> None:
         progress_text = in_game_mesh_swap_progress_text()
-        progress = QProgressDialog(progress_text["label"], "", 0, 0, self)
-        progress.setWindowTitle(progress_text["title"])
-        progress.setCancelButton(None)
-        progress.setMinimumDuration(0)
-        progress.setAutoClose(False)
-        progress.setWindowModality(Qt.WindowModal)
-        progress.show()
-        QApplication.processEvents()
-        try:
-            scene_import_result = self._load_archive_mesh_scene_import_result(source_entry)
-        except Exception as exc:
-            progress.close()
-            QApplication.processEvents()
+        request_id = int(getattr(self, "archive_in_game_mesh_swap_request_id", 0) or 0) + 1
+        self.archive_in_game_mesh_swap_request_id = request_id
+        request = ArchiveInGameMeshSwapPreparationRequest(
+            request_id=request_id,
+            target_entry=target_entry,
+            source_entry=source_entry,
+            scope=swap_scope,
+        )
+
+        def _task(
+            _log: Callable[[str], None],
+            progress: Callable[[int, int, str], None],
+            stop_event: threading.Event,
+        ) -> object:
+            progress(0, 3, "Reading source archive mesh...")
+            scene_import_result = self._load_archive_mesh_scene_import_result(
+                request.source_entry,
+                stop_event=stop_event,
+            )
+            progress(1, 3, "Resolving source texture evidence...")
+            source_texture_paths, source_texture_evidence = self._build_archive_swap_source_texture_evidence(
+                request.source_entry,
+                stop_event=stop_event,
+            )
+            progress(2, 3, "Preparing source companion payloads...")
+            if source_texture_paths:
+                scene_import_result = dataclasses.replace(
+                    scene_import_result,
+                    discovered_texture_files=tuple(source_texture_paths),
+                    diagnostics=tuple(scene_import_result.diagnostics)
+                    + (f"Found {len(source_texture_paths):,} source DDS texture candidate(s) from source .pac_xml/sidecars.",),
+                )
+            extra_specs = self._build_in_game_mesh_swap_extra_specs(
+                request.target_entry,
+                request.source_entry,
+                request.scope,
+                stop_event=stop_event,
+            )
+            raise_if_cancelled(stop_event, "In-game mesh swap preparation cancelled.")
+            progress(3, 3, "In-game mesh source ready.")
+            return ArchiveInGameMeshSwapPreparationResult(
+                request_id=request.request_id,
+                scene_import_result=scene_import_result,
+                source_texture_evidence=tuple(source_texture_evidence),
+                extra_specs=tuple(extra_specs),
+            )
+
+        def _failed(message: str) -> None:
+            if (
+                request_id != int(getattr(self, "archive_in_game_mesh_swap_request_id", 0) or 0)
+                or bool(getattr(self, "_shutting_down", False))
+                or is_expected_cancellation_message(message)
+                or "cancel" in str(message).casefold()
+            ):
+                return
             QMessageBox.warning(
                 self,
                 "In-Game Mesh Source Unsupported",
-                f"{source_entry.path} could not be parsed as a replacement mesh.\n\n{exc}",
+                f"{source_entry.path} could not be parsed as a replacement mesh.\n\n{message}",
             )
-            return
-        source_texture_paths, source_texture_evidence = self._build_archive_swap_source_texture_evidence(source_entry)
-        if source_texture_paths:
-            scene_import_result = dataclasses.replace(
-                scene_import_result,
-                discovered_texture_files=tuple(source_texture_paths),
-                diagnostics=tuple(scene_import_result.diagnostics)
-                + (f"Found {len(source_texture_paths):,} source DDS texture candidate(s) from source .pac_xml/sidecars.",),
-            )
-        progress.close()
-        QApplication.processEvents()
 
-        if swap_scope.use_source_model_payload_directly:
-            self.pending_in_game_mesh_swap_target = None
-            self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
-            self._start_archive_direct_source_model_swap(
+        def _ready(payload: object) -> None:
+            if (
+                not isinstance(payload, ArchiveInGameMeshSwapPreparationResult)
+                or payload.request_id != int(getattr(self, "archive_in_game_mesh_swap_request_id", 0) or 0)
+                or bool(getattr(self, "_shutting_down", False))
+            ):
+                return
+            if swap_scope.use_source_model_payload_directly:
+                self.pending_in_game_mesh_swap_target = None
+                self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
+                self._start_archive_direct_source_model_swap(
+                    target_entry,
+                    source_entry,
+                    payload.scene_import_result,
+                    swap_scope,
+                    extra_specs=payload.extra_specs,
+                )
+                return
+
+            swap_placement_note = (
+                "Review offset, rotation, scale, and part mapping before export. "
+                "In-game swap sources can differ in origin, facing direction, scale, or bone-relative placement."
+            )
+
+            def _continue_setup(setup: Optional[MeshImportSetupSelection]) -> None:
+                if (
+                    setup is None
+                    or request_id != int(getattr(self, "archive_in_game_mesh_swap_request_id", 0) or 0)
+                    or bool(getattr(self, "_shutting_down", False))
+                ):
+                    return
+                setup.preferred_rebuild_material_sidecar = bool(
+                    swap_scope.prefer_generated_sidecar or swap_scope.complete_swap
+                )
+                setup.preferred_complete_source_swap = bool(swap_scope.complete_swap)
+                setup.source_texture_evidence = tuple(payload.source_texture_evidence)
+                setup.extra_supplemental_specs = payload.extra_specs
+                self.pending_in_game_mesh_swap_target = None
+                self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
+                self._start_archive_mesh_patch(target_entry, preset_setup=setup)
+
+            self._prepare_archive_mesh_import_setup_async(
                 target_entry,
-                source_entry,
-                scene_import_result,
-                swap_scope,
+                self._archive_mesh_source_scene_path(source_entry),
+                title="In-Game Mesh Swap Setup",
+                on_complete=_continue_setup,
+                scene_import_result=payload.scene_import_result,
+                source_label=self._archive_mesh_source_label(source_entry),
+                force_static_replacement=True,
+                placement_review_title="In-Game Mesh Swap Placement",
+                placement_context_note=swap_placement_note,
             )
-            return
 
-        swap_placement_note = (
-            "Review offset, rotation, scale, and part mapping before export. "
-            "In-game swap sources can differ in origin, facing direction, scale, or bone-relative placement."
+        self._run_utility_task_when_idle(
+            status_message=progress_text["label"],
+            task=_task,
+            on_complete=_ready,
+            on_error=_failed,
+            show_archive_progress=True,
+            task_accepts_progress=True,
+            task_accepts_cancel=True,
         )
-        setup = self._prompt_archive_mesh_import_setup(
-            target_entry,
-            self._archive_mesh_source_scene_path(source_entry),
-            title="In-Game Mesh Swap Setup",
-            scene_import_result=scene_import_result,
-            source_label=self._archive_mesh_source_label(source_entry),
-            force_static_replacement=True,
-            placement_review_title="In-Game Mesh Swap Placement",
-            placement_context_note=swap_placement_note,
-        )
-        if setup is None:
-            return
-        setup.preferred_rebuild_material_sidecar = bool(swap_scope.prefer_generated_sidecar or swap_scope.complete_swap)
-        setup.preferred_complete_source_swap = bool(swap_scope.complete_swap)
-        setup.source_texture_evidence = tuple(source_texture_evidence)
-        setup.extra_supplemental_specs = self._build_in_game_mesh_swap_extra_specs(
-            target_entry,
-            source_entry,
-            swap_scope,
-        )
-        self.pending_in_game_mesh_swap_target = None
-        self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
-        self._start_archive_mesh_patch(target_entry, preset_setup=setup)

@@ -2,24 +2,8 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from PySide6.QtCore import QEvent, QObject, QSettings, QTimer
-from PySide6.QtWidgets import (
-    QApplication,
-    QAbstractSpinBox,
-    QComboBox,
-    QSlider,
-    QTreeWidget,
-)
-from cdmw.rendering.model_preview_prepare import (
-    BatchRenderDiagnostic as _BatchRenderDiagnostic,
-    FramebufferVisibilitySample as _FramebufferVisibilitySample,
-    ModelPreviewDrawBatch as _ModelPreviewDrawBatch,
-    TextureVisibilitySample as _TextureVisibilitySample,
-)
-try:
-    import shiboken6
-except Exception:  # pragma: no cover - shipped with PySide6, defensive for test-only imports.
-    shiboken6 = None
+from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtWidgets import QTreeWidget
 
 _RENDER_DIAGNOSTIC_MODE_CODES = {
     "lit": 0,
@@ -54,61 +38,6 @@ _RENDER_DIAGNOSTIC_MODE_CODES = {
     "source_pbr_preview": 29,
     "cd_runtime_approx": 30,
 }
-
-class NonIntrusiveWheelGuard(QObject):
-    """Prevents accidental wheel changes on setting widgets while scrolling containers."""
-
-    @staticmethod
-    def _watched_is_valid(watched: object) -> bool:
-        if watched is None:
-            return False
-        if shiboken6 is not None:
-            try:
-                return bool(shiboken6.isValid(watched))
-            except Exception:
-                return False
-        try:
-            watched.objectName()  # type: ignore[attr-defined]
-            return True
-        except RuntimeError:
-            return False
-        except Exception:
-            return True
-
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # type: ignore[override]
-        try:
-            event_type = event.type()
-        except RuntimeError:
-            return False
-        if event_type != QEvent.Type.Wheel:
-            return False
-        if not self._watched_is_valid(watched):
-            return False
-        try:
-            if isinstance(watched, QComboBox):
-                event.ignore()
-                return True
-            if isinstance(watched, QAbstractSpinBox):
-                event.ignore()
-                return True
-            if isinstance(watched, QSlider):
-                event.ignore()
-                return True
-        except RuntimeError:
-            return False
-        return False
-
-
-_wheel_guard: Optional[NonIntrusiveWheelGuard] = None
-
-
-def ensure_app_wheel_guard(app: Optional[QApplication]) -> None:
-    global _wheel_guard
-    if app is None or _wheel_guard is not None:
-        return
-    _wheel_guard = NonIntrusiveWheelGuard(app)
-    app.installEventFilter(_wheel_guard)
-
 
 def persistent_tree_column_widths_key(settings_key: str) -> str:
     return f"{str(settings_key or '').strip()}/column_widths"
@@ -289,3 +218,30 @@ from cdmw.ui.text_preview_widgets import (
 
 
 from cdmw.ui.shell.help_dialogs import AboutDialog, QuickStartDialog
+
+
+_MODEL_PREVIEW_COMPAT_EXPORTS = {
+    "_BatchRenderDiagnostic": "BatchRenderDiagnostic",
+    "_FramebufferVisibilitySample": "FramebufferVisibilitySample",
+    "_ModelPreviewDrawBatch": "ModelPreviewDrawBatch",
+    "_TextureVisibilitySample": "TextureVisibilitySample",
+}
+
+_WHEEL_GUARD_COMPAT_EXPORTS = frozenset(("NonIntrusiveWheelGuard", "ensure_app_wheel_guard"))
+
+
+def __getattr__(name: str) -> object:
+    if name in _WHEEL_GUARD_COMPAT_EXPORTS:
+        from cdmw.ui import wheel_guard
+
+        value = getattr(wheel_guard, name)
+        globals()[name] = value
+        return value
+    target = _MODEL_PREVIEW_COMPAT_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(name)
+    from cdmw.services import preview_rendering_service as model_preview_prepare
+
+    value = getattr(model_preview_prepare, target)
+    globals()[name] = value
+    return value

@@ -7,8 +7,8 @@ from typing import Callable, List, Optional
 
 from PySide6.QtWidgets import QFileDialog, QGridLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QSizePolicy
 
-from cdmw.core.archive import autodetect_archive_package_roots
-from cdmw.core.texture_pipeline.workspace import common_workspace_root_from_config
+from cdmw.services.archive_environment_service import autodetect_archive_package_roots
+from cdmw.services.texture_workflow_service import common_workspace_root_from_config
 
 
 class PathControllerMixin:

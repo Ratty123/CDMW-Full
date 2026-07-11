@@ -2378,7 +2378,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertIn("glow", texture_set.source_role_tags)
         self.assertTrue(_texture_set_is_accent_glow_candidate(texture_set, "cd_phm_02_sword_blade_0015"))
 
-    def test_accent_glow_zero_suppresses_source_emissive_slots(self) -> None:
+    def test_accent_glow_zero_preserves_source_emissive_slots(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             from PIL import Image
 
@@ -2404,7 +2404,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 accent_glow_strength=100,
             )
 
-            self.assertFalse(any(slot.slot_kind == "emissive" for slot in _source_driven_slots(texture_set, material_profile=off_profile)))
+            self.assertTrue(any(slot.slot_kind == "emissive" for slot in _source_driven_slots(texture_set, material_profile=off_profile)))
             self.assertTrue(any(slot.slot_kind == "emissive" for slot in _source_driven_slots(texture_set, material_profile=on_profile)))
 
     def test_source_part_glow_role_can_override_emissive_color(self) -> None:
@@ -3715,7 +3715,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
         self.assertEqual("_detailMaskTexture", _source_driven_parameter_name("material_mask", material_profile=detail_profile))
         self.assertEqual("material_authority_detail_mask", get_complete_swap_material_profile("material_authority").name)
 
-        placeholder_safe_profile = get_complete_swap_material_profile("placeholder_safe")
+        placeholder_safe_profile = get_complete_swap_material_profile("material_authority_placeholder_safe_test")
         self.assertEqual("material_authority_placeholder_safe_test", placeholder_safe_profile.name)
         self.assertEqual("true_source_authority_detail_mask", complete_swap_material_authority_contract(placeholder_safe_profile.name))
         self.assertTrue(placeholder_safe_profile.suppress_runtime_placeholder_material_bindings)
@@ -4014,7 +4014,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
         profile = get_complete_swap_material_profile(token)
 
         self.assertEqual("material_authority_manual", profile.name)
-        self.assertEqual("Material Authority Manual", profile.label)
+        self.assertEqual("Manual", profile.label)
         self.assertEqual(90, profile.base_color_lift)
         self.assertEqual(180, profile.base_color_value_max)
         self.assertEqual(250, profile.roughness_min)
@@ -7723,7 +7723,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 target_path.write_bytes(f"related:{entry.path}".encode("utf-8"))
                 return target_path
 
-            with patch("cdmw.core.archive.extract_archive_entry", side_effect=fake_extract):
+            with patch("cdmw.core.archive_extraction.extract_archive_entry", side_effect=fake_extract):
                 result = export_archive_mesh_payloads_to_mod_ready_loose(
                     (ArchivePatchRequest(primary, b"rebuilt"),),
                     primary_entry=primary,

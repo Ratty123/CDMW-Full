@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "build_gui.py::BuilderGui._build_layout": 238,
+    "tools/calibrate_crimson_startup.py::run_startup_calibration": 183,
+    "tools/run_crimson_renderdoc_hotkey_capture.py::run_renderdoc_hotkey_capture": 169
+  }
+}

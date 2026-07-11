@@ -27,6 +27,26 @@ def _record_archive_worker_lifecycle(target: object, event: str, **fields: objec
 class ArchiveWorkerLifecycleMixin:
     """Small archive-browser worker stop helpers owned outside the shell window."""
 
+    def _stop_archive_basic_index_worker(self) -> None:
+        self.archive_basic_index_request_id = int(getattr(self, "archive_basic_index_request_id", 0) or 0) + 1
+        if self.archive_basic_index_worker is not None:
+            _record_archive_worker_lifecycle(
+                self,
+                "archive_worker_cancelled",
+                reason="cancelled_by_new_scan",
+                worker="basic_index",
+            )
+            try:
+                self.archive_basic_index_worker.stop()
+            except Exception as exc:
+                _record_archive_worker_lifecycle(
+                    self,
+                    "archive_worker_failed",
+                    reason="worker_failed",
+                    worker="basic_index",
+                    error=str(exc),
+                )
+
     def _stop_archive_sidecar_worker(self) -> None:
         if self.archive_sidecar_worker is not None:
             _record_archive_worker_lifecycle(self, "archive_worker_cancelled", reason="cancelled_by_shutdown", worker="sidecar")
@@ -37,6 +57,9 @@ class ArchiveWorkerLifecycleMixin:
 
     def _stop_archive_derived_cache_worker(self) -> None:
         self.archive_derived_cache_write_pending = False
+        self.archive_enhanced_index_request_id = int(
+            getattr(self, "archive_enhanced_index_request_id", 0) or 0
+        ) + 1
         if self.archive_derived_cache_worker is not None:
             _record_archive_worker_lifecycle(self, "archive_worker_cancelled", reason="cancelled_by_shutdown", worker="derived_cache")
             try:
@@ -68,6 +91,7 @@ class ArchivePreviewWorkerMixin:
         prefer_loose_preview: bool = False,
         force: bool = False,
     ) -> None:
+        self._ensure_archive_preview_startup_state()
         if not force and self._mesh_replacement_builder_active():
             self._defer_archive_preview_refresh_for_builder(entry)
             return

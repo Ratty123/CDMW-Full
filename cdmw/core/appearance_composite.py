@@ -10,24 +10,34 @@ import threading
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.archive import (
+from cdmw.core.archive_asset_family import build_archive_asset_family_graph
+from cdmw.core.archive_binary_preview import try_decode_text_like_archive_data
+from cdmw.core.archive_extraction import read_archive_entry_data
+from cdmw.core.archive_model_references import _extract_archive_model_sidecar_texture_references
+from cdmw.core.archive_model_textures import (
     _attach_model_texture_preview_paths,
-    _extract_archive_model_sidecar_texture_references,
-    build_archive_asset_family_graph,
     build_archive_model_texture_references,
+)
+from cdmw.core.archive_references import (
     build_archive_relationship_references,
     merge_archive_reference_rows,
-    read_archive_entry_data,
-    try_decode_text_like_archive_data,
 )
-from cdmw.core.archive_modding import ArchivePatchRequest, MeshImportSupplementalFileSpec
+from cdmw.core.archive_mesh_types import MeshImportSupplementalFileSpec
+from cdmw.core.archive_patching import ArchivePatchRequest
 from cdmw.core.archive_relationships import (
     _candidate_basenames_for_xml_reference,
     build_archive_relationship_plan,
 )
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.model_preview import _build_model_preview
-from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, AssetFamilyGraph, ModelPreviewData, ModelPreviewMesh
+from cdmw.models import (
+    ArchiveEntry,
+    ArchiveEntryIdentity,
+    ArchiveModelTextureReference,
+    AssetFamilyGraph,
+    ModelPreviewData,
+    ModelPreviewMesh,
+)
 from cdmw.modding.mesh_parser import SubMesh, parse_mesh
 
 
@@ -125,17 +135,13 @@ def _normalize_archive_path(path: object) -> str:
     return str(path or "").replace("\\", "/").strip().strip("/").lower()
 
 
-def _entry_identity(entry: ArchiveEntry) -> Tuple[str, str, int]:
-    return (
-        _normalize_archive_path(getattr(entry, "path", "")),
-        str(getattr(entry, "pamt_path", "") or "").casefold(),
-        int(getattr(entry, "offset", 0) or 0),
-    )
+def _entry_identity(entry: ArchiveEntry) -> ArchiveEntryIdentity:
+    return entry.identity
 
 
 def _dedupe_entries(entries: Sequence[ArchiveEntry]) -> Tuple[ArchiveEntry, ...]:
     result: List[ArchiveEntry] = []
-    seen: set[Tuple[str, str, int]] = set()
+    seen: set[ArchiveEntryIdentity] = set()
     for entry in entries:
         if not isinstance(entry, ArchiveEntry):
             continue

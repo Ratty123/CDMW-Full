@@ -8,11 +8,16 @@ from typing import Callable, List, Sequence, Tuple
 
 from PySide6.QtWidgets import QMessageBox
 
-from cdmw.core.archive_modding import attach_scene_preview_textures, parsed_mesh_to_preview_model
-from cdmw.core.model_catalogue import IMPORTABLE_MODEL_EXTENSIONS, is_importable_model_path
-from cdmw.modding.scene_importer import SCENE_TEXTURE_SOURCE_EXTENSIONS, SceneImportResult, import_scene_mesh_with_report
-from cdmw.models import ArchivePreviewResult
-from cdmw.rendering.model_preview_prepare import prepare_model_preview
+from cdmw.services.preview_workflow_service import (
+    attach_scene_preview_textures,
+    parsed_mesh_to_preview_model,
+)
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.library.models import IMPORTABLE_MODEL_EXTENSIONS, is_importable_model_path
+from cdmw.services.mesh_workflow_service import SCENE_TEXTURE_SOURCE_EXTENSIONS, SceneImportResult, import_scene_mesh_with_report
+from cdmw.models import ArchivePreviewResult, RunCancelled
+from cdmw.services.preview_rendering_service import prepare_model_preview
+from cdmw.services.diagnostics_service import is_expected_cancellation_message
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 
 
@@ -77,6 +82,7 @@ class ModelLibraryShellBridgeMixin:
         *,
         limit: int = 512,
         scan_limit: int = 10000,
+        stop_event: object = None,
     ) -> Tuple[Path, ...]:
         supported_suffixes = self._model_library_supplemental_suffixes()
         recursive_root_keys: set[str] = set()
@@ -92,6 +98,7 @@ class ModelLibraryShellBridgeMixin:
         seen: set[str] = set()
         scanned = 0
         for root in self._model_library_texture_search_roots(scene_path, metadata):
+            raise_if_cancelled(stop_event, "Model Library companion scan cancelled.")
             if not root.is_dir():
                 continue
             try:
@@ -102,6 +109,7 @@ class ModelLibraryShellBridgeMixin:
             try:
                 iterator = root.rglob("*") if recursive else root.iterdir()
                 for candidate in iterator:
+                    raise_if_cancelled(stop_event, "Model Library companion scan cancelled.")
                     scanned += 1
                     if scanned > scan_limit or len(discovered) >= limit:
                         break
@@ -127,10 +135,16 @@ class ModelLibraryShellBridgeMixin:
         scene_path: Path,
         scene_import_result: SceneImportResult,
         metadata: Mapping[str, object],
+        *,
+        stop_event: object = None,
     ) -> SceneImportResult:
         if not isinstance(scene_import_result, SceneImportResult):
             return scene_import_result
-        companion_files = self._discover_model_library_supplemental_files(scene_path, metadata)
+        companion_files = self._discover_model_library_supplemental_files(
+            scene_path,
+            metadata,
+            stop_event=stop_event,
+        )
         existing_keys = {
             str(path.expanduser().resolve()).lower()
             for path in tuple(scene_import_result.discovered_texture_files or ())
@@ -141,6 +155,7 @@ class ModelLibraryShellBridgeMixin:
         extra_textures: List[Path] = []
         extra_sidecars: List[Path] = []
         for candidate in companion_files:
+            raise_if_cancelled(stop_event, "Model Library companion scan cancelled.")
             try:
                 resolved = candidate.expanduser().resolve()
             except Exception:
@@ -179,9 +194,6 @@ class ModelLibraryShellBridgeMixin:
 
     def _import_local_model_to_current_archive(self, import_path_text: str, model_payload: object) -> None:
         scene_path = Path(str(import_path_text or "")).expanduser()
-        if not scene_path.is_file():
-            self.set_status_message(f"Model library import file is missing: {scene_path}", error=True)
-            return
         if not is_importable_model_path(scene_path):
             supported = ", ".join(sorted(IMPORTABLE_MODEL_EXTENSIONS))
             self.set_status_message(f"Model library file is not supported by mesh import: {scene_path.suffix}. Supported: {supported}", error=True)
@@ -196,7 +208,13 @@ class ModelLibraryShellBridgeMixin:
             self.set_status_message(message, error=True)
             QMessageBox.information(self, "Import Mesh", message)
             return
-        metadata = model_payload if isinstance(model_payload, Mapping) else {}
+        if self._background_task_active():
+            self.set_status_message(
+                "Another background task is still running. Wait for it to finish before importing this model.",
+                error=True,
+            )
+            return
+        metadata = dict(model_payload) if isinstance(model_payload, Mapping) else {}
         model_name = str(metadata.get("name", "") or scene_path.stem).strip()
         creator = str(
             metadata.get("creator_name", "")
@@ -218,50 +236,94 @@ class ModelLibraryShellBridgeMixin:
         if source_path:
             source_parts.append(source_path)
         source_label = " | ".join(source_parts)
-        try:
-            scene_import_result = import_scene_mesh_with_report(scene_path)
-            scene_import_result = self._augment_model_library_scene_import_result(
-                scene_path,
-                scene_import_result,
-                metadata,
-            )
-        except Exception as exc:
+        request_id = int(getattr(self, "_model_library_import_request_id", 0) or 0) + 1
+        self._model_library_import_request_id = request_id
+        entry_key = self._archive_entry_identity_key(current_entry)
+
+        def task(_log: Callable[[str], None], stop_event: object) -> object:
+            try:
+                raise_if_cancelled(stop_event, "Model Library scene import cancelled.")
+                if not scene_path.is_file():
+                    raise FileNotFoundError(f"Model library import file is missing: {scene_path}")
+                scene_import_result = import_scene_mesh_with_report(scene_path, stop_event=stop_event)
+                return self._augment_model_library_scene_import_result(
+                    scene_path,
+                    scene_import_result,
+                    metadata,
+                    stop_event=stop_event,
+                )
+            except RunCancelled:
+                raise
+            except Exception as exc:
+                return exc
+
+        def on_error(message: str) -> None:
+            if (
+                request_id != int(getattr(self, "_model_library_import_request_id", 0) or 0)
+                or bool(getattr(self, "_shutting_down", False))
+                or is_expected_cancellation_message(message)
+            ):
+                return
             QMessageBox.warning(
                 self,
                 "Mesh Import Unsupported",
-                f"{scene_path.name} could not be imported.\n\n{exc}",
+                f"{scene_path.name} could not be imported.\n\n{message}",
             )
-            return
-        self._open_mesh_editor_for_entry(
-            current_entry,
-            mode="external_import",
-            source_path=scene_path,
-            scene_import_result=scene_import_result,
-            activate=True,
+            self.set_status_message(f"Model library import failed: {message}", error=True)
+
+        def on_complete(value: object) -> None:
+            if request_id != int(getattr(self, "_model_library_import_request_id", 0) or 0):
+                return
+            if isinstance(value, Exception):
+                on_error(str(value))
+                return
+            if bool(getattr(self, "_shutting_down", False)) or not isinstance(value, SceneImportResult):
+                return
+            if self._archive_entry_identity_key(self._current_archive_mesh_entry()) != entry_key:
+                self.set_status_message("Model library import result ignored because the selected archive mesh changed.", error=True)
+                return
+            self._open_mesh_editor_for_entry(
+                current_entry,
+                mode="external_import",
+                source_path=scene_path,
+                scene_import_result=value,
+                activate=True,
+            )
+            setup = self._prompt_archive_mesh_import_setup(
+                current_entry,
+                scene_path,
+                title="Model Library Mesh Import Setup",
+                scene_import_result=value,
+                source_label=source_label,
+            )
+            if setup is None:
+                return
+            setup.source_label = source_label
+            self.set_status_message(f"Opening mesh replacement workflow for model library item: {model_name}.")
+            self._start_archive_mesh_patch(current_entry, preset_setup=setup)
+
+        self._run_utility_task(
+            status_message=f"Importing model library scene: {model_name}...",
+            task=task,
+            on_complete=on_complete,
+            on_error=on_error,
+            show_archive_progress=True,
+            task_accepts_cancel=True,
         )
-        setup = self._prompt_archive_mesh_import_setup(
-            current_entry,
-            scene_path,
-            title="Model Library Mesh Import Setup",
-            scene_import_result=scene_import_result,
-            source_label=source_label,
-        )
-        if setup is None:
-            return
-        setup.source_label = source_label
-        self.set_status_message(f"Opening mesh replacement workflow for model library item: {model_name}.")
-        self._start_archive_mesh_patch(current_entry, preset_setup=setup)
 
     def _preview_model_library_mesh(self, import_path_text: str, model_payload: object) -> None:
         scene_path = Path(str(import_path_text or "")).expanduser()
-        if not scene_path.is_file():
-            self.set_status_message(f"Model library preview file is missing: {scene_path}", error=True)
-            return
         if not is_importable_model_path(scene_path):
             supported = ", ".join(sorted(IMPORTABLE_MODEL_EXTENSIONS))
             self.set_status_message(f"Model library file is not supported by preview: {scene_path.suffix}. Supported: {supported}", error=True)
             return
-        metadata = model_payload if isinstance(model_payload, Mapping) else {}
+        if self._background_task_active():
+            self.set_status_message(
+                "Another background task is still running. Wait for it to finish before previewing this model.",
+                error=True,
+            )
+            return
+        metadata = dict(model_payload) if isinstance(model_payload, Mapping) else {}
         model_name = str(metadata.get("name", "") or scene_path.stem).strip()
         source_name = str(metadata.get("source", "") or metadata.get("kind", "") or "Model Library").strip()
         license_label = str(metadata.get("license_label", "") or metadata.get("licenseLabel", "") or "").strip()
@@ -293,20 +355,31 @@ class ModelLibraryShellBridgeMixin:
         if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
             self._clear_archive_isolated_renderer_surface_for_request()
 
-        def task(_log: Callable[[str], None]) -> object:
-            scene_result = import_scene_mesh_with_report(scene_path)
-            scene_result = self._augment_model_library_scene_import_result(scene_path, scene_result, metadata)
+        def task(_log: Callable[[str], None], stop_event: object) -> object:
+            raise_if_cancelled(stop_event, "Model Library preview cancelled.")
+            if not scene_path.is_file():
+                raise FileNotFoundError(f"Model library preview file is missing: {scene_path}")
+            scene_result = import_scene_mesh_with_report(scene_path, stop_event=stop_event)
+            scene_result = self._augment_model_library_scene_import_result(
+                scene_path,
+                scene_result,
+                metadata,
+                stop_event=stop_event,
+            )
+            raise_if_cancelled(stop_event, "Model Library preview cancelled.")
             preview_model = parsed_mesh_to_preview_model(scene_result.mesh)
             texture_count = self._attach_model_library_preview_textures(
                 preview_model,
                 scene_result,
                 scene_path,
             )
+            raise_if_cancelled(stop_event, "Model Library preview cancelled.")
             mesh_count = len(getattr(preview_model, "meshes", ()) or ())
             prepared_model, prepared_preview_model = prepare_model_preview(
                 preview_model,
                 render_settings=render_settings,
             )
+            raise_if_cancelled(stop_event, "Model Library preview cancelled.")
             detail_lines = [
                 f"Source: {source_name}",
                 f"Path: {scene_path}",
@@ -349,6 +422,8 @@ class ModelLibraryShellBridgeMixin:
             )
 
         def on_complete(result: object) -> None:
+            if request_id != self.archive_preview_request_id or bool(getattr(self, "_shutting_down", False)):
+                return
             if not isinstance(result, ArchivePreviewResult):
                 self.set_status_message("Model library preview finished with an unexpected response.", error=True)
                 return
@@ -368,6 +443,7 @@ class ModelLibraryShellBridgeMixin:
             task=task,
             on_complete=on_complete,
             show_archive_progress=True,
+            task_accepts_cancel=True,
         )
 
     def _attach_model_library_preview_textures(

@@ -27,6 +27,10 @@ internal sealed partial class D3D11MaterialViewport
         {
             DrawD3D11WireOverlay();
         }
+        if (_overlayShowVertices)
+        {
+            DrawD3D11VertexOverlay();
+        }
         DrawSelectedSourcesOverlay();
         DrawSelectedFacesOverlay();
         DrawSelectedEdgesOverlay();
@@ -48,6 +52,38 @@ internal sealed partial class D3D11MaterialViewport
             AddEdgeLineVertices(edge, lines);
         }
         DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(120, 170, 220, _overlayShowXRay ? 125 : 95), _camera.WorldViewProjection);
+        if (lines.Count > 0)
+        {
+            _wireOverlayDrawCount++;
+        }
+    }
+
+    private void DrawD3D11VertexOverlay()
+    {
+        if (_context is null || _overlayCameraBuffer is null)
+        {
+            return;
+        }
+        var constants = new D3D11OverlayConstants
+        {
+            WorldViewProjection = _camera.WorldViewProjection,
+            Color = OverlayColor(110, 215, 255, 235),
+        };
+        _context.UpdateSubresource(in constants, _overlayCameraBuffer);
+        _context.VSSetConstantBuffer(1u, _overlayCameraBuffer);
+        _context.PSSetConstantBuffer(1u, _overlayCameraBuffer);
+        _context.IASetPrimitiveTopology(PrimitiveTopology.PointList);
+        foreach (var batch in _batches)
+        {
+            if (_materials.ParametersForSubmesh(batch.SubmeshIndex).Visible is false)
+            {
+                continue;
+            }
+            _context.IASetVertexBuffer(0u, batch.VertexBuffer, D3D11SubmeshBatch.VertexStride);
+            _context.IASetIndexBuffer(batch.IndexBuffer, Vortice.DXGI.Format.R32_UInt, 0);
+            _context.DrawIndexed((uint)batch.IndexCount, 0, 0);
+            _vertexOverlayBatchDrawCount++;
+        }
     }
 
     private void DrawSelectedSourcesOverlay()

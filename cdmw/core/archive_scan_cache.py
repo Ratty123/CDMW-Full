@@ -18,26 +18,27 @@ try:
 except ImportError:
     lz4_block = None
 
+from cdmw.core.atomic_file import atomic_binary_writer, atomic_copy_file, atomic_write_bytes, atomic_write_text
 from cdmw.core.common import raise_if_cancelled
 from cdmw.models import ArchiveEntry, RunCancelled
 
 
 def format_byte_size(value: int) -> str:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_extraction import format_byte_size as owner
 
-    return archive_core.format_byte_size(value)
+    return owner(value)
 
 
 def parse_archive_pamt(path: Path) -> List[ArchiveEntry]:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_format import parse_archive_pamt as owner
 
-    return archive_core.parse_archive_pamt(path)
+    return owner(path)
 
 
 def scan_archive_entries(package_root: Path) -> List[ArchiveEntry]:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_format import scan_archive_entries as owner
 
-    return archive_core.scan_archive_entries(package_root)
+    return owner(package_root)
 
 
 _ARCHIVE_SCAN_CACHE_MAGIC = b"CTFARCH1"
@@ -674,7 +675,7 @@ def _write_archive_scan_shard_metadata(
         "entry_metadata_sources": [list(row) for row in _normalize_archive_source_rows(entry_metadata_sources)],
         "shard_cache_sources": [list(row) for row in _cache_file_source_rows(metadata_path.parent)],
     }
-    metadata_path.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+    atomic_write_text(metadata_path, json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n")
 
 
 def _load_archive_scan_shard_metadata(
@@ -797,12 +798,10 @@ def _write_raw_pickle_cache_payload_to_path(
     magic: bytes,
     payload: dict,
 ) -> None:
-    temp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
-    with temp_path.open("wb") as handle:
+    with atomic_binary_writer(cache_path) as handle:
         handle.write(magic)
         handle.write(b"R")
         pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    temp_path.replace(cache_path)
 
 
 def _serialize_archive_scan_cache_payload(payload: dict) -> bytes:
@@ -885,9 +884,7 @@ def _write_archive_sidecar_cache_metadata(
         "sources": [[relative_path, int(size), int(mtime_ns)] for relative_path, size, mtime_ns in sources],
     }
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = metadata_path.with_suffix(metadata_path.suffix + ".tmp")
-    temp_path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    temp_path.replace(metadata_path)
+    atomic_write_text(metadata_path, json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
 
 def _read_archive_sidecar_cache_metadata(metadata_path: Path) -> Optional[dict]:
@@ -997,9 +994,7 @@ def _read_archive_item_icon_thumbnail_manifest(cache_dir: Path) -> Dict[str, obj
 
 def _write_archive_item_icon_thumbnail_manifest(cache_dir: Path, manifest: Mapping[str, object]) -> None:
     manifest_path = _archive_item_icon_thumbnail_manifest_path(cache_dir)
-    temp_path = manifest_path.with_suffix(".json.tmp")
-    temp_path.write_text(json.dumps(dict(manifest), ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    temp_path.replace(manifest_path)
+    atomic_write_text(manifest_path, json.dumps(dict(manifest), ensure_ascii=False, separators=(",", ":")))
     try:
         stat = manifest_path.stat()
         manifest_stamp = (
@@ -1074,9 +1069,7 @@ def save_archive_item_icon_thumbnail_cache(
     )
     cache_dir.mkdir(parents=True, exist_ok=True)
     destination = cache_dir / f"{cache_key}.png"
-    temp_path = cache_dir / f"{cache_key}.png.tmp"
-    shutil.copy2(source_path, temp_path)
-    temp_path.replace(destination)
+    atomic_copy_file(source_path, destination)
     with _ARCHIVE_ITEM_ICON_THUMBNAIL_CACHE_LOCK:
         manifest = _read_archive_item_icon_thumbnail_manifest(cache_dir)
         entries = manifest.setdefault("entries", {})
@@ -2162,9 +2155,7 @@ def save_archive_scan_cache(
     if on_progress:
         on_progress(0, 0, "Compressing archive cache...")
     blob = _serialize_archive_scan_cache_payload(payload)
-    temp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
-    temp_path.write_bytes(blob)
-    temp_path.replace(cache_path)
+    atomic_write_bytes(cache_path, blob)
     if on_progress:
         on_progress(1, 1, "Archive index cache written; preparing browser indexes...")
     if on_log:

@@ -17,6 +17,7 @@ from .mesh_parser import (
     _parse_par_sections,
     parse_pac,
 )
+from .mesh_skinning import pac_skin_export_palette, pac_skin_weights_changed, patch_pac_vertex_skin, source_vertex_map_is_target_donor_lineage
 
 logger = get_logger("core.mesh_importer")
 
@@ -27,7 +28,6 @@ def _quantize_pac_u16(value: float, bbox_min: float, bbox_extent: float) -> int:
     t = (value - bbox_min) / bbox_extent
     t = max(0.0, min(1.0, t))
     return min(32767, max(0, round(t * 32767.0)))
-
 
 def _patch_pac_descriptor_bounds(
     data: bytearray,
@@ -47,7 +47,6 @@ def _patch_pac_descriptor_bounds(
     struct.pack_into("<f", data, floats_off + 6 * 4, bbox_extent[1])
     struct.pack_into("<f", data, floats_off + 7 * 4, bbox_extent[2])
 
-
 def _pac_submesh_match_score(imported_sm: SubMesh, original_sm: SubMesh) -> float:
     """Score how likely an imported PAC object maps back to an original slot."""
     imp_center = tuple((mn + mx) * 0.5 for mn, mx in zip(*_compute_bbox(imported_sm.vertices)))
@@ -57,7 +56,6 @@ def _pac_submesh_match_score(imported_sm: SubMesh, original_sm: SubMesh) -> floa
     vert_ratio = abs(math.log((len(imported_sm.vertices) + 1) / (len(original_sm.vertices) + 1)))
     face_ratio = abs(math.log((len(imported_sm.faces) + 1) / (len(original_sm.faces) + 1)))
     return center_dist + vert_ratio * 0.75 + face_ratio * 0.75
-
 
 def _merge_partial_pac_import(
     original_mesh: ParsedMesh,
@@ -195,7 +193,6 @@ def _merge_partial_pac_import(
     merged.has_bones = any(sm.bone_indices for sm in merged_submeshes)
     return merged
 
-
 def _pack_pac_normal(normal: tuple[float, float, float], existing_packed: int = 0) -> int:
     """Pack a float normal back into the PAC 10:10:10 layout."""
 
@@ -207,7 +204,6 @@ def _pack_pac_normal(normal: tuple[float, float, float], existing_packed: int = 
     packed = _enc(nz) | (_enc(nx) << 10) | (_enc(ny) << 20)
     return (existing_packed & 0xC0000000) | packed
 
-
 def _choose_pac_donor_indices(orig_sm: SubMesh, new_sm: SubMesh) -> list[int]:
     """Choose the closest original PAC vertex record to clone for each new vertex."""
     if not orig_sm.vertices:
@@ -218,7 +214,11 @@ def _choose_pac_donor_indices(orig_sm: SubMesh, new_sm: SubMesh) -> list[int]:
         key = (round(pos[0] * 100000), round(pos[1] * 100000), round(pos[2] * 100000))
         exact_map.setdefault(key, []).append(orig_idx)
 
-    sidecar_source_map = list(getattr(new_sm, "source_vertex_map", ()) or ())
+    sidecar_source_map = (
+        list(getattr(new_sm, "source_vertex_map", ()) or ())
+        if source_vertex_map_is_target_donor_lineage(orig_sm, new_sm)
+        else []
+    )
     donor_indices: list[int] = []
     for vertex_index, new_pos in enumerate(new_sm.vertices):
         if vertex_index < len(sidecar_source_map):
@@ -256,7 +256,7 @@ def _pac_needs_full_rebuild(original_mesh: ParsedMesh, working_mesh: ParsedMesh)
     for orig_sm, new_sm in zip(original_mesh.submeshes, working_mesh.submeshes):
         if len(orig_sm.vertices) != len(new_sm.vertices):
             return True
-        if len(orig_sm.faces) != len(new_sm.faces):
+        if len(orig_sm.faces) != len(new_sm.faces) or pac_skin_weights_changed(orig_sm, new_sm):
             return True
         if orig_sm.source_vertex_stride < 12:
             return True
@@ -649,7 +649,6 @@ def _build_pac_full_rebuild(
         for sec in sections
         if sec["index"] > n_lods
     }
-
     prepared_submeshes = []
     for sm_idx, (new_sm, desc) in enumerate(zip(working_mesh.submeshes, descriptors)):
         if output_descriptor_sources:
@@ -689,8 +688,8 @@ def _build_pac_full_rebuild(
                     f"PAC vertex record for submesh {sm_idx} points outside the file."
                 )
             donor_records.append(original_data[rec_off:rec_off + orig_sm.source_vertex_stride])
-
         donor_indices = _choose_pac_donor_indices(orig_sm, new_sm)
+        skin_palette = pac_skin_export_palette(orig_sm, new_sm, getattr(desc, "palette", ()) or (), sm_idx)
         normals = (
             new_sm.normals
             if len(new_sm.normals) == len(new_sm.vertices)
@@ -707,7 +706,6 @@ def _build_pac_full_rebuild(
         lod_variants = _pac_lod_variants_for_submesh(new_sm, desc, stored_lod_count)
         if not lod_variants:
             lod_variants = [new_sm]
-
         rel_desc_off = desc.descriptor_offset - sec0["offset"]
         if rel_desc_off < 0 or rel_desc_off + 40 > len(sec0_data):
             raise ValueError(f"PAC descriptor {sm_idx} points outside section 0.")
@@ -729,8 +727,8 @@ def _build_pac_full_rebuild(
             "stored_lod_count": stored_lod_count,
             "clean_shading_records": clean_shading_records,
             "lod_variants": lod_variants,
+            "skin_palette": skin_palette,
         })
-
     lod_payloads: dict[int, bytes] = {}
     lod_split_bytes: dict[int, int] = {}
     for sec_idx in range(1, n_lods + 1):
@@ -741,7 +739,6 @@ def _build_pac_full_rebuild(
         for sm_idx, prepared in enumerate(prepared_submeshes):
             if lod_idx >= prepared["stored_lod_count"]:
                 continue
-
             lod_variants = prepared["lod_variants"]
             sm = lod_variants[min(lod_idx, len(lod_variants) - 1)] if lod_variants else prepared["submesh"]
             donor_records = prepared["donor_records"]
@@ -760,9 +757,9 @@ def _build_pac_full_rebuild(
             bbox_min = prepared["bbox_min"]
             bbox_extent = prepared["bbox_extent"]
             clean_shading_records = prepared["clean_shading_records"]
-
             for vi, vertex in enumerate(sm.vertices):
                 base_vi = source_vertex_map[vi] if vi < len(source_vertex_map) else vi
+                skin_vi = int(base_vi)
                 base_vi = max(0, min(base_vi, len(donor_indices) - 1))
                 donor_rec = bytearray(donor_records[donor_indices[base_vi]])
                 if clean_shading_records:
@@ -799,6 +796,9 @@ def _build_pac_full_rebuild(
                             0 if clean_shading_records else existing_normal,
                         ),
                     )
+
+                if prepared["skin_palette"] is not None:
+                    patch_pac_vertex_skin(donor_rec, prepared["submesh"], skin_vi, prepared["skin_palette"], sm_idx)
 
                 verts_buf.extend(donor_rec)
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tempfile
+import time
 import unittest
 import os
 from pathlib import Path
@@ -106,6 +107,12 @@ class ItemIconLibraryTests(unittest.TestCase):
                     source_model_path="mods/source/cd_source_sword.obj",
                     target_icon_path="ui/texture/icon/itemicon_cd_target_sword.dds",
                 )
+                deadline = time.monotonic() + 4.0
+                while tab._index_thread is not None and time.monotonic() < deadline:
+                    app.processEvents()
+                    time.sleep(0.005)
+                app.processEvents()
+                self.assertIsNone(tab._index_thread)
 
                 records = scan_item_icon_library((), index_path=tab.index_path, edited_root=tab.edited_root)
                 record = next(record for record in records if record.path == stored)

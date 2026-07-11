@@ -3,11 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Literal, NamedTuple, Optional, Tuple
+
+from cdmw.domain.cancellation import RunCancelled
 
 if TYPE_CHECKING:
     from cdmw.core.mod_package import ModPackageExportOptions
-    from cdmw.core.upscale_profiles import TextureUpscaleDecision
+    from cdmw.domain.textures.semantics import TextureUpscaleDecision
 
 from cdmw.constants import (
     ALLOW_UNIQUE_BASENAME_FALLBACK,
@@ -68,10 +70,6 @@ from cdmw.constants import (
     TEXCONV_PATH,
     TEXTURE_RULES_TEXT,
 )
-
-
-class RunCancelled(Exception):
-    pass
 
 
 IntermediateKind = Literal[
@@ -406,6 +404,9 @@ class TextureProcessingPlan:
     semantic_evidence: TextureSemanticEvidence = field(default_factory=TextureSemanticEvidence)
 
 
+ArchiveEntryIdentity = NamedTuple("ArchiveEntryIdentity", [("normalized_path", str), ("source_pamt", str), ("paz_index", int), ("entry_offset", int)])
+
+
 @dataclass(slots=True)
 class ArchiveEntry:
     path: str
@@ -416,6 +417,15 @@ class ArchiveEntry:
     orig_size: int
     flags: int
     paz_index: int
+
+    @property
+    def identity(self) -> ArchiveEntryIdentity:
+        return ArchiveEntryIdentity(
+            normalized_path=str(self.path or "").replace("\\", "/").strip().strip("/").casefold(),
+            source_pamt=str(self.pamt_path or "").replace("\\", "/").strip().casefold(),
+            paz_index=int(self.paz_index or 0),
+            entry_offset=int(self.offset or 0),
+        )
 
     @property
     def extension(self) -> str:
@@ -594,6 +604,11 @@ class TextureEditorSourceBinding:
     semantic_subtype: str = "unknown"
     technical_warning: str = ""
     semantic_sidecar_texts: Tuple[str, ...] = ()
+    mesh_session_id: str = ""
+    mesh_resource_id: str = ""
+    mesh_submesh_indices: Tuple[int, ...] = ()
+    mesh_channel: str = ""
+    mesh_commit_mode: str = ""
 
 
 @dataclass(slots=True)
@@ -1023,6 +1038,7 @@ class ArchivePreviewResult:
     preview_media_kind: str = ""
     preview_text: str = ""
     preview_model: object = None
+    static_preview_image: object = None
     prepared_preview_model: Optional["PreparedModelPreviewData"] = None
     native_preview_package_path: str = ""
     native_preview_diagnostics: Dict[str, object] = field(default_factory=dict)

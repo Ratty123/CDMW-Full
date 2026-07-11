@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-07-10T05:11:04.249866+00:00",
+  "environment": {
+    "python": "3.14.3",
+    "platform": "Windows 11 10.0.26200",
+    "machine": "AMD64",
+    "processor": "AMD64 Family 26 Model 68 Stepping 0, AuthenticAMD",
+    "git_head": "5e03816c6b327e803f42ad80eadc1a7f4540b590",
+    "git_dirty": true
+  },
+  "configuration": {
+    "runs": 11,
+    "first_tab": "mesh_editor_tab",
+    "public_import_budget_ms": 500.0,
+    "required_first_window_improvement_percent": 30.0,
+    "allowed_first_use_regression_percent": 10.0
+  },
+  "probes": {
+    "public_facade_import": {
+      "status": "ok",
+      "samples_ms": [76.92, 87.27, 103.456, 109.571, 105.64, 85.105, 142.203, 82.463, 108.948, 73.386, 103.487],
+      "minimum_ms": 73.386,
+      "median_ms": 103.456,
+      "p95_ms": 125.887,
+      "maximum_ms": 142.203,
+      "module_count_min": 157,
+      "module_count_max": 157,
+      "forbidden_modules_seen": []
+    },
+    "first_window": {
+      "status": "ok",
+      "samples_ms": [2152.223, 1998.118, 2412.981, 2283.819, 2441.855, 2522.178, 2341.696, 2162.829, 2548.068, 2187.975, 2533.47],
+      "minimum_ms": 1998.118,
+      "median_ms": 2341.696,
+      "p95_ms": 2540.769,
+      "maximum_ms": 2548.068
+    },
+    "first_tab": {
+      "status": "ok",
+      "target": "mesh_editor_tab",
+      "created_every_run": true,
+      "samples_ms": [185.339, 220.515, 256.815, 222.902, 261.55, 233.897, 248.255, 208.254, 239.762, 260.484, 271.533],
+      "minimum_ms": 185.339,
+      "median_ms": 239.762,
+      "p95_ms": 266.542,
+      "maximum_ms": 271.533
+    },
+    "helper_protocol_ready": {
+      "status": "ok",
+      "executable": "cdmw-mesh-dotnet-editor.exe",
+      "samples_ms": [1663.576, 1619.657, 1615.46, 2263.592, 1769.224, 1836.805, 2144.204, 2012.908, 1784.669, 1671.071, 1809.485],
+      "minimum_ms": 1615.46,
+      "median_ms": 1784.669,
+      "p95_ms": 2203.898,
+      "maximum_ms": 2263.592
+    }
+  },
+  "comparison": {
+    "baseline_generated_at_utc": "2026-07-10T04:52:57.560365+00:00",
+    "baseline_probes": {
+      "public_facade_import": {
+        "median_ms": 83.986,
+        "p95_ms": 119.026
+      },
+      "first_window": {
+        "median_ms": 3232.061,
+        "p95_ms": 3709.265
+      },
+      "first_tab": {
+        "target": "mesh_editor_tab",
+        "median_ms": 225.612,
+        "p95_ms": 365.738
+      },
+      "helper_protocol_ready": {
+        "executable": "cdmw-mesh-dotnet-editor.exe",
+        "median_ms": 2092.966,
+        "p95_ms": 2288.721
+      }
+    },
+    "first_window_improvement_percent": 31.502,
+    "first_window_median_improvement_percent": 27.547,
+    "first_tab_regression_percent": -27.122,
+    "helper_protocol_ready_regression_percent": -3.706,
+    "measurement_note": "Eleven isolated cold processes; no concurrent build or test workloads."
+  },
+  "gates": {
+    "public_facade_import_under_500_ms": true,
+    "public_facade_import_has_no_heavy_modules": true,
+    "first_window_improved_at_least_30_percent": true,
+    "first_tab_regression_within_10_percent": true,
+    "helper_protocol_ready_regression_within_10_percent": true
+  },
+  "ok": true
+}

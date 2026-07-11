@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from cdmw.rendering.native_preview_core import shutdown_native_preview_core_service
+from cdmw.services.preview_rendering_service import shutdown_native_preview_core_service
 
 
 class ArchivePreviewNativeCoreLifecycleMixin:

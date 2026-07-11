@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-import json
-import math
 import os
 import re
-import time
 from pathlib import Path
 from typing import Callable, Optional
 
 from PySide6.QtWidgets import QApplication
 
 from cdmw.constants import DEFAULT_UI_THEME
+from cdmw.services.startup_splash_service import (
+    STARTUP_SPLASH_COMMAND_FILE_ENV,
+    cleanup_startup_splash_artifacts,
+    write_startup_splash_payload,
+)
 from cdmw.ui.themes import UI_THEME_SCHEMES
 
 
@@ -85,53 +87,42 @@ class ExternalStartupSplashAdapter:
     def __init__(self, command_file: Path, *, theme_key: str = DEFAULT_UI_THEME) -> None:
         self.command_file = Path(command_file)
         self.theme_key = _splash_resolved_theme_key(theme_key)
-        self._shown_at = time.monotonic()
         self._closed = False
 
     def set_detail(self, detail: str, current: int = 0, total: int = 0) -> None:
         if self._closed:
             return
         text = format_startup_splash_detail(detail)
-        try:
-            payload = {
-                "detail": text,
-                "current": max(0, int(current or 0)),
-                "total": max(0, int(total or 0)),
-                "closed": False,
-                "theme_key": self.theme_key,
-                "updated_at": time.time(),
-            }
-            temp_path = self.command_file.with_suffix(self.command_file.suffix + ".tmp")
-            temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
-            temp_path.replace(self.command_file)
-        except Exception:
-            pass
+        write_startup_splash_payload(
+            self.command_file,
+            detail=text,
+            current=current,
+            total=total,
+            closed=False,
+            theme_key=self.theme_key,
+        )
 
     def pump_animation_frame(self) -> None:
         return
 
     def remaining_minimum_visible_ms(self) -> int:
-        elapsed = max(0.0, time.monotonic() - self._shown_at)
-        return int(math.ceil(max(0.0, 0.9 - elapsed) * 1000.0))
+        return 0
 
     def finish(self) -> None:
         if self._closed:
             return
         self._closed = True
-        try:
-            payload = {
-                "detail": "Opening workspace...",
-                "current": 1,
-                "total": 1,
-                "closed": True,
-                "theme_key": self.theme_key,
-                "updated_at": time.time(),
-            }
-            temp_path = self.command_file.with_suffix(self.command_file.suffix + ".tmp")
-            temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
-            temp_path.replace(self.command_file)
-        except Exception:
-            pass
+        write_startup_splash_payload(
+            self.command_file,
+            detail="Opening workspace...",
+            current=1,
+            total=1,
+            closed=True,
+            theme_key=self.theme_key,
+        )
+        cleanup_startup_splash_artifacts(self.command_file)
+        if os.environ.get(STARTUP_SPLASH_COMMAND_FILE_ENV) == str(self.command_file):
+            os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)
 
 
 __all__ = [

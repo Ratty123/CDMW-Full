@@ -53,11 +53,21 @@ def test_texture_editor_task_worker_emits_error_for_task_failure() -> None:
 def test_texture_editor_ui_constraint_worker_emits_summary_warning(monkeypatch) -> None:
     calls: list[tuple[list[object], str, object]] = []
 
-    def _summarize(entries: list[object], target_path: str, *, stop_event: object) -> dict[str, str]:
+    def _summarize(
+        _service: object,
+        entries: list[object],
+        target_path: str,
+        *,
+        stop_event: object,
+    ) -> dict[str, str]:
         calls.append((entries, target_path, stop_event))
         return {"warning_text": "watch UI bounds"}
 
-    monkeypatch.setattr(editor_workers, "summarize_ui_reference_constraints", _summarize)
+    monkeypatch.setattr(
+        type(editor_workers.research_service.references),
+        "summarize_ui_constraints",
+        _summarize,
+    )
     worker = TextureEditorUIConstraintWorker([object()], "ui/icon.dds")
     completed: list[tuple[str, str]] = []
     finished: list[bool] = []

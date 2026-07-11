@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
 from cdmw.models import ArchiveEntry
+from cdmw.models import RunCancelled
 from cdmw.ui.archive_browser.static_replacement_texture_sources import (
     add_archive_texture_lookup_entry,
     archive_texture_lookup_indexes_for_alignment,
@@ -11,6 +13,7 @@ from cdmw.ui.archive_browser.static_replacement_texture_sources import (
     register_dialog_supplemental_file,
     register_texture_source_file,
     register_texture_source_files,
+    scan_texture_source_folder,
     texture_source_files_in_folder,
 )
 
@@ -183,6 +186,46 @@ def test_texture_source_files_in_folder_returns_sorted_allowed_files(tmp_path: P
         second,
     )
     assert texture_source_files_in_folder(tmp_path / "missing", allowed_extensions=(".dds",)) == ()
+
+
+def test_texture_folder_scan_is_bounded_and_cancellable(tmp_path: Path) -> None:
+    for index in range(5):
+        (tmp_path / f"texture_{index}.dds").write_bytes(b"DDS ")
+
+    result = scan_texture_source_folder(
+        tmp_path,
+        allowed_extensions=(".dds",),
+        max_files=2,
+    )
+
+    assert len(result.files) == 2
+    assert result.truncated
+    assert result.scanned_entries <= 100_000
+
+    exact_limit_root = tmp_path / "exact"
+    exact_limit_root.mkdir()
+    for index in range(2):
+        (exact_limit_root / f"texture_{index}.dds").write_bytes(b"DDS ")
+    exact_limit = scan_texture_source_folder(
+        exact_limit_root,
+        allowed_extensions=(".dds",),
+        max_files=2,
+    )
+    assert len(exact_limit.files) == 2
+    assert not exact_limit.truncated
+
+    stop_event = threading.Event()
+    stop_event.set()
+    try:
+        scan_texture_source_folder(
+            tmp_path,
+            allowed_extensions=(".dds",),
+            stop_event=stop_event,
+        )
+    except RunCancelled:
+        pass
+    else:
+        raise AssertionError("pre-cancelled texture folder scan must stop before traversal")
 
 
 def test_add_archive_texture_lookup_entry_normalizes_and_deduplicates_archive_entries() -> None:

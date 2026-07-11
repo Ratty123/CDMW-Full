@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
+from cdmw.core.atomic_file import atomic_write_text
+
 from .mesh_deformer import build_vertex_adjacency, clone_mesh_for_editing, recompute_mesh_normals
 from .mesh_parser import ParsedMesh, _compute_smooth_normals
 from .scene_importer import import_scene_mesh, refresh_parsed_mesh_totals
@@ -658,9 +660,9 @@ def _profile_payload(profile: MeshMorphSliderProfile) -> dict[str, object]:
 
 def _write_profile(profile: MeshMorphSliderProfile) -> None:
     profile.root_path.mkdir(parents=True, exist_ok=True)
-    (profile.root_path / "profile.json").write_text(
+    atomic_write_text(
+        profile.root_path / "profile.json",
         json.dumps(_profile_payload(profile), indent=2, sort_keys=True),
-        encoding="utf-8",
     )
 
 
@@ -698,7 +700,7 @@ def _write_region_delta_file(
             for submesh_deltas in delta.deltas
         ],
     }
-    destination.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    atomic_write_text(destination, json.dumps(payload, indent=2, sort_keys=True))
     return destination.relative_to(profile_root).as_posix()
 
 

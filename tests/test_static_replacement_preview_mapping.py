@@ -229,7 +229,7 @@ def test_preview_model_in_original_frame_uses_native_helper_when_available() -> 
 
     source_index_map: dict[int, int] = {}
     parsed_submesh_index_map: dict[int, int] = {}
-    with patch("cdmw.modding.mesh_native_core.build_native_preview_model_in_original_frame", side_effect=_fake_native_preview_model):
+    with patch("cdmw.services.mesh_workflow_service.build_native_preview_model_in_original_frame", side_effect=_fake_native_preview_model):
         preview = preview_model_in_original_frame(
             parsed_mesh,
             normalization_center=(1.0, 2.0, 3.0),
@@ -385,7 +385,7 @@ def test_preview_model_in_original_frame_carries_native_binary_descriptors() -> 
                 ],
             }
 
-        with patch("cdmw.modding.mesh_native_core.build_native_preview_model_in_original_frame", side_effect=_fake_native_preview_model):
+        with patch("cdmw.services.mesh_workflow_service.build_native_preview_model_in_original_frame", side_effect=_fake_native_preview_model):
             preview = preview_model_in_original_frame(
                 parsed_mesh,
                 normalization_center=(1.0, 2.0, 3.0),

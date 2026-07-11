@@ -8,8 +8,8 @@ from typing import Optional
 from PySide6.QtWidgets import QAbstractItemView, QFileDialog, QLineEdit, QMessageBox
 
 from cdmw.constants import APP_TITLE, ARCHIVE_MIN_SIZE_KB, ARCHIVE_ROLE_FILTER, ARCHIVE_STRUCTURE_FILTER
-from cdmw.core.archive import ensure_archive_preview_source
-from cdmw.core.texture_pipeline.workspace import common_workspace_root_from_config, suggested_workspace_paths
+from cdmw.services.archive_preview_service import ensure_archive_preview_source
+from cdmw.services.texture_workflow_service import common_workspace_root_from_config, suggested_workspace_paths
 from cdmw.services.workspace_layout import app_root_from_workspace_member
 from cdmw.models import ArchiveEntry, TextureEditorSourceBinding, TextureEditorToolSettings
 

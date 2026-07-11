@@ -26,10 +26,18 @@ permissions:
   contents: read
   actions: read
 
+env:
+  PIP_VERSION: "25.3"
+
 jobs:
-  build-onefile:
-    if: github.event_name != 'workflow_dispatch' || inputs.build_mode == 'both' || inputs.build_mode == 'onefile'
+  qa:
+    name: Headless QA / Python ${{ matrix.python-version }}
     runs-on: windows-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
 
     steps:
       - name: Check out repository
@@ -38,25 +46,100 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: requirements-build.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+            constraints-release.txt
 
       - name: Create virtual environment
         shell: pwsh
         run: python -m venv .venv
 
-      - name: Install build dependencies
+      - name: Install exact tested dependencies
         shell: pwsh
         run: |
-          .\.venv\Scripts\python -m pip install --upgrade pip
-          .\.venv\Scripts\python -m pip install -r requirements-build.txt
+          .\.venv\Scripts\python -m pip install "pip==$env:PIP_VERSION"
+          .\.venv\Scripts\python -m pip install -c constraints-release.txt -r requirements-build.txt
+          .\.venv\Scripts\python -m pip install "pytest==9.0.3"
+          .\.venv\Scripts\python scripts\verify_release_dependencies.py
+          .\.venv\Scripts\python -m pip check
 
-      - name: Build onefile package
+      - name: Compile Python sources
         shell: pwsh
-        run: .\build_pyside6_app.ps1 -Mode onefile
+        run: .\.venv\Scripts\python -m compileall -q cdmw tests tools
+
+      - name: Run canonical nonvisual QA
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTEST_ADDOPTS: '-m "not visual and not real_game"'
+        run: |
+          $baseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-${{ matrix.python-version }}"
+          .\scripts\codex_check.ps1 -Area full -PytestBaseTemp $baseTemp
+
+  package:
+    name: Package after QA
+    needs: qa
+    runs-on: windows-latest
+    timeout-minutes: 180
+    env:
+      SELECTED_BUILD_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.build_mode || 'both' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+            constraints-release.txt
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Create exact release environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python -m pip install "pip==$env:PIP_VERSION"
+          .\.venv\Scripts\python -m pip install -c constraints-release.txt -r requirements-build.txt
+          .\.venv\Scripts\python scripts\verify_release_dependencies.py
+          .\.venv\Scripts\python -m pip check
+
+      - name: Build and startup-smoke onedir package
+        if: env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onedir'
+        shell: pwsh
+        run: .\build_pyside6_app.ps1 -Mode onedir -BuildProfile release
+
+      - name: Build and startup-smoke onefile package
+        if: env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onefile'
+        shell: pwsh
+        run: |
+          if ($env:SELECTED_BUILD_MODE -eq "both") {
+            .\build_pyside6_app.ps1 -Mode onefile -BuildProfile release -SkipNativeBuild
+          } else {
+            .\build_pyside6_app.ps1 -Mode onefile -BuildProfile release
+          }
+
+      - name: Upload unsigned onedir artifact
+        if: env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onedir'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CrimsonDesertModWorkbench-onedir-unsigned
+          path: dist/CrimsonDesertModWorkbench-*-windows
+          if-no-files-found: error
 
       - name: Upload unsigned onefile artifact
+        if: env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onefile'
         id: upload_unsigned_onefile
         uses: actions/upload-artifact@v4
         with:
@@ -65,7 +148,7 @@ jobs:
           if-no-files-found: error
 
       - name: Validate SignPath settings
-        if: github.event_name == 'workflow_dispatch' && inputs.sign_with_signpath
+        if: (env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onefile') && github.event_name == 'workflow_dispatch' && inputs.sign_with_signpath
         shell: pwsh
         env:
           SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -83,7 +166,7 @@ jobs:
           }
 
       - name: Submit onefile artifact to SignPath
-        if: github.event_name == 'workflow_dispatch' && inputs.sign_with_signpath && vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG == ''
+        if: (env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onefile') && github.event_name == 'workflow_dispatch' && inputs.sign_with_signpath && vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG == ''
         id: signpath_default
         uses: signpath/github-action-submit-signing-request@v2
         with:
@@ -96,7 +179,7 @@ jobs:
           output-artifact-directory: signed-artifacts/onefile
 
       - name: Submit onefile artifact to SignPath (custom artifact config)
-        if: github.event_name == 'workflow_dispatch' && inputs.sign_with_signpath && vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG != ''
+        if: (env.SELECTED_BUILD_MODE == 'both' || env.SELECTED_BUILD_MODE == 'onefile') && github.event_name == 'workflow_dispatch' && inputs.sign_with_signpath && vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG != ''
         id: signpath_custom
         uses: signpath/github-action-submit-signing-request@v2
         with:
@@ -115,40 +198,4 @@ jobs:
         with:
           name: CrimsonDesertModWorkbench-onefile-signed
           path: signed-artifacts/onefile/**
-          if-no-files-found: error
-
-  build-onedir:
-    if: github.event_name != 'workflow_dispatch' || inputs.build_mode == 'both' || inputs.build_mode == 'onedir'
-    runs-on: windows-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-          cache: pip
-          cache-dependency-path: requirements-build.txt
-
-      - name: Create virtual environment
-        shell: pwsh
-        run: python -m venv .venv
-
-      - name: Install build dependencies
-        shell: pwsh
-        run: |
-          .\.venv\Scripts\python -m pip install --upgrade pip
-          .\.venv\Scripts\python -m pip install -r requirements-build.txt
-
-      - name: Build onedir package
-        shell: pwsh
-        run: .\build_pyside6_app.ps1 -Mode onedir
-
-      - name: Upload unsigned onedir artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: CrimsonDesertModWorkbench-onedir-unsigned
-          path: dist/CrimsonDesertModWorkbench-*-windows
           if-no-files-found: error

@@ -14,7 +14,7 @@ from cdmw.domain.mesh.operations import (
 )
 
 from .logging import get_logger
-from .mesh_parser import ParsedMesh, SubMesh
+from .mesh_parser import ParsedMesh, SubMesh, _compute_smooth_normals
 
 logger = get_logger("core.mesh_importer")
 
@@ -99,6 +99,7 @@ def _validate_obj_sidecar_skinning_metadata(payload: dict[str, object]) -> None:
     entries = _obj_sidecar_lod_submesh_entries(payload)
     if not entries:
         raise ValueError("OBJ sidecar bone metadata is required for skinned meshes.")
+    has_bone_rows = False
     weighted_entry_count = 0
     for submesh_index, entry in enumerate(entries):
         bone_layout = entry.get("bone_layout")
@@ -106,6 +107,7 @@ def _validate_obj_sidecar_skinning_metadata(payload: dict[str, object]) -> None:
             raise ValueError("OBJ sidecar bone metadata is required for skinned meshes.")
         if not bool(bone_layout.get("has_bones")):
             continue
+        has_bone_rows = True
         expected_vertices = _entry_int(entry, "original_vertex_count", "vertex_count")
         layout_vertices = _entry_int(bone_layout, "vertex_count")
         if expected_vertices >= 0 and layout_vertices != expected_vertices:
@@ -122,9 +124,8 @@ def _validate_obj_sidecar_skinning_metadata(payload: dict[str, object]) -> None:
         source_map = _normalize_obj_sidecar_source_vertex_map(entry, expected_count=layout_vertices)
         if not source_map or any(value < 0 for value in source_map):
             raise ValueError("OBJ sidecar source vertex map is required for skinned meshes.")
-    if weighted_entry_count <= 0:
+    if has_bone_rows and weighted_entry_count <= 0:
         raise ValueError("OBJ sidecar bone metadata declares a skinned mesh but has no weighted submeshes.")
-
 
 def _validate_obj_sidecar_source_index_maps(payload: dict[str, object]) -> None:
     for submesh_index, entry in enumerate(_obj_sidecar_lod_submesh_entries(payload)):
@@ -686,12 +687,7 @@ def import_obj(obj_path: str) -> ParsedMesh:
     source_format = ""
     submeshes: list[SubMesh] = []
 
-    # Current submesh being built
     current_name = ""
-    verts: list[tuple[float, float, float]] = []
-    uvs: list[tuple[float, float]] = []
-    normals: list[tuple[float, float, float]] = []
-    faces: list[tuple[int, int, int]] = []
 
     # Global vertex/uv/normal arrays (OBJ uses global indices)
     all_verts: list[tuple[float, float, float]] = []
@@ -790,15 +786,6 @@ def import_obj(obj_path: str) -> ParsedMesh:
     # Key: keep ALL vertices in each submesh's range (not just face-referenced ones).
     # Some meshes have unused vertices that must be preserved for correct rebuild.
 
-    # First, determine vertex ownership: each submesh "owns" a contiguous range
-    # based on the order vertices appear in the OBJ (submesh 0 first, etc.)
-    vert_offset = 0
-    for sm_data in submesh_list:
-        # Count vertices that belong to this submesh in the OBJ
-        # (vertices appear between 'o' markers, counted during parse above)
-        # We stored them in all_verts in order — need to find this submesh's range
-        pass
-
     def _build_generic_submesh(
         sm_data: dict,
         *,
@@ -834,7 +821,6 @@ def import_obj(obj_path: str) -> ParsedMesh:
                 local_face.append(local_index)
             if len(local_face) == 3:
                 local_faces.append(tuple(local_face))
-
         source_vertex_map = local_source_vertex_map if len(local_source_vertex_map) == len(local_verts) else []
         submesh = SubMesh(
             name=sm_data["name"],
@@ -845,6 +831,7 @@ def import_obj(obj_path: str) -> ParsedMesh:
             normals=local_normals if len(local_normals) == len(local_verts) else [],
             faces=local_faces,
             source_vertex_map=source_vertex_map,
+            source_vertex_map_authority="target_donor_record" if source_vertex_map else "",
             source_vertex_offsets=_obj_sidecar_source_vertex_offsets(sidecar_entry, source_vertex_map),
             source_index_offset=_obj_sidecar_int(sidecar_entry, "original_index_offset"),
             source_index_count=_obj_sidecar_original_index_count(sidecar_entry),
@@ -1000,6 +987,7 @@ def import_obj(obj_path: str) -> ParsedMesh:
             normals=local_normals if len(local_normals) == len(local_verts) else [],
             faces=local_faces,
             source_vertex_map=source_vertex_map,
+            source_vertex_map_authority="target_donor_record" if source_vertex_map else "",
             source_vertex_offsets=_obj_sidecar_source_vertex_offsets(matched_sidecar_entry, source_vertex_map),
             source_index_offset=_obj_sidecar_int(matched_sidecar_entry, "original_index_offset"),
             source_index_count=_obj_sidecar_original_index_count(matched_sidecar_entry),
@@ -1014,6 +1002,13 @@ def import_obj(obj_path: str) -> ParsedMesh:
         v_offset += nv
         vt_offset += nvt
         vn_offset += nvn
+
+    for sm_data, submesh in zip(submesh_list, submeshes, strict=True):
+        corners = [corner for face in sm_data["faces_global"] for corner in face]
+        if any(not 0 <= corner[1] < len(all_uvs) for corner in corners):
+            submesh.uvs = []
+        if any(not 0 <= corner[2] < len(all_normals) for corner in corners):
+            submesh.normals = _compute_smooth_normals(submesh.vertices, submesh.faces)
 
     result = ParsedMesh(
         path=source_path,

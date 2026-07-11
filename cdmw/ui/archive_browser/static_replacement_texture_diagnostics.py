@@ -5,13 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from html import escape
 
-from cdmw.core.final_package_preview import (
+from cdmw.services.preview_workflow_service import (
     TEXTURE_PLAN_STATUS_IGNORED_ADVANCED,
     TEXTURE_PLAN_STATUS_LIKELY_GREY,
     build_dds_override_table_row,
     simplified_part_label,
 )
-from cdmw.modding.material_replacer import is_shared_material_layer_texture
+from cdmw.services.mesh_workflow_service import is_shared_material_layer_texture
 from cdmw.ui.archive_browser.static_replacement_dialog_helpers import (
     texture_context_chip_cell,
     texture_context_kv_row,

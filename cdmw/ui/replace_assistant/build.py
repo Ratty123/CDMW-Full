@@ -8,7 +8,10 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from cdmw.constants import APP_TITLE
-from cdmw.core.mod_package import mod_package_export_options_for_profiles, mod_package_profile_uses_manager_metadata
+from cdmw.domain.packages.export_policy import (
+    mod_package_export_options_for_profiles,
+    mod_package_profile_uses_manager_metadata,
+)
 from cdmw.models import ModPackageInfo, ReplaceAssistantBuildOptions, ReplaceAssistantBuildSummary, ReplaceAssistantReviewItem
 from cdmw.ui.replace_assistant.review_dialog import ReplaceAssistantReviewDialog
 from cdmw.ui.replace_assistant.workers import ReplaceAssistantBuildWorker

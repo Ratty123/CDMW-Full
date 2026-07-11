@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 
 from .mesh_parser import ParsedMesh
 
@@ -47,11 +48,21 @@ class StaticSourcePartAdjustment:
     pivot_mode: str = "part_center"
     material_role: str = ""
     emissive_color_rgb: tuple[int, int, int] = ()
+    emissive_strength: float | None = None
     material_brightness: float = 0.0
     material_contrast: float = 0.0
     material_saturation: float = 0.0
     material_gamma: float = 1.0
     material_tint_rgb: tuple[int, int, int] = ()
+
+    def __post_init__(self) -> None:
+        if self.emissive_strength is None:
+            return
+        try:
+            value = float(self.emissive_strength)
+        except (TypeError, ValueError, OverflowError):
+            value = math.nan
+        self.emissive_strength = max(0.0, value) if math.isfinite(value) else None
 
 
 @dataclass

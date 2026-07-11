@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Optional, Tuple
 
 from PySide6.QtCore import QRect, Qt, Signal
@@ -125,8 +126,17 @@ class EmptyStateTreeWidget(QTreeWidget):
 class CollapsibleSection(QWidget):
     toggled = Signal(bool)
 
-    def __init__(self, title: str, *, expanded: bool = False):
+    def __init__(
+        self,
+        title: str,
+        *,
+        expanded: bool = False,
+        body_builder: Optional[Callable[[QVBoxLayout], None]] = None,
+    ):
         super().__init__()
+        self._body_builder = body_builder
+        self._body_built = body_builder is None
+        self._body_building = False
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(6)
@@ -153,9 +163,33 @@ class CollapsibleSection(QWidget):
 
     def set_expanded(self, expanded: bool) -> None:
         expanded = bool(expanded)
+        if expanded:
+            self.ensure_body_built()
         self.toggle_button.blockSignals(True)
         self.toggle_button.setChecked(expanded)
         self.toggle_button.blockSignals(False)
         self.toggle_button.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
         self.body_frame.setVisible(expanded)
         self.toggled.emit(expanded)
+
+    def is_body_built(self) -> bool:
+        return self._body_built
+
+    def ensure_body_built(self) -> None:
+        if self._body_built or self._body_building:
+            return
+        builder = self._body_builder
+        if builder is None:
+            self._body_built = True
+            return
+        self._body_building = True
+        self._body_built = True
+        try:
+            builder(self.body_layout)
+        except Exception:
+            self._body_built = False
+            raise
+        else:
+            self._body_builder = None
+        finally:
+            self._body_building = False

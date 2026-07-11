@@ -8,19 +8,6 @@ from types import SimpleNamespace
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
     install_static_replacement_prompt_dependencies,
 )
-from cdmw.ui.archive_browser.static_replacement_geometry_math import (
-    external_import_work_area_fit,
-    part_bbox,
-)
-from cdmw.ui.archive_browser.static_replacement_dialog_prompt_setup_helpers import (
-    apply_static_replacement_work_area_fit as _apply_work_area_fit,
-    build_static_replacement_prompt_sidecar_context,
-    static_replacement_prompt_mesh_vertices as _mesh_vertices,
-)
-from cdmw.ui.archive_browser.static_replacement_sparse_history import (
-    clone_mesh_for_static_replacement_native_first,
-)
-
 install_static_replacement_prompt_dependencies(globals())
 
 
@@ -41,6 +28,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
     original_mesh = context['original_mesh']
     parts_layout = context['parts_layout']
     preview_render_settings = context['preview_render_settings']
+    prompt_preflight = context['prompt_preflight']
     prompt_shell_context = context['prompt_shell_context']
     replacement_export_allowed = context['replacement_export_allowed']
     scene_import_result = context['scene_import_result']
@@ -59,83 +47,33 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
     alignment_setup_error = ""
     alignment_setup_traceback = ""
     try:
-        if original_mesh is None:
-            _alignment_startup_step(alignment_startup_text["original_mesh"])
-            original_data = read_archive_entry_baseline_data(entry, read_entry_data=read_archive_entry_data).data
-            original_mesh_for_mapping = parse_mesh(original_data, entry.path)
-        else:
-            original_mesh_for_mapping = original_mesh
-        sidecar_context = build_static_replacement_prompt_sidecar_context(
-            entry=entry,
-            alignment_startup_step=_alignment_startup_step,
-            alignment_startup_text=alignment_startup_text,
-            alignment_texture_lookup_indexes=_alignment_texture_lookup_indexes,
-            extract_archive_model_sidecar_texture_references=_extract_archive_model_sidecar_texture_references,
-            record_runtime_event=_record_runtime_event,
-            dialog_title=dialog_title,
-            modify_original_clone_mode=modify_original_clone_mode,
-        )
-        sidecar_bindings = sidecar_context.sidecar_bindings
-        sidecar_text_values = sidecar_context.sidecar_text_values
-        sidecar_texts_by_normalized_path = sidecar_context.sidecar_texts_by_normalized_path
-        sidecar_texts_by_basename = sidecar_context.sidecar_texts_by_basename
-        _alignment_startup_step(alignment_startup_text["asset_compatibility"])
-        (
-            texture_entries_by_normalized_path_for_alignment,
-            texture_entries_by_basename_for_alignment,
-        ) = _alignment_texture_lookup_indexes()
-        asset_profile = analyze_replacement_asset(
-            entry,
-            archive_entries_by_basename=texture_entries_by_basename_for_alignment,
-            parsed_mesh=original_mesh_for_mapping,
-            sidecar_texture_bindings=sidecar_bindings,
-            sidecar_texts=sidecar_text_values,
-        )
+        for startup_key in (
+            "original_mesh",
+            "material_sidecar",
+            "asset_compatibility",
+            "replacement_mesh",
+            "preview_meshes",
+            "draw_section_routing",
+        ):
+            _alignment_startup_step(alignment_startup_text[startup_key])
+        original_mesh_for_mapping = prompt_preflight.original_mesh
+        sidecar_bindings = prompt_preflight.sidecar_bindings
+        sidecar_text_values = prompt_preflight.sidecar_text_values
+        sidecar_texts_by_normalized_path = prompt_preflight.sidecar_texts_by_normalized_path
+        sidecar_texts_by_basename = prompt_preflight.sidecar_texts_by_basename
+        texture_entries_by_normalized_path_for_alignment = prompt_preflight.texture_entries_by_normalized_path
+        texture_entries_by_basename_for_alignment = prompt_preflight.texture_entries_by_basename
+        asset_profile = prompt_preflight.asset_profile
         replacement_export_allowed["allowed"] = bool(asset_profile.export_supported)
         replacement_export_allowed["reason"] = "\n".join(asset_profile.errors)
         self._add_replacement_asset_profile_summary(setup_summary_layout, asset_profile)
-        _alignment_startup_step(alignment_startup_text["replacement_mesh"])
-        replacement_mesh_base_for_mapping = (
-            scene_import_result.mesh
-            if isinstance(scene_import_result, SceneImportResult)
-            else import_scene_mesh(obj_path)
-        )
-        replacement_mesh_base_for_mapping = clone_mesh_for_static_replacement_native_first(
-            replacement_mesh_base_for_mapping,
-            "prompt_setup.replacement_base_clone",
-            "Python replacement setup base clone fallback blocked while native mesh core is available",
-            allow_python_setup_fallback=True,
-        )
-        if replacement_mesh_base_for_mapping is None:
-            raise RuntimeError("Native replacement setup base clone failed.")
-        replacement_mesh_for_mapping = clone_mesh_for_static_replacement_native_first(
-            replacement_mesh_base_for_mapping,
-            "prompt_setup.replacement_working_clone",
-            "Python replacement setup working clone fallback blocked while native mesh core is available",
-            allow_python_setup_fallback=True,
-        )
-        if replacement_mesh_for_mapping is None:
-            raise RuntimeError("Native replacement setup working clone failed.")
-        is_external_scene_import = isinstance(scene_import_result, SceneImportResult) and not bool(modify_original_clone_mode)
-        source_vertices = _mesh_vertices(replacement_mesh_base_for_mapping)
-        reference_vertices = _mesh_vertices(original_mesh_for_mapping)
-        placement_fit = (
-            external_import_work_area_fit(
-                source_vertices,
-                reference_vertices,
-                up_axis=1,
-                ground_plane=0.0,
-            )
-            if is_external_scene_import
-            else None
-        )
-        if placement_fit is not None:
-            _apply_work_area_fit(replacement_mesh_base_for_mapping, placement_fit)
-            _apply_work_area_fit(replacement_mesh_for_mapping, placement_fit)
+        replacement_mesh_base_for_mapping = prompt_preflight.replacement_mesh_base
+        replacement_mesh_for_mapping = prompt_preflight.replacement_mesh
+        placement_fit = prompt_preflight.placement_fit
         _record_runtime_event(
             "mesh_external_import_work_area_fit",
-            source_bounds=part_bbox(source_vertices) if source_vertices else (),
-            reference_bounds=part_bbox(reference_vertices) if reference_vertices else (),
+            source_bounds=prompt_preflight.source_bounds or (),
+            reference_bounds=prompt_preflight.reference_bounds or (),
             translation=getattr(placement_fit, "translation", ()),
             scale=float(getattr(placement_fit, "scale", 1.0) or 1.0),
             up_axis=int(getattr(placement_fit, "up_axis", 1) or 1),
@@ -145,9 +83,16 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
             modify_original_clone=modify_original_clone_mode,
             source_path=str(getattr(replacement_mesh_base_for_mapping, "path", "") or obj_path),
         )
-        _alignment_startup_step(alignment_startup_text["preview_meshes"])
-        original_reference_preview_model = parsed_mesh_to_preview_model(original_mesh_for_mapping)
-        replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)
+        if prompt_preflight.sidecar_lookup_error:
+            _record_runtime_event(
+                "mesh_alignment_sidecar_texture_lookup_failed",
+                path=getattr(entry, "path", ""),
+                dialog_title=dialog_title,
+                error=prompt_preflight.sidecar_lookup_error,
+                modify_original_clone=modify_original_clone_mode,
+            )
+        original_reference_preview_model = prompt_preflight.original_preview_model
+        replacement_preview_model = prompt_preflight.replacement_preview_model
         _set_replacement_mesh_base_for_mapping(replacement_mesh_base_for_mapping)
         _set_replacement_mesh_for_mapping(replacement_mesh_for_mapping)
         _set_replacement_preview_model(replacement_preview_model)
@@ -159,35 +104,25 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
             nonlocal original_reference_preview_model
             original_reference_preview_model = value
 
-        if isinstance(scene_import_result, SceneImportResult):
-            try:
-                attach_scene_preview_textures(replacement_preview_model, scene_import_result, obj_path)
-            except Exception:
-                pass
-            source_format = str(getattr(replacement_mesh_base_for_mapping, "format", "") or "").strip().lower()
-            scene_flip_v = scene_import_normalizes_texture_v(
-                source_format,
-                getattr(replacement_mesh_base_for_mapping, "path", "") or obj_path,
+        if (
+            isinstance(texture_uv_global_transform_state, dict)
+            and prompt_preflight.scene_flip_v
+            and not bool(texture_uv_global_transform_state.get("flip_v"))
+            and not bool(texture_uv_global_transform_state.get("flip_u"))
+            and int(texture_uv_global_transform_state.get("rotate_degrees") or 0) == 0
+        ):
+            texture_uv_global_transform_state.update(
+                {
+                    "source_material_name": "__global__",
+                    "rotate_degrees": 0,
+                    "flip_u": False,
+                    "flip_v": True,
+                    "offset_u": 0.0,
+                    "offset_v": 0.0,
+                    "scale_u": 1.0,
+                    "scale_v": 1.0,
+                }
             )
-            if (
-                isinstance(texture_uv_global_transform_state, dict)
-                and scene_flip_v
-                and not bool(texture_uv_global_transform_state.get("flip_v"))
-                and not bool(texture_uv_global_transform_state.get("flip_u"))
-                and int(texture_uv_global_transform_state.get("rotate_degrees") or 0) == 0
-            ):
-                texture_uv_global_transform_state.update(
-                    {
-                        "source_material_name": "__global__",
-                        "rotate_degrees": 0,
-                        "flip_u": False,
-                        "flip_v": True,
-                        "offset_u": 0.0,
-                        "offset_v": 0.0,
-                        "scale_u": 1.0,
-                        "scale_v": 1.0,
-                    }
-                )
         original_dialog_preview.set_render_settings(preview_render_settings)
         static_dialog_preview.set_render_settings(preview_render_settings)
         original_dialog_preview.set_use_textures(True)
@@ -197,14 +132,9 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         original_dialog_preview.clear_model(alignment_preview_render_control_text["original_reference_loading"])
         static_dialog_preview.clear_model(alignment_preview_render_control_text["replacement_preview_loading"])
         _capture_static_preview_baked_transform_state()
-        _alignment_startup_step(alignment_startup_text["draw_section_routing"])
-        routing_started_at = time.perf_counter()
-        try:
-            suggested_mappings = suggest_static_submesh_mappings(
-                original_mesh_for_mapping,
-                replacement_mesh_for_mapping,
-            )
-            prompt_shell_context["suggested_mappings"] = suggested_mappings
+        suggested_mappings = list(prompt_preflight.suggested_mappings)
+        prompt_shell_context["suggested_mappings"] = suggested_mappings
+        if not prompt_preflight.routing_error:
             _record_runtime_event(
                 "mesh_alignment_routing_ready",
                 path=getattr(entry, "path", ""),
@@ -212,45 +142,22 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
                 target_submesh_count=len(getattr(original_mesh_for_mapping, "submeshes", ()) or ()),
                 source_submesh_count=len(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ()),
                 mapping_count=len(suggested_mappings),
-                elapsed_ms=int((time.perf_counter() - routing_started_at) * 1000),
+                elapsed_ms=prompt_preflight.routing_elapsed_ms,
                 modify_original_clone=modify_original_clone_mode,
                 defer_original_texture_preview=defer_original_texture_preview,
             )
-        except Exception as exc:
-            suggested_mappings = []
-            prompt_shell_context["suggested_mappings"] = suggested_mappings
+        else:
             _record_runtime_event(
                 "mesh_alignment_routing_failed",
                 path=getattr(entry, "path", ""),
                 dialog_title=dialog_title,
-                error=str(exc),
+                error=prompt_preflight.routing_error,
                 target_submesh_count=len(getattr(original_mesh_for_mapping, "submeshes", ()) or ()),
                 source_submesh_count=len(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ()),
-                elapsed_ms=int((time.perf_counter() - routing_started_at) * 1000),
+                elapsed_ms=prompt_preflight.routing_elapsed_ms,
                 modify_original_clone=modify_original_clone_mode,
                 defer_original_texture_preview=defer_original_texture_preview,
             )
-        if modify_original_clone_mode:
-            original_count = len(getattr(original_mesh_for_mapping, "submeshes", ()) or ())
-            replacement_count = len(getattr(replacement_mesh_for_mapping, "submeshes", ()) or ())
-            if original_count and original_count == replacement_count:
-                suggested_mappings = [
-                    StaticSubmeshMapping(
-                        target_submesh_index=index,
-                        target_submesh_name=(
-                            getattr(original_mesh_for_mapping.submeshes[index], "material", "")
-                            or getattr(original_mesh_for_mapping.submeshes[index], "name", "")
-                            or f"target {index}"
-                        ),
-                        source_submesh_indices=[index],
-                        target_material_slot_index=index,
-                        merge_sources=False,
-                        confidence_score=1.0,
-                        confidence_label="exact-original-clone",
-                    )
-                    for index in range(original_count)
-                ]
-                prompt_shell_context["suggested_mappings"] = suggested_mappings
 
         mapping_group = QWidget()
         mapping_table_action_control_text = _mapping_table_action_control_text_helper()
@@ -544,33 +451,10 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         source_count = alignment_mesh_geometry_preview_section.source_count
         tooltip = alignment_mesh_geometry_preview_section.tooltip
         _alignment_startup_step(alignment_startup_text["replacement_texture_sources"])
-        texture_files_for_mapping: List[Path] = []
-        seen_texture_file_keys: set[str] = set()
-        auto_scene_texture_sources: List[Path] = []
-        if isinstance(scene_import_result, SceneImportResult):
-            auto_scene_texture_sources.extend(
-                path
-                for path in tuple(scene_import_result.discovered_texture_files or ())
-                + tuple(scene_import_result.extracted_embedded_files or ())
-                + tuple(getattr(scene_import_result, "discovered_supplemental_files", ()) or ())
-                if isinstance(path, Path)
-            )
-        try:
-            auto_scene_texture_sources.extend(discover_scene_texture_files(obj_path, replacement_mesh_for_mapping))
-        except Exception:
-            pass
-        _register_texture_source_files_helper(
-            tuple(supplemental_files or ()) + tuple(auto_scene_texture_sources),
-            texture_files_for_mapping=texture_files_for_mapping,
-            seen_texture_file_keys=seen_texture_file_keys,
-            allowed_extensions=SCENE_TEXTURE_SOURCE_EXTENSIONS,
-        )
-        _set_texture_sets(
-            group_replacement_texture_sets(
-                texture_files_for_mapping,
-                obj_mesh=replacement_mesh_for_mapping,
-            )
-        )
+        texture_files_for_mapping = list(prompt_preflight.texture_files)
+        seen_texture_file_keys = {str(path).casefold() for path in texture_files_for_mapping}
+        auto_scene_texture_sources = list(prompt_preflight.auto_texture_sources)
+        _set_texture_sets(dict(prompt_preflight.texture_sets))
         alignment_texture_material_section = create_alignment_texture_material_section({
             **context,
             **globals(),

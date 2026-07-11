@@ -13,13 +13,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Optional
 
-from cdmw.core.common import raise_if_cancelled, run_process_with_cancellation
+from cdmw.core.common import run_process_with_cancellation
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.library.models import IMPORTABLE_MODEL_EXTENSIONS
 from cdmw.core.archive_modding import (
     attach_scene_preview_textures,
     import_scene_mesh_with_report,
     parsed_mesh_to_preview_model,
 )
-from cdmw.core.model_catalogue import IMPORTABLE_MODEL_EXTENSIONS, resolve_importable_model_path
+from cdmw.services.model_library_service import ModelLibraryService
 from cdmw.modding.scene_import_result_ops import reduce_scene_import_result_quality
 from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_settings
 from cdmw.rendering.material_channels import resolve_preview_batch_material_channels
@@ -161,7 +163,11 @@ def prepare_model_library_inline_preview(
     backend = str(renderer_backend or "native_d3d11").strip().lower()
     raise_if_cancelled(stop_event)
     progress(f"Resolving model preview source: {source}")
-    resolved_import_path = resolve_importable_model_path(source, extract_root=extract_root)
+    resolved_import_path = ModelLibraryService().resolve_importable_model(
+        source,
+        extract_root=extract_root,
+        stop_event=stop_event,
+    )
     if resolved_import_path is None:
         raise ValueError(
             f"{source.suffix or 'This file'} does not contain an importable model: "

@@ -4,15 +4,20 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from cdmw.ui.archive_browser.static_replacement_texture_async import (
+    DdsDetailPreviewResult,
+    StaticReplacementDdsDetailController,
+)
+
 
 def create_alignment_texture_detail_uv_callbacks(context: dict[str, object]) -> SimpleNamespace:
     Path = context.get('Path')
+    QPixmap = context.get('QPixmap')
     Qt = context.get('Qt')
     _dds_detail_refresh_route_state_helper = context.get('_dds_detail_refresh_route_state_helper')
     _dds_detail_resolved_thumbnail_state_helper = context.get('_dds_detail_resolved_thumbnail_state_helper')
     _default_texture_uv_transform_state = context.get('_default_texture_uv_transform_state')
     _queue_texture_uv_preview_refresh = context.get('_queue_texture_uv_preview_refresh')
-    _read_preview_pixmap = context.get('_read_preview_pixmap')
     _resolve_dds_detail_preview_path_helper = context.get('_resolve_dds_detail_preview_path_helper')
     _texture_transform_controls_set_loading_helper = context.get('_texture_transform_controls_set_loading_helper')
     _texture_uv_transform_control_load_state_helper = context.get('_texture_uv_transform_control_load_state_helper')
@@ -21,6 +26,7 @@ def create_alignment_texture_detail_uv_callbacks(context: dict[str, object]) -> 
     _texture_uv_transform_materials_state_helper = context.get('_texture_uv_transform_materials_state_helper')
     _texture_uv_transform_reset_state_helper = context.get('_texture_uv_transform_reset_state_helper')
     dds_detail_thumbnail_label = context.get('dds_detail_thumbnail_label')
+    dialog = context.get('dialog')
     enabled = context.get('enabled')
     ensure_dds_display_preview_png = context.get('ensure_dds_display_preview_png')
     item = context.get('item')
@@ -45,6 +51,9 @@ def create_alignment_texture_detail_uv_callbacks(context: dict[str, object]) -> 
     texture_transform_scale_u_spin = context.get('texture_transform_scale_u_spin')
     texture_transform_scale_v_spin = context.get('texture_transform_scale_v_spin')
     texture_uv_transform_state = context.get('texture_uv_transform_state')
+    dds_detail_controller = StaticReplacementDdsDetailController(self, dialog)
+    setattr(dialog, "_dds_detail_controller", dds_detail_controller)
+    dialog.finished.connect(lambda _result=0: dds_detail_controller.request_shutdown())
 
     def _apply_dds_detail_thumbnail_state(thumbnail_state: object, pixmap: Optional[QPixmap] = None) -> None:
         if bool(getattr(thumbnail_state, "show_pixmap", False)) and pixmap is not None and not pixmap.isNull():
@@ -79,20 +88,39 @@ def create_alignment_texture_detail_uv_callbacks(context: dict[str, object]) -> 
             control_text=material_plan_control_text,
         )
         if not route_state.should_resolve:
+            dds_detail_controller.cancel()
             _apply_dds_detail_thumbnail_state(route_state.thumbnail)
             return
-        preview_path, status_text = _resolve_dds_detail_preview_path(
-            route_state.preview_source,
-            route_state.slot_kind,
+        _apply_dds_detail_thumbnail_state(route_state.thumbnail)
+        texconv_text = self.texconv_path_edit.text().strip()
+        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
+
+        def _resolved(result: DdsDetailPreviewResult) -> None:
+            pixmap = QPixmap.fromImage(result.image) if not result.image.isNull() else None
+            thumbnail_state = _dds_detail_resolved_thumbnail_state_helper(
+                preview_path=result.preview_path,
+                status_text=result.status_text,
+                pixmap_readable=bool(pixmap is not None and not pixmap.isNull()),
+                control_text=material_plan_control_text,
+            )
+            _apply_dds_detail_thumbnail_state(thumbnail_state, pixmap)
+
+        def _failed(message: str) -> None:
+            thumbnail_state = _dds_detail_resolved_thumbnail_state_helper(
+                preview_path=None,
+                status_text=f"DDS is not previewable here: {message}",
+                pixmap_readable=False,
+                control_text=material_plan_control_text,
+            )
+            _apply_dds_detail_thumbnail_state(thumbnail_state)
+
+        dds_detail_controller.start(
+            source_path=route_state.preview_source,
+            slot_kind=route_state.slot_kind,
+            texconv_path=texconv_path,
+            on_complete=_resolved,
+            on_error=_failed,
         )
-        pixmap = _read_preview_pixmap(preview_path) if preview_path is not None else None
-        thumbnail_state = _dds_detail_resolved_thumbnail_state_helper(
-            preview_path=preview_path,
-            status_text=status_text,
-            pixmap_readable=bool(pixmap is not None and not pixmap.isNull()),
-            control_text=material_plan_control_text,
-        )
-        _apply_dds_detail_thumbnail_state(thumbnail_state, pixmap)
 
     def _set_texture_transform_controls_enabled(enabled: bool) -> None:
         for widget in (

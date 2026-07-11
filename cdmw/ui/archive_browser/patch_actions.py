@@ -1,24 +1,20 @@
 """Archive patch, audio patch, and backup restore actions."""
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from cdmw.core.archive import _is_material_sidecar_extension
-from cdmw.core.archive_modding import (
-    ARCHIVE_PATCH_BACKUP_ROOT,
-    ArchivePatchRequest,
-    ArchivePatchResult,
+from cdmw.domain.archives.format import is_material_sidecar_extension as _is_material_sidecar_extension
+from cdmw.services.archive_workflow_service import (
     build_archive_audio_patch_payload,
     export_archive_audio_as_wav,
-    list_archive_patch_backups,
-    patch_archive_entries,
-    restore_archive_patch_backup,
 )
 from cdmw.models import ArchiveEntry
+from cdmw.services.archive_mutation_service import ArchivePatchRequest, ArchivePatchResult
 
 
 class ArchivePatchActionsMixin:
@@ -113,10 +109,20 @@ class ArchivePatchActionsMixin:
         if confirmation != QMessageBox.Yes:
             return
 
-        def _task(log: Callable[[str], None]) -> ArchivePatchResult:
+        mutation_service = self.app_context.services.require_archive_mutations()
+
+        def _task(
+            log: Callable[[str], None],
+            stop_event: threading.Event,
+        ) -> ArchivePatchResult:
             log(f"Preparing replacement audio for {entry.path}...")
             replacement_payload = build_archive_audio_patch_payload(entry, Path(source_path))
-            return patch_archive_entries([ArchivePatchRequest(entry=entry, payload_data=replacement_payload)], on_log=log)
+            plan = mutation_service.prepare_patch(
+                ArchivePatchRequest(entry=entry, payload_data=replacement_payload),
+                confirmed=True,
+                description=f"Patch audio entry {entry.path}",
+            )
+            return mutation_service.apply_patch(plan, on_log=log, stop_event=stop_event)
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, ArchivePatchResult):
@@ -138,13 +144,15 @@ class ArchivePatchActionsMixin:
             task=_task,
             on_complete=_handle_complete,
             show_archive_progress=True,
+            task_accepts_cancel=True,
         )
 
     def _restore_archive_patch_backup_from_ui(self) -> None:
-        backups = list_archive_patch_backups()
+        mutation_service = self.app_context.services.require_archive_mutations()
+        backups = mutation_service.list_backups()
         if not backups:
             self.set_status_message(
-                f"No archive patch backups were found under {ARCHIVE_PATCH_BACKUP_ROOT}.",
+                f"No archive patch backups were found under {mutation_service.backup_root}.",
                 error=True,
             )
             return
@@ -180,9 +188,17 @@ class ArchivePatchActionsMixin:
         if confirmation != QMessageBox.Yes:
             return
 
-        def _task(log: Callable[[str], None]) -> Path:
+        def _task(
+            log: Callable[[str], None],
+            stop_event: threading.Event,
+        ) -> Path:
             log(f"Restoring archive patch backup from {backup_dir}...")
-            return restore_archive_patch_backup(backup_dir, on_log=log)
+            return mutation_service.restore_backup(
+                backup_dir,
+                confirmed=True,
+                on_log=log,
+                stop_event=stop_event,
+            )
 
         def _handle_complete(result: object) -> None:
             restored_dir = result if isinstance(result, Path) else backup_dir
@@ -199,4 +215,5 @@ class ArchivePatchActionsMixin:
             task=_task,
             on_complete=_handle_complete,
             show_archive_progress=True,
+            task_accepts_cancel=True,
         )

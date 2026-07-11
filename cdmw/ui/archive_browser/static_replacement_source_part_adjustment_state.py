@@ -15,6 +15,7 @@ class SourcePartAdjustmentApplyState:
     available: bool
     changed: bool
     enabled_changed: bool
+    geometry_changed: bool
     target_indices: tuple[int, ...]
     enabled: bool
     offset_xyz: tuple[float, float, float]
@@ -136,6 +137,7 @@ def source_part_adjustment_apply_state(
             available=False,
             changed=False,
             enabled_changed=False,
+            geometry_changed=False,
             target_indices=(),
             enabled=bool(enabled),
             offset_xyz=_float3(offset_xyz),
@@ -162,6 +164,7 @@ def source_part_adjustment_apply_state(
         default_adjustment=default_adjustment,
     )
     enabled_changed = False
+    geometry_changed = False
     for target_source_index in target_indices:
         adjustment = source_part_adjustments.get(
             target_source_index,
@@ -169,11 +172,18 @@ def source_part_adjustment_apply_state(
         )
         if bool(getattr(adjustment, "enabled", True)) != bool(enabled):
             enabled_changed = True
-            break
+        if (
+            tuple(float(value) for value in getattr(adjustment, "offset_xyz", ())) != normalized_offset
+            or tuple(float(value) for value in getattr(adjustment, "rotate_xyz_degrees", ())) != normalized_rotation
+            or tuple(float(value) for value in getattr(adjustment, "scale_xyz", ())) != normalized_scale
+            or float(getattr(adjustment, "uniform_scale", 1.0)) != normalized_uniform
+        ):
+            geometry_changed = True
     return SourcePartAdjustmentApplyState(
         available=bool(target_indices),
         changed=changed,
         enabled_changed=enabled_changed,
+        geometry_changed=geometry_changed,
         target_indices=target_indices,
         enabled=bool(enabled),
         offset_xyz=normalized_offset,

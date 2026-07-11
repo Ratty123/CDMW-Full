@@ -482,16 +482,13 @@ def test_preview_submesh_bounds_uses_all_vertices_or_defaults() -> None:
 
 
 def test_preview_submesh_bounds_prefers_native_metadata(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
-
     class FallbackExplodes:
         @property
         def vertices(self):  # noqa: ANN201
             raise AssertionError("Python vertex scan fallback")
 
     monkeypatch.setattr(
-        mesh_native_core,
-        "summarize_native_mesh_submesh_metadata",
+        "cdmw.services.mesh_workflow_service.summarize_native_mesh_submesh_metadata",
         lambda submeshes: {
             "total_vertices": 2,
             "bbox_min": (-2.0, -1.0, 0.5),
@@ -538,8 +535,6 @@ def test_parsed_preview_mesh_from_submeshes_summarizes_source_and_parts() -> Non
 
 
 def test_parsed_preview_mesh_from_submeshes_prefers_native_metadata(monkeypatch) -> None:
-    from cdmw.modding import mesh_native_core
-
     class FallbackExplodes:
         @property
         def vertices(self):  # noqa: ANN201
@@ -554,8 +549,7 @@ def test_parsed_preview_mesh_from_submeshes_prefers_native_metadata(monkeypatch)
             raise AssertionError("Python UV fallback")
 
     monkeypatch.setattr(
-        mesh_native_core,
-        "summarize_native_mesh_submesh_metadata",
+        "cdmw.services.mesh_workflow_service.summarize_native_mesh_submesh_metadata",
         lambda submeshes: {
             "total_vertices": 123,
             "total_faces": 45,

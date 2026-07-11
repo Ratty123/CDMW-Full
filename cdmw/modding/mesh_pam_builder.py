@@ -676,6 +676,14 @@ def build_pam(mesh: ParsedMesh, original_data: bytes) -> bytes:
     original_mesh = parse_pam(original_data, mesh.path)
     working_mesh = _merge_partial_static_import(original_mesh, copy.deepcopy(mesh))
     _align_submesh_order_like_original(original_mesh, working_mesh)
+    if any(
+        tuple(getattr(original, "bone_indices", ()) or ()) != tuple(getattr(updated, "bone_indices", ()) or ())
+        or tuple(getattr(original, "bone_weights", ()) or ()) != tuple(getattr(updated, "bone_weights", ()) or ())
+        for original, updated in zip(original_mesh.submeshes, working_mesh.submeshes)
+    ):
+        raise ValueError(
+            "PAM skin-weight edits are blocked: this parser does not expose a proven bone-palette/weight byte layout."
+        )
 
     all_v = [v for s in working_mesh.submeshes for v in s.vertices]
     if all_v:

@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from cdmw.services.startup_splash_service import cleanup_startup_splash_artifacts
+
 
 def _format_startup_splash_detail(detail: str, *, max_chars: int = 88, split_at: int = 44) -> str:
     text = " ".join(str(detail or "Starting application...").split()) or "Starting application..."
@@ -70,6 +72,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
         from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPen, QPolygonF
         from PySide6.QtWidgets import QApplication, QDialog, QLabel, QSizePolicy, QVBoxLayout
     except ImportError:
+        cleanup_startup_splash_artifacts(command_file)
         return 1
     try:
         from cdmw.constants import APP_NAME, APP_ORGANIZATION, DEFAULT_UI_THEME
@@ -435,31 +438,33 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 sweep_left = rail.left() + ((rail.width() + sweep_width) * self._phase) - sweep_width
                 painter.drawRoundedRect(QRectF(sweep_left, rail.top(), sweep_width, rail.height()).intersected(rail), 1.5, 1.5)
 
-    _apply_windows_app_user_model_id()
-    app = QApplication(sys.argv[:1])
-    app.setOrganizationName(APP_ORGANIZATION)
-    app.setApplicationName(APP_NAME)
-    app_icon = QIcon()
-    initial_theme_key = _resolved_theme_key(_command_payload().get("theme_key", DEFAULT_UI_THEME))
-    if resolve_app_icon_path is not None:
-        try:
-            icon_path = resolve_app_icon_path(initial_theme_key)
-            if icon_path is not None:
-                app_icon = QIcon(str(icon_path))
-                if not app_icon.isNull():
-                    app.setWindowIcon(app_icon)
-        except Exception:
-            app_icon = QIcon()
-    dialog = StartupSplashHost()
-    if not app_icon.isNull():
-        dialog.setWindowIcon(app_icon)
-    dialog.center_on_screen()
-    dialog.show()
     try:
-        command_file.with_suffix(".ready").write_text(str(os.getpid()), encoding="utf-8")
-    except Exception:
-        pass
-    return int(app.exec())
+        initial_payload = _command_payload()
+        if initial_payload.get("closed"):
+            return 0
+        _apply_windows_app_user_model_id()
+        app = QApplication(sys.argv[:1])
+        app.setOrganizationName(APP_ORGANIZATION)
+        app.setApplicationName(APP_NAME)
+        app_icon = QIcon()
+        initial_theme_key = _resolved_theme_key(initial_payload.get("theme_key", DEFAULT_UI_THEME))
+        if resolve_app_icon_path is not None:
+            try:
+                icon_path = resolve_app_icon_path(initial_theme_key)
+                if icon_path is not None:
+                    app_icon = QIcon(str(icon_path))
+                    if not app_icon.isNull():
+                        app.setWindowIcon(app_icon)
+            except Exception:
+                app_icon = QIcon()
+        dialog = StartupSplashHost()
+        if not app_icon.isNull():
+            dialog.setWindowIcon(app_icon)
+        dialog.center_on_screen()
+        dialog.show()
+        return int(app.exec())
+    finally:
+        cleanup_startup_splash_artifacts(command_file)
 
 
 __all__ = ["run_startup_splash_host"]

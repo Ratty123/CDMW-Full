@@ -5,6 +5,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from cdmw.services.diagnostics_service import (
     CRASH_REPORT_CAPTURE_DEFAULT_KINDS,
@@ -603,6 +604,24 @@ class DiagnosticsServiceTests(unittest.TestCase):
             self.assertEqual("Workbench", payload["app"])
             self.assertEqual("startup", payload["phase"])
             self.assertTrue(payload["clean_shutdown"])
+
+    def test_write_app_heartbeat_accepts_precomputed_platform_label(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            heartbeat_path = Path(temp_dir) / "app_heartbeat.json"
+            with patch(
+                "cdmw.services.diagnostics_service.platform.platform",
+                side_effect=AssertionError("platform probe on heartbeat hot path"),
+            ):
+                payload = write_app_heartbeat(
+                    heartbeat_path,
+                    app_title="Workbench",
+                    app_version="1.2.3",
+                    session_id="session-1",
+                    phase="startup",
+                    platform_label="win32",
+                )
+
+            self.assertEqual("win32", payload["platform"])
 
     def test_format_thread_dump_includes_thread_sections(self) -> None:
         dump = format_thread_dump()

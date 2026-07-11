@@ -5,6 +5,12 @@ import struct
 from pathlib import Path
 from typing import Dict, Mapping, Optional, Sequence, Tuple
 
+from cdmw.core.dds_resource_limits import (
+    DDS_MAX_PAYLOAD_BYTES,
+    checked_dds_mip_byte_counts,
+    validate_dds_dimensions,
+)
+
 
 DDS_MAGIC = b"DDS "
 DDS_HEADER_SIZE = 124
@@ -95,14 +101,6 @@ def _read_u32(data: bytes, offset: int) -> int:
     return struct.unpack_from("<I", data, offset)[0]
 
 
-def _mip_byte_count(width: int, height: int, bytes_per_block: int, *, block_width: int = 4, block_height: int = 4) -> int:
-    safe_block_width = max(1, int(block_width))
-    safe_block_height = max(1, int(block_height))
-    blocks_wide = max(1, (int(width) + safe_block_width - 1) // safe_block_width)
-    blocks_high = max(1, (int(height) + safe_block_height - 1) // safe_block_height)
-    return blocks_wide * blocks_high * int(bytes_per_block)
-
-
 def _build_mip_layout(
     *,
     width: int,
@@ -114,20 +112,22 @@ def _build_mip_layout(
     block_width: int = 4,
     block_height: int = 4,
 ) -> Tuple[DdsMipLevel, ...]:
+    byte_counts = checked_dds_mip_byte_counts(
+        width,
+        height,
+        mip_count,
+        bytes_per_block,
+        block_width=block_width,
+        block_height=block_height,
+        max_bytes=DDS_MAX_PAYLOAD_BYTES,
+    )
+    if int(data_offset) + sum(byte_counts) > int(payload_size):
+        return ()
     levels = []
     offset = int(data_offset)
-    level_width = max(1, int(width))
-    level_height = max(1, int(height))
-    for level in range(max(1, int(mip_count))):
-        byte_count = _mip_byte_count(
-            level_width,
-            level_height,
-            bytes_per_block,
-            block_width=block_width,
-            block_height=block_height,
-        )
-        if offset + byte_count > payload_size:
-            break
+    level_width = int(width)
+    level_height = int(height)
+    for level, byte_count in enumerate(byte_counts):
         levels.append(
             DdsMipLevel(
                 level=level,
@@ -153,6 +153,10 @@ def inspect_dds_native(data: bytes, *, payload_size: Optional[int] = None) -> Dd
     height = _read_u32(data, 12)
     width = _read_u32(data, 16)
     mip_count = max(1, _read_u32(data, 28))
+    try:
+        width, height, mip_count = validate_dds_dimensions(width, height, mip_count)
+    except ValueError as exc:
+        return DdsNativeInfo(width, height, mip_count, "", reason=str(exc))
     pixel_format_offset = 76
     pixel_format_size = _read_u32(data, pixel_format_offset)
     if pixel_format_size != DDS_PIXELFORMAT_SIZE:
@@ -215,16 +219,34 @@ def inspect_dds_native(data: bytes, *, payload_size: Optional[int] = None) -> Dd
     block_width = 4 if is_compressed else 1
     block_height = 4 if is_compressed else 1
     has_alpha = default_alpha or bool(pf_flags & DDS_ALPHA_PIXELS)
-    levels = _build_mip_layout(
-        width=width,
-        height=height,
-        mip_count=mip_count,
-        data_offset=data_offset,
-        bytes_per_block=bytes_per_block,
-        payload_size=total_size,
-        block_width=block_width,
-        block_height=block_height,
-    )
+    try:
+        levels = _build_mip_layout(
+            width=width,
+            height=height,
+            mip_count=mip_count,
+            data_offset=data_offset,
+            bytes_per_block=bytes_per_block,
+            payload_size=total_size,
+            block_width=block_width,
+            block_height=block_height,
+        )
+    except ValueError as exc:
+        return DdsNativeInfo(
+            width,
+            height,
+            mip_count,
+            format_name,
+            dxgi_format=dxgi_format,
+            fourcc=fourcc,
+            block_width=block_width,
+            block_height=block_height,
+            bytes_per_block=bytes_per_block,
+            data_offset=data_offset,
+            compressed_family=family,
+            srgb=srgb,
+            has_alpha=has_alpha,
+            reason=str(exc),
+        )
     if not levels:
         return DdsNativeInfo(
             width,
@@ -240,7 +262,7 @@ def inspect_dds_native(data: bytes, *, payload_size: Optional[int] = None) -> Dd
             compressed_family=family,
             srgb=srgb,
             has_alpha=has_alpha,
-            reason="DDS compressed payload is missing or truncated",
+            reason="DDS payload is missing or truncated",
         )
     return DdsNativeInfo(
         width,

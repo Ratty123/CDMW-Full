@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import threading
 from collections.abc import Mapping, Sequence
 from pathlib import PurePosixPath
 from typing import List, Optional, Tuple
@@ -22,8 +23,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.archive import try_decode_text_like_archive_data
-from cdmw.core.material_sidecar_editor import (
+from cdmw.services.preview_workflow_service import try_decode_text_like_archive_data
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.material_sidecar_service import (
     MaterialSidecarRelatedFile,
     detect_material_sidecar_preview_model_candidates,
     discover_material_sidecar_preview_overrides,
@@ -31,7 +33,7 @@ from cdmw.core.material_sidecar_editor import (
     discover_material_sidecar_values,
     is_material_sidecar_entry,
 )
-from cdmw.core.upscale_profiles import normalize_texture_reference_for_sidecar_lookup
+from cdmw.services.texture_workflow_service import normalize_texture_reference_for_sidecar_lookup
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
 from cdmw.ui.widgets import make_tree_columns_persistent
 
@@ -305,10 +307,16 @@ class ArchiveMaterialSidecarActionsMixin:
         )
         return candidates[0].entry if candidates else None
 
-    def _material_sidecar_texture_resolution_warnings(self, sidecar_text: str) -> Tuple[str, ...]:
+    def _material_sidecar_texture_resolution_warnings(
+        self,
+        sidecar_text: str,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Tuple[str, ...]:
         warnings: List[str] = []
         rows = discover_material_sidecar_values(sidecar_text)
         for row in rows:
+            raise_if_cancelled(stop_event, "Material texture validation cancelled.")
             if row.kind != "texture":
                 continue
             texture_path = str(row.value or "").replace("\\", "/").strip()
@@ -335,7 +343,9 @@ class ArchiveMaterialSidecarActionsMixin:
         sidecar_text: str,
         *,
         edited_values: Optional[Mapping[str, str]] = None,
+        stop_event: Optional[threading.Event] = None,
     ) -> Tuple[str, ...]:
+        raise_if_cancelled(stop_event, "Material live preview cancelled.")
         if not isinstance(preview_model, ModelPreviewData):
             return ()
         meshes = [
@@ -382,6 +392,7 @@ class ArchiveMaterialSidecarActionsMixin:
 
         unused_overrides = list(overrides)
         for mesh in meshes:
+            raise_if_cancelled(stop_event, "Material live preview cancelled.")
             mesh_labels = {
                 self._normalized_material_preview_label(getattr(mesh, "material_name", "")),
                 self._normalized_material_preview_label(getattr(mesh, "texture_name", "")),
@@ -402,9 +413,11 @@ class ArchiveMaterialSidecarActionsMixin:
         if applied_count <= 0:
             if len(overrides) == 1:
                 for mesh in meshes:
+                    raise_if_cancelled(stop_event, "Material live preview cancelled.")
                     apply_override(mesh, overrides[0], low_confidence=False)
             else:
                 for mesh_index, mesh in enumerate(meshes):
+                    raise_if_cancelled(stop_event, "Material live preview cancelled.")
                     override = overrides[min(mesh_index, len(overrides) - 1)]
                     apply_override(mesh, override, low_confidence=True)
         elif unused_overrides and len(meshes) == 1:

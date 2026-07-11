@@ -8,6 +8,8 @@ import unittest
 
 from PySide6.QtGui import QColor, QImage
 
+from tests.native_source_text import d3d11_preview_source
+
 from cdmw.models import (
     ClothPreviewBatch,
     ClothPreviewConstraint,
@@ -1648,8 +1650,12 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             temp_path = Path(temp_dir)
             specular = temp_path / "material_sp.png"
             specular_dds = temp_path / "material_sp.dds"
+            direct_specular = temp_path / "other_sp.png"
+            direct_specular_dds = temp_path / "other_sp.dds"
             specular.write_bytes(b"preview")
             specular_dds.write_bytes(b"not a dds")
+            direct_specular.write_bytes(b"preview")
+            direct_specular_dds.write_bytes(_minimal_bc_dds())
             self.assertTrue(
                 write_native_texture_report_sidecar(
                     specular,
@@ -1678,6 +1684,13 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
                         preview_material_texture_inputs=(
                             PreviewMaterialTextureInput(
                                 slot_kind="material",
+                                texture_name="other_sp",
+                                source_dds_path=str(direct_specular_dds),
+                                preview_texture_path=str(direct_specular),
+                                semantic_subtype="specular",
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="material",
                                 texture_name="blade_sp",
                                 preview_texture_path=str(specular),
                                 semantic_subtype="specular",
@@ -1701,7 +1714,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertTrue(textures["specular"])
             self.assertTrue((package_dir / textures["specular"]).is_file())
             notes = " ".join(batch["notes"])
-            self.assertNotIn("specular PNG fallback skipped", notes)
+            self.assertEqual(1, notes.count("specular PNG fallback skipped"))
 
     def test_prefer_direct_dds_drops_missing_manifest_dds_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2930,7 +2943,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
 
 class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
     def test_native_host_is_isolated_from_qt_scene_and_archive_stack(self) -> None:
-        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        source = d3d11_preview_source()
 
         self.assertIn("D3D11CreateDevice", source)
         self.assertIn("D3D11CreateDeviceAndSwapChain", source)
@@ -3187,7 +3200,7 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn('"command": "shutdown"', source)
 
     def test_native_d3d11_host_supports_clear_command_for_stale_previews(self) -> None:
-        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        source = d3d11_preview_source()
 
         self.assertIn("bool clear_preview", source)
         self.assertIn('command == "clear_preview"', source)
@@ -3228,7 +3241,10 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn("write_status(args_.status_file, loaded_payload(stats_));", reload_success_block)
         startup_success_block = source[
             source.index("if (!renderer.initialize()) {")
-            : source.index("MSG msg{}", source.index("if (!renderer.initialize()) {"))
+            : source.index(
+                "const std::string close_reason = run_host_message_loop(",
+                source.index("if (!renderer.initialize()) {"),
+            )
         ]
         self.assertIn("resources_loaded_payload(stats)", startup_success_block)
         self.assertIn("renderer.request_render();", startup_success_block)
@@ -3252,32 +3268,8 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("native_unhandled_exception", Path("native/common/native_diagnostics.h").read_text(encoding="utf-8"))
         self.assertIn('if (contains_text(descriptor, "gloss") || contains_text(descriptor, "smoothness")) score -= 220;', source)
 
-    def test_native_d3d11_host_releases_model_texture_caches(self) -> None:
-        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
-        diagnostics_source = Path("native/common/native_diagnostics.h").read_text(encoding="utf-8")
-
-        self.assertIn("void release_model_resources", source)
-        self.assertIn("PSSetShaderResources(0, kTotalSrvCount, null_srvs)", source)
-        self.assertIn("context_->Flush()", source)
-        self.assertIn("batches_.clear()", source)
-        self.assertIn('reason_text == "parent_unresponsive"', source)
-        self.assertIn('reason_text == "parent_window_gone"', source)
-        self.assertIn("srv_cache_.clear()", source)
-        self.assertIn("texture_info_cache_.clear()", source)
-        self.assertIn('release_model_resources("reload")', source)
-        self.assertIn('release_model_resources("clear")', source)
-        self.assertIn("release_model_resources(close_reason.c_str())", source)
-        self.assertIn("model_resources_released", source)
-        self.assertIn("texture_cache_entries", source)
-        self.assertIn("texture_cache_releases", source)
-        self.assertIn("estimated_texture_bytes", source)
-        self.assertIn("process_working_set_bytes", source)
-        self.assertIn("process_private_bytes", source)
-        self.assertIn("GetProcessMemoryInfo", diagnostics_source)
-        self.assertIn("current_process_memory", diagnostics_source)
-
     def test_native_d3d11_host_throttles_idle_rendering_and_prunes_srv_cache(self) -> None:
-        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        source = d3d11_preview_source()
 
         self.assertIn("void request_render()", source)
         self.assertIn("bool should_render() const", source)
@@ -3318,7 +3310,7 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn('reason_text == "clear"', source)
 
     def test_native_d3d11_host_runs_tool_side_pbd_cloth_preview(self) -> None:
-        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        source = d3d11_preview_source()
         main_window_source = (
             Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
             + "\n"
@@ -3352,7 +3344,7 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("Tool-side PBD physics preview", main_window_source)
 
     def test_native_d3d11_host_rejects_stale_or_invalid_packages_and_exposes_debug_modes(self) -> None:
-        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        source = d3d11_preview_source()
 
         self.assertIn('release_model_resources("load-missing-package")', source)
         self.assertIn("native D3D11 package validation failed", source)

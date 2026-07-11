@@ -164,7 +164,7 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertIn("Recovered inventory icon", loaded_note)
             manifest = resolve_archive_item_icon_thumbnail_cache_dir(root, cache_root) / "manifest.json"
             self.assertTrue(manifest.is_file())
-            with mock.patch("cdmw.core.archive._write_archive_item_icon_thumbnail_manifest") as write_manifest:
+            with mock.patch("cdmw.core.archive_scan_cache._write_archive_item_icon_thumbnail_manifest") as write_manifest:
                 loaded_again = load_archive_item_icon_thumbnail_cache(
                     root,
                     cache_root,
@@ -264,7 +264,7 @@ class ArchiveCacheTests(unittest.TestCase):
             missing_pamt = root / "0038" / "0.pamt"
             logs: list[str] = []
 
-            with mock.patch("cdmw.core.archive.discover_pamt_files", return_value=[missing_pamt]):
+            with mock.patch("cdmw.core.archive_scan_cache.discover_pamt_files", return_value=[missing_pamt]):
                 entries = scan_archive_entries(root, on_log=logs.append)
 
             self.assertEqual(entries, [])
@@ -350,7 +350,7 @@ class ArchiveCacheTests(unittest.TestCase):
             loaded_metadata: dict[str, object] = {}
 
             with mock.patch(
-                "cdmw.core.archive._update_archive_entry_metadata_row_hash",
+                "cdmw.core.archive_scan_cache._update_archive_entry_metadata_row_hash",
                 side_effect=AssertionError("row hash should come from compact metadata"),
             ):
                 loaded = load_archive_scan_cache(root, cache_root, metadata_out=loaded_metadata)
@@ -1069,7 +1069,7 @@ class ArchiveCacheTests(unittest.TestCase):
             )
 
             with mock.patch(
-                "cdmw.core.archive._collect_archive_scan_sources_from_entries",
+                "cdmw.core.archive_index_cache._collect_archive_scan_sources_from_entries",
                 side_effect=AssertionError("entry source walk should not run"),
             ):
                 loaded = load_archive_basic_index_cache(
@@ -1179,7 +1179,7 @@ class ArchiveCacheTests(unittest.TestCase):
             )
 
             with mock.patch(
-                "cdmw.core.archive._collect_archive_scan_sources_from_entries",
+                "cdmw.core.archive_index_cache._collect_archive_scan_sources_from_entries",
                 side_effect=AssertionError("entry source walk should not run"),
             ):
                 loaded = load_archive_derived_index_cache(
@@ -1212,7 +1212,7 @@ class ArchiveCacheTests(unittest.TestCase):
             )
 
             with mock.patch(
-                "cdmw.core.archive.archive_item_index_dependency_signature",
+                "cdmw.core.archive_index_cache.archive_item_index_dependency_signature",
                 side_effect=AssertionError("dependency signature walk should not run"),
             ):
                 loaded = load_archive_derived_index_cache(
@@ -1237,7 +1237,7 @@ class ArchiveCacheTests(unittest.TestCase):
             save_archive_scan_cache(root, cache_root, entries, metadata_out=scan_metadata)
 
             with mock.patch(
-                "cdmw.core.archive.archive_item_index_dependency_signature",
+                "cdmw.core.archive_index_cache.archive_item_index_dependency_signature",
                 side_effect=AssertionError("dependency signature walk should not run during save"),
             ):
                 save_archive_derived_index_cache(
@@ -1275,10 +1275,10 @@ class ArchiveCacheTests(unittest.TestCase):
             )
 
             with mock.patch(
-                "cdmw.core.archive._load_native_name_search_index_binary",
+                "cdmw.core.archive_index_cache._load_native_name_search_index_binary",
                 side_effect=AssertionError("name-search binary should load later"),
             ), mock.patch(
-                "cdmw.core.archive._archive_entry_shard_groups",
+                "cdmw.core.archive_index_cache._archive_entry_shard_groups",
                 side_effect=AssertionError("name-search shard metadata should not be hashed for deferred load"),
             ):
                 deferred = load_archive_derived_index_cache(
@@ -1509,7 +1509,7 @@ class ArchiveCacheTests(unittest.TestCase):
             logs: list[str] = []
 
             with mock.patch(
-                "cdmw.core.archive._collect_archive_scan_sources_from_entries",
+                "cdmw.core.archive_index_cache._collect_archive_scan_sources_from_entries",
                 side_effect=AssertionError("entry source walk should not run"),
             ):
                 loaded = load_archive_derived_index_cache(

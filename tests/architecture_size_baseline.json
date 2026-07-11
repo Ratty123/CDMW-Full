@@ -1,0 +1,9 @@
+{
+  "files": {},
+  "functions": {},
+  "limits": {
+    "file_lines": 800,
+    "function_lines": 150
+  },
+  "schema": 1
+}

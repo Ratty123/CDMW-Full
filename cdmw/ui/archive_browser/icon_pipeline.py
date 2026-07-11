@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QRectF, Qt, QThread, QTimer
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 
-from cdmw.core.archive import load_archive_item_icon_thumbnail_cache, normalize_archive_extension_filter
+from cdmw.domain.archives.format import normalize_archive_extension_filter
 from cdmw.workers.archive_workers import ArchiveItemIconWarmupWorker
 
 @dataclass(frozen=True, slots=True)
@@ -127,72 +127,19 @@ class ArchiveIconPipelineMixin:
         text = str(self.archive_package_root_edit.text() or "").strip()
         return Path(text).expanduser() if text else Path.cwd()
 
-    def _archive_item_icon_converter_cache_key(self) -> str:
-        texconv_text = self.texconv_path_edit.text().strip()
-        parts = [f"texconv={texconv_text}"]
-        try:
-            from cdmw.core.texture_native import find_directxtex_texture_binary
-
-            binary = find_directxtex_texture_binary()
-        except Exception:
-            binary = None
-        if binary is None:
-            parts.append("directxtex=missing")
-        else:
-            try:
-                stat = binary.stat()
-                parts.append(f"directxtex={binary.resolve()}:{stat.st_size}:{stat.st_mtime_ns}")
-            except OSError:
-                parts.append(f"directxtex={binary}:missing")
-        return "|".join(parts)
-
-    def _prime_archive_asset_catalog_icon_prepared_cache_from_persistent(
+    def _archive_item_icon_prepared_pixmap_available(
         self,
-        row: Mapping[str, object],
-        *,
-        size: int = 120,
+        prepared_key: Tuple[Tuple[str, ...], str],
     ) -> bool:
-        prepared_key = self._archive_asset_catalog_prepared_icon_cache_key(row)
-        icon_paths, _texconv_key = prepared_key
-        if not icon_paths:
-            return False
-        prepared = self.archive_item_icon_prepared_path_cache.get(prepared_key)
-        if prepared is not None:
-            preview_path_text, _prepared_note = prepared
-            try:
-                if Path(preview_path_text).is_file() and Path(preview_path_text).stat().st_size > 0:
-                    return True
-            except OSError:
-                pass
-            self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)
-        if self._archive_item_icon_lookup_index_missing():
-            return False
-        package_root = self._current_archive_package_root()
-        converter_key = self._archive_item_icon_converter_cache_key()
-        for icon_path in icon_paths:
-            entries = self._resolve_archive_asset_catalog_path_candidates(
-                icon_path,
-                fallback_extensions=(".dds", ".png"),
-            )
-            for entry in entries[:4]:
-                cached = load_archive_item_icon_thumbnail_cache(
-                    package_root,
-                    self.archive_cache_root,
-                    icon_paths,
-                    entry,
-                    size=size,
-                    converter_key=converter_key,
-                )
-                if cached is None:
-                    continue
-                preview_path, note = cached
-                self.archive_item_icon_prepared_path_cache[prepared_key] = (str(preview_path), str(note or "Recovered inventory icon"))
-                self.archive_item_icon_prepared_path_cache.move_to_end(prepared_key)
-                while len(self.archive_item_icon_prepared_path_cache) > self.archive_item_icon_prepared_cache_limit:
-                    self.archive_item_icon_prepared_path_cache.popitem(last=False)
-                self.archive_item_icon_negative_cache.pop(prepared_key, None)
-                return True
-        return False
+        icon_paths, texconv_key = prepared_key
+        return any(
+            cached_icon_paths == icon_paths
+            and cached_texconv_key == texconv_key
+            and cached_pixmap is not None
+            and not cached_pixmap.isNull()
+            for (cached_icon_paths, _size, cached_texconv_key), (cached_pixmap, _note)
+            in self.archive_item_icon_pixmap_cache.items()
+        )
 
     def _archive_item_icon_negative_note(
         self,
@@ -277,28 +224,6 @@ class ArchiveIconPipelineMixin:
                 self.archive_item_icon_pixmap_cache.move_to_end(cache_key)
                 return cached
         prepared_key = (icon_paths, texconv_key)
-        prepared = self.archive_item_icon_prepared_path_cache.get(prepared_key)
-        if prepared is not None:
-            self.archive_item_icon_prepared_path_cache.move_to_end(prepared_key)
-            preview_path_text, prepared_note = prepared
-            preview_path = Path(preview_path_text)
-            try:
-                prepared_exists = preview_path.is_file() and preview_path.stat().st_size > 0
-            except OSError:
-                prepared_exists = False
-            if prepared_exists:
-                pixmap = QPixmap(str(preview_path))
-                if not pixmap.isNull():
-                    scaled_value = (
-                        pixmap.scaled(requested_size, requested_size, Qt.KeepAspectRatio, Qt.SmoothTransformation),
-                        prepared_note,
-                    )
-                    self.archive_item_icon_pixmap_cache[cache_key] = scaled_value
-                    self.archive_item_icon_pixmap_cache.move_to_end(cache_key)
-                    while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
-                        self.archive_item_icon_pixmap_cache.popitem(last=False)
-                    return scaled_value
-            self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)
         for (cached_icon_paths, _cached_size, cached_texconv_key), cached_value in reversed(
             list(self.archive_item_icon_pixmap_cache.items())
         ):
@@ -317,12 +242,6 @@ class ArchiveIconPipelineMixin:
             while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
                 self.archive_item_icon_pixmap_cache.popitem(last=False)
             return scaled_value
-        if self._prime_archive_asset_catalog_icon_prepared_cache_from_persistent(row, size=120):
-            return self._cached_archive_asset_catalog_inventory_icon_pixmap(
-                row,
-                requested_size,
-                allow_sync_prepare=allow_sync_prepare,
-            )
         negative_note = self._archive_item_icon_negative_note(prepared_key)
         if negative_note:
             return None, negative_note
@@ -403,16 +322,8 @@ class ArchiveIconPipelineMixin:
             if not self._archive_asset_catalog_row_values(row, "icon_paths"):
                 continue
             prepared_key = self._archive_asset_catalog_prepared_icon_cache_key(row)
-            prepared = self.archive_item_icon_prepared_path_cache.get(prepared_key)
-            if prepared is not None:
-                preview_path_text, _prepared_note = prepared
-                preview_path = Path(preview_path_text)
-                try:
-                    if preview_path.is_file() and preview_path.stat().st_size > 0:
-                        continue
-                except OSError:
-                    pass
-                self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)
+            if self._archive_item_icon_prepared_pixmap_available(prepared_key):
+                continue
             if self._archive_item_icon_negative_note(prepared_key):
                 continue
             rows.append(row)
@@ -450,16 +361,8 @@ class ArchiveIconPipelineMixin:
             icon_paths, _texconv_key = prepared_key
             if not icon_paths:
                 continue
-            prepared = self.archive_item_icon_prepared_path_cache.get(prepared_key)
-            if prepared is not None:
-                preview_path_text, _prepared_note = prepared
-                preview_path = Path(preview_path_text)
-                try:
-                    if preview_path.is_file() and preview_path.stat().st_size > 0:
-                        continue
-                except OSError:
-                    pass
-                self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)
+            if self._archive_item_icon_prepared_pixmap_available(prepared_key):
+                continue
             if not lookup_missing and self._archive_item_icon_negative_note(prepared_key):
                 continue
             requested_keys.append(prepared_key)
@@ -547,16 +450,8 @@ class ArchiveIconPipelineMixin:
             icon_paths, _texconv_key = prepared_key
             if not icon_paths or prepared_key in existing_keys:
                 continue
-            prepared = self.archive_item_icon_prepared_path_cache.get(prepared_key)
-            if prepared is not None:
-                preview_path_text, _prepared_note = prepared
-                preview_path = Path(preview_path_text)
-                try:
-                    if preview_path.is_file() and preview_path.stat().st_size > 0:
-                        continue
-                except OSError:
-                    pass
-                self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)
+            if self._archive_item_icon_prepared_pixmap_available(prepared_key):
+                continue
             if not self._archive_item_icon_lookup_index_missing() and self._archive_item_icon_negative_note(prepared_key):
                 continue
             existing_keys.add(prepared_key)
@@ -584,10 +479,7 @@ class ArchiveIconPipelineMixin:
         del self.archive_item_icon_priority_queue[:16]
         texconv_text = self.texconv_path_edit.text().strip()
         texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-        if texconv_path is not None and not texconv_path.exists():
-            texconv_path = None
         package_root = self._current_archive_package_root()
-        converter_key = self._archive_item_icon_converter_cache_key()
         generation = self.archive_item_icon_warmup_generation
         worker = ArchiveItemIconWarmupWorker(
             generation,
@@ -597,7 +489,6 @@ class ArchiveIconPipelineMixin:
             package_root,
             self.archive_cache_root,
             texconv_key=texconv_text,
-            thumbnail_converter_key=converter_key,
             texconv_path=texconv_path,
             max_dimension=120,
         )
@@ -641,10 +532,7 @@ class ArchiveIconPipelineMixin:
             self.archive_item_icon_visible_warmup_remaining = max(0, visible_remaining - len(batch))
         texconv_text = self.texconv_path_edit.text().strip()
         texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-        if texconv_path is not None and not texconv_path.exists():
-            texconv_path = None
         package_root = self._current_archive_package_root()
-        converter_key = self._archive_item_icon_converter_cache_key()
         generation = self.archive_item_icon_warmup_generation
         self.archive_item_icon_warmup_user_visible = visible_remaining > 0
         worker = ArchiveItemIconWarmupWorker(
@@ -655,7 +543,6 @@ class ArchiveIconPipelineMixin:
             package_root,
             self.archive_cache_root,
             texconv_key=texconv_text,
-            thumbnail_converter_key=converter_key,
             texconv_path=texconv_path,
             max_dimension=120,
         )
@@ -680,6 +567,7 @@ class ArchiveIconPipelineMixin:
         prepared_key: object,
         preview_path: str,
         note: str,
+        image: object,
     ) -> None:
         if int(generation) != int(getattr(self, "archive_item_icon_warmup_generation", -1)):
             return
@@ -689,7 +577,7 @@ class ArchiveIconPipelineMixin:
         if not isinstance(icon_paths_raw, tuple):
             return
         cache_key = (tuple(str(value) for value in icon_paths_raw), str(texconv_key_raw or ""))
-        if not preview_path:
+        if not preview_path or not isinstance(image, QImage) or image.isNull():
             self._remember_archive_item_icon_negative(cache_key, note)
             for callback in tuple(getattr(self, "archive_item_icon_prepared_callbacks", ()) or ()):
                 try:
@@ -698,6 +586,19 @@ class ArchiveIconPipelineMixin:
                     pass
             return
         self._forget_archive_item_icon_pixmap_cache(cache_key)
+        pixmap = QPixmap.fromImage(image)
+        if pixmap.isNull():
+            self._remember_archive_item_icon_negative(cache_key, note)
+            return
+        image_size = max(1, int(max(image.width(), image.height())))
+        pixmap_key = (cache_key[0], image_size, cache_key[1])
+        self.archive_item_icon_pixmap_cache[pixmap_key] = (
+            pixmap,
+            str(note or "Recovered inventory icon"),
+        )
+        self.archive_item_icon_pixmap_cache.move_to_end(pixmap_key)
+        while len(self.archive_item_icon_pixmap_cache) > self.archive_item_icon_pixmap_cache_limit:
+            self.archive_item_icon_pixmap_cache.popitem(last=False)
         self.archive_item_icon_prepared_path_cache[cache_key] = (str(preview_path), str(note or "Recovered inventory icon"))
         self.archive_item_icon_prepared_path_cache.move_to_end(cache_key)
         while len(self.archive_item_icon_prepared_path_cache) > self.archive_item_icon_prepared_cache_limit:

@@ -5,6 +5,7 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from cdmw.core.atomic_file import atomic_write_text
 from cdmw.core.archive_loose_export import _export_related_archive_entries, _sha256_file
 from cdmw.core.archive_modding_constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.core.archive_mesh_types import MeshExportResult
@@ -196,12 +197,12 @@ def _rewrite_export_mtl_map_kd(
                     changed += 1
         rewritten.append(line)
     if changed:
-        mtl_path.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+        atomic_write_text(mtl_path, "\n".join(rewritten) + "\n")
     return changed
 
 
 def _parse_archive_mesh(entry: ArchiveEntry) -> ParsedMesh:
-    from cdmw.core.archive import read_archive_entry_data
+    from cdmw.core.archive_extraction import read_archive_entry_data
 
     data, _decompressed, _note = read_archive_entry_data(entry)
     mesh = parse_mesh(data, entry.path)
@@ -245,7 +246,7 @@ def _find_matching_skeleton_entry(
     archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
 ) -> tuple[Optional[ArchiveEntry], str, Tuple[str, ...], SkeletonResolveReport]:
-    from cdmw.core.archive import read_archive_entry_data
+    from cdmw.core.archive_extraction import read_archive_entry_data
 
     try:
         pac_data, _decompressed, _note = read_archive_entry_data(entry)
@@ -328,7 +329,7 @@ def export_archive_mesh(
     else:
         if entry.extension == ".pac":
             if skeleton_entry is not None:
-                from cdmw.core.archive import read_archive_entry_data
+                from cdmw.core.archive_extraction import read_archive_entry_data
 
                 try:
                     skeleton_data, _decompressed, _note = read_archive_entry_data(skeleton_entry)
@@ -387,7 +388,7 @@ def export_archive_mesh(
             manifest_texture_references = tuple(model_texture_references or ())
             manifest_family_graph = asset_family_graph
             if build_preview_context and not manifest_texture_references and manifest_family_graph is None:
-                from cdmw.core.archive import build_archive_preview_result
+                from cdmw.core.archive_preview_result_builder import build_archive_preview_result
 
                 preview_result = build_archive_preview_result(
                     None,

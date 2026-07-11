@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import threading
 from collections import defaultdict
 from dataclasses import replace
@@ -30,6 +31,7 @@ from cdmw.core.archive_binary_preview import (
     build_archive_related_file_references,
     try_decode_text_like_archive_data,
 )
+from cdmw.core.archive_attachment_patches import parse_socket_bone_data_xml
 from cdmw.core.archive_model_references import (
     _ARCHIVE_TEXTURE_FAMILY_SUFFIXES,
     _find_archive_model_related_entries,
@@ -37,42 +39,86 @@ from cdmw.core.archive_model_references import (
     _relation_kind_for_entry,
     _score_model_related_entry_candidate,
 )
+from cdmw.core.archive_references import _archive_path_is_probable_item_icon
 from cdmw.core.table_catalog import table_field_label
 from cdmw.core.upscale_profiles import derive_texture_group_key, normalize_texture_reference_for_sidecar_lookup
 
+_ASSET_FAMILY_GROUP_ORDER: Tuple[str, ...] = (
+    "Selected Model",
+    "Attachment / Placement",
+    "Material",
+    "Textures",
+    "Item Icons",
+    "Physics / HKX",
+    "MeshInfo",
+    "Prefab / Metadata",
+    "Skeleton / Rig",
+    "Animation / Motion",
+    "Other",
+)
+_ATTACHMENT_PREFAB_FIELD_NAMES: frozenset[str] = frozenset(
+    {
+        "_attachedSocketName",
+        "_pivotSocketName",
+        "_applyPosition",
+        "_applyRotation",
+        "_applyScale",
+        "_worldTransform",
+        "_tiledTransform",
+        "_offsetTransform",
+        "_skinnedMeshFileName",
+        "_socketFileName",
+        "_skeletonFileName",
+    }
+)
+_ATTACHMENT_CHARACTER_SOCKET_PRIORITY: Tuple[str, ...] = (
+    "Pelvis_L_Socket",
+    "Pelvis_R_Socket",
+    "Spine2_B_MainWeapon_Socket",
+    "Spine2_B_SubWeapon_Socket",
+    "Spine2_B_Shield_Socket",
+    "RHand_Socket",
+    "LHand_Socket",
+    "UpperWeapon_00_Socket",
+    "LowerWeapon_00_Socket",
+)
+_ATTACHMENT_WEAPON_SOCKET_PRIORITY: Tuple[str, ...] = (
+    "Pelvis_L_ChildSocket",
+    "Pelvis_R_ChildSocket",
+    "Basic_ChildSocket",
+    "Store_Pivot_Socket",
+    "Stick_Pivot_Socket",
+    "InverseB_ChildSocket",
+    "InverseF_ChildSocket",
+)
+_ATTACHMENT_ASSET_REFERENCE_RE = re.compile(
+    r"([A-Za-z0-9_./\\-]+?\.(?:"
+    r"prefabdata_xml|prefabdata\.xml|pamlod_xml|pac_xml|pam_xml|sockets\.xml|"
+    r"paa_metabin|motionblending|paschedulepath|paschedule|paseqc|paseq|pastage|"
+    r"pamlod|meshinfo|prefab|pappt|pamhc|hkx|hkt|pac|pam|pabgb|pabgh|pabc|pabv|papr|pab|paa|pae|paem|seqmt|xml"
+    r"))",
+    re.IGNORECASE,
+)
 
-def _archive_core():
-    from cdmw.core import archive as archive_core
 
-    return archive_core
-
-
-def _archive_path_is_probable_item_icon(*args, **kwargs):
-    return _archive_core()._archive_path_is_probable_item_icon(*args, **kwargs)
-
-
-def _asset_family_group_order(*args, **kwargs):
-    return _archive_core()._asset_family_group_order(*args, **kwargs)
+def _asset_family_group_order() -> Tuple[str, ...]:
+    return _ASSET_FAMILY_GROUP_ORDER
 
 
 def _attachment_asset_reference_re():
-    return _archive_core()._ATTACHMENT_ASSET_REFERENCE_RE
+    return _ATTACHMENT_ASSET_REFERENCE_RE
 
 
 def _attachment_prefab_field_names():
-    return _archive_core()._ATTACHMENT_PREFAB_FIELD_NAMES
+    return _ATTACHMENT_PREFAB_FIELD_NAMES
 
 
 def _attachment_character_socket_priority():
-    return _archive_core()._ATTACHMENT_CHARACTER_SOCKET_PRIORITY
+    return _ATTACHMENT_CHARACTER_SOCKET_PRIORITY
 
 
 def _attachment_weapon_socket_priority():
-    return _archive_core()._ATTACHMENT_WEAPON_SOCKET_PRIORITY
-
-
-def parse_socket_bone_data_xml(*args, **kwargs):
-    return _archive_core().parse_socket_bone_data_xml(*args, **kwargs)
+    return _ATTACHMENT_WEAPON_SOCKET_PRIORITY
 
 def _asset_family_group_for_entry(
     entry: Optional[ArchiveEntry],

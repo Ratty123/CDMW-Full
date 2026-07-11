@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import fnmatch
 import re
-from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 from typing import Callable, Dict, List, Optional, Tuple
 
 from cdmw.constants import (
@@ -38,49 +37,72 @@ from cdmw.core.archive_name_search import (
 )
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.upscale_profiles import derive_texture_group_key
+from cdmw.domain.archives.filters import (
+    active_archive_entry_for_virtual_path,
+    archive_browser_sort_is_active,
+    archive_entry_identity_key,
+    archive_entry_is_mod_package,
+    archive_entry_load_priority,
+    normalize_archive_browser_sort_column,
+    normalize_archive_browser_sort_order,
+    normalize_archive_structure_filter_value,
+    order_archive_entries_by_active_overrides,
+)
 from cdmw.models import ArchiveEntry
 
 
-def _archive_core():
-    from cdmw.core import archive as archive_core
-
-    return archive_core
-
-
 def _strip_archive_model_family_variant_suffix(stem: str) -> str:
-    return _archive_core()._strip_archive_model_family_variant_suffix(stem)
+    from cdmw.core.archive_model_references import _strip_archive_model_family_variant_suffix as owner
+
+    return owner(stem)
 
 
 def iter_archive_character_equipment_root_alias_stems(stem: str):
-    return _archive_core().iter_archive_character_equipment_root_alias_stems(stem)
+    from cdmw.core.archive_model_references import iter_archive_character_equipment_root_alias_stems as owner
+
+    return owner(stem)
 
 
 def iter_archive_equipment_model_alias_stems(stem: str):
-    return _archive_core().iter_archive_equipment_model_alias_stems(stem)
+    from cdmw.core.archive_model_references import iter_archive_equipment_model_alias_stems as owner
+
+    return owner(stem)
 
 
 def _normalize_model_texture_reference(value: str) -> str:
-    return _archive_core()._normalize_model_texture_reference(value)
+    from cdmw.core.archive_model_references import _normalize_model_texture_reference as owner
+
+    return owner(value)
 
 
 def build_archive_relationship_references(*args, **kwargs):
-    return _archive_core().build_archive_relationship_references(*args, **kwargs)
+    from cdmw.core.archive_references import build_archive_relationship_references as owner
+
+    return owner(*args, **kwargs)
 
 
 def merge_archive_reference_rows(*args, **kwargs):
-    return _archive_core().merge_archive_reference_rows(*args, **kwargs)
+    from cdmw.core.archive_references import merge_archive_reference_rows as owner
+
+    return owner(*args, **kwargs)
 
 
 def build_archive_entry_related_references(*args, **kwargs):
-    return _archive_core().build_archive_entry_related_references(*args, **kwargs)
+    from cdmw.core.archive_asset_family import build_archive_entry_related_references as owner
+
+    return owner(*args, **kwargs)
 
 
 def _find_archive_model_related_entries(*args, **kwargs):
-    return _archive_core()._find_archive_model_related_entries(*args, **kwargs)
+    from cdmw.core.archive_model_references import _find_archive_model_related_entries as owner
+
+    return owner(*args, **kwargs)
 
 
 def read_archive_entry_data(*args, **kwargs):
-    return _archive_core().read_archive_entry_data(*args, **kwargs)
+    from cdmw.core.archive_extraction import read_archive_entry_data as owner
+
+    return owner(*args, **kwargs)
 
 
 _COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS: Tuple[str, ...] = (
@@ -437,25 +459,6 @@ def archive_entry_override_state(
         f"Active package: {active_label}\n"
         f"Duplicate candidates:\n{duplicate_text}",
     )
-
-
-def normalize_archive_browser_sort_column(value: object) -> int:
-    try:
-        column = int(value)
-    except (TypeError, ValueError):
-        return -1
-    return column if 0 <= column <= 8 else -1
-
-
-def normalize_archive_browser_sort_order(value: object) -> str:
-    normalized = str(value or "").strip().lower()
-    if normalized in {"desc", "descending", "1"}:
-        return "desc"
-    return "asc"
-
-
-def archive_browser_sort_is_active(sort_column: object) -> bool:
-    return normalize_archive_browser_sort_column(sort_column) >= 0
 
 
 _ARCHIVE_BROWSER_NATURAL_SORT_RE = re.compile(r"\d+|\D+")
@@ -1218,17 +1221,6 @@ def count_archive_entries_with_extension(
     return sum(1 for entry in entries if entry.extension == normalized_extension)
 
 
-def normalize_archive_structure_filter_value(value: str) -> str:
-    raw = str(value or "").replace("\\", "/").strip().strip("/")
-    if not raw:
-        return ""
-    return "/".join(
-        part.lower()
-        for part in raw.split("/")
-        if part not in {"", ".", ".."}
-    )
-
-
 def archive_entry_path_parts(entry: ArchiveEntry) -> Tuple[str, ...]:
     return tuple(
         part
@@ -1246,91 +1238,6 @@ def archive_entry_folder_parts(entry: ArchiveEntry) -> Tuple[str, ...]:
 def archive_entry_structure_prefixes(entry: ArchiveEntry) -> Tuple[str, ...]:
     parts = archive_entry_folder_parts(entry)
     return tuple("/".join(parts[: index + 1]) for index in range(len(parts)))
-
-
-def archive_entry_identity_key(entry: ArchiveEntry) -> Tuple[str, str, int, int]:
-    return (
-        str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower(),
-        str(getattr(entry, "pamt_path", "") or "").strip().lower(),
-        int(getattr(entry, "offset", 0) or 0),
-        int(getattr(entry, "paz_index", 0) or 0),
-    )
-
-
-def archive_entry_is_mod_package(entry: ArchiveEntry) -> bool:
-    package_parent = getattr(getattr(entry, "pamt_path", None), "parent", Path())
-    package_name = str(getattr(package_parent, "name", "") or "")
-    package_key = package_name.strip().casefold()
-    if not package_key:
-        return False
-    if package_key.startswith("dmm") or package_key.startswith("mod"):
-        return True
-    return not bool(re.fullmatch(r"\d+", package_key))
-
-
-def archive_entry_load_priority(entry: ArchiveEntry) -> Tuple[int, int, int, int, str]:
-    package_parent = getattr(getattr(entry, "pamt_path", None), "parent", Path())
-    package_name = str(getattr(package_parent, "name", "") or "")
-    package_key = package_name.strip().casefold()
-    package_number_match = re.fullmatch(r"0*(\d+)", package_key)
-    is_numeric_package = bool(package_number_match)
-    is_dmm_package = package_key.startswith("dmm")
-    if is_dmm_package:
-        tier = 3
-    elif not is_numeric_package:
-        tier = 2
-    else:
-        tier = 1
-    package_number = int(package_number_match.group(1)) if package_number_match else -1
-    pamt_stem = str(getattr(getattr(entry, "pamt_path", None), "stem", "") or "").strip().casefold()
-    pamt_number_match = re.fullmatch(r"0*(\d+)", pamt_stem)
-    pamt_number = int(pamt_number_match.group(1)) if pamt_number_match else -1
-    return (
-        tier,
-        package_number,
-        pamt_number,
-        int(getattr(entry, "paz_index", 0) or 0),
-        str(getattr(entry, "pamt_path", "") or "").casefold(),
-    )
-
-
-def active_archive_entry_for_virtual_path(entries: Sequence[ArchiveEntry]) -> Optional[ArchiveEntry]:
-    candidates = [entry for entry in entries if isinstance(entry, ArchiveEntry)]
-    if not candidates:
-        return None
-    return max(candidates, key=archive_entry_load_priority)
-
-
-def order_archive_entries_by_active_overrides(entries: Sequence[ArchiveEntry]) -> List[ArchiveEntry]:
-    grouped: Dict[str, List[ArchiveEntry]] = defaultdict(list)
-    ordered_paths: List[str] = []
-    for entry in entries:
-        normalized_path = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower()
-        if not normalized_path:
-            normalized_path = archive_entry_identity_key(entry)[0]
-        if normalized_path not in grouped:
-            ordered_paths.append(normalized_path)
-        grouped[normalized_path].append(entry)
-    ordered: List[ArchiveEntry] = []
-    for normalized_path in ordered_paths:
-        group_entries = grouped.get(normalized_path, [])
-        if len(group_entries) <= 1:
-            ordered.extend(group_entries)
-            continue
-        active_key = archive_entry_identity_key(active_archive_entry_for_virtual_path(group_entries) or group_entries[0])
-        ordered.extend(
-            sorted(
-                group_entries,
-                key=lambda entry: (
-                    archive_entry_identity_key(entry) != active_key,
-                    -archive_entry_load_priority(entry)[0],
-                    -archive_entry_load_priority(entry)[1],
-                    -archive_entry_load_priority(entry)[2],
-                    str(getattr(entry, "package_label", "") or "").casefold(),
-                ),
-            )
-        )
-    return ordered
 
 
 def build_archive_entry_path_row_index(entries: Sequence[ArchiveEntry]) -> ArchiveRowIndex:

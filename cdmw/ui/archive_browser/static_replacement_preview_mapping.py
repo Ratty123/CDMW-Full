@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable, Mapping, Sequence
 
 from cdmw.models import ModelPreviewData, ModelPreviewMesh
-from cdmw.modding.static_mesh_replacer import _semantic_tokens
+from cdmw.services.mesh_workflow_service import _semantic_tokens
 from cdmw.ui.archive_browser.static_replacement_preview_frame import (
     alignment_preview_frame_from_model,
     apply_alignment_preview_frame,
@@ -254,7 +254,7 @@ def _preview_model_in_original_frame_native(
     parsed_submesh_index_map: dict[int, int] | None = None,
 ) -> ModelPreviewData | None:
     try:
-        from cdmw.modding.mesh_native_core import build_native_preview_model_in_original_frame
+        from cdmw.services.mesh_workflow_service import build_native_preview_model_in_original_frame
     except Exception:
         return None
     report = build_native_preview_model_in_original_frame(
@@ -549,6 +549,7 @@ def source_preview_geometry_key(
                 float(getattr(adjustment, "uniform_scale", 1.0)),
                 str(getattr(adjustment, "material_role", "") or ""),
                 tuple(int(value) for value in tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())),
+                getattr(adjustment, "emissive_strength", None),
             )
         )
     payload = {

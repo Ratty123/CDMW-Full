@@ -3,44 +3,14 @@ from __future__ import annotations
 import math
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
 from typing import Dict, Mapping, Sequence, Tuple
 
+from cdmw.domain.archives.weapon_swap import (
+    WeaponSwapSocketRow,
+    WeaponSwapTemplate,
+    WeaponSwapValidatedWeapon,
+)
 from cdmw.models import AttachmentPartInOutPatchDiff, AttachmentPartInOutPatchResult
-
-
-@dataclass(frozen=True, slots=True)
-class WeaponSwapSocketRow:
-    name: str
-    parent: str
-    rotation: Tuple[float, float, float, float]
-    translation: Tuple[float, float, float]
-
-
-@dataclass(frozen=True, slots=True)
-class WeaponSwapTemplate:
-    template_id: str
-    label: str
-    description: str
-    supported_scopes: Tuple[str, ...]
-    supported_weapon_classes: Tuple[str, ...]
-    risk_level: str = "stable"
-    socket_rows: Tuple[WeaponSwapSocketRow, ...] = ()
-    weapon_socket_rows: Tuple[WeaponSwapSocketRow, ...] = ()
-    touches_iteminfo: bool = False
-    touches_paac: bool = False
-    touches_hkx: bool = False
-    includes_motion_aliases: bool = False
-    advanced_only: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class WeaponSwapValidatedWeapon:
-    display_name: str
-    model_stem: str
-    sheath_stem: str = ""
-    note: str = ""
-
 
 TWOHAND_HIP_TILT_ROTATION: Tuple[float, float, float, float] = (0.0, 0.382683, 0.0, 0.923880)
 TWOHAND_HIP_TILT_TRANSLATION: Tuple[float, float, float] = (0.0, 0.0, -0.150000)

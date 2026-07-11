@@ -8,15 +8,15 @@ from typing import Callable, Optional
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialog
 
-from cdmw.core.archive import set_model_texture_display_preview_max_dimension
-from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
+from cdmw.services.archive_workflow_service import set_model_texture_display_preview_max_dimension
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.models import (
     ArchivePerformanceSettings,
     ModelPreviewRenderSettings,
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
-from cdmw.rendering.native_preview_package_cache import (
+from cdmw.services.preview_rendering_service import (
     native_preview_package_cache_budget,
     prune_native_preview_package_cache,
 )
@@ -41,6 +41,11 @@ class ArchivePreviewSettingsMixin:
     """Preview settings dialogs, persistence reads, and live refresh hooks."""
 
     def _current_model_preview_render_settings(self) -> ModelPreviewRenderSettings:
+        if (
+            getattr(self, "_archive_preview_startup_state_pending", False)
+            and not getattr(self, "_archive_preview_startup_state_applying", False)
+        ):
+            self._ensure_archive_preview_startup_state()
         return clamp_model_preview_render_settings(self._model_preview_render_settings)
 
     def _model_preview_settings_status(self) -> tuple[str, str]:
@@ -55,58 +60,6 @@ class ArchivePreviewSettingsMixin:
         label.clear()
         label.setToolTip("")
         label.setVisible(False)
-
-    def _current_archive_performance_settings(self) -> ArchivePerformanceSettings:
-        return clamp_archive_performance_settings(self._archive_performance_settings)
-
-    def _read_archive_performance_settings(self) -> ArchivePerformanceSettings:
-        defaults = clamp_archive_performance_settings()
-        sidecar_worker_count = self._read_int(
-            "archive/sidecar_worker_count",
-            defaults.sidecar_worker_count,
-        )
-        if not self.settings.contains("archive/sidecar_worker_count"):
-            sidecar_worker_count = self._read_int(
-                "performance/background_worker_limit",
-                defaults.sidecar_worker_count,
-            )
-        return clamp_archive_performance_settings(
-            ArchivePerformanceSettings(
-                resource_profile=str(
-                    self.settings.value("performance/resource_profile", defaults.resource_profile)
-                    or defaults.resource_profile
-                ),
-                archive_fetch_batch_size=self._read_int(
-                    "performance/archive_fetch_batch_size",
-                    defaults.archive_fetch_batch_size,
-                ),
-                native_archive_acceleration=self._read_bool(
-                    "performance/native_archive_acceleration",
-                    defaults.native_archive_acceleration,
-                ),
-                enable_sidecar_indexing=self._read_bool(
-                    "archive/enable_sidecar_indexing",
-                    defaults.enable_sidecar_indexing,
-                ),
-                sidecar_worker_count=sidecar_worker_count,
-                preview_cache_limit=self._read_int(
-                    "archive/preview_cache_limit",
-                    defaults.preview_cache_limit,
-                ),
-                native_preview_cache_mode=str(
-                    self.settings.value("archive/native_preview_cache_mode", defaults.native_preview_cache_mode)
-                    or defaults.native_preview_cache_mode
-                ),
-                quick_then_full_preview=self._read_bool(
-                    "archive/quick_then_full_preview",
-                    defaults.quick_then_full_preview,
-                ),
-                maximum_indexing_priority=self._read_bool(
-                    "archive/maximum_indexing_priority",
-                    defaults.maximum_indexing_priority,
-                ),
-            )
-        )
 
     def _read_model_preview_render_settings(self) -> ModelPreviewRenderSettings:
         defaults = clamp_model_preview_render_settings()
@@ -423,6 +376,7 @@ class ArchivePreviewSettingsMixin:
             dialog.set_archive_performance_settings(self._current_archive_performance_settings())
 
     def _open_model_preview_settings_dialog(self) -> None:
+        self._ensure_archive_preview_startup_state()
         dialog = getattr(self, "model_preview_settings_dialog", None)
         if dialog is None:
             dialog = ModelPreviewSettingsDialog(
@@ -456,6 +410,7 @@ class ArchivePreviewSettingsMixin:
         settings_changed_handler: Optional[Callable[[object], None]] = None,
         preview_settings: Optional[ModelPreviewRenderSettings] = None,
     ) -> QDialog:
+        self._ensure_archive_preview_startup_state()
         dialog = ModelPreviewSettingsDialog(
             settings=preview_settings or self._current_model_preview_render_settings(),
             archive_performance_settings=self._current_archive_performance_settings(),

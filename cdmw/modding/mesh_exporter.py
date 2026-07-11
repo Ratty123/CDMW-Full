@@ -21,6 +21,8 @@ from pathlib import Path, PurePath
 from datetime import UTC, datetime
 from typing import Optional
 
+from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
+
 from .mesh_asset import mesh_skinning_contract
 from .mesh_parser import ParsedMesh, SubMesh
 from .logging import get_logger
@@ -344,7 +346,7 @@ def _sidecar_import_rules(mesh: ParsedMesh, source_identity: dict[str, object]) 
         "allow_normal_edit": True,
         "allow_uv_edit": True,
         "allow_topology_change": False,
-        "preserve_bone_weights": bool(getattr(mesh, "has_bones", False)),
+        "preserve_bone_weights": any(bool(_submesh_bone_layout(submesh).get("has_bones")) for submesh in tuple(getattr(mesh, "submeshes", ()) or ())),
         "require_source_asset_hash": bool(source_identity.get("source_asset_hash")),
     }
 
@@ -445,7 +447,7 @@ def write_roundtrip_manifest(
         companion_path=str(companion_path or ""),
         extra_payload=extra_payload,
     )
-    sidecar_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_text(sidecar_path, json.dumps(payload, indent=2))
     return sidecar_path
 
 
@@ -479,7 +481,8 @@ def _export_obj_native(
 
 
 def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
-               split_submeshes: bool = False, scale: float = 1.0) -> list[str]:
+               split_submeshes: bool = False, scale: float = 1.0,
+               *, extra_payload: Optional[dict] = None) -> list[str]:
     """Export mesh to OBJ + MTL files.
 
     Args:
@@ -505,9 +508,11 @@ def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
     _write_mtl(mtl_path, mesh.submeshes)
 
     sidecar_path = _obj_roundtrip_sidecar_path(obj_path)
-    if _export_obj_native(mesh, obj_path, mtl_path, base, scale, manifest_path=sidecar_path):
+    native_kwargs = {} if extra_payload is None else {"extra_payload": extra_payload}
+    native_exported = _export_obj_native(mesh, obj_path, mtl_path, base, scale, manifest_path=sidecar_path, **native_kwargs)
+    if native_exported:
         if not sidecar_path.is_file():
-            sidecar_path = write_roundtrip_manifest(mesh, obj_path, companion_path=mtl_path)
+            sidecar_path = write_roundtrip_manifest(mesh, obj_path, companion_path=mtl_path, extra_payload=extra_payload)
         logger.info("Exported OBJ: %s (%d verts, %d faces)", obj_path,
                     mesh.total_vertices, mesh.total_faces)
         return [obj_path, mtl_path, str(sidecar_path)]
@@ -570,10 +575,9 @@ def export_obj(mesh: ParsedMesh, output_dir: str, name: str = "",
         uv_offset += len(sm.uvs)
         normal_offset += len(sm.normals)
 
-    with open(obj_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
+    atomic_write_text(obj_path, "\n".join(lines))
 
-    sidecar_path = write_roundtrip_manifest(mesh, obj_path, companion_path=mtl_path)
+    sidecar_path = write_roundtrip_manifest(mesh, obj_path, companion_path=mtl_path, extra_payload=extra_payload)
 
     logger.info("Exported OBJ: %s (%d verts, %d faces)", obj_path,
                 mesh.total_vertices, mesh.total_faces)
@@ -630,8 +634,7 @@ def _write_mtl(path, submeshes):
                 lines.append(f"map_Kd {texture_reference}")
         lines.append("")
 
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
+    atomic_write_text(path, "\n".join(lines))
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1085,8 +1088,7 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
         0xec, 0xe9, 0x0c, 0xe3, 0x75, 0x8f, 0x29, 0x0b,
     ]))
 
-    with open(fbx_path, "wb") as f:
-        f.write(buf.getvalue())
+    atomic_write_bytes(fbx_path, buf.getvalue())
 
     logger.info("Exported FBX: %s (%d verts, %d faces)", fbx_path,
                 mesh.total_vertices, mesh.total_faces)
@@ -1312,8 +1314,7 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
         0xec, 0xe9, 0x0c, 0xe3, 0x75, 0x8f, 0x29, 0x0b,
     ]))
 
-    with open(fbx_path, "wb") as f:
-        f.write(buf.getvalue())
+    atomic_write_bytes(fbx_path, buf.getvalue())
 
     bone_count = len(skeleton.bones) if skeleton else 0
     logger.info("Exported FBX+Skeleton: %s (%d verts, %d faces, %d bones)",

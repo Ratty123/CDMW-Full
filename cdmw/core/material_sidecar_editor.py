@@ -1,21 +1,16 @@
 from __future__ import annotations
 
 import dataclasses
-import json
 import re
-import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path, PurePosixPath
-from typing import Callable, Mapping, Sequence
+from typing import Mapping, Sequence
 
-from cdmw.core.mod_package import (
-    MeshLooseModFile,
-    ModPackageExportOptions,
-    normalize_mod_package_payload_path,
-    resolve_mod_package_root,
-    write_mesh_loose_mod_package_metadata,
+from cdmw.core.material_sidecar_package import (
+    MaterialSidecarExportResult,
+    export_material_sidecar_mod_package,
 )
-from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, ModPackageInfo
+from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 
 
 MATERIAL_SIDECAR_EXTENSIONS = frozenset({".pami", ".pac_xml", ".pam_xml", ".pamlod_xml"})
@@ -54,13 +49,6 @@ class MaterialSidecarRelatedFile:
     confidence: str
     reason: str
     include_by_default: bool = True
-
-
-@dataclasses.dataclass(slots=True, frozen=True)
-class MaterialSidecarExportResult:
-    package_root: Path
-    written_files: tuple[Path, ...]
-    metadata_files: tuple[Path, ...]
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -917,100 +905,3 @@ def detect_material_sidecar_related_files(
                     add(entry, "family", "Texture family suffix match")
 
     return tuple(sorted(related.values(), key=lambda item: (item.confidence, item.entry.path.lower()), reverse=True))
-
-
-def export_material_sidecar_mod_package(
-    *,
-    edited_entry: ArchiveEntry,
-    edited_text: str,
-    related_entries: Sequence[ArchiveEntry],
-    parent_root: Path,
-    package_info: ModPackageInfo,
-    export_options: ModPackageExportOptions | None = None,
-    create_no_encrypt_file: bool = True,
-    read_entry_bytes: Callable[[ArchiveEntry], bytes],
-    on_log: Callable[[str], None] | None = None,
-) -> MaterialSidecarExportResult:
-    resolved_parent_root = parent_root.expanduser().resolve()
-    package_root = resolve_mod_package_root(resolved_parent_root, package_info)
-    if package_root.exists():
-        resolved_package_root = package_root.resolve()
-        if resolved_package_root == resolved_parent_root or resolved_parent_root not in resolved_package_root.parents:
-            raise ValueError(f"Refusing to clear material sidecar package folder outside the export root: {resolved_package_root}")
-        shutil.rmtree(resolved_package_root)
-    package_root.mkdir(parents=True, exist_ok=True)
-
-    def log(message: str) -> None:
-        if on_log is not None:
-            on_log(message)
-
-    written_files: list[Path] = []
-    file_rows: list[MeshLooseModFile] = []
-    written_virtual_paths: set[str] = set()
-
-    edited_payload_path = normalize_mod_package_payload_path(edited_entry.path).as_posix()
-    edited_target = package_root.joinpath(*PurePosixPath(edited_payload_path).parts)
-    edited_target.parent.mkdir(parents=True, exist_ok=True)
-    edited_target.write_text(edited_text, encoding="utf-8")
-    written_files.append(edited_target)
-    written_virtual_paths.add(edited_payload_path.lower())
-    file_rows.append(
-        MeshLooseModFile(
-            path=edited_payload_path,
-            package_group=edited_entry.pamt_path.parent.name,
-            format=PurePosixPath(edited_payload_path).suffix.lstrip(".").lower(),
-            generated_from=edited_entry.path,
-            note="Edited material sidecar generated from archive XML values.",
-        )
-    )
-    log(f"Wrote edited material sidecar: {edited_payload_path}")
-
-    for related_entry in related_entries:
-        if related_entry.path == edited_entry.path:
-            continue
-        payload_path = normalize_mod_package_payload_path(related_entry.path).as_posix()
-        if not payload_path or payload_path.lower() in written_virtual_paths:
-            continue
-        target_path = package_root.joinpath(*PurePosixPath(payload_path).parts)
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_bytes(read_entry_bytes(related_entry))
-        written_files.append(target_path)
-        written_virtual_paths.add(payload_path.lower())
-        file_rows.append(
-            MeshLooseModFile(
-                path=payload_path,
-                package_group=related_entry.pamt_path.parent.name,
-                format=PurePosixPath(payload_path).suffix.lstrip(".").lower(),
-                generated_from=edited_entry.path,
-                note="Related material companion copied from archive.",
-            )
-        )
-        log(f"Copied related material file: {payload_path}")
-
-    manifest_path = package_root / "material_sidecar_edits.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "edited_entry": edited_entry.path,
-                "related_entries": [entry.path for entry in related_entries],
-                "file_count": len(file_rows),
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    metadata_files = write_mesh_loose_mod_package_metadata(
-        package_root,
-        package_info,
-        assets=(),
-        files=file_rows,
-        include_paired_lod=False,
-        export_options=export_options,
-        create_no_encrypt_file=create_no_encrypt_file,
-    )
-    metadata_files.append(manifest_path)
-    return MaterialSidecarExportResult(
-        package_root=package_root,
-        written_files=tuple(written_files),
-        metadata_files=tuple(metadata_files),
-    )

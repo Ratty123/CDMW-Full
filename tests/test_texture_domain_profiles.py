@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from cdmw.core import pipeline
-from cdmw.domain.textures import output, plan, policy, profiles, rules
+from cdmw.domain.textures import output, plan, policy, profiles, rules, semantics
 
 
 class TextureDomainProfileTests(unittest.TestCase):
@@ -191,6 +191,44 @@ class TextureDomainProfileTests(unittest.TestCase):
         self.assertEqual(7, overridden.mip_count)
         self.assertIn("profile matched", overridden.notes)
 
+    def test_texture_output_accepts_injected_semantic_decision_factory(self) -> None:
+        from cdmw.models import DdsInfo, DdsOutputSettings
+
+        decision = semantics.TextureUpscaleDecision(
+            path="body_n.dds",
+            texture_type="normal",
+            semantic_subtype="normal",
+            semantic_confidence=100,
+            should_upscale=False,
+            recommended_colorspace="linear",
+            format_strategy="bc5_linear",
+            recommended_texconv_format="BC5_UNORM",
+            preserve_alpha=False,
+            alpha_mode="none",
+        )
+        adjusted = output.apply_automatic_texture_rule_adjustments(
+            DdsOutputSettings(
+                texconv_format="BC7_UNORM_SRGB",
+                mip_count=1,
+                width=64,
+                height=64,
+                resize_to_dimensions=False,
+            ),
+            Path("body_n.dds"),
+            DdsInfo(
+                width=64,
+                height=64,
+                mip_count=1,
+                texconv_format="BC7_UNORM_SRGB",
+                source_path=Path("body_n.dds"),
+            ),
+            has_alpha=False,
+            preset="balanced",
+            decision_factory=lambda *_args, **_kwargs: decision,
+        )
+
+        self.assertEqual("BC5_UNORM", adjusted.texconv_format)
+
     def test_texture_profile_ui_uses_domain_profile_keys_directly(self) -> None:
         source = Path("cdmw/ui/texture_workflow/workflow_profiles_ui.py").read_text(encoding="utf-8")
 
@@ -257,6 +295,25 @@ class TextureDomainProfileTests(unittest.TestCase):
             ("Review material authority risk flag(s): source_role_warning", "manual review"),
             policy.material_authority_check_review_lines(check_result),
         )
+
+    def test_material_authority_policy_uses_injected_checker(self) -> None:
+        report = {"schema": "example"}
+        final_preview = SimpleNamespace(material_authority_report=report)
+
+        result = policy.check_final_preview_material_authority(
+            final_preview,
+            report_checker=lambda value: {"status": "passed", "same_report": value == report},
+        )
+
+        self.assertEqual({"status": "passed", "same_report": True}, result)
+
+    def test_material_authority_policy_fails_closed_without_checker(self) -> None:
+        result = policy.check_final_preview_material_authority(
+            SimpleNamespace(material_authority_report={"schema": "example"})
+        )
+
+        self.assertEqual("failed", result["status"])
+        self.assertIn("material_authority_checker_unavailable", result["blocking_risk_flags"])
 
 
 if __name__ == "__main__":

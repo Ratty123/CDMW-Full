@@ -7,9 +7,11 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Optional, Sequence
 
-from cdmw.core.research import (
+from cdmw.domain.research.contracts import (
     UnknownResolverGroup,
     UnknownResolverMember,
+)
+from cdmw.domain.research.classification import (
     default_unknown_resolver_label_choice,
     unknown_resolver_choice_for,
 )

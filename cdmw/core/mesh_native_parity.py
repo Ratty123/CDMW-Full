@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
 
 from cdmw.constants import APP_NAME
+from cdmw.core.atomic_file import atomic_write_text
 from cdmw.core.mesh_native import audit_mesh_native
 from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
 
@@ -245,7 +246,7 @@ def run_mesh_native_archive_parity_corpus(
     formats: Optional[Iterable[str]] = None,
     enable_rebuild_for_layouts: Optional[Mapping[str, Iterable[str]]] = None,
 ) -> MeshNativeParityReport:
-    from cdmw.core.archive import read_archive_entry_data
+    from cdmw.core.archive_extraction import read_archive_entry_data
     from cdmw.core.archive_accelerator import scan_archive_entries_native
 
     package_root = Path(package_root).expanduser()
@@ -303,7 +304,7 @@ def run_mesh_native_archive_parity_corpus(
 def write_mesh_native_parity_report(report: MeshNativeParityReport, output_path: Path) -> Path:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(report.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    atomic_write_text(output_path, json.dumps(report.to_dict(), indent=2, sort_keys=True))
     return output_path
 
 

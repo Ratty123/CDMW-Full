@@ -21,10 +21,11 @@ from cdmw.domain.mesh import (
     MeshWorkspaceSummary,
 )
 from cdmw.models import HkxPhysicsOverlayBone, HkxPhysicsOverlayData
-from cdmw.modding.mesh_parser import ParsedMesh
-from cdmw.modding.mesh_importer import MeshRebuildReport
+from cdmw.services.mesh_workflow_service import ParsedMesh
+from cdmw.services.mesh_workflow_service import MeshRebuildReport
 from cdmw.services.mesh_service import MeshService
 from cdmw.ui.mesh_editor.actions import MeshEditorAction, NATIVE_EDITOR_SESSION_COMMANDS, mesh_editor_actions_by_key
+from cdmw.ui.mesh_editor.controller_topology import final_submesh_count, shrink_source_indices
 from cdmw.ui.mesh_editor.native_preview_payloads import (
     mesh_edit_material_override_groups,
     mesh_edit_selection_groups,
@@ -44,7 +45,7 @@ class MeshEditorNativeUpdate:
     refresh_selection: bool = False
     material_override_groups: Sequence[Mapping[str, object]] = ()
     replace_all_triangles: bool = False
-
+    final_submesh_count: int | None = None
 
 @dataclass(frozen=True, slots=True)
 class MeshEditorActionExecution:
@@ -118,7 +119,6 @@ def apply_native_update_to_host(host: object, update: MeshEditorNativeUpdate) ->
             if not (not update.selection_groups and callable(clear) and clear()):
                 return False
     return True
-
 
 class MeshEditorController:
     def __init__(self, context: object | None = None, *, mesh_service: MeshService | None = None) -> None:
@@ -408,7 +408,6 @@ class MeshEditorController:
         command_params.update(params)
         command_mode = mode or descriptor.mode or None
         return self.apply(descriptor.command, selection=selection, mode=command_mode, **command_params)
-
     def run_editor_action(
         self,
         action: MeshEditorAction | str,
@@ -500,16 +499,22 @@ class MeshEditorController:
             result.topology_changed
             and result.ok
             and result.submesh_count_delta < 0
-            and native_triangle_groups
             and (current_selection is None or current_selection.is_empty() or selection_groups)
         ):
             requested = _native_topology_refresh_source_indices(result, native_triangle_groups)
+            final_count = final_submesh_count(self, result)
+            if final_count is None:
+                raise RuntimeError(
+                    f"native topology result for {result.action} did not include final submesh count"
+                )
+            requested = shrink_source_indices(result, requested, final_count)
             return MeshEditorNativeUpdate(
                 triangle_groups=native_triangle_groups,
                 triangle_source_submesh_indices=requested,
                 selection_groups=selection_groups,
                 refresh_selection=True,
                 material_override_groups=_material_override_groups_for_native_triangle_groups(native_triangle_groups),
+                final_submesh_count=final_count,
             )
         if (
             result.topology_changed
@@ -557,19 +562,6 @@ class MeshEditorController:
                 f"active native {result.action} result did not include preview payload; "
                 "Python preview rebuild is disabled"
             )
-        if (
-            result.topology_changed
-            and result.ok
-            and result.submesh_count_delta < 0
-            and (current_selection is None or current_selection.is_empty() or selection_groups)
-        ):
-            requested = tuple(sorted({int(index) for index in result.affected_submesh_indices if int(index) >= 0}))
-            if requested:
-                return MeshEditorNativeUpdate(
-                    triangle_source_submesh_indices=requested,
-                    selection_groups=selection_groups,
-                    refresh_selection=True,
-                )
         if result.topology_changed and result.ok and (result.submesh_counts or result.metrics.get("python_apply_deferred") == 1.0):
             raise RuntimeError(
                 f"native topology result for {result.action} did not include preview triangle groups; "
@@ -663,7 +655,7 @@ class MeshEditorController:
                 ),
                 refresh_selection=True,
                 material_override_groups=mesh_edit_material_override_groups(mesh, affected, include_defaults=True),
-                replace_all_triangles=True,
+                replace_all_triangles=True, final_submesh_count=len(mesh.submeshes),
             )
         if result.topology_changed:
             affected, requested = _topology_refresh_source_indices(mesh, result)
@@ -684,7 +676,7 @@ class MeshEditorController:
                 ),
                 refresh_selection=True,
                 material_override_groups=mesh_edit_material_override_groups(mesh, refresh_sources, include_defaults=True),
-                replace_all_triangles=replace_all,
+                replace_all_triangles=replace_all, final_submesh_count=len(mesh.submeshes) if replace_all else None,
             )
         if result.action in {"material_assign", "material_copy"} and result.affected_submesh_indices:
             affected = result.affected_submesh_indices

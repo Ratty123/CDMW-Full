@@ -1,38 +1,46 @@
 from __future__ import annotations
 
-import csv
-import json
 from collections import defaultdict
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from cdmw.core.archive import ArchiveEntry
 from cdmw.core.common import raise_if_cancelled
-from cdmw.core.research import (
-    MaterialTextureReferenceRow,
+from cdmw.core.research_report import export_research_analysis_report
+from cdmw.core.research_archive_analysis import (
     _build_family_members_by_relative_path,
-    _build_loose_sidecar_index,
-    _collect_loose_sidecar_texts,
-    _normalized_parts,
-    _reference_path_keys,
     build_archive_research_snapshot,
-    build_ui_constraint_reference_rows,
     classify_texture_path,
     derive_texture_group_key,
-    system_area_from_path,
+)
+from cdmw.core.research_references import _reference_path_keys, build_ui_constraint_reference_rows
+from cdmw.domain.research.classification import _normalized_parts, system_area_from_path
+from cdmw.domain.research.contracts import (
+    AtlasDetectionRow,
+    MaterialTextureReferenceRow,
+    MipAnalysisRow,
+    NormalValidationRow,
+    TextureBudgetClassSummary,
+    TextureBudgetGroupSummary,
+    TextureBudgetProfileSummary,
+    TextureBudgetRow,
+    TexturePreviewStats,
+    TextureUsageHeatRow,
 )
 from cdmw.core.texture_pipeline.discovery import collect_dds_files
 from cdmw.core.texture_pipeline.inspection import parse_dds
-from cdmw.core.texture_pipeline.planning import build_texture_processing_plan
+from cdmw.core.texture_pipeline.planning import (
+    _build_loose_sidecar_index,
+    _collect_loose_sidecar_texts,
+    build_texture_processing_plan,
+)
 from cdmw.core.texture_pipeline.preview import collect_compare_relative_paths, ensure_dds_preview_png
 from cdmw.core.texture_pipeline.runtime_config import normalize_config_for_planning
 from cdmw.domain.textures.output import max_mips_for_size
 from cdmw.domain.textures.plan import describe_processing_path_kind
 from cdmw.domain.textures.profiles import _SCALAR_HIGH_PRECISION_MASK_SUBTYPES
 from cdmw.core.upscale_profiles import is_png_intermediate_high_risk
-from cdmw.models import AppConfig, TextureProcessingPlan
+from cdmw.models import AppConfig, ArchiveEntry, TextureProcessingPlan
 
 try:
     from PySide6.QtGui import QColor, QImage
@@ -84,157 +92,6 @@ _TEXTURE_TYPE_BASELINE_RISK: Dict[str, int] = {
     "mask": 78,
     "vector": 88,
 }
-
-@dataclass(slots=True)
-class MipAnalysisRow:
-    relative_path: str
-    original_format: str
-    rebuilt_format: str
-    original_size: str
-    rebuilt_size: str
-    original_mips: int
-    rebuilt_mips: int
-    warning_count: int
-    planner_profile: str = ""
-    planner_path_kind: str = ""
-    planner_backend_mode: str = ""
-    planner_alpha_policy: str = ""
-    planner_preserve_reason: str = ""
-    warnings: List[str] = field(default_factory=list)
-
-@dataclass(slots=True)
-class NormalValidationRow:
-    path: str
-    root_label: str
-    texconv_format: str
-    size_text: str
-    issue_count: int
-    root_path: str = ""
-    planner_profile: str = ""
-    planner_path_kind: str = ""
-    planner_backend_mode: str = ""
-    planner_alpha_policy: str = ""
-    planner_preserve_reason: str = ""
-    issues: List[str] = field(default_factory=list)
-
-@dataclass(slots=True)
-class AtlasDetectionRow:
-    path: str
-    root_label: str
-    size_text: str
-    score: int
-    signals: List[str] = field(default_factory=list)
-
-@dataclass(slots=True)
-class TexturePreviewStats:
-    path: str
-    width: int
-    height: int
-    sample_count: int
-    has_alpha: bool
-    mean_r: float
-    mean_g: float
-    mean_b: float
-    mean_a: float
-    min_r: int
-    min_g: int
-    min_b: int
-    min_a: int
-    max_r: int
-    max_g: int
-    max_b: int
-    max_a: int
-    luma_mean: float
-    luma_min: float
-    luma_max: float
-    opaque_fraction: float
-    transparent_fraction: float
-
-@dataclass(slots=True)
-class TextureUsageHeatRow:
-    scope: str
-    label: str
-    texture_count: int
-    set_count: int
-    normal_count: int
-    ui_count: int
-    material_count: int
-    impostor_count: int
-    heat_score: int
-    sample_paths: List[str] = field(default_factory=list)
-
-@dataclass(slots=True)
-class TextureBudgetRow:
-    relative_path: str
-    group_key: str
-    system_area: str
-    folder_bucket: str
-    texture_type: str
-    planner_profile: str
-    planner_path_kind: str
-    planner_alpha_policy: str
-    original_bytes: int
-    rebuilt_bytes: int
-    byte_delta: int
-    byte_ratio: float
-    original_width: int
-    original_height: int
-    rebuilt_width: int
-    rebuilt_height: int
-    pixel_ratio: float
-    original_mips: int
-    rebuilt_mips: int
-    mip_delta: int
-    original_format: str
-    rebuilt_format: str
-    format_changed: bool
-    changed: bool
-    explicit_ui_constraint: bool = False
-    ui_constraint_summary: str = ""
-    risk_score: int = 0
-    risk_band: str = ""
-    risk_signals: List[str] = field(default_factory=list)
-
-@dataclass(slots=True)
-class TextureBudgetClassSummary:
-    texture_type: str
-    affected_count: int
-    total_byte_delta: int
-    average_risk: float
-    risk_band: str
-    sample_paths: List[str] = field(default_factory=list)
-
-@dataclass(slots=True)
-class TextureBudgetGroupSummary:
-    group_key: str
-    system_area: str
-    texture_count: int
-    total_original_bytes: int
-    total_rebuilt_bytes: int
-    total_byte_delta: int
-    average_byte_ratio: float
-    max_byte_ratio: float
-    average_width: float
-    average_height: float
-    large_2048_count: int
-    large_4096_count: int
-    average_risk: float
-    risk_score: int
-    risk_band: str
-    signals: List[str] = field(default_factory=list)
-
-@dataclass(slots=True)
-class TextureBudgetProfileSummary:
-    profile_label: str
-    total_original_bytes: int
-    total_rebuilt_bytes: int
-    total_byte_delta: int
-    total_byte_ratio: float
-    changed_texture_count: int
-    upscaled_texture_count: int
-    high_risk_texture_fraction: float
-    highest_group_risk: int
-    reasons: List[str] = field(default_factory=list)
 
 def build_texture_usage_heatmap(
     entries: Sequence[ArchiveEntry],
@@ -300,7 +157,7 @@ def build_texture_budget_analysis(
         sidecars_by_texture_path,
         sidecars_by_texture_basename,
         sidecar_text_cache,
-    ) = _build_loose_sidecar_index(original_root)
+    ) = _build_loose_sidecar_index(original_root, stop_event=stop_event)
     if ui_constraint_related_paths:
         ui_constraint_keys: set[str] = set()
         for path_value in ui_constraint_related_paths:
@@ -322,6 +179,7 @@ def build_texture_budget_analysis(
                 sidecars_by_texture_path=sidecars_by_texture_path,
                 sidecars_by_texture_basename=sidecars_by_texture_basename,
                 text_cache=sidecar_text_cache,
+                stop_event=stop_event,
             )
         )
     for relative_path_text in compare_relative_paths:
@@ -563,185 +421,18 @@ def export_texture_analysis_report(
     budget_class_rows: Sequence[TextureBudgetClassSummary] = (),
     budget_group_rows: Sequence[TextureBudgetGroupSummary] = (),
     budget_profile: Optional[TextureBudgetProfileSummary] = None,
+    stop_event: Optional[object] = None,
 ) -> Path:
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    suffix = report_path.suffix.lower()
-    if suffix == ".json":
-        payload = {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "mip_rows": [asdict(row) for row in mip_rows],
-            "normal_rows": [asdict(row) for row in normal_rows],
-            "budget_rows": [asdict(row) for row in budget_rows],
-            "budget_class_rows": [asdict(row) for row in budget_class_rows],
-            "budget_group_rows": [asdict(row) for row in budget_group_rows],
-            "budget_profile": asdict(budget_profile) if budget_profile is not None else None,
-        }
-        report_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        return report_path
-
-    with report_path.open("w", encoding="utf-8", newline="") as handle:
-        fieldnames = [
-            "report_type",
-            "path",
-            "root",
-            "root_path",
-            "original_format",
-            "rebuilt_format",
-            "original_size",
-            "rebuilt_size",
-            "original_mips",
-            "rebuilt_mips",
-            "planner_profile",
-            "planner_path_kind",
-            "planner_backend_mode",
-            "planner_alpha_policy",
-            "planner_preserve_reason",
-            "format",
-            "size",
-            "issue_count",
-            "summary",
-            "relative_path",
-            "group_key",
-            "system_area",
-            "folder_bucket",
-            "texture_type",
-            "original_bytes",
-            "rebuilt_bytes",
-            "byte_delta",
-            "byte_ratio",
-            "original_width",
-            "original_height",
-            "rebuilt_width",
-            "rebuilt_height",
-            "pixel_ratio",
-            "mip_delta",
-            "rebuilt_format_changed",
-            "risk_score",
-            "risk_band",
-            "signals",
-            "profile_label",
-            "reason_count",
-        ]
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in mip_rows:
-            writer.writerow(
-                {
-                    "report_type": "mip",
-                    "path": row.relative_path,
-                    "original_format": row.original_format,
-                    "rebuilt_format": row.rebuilt_format,
-                    "original_size": row.original_size,
-                    "rebuilt_size": row.rebuilt_size,
-                    "original_mips": row.original_mips,
-                    "rebuilt_mips": row.rebuilt_mips,
-                    "planner_profile": row.planner_profile,
-                    "planner_path_kind": row.planner_path_kind,
-                    "planner_backend_mode": row.planner_backend_mode,
-                    "planner_alpha_policy": row.planner_alpha_policy,
-                    "planner_preserve_reason": row.planner_preserve_reason,
-                    "root_path": "",
-                    "issue_count": row.warning_count,
-                    "summary": " | ".join(row.warnings),
-                }
-            )
-        for row in normal_rows:
-            writer.writerow(
-                {
-                    "report_type": "normal",
-                    "path": row.path,
-                    "root": row.root_label,
-                    "root_path": row.root_path,
-                    "planner_profile": row.planner_profile,
-                    "planner_path_kind": row.planner_path_kind,
-                    "planner_backend_mode": row.planner_backend_mode,
-                    "planner_alpha_policy": row.planner_alpha_policy,
-                    "planner_preserve_reason": row.planner_preserve_reason,
-                    "format": row.texconv_format,
-                    "size": row.size_text,
-                    "issue_count": row.issue_count,
-                    "summary": " | ".join(row.issues),
-                }
-            )
-        for row in budget_rows:
-            writer.writerow(
-                {
-                    "report_type": "budget_file",
-                    "path": row.relative_path,
-                    "relative_path": row.relative_path,
-                    "group_key": row.group_key,
-                    "system_area": row.system_area,
-                    "folder_bucket": row.folder_bucket,
-                    "texture_type": row.texture_type,
-                    "planner_profile": row.planner_profile,
-                    "planner_path_kind": row.planner_path_kind,
-                    "planner_alpha_policy": row.planner_alpha_policy,
-                    "original_format": row.original_format,
-                    "rebuilt_format": row.rebuilt_format,
-                    "original_bytes": row.original_bytes,
-                    "rebuilt_bytes": row.rebuilt_bytes,
-                    "byte_delta": row.byte_delta,
-                    "byte_ratio": f"{row.byte_ratio:.4f}",
-                    "original_width": row.original_width,
-                    "original_height": row.original_height,
-                    "rebuilt_width": row.rebuilt_width,
-                    "rebuilt_height": row.rebuilt_height,
-                    "pixel_ratio": f"{row.pixel_ratio:.4f}",
-                    "original_mips": row.original_mips,
-                    "rebuilt_mips": row.rebuilt_mips,
-                    "mip_delta": row.mip_delta,
-                    "rebuilt_format_changed": "yes" if row.format_changed else "no",
-                    "risk_score": row.risk_score,
-                    "risk_band": row.risk_band,
-                    "signals": " | ".join(row.risk_signals),
-                    "summary": row.ui_constraint_summary,
-                }
-            )
-        for row in budget_class_rows:
-            writer.writerow(
-                {
-                    "report_type": "budget_class",
-                    "texture_type": row.texture_type,
-                    "byte_delta": row.total_byte_delta,
-                    "risk_score": f"{row.average_risk:.2f}",
-                    "risk_band": row.risk_band,
-                    "summary": " | ".join(row.sample_paths),
-                }
-            )
-        for row in budget_group_rows:
-            writer.writerow(
-                {
-                    "report_type": "budget_group",
-                    "group_key": row.group_key,
-                    "system_area": row.system_area,
-                    "original_bytes": row.total_original_bytes,
-                    "rebuilt_bytes": row.total_rebuilt_bytes,
-                    "byte_delta": row.total_byte_delta,
-                    "byte_ratio": f"{row.average_byte_ratio:.4f}",
-                    "rebuilt_width": f"{row.average_width:.1f}",
-                    "rebuilt_height": f"{row.average_height:.1f}",
-                    "risk_score": row.risk_score,
-                    "risk_band": row.risk_band,
-                    "signals": " | ".join(row.signals),
-                    "summary": f"textures={row.texture_count}, 2048+={row.large_2048_count}, 4096+={row.large_4096_count}",
-                }
-            )
-        if budget_profile is not None:
-            writer.writerow(
-                {
-                    "report_type": "budget_profile",
-                    "profile_label": budget_profile.profile_label,
-                    "original_bytes": budget_profile.total_original_bytes,
-                    "rebuilt_bytes": budget_profile.total_rebuilt_bytes,
-                    "byte_delta": budget_profile.total_byte_delta,
-                    "byte_ratio": f"{budget_profile.total_byte_ratio:.4f}",
-                    "risk_score": f"{budget_profile.high_risk_texture_fraction:.4f}",
-                    "signals": " | ".join(budget_profile.reasons),
-                    "reason_count": len(budget_profile.reasons),
-                    "summary": f"highest_group_risk={budget_profile.highest_group_risk}, changed={budget_profile.changed_texture_count}, upscaled={budget_profile.upscaled_texture_count}",
-                }
-            )
-    return report_path
+    return export_research_analysis_report(
+        report_path,
+        mip_rows,
+        normal_rows,
+        budget_rows=budget_rows,
+        budget_class_rows=budget_class_rows,
+        budget_group_rows=budget_group_rows,
+        budget_profile=budget_profile,
+        stop_event=stop_event,
+    )
 
 def build_processing_plan_lookup(
     app_config: AppConfig,
@@ -855,17 +546,6 @@ def _collect_preview_stats(image_path: Path) -> Optional[TexturePreviewStats]:
         opaque_fraction=opaque_count / sample_count,
         transparent_fraction=transparent_count / sample_count,
     )
-
-def _sample_image_channel_stats(image_path: Path) -> Optional[Dict[str, float]]:
-    stats = _collect_preview_stats(image_path)
-    if stats is None:
-        return None
-    return {
-        "r": stats.mean_r,
-        "g": stats.mean_g,
-        "b": stats.mean_b,
-        "a": stats.mean_a,
-    }
 
 def _preview_stats_summary(stats: Optional[TexturePreviewStats]) -> str:
     if stats is None:
@@ -1132,7 +812,9 @@ def build_mip_analysis_detail(
     *,
     texconv_path: Optional[Path] = None,
     family_members_by_path: Optional[Dict[str, Tuple[str, ...]]] = None,
+    stop_event: Optional[object] = None,
 ) -> str:
+    raise_if_cancelled(stop_event, "Mip analysis detail cancelled.")
     relative = Path(row.relative_path)
     original_path = original_root / relative
     rebuilt_path = rebuilt_root / relative
@@ -1142,10 +824,14 @@ def build_mip_analysis_detail(
         sidecars_by_texture_path,
         sidecars_by_texture_basename,
         sidecar_text_cache,
-    ) = _build_loose_sidecar_index(original_root)
+    ) = _build_loose_sidecar_index(original_root, stop_event=stop_event)
     resolved_family_members = family_members_by_path
     if resolved_family_members is None:
-        resolved_family_members = build_mip_analysis_family_members_by_path(original_root, rebuilt_root)
+        resolved_family_members = build_mip_analysis_family_members_by_path(
+            original_root,
+            rebuilt_root,
+            stop_event=stop_event,
+        )
     family_members = resolved_family_members.get(row.relative_path, ())
     sidecar_texts = tuple(
         _collect_loose_sidecar_texts(
@@ -1156,6 +842,7 @@ def build_mip_analysis_detail(
             sidecars_by_texture_path=sidecars_by_texture_path,
             sidecars_by_texture_basename=sidecars_by_texture_basename,
             text_cache=sidecar_text_cache,
+            stop_event=stop_event,
         )
     )
     texture_type, confidence, reason = classify_texture_path(
@@ -1183,19 +870,34 @@ def build_mip_analysis_detail(
     ]
     if row.planner_preserve_reason:
         detail_lines.append(f"Planner preserve reason: {row.planner_preserve_reason}")
+    raise_if_cancelled(stop_event, "Mip analysis detail cancelled.")
     size_summary, size_warnings = _compare_file_sizes(original_path, rebuilt_path)
     compare_warnings: List[str] = []
     detail_lines.extend(["", size_summary])
     try:
-        original_preview = _collect_preview_stats(ensure_dds_preview_png(texconv_path if texconv_path is not None and texconv_path.exists() else None, original_path))
+        original_preview = _collect_preview_stats(
+            ensure_dds_preview_png(
+                texconv_path if texconv_path is not None and texconv_path.exists() else None,
+                original_path,
+                stop_event=stop_event,
+            )
+        )
     except Exception as exc:
+        raise_if_cancelled(stop_event, "Mip analysis detail cancelled.")
         original_preview = None
         detail_lines.append(f"Original preview: unavailable ({exc})")
     else:
         detail_lines.extend(["", *_format_preview_pair_section("Original preview", original_preview)])
     try:
-        rebuilt_preview = _collect_preview_stats(ensure_dds_preview_png(texconv_path if texconv_path is not None and texconv_path.exists() else None, rebuilt_path))
+        rebuilt_preview = _collect_preview_stats(
+            ensure_dds_preview_png(
+                texconv_path if texconv_path is not None and texconv_path.exists() else None,
+                rebuilt_path,
+                stop_event=stop_event,
+            )
+        )
     except Exception as exc:
+        raise_if_cancelled(stop_event, "Mip analysis detail cancelled.")
         rebuilt_preview = None
         detail_lines.append(f"Rebuilt preview: unavailable ({exc})")
     else:
@@ -1241,6 +943,7 @@ def build_mip_analysis_detail(
         detail_lines.append("")
         detail_lines.append("Additional analysis warnings: none.")
 
+    raise_if_cancelled(stop_event, "Mip analysis detail cancelled.")
     return "\n".join(detail_lines)
 
 def build_normal_validation_detail(
@@ -1248,7 +951,9 @@ def build_normal_validation_detail(
     row: NormalValidationRow,
     *,
     texconv_path: Optional[Path] = None,
+    stop_event: Optional[object] = None,
 ) -> str:
+    raise_if_cancelled(stop_event, "Normal validation detail cancelled.")
     source_path = root / row.path
     detail_lines: List[str] = [
         f"Relative path: {row.path}",
@@ -1273,8 +978,15 @@ def build_normal_validation_detail(
 
     if source_path.exists():
         try:
-            preview_stats = _collect_preview_stats(ensure_dds_preview_png(texconv_path if texconv_path is not None and texconv_path.exists() else None, source_path))
+            preview_stats = _collect_preview_stats(
+                ensure_dds_preview_png(
+                    texconv_path if texconv_path is not None and texconv_path.exists() else None,
+                    source_path,
+                    stop_event=stop_event,
+                )
+            )
         except Exception as exc:
+            raise_if_cancelled(stop_event, "Normal validation detail cancelled.")
             preview_stats = None
             detail_lines.extend(["", f"Preview statistics: unavailable ({exc})"])
         else:
@@ -1317,6 +1029,7 @@ def build_normal_validation_detail(
         detail_lines.append("Precision note:")
         detail_lines.append("- This texture type or source format is sensitive to PNG intermediates; compare carefully after rebuild.")
 
+    raise_if_cancelled(stop_event, "Normal validation detail cancelled.")
     return "\n".join(detail_lines)
 
 def analyze_mip_behavior(
@@ -1343,7 +1056,7 @@ def analyze_mip_behavior(
         sidecars_by_texture_path,
         sidecars_by_texture_basename,
         sidecar_text_cache,
-    ) = _build_loose_sidecar_index(original_root)
+    ) = _build_loose_sidecar_index(original_root, stop_event=stop_event)
     compare_relative_paths = sorted(resolved_family_members.keys())
     sidecar_texts_by_relative_path: Dict[str, Tuple[str, ...]] = {}
     for relative_path_text in compare_relative_paths:
@@ -1356,6 +1069,7 @@ def analyze_mip_behavior(
                 sidecars_by_texture_path=sidecars_by_texture_path,
                 sidecars_by_texture_basename=sidecars_by_texture_basename,
                 text_cache=sidecar_text_cache,
+                stop_event=stop_event,
             )
         )
     for relative_path_text in compare_relative_paths:
@@ -1536,7 +1250,7 @@ def validate_normal_maps(
         sidecars_by_texture_path,
         sidecars_by_texture_basename,
         sidecar_text_cache,
-    ) = _build_loose_sidecar_index(root)
+    ) = _build_loose_sidecar_index(root, stop_event=stop_event)
     grouped_by_key: Dict[str, List[Path]] = defaultdict(list)
     for dds_path in dds_files:
         grouped_by_key[derive_texture_group_key(dds_path.relative_to(root).as_posix())].append(dds_path)
@@ -1552,6 +1266,7 @@ def validate_normal_maps(
                 sidecars_by_texture_path=sidecars_by_texture_path,
                 sidecars_by_texture_basename=sidecars_by_texture_basename,
                 text_cache=sidecar_text_cache,
+                stop_event=stop_event,
             )
         )
     normal_candidate_count = sum(

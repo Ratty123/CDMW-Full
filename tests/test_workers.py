@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.workers.cancellation import CancellationToken
 from cdmw.workers.d3d11_package_workers import ArchiveNativePreviewPrefetchWorker
 from cdmw.workers.preview_workers import AlignmentOriginalTexturePreviewWorker, VisualPlacementPreviewWorker
@@ -35,7 +36,7 @@ class WorkerFoundationTests(unittest.TestCase):
         self.assertFalse(token.is_stop_requested())
         token.request_stop()
         self.assertTrue(token.is_stop_requested())
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(RunCancelled):
             token.raise_if_cancelled()
 
     def test_utility_worker_runs_callable_and_emits_result(self) -> None:

@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.item_icon import ITEM_ICON_DEFAULT_BACKGROUND_MODE, normalize_item_icon_background_mode
+from cdmw.domain.library.item_icons import ITEM_ICON_DEFAULT_BACKGROUND_MODE, normalize_item_icon_background_mode
 from cdmw.ui.widgets import PreviewLabel, PreviewScrollArea
 
 

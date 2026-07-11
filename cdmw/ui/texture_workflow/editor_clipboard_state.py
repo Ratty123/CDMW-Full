@@ -7,7 +7,8 @@ from typing import Dict, Mapping, Optional, Tuple
 
 import numpy as np
 
-from cdmw.core.texture_editor import add_texture_editor_layer, clear_texture_editor_selection
+from cdmw.domain.textures.editor_layers import add_texture_editor_layer
+from cdmw.domain.textures.editor_selection import clear_texture_editor_selection
 from cdmw.models import TextureEditorDocument, TextureEditorLayer
 from cdmw.ui.texture_workflow.editor_layer_state import texture_editor_layer_pixel_target_state
 from cdmw.ui.texture_workflow.editor_selection_state import TextureEditorActiveLayerSelectionPayloadState

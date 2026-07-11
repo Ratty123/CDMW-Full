@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
+import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 
 class RuntimeDependencySmokeTests(unittest.TestCase):
@@ -38,24 +42,92 @@ class RuntimeDependencySmokeTests(unittest.TestCase):
         importlib.import_module("cdmw.core.texture_editor")
         importlib.import_module("cdmw.ui.texture_editor_tab")
 
-    def test_gui_startup_smoke_constructs_main_window(self) -> None:
-        env = os.environ.copy()
-        env["QT_QPA_PLATFORM"] = "offscreen"
-        env["CDMW_GUI_STARTUP_SMOKE"] = "1"
+    def test_public_gui_entry_imports_lazily(self) -> None:
+        script = "\n".join(
+            (
+                "import importlib",
+                "import sys",
+                "main_window = importlib.import_module('cdmw.ui.main_window')",
+                "assert callable(main_window.MainWindow)",
+                "assert callable(main_window.run_gui)",
+                "assert 'cdmw.ui.shell.run_gui' not in sys.modules",
+                "assert 'cdmw.ui.shell.app_window' not in sys.modules",
+                "shell_run_gui = importlib.import_module('cdmw.ui.shell.run_gui')",
+                "assert callable(shell_run_gui.run_gui)",
+                "assert 'cdmw.ui.shell.app_window' not in sys.modules",
+            )
+        )
         result = subprocess.run(
-            [sys.executable, "cdmw_app.py"],
+            [sys.executable, "-c", script],
             cwd=Path(__file__).resolve().parents[1],
-            env=env,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=45,
+            timeout=20,
         )
+
         self.assertEqual(
-            result.returncode,
             0,
-            f"GUI startup smoke failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+            result.returncode,
+            f"Lazy GUI import smoke failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
         )
+
+    def test_gui_startup_smoke_constructs_main_window(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "gui-startup-result.json"
+            result_path.write_text('{"ok": false, "stage": "stale"}\n', encoding="utf-8")
+            env = os.environ.copy()
+            env["QT_QPA_PLATFORM"] = "offscreen"
+            env["CDMW_GUI_STARTUP_SMOKE"] = "1"
+            env["CDMW_GUI_STARTUP_SMOKE_RESULT"] = str(result_path)
+            env["CDMW_SINGLE_INSTANCE_SCOPE"] = f"runtime-smoke-{os.getpid()}-{uuid.uuid4().hex}"
+            env.pop("CDMW_GUI_STARTUP_SMOKE_TARGET", None)
+            result = subprocess.run(
+                [sys.executable, "cdmw_app.py"],
+                cwd=Path(__file__).resolve().parents[1],
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=45,
+            )
+            self.assertEqual(
+                result.returncode,
+                0,
+                f"GUI startup smoke failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+            )
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+
+        self.assertIs(True, payload.get("ok"))
+        self.assertEqual("post_construction", payload.get("stage"))
+        self.assertEqual("default", payload.get("target"))
+        self.assertGreater(int(payload.get("pid", 0)), 0)
+
+    def test_gui_startup_smoke_lock_collision_is_not_success(self) -> None:
+        from cdmw.app import bootstrap
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "gui-startup-result.json"
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "CDMW_GUI_STARTUP_SMOKE": "1",
+                        "CDMW_GUI_STARTUP_SMOKE_RESULT": str(result_path),
+                        "CDMW_GUI_STARTUP_SMOKE_TARGET": "",
+                    },
+                ),
+                patch("cdmw.app.bootstrap.acquire_single_instance_guard", return_value=False),
+                patch("cdmw.app.bootstrap.request_existing_instance_activation") as activate,
+                patch("cdmw.app.bootstrap.update_pyinstaller_boot_splash"),
+            ):
+                exit_code = bootstrap.main([])
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(3, exit_code)
+        self.assertIs(False, payload.get("ok"))
+        self.assertEqual("single_instance_guard", payload.get("stage"))
+        activate.assert_not_called()
 
 
 class RuntimeDependencySourceGuardTests(unittest.TestCase):
@@ -112,7 +184,7 @@ class RuntimeDependencySourceGuardTests(unittest.TestCase):
         self.assertIn("BuildProfile", source)
         self.assertIn("CDMW_PYINSTALLER_MODE", source)
         self.assertIn("CDMW_PYINSTALLER_PROFILE", source)
-        self.assertIn("$nativeBuildArgs = @{ Configuration = $nativeConfig }", source)
+        self.assertIn("$nativeBuildArgs = @{ Configuration = $Configuration }", source)
         self.assertIn('if ($BuildProfile -ne "fast")', source)
         self.assertIn("$nativeBuildArgs.Clean = $true", source)
         self.assertIn("Assert-CleanPythonSitePackages", source)

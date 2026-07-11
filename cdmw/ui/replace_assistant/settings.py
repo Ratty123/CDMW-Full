@@ -12,7 +12,7 @@ from cdmw.constants import (
     REALESRGAN_NCNN_SCALE,
     REALESRGAN_NCNN_TILE_SIZE,
 )
-from cdmw.core.mod_package import MOD_PACKAGE_MANAGER_PROFILES, mod_package_export_options_for_manager
+from cdmw.domain.packages.export_policy import MOD_PACKAGE_MANAGER_PROFILES, mod_package_export_options_for_manager
 from cdmw.services.workspace_layout import workspace_paths
 
 

@@ -46,6 +46,7 @@ internal sealed partial class MeshViewport
             viewport.FrameRendered += RecordRenderedFrame;
             if (!viewport.TryInitialize(out var error))
             {
+                RetainD3D11LifecycleCounts(viewport);
                 viewport.Dispose();
                 _lastD3D11Error = error;
                 var nextStep = ProductionD3D11Required ? "blocking renderer" : "trying WPF fallback";
@@ -60,6 +61,10 @@ internal sealed partial class MeshViewport
         }
         catch (Exception ex)
         {
+            if (viewport is not null)
+            {
+                RetainD3D11LifecycleCounts(viewport);
+            }
             viewport?.Dispose();
             _d3d11Viewport = null;
             _lastD3D11Error = ex.Message;
@@ -109,6 +114,7 @@ internal sealed partial class MeshViewport
         }
         failed.BackendUnavailable -= HandleD3D11BackendUnavailable;
         failed.FrameRendered -= RecordRenderedFrame;
+        RetainD3D11LifecycleCounts(failed);
         Controls.Remove(failed);
         _d3d11Viewport = null;
         failed.Dispose();
@@ -135,8 +141,10 @@ internal sealed partial class MeshViewport
         if (_d3d11Viewport is not null)
         {
             _d3d11Viewport.MaterialDebugMode = MaterialDebugMode;
+            _d3d11Viewport.ShowSolid = ShowSolid;
+            _d3d11Viewport.TexturesEnabled = TexturesEnabled;
             _d3d11Viewport.UpdateCamera(_camera);
-            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _selectedSources, SelectedSubmeshIndex, ShowWire, ShowXRay);
+            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _selectedSources, SelectedSubmeshIndex, ShowWire, ShowVertices, ShowXRay);
             return;
         }
         var viewport = _gpuViewport;
@@ -157,5 +165,74 @@ internal sealed partial class MeshViewport
             ShowWire,
             ShowXRay,
             _camera.Project);
+    }
+
+    public void RefreshTextures()
+    {
+        _d3d11Viewport?.RefreshTextures();
+        RequestFrame();
+        Invalidate();
+    }
+
+    public bool TryApplyMaterialState(IReadOnlyCollection<int> affectedSubmeshes, out string error)
+    {
+        if (_d3d11Viewport is not null)
+        {
+            var applied = _d3d11Viewport.TryApplyMaterialState(affectedSubmeshes, out error);
+            if (applied)
+            {
+                RequestFrame();
+                Invalidate();
+            }
+            return applied;
+        }
+        if (ProductionD3D11Required || _rendererBlocked)
+        {
+            error = string.IsNullOrWhiteSpace(_rendererBlockReason)
+                ? "D3D11 material renderer is unavailable."
+                : _rendererBlockReason;
+            return false;
+        }
+        error = string.Empty;
+        RequestFrame();
+        Invalidate();
+        return true;
+    }
+
+    public bool TryApplyMaterialParameters(IReadOnlyCollection<int> affectedSubmeshes, out string error)
+    {
+        if (_d3d11Viewport is null)
+        {
+            error = ProductionD3D11Required || _rendererBlocked
+                ? (string.IsNullOrWhiteSpace(_rendererBlockReason) ? "D3D11 material renderer is unavailable." : _rendererBlockReason)
+                : "Material parameter updates require the D3D11 material renderer; WPF/GDI fallback is unsupported.";
+            return false;
+        }
+        if (!_d3d11Viewport.TryApplyMaterialParameters(affectedSubmeshes, out error))
+        {
+            return false;
+        }
+        RequestFrame();
+        Invalidate();
+        return true;
+    }
+
+    public bool TryApplyTextureRegion(NetTextureRegionUpdate update, ReadOnlySpan<byte> pixels, out int bytesUploaded, out string error)
+    {
+        bytesUploaded = 0;
+        if (_d3d11Viewport is null)
+        {
+            error = ProductionD3D11Required || _rendererBlocked
+                ? (string.IsNullOrWhiteSpace(_rendererBlockReason) ? "D3D11 material renderer is unavailable." : _rendererBlockReason)
+                : "Texture region updates require the D3D11 material renderer.";
+            return false;
+        }
+        if (!_d3d11Viewport.TryApplyTextureRegion(update, pixels, out bytesUploaded, out error))
+        {
+            return false;
+        }
+        RequestFrame();
+        Invalidate();
+        return true;
     }
 }

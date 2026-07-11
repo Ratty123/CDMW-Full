@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import copy
 import math
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+
+from cdmw.domain.cancellation import raise_if_cancelled
 
 
 Vector3 = tuple[float, float, float]
@@ -219,25 +222,44 @@ def external_import_work_area_fit(
 ) -> WorkAreaPlacementFit | None:
     if not source_vertices:
         return None
-    axis = max(0, min(2, int(up_axis)))
     source_bounds = part_bbox(source_vertices)
+    reference_bounds = part_bbox(reference_vertices) if reference_vertices else None
+    return external_import_work_area_fit_from_bounds(
+        source_bounds,
+        reference_bounds,
+        up_axis=up_axis,
+        ground_plane=ground_plane,
+    )
+
+
+def external_import_work_area_fit_from_bounds(
+    source_bounds: Bounds3,
+    reference_bounds: Bounds3 | None,
+    *,
+    up_axis: int,
+    ground_plane: float = 0.0,
+) -> WorkAreaPlacementFit | None:
+    axis = max(0, min(2, int(up_axis)))
     source_min, source_max = source_bounds
     source_center = part_bbox_center(source_bounds)
     source_diag = max(part_bbox_diagonal(source_bounds), 1e-8)
-    reference_bounds = part_bbox(reference_vertices) if reference_vertices else None
     reference_center = part_bbox_center(reference_bounds) if reference_bounds is not None else (0.0, 0.0, 0.0)
     reference_diag = max(part_bbox_diagonal(reference_bounds), 1e-8) if reference_bounds is not None else 1.0
     scale = 1.0
-    if source_diag > reference_diag * 2.5:
-        scale = max(0.001, min(100.0, (reference_diag * 1.15) / source_diag))
-    elif source_diag < reference_diag * 0.02:
-        scale = max(0.001, min(100.0, (reference_diag * 0.12) / source_diag))
+    if reference_bounds is not None:
+        if source_diag > reference_diag * 2.5:
+            scale = max(0.001, min(100.0, (reference_diag * 1.15) / source_diag))
+        elif source_diag < reference_diag * 0.02:
+            scale = max(0.001, min(100.0, (reference_diag * 0.12) / source_diag))
     target_center = list(reference_center)
     if reference_bounds is None:
         target_center = [0.0, 0.0, 0.0]
     target_center[axis] = float(ground_plane) - ((float(source_min[axis]) - float(source_center[axis])) * scale)
     target_center_tuple = (target_center[0], target_center[1], target_center[2])
-    translation = tuple(target_center_tuple[index] - float(source_center[index]) for index in range(3))
+    translation = tuple(
+        target_center_tuple[index] - (float(source_center[index]) * scale)
+        for index in range(3)
+    )
     horizontal_axes = tuple(index for index in range(3) if index != axis)
     needs_recenter = any(
         abs(float(target_center_tuple[index]) - float(source_center[index])) > max(reference_diag * 0.02, 1e-5)
@@ -269,7 +291,7 @@ def appended_part_work_area_fit(
     source_vertices: Sequence[Vector3],
     reference_vertices: Sequence[Vector3],
 ) -> AppendedPartWorkAreaFit | None:
-    if not source_vertices or not reference_vertices:
+    if not source_vertices:
         return None
     return external_import_work_area_fit(
         source_vertices,
@@ -282,15 +304,21 @@ def appended_part_work_area_fit(
 def transformed_vertices_for_work_area(
     vertices: Sequence[Vector3],
     fit: AppendedPartWorkAreaFit,
+    *,
+    stop_event: threading.Event | None = None,
 ) -> list[Vector3]:
-    return [
-        (
-            fit.target_center[0] + ((float(vertex[0]) - fit.source_center[0]) * fit.scale),
-            fit.target_center[1] + ((float(vertex[1]) - fit.source_center[1]) * fit.scale),
-            fit.target_center[2] + ((float(vertex[2]) - fit.source_center[2]) * fit.scale),
+    transformed: list[Vector3] = []
+    for index, vertex in enumerate(vertices):
+        if index % 4096 == 0:
+            raise_if_cancelled(stop_event, "Static replacement preflight stopped by user.")
+        transformed.append(
+            (
+                fit.target_center[0] + ((float(vertex[0]) - fit.source_center[0]) * fit.scale),
+                fit.target_center[1] + ((float(vertex[1]) - fit.source_center[1]) * fit.scale),
+                fit.target_center[2] + ((float(vertex[2]) - fit.source_center[2]) * fit.scale),
+            )
         )
-        for vertex in vertices
-    ]
+    return transformed
 
 
 def source_mirror_plane_x(original_mesh: object | None, source_vertices: Sequence[Vector3]) -> float:
@@ -339,7 +367,7 @@ def mirror_submesh_x(
 
 def _mirror_submesh_x_native_clone(submesh: object, plane_x: float) -> object | None:
     try:
-        from cdmw.modding.mesh_native_core import clone_native_mesh_affine_transformed_submesh
+        from cdmw.services.mesh_workflow_service import clone_native_mesh_affine_transformed_submesh
     except Exception:
         return None
     position_matrix = (
@@ -442,7 +470,7 @@ def _copy_source_part_with_adjustment_native_copy(
     mirror_x_around_bounds_center: bool = False,
 ) -> object | None:
     try:
-        from cdmw.modding.mesh_native_core import clone_native_mesh_affine_transformed_submesh
+        from cdmw.services.mesh_workflow_service import clone_native_mesh_affine_transformed_submesh
     except Exception:
         return None
     try:
@@ -457,7 +485,7 @@ def _copy_source_part_with_adjustment_native_copy(
 
 def _copy_source_part_with_adjustment_native(submesh: object, adjustment: object) -> bool:
     try:
-        from cdmw.modding.mesh_native_core import apply_native_mesh_affine_transform_submeshes
+        from cdmw.services.mesh_workflow_service import apply_native_mesh_affine_transform_submeshes
     except Exception:
         return False
     try:
@@ -482,6 +510,7 @@ __all__ = [
     "center_offset_for_bounds",
     "copy_source_part_with_adjustment",
     "external_import_work_area_fit",
+    "external_import_work_area_fit_from_bounds",
     "fit_uniform_scale_for_bounds",
     "global_fast_preview_transform_delta",
     "global_transform_values",

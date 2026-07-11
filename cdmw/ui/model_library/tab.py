@@ -1,20 +1,20 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Callable, Optional
 
 from PySide6.QtCore import QProcess, QSettings, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
+    QInputDialog,
     QSplitter,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from cdmw.core.model_catalogue import (
-    is_importable_model_path,
-    resolve_importable_model_path,
-)
+from cdmw.domain.library.models import is_importable_model_path
+from cdmw.services.model_library_service import ModelLibraryService
 from cdmw.ui.model_library.actions import ModelLibraryActionsMixin
 from cdmw.ui.model_library.catalogue import ModelLibraryCatalogueMixin
 from cdmw.ui.model_library.commands import ModelLibraryCommandsMixin
@@ -27,7 +27,12 @@ from cdmw.ui.model_library.settings import ModelLibrarySettingsMixin
 from cdmw.ui.model_library.tasks import ModelLibraryTaskMixin
 from cdmw.ui.model_library.texture_status import ModelLibraryTextureStatusMixin
 from cdmw.ui.model_library.view_state import ModelLibraryResultsViewMixin
-from cdmw.ui.widgets import responsive_sidebar_bounds
+from cdmw.ui.layout_utils import responsive_sidebar_bounds
+from cdmw.workers.model_library_workers import (
+    ModelLibraryImportPathRequest,
+    ModelLibraryImportPathResult,
+    resolve_model_library_import_path,
+)
 
 
 class ModelLibraryTab(
@@ -50,6 +55,7 @@ class ModelLibraryTab(
     item_icon_source_generated = Signal(str, object)
     RESULTS_FILTER_DEBOUNCE_MS = 140
     RESULTS_POPULATION_BATCH_SIZE = 200
+    PREPARED_ROWS_APPLY_BATCH_SIZE = 1000
 
     def __init__(
         self,
@@ -58,6 +64,7 @@ class ModelLibraryTab(
         base_dir: Path,
         theme_key: str = "graphite",
         record_runtime_event: Optional[Callable[..., object]] = None,
+        model_library_service: Optional[ModelLibraryService] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -65,6 +72,8 @@ class ModelLibraryTab(
         self.base_dir = Path(base_dir)
         self.theme_key = str(theme_key or "graphite")
         self._record_runtime_event = record_runtime_event if callable(record_runtime_event) else None
+        self.model_library_service = model_library_service or ModelLibraryService(settings=settings)
+        self._model_library_shutting_down = False
         self.local_models: list[dict[str, object]] = []
         self.mirror_results: list[dict[str, object]] = []
         self._result_payloads_by_item: dict[int, dict[str, object]] = {}
@@ -83,7 +92,11 @@ class ModelLibraryTab(
         self._inline_preview_loaded_renderer_backend = ""
         self._inline_preview_task_running = False
         self._pending_inline_preview_request: Optional[tuple[Path, dict[str, object], bool]] = None
+        self._pending_model_action_after_task: Optional[Callable[[], None]] = None
+        self._model_action_request_id = 0
         self._pending_icon_generation_request_id = 0
+        self._icon_output_request_id = 0
+        self._icon_output_active = False
         self._task_status_active = False
         self._result_sort_column = int(self.settings.value("model_library/result_sort_column", 1) or 1)
         self._result_sort_order = (
@@ -97,6 +110,19 @@ class ModelLibraryTab(
         self._task_complete_handler: Optional[Callable[[object], None]] = None
         self._task_error_handler: Optional[Callable[[str], None]] = None
         self._stop_event: Optional[object] = None
+        self._results_request_id = 0
+        self._delete_request_id = 0
+        self._results_task_stop_event: Optional[threading.Event] = None
+        self._results_task_kind = ""
+        self._pending_results_refresh = False
+        self._pending_results_request: Optional[object] = None
+        self._pending_prepared_rows_result: Optional[object] = None
+        self._pending_prepared_payloads: list[dict[str, object]] = []
+        self._pending_prepared_cursor = 0
+        self._results_selection_keys: dict[int, tuple[str, str, str]] = {}
+        self._prepared_rows_by_payload_id: dict[int, object] = {}
+        self._local_frozen_rows: tuple[object, ...] = ()
+        self._mirror_frozen_rows: tuple[object, ...] = ()
         self._auto_preview_timer = QTimer(self)
         self._auto_preview_timer.setSingleShot(True)
         self._auto_preview_timer.setInterval(350)
@@ -113,6 +139,7 @@ class ModelLibraryTab(
         self._pending_results_total_count = 0
         self._pending_results_visible_count = 0
         self._pending_results_selected_payload: Optional[dict[str, object]] = None
+        self._pending_results_selected_key = ("", "", "")
         self._populating_results = False
         self._result_items_by_payload_id: dict[int, QTreeWidgetItem] = {}
         self._checked_payloads_by_item: dict[int, dict[str, object]] = {}
@@ -162,99 +189,186 @@ class ModelLibraryTab(
         if not initial_results_loaded:
             self._set_status("Choose Mirror Catalogue or Local Library. Use Refresh to reload the active view.")
 
-    def _resolve_payload_import_path(self, payload: dict[str, object]) -> Optional[Path]:
+    def _model_import_path_request(
+        self,
+        payload: dict[str, object],
+        *,
+        selected_member: str = "",
+    ) -> ModelLibraryImportPathRequest:
+        filenames: tuple[str, ...] = ()
         if payload.get("kind") == "mirror":
-            self._apply_mirror_local_state(payload)
-            import_path = Path(str(payload.get("import_path", "") or ""))
-            if import_path.is_file() and is_importable_model_path(import_path):
-                return import_path
-            archive_path = Path(str(payload.get("archive_path", "") or ""))
-            if archive_path.is_file():
-                asset_dir = Path(str(payload.get("asset_dir", "") or archive_path.parent))
-                extract_root = asset_dir / "gltf" if archive_path.suffix.lower() == ".zip" else None
-                resolved = resolve_importable_model_path(archive_path, extract_root=extract_root)
-                if resolved is not None:
-                    payload["import_path"] = str(resolved)
-                    payload["local_status"] = self._mirror_local_status(payload)
-                    self._refresh_result_row_status(payload)
-                    return resolved
-            return None
-        import_path = Path(str(payload.get("import_path", "") or ""))
-        if import_path.is_file() and is_importable_model_path(import_path):
-            return import_path
-        path = Path(str(payload.get("path", "") or ""))
-        if not path.is_file():
-            return None
-        resolved = resolve_importable_model_path(path)
-        if resolved is not None:
-            payload["import_path"] = str(resolved)
-            payload["import_supported"] = True
-            self._refresh_result_row_status(payload)
-        return resolved
+            filenames = tuple(
+                str(getattr(candidate, "filename", "") or "")
+                for candidate in self._mirror_candidates_for_payload(payload)
+                if str(getattr(candidate, "filename", "") or "")
+            )
+        return ModelLibraryImportPathRequest(
+            kind=str(payload.get("kind", "") or ""),
+            import_path=str(payload.get("import_path", "") or ""),
+            archive_path=str(payload.get("archive_path", "") or ""),
+            source_path=str(payload.get("path", "") or ""),
+            asset_dir=str(payload.get("asset_dir", "") or ""),
+            uid=str(payload.get("uid", "") or ""),
+            download_root=str(self._download_output_root()),
+            candidate_filenames=filenames,
+            selected_member=str(selected_member or payload.get("archive_member", "") or ""),
+        )
+
+    def _apply_model_import_path_result(
+        self,
+        payload: dict[str, object],
+        result: ModelLibraryImportPathResult,
+    ) -> None:
+        self._invalidate_prepared_row_source(payload)
+        if result.asset_dir is not None:
+            payload["asset_dir"] = str(result.asset_dir)
+        if result.archive_path is not None:
+            payload["archive_path"] = str(result.archive_path)
+        if result.selected_member:
+            payload["archive_member"] = result.selected_member
+        if result.import_path is None:
+            return
+        payload["import_path"] = str(result.import_path)
+        payload["import_supported"] = True
+        if payload.get("kind") == "mirror":
+            payload["local_status"] = "Ready"
+        self._refresh_result_row_status(payload)
+
+    def _request_payload_import_path(
+        self,
+        payload: dict[str, object],
+        *,
+        status: str,
+        on_resolved: Callable[[Path], None],
+        on_missing: Callable[[], None],
+        selected_member: str = "",
+    ) -> None:
+        if self._task_thread is not None and self._task_thread.isRunning():
+            self._set_status("A model library task is already running.", error=True)
+            return
+        self._model_action_request_id += 1
+        request = self._model_import_path_request(dict(payload), selected_member=selected_member)
+        for path_text in (request.import_path, request.source_path, request.archive_path):
+            direct_path = Path(path_text).expanduser() if path_text else None
+            if direct_path is not None and is_importable_model_path(direct_path):
+                on_resolved(direct_path)
+                return
+        request_id = self._model_action_request_id
+        selection_key = self._payload_population_key(payload)
+        stop_event = threading.Event()
+        self._stop_event = stop_event
+
+        def task(_progress: Callable[[str], None]) -> object:
+            return resolve_model_library_import_path(request, stop_event=stop_event)
+
+        def complete(value: object) -> None:
+            if request_id != self._model_action_request_id or not isinstance(value, ModelLibraryImportPathResult):
+                return
+            if self._payload_population_key(self._selected_payload()) != selection_key:
+                return
+            self._apply_model_import_path_result(payload, value)
+            if value.candidate_members:
+                self._pending_model_action_after_task = lambda: self._choose_model_archive_member(
+                    payload,
+                    value.candidate_members,
+                    status=status,
+                    on_resolved=on_resolved,
+                    on_missing=on_missing,
+                )
+                return
+            callback = (lambda: on_resolved(value.import_path)) if value.import_path is not None else on_missing
+            self._pending_model_action_after_task = callback
+
+        def handle_error(message: str) -> None:
+            if request_id == self._model_action_request_id:
+                self._set_status(f"Model resolution failed: {message}", error=True)
+
+        self._run_task(status, task, complete, error_handler=handle_error)
+
+    def _choose_model_archive_member(
+        self,
+        payload: dict[str, object],
+        members: tuple[str, ...],
+        *,
+        status: str,
+        on_resolved: Callable[[Path], None],
+        on_missing: Callable[[], None],
+    ) -> None:
+        selected, accepted = QInputDialog.getItem(
+            self,
+            "Choose Model from ZIP",
+            "This ZIP contains multiple importable models. Choose one:",
+            list(members),
+            0,
+            False,
+        )
+        if not accepted:
+            self._set_status("ZIP model selection cancelled.")
+            return
+        self._request_payload_import_path(
+            payload,
+            status=status,
+            on_resolved=on_resolved,
+            on_missing=on_missing,
+            selected_member=str(selected),
+        )
 
     def _apply_mirror_local_state(self, payload: dict[str, object]) -> None:
+        """Compatibility shim; worker-prepared payloads already own local state."""
+
         if payload.get("kind") != "mirror":
             return
-        asset_dir = self._existing_mirror_asset_dir(payload)
-        if asset_dir is not None:
-            payload["asset_dir"] = str(asset_dir)
-        archive_path = self._existing_mirror_archive_path(payload, asset_dir)
-        if archive_path is not None:
-            payload["archive_path"] = str(archive_path)
-        import_path = Path(str(payload.get("import_path", "") or ""))
-        if not import_path.is_file():
-            if archive_path is not None and archive_path.suffix.lower() == ".glb":
-                payload["import_path"] = str(archive_path)
-            elif asset_dir is not None:
-                discovered = self._find_importable_file_under(asset_dir)
-                if discovered is not None:
-                    payload["import_path"] = str(discovered)
-        payload["local_status"] = self._mirror_local_status(payload)
 
-    def _existing_mirror_asset_dir(self, payload: dict[str, object]) -> Optional[Path]:
-        asset_dir_text = str(payload.get("asset_dir", "") or "").strip()
-        if asset_dir_text:
-            asset_dir = Path(asset_dir_text)
-            if asset_dir.is_dir():
-                return asset_dir
-        uid = str(payload.get("uid", "") or "").strip()
-        if not uid:
-            return None
-        output_root = self._download_output_root()
-        if not output_root.is_dir():
-            return None
-        matches = [path for path in output_root.glob(f"*-{uid}") if path.is_dir()]
-        if not matches:
-            return None
-        matches.sort(key=lambda path: path.stat().st_mtime if path.exists() else 0.0, reverse=True)
-        return matches[0]
+    def _invalidate_prepared_row_source(self, payload: Optional[dict[str, object]] = None) -> None:
+        if payload is None or payload.get("kind") == "mirror":
+            self._mirror_frozen_rows = ()
+        if payload is None or payload.get("kind") != "mirror":
+            self._local_frozen_rows = ()
 
-    def _existing_mirror_archive_path(self, payload: dict[str, object], asset_dir: Optional[Path]) -> Optional[Path]:
-        archive_path = Path(str(payload.get("archive_path", "") or ""))
-        if archive_path.is_file():
-            return archive_path
-        if asset_dir is None or not asset_dir.is_dir():
-            return None
-        for candidate in self._mirror_candidates_for_payload(payload):
-            path = asset_dir / str(getattr(candidate, "filename", "") or "")
-            if path.is_file():
-                return path
-        archives = sorted(
-            [path for path in asset_dir.iterdir() if path.is_file() and path.suffix.lower() in {".zip", ".glb"}],
-            key=lambda path: path.name.lower(),
-        )
-        return archives[0] if archives else None
+    def iter_shutdown_workers(self) -> tuple[tuple[str, object, object], ...]:
+        thread = self._task_thread
+        if thread is None:
+            return ()
+        try:
+            if not thread.isRunning():
+                return ()
+        except RuntimeError:
+            return ()
+        return (("task", thread, self._task_worker),)
 
-    def _find_importable_file_under(self, root: Path) -> Optional[Path]:
-        priority = {".gltf": 0, ".glb": 1, ".obj": 2, ".dae": 3}
-        candidates = [
-            path
-            for path in root.rglob("*")
-            if path.is_file() and is_importable_model_path(path)
-        ]
-        if not candidates:
-            return None
-        candidates.sort(key=lambda path: (priority.get(path.suffix.lower(), 99), str(path).lower()))
-        return candidates[0]
+    def request_shutdown(self) -> None:
+        self._model_library_shutting_down = True
+        self._auto_preview_timer.stop()
+        self._results_filter_timer.stop()
+        self._results_population_timer.stop()
+        self._pending_inline_preview_request = None
+        self._pending_model_action_after_task = None
+        self._model_action_request_id = int(getattr(self, "_model_action_request_id", 0) or 0) + 1
+        self._results_request_id = int(getattr(self, "_results_request_id", 0) or 0) + 1
+        self._delete_request_id = int(getattr(self, "_delete_request_id", 0) or 0) + 1
+        self._icon_output_request_id = int(getattr(self, "_icon_output_request_id", 0) or 0) + 1
+        self._icon_output_active = False
+        self._pending_results_request = None
+        self._pending_results_refresh = False
+        results_selection_keys = getattr(self, "_results_selection_keys", None)
+        if results_selection_keys is not None:
+            results_selection_keys.clear()
+        self._pending_results_rows.clear()
+        self._pending_prepared_rows_result = None
+        pending_prepared_payloads = getattr(self, "_pending_prepared_payloads", None)
+        if pending_prepared_payloads is not None:
+            pending_prepared_payloads.clear()
+        results_stop_event = getattr(self, "_results_task_stop_event", None)
+        if results_stop_event is not None:
+            results_stop_event.set()
+        if self._stop_event is not None and hasattr(self._stop_event, "set"):
+            self._stop_event.set()
+        thread = self._task_thread
+        if thread is not None:
+            try:
+                thread.requestInterruption()
+            except RuntimeError:
+                pass
+        self._stop_inline_d3d11_process(cleanup_packages=True)
 
 __all__ = ["ModelLibraryTab"]

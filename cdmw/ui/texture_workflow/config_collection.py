@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 from cdmw.constants import UPSCALE_BACKEND_CHAINNER
-from cdmw.core.mod_package import mod_package_export_options_for_profiles, mod_package_profile_uses_manager_metadata
+from cdmw.domain.packages.export_policy import (
+    mod_package_export_options_for_profiles,
+    mod_package_profile_uses_manager_metadata,
+)
 from cdmw.models import AppConfig
 
 
 class TextureWorkflowConfigCollectionMixin:
     """Collect the current texture workflow and archive filter UI state."""
     def collect_config(self) -> AppConfig:
+        for section in (
+            self.settings_section,
+            self.dds_output_section,
+            self.filters_section,
+            self.chainner_section,
+        ):
+            section.ensure_body_built()
         mod_ready_manager_profiles = tuple(
             profile
             for profile, checkbox in self.mod_ready_profile_checkboxes.items()

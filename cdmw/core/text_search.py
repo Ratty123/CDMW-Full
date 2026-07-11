@@ -1,27 +1,45 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import threading
+import uuid
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from cdmw.constants import ARCHIVE_TEXT_EXTENSIONS, ARCHIVE_TEXT_PREVIEW_LIMIT
-from cdmw.core.archive import (
-    ArchiveEntry,
-    extract_archive_entry,
+from cdmw.core.archive_extraction import (
     find_available_output_path,
-    parse_archive_note_flags,
     read_archive_entry_data,
     sanitize_archive_entry_output_path,
 )
+from cdmw.core.archive_model_preview import parse_archive_note_flags
 from cdmw.core.common import raise_if_cancelled
-from cdmw.models import RunCancelled
+from cdmw.models import ArchiveEntry, RunCancelled
 
 DEFAULT_TEXT_SEARCH_EXTENSIONS = ".xml;.txt;.json;.cfg;.ini;.lua;.material;.shader;.yaml;.yml"
 TEXT_SEARCH_PREVIEW_LIMIT = max(ARCHIVE_TEXT_PREVIEW_LIMIT, 12_000_000)
 TEXT_SEARCH_HIGHLIGHT_LIMIT = 2_000
+
+
+def _read_file_bytes_cancellable(
+    path: Path,
+    stop_event: Optional[threading.Event],
+    *,
+    message: str,
+) -> bytes:
+    chunks: list[bytes] = []
+    with path.open("rb") as handle:
+        while True:
+            raise_if_cancelled(stop_event, message)
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    raise_if_cancelled(stop_event, message)
+    return b"".join(chunks)
 
 
 @dataclass(slots=True)
@@ -194,7 +212,7 @@ def search_archive_text_entries(
     for index, entry in enumerate(entries, start=1):
         raise_if_cancelled(stop_event, "Text search stopped by user.")
         is_candidate = entry.extension in extension_filters and _path_matches_filter(entry.path, path_filter)
-        if on_progress and (index == 1 or index == total_entries or index % progress_step == 0 or is_candidate):
+        if on_progress and (index == 1 or index == total_entries or index % progress_step == 0):
             detail = (
                 f"Searching archive text files... {entry.path}"
                 if is_candidate
@@ -207,7 +225,7 @@ def search_archive_text_entries(
         if entry.encrypted:
             encrypted_candidate_count += 1
         try:
-            data, _decompressed, note = read_archive_entry_data(entry)
+            data, _decompressed, note = read_archive_entry_data(entry, stop_event=stop_event)
         except Exception as exc:
             skipped_read_error_count += 1
             if on_log:
@@ -280,7 +298,7 @@ def search_loose_text_files(
         if not path.is_file():
             continue
         scanned_count += 1
-        if on_progress and (scanned_count == 1 or scanned_count % 500 == 0):
+        if on_progress and (scanned_count == 1 or scanned_count % 5000 == 0):
             try:
                 detail_path = path.relative_to(root).as_posix()
             except ValueError:
@@ -292,10 +310,12 @@ def search_loose_text_files(
         if not _path_matches_filter(relative_path, path_filter):
             continue
         candidate_count += 1
-        if on_progress:
-            on_progress(candidate_count - 1, 0, f"Searching loose text files... {relative_path}")
         try:
-            data = path.read_bytes()
+            data = _read_file_bytes_cancellable(
+                path,
+                stop_event,
+                message="Text search stopped by user.",
+            )
         except OSError as exc:
             skipped_read_error_count += 1
             if on_log:
@@ -360,7 +380,10 @@ def load_text_search_preview(
     if result.source_kind == "archive":
         if result.archive_entry is None:
             raise ValueError("Archive search result is missing its archive entry reference.")
-        data, _decompressed, note = read_archive_entry_data(result.archive_entry)
+        data, _decompressed, note = read_archive_entry_data(
+            result.archive_entry,
+            stop_event=stop_event,
+        )
         text = _decode_text_bytes(data)
         detail_lines = [
             f"Path: {result.relative_path}",
@@ -376,7 +399,11 @@ def load_text_search_preview(
     else:
         if result.loose_path is None or result.loose_root is None:
             raise ValueError("Loose search result is missing its file path reference.")
-        data = result.loose_path.read_bytes()
+        data = _read_file_bytes_cancellable(
+            result.loose_path,
+            stop_event,
+            message="Text preview stopped by user.",
+        )
         text = _decode_text_bytes(data)
         title = result.relative_path
         metadata = f"{result.extension or 'no extension'} | {result.match_count:,} match(es) | Loose file"
@@ -415,6 +442,33 @@ def sanitize_loose_export_path(relative_path: str, output_root: Path) -> Path:
     return output_root.joinpath(*safe_parts)
 
 
+def _write_export_bytes(
+    data: bytes,
+    target: Path,
+    stop_event: Optional[threading.Event],
+) -> None:
+    with target.open("wb") as handle:
+        for offset in range(0, len(data), 1024 * 1024):
+            raise_if_cancelled(stop_event, "Text export stopped by user.")
+            handle.write(data[offset : offset + 1024 * 1024])
+
+
+def _copy_loose_text_result(
+    source: Path,
+    target: Path,
+    stop_event: Optional[threading.Event],
+) -> None:
+    with source.open("rb") as source_handle, target.open("wb") as target_handle:
+        while True:
+            raise_if_cancelled(stop_event, "Text export stopped by user.")
+            chunk = source_handle.read(1024 * 1024)
+            if not chunk:
+                break
+            target_handle.write(chunk)
+    raise_if_cancelled(stop_event, "Text export stopped by user.")
+    shutil.copystat(source, target)
+
+
 def export_text_search_results(
     results: Sequence[TextSearchResult],
     output_root: Path,
@@ -423,6 +477,7 @@ def export_text_search_results(
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> Dict[str, int]:
+    raise_if_cancelled(stop_event, "Text export stopped by user.")
     output_root.mkdir(parents=True, exist_ok=True)
     extracted = 0
     renamed = 0
@@ -449,11 +504,23 @@ def export_text_search_results(
                 resolved_path = target_path
 
             reserved_paths.add(str(resolved_path).lower())
-            if result.source_kind == "archive":
-                extract_archive_entry(result.archive_entry, resolved_path)  # type: ignore[arg-type]
-            else:
-                resolved_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(result.loose_path, resolved_path)  # type: ignore[arg-type]
+            resolved_path.parent.mkdir(parents=True, exist_ok=True)
+            staged_path = resolved_path.with_name(
+                f".{resolved_path.name}.{uuid.uuid4().hex}.cdmw-tmp"
+            )
+            try:
+                if result.source_kind == "archive":
+                    data, _decompressed, _note = read_archive_entry_data(
+                        result.archive_entry,  # type: ignore[arg-type]
+                        stop_event=stop_event,
+                    )
+                    _write_export_bytes(data, staged_path, stop_event)
+                else:
+                    _copy_loose_text_result(result.loose_path, staged_path, stop_event)  # type: ignore[arg-type]
+                raise_if_cancelled(stop_event, "Text export stopped by user.")
+                os.replace(staged_path, resolved_path)
+            finally:
+                staged_path.unlink(missing_ok=True)
             extracted += 1
             if on_log:
                 extra = " [Renamed]" if resolved_path != target_path else ""

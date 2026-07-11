@@ -7,7 +7,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from PySide6.QtWidgets import QMessageBox
 
-from cdmw.core.archive import (
+from cdmw.services.archive_extraction_service import (
     clear_directory_contents,
     count_existing_archive_targets,
     directory_has_contents,

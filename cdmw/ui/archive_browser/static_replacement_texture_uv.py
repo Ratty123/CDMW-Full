@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 
-from cdmw.modding.static_mesh_replacer import StaticTextureUvTransform
+from cdmw.services.mesh_workflow_service import StaticTextureUvTransform
 
 
 def global_flip_v_fast_preview_value(

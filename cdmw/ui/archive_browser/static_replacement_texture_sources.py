@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import os
+import threading
 from collections.abc import Iterable, Mapping, MutableSequence, MutableSet, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.models import ArchiveEntry
+
+
+TEXTURE_FOLDER_SCAN_MAX_ENTRIES = 100_000
+TEXTURE_FOLDER_SCAN_MAX_FILES = 8_192
+
+
+@dataclass(frozen=True, slots=True)
+class TextureFolderScanResult:
+    files: tuple[Path, ...]
+    scanned_entries: int = 0
+    truncated: bool = False
+    errors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -128,14 +143,60 @@ def texture_source_files_in_folder(
     *,
     allowed_extensions: Sequence[str],
 ) -> tuple[Path, ...]:
+    return scan_texture_source_folder(
+        selected_dir,
+        allowed_extensions=allowed_extensions,
+    ).files
+
+
+def scan_texture_source_folder(
+    selected_dir: object,
+    *,
+    allowed_extensions: Sequence[str],
+    stop_event: threading.Event | None = None,
+    max_entries: int = TEXTURE_FOLDER_SCAN_MAX_ENTRIES,
+    max_files: int = TEXTURE_FOLDER_SCAN_MAX_FILES,
+) -> TextureFolderScanResult:
     root = Path(str(selected_dir or "")).expanduser()
+    raise_if_cancelled(stop_event, "Texture folder scan cancelled.")
     if not root.is_dir():
-        return ()
+        return TextureFolderScanResult(())
     allowed = {str(extension or "").lower() for extension in tuple(allowed_extensions or ())}
-    return tuple(
-        candidate
-        for candidate in sorted(root.rglob("*"))
-        if candidate.is_file() and candidate.suffix.lower() in allowed
+    entry_limit = max(1, int(max_entries))
+    file_limit = max(1, int(max_files))
+    pending = [root]
+    files: list[Path] = []
+    errors: list[str] = []
+    scanned_entries = 0
+    truncated = False
+    while pending and not truncated:
+        folder = pending.pop()
+        raise_if_cancelled(stop_event, "Texture folder scan cancelled.")
+        try:
+            with os.scandir(folder) as entries:
+                for entry in entries:
+                    raise_if_cancelled(stop_event, "Texture folder scan cancelled.")
+                    scanned_entries += 1
+                    if scanned_entries > entry_limit:
+                        truncated = True
+                        break
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            pending.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False) and Path(entry.name).suffix.lower() in allowed:
+                            if len(files) >= file_limit:
+                                truncated = True
+                                break
+                            files.append(Path(entry.path))
+                    except OSError as exc:
+                        errors.append(f"{entry.path}: {exc}")
+        except OSError as exc:
+            errors.append(f"{folder}: {exc}")
+    return TextureFolderScanResult(
+        files=tuple(sorted(files)),
+        scanned_entries=min(scanned_entries, entry_limit),
+        truncated=truncated,
+        errors=tuple(errors[:20]),
     )
 
 
@@ -222,11 +283,13 @@ def archive_texture_lookup_indexes_for_alignment(
 
 __all__ = [
     "ArchiveTextureLookupIndexes",
+    "TextureFolderScanResult",
     "add_archive_texture_lookup_entry",
     "archive_texture_lookup_indexes_for_alignment",
     "register_allowed_texture_source_file",
     "register_dialog_supplemental_file",
     "register_texture_source_file",
     "register_texture_source_files",
+    "scan_texture_source_folder",
     "texture_source_files_in_folder",
 ]

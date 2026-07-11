@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from cdmw.ui.archive_browser.static_replacement_source_part_action_state import (
+    SourcePartContextActionSpec,
     SourcePartDeleteIndexMapState,
     SourcePartDeleteSelectionState,
+    dispatch_source_part_context_action,
+    source_part_context_action_specs,
     source_part_context_menu_text,
     source_part_delete_index_map_state,
     source_part_delete_selection_state,
@@ -223,6 +226,7 @@ from cdmw.ui.archive_browser.static_replacement_source_part_transform_controls_s
 
 
 __all__ = [
+    "SourcePartContextActionSpec",
     "SourcePartAdjustmentApplyState",
     "SourcePartCheckToggleState",
     "SourcePartControlState",
@@ -311,6 +315,8 @@ __all__ = [
     "source_part_center_on_target_state",
     "source_part_check_toggle_state",
     "source_part_context_menu_text",
+    "source_part_context_action_specs",
+    "dispatch_source_part_context_action",
     "source_part_control_state",
     "source_part_control_load_state",
     "source_part_copied_texture_action_state",

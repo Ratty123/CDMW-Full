@@ -19,6 +19,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping, Sequence
 
+from .pac_xml_texture_semantics import infer_pac_xml_texture_role, pac_xml_texture_alias_matches_parameter
+
 
 PAC_XML_CORPUS_ROOT_ENV = "CDMW_PAC_XML_CORPUS_ROOT"
 PAC_XML_SETTINGS_DIR_ENV = "CDMW_SETTINGS_DIR"
@@ -819,44 +821,6 @@ def _armor_slot_from_path(key: str) -> str:
         if f"/{token}/" in key:
             return slot
     return ""
-
-
-def infer_pac_xml_texture_role(parameter_name: str, texture_path: str = "") -> str:
-    name = re.sub(r"[^a-z0-9]+", "", str(parameter_name or "").lower())
-    path = _normalized_key(texture_path)
-    if "flow" in name:
-        return "flow"
-    if "wrinklemask" in name:
-        return "wrinkle_mask"
-    if "wrinklecolor" in name:
-        return "wrinkle_color"
-    if "hairdirection" in name or "ssdm" in name:
-        return "flow"
-    if "normal" in name or path.endswith("_n.dds"):
-        return "normal"
-    if path.endswith("_f.dds"):
-        return "flow"
-    if "pupil" in name:
-        return "pupil"
-    if "iris" in name:
-        return "iris"
-    if "alpha" in name or "opacity" in name or path.endswith("_alpha.dds"):
-        return "opacity"
-    if "height" in name or "displacement" in name or path.endswith("_disp.dds"):
-        return "height"
-    if "detailmask" in name or path.endswith("_mg.dds"):
-        return "detail_mask"
-    if "colorblendingmask" in name or "material" in name or path.endswith(("_ma.dds", "_m.dds", "_sp.dds")):
-        return "material_mask"
-    if "emissive" in name or path.endswith("_emi.dds"):
-        return "emissive"
-    if (name == "masktexture" or name.endswith("masktexture")) and not path:
-        return "material_mask"
-    if name == "masktexture" or name.endswith("masktexture"):
-        return "mask"
-    if any(token in name for token in ("overlaycolor", "basecolor", "diffuse", "albedo", "rgbtexture")):
-        return "base"
-    return "unknown"
 
 
 def parse_pac_xml_profile(sidecar_text: str, sidecar_path: str | Path = "") -> PacXmlProfileReport:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import shutil
+import threading
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -10,13 +10,36 @@ from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QMenu, QPlainTextEdit, QVBoxLayout
 
-from cdmw.core.model_catalogue import (
+from cdmw.domain.library.models import (
     IMPORTABLE_MODEL_EXTENSIONS,
     MirrorDownloadCandidate,
     MirrorDownloadResult,
-    download_mirror_model_candidate,
     is_importable_model_path,
 )
+from cdmw.models import RunCancelled
+from cdmw.services.model_library_service import ModelLibraryService
+from cdmw.workers.model_library_delete import (
+    ModelLibraryDeleteRequest,
+    ModelLibraryDeleteResult,
+    delete_model_library_targets,
+)
+from cdmw.workers.model_library_rows import ModelLibraryDeleteTarget
+
+
+def download_mirror_model_candidate(
+    record: dict[str, object],
+    candidate: MirrorDownloadCandidate,
+    *,
+    output_root: Path,
+    stop_event: Optional[threading.Event] = None,
+    service: Optional[ModelLibraryService] = None,
+) -> MirrorDownloadResult:
+    return (service or ModelLibraryService()).download_candidate(
+        record,
+        candidate,
+        output_root=output_root,
+        stop_event=stop_event,
+    )
 
 
 class ModelLibraryCommandsMixin:
@@ -92,29 +115,27 @@ class ModelLibraryCommandsMixin:
         if not payload:
             self._set_status("Select a model first.", error=True)
             return
-        if payload.get("kind") == "mirror":
-            import_path = self._resolve_payload_import_path(payload)
-            if import_path is not None:
-                self._set_status(f"Opening preview from local model file: {import_path}")
-                self.preview_mesh_requested.emit(str(import_path), dict(payload))
+        def resolved(import_path: Path) -> None:
+            self._set_status(f"Opening preview from local model file: {import_path}")
+            self.preview_mesh_requested.emit(str(import_path), dict(payload))
+
+        def missing() -> None:
+            if payload.get("kind") == "mirror":
+                self._set_status("Downloading and extracting model before preview...")
+                self._download_mirror_payloads([payload], import_after=False, preview_after=True)
                 return
-            self._set_status("Downloading and extracting model before preview...")
-            self._download_mirror_payloads([payload], import_after=False, preview_after=True)
-            return
-        path = Path(str(payload.get("path", "") or ""))
-        if not path.is_file():
-            self._set_status(f"Local model file is missing: {path}", error=True)
-            return
-        import_path = self._resolve_payload_import_path(payload)
-        if import_path is None:
+            path = Path(str(payload.get("path", "") or ""))
             self._set_status(
                 f"{path.suffix or 'This file'} can be browsed here, but preview currently accepts importable files or ZIPs containing: {', '.join(sorted(IMPORTABLE_MODEL_EXTENSIONS))}.",
                 error=True,
             )
-            return
-        if import_path != path:
-            self._set_status(f"Extracted ZIP and opening preview from: {import_path}")
-        self.preview_mesh_requested.emit(str(import_path), dict(payload))
+
+        self._request_payload_import_path(
+            payload,
+            status="Resolving model for preview...",
+            on_resolved=resolved,
+            on_missing=missing,
+        )
 
     def _download_mirror_payloads(
         self,
@@ -123,6 +144,9 @@ class ModelLibraryCommandsMixin:
         import_after: bool,
         preview_after: bool,
     ) -> None:
+        if self._task_thread is not None and self._task_thread.isRunning():
+            self._set_status("A model library task is already running.", error=True)
+            return
         try:
             mirror_url = self.mirror_url()
         except ValueError as exc:
@@ -138,6 +162,8 @@ class ModelLibraryCommandsMixin:
             self._set_status("Select glTF ZIP, GLB, or Original source ZIP under Preferred files before preview/import.", error=True)
             return
         payloads_by_uid = {str(payload.get("uid", "") or ""): payload for payload in payloads}
+        stop_event = threading.Event()
+        self._stop_event = stop_event
         candidate_jobs: list[tuple[dict[str, object], MirrorDownloadCandidate]] = []
         unavailable_results: list[tuple[str, object, str]] = []
         for payload in payloads:
@@ -170,9 +196,13 @@ class ModelLibraryCommandsMixin:
                         payload,
                         candidate,
                         output_root=output_root,
+                        stop_event=stop_event,
+                        service=self.model_library_service,
                     )
                     results.append((uid, result, ""))
                     progress(f"Downloaded {index:,} / {total:,}: {name} ({candidate.label}).")
+                except RunCancelled:
+                    raise
                 except Exception as exc:
                     results.append((uid, None, str(exc)))
                     progress(f"Download failed {index:,} / {total:,}: {name} ({candidate.label}).")
@@ -201,18 +231,15 @@ class ModelLibraryCommandsMixin:
                         payload["archive_path"] = str(download_result.archive_path)
                     if download_result.import_path is not None:
                         payload["import_path"] = str(download_result.import_path)
-                    payload["local_status"] = self._mirror_local_status(payload)
+                    payload["local_status"] = "Ready" if download_result.import_path is not None else "Downloaded"
                     successes.append((payload, download_result))
                 elif str(error_text or "").strip():
                     errors.append(str(error_text))
             if successes:
+                self._invalidate_prepared_row_source()
                 self._ensure_download_root_registered(output_root)
                 self._texture_status_cache.clear()
-            if self._active_results_view == "mirror" and self.hide_downloaded_checkbox.isChecked():
-                self._populate_results(self.mirror_results)
-            else:
-                self._refresh_result_row_statuses()
-                self._update_selection_state()
+            self._populate_results(self.mirror_results)
             if errors and not successes:
                 self._set_status(f"Mirror download failed: {errors[0]}", error=True)
                 return
@@ -235,8 +262,11 @@ class ModelLibraryCommandsMixin:
                     (
                         (payload, download_result)
                         for payload, download_result in successes
-                        if download_result.import_path is not None
-                        and is_importable_model_path(download_result.import_path)
+                        if (
+                            download_result.import_path is not None
+                            and is_importable_model_path(download_result.import_path)
+                        )
+                        or bool(download_result.importable_members)
                     ),
                     None,
                 )
@@ -244,17 +274,29 @@ class ModelLibraryCommandsMixin:
                     self._set_status("Downloaded archive does not contain an importable OBJ/DAE/glTF/GLB model.", error=True)
                     return
                 payload, download_result = importable_success
-                if download_result.import_path is None or not is_importable_model_path(download_result.import_path):
-                    self._set_status("Downloaded archive does not contain an importable OBJ/DAE/glTF/GLB model.", error=True)
-                    return
-                if import_after:
-                    self._set_status(f"Downloaded and extracted model; opening import setup from {download_result.import_path}.")
-                    self.import_mesh_requested.emit(str(download_result.import_path), dict(payload))
-                elif preview_after:
-                    self._set_status(f"Downloaded and extracted model; opening preview from {download_result.import_path}.")
-                    self.preview_mesh_requested.emit(str(download_result.import_path), dict(payload))
+                self._pending_model_action_after_task = lambda: self._continue_downloaded_model_action(
+                    payload,
+                    import_after=import_after,
+                )
 
         self._run_task("Downloading mirror model(s)...", task, complete)
+
+    def _continue_downloaded_model_action(self, payload: dict[str, object], *, import_after: bool) -> None:
+        def resolved(import_path: Path) -> None:
+            action = "import setup" if import_after else "preview"
+            self._set_status(f"Downloaded and extracted model; opening {action} from {import_path}.")
+            signal = self.import_mesh_requested if import_after else self.preview_mesh_requested
+            signal.emit(str(import_path), dict(payload))
+
+        self._request_payload_import_path(
+            payload,
+            status="Choosing model from downloaded archive...",
+            on_resolved=resolved,
+            on_missing=lambda: self._set_status(
+                "Downloaded archive does not contain an importable OBJ/DAE/glTF/GLB model.",
+                error=True,
+            ),
+        )
 
     def delete_selected_local_models(self) -> None:
         self._delete_local_payloads(self._local_delete_payloads())
@@ -280,19 +322,38 @@ class ModelLibraryCommandsMixin:
             return
         self._delete_local_targets_from_disk(targets, item_label="local item")
 
-    def _delete_local_targets_from_disk(self, targets: list[tuple[Path, str]], *, item_label: str) -> None:
-        deleted: list[Path] = []
-        errors: list[str] = []
-        for target, _label in targets:
-            try:
-                if target.is_dir():
-                    shutil.rmtree(target)
-                elif target.is_file():
-                    target.unlink()
-                deleted.append(target)
-            except OSError as exc:
-                errors.append(f"{target}: {exc}")
+    def _delete_local_targets_from_disk(
+        self,
+        targets: list[ModelLibraryDeleteTarget],
+        *,
+        item_label: str,
+    ) -> None:
+        if self._task_thread is not None and self._task_thread.isRunning():
+            self._set_status("A model library task is already running.", error=True)
+            return
+        self._delete_request_id += 1
+        request_id = self._delete_request_id
+        request = ModelLibraryDeleteRequest(request_id, tuple(targets))
+        stop_event = threading.Event()
+        self._stop_event = stop_event
 
+        def task(progress: Callable[[str], None]) -> object:
+            progress(f"Deleting {len(targets):,} {item_label}(s)...")
+            return delete_model_library_targets(request, stop_event=stop_event)
+
+        def complete(value: object) -> None:
+            if request_id != self._delete_request_id or not isinstance(value, ModelLibraryDeleteResult):
+                return
+            self._apply_local_delete_result(value, item_label=item_label)
+
+        def handle_error(message: str) -> None:
+            if request_id == self._delete_request_id and not stop_event.is_set():
+                self._set_status(f"Delete failed: {message}", error=True)
+
+        self._run_task(f"Deleting local {item_label}(s)...", task, complete, error_handler=handle_error)
+
+    def _apply_local_delete_result(self, result: ModelLibraryDeleteResult, *, item_label: str) -> None:
+        deleted = [Path(path) for path in result.deleted_paths]
         if deleted:
             self._texture_status_cache.clear()
             self.inline_preview_widget.clear_model("Select a downloaded or local model to preview it here.")
@@ -305,14 +366,14 @@ class ModelLibraryCommandsMixin:
             self._prepare_inline_preview_orientation_for_load(reset_orientation=True)
             self._clear_deleted_local_state(deleted)
             if self._active_results_view == "local" and self.local_roots:
-                self.scan_local_roots()
-            elif self._active_results_view == "mirror" and self.hide_downloaded_checkbox.isChecked():
-                self._populate_results(self.mirror_results)
+                self._pending_model_action_after_task = self.scan_local_roots
             else:
-                self._refresh_result_row_statuses()
-                self._update_selection_state()
-        if errors:
-            self._set_status(f"Deleted {len(deleted):,} {item_label}(s); {len(errors):,} failed. First error: {errors[0]}", error=True)
+                self._pending_model_action_after_task = lambda: self._populate_results(self.mirror_results)
+        if result.errors:
+            self._set_status(
+                f"Deleted {len(deleted):,} {item_label}(s); {len(result.errors):,} failed. First error: {result.errors[0]}",
+                error=True,
+            )
             return
         self._set_status(f"Deleted {len(deleted):,} {item_label}(s) from disk.")
 
@@ -321,29 +382,27 @@ class ModelLibraryCommandsMixin:
         if not payload:
             self._set_status("Select a model first.", error=True)
             return
-        if payload.get("kind") == "mirror":
-            import_path = self._resolve_payload_import_path(payload)
-            if import_path is not None:
-                self._set_status(f"Opening import setup from local model file: {import_path}")
-                self.import_mesh_requested.emit(str(import_path), dict(payload))
+        def resolved(import_path: Path) -> None:
+            self._set_status(f"Opening import setup from local model file: {import_path}")
+            self.import_mesh_requested.emit(str(import_path), dict(payload))
+
+        def missing() -> None:
+            if payload.get("kind") == "mirror":
+                self._set_status("Downloading and extracting model before import setup...")
+                self.download_selected_model(import_after=True)
                 return
-            self._set_status("Downloading and extracting model before import setup...")
-            self.download_selected_model(import_after=True)
-            return
-        path = Path(str(payload.get("path", "") or ""))
-        if not path.is_file():
-            self._set_status(f"Local model file is missing: {path}", error=True)
-            return
-        import_path = self._resolve_payload_import_path(payload)
-        if import_path is None:
+            path = Path(str(payload.get("path", "") or ""))
             self._set_status(
                 f"{path.suffix or 'This file'} can be browsed here, but the mesh importer currently accepts importable files or ZIPs containing: {', '.join(sorted(IMPORTABLE_MODEL_EXTENSIONS))}.",
                 error=True,
             )
-            return
-        if import_path != path:
-            self._set_status(f"Extracted ZIP and opening import setup from: {import_path}")
-        self.import_mesh_requested.emit(str(import_path), dict(payload))
+
+        self._request_payload_import_path(
+            payload,
+            status="Resolving model for import...",
+            on_resolved=resolved,
+            on_missing=missing,
+        )
 
     def open_selected_location(self) -> None:
         payload = self._selected_payload()

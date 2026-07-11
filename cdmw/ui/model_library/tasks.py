@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Callable, Optional
 
-from PySide6.QtCore import QObject, QThread, Qt, Slot
+from PySide6.QtCore import QObject, QThread, QTimer, Qt, Slot
 
 from cdmw.workers.model_library_workers import ModelLibraryTaskWorker as _ModelLibraryTaskWorker
 
@@ -44,7 +44,7 @@ class ModelLibraryTaskMixin:
         *,
         error_handler: Optional[Callable[[str], None]] = None,
     ) -> None:
-        if self._task_thread is not None and self._task_thread.isRunning():
+        if self._task_thread is not None:
             self._set_status("A model library task is already running.", error=True)
             return
         self._task_status_active = True
@@ -119,11 +119,22 @@ class ModelLibraryTaskMixin:
 
     @Slot()
     def _handle_task_finished(self) -> None:
+        finished_results_task = str(getattr(self, "_results_task_kind", "") or "") in {"population", "scan", "search"}
         self._task_thread = None
         self._task_worker = None
         self._task_ui_bridge = None
         self._task_error_handler = None
         self._stop_event = None
+        self._results_task_stop_event = None
+        self._results_task_kind = ""
+        if (
+            finished_results_task
+            and getattr(self, "_pending_results_request", None) is None
+            and not bool(getattr(self, "_pending_results_refresh", False))
+            and getattr(self, "_pending_prepared_rows_result", None) is None
+            and not bool(getattr(self, "_pending_results_rows", ()))
+        ):
+            self._populating_results = False
         self._task_status_active = False
         if hasattr(self, "task_status_label"):
             current_task_status = self.task_status_label.text()
@@ -152,6 +163,9 @@ class ModelLibraryTaskMixin:
         hook = getattr(self, "_after_model_library_task_finished", None)
         if callable(hook):
             hook()
+        pending_results = getattr(self, "_start_pending_results_request", None)
+        if callable(pending_results):
+            QTimer.singleShot(0, pending_results)
 
     def _set_status(self, message: str, *, error: bool = False) -> None:
         self.status_label.setText(message)

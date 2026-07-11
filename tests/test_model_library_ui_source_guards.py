@@ -3,7 +3,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
-from types import MethodType, SimpleNamespace
+from types import SimpleNamespace
 
 from cdmw.ui.model_library_tab import (
     ModelLibraryTab,
@@ -11,6 +11,7 @@ from cdmw.ui.model_library_tab import (
     _external_audit_texture_slot_text,
     model_library_texture_status_kind,
 )
+from cdmw.workers.model_library_rows import normalize_local_model_rows
 
 
 class ModelLibraryUiSourceGuardTests(unittest.TestCase):
@@ -121,25 +122,6 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             scene_path = scene_dir / "scene.gltf"
             scene_path.write_text("{}", encoding="utf-8")
 
-            tab = SimpleNamespace(_texture_status_cache={})
-            tab.catalogue_dir = lambda: root / "ConfiguredElsewhere"
-            tab._texture_status_for_payload = lambda _payload: ""
-            for method_name in (
-                "_download_output_root",
-                "_normalize_local_model_rows",
-                "_metadata_path_for_local_row",
-                "_download_metadata_path_for_local_path",
-                "_nearest_local_model_metadata_path",
-                "_read_download_metadata",
-                "_metadata_path_from_group",
-                "_display_root_for_metadata_group",
-                "_download_group_local_row",
-                "_importable_path_from_group",
-                "_texture_status_from_group",
-                "_find_importable_file_under",
-                "_preferred_download_archive_path",
-            ):
-                setattr(tab, method_name, MethodType(getattr(ModelLibraryTab, method_name), tab))
             rows = [
                 {
                     "kind": "local",
@@ -169,7 +151,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
                 },
             ]
 
-            normalized = tab._normalize_local_model_rows(rows)
+            normalized = normalize_local_model_rows(rows, root / "ConfiguredElsewhere" / "downloads")
 
         self.assertEqual(len(normalized), 1)
         self.assertEqual(normalized[0]["name"], "Escanor Axe Rhitta")
@@ -190,7 +172,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         )
 
         self.assertIn("from cdmw.ui.model_library import ModelLibraryTab", source)
-        self.assertIn("self.model_library_tab = ModelLibraryTab", source)
+        self.assertIn("tab = ModelLibraryTab", source)
+        self.assertIn("self.model_library_tab = self._add_lazy_shell_tool(", source)
         self.assertIn('record_runtime_event=getattr(self, "_record_runtime_event", None)', source)
         self.assertIn("import_mesh_requested.connect", source)
         self.assertIn("preview_mesh_requested.connect", source)
@@ -200,13 +183,15 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("self._handle_model_library_item_icon_generated", source)
         self.assertIn("QMessageBox.information(self, \"Import Mesh\", message)", source)
         self.assertIn("_show_archive_d3d11_hard_failure", source)
-        self.assertIn("def task(_log: Callable[[str], None]) -> object:", source)
+        self.assertIn("def task(_log: Callable[[str], None], stop_event: object) -> object:", source)
+        self.assertIn("task_accepts_cancel=True", source)
         self.assertIn('"model_library"', source)
         self.assertIn("def _augment_model_library_scene_import_result", source)
         self.assertIn("def _discover_model_library_supplemental_files", source)
         self.assertIn("self._model_library_texture_search_roots(scene_path, metadata)", source)
         self.assertIn("Model Library companion scan added", source)
-        self.assertIn("scene_import_result=scene_import_result", source)
+        self.assertIn("scene_import_result=value", source)
+        self.assertIn("_archive_entry_identity_key(self._current_archive_mesh_entry()) != entry_key", source)
         self.assertIn("Warning: No local texture files were found for this Model Library item.", source)
         self.assertNotIn("SketchfabLibraryTab", source)
         self.assertNotIn("Connect Sketchfab", source)
@@ -277,6 +262,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             + "\n"
             + Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
             + "\n"
+            + Path("cdmw/ui/model_library/icon_output.py").read_text(encoding="utf-8")
+            + "\n"
             + Path("cdmw/ui/model_library/selection.py").read_text(encoding="utf-8")
             + "\n"
             + Path("cdmw/ui/model_library/settings.py").read_text(encoding="utf-8")
@@ -286,6 +273,10 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             + Path("cdmw/ui/model_library/texture_status.py").read_text(encoding="utf-8")
             + "\n"
             + Path("cdmw/ui/model_library/view_state.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/workers/model_library_rows.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/workers/model_library_delete.py").read_text(encoding="utf-8")
         )
 
         self.assertIn("scan_local_model_files", source)
@@ -339,7 +330,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("Hide downloaded", source)
         self.assertIn("model_library/hide_downloaded", source)
         self.assertIn("_handle_hide_downloaded_toggled", source)
-        self.assertIn("_filtered_result_rows", source)
+        self.assertIn("prepare_model_library_rows", source)
         self.assertIn("_mirror_payload_downloaded", source)
         self.assertIn("Build Search Index", source)
         self.assertIn("Build index from current search/filter only", source)
@@ -360,7 +351,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("clear_results_query_button = QPushButton(\"Clear\")", source)
         self.assertIn("def _apply_active_results_query", source)
         self.assertIn("def _clear_active_results_query", source)
-        self.assertIn("def _local_payload_matches_filter", source)
+        self.assertIn("def _local_payload_matches", source)
         self.assertIn("model_library/local_search_query", source)
         self.assertIn("model_library/local_search_field", source)
         self.assertIn("local_texture_filter_combo", source)
@@ -373,8 +364,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("_load_column_filters_for_active_view", source)
         self.assertIn("model_library/local_column_filters_json", source)
         self.assertIn("model_library/mirror_column_filters_json", source)
-        self.assertIn("_filter_result_rows_by_columns", source)
-        self.assertIn("_payload_matches_column_filters", source)
+        self.assertIn("_column_filters_match", source)
+        self.assertIn("_column_filters_match", source)
         self.assertIn("Show Local Models", source)
         self.assertIn("Search Mirror", source)
         self.assertIn("Popular", source)
@@ -400,14 +391,15 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("_no_texture_download_delete_target_for_payload", source)
         self.assertIn("_downloaded_model_folder_target_for_payload", source)
         self.assertIn("_confirm_delete_no_texture_download_targets", source)
-        self.assertIn("return self._downloaded_model_folder_target_for_payload(payload)", source)
+        self.assertIn("prepared.no_texture_delete_target", source)
         self.assertIn("Standalone local model files are never included", source)
         self.assertIn("Delete Local Copy", source)
         self.assertIn("_local_delete_payloads", source)
         self.assertIn("_local_delete_target_for_payload", source)
         self.assertIn("_confirm_delete_local_targets", source)
         self.assertIn("QMessageBox", source)
-        self.assertIn("shutil.rmtree", source)
+        self.assertIn("delete_model_library_targets", source)
+        self.assertNotIn("shutil.rmtree", Path("cdmw/ui/model_library/commands.py").read_text(encoding="utf-8"))
         self.assertIn('QGroupBox("Actions")', source)
         self.assertIn('QGroupBox("Selection")', source)
         self.assertIn('QGroupBox("Model Preview")', source)
@@ -484,9 +476,9 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("_batch_action_payloads", source)
         self.assertIn("Local", source)
         self.assertIn("_ensure_download_root_registered", source)
-        self.assertIn("resolve_importable_model_path", source)
+        self.assertIn("resolve_model_library_import_path", source)
         self.assertIn("_normalize_local_model_rows", source)
-        self.assertIn("_download_group_local_row", source)
+        self.assertIn("_download_group_row", source)
         self.assertIn('"source": "Downloaded"', source)
         self.assertIn("require_importable = import_after or preview_after", source)
         self.assertIn("mirror_url_ready", source)
@@ -573,9 +565,23 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
 
         preview_start = source.index("    def preview_selected_model_here")
         preview_body = source[preview_start: source.index("    def _inline_preview_renderer_backend", preview_start)]
-        self.assertIn("_inline_preview_source_path_for_payload(payload)", preview_body)
+        self.assertIn("_request_payload_import_path(", preview_body)
+        self.assertIn("on_resolved=resolved", preview_body)
         self.assertNotIn("_resolve_payload_import_path", preview_body)
         self.assertNotIn("resolve_importable_model_path", preview_body)
+
+        resolution_start = source.index("    def _request_payload_import_path")
+        resolution_body = source[resolution_start: source.index("    def _apply_mirror_local_state", resolution_start)]
+        self.assertIn("def task(_progress: Callable[[str], None]) -> object:", resolution_body)
+        self.assertIn("resolve_model_library_import_path(request, stop_event=stop_event)", resolution_body)
+        tab_source = Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
+        self.assertNotIn(".rglob(", tab_source)
+        state_start = tab_source.index("    def _apply_mirror_local_state")
+        state_body = tab_source[state_start: tab_source.index("    def iter_shutdown_workers", state_start)]
+        self.assertNotIn(".glob(", state_body)
+        self.assertNotIn(".iterdir(", state_body)
+        preview_source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
+        self.assertNotIn("waitForFinished(", preview_source)
 
         load_start = source.index("    def _load_inline_model_preview")
         task_start = source.index("        def task(", load_start)
@@ -625,10 +631,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
 
         preview_source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
         worker_source = Path("cdmw/workers/model_library_workers.py").read_text(encoding="utf-8")
-        self.assertIn(
-            "from cdmw.workers.model_library_workers import remove_model_library_preview_package_dir",
-            preview_source,
-        )
+        self.assertIn("remove_model_library_preview_package_dir,", preview_source)
         self.assertIn("remove_model_library_preview_package_dir(package_dir)", preview_source)
         self.assertNotIn("shutil.rmtree", preview_source)
         self.assertIn("threading.Thread(", worker_source)
@@ -636,13 +639,9 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
 
         source_path_start = source.index("    def _inline_preview_source_path_for_payload")
         source_path_body = source[source_path_start: source.index("    def _inline_preview_extract_root_for_source", source_path_start)]
-        local_start = source_path_body.index('if payload.get("kind") != "mirror"')
-        local_fast_path = source_path_body[
-            local_start
-            : source_path_body.index("            if path.is_file()", local_start)
-        ]
-        self.assertIn("return path", local_fast_path)
-        self.assertNotIn("path.is_file()", local_fast_path)
+        self.assertIn("return path", source_path_body)
+        self.assertNotIn("path.is_file()", source_path_body)
+        self.assertNotIn("_existing_mirror_asset_dir", source_path_body)
 
     def test_inline_d3d11_host_is_prepared_before_hwnd_capture_without_early_stack_switch(self) -> None:
         source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")

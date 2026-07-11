@@ -16,6 +16,8 @@ from cdmw.rendering.native_preview_package import (
     read_isolated_d3d11_preview_manifest,
     write_isolated_d3d11_preview_package,
 )
+from tests.native_source_text import d3d11_preview_source
+from tests.static_replacement_source_support import static_replacement_callback_factory_source
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +34,10 @@ def _i32_descriptor_values(descriptor: object) -> list[int]:
 
 
 def _read(relative: str) -> str:
+    if relative == "native/cdmw_d3d11_preview/src/main.cpp":
+        return d3d11_preview_source()
+    if relative == "cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py":
+        return static_replacement_callback_factory_source(ROOT)
     return (ROOT / relative).read_text(encoding="utf-8")
 
 

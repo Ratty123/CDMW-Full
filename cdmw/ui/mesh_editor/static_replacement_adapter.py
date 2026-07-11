@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Mapping, Sequence
 
 from cdmw.domain.mesh import MeshEditResult, MeshEditSelection, MeshEditSessionView
-from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.services.mesh_workflow_service import ParsedMesh
 from cdmw.ui.mesh_editor.controller import MeshEditorController, MeshEditorNativeUpdate
 
 
@@ -26,6 +26,9 @@ class StaticReplacementMeshEditResult:
     new_submesh_index: int = -1
     moved_face_count: int = 0
     moved_vertex_count: int = 0
+    previous_submesh_count: int = 0
+    selected_source_indices: tuple[int, ...] = ()
+    new_submesh_source_indices: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(slots=True)
@@ -184,6 +187,7 @@ def _static_result(
     changed = _changed_vertices_for_static_result(edit_result)
     source_index = _selection_source_index(selection)
     new_index = max(affected, default=-1) if len(after) > len(before) else -1
+    new_sources = _new_submesh_source_indices(native_update, len(before), len(after))
     moved_face_count = _moved_face_count(before, after, source_index) if new_index >= 0 else 0
     moved_vertex_count = after[new_index][0] if 0 <= new_index < len(after) else 0
     return StaticReplacementMeshEditResult(
@@ -201,7 +205,27 @@ def _static_result(
         new_submesh_index=new_index,
         moved_face_count=moved_face_count,
         moved_vertex_count=moved_vertex_count,
+        previous_submesh_count=len(before),
+        selected_source_indices=tuple(selection.source_indices),
+        new_submesh_source_indices=new_sources,
     )
+
+
+def _new_submesh_source_indices(
+    native_update: MeshEditorNativeUpdate,
+    previous_count: int,
+    current_count: int,
+) -> tuple[tuple[int, int], ...]:
+    pairs: dict[int, int] = {}
+    for group in native_update.triangle_groups:
+        try:
+            new_index = int(group.get("source_submesh_index", -1))
+            source_index = int(group.get("material_source_submesh_index", -1))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if previous_count <= new_index < current_count and 0 <= source_index < previous_count:
+            pairs[new_index] = source_index
+    return tuple(sorted(pairs.items()))
 
 
 def _mesh_counts(mesh: ParsedMesh) -> tuple[tuple[int, int], ...]:

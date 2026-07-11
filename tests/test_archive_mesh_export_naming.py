@@ -199,7 +199,7 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
             with patch("cdmw.core.archive_mesh_export._parse_archive_mesh", return_value=parsed_mesh), patch(
-                "cdmw.core.archive.build_archive_preview_result",
+                "cdmw.core.archive_preview_result_builder.build_archive_preview_result",
                 side_effect=AssertionError("preview context rebuild should be skipped"),
             ):
                 result = export_archive_mesh(

@@ -6,14 +6,14 @@ import time
 from pathlib import PurePosixPath
 from typing import List, Optional
 
-from cdmw.core.archive import (
-    build_archive_asset_family_graph,
+from cdmw.services.archive_query_service import build_archive_asset_family_graph
+from cdmw.services.archive_read_service import (
     build_archive_entry_detail_text,
     build_archive_entry_metadata_summary,
 )
-from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, ArchivePreviewResult, RelationConfidence, RelationKind
-from cdmw.rendering.native_preview_core import shutdown_native_preview_core_service
+from cdmw.services.preview_rendering_service import shutdown_native_preview_core_service
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 
 

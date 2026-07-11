@@ -9,15 +9,15 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QImage, QPainter, QPainterPath, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import QApplication
 
-from cdmw.core.texture_editor import build_texture_editor_selection_mask
+from cdmw.domain.textures.editor_selection_masks import build_texture_editor_selection_mask
 from cdmw.models import TextureEditorDocument
 
 
-def _rgba_array_to_qimage(array: np.ndarray) -> QImage:
+def _rgba_array_to_qimage(array: np.ndarray, *, copy: bool = True) -> QImage:
     rgba = np.ascontiguousarray(array, dtype=np.uint8)
     height, width = rgba.shape[:2]
     image = QImage(rgba.data, width, height, width * 4, QImage.Format_RGBA8888)
-    return image.copy()
+    return image.copy() if copy else image
 
 
 def texture_editor_quick_mask_overlay_image(document: TextureEditorDocument) -> Optional[QImage]:

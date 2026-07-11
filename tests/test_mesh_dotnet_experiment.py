@@ -15,13 +15,15 @@ from cdmw.services.mesh_dotnet_experiment import (
     import_mesh_dotnet_experiment_output,
     mesh_dotnet_experiment_command,
     mesh_dotnet_experiment_evaluation_path,
+    mesh_dotnet_material_input_signature,
     mesh_dotnet_experiment_output_obj_path,
     mesh_dotnet_material_parity_warnings,
     mesh_dotnet_renderer_blockers,
     write_mesh_dotnet_experiment_evaluation,
 )
-from cdmw.workers import mesh_editor_workers
+from cdmw.workers import mesh_editor_aux_workers, mesh_editor_workers
 from scripts.release_preflight import classify_git_status, release_blockers
+from tests.mesh_editor_source_support import mesh_editor_tab_source
 
 
 def _mesh() -> ParsedMesh:
@@ -45,6 +47,25 @@ def _mesh() -> ParsedMesh:
         total_faces=1,
         has_uvs=True,
     )
+
+
+def test_dotnet_texture_channels_seed_existing_source_texture_before_preview_overrides(tmp_path: Path) -> None:
+    texture = tmp_path / "body.dds"
+    texture.write_bytes(b"real-dds")
+    source = SimpleNamespace(texture=str(texture), preview_material_texture_inputs=())
+
+    channels = mesh_dotnet_experiment._dotnet_resolved_texture_channels(source)
+
+    assert {channels[key] for key in ("base", "albedo", "diffuse")} == {str(texture)}
+    packaged = mesh_dotnet_experiment._copy_dotnet_texture_channel_resources(channels, tmp_path / "package", {})
+    assert packaged["base"] == packaged["albedo"] == packaged["diffuse"]
+    assert (tmp_path / "package" / packaged["base"]).read_bytes() == b"real-dds"
+
+    preview = tmp_path / "body_preview.png"
+    preview.write_bytes(b"preview")
+    source.preview_texture_path = str(preview)
+    channels = mesh_dotnet_experiment._dotnet_resolved_texture_channels(source)
+    assert {channels[key] for key in ("base", "albedo", "diffuse")} == {str(preview)}
 
 
 def test_dotnet_experiment_editor_finder_prefers_env_path(tmp_path: Path, monkeypatch) -> None:
@@ -84,6 +105,41 @@ def test_dotnet_experiment_editor_finder_finds_pyinstaller_nested_native_build(
     assert find_mesh_dotnet_experiment_editor() == exe_path
 
 
+def test_dotnet_experiment_editor_finder_finds_onedir_internal_native_helper(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    exe_root = tmp_path / "CTF"
+    exe_path = exe_root / "_internal" / "native" / MESH_DOTNET_EXPERIMENT_BINARY_NAME
+    exe_path.parent.mkdir(parents=True)
+    exe_path.write_text("bundled", encoding="utf-8")
+    monkeypatch.delenv("CDMW_MESH_DOTNET_EXPERIMENT_EXE", raising=False)
+    monkeypatch.setattr(mesh_dotnet_experiment.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(mesh_dotnet_experiment.sys, "executable", str(exe_root / "CrimsonDesertModWorkbench.exe"))
+    monkeypatch.setattr(mesh_dotnet_experiment, "_repo_root", lambda: tmp_path / "repo")
+
+    assert find_mesh_dotnet_experiment_editor() == exe_path
+
+
+def test_dotnet_experiment_editor_resolver_ignores_stale_configured_path(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    exe_path = tmp_path / "tools" / "dotnet_mesh_editor_experiment" / "bin" / "Release" / "net8.0-windows" / MESH_DOTNET_EXPERIMENT_BINARY_NAME
+    exe_path.parent.mkdir(parents=True)
+    exe_path.write_text("dev build", encoding="utf-8")
+    monkeypatch.delenv("CDMW_MESH_DOTNET_EXPERIMENT_EXE", raising=False)
+    monkeypatch.setattr(mesh_dotnet_experiment.sys, "frozen", False, raising=False)
+    monkeypatch.setattr(mesh_dotnet_experiment.sys, "_MEIPASS", "", raising=False)
+    monkeypatch.setattr(mesh_dotnet_experiment, "_repo_root", lambda: tmp_path)
+
+    resolution = mesh_dotnet_experiment.resolve_mesh_dotnet_experiment_editor(tmp_path / "missing.exe")
+
+    assert Path(resolution.resolved_path) == exe_path
+    assert resolution.source == "source_release"
+    assert resolution.is_file is True
+
+
 def test_dotnet_experiment_default_editor_path_points_at_packaged_build_dir() -> None:
     path = default_mesh_dotnet_experiment_editor_path(release=True)
 
@@ -102,17 +158,42 @@ def test_dotnet_experiment_packaging_scripts_publish_and_bundle_helper() -> None
     assert "Vortice.D3DCompiler" in csproj_source
     assert "D3D11MaterialShaders.hlsl" in csproj_source
     assert "EmbeddedResource Include=\"D3D11MaterialShaders.hlsl\"" in csproj_source
-    assert "Invoke-DotNetMeshEditorBuild -Configuration $nativeConfig" in build_script
+    assert "Invoke-NativeHelperPreparation" in build_script
+    assert "Invoke-DotNetMeshEditorBuild -Configuration $Configuration -Required:$RequireDotNet" in build_script
     assert "dotnet_mesh_editor_experiment\\Cdmw.MeshEditorExperiment.csproj" in build_script
+    assert "--headless-gpu-sparse-soak" in build_script
+    assert 'backend -ne "d3d11_vortice_shader"' in build_script
+    assert 'Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"' in build_script
     assert "native\\cdmw_mesh_dotnet_editor\\build\\$Configuration" in build_script
     assert (root / "schemas" / "mesh" / "mesh.cdmeta.schema.json").is_file()
     assert '_add_data_tree_if_exists(datas, "schemas", "schemas", suffixes={".json"})' in spec_source
     assert "_add_native_binary_tree" in spec_source
     assert "native/cdmw_mesh_dotnet_editor/build/Release" in spec_source
     assert "native/cdmw_mesh_dotnet_editor/build/Debug" in spec_source
+    assert "native/cdmw_mesh_dotnet_editor/build/Release/D3D11MaterialShaders.hlsl" in spec_source
+    assert "native/cdmw_mesh_dotnet_editor/build/Debug/D3D11MaterialShaders.hlsl" in spec_source
     assert "native/cdmw_d3d11_preview/build/bin/Release/texconv.exe" in spec_source
     assert "native/cdmw_d3d11_preview/build/bin/Debug/texconv.exe" in spec_source
     assert "suffixes={\".exe\", \".dll\", \".json\", \".pdb\"}" in spec_source
+
+
+def test_dotnet_embedded_shader_fallback_is_bom_free() -> None:
+    source = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.cs").read_text(encoding="utf-8")
+    assert "File.WriteAllBytes(outputPath, shaderBytes)" in source
+    assert "File.WriteAllText(outputPath, shaderText, Encoding.UTF8)" not in source
+
+
+def test_dotnet_resident_material_resources_are_incremental() -> None:
+    root = Path("tools/dotnet_mesh_editor_experiment")
+    source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(root.glob("D3D11MaterialViewport*.cs")))
+
+    assert "reference.CacheKey" in source
+    assert "PruneTextureCacheToActiveBindings" in source
+    assert "CacheKeys" in source
+    refresh_source = source.split("public void RefreshTextures()", maxsplit=1)[1].split("private void RebuildMaterialResourcesIfDirty", maxsplit=1)[0]
+    assert "ClearTextureCache" not in refresh_source
+    assert "texture_srv_reuses" in source
+    assert "affected_material_batch_rebinds" in source
 
 
 def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
@@ -124,7 +205,8 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
         if path.name != "Cdmw.MeshEditorExperiment.GlobalUsings.g.cs"
     )
     gpu_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "WpfGpuMeshViewport.cs").read_text(encoding="utf-8")
-    d3d_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.cs").read_text(encoding="utf-8")
+    d3d_root = root / "tools" / "dotnet_mesh_editor_experiment"
+    d3d_source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(d3d_root.glob("D3D11MaterialViewport*.cs")))
     d3d_overlay_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
     hlsl_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
     camera_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "NetViewportCamera.cs").read_text(encoding="utf-8")
@@ -173,7 +255,6 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "MaterialDebugMode" in hlsl_source
     assert "Material debug" in source
     assert "_textureSrvCache" in d3d_source
-    assert "TextureCacheKey" in d3d_source
     assert "ClearTextureCache" in d3d_source
     assert "UnbindGeometryResources" in d3d_source
     assert "CDMW_MESH_DOTNET_D3D11_NO_VSYNC" in d3d_source
@@ -265,6 +346,10 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert '"parent-hwnd"' in source
     assert "dotnet_close_requested.txt" in source
     assert "FormBorderStyle.None" in source
+    assert "BringEmbeddedChildToFront" in source
+    assert "SetFocus(form.Handle)" in source
+    assert "EnableWindow(form.Handle, true)" in source
+    assert "_viewport.Focus()" in source
     assert "WriteProtocolEvent(\"ready\"" in source
     assert "WriteProtocolEvent(\"metrics\"" in source
     assert "\"select_request\"" in source
@@ -321,7 +406,7 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "EditableVertexIndicesForSubmesh" in source
     assert "SetCameraPreset" in source
     assert "RotateYawDegrees" in source
-    tab_source = (root / "cdmw" / "ui" / "mesh_editor" / "tab.py").read_text(encoding="utf-8")
+    tab_source = mesh_editor_tab_source(root)
     assert "_confirm_dotnet_process_started" in tab_source
     assert "_dotnet_process_diagnostics" in tab_source
     assert "mesh_dotnet_renderer_blockers" in tab_source
@@ -392,7 +477,9 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
     emissive_png.write_bytes(b"emissive-png")
     mesh.submeshes[0].preview_texture_path = str(preview_png)
     mesh.submeshes[0].preview_normal_texture_dds_path = str(preview_dds)
-    mesh.submeshes[0].preview_material_texture_inputs = (SimpleNamespace(semantic_type="emissive", source_path=emissive_png),)
+    mesh.submeshes[0].preview_material_texture_inputs = (
+        {"semantic_type": "emissive", "source_dds_path": str(emissive_png)},
+    )
     package = build_mesh_dotnet_experiment_package(mesh, output_root=tmp_path)
 
     assert package.mesh_path.name == "mesh.obj"
@@ -408,9 +495,12 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
     assert launch["rebuild_authority"] == "cdmw_python_cpp"
     assert launch["input"]["metadata"] == "mesh.cdmeta.json"
     assert launch["input"]["materials"] == "net_materials.json"
+    assert launch["input"]["material_signature"] == package.material_signature
     material_payload = json.loads((package.package_dir / "net_materials.json").read_text(encoding="utf-8"))
     assert material_payload["format"] == "cdmw_mesh_dotnet_materials_v1"
     assert material_payload["renderer_authority"] == "dotnet_mesh_editor"
+    assert material_payload["material_signature"] == package.material_signature
+    assert package.material_signature == mesh_dotnet_material_input_signature(mesh)
     assert material_payload["material_slots"][0]["texture"] == "skin.dds"
     assert material_payload["material_slots"][0]["channels"]["normal"] == "skin_n.dds"
     assert material_payload["submeshes"][0]["resolved_channels"]["base"].endswith("skin_preview.png")
@@ -422,11 +512,14 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
     assert packaged_base.startswith("textures/base_")
     assert packaged_normal.startswith("textures/normal_")
     assert packaged_emissive.startswith("textures/emissive_")
+    assert packaged_base == material_payload["submeshes"][0]["packaged_channels"]["albedo"]
+    assert packaged_base == material_payload["submeshes"][0]["packaged_channels"]["diffuse"]
     assert (package.package_dir / packaged_base).is_file()
     assert (package.package_dir / packaged_normal).is_file()
     assert (package.package_dir / packaged_emissive).is_file()
     assert material_payload["submeshes"][0]["packaged_texture_count"] >= 3
     assert "emissive" in material_payload["texture_channels"]
+    assert len(tuple((package.package_dir / "textures").iterdir())) == 3
 
     program, args = mesh_dotnet_experiment_command("C:/tools/MeshEditorExperiment.exe", package)
     assert Path(program) == Path("C:/tools/MeshEditorExperiment.exe")
@@ -453,13 +546,34 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
     assert "--developer-renderer-fallback" in developer_args
 
 
-def test_dotnet_renderer_status_blocks_degraded_embedded_production_backend() -> None:
-    payload = {"renderer": {"backend": "wpf_viewport3d_gpu"}}
-
-    blockers = mesh_dotnet_renderer_blockers(payload, embedded=True, developer_override=False)
-
-    assert blockers == ("embedded production .NET renderer cannot use degraded backend: wpf_viewport3d_gpu",)
-    assert mesh_dotnet_renderer_blockers(payload, embedded=True, developer_override=True) == ()
+def test_dotnet_renderer_status_requires_exact_embedded_production_backend() -> None:
+    valid = {"renderer": {"backend": "d3d11_vortice_shader", "gpu_backed": True, "renderer_blocked": False}}
+    assert mesh_dotnet_renderer_blockers(valid, embedded=True) == ()
+    invalid_renderers = (
+        {},
+        {"backend": "unknown", "gpu_backed": True, "renderer_blocked": False},
+        {"backend": "headless_cpu_smoke", "gpu_backed": False, "renderer_blocked": False},
+        {"backend": "wpf_viewport3d_gpu", "gpu_backed": True, "renderer_blocked": False},
+        {"backend": "winforms_gdi_fallback", "gpu_backed": False, "renderer_blocked": False},
+        {"backend": "d3d11_vortice_shader", "renderer_blocked": False},
+        {"backend": "d3d11_vortice_shader", "gpu_backed": True},
+        {"backend": "d3d11_vortice_shader", "gpu_backed": True, "renderer_blocked": True},
+    )
+    for renderer in invalid_renderers:
+        blockers = mesh_dotnet_renderer_blockers({"renderer": renderer}, embedded=True)
+        assert blockers
+        assert "requires backend=d3d11_vortice_shader" in blockers[-1]
+    for renderer in (
+        {"backend": "wpf_viewport3d_gpu", "gpu_backed": True, "renderer_blocked": False},
+        {"backend": "winforms_gdi_fallback", "gpu_backed": False, "renderer_blocked": False},
+    ):
+        assert mesh_dotnet_renderer_blockers(
+            {"renderer": renderer}, embedded=True, developer_override=True
+        ) == ()
+    for renderer in ({}, {"backend": "unknown"}, {"backend": "headless_cpu_smoke"}):
+        assert mesh_dotnet_renderer_blockers(
+            {"renderer": renderer}, embedded=True, developer_override=True
+        )
 
 
 def test_dotnet_renderer_status_blocks_missing_material_parity_when_required() -> None:
@@ -653,7 +767,7 @@ def test_dotnet_experiment_import_worker_writes_drop_evaluation_on_import_failur
     def fail_import(_package: MeshDotNetExperimentPackage, _payload: object) -> ParsedMesh:
         raise ValueError("bad edit operations")
 
-    monkeypatch.setattr(mesh_editor_workers, "import_mesh_dotnet_experiment_output", fail_import)
+    monkeypatch.setattr(mesh_editor_aux_workers, "import_mesh_dotnet_experiment_output", fail_import)
     worker = mesh_editor_workers.MeshDotNetExperimentOutputImportWorker(
         12,
         SimpleNamespace(),

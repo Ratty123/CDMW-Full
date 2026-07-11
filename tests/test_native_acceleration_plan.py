@@ -11,6 +11,7 @@ from cdmw.core.mesh_native_parity import native_mesh_full_rebuild_parity_enabled
 from cdmw.modding.mesh_importer import _split_pamlod_lod0_edit_by_entries
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.models import ArchiveEntry
+from tests.native_source_text import preview_core_source
 
 
 def _entry(path: str, index: int = 0) -> ArchiveEntry:
@@ -189,7 +190,7 @@ class NativeAccelerationPlanTests(unittest.TestCase):
     def test_mesh_native_command_is_exposed_by_preview_core(self) -> None:
         wrapper = Path("cdmw/core/mesh_native.py").read_text(encoding="utf-8")
         parity = Path("cdmw/core/mesh_native_parity.py").read_text(encoding="utf-8")
-        native = Path("native/cdmw_preview_core/src/main.cpp").read_text(encoding="utf-8")
+        native = preview_core_source()
         importer = Path("cdmw/modding/mesh_importer.py").read_text(encoding="utf-8")
 
         self.assertIn("audit_mesh_native", wrapper)

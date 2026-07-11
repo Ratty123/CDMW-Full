@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping, MutableMapping
 import hashlib
 from pathlib import Path
 
-from cdmw.rendering.model_preview_prepare import MeshPreviewDirtyFlags
+from cdmw.services.preview_rendering_service import MeshPreviewDirtyFlags
 
 
 def alignment_d3d11_cache_display_class(display_mode: str) -> str:

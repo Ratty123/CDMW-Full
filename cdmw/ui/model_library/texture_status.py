@@ -4,20 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cdmw.core.model_catalogue import is_importable_model_path
-
 
 class ModelLibraryTextureStatusMixin:
     """Compute and refresh local texture status for result rows."""
 
     def _mirror_local_status(self, payload: dict[str, object]) -> str:
-        import_path = Path(str(payload.get("import_path", "") or ""))
-        if import_path.is_file() and is_importable_model_path(import_path):
-            return "Ready"
-        archive_path = Path(str(payload.get("archive_path", "") or ""))
-        if archive_path.is_file():
-            return "Downloaded"
-        return ""
+        return str(payload.get("local_status", "") or "")
 
     def _local_payload_status(self, payload: dict[str, object]) -> str:
         if self._payload_can_import(payload):
@@ -34,7 +26,6 @@ class ModelLibraryTextureStatusMixin:
         if existing:
             return existing
         if payload.get("kind") == "mirror":
-            self._apply_mirror_local_state(payload)
             return "Download to check" if not str(payload.get("local_status", "") or "").strip() else "Unknown"
         path = Path(str(payload.get("import_path", "") or payload.get("path", "") or ""))
         if path.suffix.lower() == ".glb":
@@ -46,7 +37,6 @@ class ModelLibraryTextureStatusMixin:
         if item is None:
             return
         if payload.get("kind") == "mirror":
-            self._apply_mirror_local_state(payload)
             item.setText(3, self._mirror_local_status(payload))
         else:
             item.setText(3, self._local_payload_status(payload))
@@ -60,7 +50,6 @@ class ModelLibraryTextureStatusMixin:
             if payload is None:
                 continue
             if payload.get("kind") == "mirror":
-                self._apply_mirror_local_state(payload)
                 item.setText(3, self._mirror_local_status(payload))
                 item.setText(4, self._texture_status_for_payload(payload))
             else:

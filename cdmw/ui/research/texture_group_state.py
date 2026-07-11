@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from cdmw.core.research import TextureSetGroup
+from cdmw.domain.research.contracts import TextureSetGroup
 
 __all__ = [
     "TextureGroupExtractState",

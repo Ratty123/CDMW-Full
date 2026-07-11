@@ -9,6 +9,8 @@ from dataclasses import replace
 from pathlib import Path, PurePosixPath
 from typing import Mapping, Optional, Sequence
 
+from cdmw.domain.textures.material_parameters import evaluate_material_parameters, source_emissive_strength
+
 from .asset_replacement import classify_texture_binding, infer_cd_texture_role_from_path
 from .mesh_parser import ParsedMesh
 from .static_mesh_replacer import StaticOutputDrawSection, StaticSubmeshMapping, _semantic_tokens
@@ -519,6 +521,7 @@ def _attach_source_material_factor_slots(
         preview_color = _source_preview_rgb(source_submesh)
         preview_alpha = _source_preview_alpha(source_submesh)
         emissive_color = _source_emissive_rgb(source_submesh)
+        emissive_strength = source_emissive_strength(source_submesh)
         roughness_factor = _source_material_numeric_parameter(source_submesh, "_roughnessFactor")
         metallic_factor = _source_material_numeric_parameter(source_submesh, "_metallicFactor")
         specular_factor = _source_material_specular_factor(source_submesh)
@@ -532,6 +535,7 @@ def _attach_source_material_factor_slots(
             preview_color is None
             and preview_alpha is None
             and emissive_color is None
+            and emissive_strength is None
             and roughness_factor is None
             and metallic_factor is None
             and specular_factor is None
@@ -542,6 +546,8 @@ def _attach_source_material_factor_slots(
         texture_set = grouped.setdefault(material_name.lower(), ReplacementTextureSet(material_name=material_name))
         if role_tags:
             _merge_source_role_tags(texture_set, role_tags)
+        if emissive_strength is not None:
+            texture_set.emissive_strength = emissive_strength
         if roughness_factor is not None:
             texture_set.roughness_factor = roughness_factor
         if metallic_factor is not None:
@@ -796,7 +802,6 @@ def _source_material_parameters(source_submesh: object) -> tuple[object, ...]:
 
 def _source_emissive_rgb(source_submesh: object) -> Optional[tuple[float, float, float]]:
     emissive_rgb: Optional[tuple[float, float, float]] = None
-    emissive_strength = 0.0
     for parameter in _source_material_parameters(source_submesh):
         parameter_name = str(getattr(parameter, "parameter_name", "") or "").strip().lower()
         if parameter_name == "_emissivecolor":
@@ -806,20 +811,11 @@ def _source_emissive_rgb(source_submesh: object) -> Optional[tuple[float, float,
                     emissive_rgb = tuple(max(0.0, min(1.0, float(component))) for component in color[:3])  # type: ignore[assignment]
                 except (TypeError, ValueError, OverflowError):
                     pass
-        elif parameter_name == "_emissiveintensity":
-            try:
-                emissive_strength = max(emissive_strength, float(getattr(parameter, "numeric_value", 0.0) or 0.0))
-            except (TypeError, ValueError, OverflowError):
-                pass
     if emissive_rgb is None:
         return None
-    if emissive_strength <= 0.0 and all(component <= 0.003 for component in emissive_rgb):
+    if all(component <= 0.003 for component in emissive_rgb):
         return None
-    multiplier = max(1.0, min(4.0, emissive_strength if emissive_strength > 0.0 else 1.0))
-    boosted = tuple(max(0.0, min(1.0, component * multiplier)) for component in emissive_rgb)
-    if all(component <= 0.003 for component in boosted):
-        return None
-    return boosted  # type: ignore[return-value]
+    return emissive_rgb
 
 
 def _solid_material_factor_png_path(
@@ -1171,37 +1167,14 @@ def _normalized_source_part_material_role(raw_role: object) -> str:
     return value.replace(" ", "/")
 
 
-def _source_part_float(value: object, *, default: float, minimum: float, maximum: float) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError, OverflowError):
-        number = float(default)
-    return max(float(minimum), min(float(maximum), number))
-
-
-def _source_part_tint_rgb(value: object) -> tuple[float, float, float]:
-    raw_values = tuple(value or ())
-    if not raw_values:
-        return (1.0, 1.0, 1.0)
-    normalized: list[float] = []
-    for raw in raw_values[:3]:
-        try:
-            normalized.append(max(0.0, min(1.0, float(raw) / 255.0)))
-        except (TypeError, ValueError, OverflowError):
-            normalized.append(1.0)
-    while len(normalized) < 3:
-        normalized.append(1.0)
-    return normalized[0], normalized[1], normalized[2]
-
-
 def _source_part_has_texture_adjustment(adjustment: object) -> bool:
-    tint = _source_part_tint_rgb(getattr(adjustment, "material_tint_rgb", ()))
+    values = evaluate_material_parameters(part_adjustment=adjustment)
     return (
-        abs(_source_part_float(getattr(adjustment, "material_brightness", 0.0), default=0.0, minimum=-100.0, maximum=100.0)) > 0.0001
-        or abs(_source_part_float(getattr(adjustment, "material_contrast", 0.0), default=0.0, minimum=-100.0, maximum=100.0)) > 0.0001
-        or abs(_source_part_float(getattr(adjustment, "material_saturation", 0.0), default=0.0, minimum=-100.0, maximum=100.0)) > 0.0001
-        or abs(_source_part_float(getattr(adjustment, "material_gamma", 1.0), default=1.0, minimum=0.25, maximum=4.0) - 1.0) > 0.0001
-        or any(abs(component - 1.0) > 0.0001 for component in tint)
+        abs(values.brightness_percent) > 0.0001
+        or abs(values.contrast_percent) > 0.0001
+        or abs(values.saturation_percent) > 0.0001
+        or abs(values.gamma_multiplier - 1.0) > 0.0001
+        or any(abs(component - 1.0) > 0.0001 for component in values.tint_adjustment)
     )
 
 
@@ -1209,35 +1182,14 @@ def _source_part_adjusted_slot(source_slot: ReplacementTextureSlot, adjustment: 
     slot_kind = str(getattr(source_slot, "slot_kind", "") or "").strip().lower()
     if slot_kind not in {"base", "emissive"}:
         return source_slot
-    brightness = _source_part_float(getattr(adjustment, "material_brightness", 0.0), default=0.0, minimum=-100.0, maximum=100.0)
-    contrast = _source_part_float(getattr(adjustment, "material_contrast", 0.0), default=0.0, minimum=-100.0, maximum=100.0)
-    saturation = _source_part_float(getattr(adjustment, "material_saturation", 0.0), default=0.0, minimum=-100.0, maximum=100.0)
-    gamma = _source_part_float(getattr(adjustment, "material_gamma", 1.0), default=1.0, minimum=0.25, maximum=4.0)
-    tint = _source_part_tint_rgb(getattr(adjustment, "material_tint_rgb", ()))
-    existing_factor = tuple(getattr(source_slot, "base_color_factor", ()) or ())
-    if len(existing_factor) >= 3:
-        factor = tuple(max(0.0, min(1.0, float(existing_factor[index]) * tint[index])) for index in range(3))
-    else:
-        factor = tint if any(abs(component - 1.0) > 0.0001 for component in tint) else existing_factor
+    values = evaluate_material_parameters(source_slot=source_slot, part_adjustment=adjustment)
     return replace(
         source_slot,
-        base_color_factor=factor,
-        base_color_scale=max(
-            0.0,
-            min(4.0, float(getattr(source_slot, "base_color_scale", 1.0) or 1.0) * (1.0 + brightness / 100.0)),
-        ),
-        base_color_gamma=max(
-            0.1,
-            min(4.0, float(getattr(source_slot, "base_color_gamma", 1.0) or 1.0) * gamma),
-        ),
-        base_color_saturation=max(
-            0.0,
-            min(4.0, float(getattr(source_slot, "base_color_saturation", 1.0) or 1.0) * (1.0 + saturation / 100.0)),
-        ),
-        base_color_tone_contrast=max(
-            -100.0,
-            min(100.0, float(getattr(source_slot, "base_color_tone_contrast", 0.0) or 0.0) + contrast),
-        ),
+        base_color_factor=values.tint_color,
+        base_color_scale=values.base_color_scale,
+        base_color_gamma=values.gamma,
+        base_color_saturation=values.saturation,
+        base_color_tone_contrast=values.tone_contrast,
     )
 
 
@@ -1299,6 +1251,7 @@ def _apply_source_part_role_overrides(
                 base_color_factor=texture_set.base_color_factor,
                 source_role_tags=texture_set.source_role_tags,
                 accent_glow_color_rgb=texture_set.accent_glow_color_rgb,
+                emissive_strength=texture_set.emissive_strength,
             )
             texture_sets[alias_key] = texture_set
             try:
@@ -1311,6 +1264,9 @@ def _apply_source_part_role_overrides(
             if role not in existing:
                 texture_set.source_role_tags = (*existing, role)
             if role == "glow":
+                part_strength = source_emissive_strength(adjustment)
+                if part_strength is not None:
+                    texture_set.emissive_strength = part_strength
                 glow_rgb = _normalized_accent_glow_rgb(getattr(adjustment, "emissive_color_rgb", ()))
                 if glow_rgb:
                     texture_set.accent_glow_color_rgb = glow_rgb
@@ -2007,3 +1963,9 @@ def classify_texture_assignment_guidance(
         reason=classification.reason or "Slot type is not specific enough for automatic assignment.",
         advanced=True,
     )
+
+
+from . import material_replacer as _material_replacer_facade
+
+_material_replacer_facade._bind_lazy_material_exports(__name__, globals())
+del _material_replacer_facade

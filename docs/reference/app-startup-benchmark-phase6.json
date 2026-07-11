@@ -1,0 +1,265 @@
+{
+  "comparison": {
+    "baseline_generated_at_utc": "2026-07-10T05:11:04.249866+00:00",
+    "first_tab_regression_percent": -12.238,
+    "first_window_improvement_percent": 31.258,
+    "helper_protocol_ready_regression_percent": -76.538
+  },
+  "configuration": {
+    "allowed_first_use_regression_percent": 10.0,
+    "first_tab": "mesh_editor_tab",
+    "public_import_budget_ms": 500.0,
+    "required_first_window_improvement_percent": 30.0,
+    "runs": 11
+  },
+  "environment": {
+    "git_dirty": true,
+    "git_head": "5e03816c6b327e803f42ad80eadc1a7f4540b590",
+    "machine": "AMD64",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 26 Model 68 Stepping 0, AuthenticAMD",
+    "python": "3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]"
+  },
+  "gates": {
+    "first_tab_regression_within_10_percent": true,
+    "first_window_improved_at_least_30_percent": true,
+    "helper_protocol_ready_regression_within_10_percent": true,
+    "public_facade_import_has_no_heavy_modules": true,
+    "public_facade_import_under_500_ms": true
+  },
+  "generated_at_utc": "2026-07-10T16:47:14.395813+00:00",
+  "ok": true,
+  "probes": {
+    "first_tab": {
+      "created_every_run": true,
+      "maximum_ms": 237.445,
+      "median_ms": 175.345,
+      "minimum_ms": 133.782,
+      "p95_ms": 233.923,
+      "samples_ms": [
+        157.06,
+        176.484,
+        230.401,
+        146.624,
+        237.445,
+        133.782,
+        175.345,
+        221.102,
+        163.634,
+        172.433,
+        180.831
+      ],
+      "stages": {
+        "first_tab_creation": {
+          "maximum_ms": 237.445,
+          "median_ms": 175.345,
+          "minimum_ms": 133.782,
+          "p95_ms": 233.923,
+          "samples_ms": [
+            157.06,
+            176.484,
+            230.401,
+            146.624,
+            237.445,
+            133.782,
+            175.345,
+            221.102,
+            163.634,
+            172.433,
+            180.831
+          ],
+          "status": "ok"
+        }
+      },
+      "status": "ok",
+      "target": "mesh_editor_tab"
+    },
+    "first_window": {
+      "maximum_ms": 1769.951,
+      "median_ms": 1568.876,
+      "minimum_ms": 1271.169,
+      "p95_ms": 1746.569,
+      "samples_ms": [
+        1271.169,
+        1656.57,
+        1493.837,
+        1723.187,
+        1538.493,
+        1493.21,
+        1541.82,
+        1769.951,
+        1585.172,
+        1665.542,
+        1568.876
+      ],
+      "stages": {
+        "application_context_creation": {
+          "maximum_ms": 82.632,
+          "median_ms": 57.256,
+          "minimum_ms": 37.262,
+          "p95_ms": 80.952,
+          "samples_ms": [
+            79.272,
+            82.632,
+            48.177,
+            65.078,
+            55.178,
+            57.256,
+            37.262,
+            62.812,
+            61.908,
+            37.629,
+            40.368
+          ],
+          "status": "ok"
+        },
+        "first_show_event": {
+          "maximum_ms": 74.561,
+          "median_ms": 51.402,
+          "minimum_ms": 31.029,
+          "p95_ms": 68.059,
+          "samples_ms": [
+            53.175,
+            31.029,
+            74.561,
+            38.346,
+            51.402,
+            61.557,
+            59.768,
+            57.927,
+            46.74,
+            51.107,
+            45.806
+          ],
+          "status": "ok"
+        },
+        "main_window_class_resolution": {
+          "maximum_ms": 149.799,
+          "median_ms": 128.781,
+          "minimum_ms": 74.028,
+          "p95_ms": 149.089,
+          "samples_ms": [
+            74.028,
+            149.799,
+            112.477,
+            148.38,
+            124.047,
+            144.357,
+            115.25,
+            132.768,
+            143.125,
+            110.838,
+            128.781
+          ],
+          "status": "ok"
+        },
+        "settings_service_import": {
+          "maximum_ms": 40.21,
+          "median_ms": 17.935,
+          "minimum_ms": 5.837,
+          "p95_ms": 39.159,
+          "samples_ms": [
+            17.84,
+            8.617,
+            9.257,
+            24.88,
+            5.837,
+            21.383,
+            17.935,
+            40.21,
+            38.108,
+            20.955,
+            8.457
+          ],
+          "status": "ok"
+        },
+        "shell_module_import": {
+          "maximum_ms": 489.942,
+          "median_ms": 432.101,
+          "minimum_ms": 322.682,
+          "p95_ms": 485.52,
+          "samples_ms": [
+            322.682,
+            427.608,
+            394.66,
+            451.599,
+            481.099,
+            432.101,
+            438.202,
+            489.942,
+            413.036,
+            453.883,
+            425.386
+          ],
+          "status": "ok"
+        },
+        "window_construction": {
+          "maximum_ms": 994.903,
+          "median_ms": 882.256,
+          "minimum_ms": 724.172,
+          "p95_ms": 993.016,
+          "samples_ms": [
+            724.172,
+            956.885,
+            854.705,
+            994.903,
+            820.931,
+            776.556,
+            873.403,
+            986.292,
+            882.256,
+            991.13,
+            920.08
+          ],
+          "status": "ok"
+        }
+      },
+      "status": "ok"
+    },
+    "helper_protocol_ready": {
+      "executable": "D:\\Byggverkstaden\\app_restructuring\\native\\cdmw_mesh_dotnet_editor\\build\\Release\\cdmw-mesh-dotnet-editor.exe",
+      "maximum_ms": 553.585,
+      "median_ms": 304.333,
+      "minimum_ms": 222.968,
+      "p95_ms": 517.075,
+      "samples_ms": [
+        335.197,
+        314.393,
+        226.759,
+        553.585,
+        299.755,
+        304.333,
+        480.565,
+        236.622,
+        365.259,
+        304.071,
+        222.968
+      ],
+      "status": "ok"
+    },
+    "public_facade_import": {
+      "forbidden_modules_seen": [],
+      "maximum_ms": 235.92,
+      "median_ms": 138.265,
+      "minimum_ms": 90.571,
+      "module_count_max": 157,
+      "module_count_min": 157,
+      "p95_ms": 197.077,
+      "samples_ms": [
+        129.613,
+        149.79,
+        90.571,
+        135.557,
+        155.717,
+        158.235,
+        114.161,
+        235.92,
+        138.265,
+        142.492,
+        136.807
+      ],
+      "status": "ok"
+    }
+  },
+  "schema_version": 1
+}

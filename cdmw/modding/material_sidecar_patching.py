@@ -746,7 +746,7 @@ def _apply_source_emissive_parameters(
     settings_by_key = {
         _normalize_sidecar_material_name(str(name or "")): (str(color or "#FFFFFFFF"), float(intensity or 0.0))
         for name, (color, intensity) in dict(target_settings or {}).items()
-        if str(name or "").strip() and float(intensity or 0.0) > 0.0
+        if str(name or "").strip()
     }
     if not settings_by_key:
         return sidecar_text, 0

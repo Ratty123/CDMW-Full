@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 
 MODIFY_ORIGINAL_ADVANCED_TEXTURE_TUNING_SETTINGS_KEY = "settings/modify_original_advanced_texture_tuning"
@@ -44,6 +45,92 @@ MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_KEYS = (
     "force_neutral_layer_support",
     "preserve_target_layer_response",
 )
+
+MATERIAL_AUTHORITY_RESIDENT_MANUAL_PARAMETER_KEYS = frozenset(
+    {
+        "base_color_lift",
+        "base_color_scale",
+        "base_color_gamma",
+        "base_color_saturation",
+        "base_color_value_max",
+        "roughness_min",
+        "roughness_scale",
+        "roughness_max",
+        "metallic_min",
+        "metallic_scale",
+        "metallic_max",
+        "scratch_roughness",
+        "scratch_metallic",
+        "shine_scalar",
+        "displacement_scale_multiplier",
+        "roughness_inverted",
+        "metallic_inverted",
+        "force_nonmetal",
+    }
+)
+
+MATERIAL_AUTHORITY_RESIDENT_RESOURCE_KEYS = frozenset(
+    {
+        "base_binding_mode",
+        "mask_binding_mode",
+        "support_policy",
+        "emissive_mode",
+        "emissive_color_scale",
+        "emissive_color_saturation",
+        "emissive_color_value_max",
+        "roughness_default",
+        "metallic_default",
+        "ao_default",
+        "alpha_default",
+        "allow_factor_only_authority",
+        "factor_only_material_mask",
+        "force_neutral_layer_support",
+    }
+)
+
+MATERIAL_AUTHORITY_RESIDENT_EXPORT_ONLY_KEYS = frozenset(
+    {
+        "authority_contract",
+        "displacement_scale_max",
+        "neutral_color_rgb",
+        "preserve_scratch_alpha",
+        "preserve_target_layer_response",
+        "source_color_layer_authority",
+    }
+)
+
+_MATERIAL_RESOURCE_CHANNELS = {
+    "base_binding_mode": ("base",),
+    "allow_factor_only_authority": ("base",),
+    "mask_binding_mode": ("material_mask",),
+    "roughness_default": ("material_mask",),
+    "metallic_default": ("material_mask",),
+    "ao_default": ("material_mask",),
+    "alpha_default": ("material_mask",),
+    "factor_only_material_mask": ("material_mask",),
+    "support_policy": ("normal", "height", "material_mask"),
+    "force_neutral_layer_support": ("normal", "height", "material_mask"),
+    "edge_relief": ("height",),
+    "edge_relief_source": ("height",),
+    "emissive_mode": ("emissive",),
+    "emissive_color_scale": ("emissive",),
+    "emissive_color_saturation": ("emissive",),
+    "emissive_color_value_max": ("emissive",),
+    "accent_glow": ("emissive",),
+}
+
+
+def material_authority_resource_channels(control_keys: Sequence[object]) -> tuple[str, ...]:
+    keys = tuple(str(key or "").strip() for key in control_keys)
+    if "*" in keys:
+        return ("base", "normal", "height", "material_mask", "emissive")
+    return tuple(
+        dict.fromkeys(
+            channel
+            for key in keys
+            for channel in _MATERIAL_RESOURCE_CHANNELS.get(key, ())
+        )
+    )
 
 
 def manual_material_profile_default_values(profile: object | None) -> dict[str, object]:
@@ -244,6 +331,17 @@ def manual_material_profile_inactive_reasons(values: Mapping[str, object]) -> di
             inactive[key] = "No effect: PBR/mask slot is not generating a material-mask DDS."
     if not allow_factor_colors:
         inactive["factor_only_material_mask"] = "No effect: Use factor-only colors is off."
+    if bool(values.get("force_nonmetal")):
+        reason = "No effect: Force nonmetal fixes effective metallic to exactly zero."
+        for key in (
+            "metallic_default",
+            "metallic_min",
+            "metallic_scale",
+            "metallic_max",
+            "scratch_metallic",
+            "metallic_inverted",
+        ):
+            inactive[key] = reason
     if support_mode != "source_only":
         inactive["force_neutral_layer_support"] = "No effect: neutral support fill only applies to Source only support maps."
     if support_mode == "keep_original_support":
@@ -252,6 +350,34 @@ def manual_material_profile_inactive_reasons(values: Mapping[str, object]) -> di
     if authority_contract == "runtime_xml_preserve" and support_mode == "keep_original_support":
         inactive["force_neutral_layer_support"] = "No effect: Runtime XML preserve keeps target/corpus support unless support maps are changed."
     return inactive
+
+
+def material_authority_target_height_supported(bindings: object) -> bool | None:
+    """Return true only for a declared height input with a readable resource."""
+    if not isinstance(bindings, Sequence) or isinstance(bindings, (str, bytes)):
+        return None
+    rows = tuple(bindings)
+    if not rows:
+        return None
+    for binding in rows:
+        value = lambda name: (
+            binding.get(name, "") if isinstance(binding, Mapping) else getattr(binding, name, "")
+        )
+        evidence = " ".join(
+            str(value(name) or "").strip().lower()
+            for name in ("parameter_name", "texture_role", "texture_path", "layer_role", "layer_channel")
+        )
+        if not any(token in evidence for token in ("height", "displacement", "parallax", "bump")):
+            continue
+        for name in ("resolved_path", "source_path", "local_path", "extracted_path", "texture_path"):
+            raw_path = str(value(name) or "").strip()
+            if raw_path:
+                try:
+                    if Path(raw_path).expanduser().is_file():
+                        return True
+                except OSError:
+                    pass
+    return False
 
 
 def selected_manual_material_profile_preset(
@@ -404,8 +530,45 @@ def manual_material_profile_control_effect_states(
     *,
     control_keys: Sequence[object],
     control_tooltips: Mapping[str, object],
+    target_height_supported: bool | None = None,
+    resident_parameter_only: bool = False,
+    resident_parameters_available: bool = True,
+    resident_resources_available: bool = False,
 ) -> dict[str, dict[str, object]]:
     inactive = manual_material_profile_inactive_reasons(values)
+    if target_height_supported is False:
+        reason = "No effect: The target material has no height/displacement input."
+        inactive["displacement_scale_multiplier"] = reason
+        inactive["displacement_scale_max"] = reason
+    if resident_parameter_only:
+        resource_reason = "Unavailable until the resident .NET material-resource channel is Ready."
+        parameter_reason = "Unavailable until the resident .NET material-parameter channel is Ready."
+        export_reason = "Unavailable during resident editing: this control changes export/sidecar structure only."
+        mask_mode = str(values.get("mask_binding_mode") or "").strip().lower()
+        scalar_surface_mode = mask_mode in {"scratch_scalars", "disabled"}
+        parameter_no_effect = (
+            {
+                "roughness_min", "roughness_scale", "roughness_max",
+                "metallic_min", "metallic_scale", "metallic_max",
+                "roughness_inverted", "metallic_inverted",
+            }
+            if scalar_surface_mode
+            else {"scratch_roughness", "scratch_metallic"}
+        )
+        for raw_key in control_keys:
+            key = str(raw_key)
+            if key in MATERIAL_AUTHORITY_RESIDENT_EXPORT_ONLY_KEYS:
+                inactive.setdefault(key, export_reason)
+            elif key in MATERIAL_AUTHORITY_RESIDENT_RESOURCE_KEYS:
+                if not resident_resources_available:
+                    inactive.setdefault(key, resource_reason)
+            elif key in MATERIAL_AUTHORITY_RESIDENT_MANUAL_PARAMETER_KEYS:
+                if not resident_parameters_available:
+                    inactive.setdefault(key, parameter_reason)
+                elif key in parameter_no_effect:
+                    inactive.setdefault(key, "No live effect in the selected PBR/mask mode.")
+            else:
+                inactive.setdefault(key, "Unavailable during resident editing: no target-supported live effect is implemented.")
     states: dict[str, dict[str, object]] = {}
     for raw_key in control_keys:
         key = str(raw_key)
@@ -516,6 +679,8 @@ __all__ = [
     "delete_manual_material_profile_preset",
     "load_manual_material_profile_presets",
     "load_manual_material_profile_values",
+    "material_authority_resource_channels",
+    "material_authority_target_height_supported",
     "manual_material_profile_default_values",
     "manual_material_profile_change_status_text",
     "manual_material_profile_control_text",

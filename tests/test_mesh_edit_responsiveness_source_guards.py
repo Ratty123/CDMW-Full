@@ -3,22 +3,119 @@ from __future__ import annotations
 from pathlib import Path
 import unittest
 
+from tests.mesh_editor_source_support import mesh_editor_tab_source
+from tests.native_source_text import d3d11_preview_source
+from tests.source_function_map import function_source
+from tests.static_replacement_source_support import (
+    static_replacement_callback_factory_source,
+    static_replacement_mesh_edit_implementation_source,
+    static_replacement_remaining_callback_source,
+    static_replacement_routing_callback_source,
+    static_replacement_source_part_mutation_callback_source,
+    static_replacement_texture_callback_source,
+    static_replacement_ui_section_source,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def _native_mesh_core_source() -> str:
+    source_root = ROOT / "native" / "cdmw_mesh_core" / "src"
+    cmake = (source_root.parent / "CMakeLists.txt").read_text(encoding="utf-8")
+    owner_block = cmake.split("set(MESH_CORE_OWNER_SOURCES", 1)[1].split("\n)", 1)[0]
+    owners = (
+        (source_root.parent / relative.strip()).read_text(encoding="utf-8")
+        for relative in owner_block.splitlines()
+        if relative.strip().startswith("src/owners/")
+    )
+    return "\n".join(
+        (
+            (source_root / "mesh_core_internal.hpp").read_text(encoding="utf-8"),
+            *owners,
+            (source_root / "main.cpp").read_text(encoding="utf-8"),
+        )
+    )
+
 
 def _read(relative: str) -> str:
+    if relative == "cdmw/services/mesh_service.py":
+        return "\n".join(_read(path) for path in (relative + ".facade", "cdmw/services/mesh_service_selection.py"))
+    if relative.endswith(".facade"):
+        relative = relative.removesuffix(".facade")
+    if relative == "native/cdmw_d3d11_preview/src/main.cpp":
+        return d3d11_preview_source()
+    if relative == "native/cdmw_mesh_core/src/main.cpp":
+        return _native_mesh_core_source()
+    if relative == "cdmw/modding/mesh_native_core.py":
+        return _mesh_native_core_source()
+    if relative == "cdmw/ui/mesh_editor/tab.py":
+        return mesh_editor_tab_source(ROOT)
+    if relative == "cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py":
+        return static_replacement_callback_factory_source(ROOT)
+    if relative == "cdmw/ui/archive_browser/static_replacement_dialog_ui_sections.py":
+        return static_replacement_ui_section_source(ROOT)
+    if relative == "cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py":
+        return static_replacement_mesh_edit_implementation_source(ROOT)
+    if relative == "cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py":
+        return static_replacement_remaining_callback_source(ROOT)
+    if relative == "cdmw/ui/archive_browser/static_replacement_dialog_routing_callbacks.py":
+        return static_replacement_routing_callback_source(ROOT)
+    if relative == "cdmw/ui/archive_browser/static_replacement_dialog_source_part_mutation_callbacks.py":
+        return static_replacement_source_part_mutation_callback_source(ROOT)
+    if relative == "cdmw/ui/archive_browser/static_replacement_dialog_texture_callbacks.py":
+        return static_replacement_texture_callback_source(ROOT)
     return (ROOT / relative).read_text(encoding="utf-8")
 
 
+def _function_source(source: str, name: str) -> str:
+    return function_source(source, name)
+
+
 def _mesh_native_core_source() -> str:
+    owner_order = (
+        "mesh_native_core.py",
+        "mesh_native_core_constants.py",
+        "mesh_native_core_payload_helpers.py",
+        "mesh_native_core_blend_helpers.py",
+        "mesh_native_outputs.py",
+        "mesh_native_preview_model.py",
+        "mesh_native_transforms.py",
+        "mesh_native_snapshot_create.py",
+        "mesh_native_snapshot_restore.py",
+        "mesh_native_snapshot_codec.py",
+        "mesh_native_selection_operations.py",
+        "mesh_native_selection.py",
+        "mesh_native_preview_groups.py",
+        "mesh_native_submesh_geometry.py",
+        "mesh_native_selection_preview.py",
+        "mesh_native_session_payloads.py",
+        "mesh_native_session_state.py",
+        "mesh_native_session_api.py",
+        "mesh_native_morph.py",
+        "mesh_native_rigging.py",
+        "mesh_native_brush.py",
+        "mesh_native_normals.py",
+        "mesh_native_uv.py",
+        "mesh_native_topology_payloads.py",
+        "mesh_native_topology_basic.py",
+        "mesh_native_topology_selection.py",
+        "mesh_native_duplicate_reports.py",
+        "mesh_native_topology_parts.py",
+        "mesh_native_report_edits.py",
+        "mesh_native_report_application.py",
+        "mesh_native_report_geometry.py",
+        "mesh_native_dispatch.py",
+        "mesh_native_preview_payloads.py",
+        "mesh_native_history.py",
+        "mesh_native_payloads.py",
+        "mesh_native_binary_io.py",
+        "mesh_native_client.py",
+        "mesh_native_core_diagnostics.py",
+        "mesh_native_core_temp_paths.py",
+    )
     return "\n".join(
-        (
-            _read("cdmw/modding/mesh_native_core.py"),
-            _read("cdmw/modding/mesh_native_core_constants.py"),
-            _read("cdmw/modding/mesh_native_core_payload_helpers.py"),
-            _read("cdmw/modding/mesh_native_core_blend_helpers.py"),
-        )
+        (ROOT / "cdmw/modding" / name).read_text(encoding="utf-8")
+        for name in owner_order
     )
 
 
@@ -56,13 +153,19 @@ def _mesh_edit_source() -> str:
 
 
 class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
+    def test_native_topology_preview_uses_binary_descriptor_output(self) -> None:
+        native_source = _read("native/cdmw_mesh_core/src/main.cpp")
+
+        self.assertGreaterEqual(native_source.count('"preview_triangle_output_path"'), 2)
+        self.assertIn('"preview_triangles", ".bin"', native_source)
+
     def test_build_fast_profile_still_rebuilds_native_helpers(self) -> None:
         build_script = _read("build_pyside6_app.ps1")
         build_bat = _read("build.bat")
         build_gui = _read("build_gui.py")
         spec_source = _read("CrimsonDesertModWorkbench.spec")
 
-        self.assertIn('Write-Host "Building native helpers ($nativeConfig)..."', build_script)
+        self.assertIn('Write-Host "Building native helpers ($Configuration)..."', build_script)
         self.assertIn('& (Join-Path $scriptDir "build_native_windows.ps1") @nativeBuildArgs', build_script)
         self.assertNotIn("Skipping native helper build for fast profile", build_script)
         self.assertNotIn('$BuildProfile -eq "fast" -and (Test-NativeOutputsPresent', build_script)
@@ -75,14 +178,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_standalone_mesh_file_load_uses_worker_thread(self) -> None:
         tab_source = _read("cdmw/ui/mesh_editor/tab.py")
-        worker_source = _read("cdmw/workers/mesh_editor_workers.py")
+        worker_source, aux_worker_source = (_read("cdmw/workers/mesh_editor_workers.py"), _read("cdmw/workers/mesh_editor_aux_workers.py"))
         close_source = _read("cdmw/ui/shell/close_controller.py")
         d3d11_host_source = _read("cdmw/ui/native_d3d11_preview_host.py")
         d3d11_native_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
         runtime_source = _read("cdmw/ui/mesh_editor/native_preview_runtime.py")
         actions_source = _read("cdmw/ui/mesh_editor/actions.py")
 
-        self.assertIn("from cdmw.workers.mesh_editor_workers import (", tab_source)
+        import cdmw.ui.mesh_editor.tab as tab_facade, cdmw.workers.mesh_editor_workers as mesh_editor_workers; self.assertEqual((tab_facade.MeshFileSessionLoadWorker, tab_facade.MeshNativePreviewPackageWorker), (mesh_editor_workers.MeshFileSessionLoadWorker, mesh_editor_workers.MeshNativePreviewPackageWorker))
         self.assertIn("MeshFileSessionLoadWorker", tab_source)
         self.assertIn("MeshNativePreviewPackageWorker", tab_source)
         self.assertIn("def open_mesh_file_session_async(", tab_source)
@@ -95,19 +198,19 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("thread.start(QThread.LowPriority)", tab_source)
         self.assertIn("def iter_shutdown_workers(self)", tab_source)
         self.assertIn("def request_shutdown(self)", tab_source)
-        self.assertIn("class MeshFileSessionLoadWorker(QObject):", worker_source)
+        self.assertIn("class MeshFileSessionLoadWorker(QObject):", aux_worker_source)
         self.assertIn("class MeshNativePreviewPackageWorker(QObject):", worker_source)
-        self.assertIn("service = MeshService()", worker_source)
-        self.assertIn("mesh = service.load_mesh_file(self.path, run_roundtrip=True)", worker_source)
-        self.assertIn("view = service.open_edit_session(", worker_source)
-        self.assertIn("self.loaded.emit(self.request_id, service, view, mesh)", worker_source)
-        self.assertIn("def _handle_standalone_file_loaded(self, request_id: int, mesh_service: MeshService, view: MeshEditSessionView, mesh: ParsedMesh) -> None:", tab_source)
+        self.assertIn("service = MeshService()", aux_worker_source)
+        self.assertIn("mesh = service.load_mesh_file(self.path, run_roundtrip=True)", aux_worker_source)
+        self.assertIn("view = service.open_edit_session(", aux_worker_source)
+        self.assertIn("self.loaded.emit(self.request_id, service, view, mesh)", aux_worker_source)
+        self.assertIn("def _handle_standalone_file_loaded(", tab_source)
         file_loaded_start = tab_source.index("def _handle_standalone_file_loaded(")
         file_loaded_body = tab_source[file_loaded_start:tab_source.index("def _handle_standalone_file_load_error", file_loaded_start)]
         self.assertNotIn("working_mesh(clone=False)", file_loaded_body)
         self.assertIn("prepared_preview = self.prepare_native_preview(self.mesh)", worker_source)
         self.assertIn("write_isolated_d3d11_preview_package(", worker_source)
-        self.assertNotIn("cdmw.ui.", worker_source)
+        self.assertTrue(all("cdmw.ui." not in source for source in (worker_source, aux_worker_source)))
         self.assertIn('"mesh_editor_tab"', close_source)
 
         package_start = tab_source.index("def start_standalone_native_preview_async(")
@@ -116,7 +219,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("mesh_snapshot, pose_skeleton, pose_rotations = pose_native_context", package_body)
         self.assertIn("mesh_pose_to_native_preview(", package_body)
         self.assertIn("mesh_snapshot = self._standalone_preview_mesh_snapshot()", package_body)
-        self.assertIn("prepare_native_preview = lambda mesh, reference=reference_snapshot: mesh_editor_native_preview_data", package_body)
+        self.assertIn("prepare_native_preview = lambda mesh, reference=reference_snapshot: _tab.mesh_editor_native_preview_data", package_body)
         self.assertLess(
             package_body.index("pose_native_context = self._standalone_pose_native_preview_context()"),
             package_body.index("mesh_snapshot = self._standalone_preview_mesh_snapshot()"),
@@ -130,8 +233,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("mesh_editor_write_prepared_native_preview_package", tab_source)
         self.assertIn("pose_native_context = self._standalone_pose_native_preview_context()", sync_package_body)
         self.assertIn("mesh, pose_skeleton, pose_rotations = pose_native_context", sync_package_body)
-        self.assertIn("prepared = mesh_pose_to_native_preview(", sync_package_body)
-        self.assertIn("mesh_editor_write_prepared_native_preview_package(", sync_package_body)
+        self.assertIn("prepared = _tab.mesh_pose_to_native_preview(", sync_package_body)
+        self.assertIn("_tab.mesh_editor_write_prepared_native_preview_package(", sync_package_body)
         self.assertIn("mesh = self._standalone_preview_mesh_snapshot()", sync_package_body)
         self.assertLess(
             sync_package_body.index("pose_native_context = self._standalone_pose_native_preview_context()"),
@@ -223,13 +326,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         stroke_start = tab_source.index("def _apply_standalone_native_mesh_edit_stroke(")
         stroke_body = tab_source[stroke_start: tab_source.index("def _standalone_native_mesh_edit_stroke_command(", stroke_start)]
         self.assertIn("if not self._apply_standalone_native_update(native_update):", stroke_body)
-        self.assertIn(
-            "return False",
-            stroke_body[stroke_body.index("if not self._apply_standalone_native_update(native_update):"):],
-        )
+        failure_branch = stroke_body[
+            stroke_body.index("if not self._apply_standalone_native_update(native_update):"):
+        ]
+        self.assertIn("\n                return\n", failure_branch)
 
     def test_remaining_mesh_clone_and_preview_rebuild_sites_are_classified(self) -> None:
-        scan_paths = (
+        ordinary_scan_paths = (
             "cdmw/services/mesh_service.py",
             "cdmw/services/model_library_preview.py",
             "cdmw/modding/mesh_morph_sliders.py",
@@ -237,12 +340,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             "cdmw/ui/mesh_editor/tab.py",
             "cdmw/ui/archive_browser/mesh_launch_flow.py",
             "cdmw/ui/shell/model_library_bridge.py",
-            "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py",
-            "cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py",
-            "cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py",
-            "cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py",
-            "cdmw/ui/archive_browser/static_replacement_dialog_source_part_mutation_callbacks.py",
+            "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
         )
+        scan_sources = [*[(path, _read(path)) for path in ordinary_scan_paths],
+            ("cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py", static_replacement_mesh_edit_implementation_source(ROOT)),
+            ("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py", static_replacement_remaining_callback_source(ROOT)),
+            ("cdmw/ui/archive_browser/static_replacement_dialog_source_part_mutation_callbacks.py", static_replacement_source_part_mutation_callback_source(ROOT)),
+        ]
         expected_boundary_or_fallback_sites = [
             ("cdmw/services/mesh_service.py", "mesh=clone_mesh_for_editing(session.working_mesh),"),
             ("cdmw/services/mesh_service.py", "return clone_mesh_for_editing(mesh), clone_mesh_for_editing(mesh)"),
@@ -252,37 +356,37 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             ("cdmw/ui/archive_browser/mesh_launch_flow.py", "preview_model = parsed_mesh_to_preview_model(scene_import_result.mesh)"),
             ("cdmw/ui/shell/model_library_bridge.py", "preview_model = parsed_mesh_to_preview_model(scene_result.mesh)"),
             (
-                "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py",
-                "original_reference_preview_model = parsed_mesh_to_preview_model(original_mesh_for_mapping)",
+                "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
+                "original_preview = parsed_mesh_to_preview_model(original_mesh)",
             ),
             (
-                "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py",
-                "replacement_preview_model = parsed_mesh_to_preview_model(replacement_mesh_for_mapping)",
+                "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
+                "replacement_preview = parsed_mesh_to_preview_model(replacement_mesh)",
             ),
             (
                 "cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py",
-                "_mesh_edit_state.replacement_preview_model = parsed_mesh_to_preview_model(",
+                "_state._mesh_edit_state.replacement_preview_model = _state.parsed_mesh_to_preview_model(",
             ),
             (
                 "cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py",
-                "state.replacement_preview_model = parsed_mesh_to_preview_model(state.replacement_mesh_for_mapping)",
+                "_state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model(_state.state.replacement_mesh_for_mapping)",
             ),
             (
                 "cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py",
-                "parsed_mesh_to_preview_model(state.replacement_mesh_for_mapping)",
+                "_state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model(_state.state.replacement_mesh_for_mapping) if _state.state.replacement_mesh_for_mapping is not None else None",
             ),
             (
                 "cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py",
-                "state.replacement_preview_model = parsed_mesh_to_preview_model(state.replacement_mesh_for_mapping)",
+                "_state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model(_state.state.replacement_mesh_for_mapping)",
             ),
             (
                 "cdmw/ui/archive_browser/static_replacement_dialog_source_part_mutation_callbacks.py",
-                "parsed_mesh_to_preview_model(replacement_mesh_for_mapping)",
+                "_state._set_replacement_preview_model(_state.parsed_mesh_to_preview_model(replacement_mesh_for_mapping) if replacement_mesh_for_mapping is not None else None)",
             ),
         ]
         actual: list[tuple[str, str]] = []
-        for relative in scan_paths:
-            for line in _read(relative).splitlines():
+        for relative, source in scan_sources:
+            for line in source.splitlines():
                 stripped = line.strip()
                 if "clone_mesh_for_editing(" in stripped or "parsed_mesh_to_preview_model(" in stripped:
                     actual.append((relative, stripped))
@@ -598,10 +702,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
     def test_native_mesh_fallback_telemetry_guards_long_harness(self) -> None:
         bridge_source = _read("cdmw/modding/mesh_native_core.py")
         service_source = _read("cdmw/services/mesh_service.py")
+        kernel_source = _read("cdmw/services/mesh_service_kernel.py")
         edit_ops_source = _read("cdmw/modding/mesh_edit_ops.py")
         mesh_deformer_source = _read("cdmw/modding/mesh_deformer.py")
         payload_source = _read("cdmw/ui/mesh_editor/native_preview_payloads.py")
-        harness_source = _read("tools/mesh_editor_dev_harness.py")
+        harness_source = _read("tools/mesh_harness/native_workflow.py")
 
         self.assertIn("def record_native_mesh_core_fallback(", bridge_source)
         self.assertIn("def native_mesh_core_fallback_counts(", bridge_source)
@@ -609,9 +714,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def clear_native_mesh_core_fallback_counts(", bridge_source)
         self.assertIn("native_mesh_core_fallback_events", service_source)
         self.assertIn("fallback_event_start = len(native_mesh_core_fallback_events())", service_source)
-        self.assertIn("def _native_blocked_fallback_diagnostics(", service_source)
-        self.assertIn("Edit was not applied: native mesh core failed and Python fallback was blocked", service_source)
-        self.assertIn("_append_unique_diagnostics(", service_source)
+        self.assertIn("def _native_blocked_fallback_diagnostics(", kernel_source)
+        self.assertIn("Edit was not applied: native mesh core failed and Python fallback was blocked", kernel_source)
+        self.assertIn("_append_unique_diagnostics(", kernel_source)
         self.assertIn("def _allow_python_history_restore_fallback(", service_source)
         self.assertIn('f"{operation}.blocked"', service_source)
         self.assertIn('"history.sparse_restore"', service_source)
@@ -869,10 +974,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("clear_native_mesh_core_fallback_counts()", harness_source)
         self.assertIn("native_available = native_mesh_core_available()", harness_source)
         self.assertIn("fallback_ok = not (native_available and fallback_counts)", harness_source)
-        self.assertIn('"native_fallback_counts": fallback_counts', harness_source)
-        self.assertIn('"native_fallback_events": fallback_events', harness_source)
+        self.assertIn("'native_fallback_counts': fallback_counts", harness_source)
+        self.assertIn("'native_fallback_events': fallback_events", harness_source)
         self.assertIn("toggle_persistence_ok = _mesh_geometry_signature(after) == _mesh_geometry_signature(toggled)", harness_source)
-        self.assertIn('"toggle_persistence_ok": toggle_persistence_ok', harness_source)
+        self.assertIn("'toggle_persistence_ok': toggle_persistence_ok", harness_source)
 
     def test_morph_slider_apply_is_native_owned_before_python_fallback(self) -> None:
         morph_source = _read("cdmw/modding/mesh_morph_sliders.py")
@@ -1073,14 +1178,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('if (command == "morph-target-delta-json") return morph_target_delta_json_command(job_path, report_path);', native_source)
         self.assertIn('if (command == "region-volume-delta-json") return region_volume_delta_json_command(job_path, report_path);', native_source)
 
-        static_bake_start = static_callbacks_source.index("def _morph_slider_bake(")
-        static_bake_body = static_callbacks_source[
-            static_bake_start: static_callbacks_source.index("def _morph_slider_import_pack", static_bake_start)
-        ]
-        static_bake_clone_start = static_callbacks_source.index("def _morph_slider_clone_working_mesh_for_bake(")
-        static_bake_clone_body = static_callbacks_source[
-            static_bake_clone_start: static_callbacks_source.index("def _morph_slider_bake", static_bake_clone_start)
-        ]
+        static_bake_body = _function_source(static_callbacks_source, "_morph_slider_bake")
+        static_bake_clone_body = _function_source(static_callbacks_source, "_morph_slider_clone_working_mesh_for_bake")
         self.assertNotIn("def _morph_slider_python_bake_clone_fallback_allowed", static_callbacks_source)
         self.assertNotIn('"morph_slider.bake_clone"', static_callbacks_source)
         self.assertNotIn("morph_slider_python_bake_clone_fallback_blocked", static_callbacks_source)
@@ -1091,46 +1190,42 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("morph_slider_native_bake_snapshot_failed", static_bake_clone_body)
         self.assertNotIn("return clone_mesh_for_editing(mesh)", static_bake_clone_body)
         self.assertLess(
-            static_bake_body.index("baked_base_mesh = _morph_slider_clone_working_mesh_for_bake()"),
-            static_bake_body.index("_morph_slider_begin_change(bake_state.change_label)"),
+            static_bake_body.index("baked_base_mesh = _callbacks._morph_slider_clone_working_mesh_for_bake()"),
+            static_bake_body.index("_callbacks._morph_slider_begin_change(bake_state.change_label)"),
         )
-        self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(_mesh_edit_preview_source_indices(), replace_all=True)", static_bake_body)
+        self.assertIn("_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(_state._mesh_edit_preview_source_indices(), replace_all=True)", static_bake_body)
         self.assertNotIn("clone_mesh_for_editing(_mesh_edit_state.replacement_mesh_for_mapping)", static_bake_body)
         self.assertNotIn("_queue_static_preview_rebuild()", static_bake_body)
-        static_apply_start = static_callbacks_source.index("def _morph_slider_apply_to_working_mesh(")
-        static_apply_body = static_callbacks_source[
-            static_apply_start: static_callbacks_source.index("def _morph_slider_sync_row_widgets", static_apply_start)
-        ]
-        static_capture_start = static_callbacks_source.index("def _morph_slider_capture_post_edit_deltas(")
-        static_capture_body = static_callbacks_source[
-            static_capture_start: static_callbacks_source.index("def _morph_slider_apply_to_working_mesh", static_capture_start)
-        ]
+        static_apply_body = _function_source(static_callbacks_source, "_morph_slider_apply_to_working_mesh")
+        static_capture_body = _function_source(static_callbacks_source, "_morph_slider_capture_post_edit_deltas")
         self.assertIn("except Exception as exc:", static_capture_body)
-        self.assertIn('morph_slider_topology_blocked["blocked"] = True', static_capture_body)
-        self.assertIn("self.set_status_message(str(exc))", static_capture_body)
-        self.assertIn("if _mesh_edit_tab_active():", static_apply_body)
-        self.assertNotIn("if _mesh_edit_tab_active() and not _alignment_d3d11_preview_active():", static_apply_body)
+        self.assertIn('_state.morph_slider_topology_blocked["blocked"] = True', static_capture_body)
+        self.assertIn("_state.self.set_status_message(str(exc))", static_capture_body)
+        self.assertIn("if _state._mesh_edit_tab_active():", static_apply_body)
+        self.assertNotIn("if _state._mesh_edit_tab_active() and not _state._alignment_d3d11_preview_active():", static_apply_body)
         self.assertIn("Python mesh mutation fallback is disabled", static_apply_body)
         self.assertLess(
-            static_apply_body.index("if _mesh_edit_tab_active():"),
-            static_apply_body.index("apply_morph_slider_values("),
+            static_apply_body.index("if _state._mesh_edit_tab_active():"),
+            static_apply_body.index("_state.apply_morph_slider_values("),
         )
-        self.assertIn("_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)", static_apply_body)
-        self.assertIn("if _alignment_d3d11_preview_active():", static_apply_body)
-        self.assertIn("_mesh_edit_update_live_preview(", static_apply_body)
-        self.assertIn("_mesh_edit_all_live_vertices_for_sources(_mesh_edit_preview_source_indices())", static_apply_body)
+        active_apply_body = static_apply_body[
+            static_apply_body.index("if _state._mesh_edit_tab_active():"):
+            static_apply_body.index("_callbacks._morph_slider_ensure_post_edit_deltas()")
+        ]
+        self.assertIn("_callbacks._mesh_edit_mark_native_preview_stale(", active_apply_body)
+        self.assertIn("return False", active_apply_body)
+        self.assertNotIn("_state._queue_static_preview_rebuild()", active_apply_body)
+        self.assertIn("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)", static_apply_body)
+        self.assertIn("if _state._alignment_d3d11_preview_active():", static_apply_body)
+        self.assertIn("_callbacks._mesh_edit_update_live_preview(", static_apply_body)
+        self.assertIn("_state._mesh_edit_all_live_vertices_for_sources(_state._mesh_edit_preview_source_indices())", static_apply_body)
         self.assertIn("include_normals=True", static_apply_body)
         self.assertIn("immediate=True", static_apply_body)
-        self.assertIn("elif _mesh_edit_tab_active():", static_apply_body)
+        self.assertIn("elif _state._mesh_edit_tab_active():", static_apply_body)
         self.assertIn("Active Mesh Editor morph-slider apply requires native geometry execution", static_apply_body)
-        active_apply_start = static_apply_body.index("elif _mesh_edit_tab_active():")
-        active_apply_body = static_apply_body[
-            active_apply_start:static_apply_body.index("else:", active_apply_start)
-        ]
-        self.assertNotIn("_queue_static_preview_rebuild()", active_apply_body)
         self.assertLess(
-            static_apply_body.index("if _alignment_d3d11_preview_active():"),
-            static_apply_body.index("_queue_static_preview_rebuild()"),
+            static_apply_body.index("if _state._alignment_d3d11_preview_active():"),
+            static_apply_body.index("_state._queue_static_preview_rebuild()"),
         )
 
     def test_static_whole_source_selection_stays_range_based(self) -> None:
@@ -1190,9 +1285,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
         export_start = exporter_source.index("def export_obj(")
         export_body = exporter_source[export_start:exporter_source.index("def _export_obj_split", export_start)]
-        self.assertIn("_export_obj_native(mesh, obj_path, mtl_path, base, scale, manifest_path=sidecar_path)", export_body)
+        self.assertIn("_export_obj_native(mesh, obj_path, mtl_path, base, scale, manifest_path=sidecar_path, **native_kwargs)", export_body)
         self.assertLess(
-            export_body.index("_export_obj_native(mesh, obj_path, mtl_path, base, scale, manifest_path=sidecar_path)"),
+            export_body.index("_export_obj_native(mesh, obj_path, mtl_path, base, scale, manifest_path=sidecar_path, **native_kwargs)"),
             export_body.index("for sm in mesh.submeshes:"),
         )
         self.assertIn('_allow_python_export_fallback(mesh, "export.obj")', export_body)
@@ -1312,73 +1407,45 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_mesh_edit_control_changes_sync_state_without_preview_reload(self) -> None:
         source = _mesh_edit_source()
+        ui_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_ui_sections.py")
+        mesh_edit_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py")
+        builder_body = _function_source(mesh_edit_source, "_connect_callbacks")
+        refresh_body = _function_source(mesh_edit_source, "_refresh_mesh_edit_controls")
 
-        self.assertIn(
-            "_populate_combo_options_helper(mesh_edit_selection_depth_combo, MESH_EDIT_SELECTION_DEPTH_OPTIONS)",
-            source,
-        )
+        self.assertIn("_state._populate_combo_options_helper(_state.mesh_edit_selection_depth_combo, _state.MESH_EDIT_SELECTION_DEPTH_OPTIONS)", ui_source)
         self.assertIn("MESH_EDIT_SELECTION_DEPTH_OPTIONS", source)
         self.assertIn('("Visible Only", "visible")', source)
         self.assertIn('("X-Ray", "xray")', source)
-        self.assertIn("compact_selection_mode_combo = QComboBox(compact_mesh_edit_options_widget)", source)
-        self.assertIn('compact_selection_mode_combo.setObjectName("ClassicMeshEditSelectionModeCombo")', source)
-        self.assertIn("_populate_combo_options_helper(compact_selection_mode_combo, MESH_EDIT_SELECTION_MODE_OPTIONS)", source)
-        self.assertIn("compact_selection_depth_combo = QComboBox(compact_mesh_edit_options_widget)", source)
-        self.assertIn('compact_selection_depth_combo.setObjectName("ClassicMeshEditSelectionDepthCombo")', source)
-        self.assertIn("_populate_combo_options_helper(compact_selection_depth_combo, MESH_EDIT_SELECTION_DEPTH_OPTIONS)", source)
-        self.assertIn("compact_selection_mode_combo.currentIndexChanged.connect(", source)
-        self.assertIn("compact_selection_depth_combo.currentIndexChanged.connect(", source)
-        self.assertIn("compact_selection_mode_combo = context.get('compact_selection_mode_combo')", source)
-        self.assertIn("compact_selection_depth_combo = context.get('compact_selection_depth_combo')", source)
-        self.assertIn(
-            'mesh_edit_tool_combo.setCurrentIndex(max(0, mesh_edit_tool_combo.findData("vertex")))',
-            source,
-        )
-        self.assertIn('button.setChecked(tool == "vertex")', source)
-        self.assertNotIn('button.setChecked(tool == "grab")', source)
-        self.assertIn("widget.setVisible(select_tool)", source)
-        self.assertIn("widget.setEnabled(editing_requested and not topology_busy and select_tool)", source)
+        self.assertIn("_state.compact_selection_mode_combo = _state.QComboBox(_state.compact_mesh_edit_options_widget)", ui_source)
+        self.assertIn("_state.compact_selection_mode_combo.setObjectName('ClassicMeshEditSelectionModeCombo')", ui_source)
+        self.assertIn("_state._populate_combo_options_helper(_state.compact_selection_mode_combo, _state.MESH_EDIT_SELECTION_MODE_OPTIONS)", ui_source)
+        self.assertIn("_state.compact_selection_depth_combo = _state.QComboBox(_state.compact_mesh_edit_options_widget)", ui_source)
+        self.assertIn("_state.compact_selection_depth_combo.setObjectName('ClassicMeshEditSelectionDepthCombo')", ui_source)
+        self.assertIn("_state._populate_combo_options_helper(_state.compact_selection_depth_combo, _state.MESH_EDIT_SELECTION_DEPTH_OPTIONS)", ui_source)
+        self.assertIn("_state.mesh_edit_tool_combo.setCurrentIndex(_state.max(0, _state.mesh_edit_tool_combo.findData('vertex')))", ui_source)
+        self.assertIn("button.setChecked(tool == current_tool)", refresh_body)
+        self.assertIn("widget.setVisible(select_tool)", refresh_body)
+        self.assertIn("widget.setEnabled(editing_requested and not topology_busy and select_tool)", refresh_body)
         self.assertIn("_mesh_edit_preview_source_indices = lambda", source)
-        self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(_mesh_edit_preview_source_indices())", source)
-        self.assertIn("_mesh_edit_preview_source_indices()", source)
-        self.assertIn("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:", source)
-        self.assertIn("def _start_mesh_edit_fallback(reason: str) -> None:", source)
-        self.assertIn("_mesh_edit_apply_preview_mode_transition(str(reason or \"mesh_edit_dotnet_fallback\"))", source)
-        self.assertIn("_start_mesh_edit_fallback(\"mesh_edit_dotnet_unavailable\")", source)
-        self.assertIn("_start_mesh_edit_fallback(\"mesh_edit_dotnet_disabled\")", source)
-        self.assertIn("mesh_edit_enabled_checkbox.toggled.connect(_mesh_edit_enabled_toggled)", source)
+        self.assertIn("def _mesh_edit_enabled_toggled(_state, _callbacks, _checked: bool = False) -> None:", mesh_edit_source)
+        self.assertIn("def _start_mesh_edit_fallback(_state, _callbacks, reason: str) -> None:", mesh_edit_source)
+        self.assertIn("_state._mesh_edit_apply_preview_mode_transition(str(reason or \"mesh_edit_dotnet_fallback\"))", mesh_edit_source)
+        self.assertIn("state.mesh_edit_enabled_checkbox.toggled.connect(callbacks._mesh_edit_enabled_toggled)", builder_body)
         self.assertIn('prompt_shell_context["_sync_mesh_edit_preview_settings"] = _sync_mesh_edit_preview_settings', source)
         self.assertIn('prompt_shell_context.get(\n                "_sync_mesh_edit_preview_settings"', source)
-        self.assertNotIn(
-            "mesh_edit_enabled_checkbox.toggled.connect(lambda _checked=False: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))",
-            source,
-        )
-
-        sync_only_lines = (
-            "mesh_edit_scope_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())",
-            "mesh_edit_part_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())",
-            "mesh_edit_tool_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())",
-            "mesh_edit_falloff_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())",
-            "mesh_edit_selection_mode_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())",
-            "mesh_edit_selection_depth_combo.currentIndexChanged.connect(lambda _index: _refresh_mesh_edit_controls())",
-            "mesh_edit_radius_spin.valueChanged.connect(lambda _value: _refresh_mesh_edit_controls())",
-            "mesh_edit_strength_spin.valueChanged.connect(lambda _value: _refresh_mesh_edit_controls())",
-        )
-        for line in sync_only_lines:
-            self.assertIn(line, source)
-
-        self.assertNotIn(
-            "mesh_edit_tool_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))",
-            source,
-        )
-        self.assertNotIn(
-            "mesh_edit_selection_mode_combo.currentIndexChanged.connect(lambda _index: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))",
-            source,
-        )
-        self.assertNotIn(
-            "mesh_edit_radius_spin.valueChanged.connect(lambda _value: (_refresh_mesh_edit_controls(), _queue_static_preview_refresh()))",
-            source,
-        )
+        for signal in (
+            "state.mesh_edit_scope_combo.currentIndexChanged",
+            "state.mesh_edit_part_combo.currentIndexChanged",
+            "state.mesh_edit_tool_combo.currentIndexChanged",
+            "state.mesh_edit_falloff_combo.currentIndexChanged",
+            "state.mesh_edit_selection_mode_combo.currentIndexChanged",
+            "state.mesh_edit_selection_depth_combo.currentIndexChanged",
+            "state.mesh_edit_radius_spin.valueChanged",
+            "state.mesh_edit_strength_spin.valueChanged",
+        ):
+            self.assertIn(signal, builder_body)
+        self.assertIn("signal.connect(lambda _value: callbacks._refresh_mesh_edit_controls())", builder_body)
+        self.assertNotIn("_queue_static_preview_refresh", builder_body)
 
     def test_live_vertex_update_bridge_is_wired(self) -> None:
         main_source = _mesh_edit_source()
@@ -1434,10 +1501,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             self.assertIn('"smooth_iterations": int(smooth_iterations or 3)', source)
         self.assertIn('"mesh_edit_live_stroke_timing"', main_source)
         self.assertIn("_record_mesh_edit_live_stroke_timing(", main_source)
-        self.assertIn("d3d11_send_metrics=_mesh_edit_last_d3d11_send_metrics()", main_source)
+        self.assertIn("d3d11_send_metrics=_callbacks._mesh_edit_last_d3d11_send_metrics()", main_source)
         self.assertIn("service_total_ms=float(metrics.get(\"service_total_ms\", 0.0) or 0.0)", main_source)
         self.assertIn("native_apply_roundtrip_ms=float(metrics.get(\"native_apply_roundtrip_ms\", 0.0) or 0.0)", main_source)
-        self.assertIn("d3d11_frame_count=_mesh_edit_payload_frame_count(payload)", main_source)
+        self.assertIn("d3d11_frame_count=_callbacks._mesh_edit_payload_frame_count(payload)", main_source)
         self.assertIn('<< ",\\"frame_count\\":" << frame_count_', native_d3d11_source)
         self.assertIn("def _compact_nonnegative_indices(", panel_source)
         self.assertIn('"source_vertex_start": index_range[0]', panel_source)
@@ -1450,29 +1517,24 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("mesh_edit_preview_model_dirty = {\"value\": False}", main_source)
         self.assertIn("def _mesh_edit_refresh_replacement_preview_model(", main_source)
         self.assertIn("allow_defer_for_incremental_d3d11", main_source)
-        refresh_start = main_source.index("def _mesh_edit_refresh_replacement_preview_model(")
-        refresh_body = main_source[
-            refresh_start: main_source.index("_mesh_edit_preview_source_indices = lambda", refresh_start)
-        ]
+        refresh_body = _function_source(main_source, "_mesh_edit_refresh_replacement_preview_model")
         self.assertNotIn(
             "and original_reference_preview_model is not None\n        )",
             refresh_body,
         )
-        self.assertIn("mesh_edit_preview_model_dirty[\"value\"] = True", main_source)
-        self.assertIn("edit_enabled = bool(mesh_edit_enabled_checkbox.isChecked())", main_source)
-        self.assertIn("_mesh_editor_finalize_edit_mode_exit(\"mesh_edit_toggle\", mesh_changed=True)", main_source)
-        toggle_start = main_source.index("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:")
-        toggle_body = main_source[toggle_start: main_source.index("mesh_edit_enabled_checkbox.toggled.connect", toggle_start)]
-        self.assertIn("_start_mesh_edit_fallback(\"mesh_edit_dotnet_unavailable\")", toggle_body)
-        self.assertIn("_start_mesh_edit_fallback(\"mesh_edit_dotnet_disabled\")", toggle_body)
+        self.assertIn("_state.mesh_edit_preview_model_dirty[\"value\"] = True", main_source)
+        self.assertIn("edit_enabled = bool(_state.mesh_edit_enabled_checkbox.isChecked())", main_source)
+        self.assertIn("_callbacks._mesh_editor_finalize_edit_mode_exit(\"mesh_edit_toggle\", mesh_changed=True)", main_source)
+        toggle_body = _function_source(main_source, "_mesh_edit_enabled_toggled")
+        self.assertIn("_callbacks._start_mesh_edit_fallback(\"mesh_edit_dotnet_unavailable\")", toggle_body)
+        self.assertIn("_callbacks._start_mesh_edit_fallback(\"mesh_edit_dotnet_disabled\")", toggle_body)
         self.assertNotIn("_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")", toggle_body)
         self.assertNotIn("_mesh_edit_refresh_replacement_preview_model()\n", toggle_body)
-        finish_start = main_source.index("def _mesh_edit_finish_stroke(payload: object) -> None:")
-        finish_body = main_source[finish_start: main_source.index("def _mesh_edit_cancel_stroke", finish_start)]
-        self.assertIn("_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)", finish_body)
+        finish_body = _function_source(main_source, "_mesh_edit_finish_geometry_stroke")
+        self.assertIn("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)", finish_body)
         self.assertNotIn("parsed_mesh_to_preview_model(", finish_body)
         self.assertIn("Active Mesh Editor stroke finish requires native D3D11 refresh", finish_body)
-        self.assertIn("_mesh_edit_mark_native_preview_stale(", finish_body)
+        self.assertIn("_callbacks._mesh_edit_mark_native_preview_stale(", finish_body)
         self.assertNotIn("_queue_static_preview_rebuild()", finish_body)
         self.assertIn("mesh_edit_live_update_timer.setInterval(16)", main_source)
         self.assertIn("if include_normals and normal_count == vertex_count:", payload_source)
@@ -1484,13 +1546,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("build_native_mesh_preview_vertex_update_groups(mesh, requested)", payload_source)
         self.assertIn("invalidate_native_mesh_session_submeshes(mesh, missing.keys())", payload_source)
         self.assertIn("_mesh_edit_native_live_vertex_update_groups_helper", main_source)
-        live_group_start = main_source.index("def _mesh_edit_live_vertex_update_groups(")
-        live_group_body = main_source[live_group_start: main_source.index("def _flush_mesh_edit_live_vertex_updates", live_group_start)]
-        self.assertIn("if _alignment_d3d11_mesh_edit_commands_active():\n                return []", live_group_body)
+        live_group_body = _function_source(main_source, "_mesh_edit_live_vertex_update_groups")
+        self.assertIn("if _callbacks._alignment_d3d11_mesh_edit_commands_active():\n            return []", live_group_body)
         self.assertNotIn("allow_python_fallback=True", live_group_body)
         self.assertLess(
-            live_group_body.index("if _alignment_d3d11_mesh_edit_commands_active():\n                return []"),
-            live_group_body.index("_mesh_edit_transformed_sources_for_live_preview("),
+            live_group_body.index("if _callbacks._alignment_d3d11_mesh_edit_commands_active():\n            return []"),
+            live_group_body.index("_callbacks._mesh_edit_transformed_sources_for_live_preview("),
         )
         self.assertIn("source_affine_for_transformed_preview", main_source)
         self.assertIn("source_normal_transform_for_transformed_preview", main_source)
@@ -1575,7 +1636,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         preview_native_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
         self.assertIn('if (command == "update_mesh_edit_vertices_file")', preview_native_source)
-        self.assertIn('filename.rfind(L"cdmw_mesh_edit_vertices_", 0) == 0', preview_native_source)
+        self.assertIn('filename.rfind(L"cdmw_mesh_edit_vertices_", 0) != 0', preview_native_source)
         self.assertIn('const bool source_space_positions = position_space == "source";', preview_native_source)
         self.assertIn('const bool source_affine_positions = position_space == "source_affine";', preview_native_source)
         self.assertIn('json_float_array_field(group, "position_transform")', preview_native_source)
@@ -1587,32 +1648,28 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('lower_copy(json_string_field(group, "preview_backend")) == "cdmw_mesh_core"', preview_native_source)
         self.assertIn("source_to_preview_position_for_batch(batch, position)", preview_native_source)
         self.assertIn("mesh_edit_source_world_transform_for_batch(batch)", preview_native_source)
-        self.assertIn("if alignment_d3d11_preview_host.update_mesh_edit_vertices(groups):", main_source)
-        self.assertIn("def _mesh_edit_source_indices_from_groups(groups: Iterable[Mapping[str, object]]) -> tuple[int, ...]:", main_source)
+        self.assertIn("if _state.alignment_d3d11_preview_host.update_mesh_edit_vertices(groups):", main_source)
+        self.assertIn("def _mesh_edit_source_indices_from_groups(_state, _callbacks, groups: _state.Iterable[_state.Mapping[str, object]]) -> tuple[int, ...]:", main_source)
         self.assertIn('"mesh_edit_live_vertex_update_failed"', main_source)
-        self.assertIn("if source_indices and _mesh_edit_replace_live_triangles(source_indices):", main_source)
+        self.assertIn("if source_indices and _callbacks._mesh_edit_replace_live_triangles(source_indices):", main_source)
         self.assertIn("Native D3D11 mesh edit preview update failed; preview is stale.", main_source)
-        triangle_replace_start = main_source.index("def _mesh_edit_triangle_replace_groups(source_indices: Iterable[int])")
-        triangle_replace_body = main_source[
-            triangle_replace_start: main_source.index("def _mesh_edit_source_indices_from_groups", triangle_replace_start)
-        ]
-        self.assertIn("if _alignment_d3d11_mesh_edit_commands_active():\n            return []", triangle_replace_body)
+        triangle_replace_body = _function_source(main_source, "_mesh_edit_triangle_replace_groups")
+        self.assertIn("if _callbacks._alignment_d3d11_mesh_edit_commands_active():\n        return []", triangle_replace_body)
         self.assertNotIn("allow_python_fallback=True", triangle_replace_body)
         self.assertLess(
-            triangle_replace_body.index("if _alignment_d3d11_mesh_edit_commands_active():\n            return []"),
-            triangle_replace_body.index("_mesh_edit_transformed_sources_for_live_preview("),
+            triangle_replace_body.index("if _callbacks._alignment_d3d11_mesh_edit_commands_active():\n        return []"),
+            triangle_replace_body.index("_callbacks._mesh_edit_transformed_sources_for_live_preview("),
         )
         self.assertIn('"mesh_edit_native_preview_stale"', main_source)
         self.assertIn("source_submesh_indices=requested_source_indices", main_source)
         self.assertIn('"source_submesh_indices": sources', bridge_source)
-        self.assertIn("_mesh_edit_update_live_preview(pending_live_vertices_by_submesh)", main_source)
-        self.assertIn("def _mesh_editor_apply_result_native_update(result: object) -> bool:", main_source)
-        apply_result_start = main_source.index("def _mesh_editor_apply_result_native_update(result: object) -> bool:")
-        apply_result_body = main_source[apply_result_start:main_source.index("def _mesh_edit_update_live_preview(", apply_result_start)]
-        self.assertIn("_mesh_editor_result_has_deferred_native_python_apply(result)", apply_result_body)
-        self.assertIn("active_commands = _alignment_d3d11_mesh_edit_commands_active()", apply_result_body)
-        self.assertIn("_mesh_editor_result_changes_mesh(result)", apply_result_body)
-        self.assertIn("_mesh_editor_queue_native_preview_rebuild_from_working_mesh", apply_result_body)
+        self.assertIn("_callbacks._mesh_edit_update_live_preview(pending_live_vertices_by_submesh)", main_source)
+        self.assertIn("def _mesh_editor_apply_result_native_update(_state, _callbacks, result: object) -> bool:", main_source)
+        apply_result_body = _function_source(main_source, "_mesh_editor_apply_result_native_update")
+        self.assertIn("_callbacks._mesh_editor_result_has_deferred_native_python_apply(result)", apply_result_body)
+        self.assertIn("active_commands = _callbacks._alignment_d3d11_mesh_edit_commands_active()", apply_result_body)
+        self.assertIn("_callbacks._mesh_editor_result_changes_mesh(result)", apply_result_body)
+        self.assertIn("_callbacks._mesh_editor_queue_native_preview_rebuild_from_working_mesh", apply_result_body)
         self.assertIn("Active native mesh edit result had no preview payload", apply_result_body)
         self.assertIn("Active native mesh edit preview payload was rejected", apply_result_body)
         self.assertIn("rebuilding native preview from the working mesh", apply_result_body)
@@ -1624,13 +1681,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             apply_result_body.index("Active native mesh edit result had no preview payload"),
             apply_result_body.index("return False", apply_result_body.index("Active native mesh edit result had no preview payload")),
         )
-        self.assertIn("live_native_update_applied = _mesh_editor_apply_result_native_update(result)", main_source)
+        self.assertIn("live_native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)", main_source)
         self.assertNotIn("pending_live_vertices_by_submesh.setdefault(source_submesh_index, set()).update(changed)", main_source)
         self.assertLess(
-            main_source.index("live_native_update_applied = _mesh_editor_apply_result_native_update(result)"),
+            main_source.index("live_native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)"),
             main_source.index(
-                "_mesh_edit_queue_live_vertex_updates_helper(pending_live_vertices_by_submesh, changed_by_submesh)",
-                main_source.index("live_native_update_applied = _mesh_editor_apply_result_native_update(result)"),
+                "_state._mesh_edit_queue_live_vertex_updates_helper(pending_live_vertices_by_submesh, changed_by_submesh)",
+                main_source.index("live_native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)"),
             ),
         )
         preview_groups_start = mesh_native_source.index("def build_native_mesh_preview_vertex_update_groups(")
@@ -1727,7 +1784,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("bool preview_source_vertex_range_for_indices", mesh_core_source)
         self.assertIn("void write_preview_source_vertex_range", mesh_core_source)
-        self.assertIn("const bool direct_source_range = preview_source_vertex_range_for_indices(", sparse_update_body)
+        self.assertIn("const bool direct_source_range = has_changed_source_ids", sparse_update_body)
+        self.assertIn("? contiguous_int_range(source_indices, direct_source_start)", sparse_update_body)
+        self.assertIn(": preview_source_vertex_range_for_indices(", sparse_update_body)
         self.assertIn("write_preview_source_vertex_range(out, direct_source_start, count);", sparse_update_body)
         self.assertIn('sibling_binary_path(changed_positions_path, ".source_indices.bin")', sparse_update_body)
         self.assertIn("write_preview_source_vertex_ids(out, source_indices)", sparse_update_body)
@@ -1914,7 +1973,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("result.source_face_indices = identity_indices(result.faces.size())", mesh_core_source)
         self.assertIn("session->source_face_indices = result.source_face_indices.size() == result.faces.size()", mesh_core_source)
         self.assertIn("const std::vector<int> preview_source_face_indices = source_face_indices.size() == faces.size()", mesh_core_source)
-        self.assertIn("result.source_vertex_map,\n                result.source_face_indices", mesh_core_source)
+        self.assertIn("result.source_vertex_map,\n        result.source_face_indices", mesh_core_source)
         self.assertNotIn("const std::vector<int> source_face_indices = identity_indices(faces.size());", mesh_core_source)
         self.assertNotIn("const std::vector<int> source_vertex_indices = identity_indices(vertices.size());", mesh_core_source)
         self.assertIn("cdmw_native_preview_triangle_group", _read("cdmw/modding/mesh_native_core.py"))
@@ -1989,16 +2048,16 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("update_mesh_edit_vertices_from_payload", source)
         self.assertIn("process_pending_mesh_edit_vertex_update()", source)
         self.assertIn("pending_mesh_edit_vertices_payload_", source)
-        self.assertIn("queue_mesh_edit_vertices_payload(payload);", source)
-        self.assertIn("queue_mesh_edit_vertices_file(payload_file, delete_after);", source)
+        self.assertIn("queue_mesh_edit_vertices_payload(payload, mesh_edit_revision_field(payload));", source)
+        self.assertIn("queue_mesh_edit_vertices_file(payload_file, delete_after, mesh_edit_revision_field(payload));", source)
         self.assertNotIn("mesh_edit_vertices_queued", source)
         command_start = source.index('if (command == "update_mesh_edit_vertices")')
         command_body = source[command_start: source.index('if (command == "replace_mesh_edit_triangles")', command_start)]
-        self.assertIn("queue_mesh_edit_vertices_payload(payload);", command_body)
-        self.assertIn("queue_mesh_edit_vertices_file(payload_file, delete_after);", command_body)
+        self.assertIn("queue_mesh_edit_vertices_payload(payload, mesh_edit_revision_field(payload));", command_body)
+        self.assertIn("queue_mesh_edit_vertices_file(payload_file, delete_after, mesh_edit_revision_field(payload));", command_body)
         self.assertNotIn("update_mesh_edit_vertices_from_payload(payload)", command_body)
         self.assertNotIn("read_text(payload_file)", command_body)
-        update_start = source.index("int update_mesh_edit_vertices_from_payload")
+        update_start = source.index("struct ParsedUpdateGroup")
         update_body = source[update_start: source.index("void flush_pending_mesh_edit_vertex_uploads()", update_start)]
         self.assertIn('json_int_field(group, "source_vertex_start", 0)', update_body)
         self.assertIn('json_int_field(group, "source_vertex_count", 0)', update_body)
@@ -2071,7 +2130,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("send_mesh_edit_selection_event();\n            request_render();\n            return true;", source)
 
         dbl_click_start = source.index("case WM_LBUTTONDBLCLK:")
-        dbl_click_body = source[dbl_click_start: source.index("case WM_LBUTTONDOWN:", dbl_click_start)]
+        dbl_click_body = source[dbl_click_start: source.index("case WM_LBUTTONUP:", dbl_click_start)]
         self.assertIn("if (mesh_edit_.enabled || source_part_.picking_enabled)", dbl_click_body)
         self.assertIn("return true;", dbl_click_body)
 
@@ -2212,26 +2271,40 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("mesh_edit_.selected_faces.clear();", load_body)
 
     def test_native_harness_stresses_brush_drag_selection_budget(self) -> None:
-        source = _read("tools/mesh_editor_dev_harness.py")
+        source = "\n".join(
+            _read(path)
+            for path in (
+                "tools/mesh_harness/constants.py",
+                "tools/mesh_harness/native_protocol.py",
+                "tools/mesh_harness/native_smoke.py",
+                "tools/mesh_harness/png_evidence.py",
+            )
+        )
 
         self.assertIn("_WM_MOUSEMOVE = 0x0200", source)
         self.assertIn("_WM_LBUTTONDOWN = 0x0201", source)
         self.assertIn("_WM_LBUTTONUP = 0x0202", source)
         self.assertIn("def _send_mouse_message(", source)
-        self.assertIn('{"command": "get_status"}', source)
+        self.assertIn("{'command': 'get_status'}", source)
         self.assertIn("for step in range(1, 61)", source)
-        self.assertIn("440 + (step * 4)", source)
+        self.assertIn("440 + step * 4", source)
         self.assertIn("brush_drag_elapsed_ms", source)
-        self.assertIn("brush_drag_event_budget = max(4, int(math.ceil(brush_drag_elapsed_ms / 16.0)) + 3)", source)
-        self.assertIn("brush_drag_selection_event_delta", source)
-        self.assertIn("1 <= brush_drag_selection_event_delta <= brush_drag_event_budget", source)
+        self.assertIn(
+            "state.brush_drag_event_budget = max(4, int(math.ceil(state.brush_drag_elapsed_ms / 16.0)) + 3)",
+            source,
+        )
+        self.assertIn("state.brush_drag_selection_event_delta", source)
+        self.assertIn(
+            "1 <= state.brush_drag_selection_event_delta <= state.brush_drag_event_budget",
+            source,
+        )
         self.assertIn("def _write_checker_png(", source)
         self.assertIn("use_textures=True", source)
         self.assertIn("texture_status_before", source)
         self.assertIn("texture_status_enabled", source)
         self.assertIn("texture_status_disabled", source)
         self.assertIn("texture_toggle_ok", source)
-        self.assertIn('"enabled": False', source)
+        self.assertIn("'enabled': False", source)
 
     def test_mesh_edit_selection_ids_and_topology_replacement_are_safe_for_d3d11(self) -> None:
         main_source = _mesh_edit_source()
@@ -2239,26 +2312,25 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         native_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
         bridge_source = _read("cdmw/ui/native_d3d11_preview_host.py")
 
-        self.assertIn("source_indices_for_editor_id=_alignment_d3d11_source_indices_for_editor_id", main_source)
+        self.assertIn("source_indices_for_editor_id=_state._alignment_d3d11_source_indices_for_editor_id", main_source)
         self.assertIn("source_indices_for_editor_id(editor_submesh_index)", payload_source)
-        self.assertIn("def _mesh_edit_clear_topology_selection() -> None:", main_source)
-        self.assertIn("alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", main_source)
-        selection_start = main_source.index("def _mesh_edit_selection_changed(payload: object) -> None:")
-        selection_body = main_source[selection_start: main_source.index("def _mesh_edit_control_tab_changed", selection_start)]
+        self.assertIn("def _mesh_edit_clear_topology_selection(_state, _callbacks, ) -> None:", main_source)
+        self.assertIn("_state.alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", main_source)
+        selection_body = _function_source(main_source, "_mesh_edit_selection_changed")
         self.assertIn('raw_screen_region = payload.get("screen_region")', main_source)
-        self.assertIn('screen_payload["screen_region"] = _native_screen_payload(raw_screen_region)', main_source)
+        self.assertIn('screen_payload["screen_region"] = _state._native_screen_payload(raw_screen_region)', main_source)
         self.assertNotIn('screen_payload["screen_region"] = dict(raw_screen_region)', main_source)
         self.assertIn("def _mesh_edit_apply_native_screen_selection(", main_source)
         self.assertIn("session.select(operation=operation, _native_screen_selection_payload=screen_payload)", main_source)
-        self.assertIn("_mesh_edit_sync_d3d11_selection()", main_source)
-        self.assertIn("_mesh_edit_apply_native_screen_selection(payload, screen_payload)", selection_body)
+        self.assertIn("_callbacks._mesh_edit_sync_d3d11_selection()", main_source)
+        self.assertIn("_callbacks._mesh_edit_apply_native_screen_selection(payload, screen_payload)", selection_body)
         self.assertLess(
-            selection_body.index("_mesh_edit_apply_native_screen_selection(payload, screen_payload)"),
-            selection_body.index("_mesh_edit_vertices_from_payload(payload)"),
+            selection_body.index("_callbacks._mesh_edit_apply_native_screen_selection(payload, screen_payload)"),
+            selection_body.index("_state._mesh_edit_vertices_from_payload(payload)"),
         )
-        self.assertIn("_mesh_edit_vertices_from_payload(payload)", selection_body)
-        self.assertIn("_mesh_edit_edges_from_payload(payload)", selection_body)
-        self.assertIn("_mesh_edit_faces_from_payload(payload)", selection_body)
+        self.assertIn("_state._mesh_edit_vertices_from_payload(payload)", selection_body)
+        self.assertIn("_callbacks._mesh_edit_edges_from_payload(payload)", selection_body)
+        self.assertIn("_state._mesh_edit_faces_from_payload(payload)", selection_body)
         self.assertIn("allowed_indices = set(int(index) for index in allowed_source_indices)", payload_source)
         self.assertIn("def _mesh_edit_i32_payload_values(", payload_source)
         payload_i32_start = payload_source.index("def _mesh_edit_i32_payload_values(")
@@ -2325,12 +2397,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("distance_to_screen_segment", native_source)
         self.assertIn('json_int_field(payload, "x", last_mouse_x_)', native_source)
         self.assertIn('json_int_field(payload, "y", last_mouse_y_)', native_source)
-        self.assertIn("def _mesh_edit_edges_from_payload(payload: object) -> dict[int, set[tuple[int, int]]]:", main_source)
-        self.assertIn("mesh_edit_selected_edges_by_submesh.update(_mesh_edit_edges_from_payload(payload))", selection_body)
-        edge_selection_start = main_source.index("def _mesh_editor_edge_selection(")
-        edge_selection_body = main_source[edge_selection_start: main_source.index("def _mesh_editor_selected_edge_count", edge_selection_start)]
-        edge_count_start = main_source.index("def _mesh_editor_selected_edge_count() -> int:")
-        edge_count_body = main_source[edge_count_start: main_source.index("def _mesh_editor_action_result_changed", edge_count_start)]
+        self.assertIn("def _mesh_edit_edges_from_payload(_state, _callbacks, payload: object) -> dict[int, set[tuple[int, int]]]:", main_source)
+        self.assertIn("_state.mesh_edit_selected_edges_by_submesh.update(_callbacks._mesh_edit_edges_from_payload(payload))", selection_body)
+        edge_selection_body = _function_source(main_source, "_mesh_editor_edge_selection")
+        edge_count_body = _function_source(main_source, "_mesh_editor_selected_edge_count")
         self.assertNotIn("for face in tuple(submesh.faces", edge_selection_body)
         self.assertNotIn("for face_index in set(", edge_selection_body)
         self.assertNotIn("dict(mesh_edit_selected_edges_by_submesh or {}).items()", edge_selection_body)
@@ -2344,7 +2414,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('target_mode == "vertex" || target_mode == "edge" || target_mode == "face" || target_mode == "source"', native_source)
         self.assertIn('json_i32_array_or_json_field(group, "source_vertex_indices_binary", "source_vertex_indices")', native_source)
         self.assertIn('json_i32_array_or_json_values_field(group, "source_edges_binary", "source_edges")', native_source)
-        self.assertIn('json_i32_array_or_json_field(group, "source_face_indices_binary", "source_face_indices")', native_source)
+        self.assertIn('json_i32_array_or_json_field(payload, "source_face_indices_binary", "source_face_indices")', native_source)
         self.assertIn("write_i32_range_or_descriptor_json(", native_source)
         self.assertIn('"source_vertex_start"', native_source)
         self.assertIn('"source_face_start"', native_source)
@@ -2355,9 +2425,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("L\"stroke_faces\"", native_source)
         self.assertNotIn("drag_candidates", native_source)
         self.assertIn("_mesh_edit_f32_payload_values(group, \"source_vertex_weights_binary\")", payload_source)
-        apply_start = main_source.index("def _mesh_edit_apply_preview_payload(payload: object) -> None:")
-        apply_body = main_source[apply_start: main_source.index("def _mesh_edit_finish_stroke", apply_start)]
-        remove_body = apply_body[apply_body.index('if tool == "remove":'): apply_body.index('raw_screen_drag = payload.get("screen_drag")')]
+        apply_body = _function_source(main_source, "_mesh_edit_apply_preview_payload")
+        remove_body = _function_source(main_source, "_mesh_edit_apply_remove_payload")
         self.assertIn('raw_screen_brush = payload.get("screen_brush")', remove_body)
         self.assertIn('delete_mode in {"live", "release"}', remove_body)
         self.assertIn('"target_mode": "face"', remove_body)
@@ -2428,88 +2497,88 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("std::vector<EditorCandidate> mesh_edit_face_candidates_at_in_view", native_source)
         self.assertNotIn("std::vector<EditorCandidate> mesh_edit_brush_candidates_at(", native_source)
         self.assertIn("source_face_indices", native_source)
-        self.assertIn('const std::vector<int> indices = json_i32_array_or_json_field(group, "indices_binary", "indices");', native_source)
-        self.assertIn('const bool indexed_payload = json_has_field(group, "indices") || json_has_field(group, "indices_binary");', native_source)
+        self.assertIn('group.indices = json_i32_array_or_json_field(payload, "indices_binary", "indices");', native_source)
+        self.assertIn('group.indexed_payload = json_has_field(payload, "indices") || json_has_field(payload, "indices_binary");', native_source)
         self.assertIn('std::vector<int> source_faces;', native_source)
-        self.assertIn('source_faces = json_i32_array_or_json_field(group, "source_face_indices_binary", "source_face_indices");', native_source)
-        self.assertIn('const int source_vertex_start = json_int_field(group, "source_vertex_start", -1);', native_source)
-        self.assertIn('const int source_face_start = json_int_field(group, "source_face_start", -1);', native_source)
-        triangle_update_start = native_source.index("std::pair<int, int> replace_mesh_edit_triangles_from_payload")
+        self.assertIn('group.source_faces = json_i32_array_or_json_field(payload, "source_face_indices_binary", "source_face_indices");', native_source)
+        self.assertIn('group.source_vertex_start = json_int_field(payload, "source_vertex_start", -1);', native_source)
+        self.assertIn('group.source_face_start = json_int_field(payload, "source_face_start", -1);', native_source)
+        triangle_update_start = native_source.index("static TriangleReplacementGroup parse_triangle_replacement_group")
         triangle_update_body = native_source[
-            triangle_update_start: native_source.index("static std::string mesh_edit_selection_operation_from_modifiers", triangle_update_start)
+            triangle_update_start: native_source.index("static DirectX::XMFLOAT3 transform_replacement_normal", triangle_update_start)
         ]
         self.assertIn("const bool has_source_vertex_values =", triangle_update_body)
         self.assertIn("const bool has_source_face_values =", triangle_update_body)
-        self.assertIn("!has_source_vertex_values && source_vertex_start >= 0 && source_vertex_range_count > 0", triangle_update_body)
-        self.assertIn("!has_source_face_values && source_face_start >= 0 && source_face_range_count > 0", triangle_update_body)
+        self.assertIn("!has_source_vertex_values && group.source_vertex_start >= 0 && group.source_vertex_range_count > 0", triangle_update_body)
+        self.assertIn("!has_source_face_values && group.source_face_start >= 0 && group.source_face_range_count > 0", triangle_update_body)
         self.assertLess(
-            triangle_update_body.index("const bool source_vertex_range ="),
-            triangle_update_body.index('source_vertices = json_i32_array_or_json_field(group, "source_vertex_indices_binary", "source_vertex_indices");'),
+            triangle_update_body.index("group.source_vertex_range ="),
+            triangle_update_body.index('group.source_vertices = json_i32_array_or_json_field('),
         )
         self.assertLess(
-            triangle_update_body.index("const bool source_face_range ="),
-            triangle_update_body.index('source_faces = json_i32_array_or_json_field(group, "source_face_indices_binary", "source_face_indices");'),
+            triangle_update_body.index("group.source_face_range ="),
+            triangle_update_body.index('group.source_faces = json_i32_array_or_json_field('),
         )
-        self.assertIn("auto source_vertex_id = [&](size_t source_slot)", native_source)
-        self.assertIn("auto source_face_id = [&](size_t face_slot)", native_source)
-        self.assertIn("batch.cpu_source_vertices.push_back(source_vertex_id(source_slot));", native_source)
-        self.assertIn("append_vertex(index, source_face_id(index / 3u));", native_source)
+        self.assertIn("static int triangle_source_vertex_id(", native_source)
+        self.assertIn("static int triangle_source_face_id(", native_source)
+        self.assertIn("batch.cpu_source_vertices.push_back(triangle_source_vertex_id(group, source_slot));", native_source)
+        self.assertIn("append_vertex(index, triangle_source_face_id(group, index / 3u));", native_source)
         self.assertIn('json_bool_field(payload, "replace_all", false)', native_source)
-        self.assertIn("def _mesh_edit_replace_live_triangles(source_indices: Iterable[int], *, replace_all: bool = False) -> bool:", main_source)
-        replace_triangles_start = main_source.index("def _mesh_edit_replace_live_triangles(source_indices: Iterable[int], *, replace_all: bool = False) -> bool:")
-        replace_triangles_body = main_source[
-            replace_triangles_start: main_source.index("def _mesh_edit_replace_live_triangles_or_queue_rebuild(", replace_triangles_start)
-        ]
-        self.assertIn("requested_source_indices = _mesh_edit_requested_source_indices_helper(", replace_triangles_body)
+        self.assertIn("def _mesh_edit_replace_live_triangles(_state, _callbacks, source_indices: _state.Iterable[int], *, replace_all: bool = False) -> bool:", main_source)
+        replace_triangles_body = _function_source(main_source, "_mesh_edit_replace_live_triangles")
+        self.assertIn("requested_source_indices = _state._mesh_edit_requested_source_indices_helper(", replace_triangles_body)
         self.assertIn("if groups or requested_source_indices:", replace_triangles_body)
-        self.assertIn("if alignment_d3d11_preview_host.replace_mesh_edit_triangles(", replace_triangles_body)
+        self.assertIn("if _state.alignment_d3d11_preview_host.replace_mesh_edit_triangles(", replace_triangles_body)
         self.assertIn('"mesh_edit_live_triangle_replace_failed"', replace_triangles_body)
         self.assertLess(
             replace_triangles_body.index("if groups or requested_source_indices:"),
-            replace_triangles_body.index("if alignment_d3d11_preview_host.replace_mesh_edit_triangles("),
+            replace_triangles_body.index("if _state.alignment_d3d11_preview_host.replace_mesh_edit_triangles("),
         )
-        self.assertIn("def _mesh_edit_replace_live_triangles_or_queue_rebuild(source_indices: Iterable[int], *, replace_all: bool = False) -> None:", main_source)
-        helper_start = main_source.index("def _mesh_edit_replace_live_triangles_or_queue_rebuild(")
-        helper_body = main_source[helper_start: main_source.index("def _mesh_editor_apply_native_update(", helper_start)]
-        self.assertIn("requested_source_indices = _mesh_edit_reusable_source_indices(source_indices)", helper_body)
+        self.assertIn("def _mesh_edit_replace_live_triangles_or_queue_rebuild(_state, _callbacks, source_indices: _state.Iterable[int], *, replace_all: bool = False) -> None:", main_source)
+        helper_body = _function_source(main_source, "_mesh_edit_replace_live_triangles_or_queue_rebuild")
+        self.assertIn("requested_source_indices = _callbacks._mesh_edit_reusable_source_indices(source_indices)", helper_body)
         self.assertIn("def _mesh_edit_reusable_source_indices(", main_source)
-        reusable_start = main_source.index("def _mesh_edit_reusable_source_indices(")
-        reusable_body = main_source[reusable_start: main_source.index("def _mesh_edit_replace_live_triangles(", reusable_start)]
-        self.assertIn("if isinstance(source_indices, _SequenceABC):", reusable_body)
+        reusable_body = _function_source(main_source, "_mesh_edit_reusable_source_indices")
+        self.assertIn("if isinstance(source_indices, _state._SequenceABC):", reusable_body)
         self.assertIn("return source_indices", reusable_body)
         self.assertNotIn("requested_source_indices = tuple(source_indices or ())", helper_body)
         self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(topology_source_indices)", main_source)
         self.assertNotIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(tuple(topology_source_indices))", main_source)
         self.assertNotIn('for raw_index in tuple(getattr(result, "affected_submesh_indices", ()) or ()):', main_source)
         self.assertNotIn("for raw_index in tuple(keys() or ()):", main_source)
-        self.assertIn("if _mesh_edit_replace_live_triangles(requested_source_indices, replace_all=replace_all):", helper_body)
-        self.assertIn("if _alignment_d3d11_mesh_edit_commands_active():", helper_body)
+        self.assertIn("if _callbacks._mesh_edit_replace_live_triangles(requested_source_indices, replace_all=replace_all):", helper_body)
+        self.assertIn("if _callbacks._alignment_d3d11_mesh_edit_commands_active():", helper_body)
         self.assertIn("Native D3D11 mesh edit triangle update failed; rebuilding native preview from the working mesh.", helper_body)
         self.assertIn("_mesh_editor_queue_native_preview_rebuild_from_working_mesh", helper_body)
-        self.assertIn("if _alignment_d3d11_preview_active():", helper_body)
+        self.assertIn("if _state._alignment_d3d11_preview_active():", helper_body)
         self.assertIn("Native D3D11 mesh edit commands are unavailable; preview is stale.", helper_body)
-        self.assertIn("if _mesh_edit_tab_active():", helper_body)
+        self.assertIn("if _state._mesh_edit_tab_active():", helper_body)
         self.assertIn("Active Mesh Editor triangle refresh requires native D3D11 refresh", helper_body)
-        self.assertLess(helper_body.index("_mesh_edit_replace_live_triangles("), helper_body.index("_queue_static_preview_rebuild()"))
+        self.assertLess(helper_body.index("_callbacks._mesh_edit_replace_live_triangles("), helper_body.index("_state._queue_static_preview_rebuild()"))
         self.assertLess(
-            helper_body.index("if _alignment_d3d11_mesh_edit_commands_active():"),
-            helper_body.index("_queue_static_preview_rebuild()"),
+            helper_body.index("if _callbacks._alignment_d3d11_mesh_edit_commands_active():"),
+            helper_body.index("_state._queue_static_preview_rebuild()"),
         )
         self.assertLess(
-            helper_body.index("if _alignment_d3d11_preview_active():"),
-            helper_body.index("_queue_static_preview_rebuild()"),
+            helper_body.index("if _state._alignment_d3d11_preview_active():"),
+            helper_body.index("_state._queue_static_preview_rebuild()"),
         )
-        active_triangle_start = helper_body.index("if _mesh_edit_tab_active():")
-        active_triangle_body = helper_body[active_triangle_start:helper_body.index("_queue_static_preview_rebuild()", active_triangle_start)]
+        active_triangle_start = helper_body.index("if _state._mesh_edit_tab_active():")
+        active_triangle_body = helper_body[active_triangle_start:helper_body.index("_state._queue_static_preview_rebuild()", active_triangle_start)]
         self.assertNotIn("_queue_static_preview_rebuild()", active_triangle_body)
-        self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(_mesh_edit_preview_source_indices(), replace_all=True)", main_source)
-        self.assertIn('&& requested_source_submeshes.find(batch.source_submesh_index) == requested_source_submeshes.end();', native_source)
+        self.assertIn("_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(_state._mesh_edit_preview_source_indices(), replace_all=True)", main_source)
+        self.assertIn("return replace_all", native_source)
+        self.assertIn("? !requested", native_source)
         self.assertIn('<< ",\\"removed_batches\\":" << removed_batches', native_source)
-        self.assertIn("new_batch.source_submesh_index = source_submesh;", native_source)
+        self.assertIn("new_batch.source_submesh_index = group.source_submesh;", native_source)
         self.assertIn('new_batch.editor_role = "replacement_preview";', native_source)
-        self.assertIn('const int material_source_submesh = static_cast<int>(json_float_field(group, "material_source_submesh_index", source_submesh));', native_source)
+        self.assertIn(
+            'json_float_field(\n            group.payload, "material_source_submesh_index", static_cast<float>(group.source_submesh))',
+            native_source,
+        )
         self.assertIn("new_batch = *material_template;", native_source)
-        self.assertIn('new_batch.part_label = json_string_field(group, "material_name", material_template ? material_template->part_label : "mesh_edit_part");', native_source)
+        self.assertIn("new_batch.part_label = json_string_field(", native_source)
+        self.assertIn('group.payload,\n            "material_name"', native_source)
         self.assertIn("batches_.push_back(std::move(new_batch));", native_source)
         self.assertIn('if (command == "replace_mesh_edit_triangles_file")', native_source)
         self.assertIn("read_text(payload_file)", native_source)
@@ -2522,11 +2591,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         state_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_state.py")
 
         self.assertNotIn('("Selection only", "selection")', source)
-        self.assertIn("mesh_edit_field_rows: Dict[str, Tuple[QLabel, QWidget]] = {}", source)
+        self.assertIn("_state.mesh_edit_field_rows: _state.Dict[_state.str, _state.Tuple[_state.QLabel, _state.QWidget]] = {}", source)
         self.assertIn('"select_part": "Select Whole Part"', state_source)
         self.assertIn('"invert_selection": "Invert Selection"', state_source)
-        self.assertIn('mesh_edit_select_part_button = QPushButton(mesh_edit_action_control_text["select_part"])', source)
-        self.assertIn('mesh_edit_invert_selection_button = QPushButton(mesh_edit_action_control_text["invert_selection"])', source)
+        self.assertIn("_state.mesh_edit_select_part_button = _state.QPushButton(_state.mesh_edit_action_control_text['select_part'])", source)
+        self.assertIn("_state.mesh_edit_invert_selection_button = _state.QPushButton(_state.mesh_edit_action_control_text['invert_selection'])", source)
         self.assertIn('"selection_actions_visible": bool(select_tool or int(selected_count) > 0)', state_source)
         self.assertIn('_set_mesh_edit_row_visible("radius", sculpt_tool or remove_tool or brush_selection_tool)', source)
         self.assertIn('_set_mesh_edit_row_visible("strength", sculpt_tool)', source)
@@ -2535,96 +2604,83 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('"smooth_tool": tool == "smooth"', state_source)
         self.assertIn('_set_mesh_edit_row_visible("selection", select_tool)', source)
         self.assertIn('_set_mesh_edit_row_visible("depth", select_tool)', source)
-        self.assertIn("mesh_edit_mirror_checkbox.setVisible(sculpt_tool)", source)
-        self.assertIn("mesh_edit_select_part_button.setVisible(select_tool)", source)
-        self.assertIn("mesh_edit_invert_selection_button.setVisible(select_tool)", source)
-        self.assertIn("mesh_edit_subdivide_selection_button.setVisible(select_tool)", source)
-        self.assertIn("mesh_edit_refine_smooth_selection_button.setVisible(select_tool)", source)
-        self.assertIn("mesh_edit_split_selection_button.setVisible(select_tool)", source)
-        self.assertIn("mesh_edit_delete_faces_button.setVisible(select_tool)", source)
-        self.assertIn("mesh_edit_selected_source_indices = context.get('mesh_edit_selected_source_indices')", source)
+        self.assertIn("_state.mesh_edit_mirror_checkbox.setVisible(sculpt_tool)", source)
+        self.assertIn("_state.mesh_edit_select_part_button.setVisible(select_tool)", source)
+        self.assertIn("_state.mesh_edit_invert_selection_button.setVisible(select_tool)", source)
+        self.assertIn("_state.mesh_edit_subdivide_selection_button.setVisible(select_tool)", source)
+        self.assertIn("_state.mesh_edit_refine_smooth_selection_button.setVisible(select_tool)", source)
+        self.assertIn("_state.mesh_edit_split_selection_button.setVisible(select_tool)", source)
+        self.assertIn("_state.mesh_edit_delete_faces_button.setVisible(select_tool)", source)
+        self.assertIn("_state.mesh_edit_selected_source_indices = _state.context.get('mesh_edit_selected_source_indices')", source)
         self.assertIn("mesh_edit_selected_source_indices: set[int] = set()", _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_state_callbacks.py"))
-        self.assertIn("def _mesh_edit_set_source_selection(source_indices: Iterable[int]) -> None:", source)
-        set_source_start = source.index("def _mesh_edit_set_source_selection(source_indices: Iterable[int]) -> None:")
-        set_source_body = source[set_source_start: source.index("def _mesh_edit_native_all_vertex_selection", set_source_start)]
+        self.assertIn("def _mesh_edit_set_source_selection(_state, _callbacks, source_indices: _state.Iterable[int]) -> None:", source)
+        set_source_body = _function_source(source, "_mesh_edit_set_source_selection")
         self.assertNotIn("for raw_index in tuple(source_indices or ())", set_source_body)
-        selected_source_count_start = source.index("def _mesh_edit_selected_source_vertex_count(")
-        selected_source_count_body = source[
-            selected_source_count_start: source.index("def _mesh_editor_current_edit_revision", selected_source_count_start)
-        ]
+        selected_source_count_body = _function_source(source, "_mesh_edit_selected_source_vertex_count")
         self.assertNotIn('submeshes = tuple(getattr(mesh, "submeshes", ()) or ())', selected_source_count_body)
-        disable_empty_start = source.index("def _mesh_edit_disable_emptied_parts(")
-        disable_empty_body = source[disable_empty_start: source.index("def _mesh_edit_record_snapshot", disable_empty_start)]
+        disable_empty_body = _function_source(source, "_mesh_edit_disable_emptied_parts")
         self.assertNotIn("for source_index in tuple(source_indices or ())", disable_empty_body)
         self.assertIn("_mesh_edit_source_enable_mutation_blocked", disable_empty_body)
         self.assertNotIn("_ensure_source_part_adjustment", disable_empty_body)
-        enable_block_start = source.index("def _mesh_edit_source_enable_mutation_blocked(")
-        enable_block_body = source[enable_block_start: source.index("def _mesh_edit_restore_enabled_snapshot", enable_block_start)]
+        enable_block_body = _function_source(source, "_mesh_edit_source_enable_mutation_blocked")
         self.assertIn("Active Mesh Editor source enable changes require native part-state execution", enable_block_body)
         self.assertIn("Python source adjustment mutation fallback is disabled", enable_block_body)
-        self.assertIn("source_indices=mesh_edit_selected_source_indices", source)
+        self.assertIn("source_indices=_state.mesh_edit_selected_source_indices", source)
         self.assertIn("def _mesh_edit_native_all_vertex_selection(", source)
-        native_all_start = source.index("def _mesh_edit_native_all_vertex_selection(")
-        native_all_body = source[native_all_start: source.index("def _mesh_edit_native_vertex_selection(", native_all_start)]
+        native_all_body = _function_source(source, "_mesh_edit_native_all_vertex_selection")
         self.assertIn("prune_native_mesh_selection(", native_all_body)
         self.assertIn("selected_all_vertices_by_submesh=allowed_sources", native_all_body)
-        self.assertIn("current_vertices_by_submesh=mesh_edit_selected_vertices_by_submesh", native_all_body)
-        self.assertIn("def _mesh_edit_native_selection_unavailable(action_text: str) -> None:", source)
-        self.assertIn('mesh_edit_status_label.setText(f"Native {action_text} is unavailable.")', source)
-        self.assertIn("def _mesh_edit_select_whole_part() -> None:", source)
-        select_all_start = source.index("def _mesh_edit_select_whole_part() -> None:")
-        select_all_body = source[select_all_start: source.index("def _mesh_edit_invert_selection() -> None:", select_all_start)]
-        self.assertIn("allowed_sources = _mesh_edit_allowed_source_indices()", select_all_body)
-        self.assertIn("_mesh_edit_set_source_selection(allowed_sources)", select_all_body)
-        self.assertIn('_mesh_edit_native_all_vertex_selection(operation="replace")', select_all_body)
+        self.assertIn("current_vertices_by_submesh=_state.mesh_edit_selected_vertices_by_submesh", native_all_body)
+        self.assertIn("def _mesh_edit_native_selection_unavailable(_state, _callbacks, action_text: str) -> None:", source)
+        self.assertIn('_state.mesh_edit_status_label.setText(f"Native {action_text} is unavailable.")', source)
+        self.assertIn("def _mesh_edit_select_whole_part(_state, _callbacks, ) -> None:", source)
+        select_all_body = _function_source(source, "_mesh_edit_select_whole_part")
+        self.assertIn("allowed_sources = _state._mesh_edit_allowed_source_indices()", select_all_body)
+        self.assertIn("_callbacks._mesh_edit_set_source_selection(allowed_sources)", select_all_body)
+        self.assertIn('_callbacks._mesh_edit_native_all_vertex_selection(operation="replace")', select_all_body)
         self.assertIn("if selection is not None:", select_all_body)
-        self.assertIn('_mesh_edit_native_selection_unavailable("Select Part")', select_all_body)
+        self.assertIn('_callbacks._mesh_edit_native_selection_unavailable("Select Part")', select_all_body)
         self.assertNotIn("select_all_vertex_selection(", select_all_body)
         self.assertNotIn("_mesh_edit_all_vertices_in_scope()", select_all_body)
         self.assertLess(
-            select_all_body.index("_mesh_edit_set_source_selection(allowed_sources)"),
-            select_all_body.index('_mesh_edit_native_all_vertex_selection(operation="replace")'),
+            select_all_body.index("_callbacks._mesh_edit_set_source_selection(allowed_sources)"),
+            select_all_body.index('_callbacks._mesh_edit_native_all_vertex_selection(operation="replace")'),
         )
         self.assertLess(
-            select_all_body.index('_mesh_edit_native_all_vertex_selection(operation="replace")'),
-            select_all_body.index('_mesh_edit_native_selection_unavailable("Select Part")'),
+            select_all_body.index('_callbacks._mesh_edit_native_all_vertex_selection(operation="replace")'),
+            select_all_body.index('_callbacks._mesh_edit_native_selection_unavailable("Select Part")'),
         )
-        self.assertIn("def _mesh_edit_invert_selection() -> None:", source)
-        invert_start = source.index("def _mesh_edit_invert_selection() -> None:")
-        invert_body = source[invert_start: source.index("def _mesh_edit_grow_selection() -> None:", invert_start)]
-        self.assertIn("allowed_sources = tuple(_mesh_edit_allowed_source_indices())", invert_body)
-        self.assertIn("mesh_edit_selected_source_indices and not (", invert_body)
-        self.assertIn("_mesh_edit_set_source_selection(source for source in allowed_sources if source not in selected_sources)", invert_body)
-        self.assertIn('_mesh_edit_native_all_vertex_selection(operation="toggle")', invert_body)
-        self.assertIn('_mesh_edit_native_selection_unavailable("Invert Selection")', invert_body)
+        self.assertIn("def _mesh_edit_invert_selection(_state, _callbacks, ) -> None:", source)
+        invert_body = _function_source(source, "_mesh_edit_invert_selection")
+        self.assertIn("allowed_sources = tuple(_state._mesh_edit_allowed_source_indices())", invert_body)
+        self.assertIn("_state.mesh_edit_selected_source_indices and not (", invert_body)
+        self.assertIn("_callbacks._mesh_edit_set_source_selection(source for source in allowed_sources if source not in selected_sources)", invert_body)
+        self.assertIn('_callbacks._mesh_edit_native_all_vertex_selection(operation="toggle")', invert_body)
+        self.assertIn('_callbacks._mesh_edit_native_selection_unavailable("Invert Selection")', invert_body)
         self.assertNotIn("invert_vertex_selection(", invert_body)
         self.assertNotIn("_mesh_edit_all_vertices_in_scope()", invert_body)
         self.assertLess(
-            invert_body.index("_mesh_edit_set_source_selection(source for source in allowed_sources if source not in selected_sources)"),
-            invert_body.index('_mesh_edit_native_all_vertex_selection(operation="toggle")'),
+            invert_body.index("_callbacks._mesh_edit_set_source_selection(source for source in allowed_sources if source not in selected_sources)"),
+            invert_body.index('_callbacks._mesh_edit_native_all_vertex_selection(operation="toggle")'),
         )
         self.assertLess(
-            invert_body.index('_mesh_edit_native_all_vertex_selection(operation="toggle")'),
-            invert_body.index('_mesh_edit_native_selection_unavailable("Invert Selection")'),
+            invert_body.index('_callbacks._mesh_edit_native_all_vertex_selection(operation="toggle")'),
+            invert_body.index('_callbacks._mesh_edit_native_selection_unavailable("Invert Selection")'),
         )
         self.assertIn("def _mesh_edit_native_vertex_selection(", source)
-        native_selection_start = source.index("def _mesh_edit_native_vertex_selection(")
-        native_selection_body = source[native_selection_start: source.index("def _mesh_edit_select_whole_part() -> None:", native_selection_start)]
+        native_selection_body = _function_source(source, "_mesh_edit_native_vertex_selection")
         self.assertIn("apply_native_mesh_selection(", native_selection_body)
         self.assertIn("selected_edges_by_submesh=selected_edges", native_selection_body)
         self.assertIn("selected_faces_by_submesh=selected_faces", native_selection_body)
         self.assertIn("source_indices=selected_sources", native_selection_body)
         self.assertIn("operation=operation", native_selection_body)
-        self.assertIn("mesh_edit_selection_worker_state: dict[str, object] = {", source)
+        self.assertIn("state.mesh_edit_selection_worker_state = {", source)
         self.assertIn("def _mesh_edit_start_selection_worker(", source)
-        selection_worker_start = source.index("def _mesh_edit_start_selection_worker(")
-        selection_worker_body = source[
-            selection_worker_start: source.index("def _mesh_edit_native_all_vertex_selection", selection_worker_start)
-        ]
-        self.assertIn("worker = MeshEditCommandWorker(", selection_worker_body)
-        self.assertIn('MeshEditCommand("select", selection=selection, params={"operation": operation}, mode="edit")', selection_worker_body)
+        selection_worker_body = _function_source(source, "_mesh_edit_start_selection_worker")
+        self.assertIn("worker = _state.MeshEditCommandWorker(", selection_worker_body)
+        self.assertIn('_state.MeshEditCommand("select", selection=selection, params={"operation": operation}, mode="edit")', selection_worker_body)
         self.assertIn("session.controller.mesh_service", selection_worker_body)
-        self.assertIn("thread.start(QThread.LowPriority)", selection_worker_body)
+        self.assertIn("thread.start(_state.QThread.LowPriority)", selection_worker_body)
         self.assertNotIn("_mesh_edit_record_snapshot()", selection_worker_body)
         self.assertNotIn("_mesh_edit_pop_undo_snapshot()", selection_worker_body)
         for operation, action_text in (
@@ -2632,11 +2688,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             ("shrink", "Shrink Selection"),
             ("smooth", "Smooth Selection"),
         ):
-            action_start = source.index(f"def _mesh_edit_{operation}_selection() -> None:")
-            action_body = source[action_start: source.index("def ", action_start + 1)]
-            worker_call = f'_mesh_edit_start_selection_worker("{operation}", "{operation.capitalize()} Selection")'
-            native_call = f'_mesh_edit_native_vertex_selection("{operation}")'
-            unavailable_call = f'_mesh_edit_native_selection_unavailable("{action_text}")'
+            action_body = _function_source(source, f"_mesh_edit_{operation}_selection")
+            worker_call = f'_callbacks._mesh_edit_start_selection_worker("{operation}", "{operation.capitalize()} Selection")'
+            native_call = f'_callbacks._mesh_edit_native_vertex_selection("{operation}")'
+            unavailable_call = f'_callbacks._mesh_edit_native_selection_unavailable("{action_text}")'
             self.assertIn(worker_call, action_body)
             self.assertIn(native_call, action_body)
             self.assertIn(unavailable_call, action_body)
@@ -2644,13 +2699,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             self.assertLess(action_body.index(worker_call), action_body.index(native_call))
             self.assertLess(action_body.index(native_call), action_body.index(unavailable_call))
         for action_name in (
-            "def _mesh_edit_delete_selected_faces() -> None:",
-            "def _mesh_edit_subdivide_selection(*, refine_smooth: bool = False) -> None:",
-            "def _mesh_edit_split_selection_to_part() -> None:",
+            "_mesh_edit_delete_selected_faces",
+            "_mesh_edit_subdivide_selection",
+            "_mesh_edit_split_selection_to_part",
         ):
-            action_start = source.index(action_name)
-            action_body = source[action_start: source.index("def ", action_start + len(action_name))]
-            self.assertIn("selected_sources = _mesh_editor_action_source_indices()", action_body)
+            action_body = _function_source(source, action_name)
+            self.assertIn("selected_sources = _callbacks._mesh_editor_action_source_indices()", action_body)
             self.assertIn("selected_source_indices=selected_sources", action_body)
             self.assertIn("source_indices=selected_sources", action_body)
         self.assertIn("mesh_edit_select_part_button.clicked.connect", source)
@@ -2659,19 +2713,18 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
     def test_mesh_edit_sculpt_payloads_map_d3d11_editor_ids_to_source_ids(self) -> None:
         source = _mesh_edit_source()
         payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
-        apply_start = source.index("def _mesh_edit_apply_preview_payload(payload: object) -> None:")
-        apply_body = source[apply_start: source.index("def _mesh_edit_finish_stroke", apply_start)]
+        apply_body = _function_source(source, "_mesh_edit_apply_geometry_payload")
 
-        self.assertIn("_mesh_edit_payload_native_vertex_groups_helper(", apply_body)
-        self.assertIn("source_indices_for_editor_id=_alignment_d3d11_source_indices_for_editor_id", apply_body)
-        self.assertIn("allowed_source_indices=_mesh_edit_allowed_source_indices()", apply_body)
+        self.assertIn("_state._mesh_edit_payload_native_vertex_groups_helper(", apply_body)
+        self.assertIn("source_indices_for_editor_id=_state._alignment_d3d11_source_indices_for_editor_id", apply_body)
+        self.assertIn("allowed_source_indices=_state._mesh_edit_allowed_source_indices()", apply_body)
         self.assertIn("allowed_indices = set(int(index) for index in allowed_source_indices)", payload_source)
         self.assertIn("editor_submesh_index = int(group.get(\"source_submesh_index\", -1))", payload_source)
         self.assertIn("source_indices_for_editor_id(editor_submesh_index)", payload_source)
         self.assertIn("for source_submesh_index in source_indices:", payload_source)
         self.assertIn("if source_submesh_index not in allowed_indices:", payload_source)
-        self.assertIn("def _mesh_editor_action_result_within_allowed_scope(result: object) -> bool:", source)
-        self.assertIn("_mesh_edit_allowed_source_indices(require_enabled=False)", source)
+        self.assertIn("def _mesh_editor_action_result_within_allowed_scope(_state, _callbacks, result: object) -> bool:", source)
+        self.assertIn("_state._mesh_edit_allowed_source_indices(require_enabled=False)", source)
         self.assertIn("Mesh Editor action blocked outside selected scope", source)
 
     def test_mesh_edit_loading_watchdog_clears_stale_d3d11_state(self) -> None:
@@ -2688,7 +2741,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
         self.assertIn("def _reset_alignment_d3d11_request_state(", source)
         self.assertIn("def _alignment_d3d11_request_active() -> bool:", source)
-        self.assertIn('_clear_stuck_alignment_d3d11_loading("loading watchdog")', source)
+        self.assertIn("_state._clear_stuck_alignment_d3d11_loading('loading watchdog')", source)
         self.assertIn("Preview idle.", source)
         self.assertIn("_alignment_d3d11_loading_cleared_performance_helper(", source)
         self.assertIn('"D3D11 preview loading state cleared."', presentation_source)
@@ -2700,14 +2753,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _alignment_d3d11_live_frame_available() -> bool:", source)
         self.assertIn("active=not live_frame_available", source)
         self.assertIn("progress_changed = Signal(int, int, int, str)", worker_source)
-        self.assertIn("class _AlignmentD3D11PackageWorkerReceiver(QObject):", source)
-        self.assertIn("@Slot(int, int, int, str)", source)
-        self.assertIn("@Slot(int, object, float, float)", source)
-        self.assertIn("@Slot(int, str)", source)
-        self.assertIn("alignment_d3d11_package_worker_receiver.handle_progress", source)
-        self.assertIn("alignment_d3d11_package_worker_receiver.handle_completed", source)
-        self.assertIn("alignment_d3d11_package_worker_receiver.handle_error", source)
-        self.assertIn("Qt.QueuedConnection", source)
+        self.assertIn("class _AlignmentD3D11PackageWorkerReceiver(_state.QObject):", source)
+        self.assertIn("@_state.Slot(int, int, int, str)", source)
+        self.assertIn("@_state.Slot(int, object, float, float)", source)
+        self.assertIn("@_state.Slot(int, str)", source)
+        self.assertIn("_state.alignment_d3d11_package_worker_receiver.handle_progress", source)
+        self.assertIn("_state.alignment_d3d11_package_worker_receiver.handle_completed", source)
+        self.assertIn("_state.alignment_d3d11_package_worker_receiver.handle_error", source)
+        self.assertIn("_state.Qt.QueuedConnection", source)
         self.assertIn('percent = int(round(float(payload.get("percent", 0) or 0)))', source)
         self.assertIn("on_progress: Optional[Callable[[int, int, str], None]] = None", package_source)
         self.assertIn("on_progress=_emit_package_progress", worker_source)
@@ -2752,26 +2805,17 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             transition_body.index("_alignment_d3d11_clear_active_package_helper("),
             transition_body.index("_queue_texture_preview_refresh()"),
         )
-        finalize_start = source.index("def _mesh_editor_finalize_edit_mode_exit(reason: str, mesh_changed: bool = True) -> bool:")
-        finalize_body = source[finalize_start:source.index("def _mesh_editor_embedded_finalize_dotnet_import", finalize_start)]
-        post_exit_start = source.index("def _mesh_editor_queue_post_edit_textured_preview_rebuild(reason: str) -> None:")
-        post_exit_body = source[post_exit_start:finalize_start]
-        toggle_start = source.index("def _mesh_edit_enabled_toggled(_checked: bool = False) -> None:")
-        toggle_body = source[toggle_start:source.index("mesh_edit_enabled_checkbox.toggled.connect", toggle_start)]
-        self.assertIn("mesh_edit_enabled_checkbox.setChecked(False)", finalize_body)
-        self.assertIn("_mesh_editor_sync_static_replacement_session_to_working_mesh", finalize_body)
-        self.assertIn("_mesh_edit_apply_preview_mode_transition", finalize_body)
-        self.assertIn("_mesh_editor_queue_post_edit_textured_preview_rebuild", finalize_body)
+        finalize_body = _function_source(source, "_mesh_editor_finalize_edit_mode_exit")
+        post_exit_body = _function_source(source, "_mesh_editor_queue_post_edit_textured_preview_rebuild")
+        toggle_body = _function_source(source, "_mesh_edit_enabled_toggled")
+        self.assertIn("_state.mesh_edit_enabled_checkbox.setChecked(False)", finalize_body)
+        self.assertIn("_callbacks._mesh_editor_sync_static_replacement_session_to_working_mesh", finalize_body)
+        self.assertIn("_state._mesh_edit_apply_preview_mode_transition", post_exit_body)
+        self.assertIn("_callbacks._mesh_editor_queue_post_edit_textured_preview_rebuild", finalize_body)
         self.assertIn("if not edit_enabled:", toggle_body)
-        self.assertIn('_mesh_editor_finalize_edit_mode_exit("mesh_edit_toggle", mesh_changed=True)', toggle_body)
-        self.assertIn("if callable(_queue_texture_preview_refresh):", post_exit_body)
-        self.assertIn("_queue_texture_preview_refresh()", post_exit_body)
-        self.assertIn("if callable(_queue_static_preview_rebuild):", post_exit_body)
-        self.assertIn("_queue_static_preview_rebuild()", post_exit_body)
-        self.assertLess(
-            finalize_body.index("_mesh_edit_apply_preview_mode_transition"),
-            finalize_body.index("_mesh_editor_queue_post_edit_textured_preview_rebuild"),
-        )
+        self.assertIn('_callbacks._mesh_editor_finalize_edit_mode_exit("mesh_edit_toggle", mesh_changed=True)', toggle_body)
+        self.assertNotIn("_queue_texture_preview_refresh()", post_exit_body)
+        self.assertNotIn("_queue_static_preview_rebuild()", post_exit_body)
         self.assertNotIn("_restore_textured_preview_after_mesh_edit_surface_exit", source)
         self.assertIn("def alignment_d3d11_raw_package_active_or_pending(state: Mapping[str, object]) -> bool:", source)
         self.assertIn('_alignment_d3d11_raw_package_active_or_pending_helper(alignment_d3d11_state)', source)
@@ -2784,20 +2828,19 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('state["package_quality"] = "normal"', d3d11_cache_source)
         self.assertIn("_queue_texture_preview_refresh()", source)
         self.assertNotIn('_mesh_edit_apply_preview_mode_transition("left_mesh_edit_tab")', source)
-        self.assertIn('mesh_edit_surface_tab_state["active"] = _mesh_edit_surface_tab_active(index)', source)
-        self.assertIn("def _mesh_edit_surface_tab_active(index: int | None = None) -> bool:", source)
+        self.assertIn('_state.mesh_edit_surface_tab_state["active"] = _state._mesh_edit_surface_tab_active(index)', source)
+        self.assertIn("def _mesh_edit_surface_tab_active(_state, _callbacks, index: int | None = None) -> bool:", source)
         self.assertIn('"classic mesh editing"', source)
         self.assertIn('"merged mesh editing"', source)
-        self.assertIn('mesh_edit_surface_tab_state = {"active": _mesh_edit_surface_tab_active()}', source)
+        self.assertIn('state.mesh_edit_surface_tab_state = {"active": state._mesh_edit_surface_tab_active()}', source)
         self.assertNotIn("previous_surface = bool(mesh_edit_surface_tab_state.get(\"active\"))", source)
-        self.assertIn("def _mesh_edit_commit_geometry_preview_state() -> None:", source)
-        commit_start = source.index("def _mesh_edit_commit_geometry_preview_state() -> None:")
-        commit_body = source[commit_start: source.index("_mesh_edit_preview_source_indices", commit_start)]
-        self.assertIn("_mesh_editor_remember_static_replacement_session_mesh()", commit_body)
-        self.assertIn("static_preview_geometry_cache.clear()", commit_body)
-        self.assertIn("static_preview_prepared_cache.clear()", commit_body)
-        self.assertIn('_mark_alignment_d3d11_rebuild_reason("geometry")', commit_body)
-        self.assertIn('_alignment_d3d11_invalidate_package_cache("geometry")', commit_body)
+        self.assertIn("def _mesh_edit_commit_geometry_preview_state(_state, _callbacks, ) -> None:", source)
+        commit_body = _function_source(source, "_mesh_edit_commit_geometry_preview_state")
+        self.assertIn("_callbacks._mesh_editor_remember_static_replacement_session_mesh()", commit_body)
+        self.assertIn("_state.static_preview_geometry_cache.clear()", commit_body)
+        self.assertIn("_state.static_preview_prepared_cache.clear()", commit_body)
+        self.assertIn('_state._mark_alignment_d3d11_rebuild_reason("geometry")', commit_body)
+        self.assertIn('_state._alignment_d3d11_invalidate_package_cache("geometry")', commit_body)
         self.assertNotIn('return _alignment_d3d11_fast_render_settings(settings), False, False, "fast_geometry"', source)
         self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"', d3d11_presentation_source)
         self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "mesh_edit_raw"', d3d11_presentation_source)
@@ -2806,105 +2849,93 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("fast_settings.disable_material_map = True", d3d11_presentation_source)
         self.assertNotIn("fast_settings.disable_height_map = True", d3d11_presentation_source)
         self.assertIn("def _mesh_edit_raw_preview_active_value() -> bool:", source)
-        self.assertIn("mesh_edit_raw_package = _mesh_edit_raw_preview_active_value()", source)
-        self.assertIn('worker_use_textures = bool(getattr(settings, "use_textures_by_default", True))', source)
+        self.assertIn("mesh_edit_raw_package = _state._mesh_edit_raw_preview_active_value()", source)
+        self.assertIn("worker_use_textures = bool(getattr(settings, 'use_textures_by_default', True))", source)
         self.assertIn("original_reference_material_parity=worker_original_reference_material_parity", source)
         self.assertIn("reuse_prepared_geometry=bool(geometry_signature)", source)
         self.assertIn("def _mesh_by_source_identity", worker_source)
-        poll_start = source.index("def _poll_alignment_d3d11_status() -> None:")
-        loaded_start = source.index('if event == "loaded":', poll_start)
-        loaded_block = source[loaded_start: source.index('elif event == "loading":', loaded_start)]
+        poll_body = _function_source(source, "_poll_alignment_d3d11_status")
+        loaded_start = poll_body.index("if event == 'loaded':")
+        loaded_block = poll_body[loaded_start: poll_body.index("elif event == 'loading':", loaded_start)]
         self.assertIn("_sync_mesh_edit_preview_settings_if_ready()", loaded_block)
         self.assertIn("enable_material_combiner=bool(self.enable_material_combiner and self.use_textures)", worker_source)
-        self.assertIn("def _mesh_edit_full_reset_mesh() -> None:", source)
+        self.assertIn("def _mesh_edit_full_reset_mesh(_state, _callbacks, ) -> None:", source)
         self.assertIn('"full_reset_mesh": "Full Reset Mesh"', mesh_edit_state_source)
-        self.assertIn('mesh_edit_full_reset_button = QPushButton(mesh_edit_action_control_text["full_reset_mesh"])', source)
+        self.assertIn("_state.mesh_edit_full_reset_button = _state.QPushButton(_state.mesh_edit_action_control_text['full_reset_mesh'])", source)
         self.assertIn("_mesh_edit_part_enabled_snapshot = lambda", source)
-        self.assertIn("def _mesh_edit_restore_enabled_snapshot(snapshot: Mapping[int, bool]) -> None:", source)
-        restore_enabled_start = source.index("def _mesh_edit_restore_enabled_snapshot(snapshot: Mapping[int, bool]) -> None:")
-        restore_enabled_body = source[
-            restore_enabled_start: source.index("def _sync_source_tree_enabled_checks", restore_enabled_start)
-        ]
+        self.assertIn("def _mesh_edit_restore_enabled_snapshot(_state, _callbacks, snapshot: object) -> None:", source)
+        restore_enabled_body = _function_source(source, "_mesh_edit_restore_enabled_snapshot")
+        self.assertIn("bool(snapshot.get('metadata_only'))", restore_enabled_body)
+        self.assertIn("restore(current)", restore_enabled_body)
         self.assertIn("_mesh_edit_source_enable_mutation_blocked", restore_enabled_body)
         self.assertNotIn("_ensure_source_part_adjustment", restore_enabled_body)
         self.assertNotIn("adjustment.enabled", restore_enabled_body)
         self.assertNotIn("def _mesh_edit_restore_adjustment_snapshot", source)
         self.assertIn("mesh_edit_should_restore_deleted_output(", mesh_edit_state_source)
-        self.assertIn("def _mesh_edit_restore_base_sources_native(source_indices: Sequence[int], *, operation: str) -> bool:", source)
-        native_restore_start = source.index("def _mesh_edit_restore_base_sources_native(")
-        native_restore_body = source[native_restore_start: source.index("def _mesh_edit_abort_recorded_snapshot", native_restore_start)]
+        self.assertIn("def _mesh_edit_restore_base_sources_native(_state, _callbacks, source_indices: _state.Sequence[int], *, operation: str) -> bool:", source)
+        native_restore_body = _function_source(source, "_mesh_edit_restore_base_sources_native")
         self.assertIn("restore_native_mesh_submeshes_from_mesh", native_restore_body)
         self.assertIn("timeout_seconds=20.0", native_restore_body)
-        reset_start = source.index("def _mesh_edit_reset_scope() -> None:")
-        reset_body = source[reset_start: source.index("def _mesh_edit_full_reset_mesh() -> None:", reset_start)]
-        full_reset_start = source.index("def _mesh_edit_full_reset_mesh() -> None:")
-        full_reset_body = source[full_reset_start: source.index("def _record_mesh_edit_event(", full_reset_start)]
+        reset_body = _function_source(source, "_mesh_edit_reset_scope")
+        full_reset_body = _function_source(source, "_mesh_edit_full_reset_mesh")
         for body in (reset_body, full_reset_body):
             self.assertIn("restore_deleted_output_by_source: dict[int, bool] = {}", body)
-            self.assertIn("restore_deleted_output_by_source[source_index] = _mesh_edit_should_restore_deleted_output_helper(", body)
-            self.assertIn("_mesh_edit_restore_base_sources_native(source_indices, operation=", body)
-            self.assertIn("_mesh_edit_abort_recorded_snapshot()", body)
+            self.assertIn("restore_deleted_output_by_source[source_index] = _state._mesh_edit_should_restore_deleted_output_helper(", body)
+            self.assertIn("_callbacks._mesh_edit_restore_base_sources_native(source_indices, operation=", body)
+            self.assertIn("_callbacks._mesh_edit_abort_recorded_snapshot()", body)
             self.assertIn("Python geometry clone fallback is disabled.", body)
-            self.assertIn("_mesh_edit_source_enable_mutation_blocked", body)
+            self.assertIn("_callbacks._mesh_edit_source_enable_mutation_blocked", body)
             self.assertNotIn("_ensure_source_part_adjustment", body)
             self.assertNotIn("adjustment.enabled = True", body)
             self.assertNotIn("allow_python_full_mesh_clone_fallback(", body)
             self.assertNotIn("copy.deepcopy(\n                    base_source", body)
-        self.assertIn("def _mesh_edit_transformed_sources_for_live_preview(source_indices: Iterable[int])", source)
-        self.assertIn("def _mesh_edit_submesh_for_live_preview(source_index: int):", source)
+        self.assertIn("def _mesh_edit_transformed_sources_for_live_preview(_state, _callbacks, source_indices: _state.Iterable[int])", source)
+        self.assertIn("def _mesh_edit_submesh_for_live_preview(_state, _callbacks, source_index: int):", source)
         self.assertIn(
-            "alignment_basis_mesh=_mesh_edit_state.replacement_mesh_base_for_mapping or _mesh_edit_state.replacement_mesh_for_mapping",
+            "alignment_basis_mesh=_state._mesh_edit_state.replacement_mesh_base_for_mapping or _state._mesh_edit_state.replacement_mesh_for_mapping",
             source,
         )
-        self.assertIn("transformed_sources_by_index = _mesh_edit_transformed_sources_for_live_preview", source)
+        self.assertIn("transformed_sources_by_index = _callbacks._mesh_edit_transformed_sources_for_live_preview", source)
         self.assertIn("alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", source)
         self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(source_indices)", source)
 
     def test_action_bar_sculpt_tools_select_live_brush_and_move_stays_selection_drag(self) -> None:
         source = _mesh_edit_source()
 
-        action_start = source.index("def _mesh_editor_action_bar_action_requested(action: object) -> bool:")
-        action_body = source[action_start: source.index("def _refresh_mesh_edit_controls", action_start)]
-        select_start = source.index("def _select_mesh_edit_tool")
-        select_body = source[select_start: source.index("def _mesh_editor_action_selection", select_start)]
-        self.assertIn("_sync_mesh_edit_preview_settings()", select_body)
-        show_start = source.index("def _show_mesh_edit_tab() -> None:")
-        show_body = source[show_start: source.index("def _mesh_editor_tool_action_key", show_start)]
+        action_body = _function_source(source, "_mesh_editor_action_bar_action_requested")
+        select_body = _function_source(source, "_select_mesh_edit_tool")
+        self.assertIn("_callbacks._sync_mesh_edit_preview_settings()", select_body)
+        show_body = _function_source(source, "_show_mesh_edit_tab")
         self.assertNotIn("setCurrentWidget", show_body)
         self.assertNotIn("set_current_widget(mesh_edit_tab)", show_body)
         self.assertIn('if key == "transform_move":', action_body)
-        self.assertIn('return _select_mesh_edit_tool("grab", active_action_key="transform_move")', action_body)
+        self.assertIn('return _callbacks._select_mesh_edit_tool("grab", active_action_key="transform_move")', action_body)
         self.assertIn('if command == "brush":', action_body)
-        brush_block = action_body[action_body.index('if command == "brush":'): action_body.index('if command in service_topology_actions:', action_body.index('if command == "brush":'))]
-        self.assertIn("return _select_mesh_edit_tool(tool, active_action_key=active_key)", brush_block)
+        brush_block = action_body[action_body.index('if command == "brush":'): action_body.index('if command in _SERVICE_TOPOLOGY_ACTIONS:', action_body.index('if command == "brush":'))]
+        self.assertIn("return _callbacks._select_mesh_edit_tool(tool, active_action_key=active_key)", brush_block)
         self.assertNotIn("_mesh_editor_apply_selected_brush_action", brush_block)
-        self.assertIn('if str(mesh_editor_action_bar_active_tool_key.get("value") or "") == "transform_move":', source)
+        self.assertIn('if str(_state.mesh_editor_action_bar_active_tool_key.get("value") or "") == "transform_move":', source)
         self.assertIn('return "selection"', source)
-        sync_start = source.index("def _sync_mesh_editor_tab_action_state(")
-        sync_body = source[sync_start: source.index("def _show_mesh_edit_tab", sync_start)]
+        sync_body = _function_source(source, "_sync_mesh_editor_tab_action_state")
         self.assertIn('mode = "edit" if editing_active else "object"', sync_body)
         self.assertIn("selected_edge_count", sync_body)
         self.assertNotIn('mode = "sculpt" if editing_active and sculpt_tool', sync_body)
-        refresh_start = source.index("def _refresh_mesh_edit_controls")
-        refresh_body = source[refresh_start: source.index("def _mesh_edit_push_undo_snapshot", refresh_start)]
+        refresh_body = _function_source(source, "_refresh_mesh_edit_controls")
         self.assertIn("selected_element_count = selected_count + selected_face_count + selected_edge_count", refresh_body)
         self.assertIn("vertex_selection_active", refresh_body)
-        self.assertIn("mesh_edit_grow_selection_button.setEnabled(vertex_selection_active and not topology_busy)", refresh_body)
-        self.assertIn('"generate_tangents"', action_body)
-        self.assertIn('"sharpen_normals"', action_body)
-        self.assertIn('"soften_normals"', action_body)
-        self.assertIn('"weighted_normals"', action_body)
-        self.assertIn('"copy_normals"', action_body)
+        self.assertIn("_state.mesh_edit_grow_selection_button.setEnabled(vertex_selection_active and not topology_busy)", refresh_body)
+        self.assertIn('"generate_tangents"', source)
+        self.assertIn('"sharpen_normals"', source)
+        self.assertIn('"soften_normals"', source)
+        self.assertIn('"weighted_normals"', source)
+        self.assertIn('"copy_normals"', source)
         self.assertIn('if command == "refine_smooth":', action_body)
-        self.assertIn("_mesh_edit_subdivide_selection(refine_smooth=True)", action_body)
-        self.assertIn("service_cleanup_actions = {", action_body)
-        self.assertIn('"remove_doubles"', action_body)
-        self.assertIn('"delete_loose_vertices"', action_body)
-        self.assertIn('"fill_holes"', action_body)
-        cleanup_body = action_body[
-            action_body.index("service_cleanup_actions = {"):
-            action_body.index("service_non_topology_actions = {")
-        ]
+        self.assertIn("_callbacks._mesh_edit_subdivide_selection(refine_smooth=True)", action_body)
+        self.assertIn("_SERVICE_CLEANUP_ACTIONS = frozenset(", source)
+        self.assertIn('"remove_doubles"', source)
+        self.assertIn('"delete_loose_vertices"', source)
+        self.assertIn('"fill_holes"', source)
+        cleanup_body = source[source.index("_SERVICE_CLEANUP_ACTIONS = frozenset("):source.index("_SERVICE_NON_TOPOLOGY_ACTIONS = frozenset(")]
         self.assertNotIn('"triangulate_display"', cleanup_body)
         self.assertNotIn('"quadrangulate_display"', cleanup_body)
         self.assertIn('if command in {"triangulate_display", "quadrangulate_display"}:', action_body)
@@ -2912,16 +2943,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         worker_source = _read("cdmw/workers/mesh_editor_workers.py")
         self.assertIn('_LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangulate_display"})', worker_source)
         self.assertIn("legacy display-shape cleanup", worker_source)
-        self.assertIn("service_non_topology_actions = {", action_body)
+        self.assertIn("_SERVICE_NON_TOPOLOGY_ACTIONS = frozenset(", source)
         self.assertIn("require_selection=False", action_body)
         self.assertNotIn("def _mesh_editor_selected_brush_bounds(", source)
         self.assertNotIn("def _mesh_editor_apply_selected_brush_action(", source)
         self.assertNotIn('if command == "brush" or key == "transform_move":', action_body)
         ui_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_ui_sections.py")
-        compact_start = ui_source.index("compact_action_keys = (")
-        compact_body = ui_source[
-            compact_start: ui_source.index("classic_mesh_edit_action_bar = MeshEditorActionBar", compact_start)
-        ]
+        compact_body = _function_source(ui_source, "_mesh_geometry_preview_step_008")
         self.assertNotIn('"recalculate_normals"', compact_body)
         self.assertNotIn('"weighted_normals"', compact_body)
         self.assertNotIn('"flip_normals"', compact_body)
@@ -2929,17 +2957,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
     def test_native_mesh_edit_events_are_late_bound_to_real_callbacks(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_ui_sections.py")
 
-        connect_start = source.index("for preview_widget in (static_dialog_preview, overlay_dialog_preview, replacement_only_preview):")
-        callbacks_start = source.index("alignment_mesh_edit_callbacks = create_alignment_mesh_edit_callbacks", connect_start)
-        connect_body = source[connect_start:callbacks_start]
-        self.assertIn("preview_widget.mesh_edit_stroke_started.connect(lambda payload: _mesh_edit_begin_stroke(payload))", connect_body)
-        self.assertIn("preview_widget.mesh_edit_stroke_previewed.connect(lambda payload: _mesh_edit_apply_preview_payload(payload))", connect_body)
-        self.assertIn("preview_widget.mesh_edit_stroke_finished.connect(lambda payload: _mesh_edit_finish_stroke(payload))", connect_body)
-        self.assertIn("preview_widget.mesh_edit_selection_changed.connect(lambda payload: _mesh_edit_selection_changed(payload))", connect_body)
-        self.assertIn("alignment_d3d11_preview_host.mesh_edit_stroke_started.connect(lambda payload: _mesh_edit_begin_stroke(payload))", connect_body)
-        self.assertIn("alignment_d3d11_preview_host.mesh_edit_stroke_previewed.connect(lambda payload: _mesh_edit_apply_preview_payload(payload))", connect_body)
-        self.assertIn("alignment_d3d11_preview_host.mesh_edit_stroke_finished.connect(lambda payload: _mesh_edit_finish_stroke(payload))", connect_body)
-        self.assertIn("alignment_d3d11_preview_host.mesh_edit_selection_changed.connect(lambda payload: _mesh_edit_selection_changed(payload))", connect_body)
+        connect_body = _function_source(source, "_setup_options_transform_step_016")
+        self.assertIn("_state.preview_widget.mesh_edit_stroke_started.connect(lambda payload: _state._mesh_edit_begin_stroke(payload))", connect_body)
+        self.assertIn("_state.preview_widget.mesh_edit_stroke_previewed.connect(lambda payload: _state._mesh_edit_apply_preview_payload(payload))", connect_body)
+        self.assertIn("_state.preview_widget.mesh_edit_stroke_finished.connect(lambda payload: _state._mesh_edit_finish_stroke(payload))", connect_body)
+        self.assertIn("_state.preview_widget.mesh_edit_selection_changed.connect(lambda payload: _state._mesh_edit_selection_changed(payload))", connect_body)
+        self.assertIn("_state.alignment_d3d11_preview_host.mesh_edit_stroke_started.connect(lambda payload: _state._mesh_edit_begin_stroke(payload))", connect_body)
+        self.assertIn("_state.alignment_d3d11_preview_host.mesh_edit_stroke_previewed.connect(lambda payload: _state._mesh_edit_apply_preview_payload(payload))", connect_body)
+        self.assertIn("_state.alignment_d3d11_preview_host.mesh_edit_stroke_finished.connect(lambda payload: _state._mesh_edit_finish_stroke(payload))", connect_body)
+        self.assertIn("_state.alignment_d3d11_preview_host.mesh_edit_selection_changed.connect(lambda payload: _state._mesh_edit_selection_changed(payload))", connect_body)
 
     def test_static_replacement_topology_actions_use_background_worker(self) -> None:
         source = _mesh_edit_source()
@@ -2949,34 +2975,32 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("from cdmw.workers.mesh_editor_workers import MeshEditCommandWorker", source)
         self.assertNotIn("MESH_EDIT_TOPOLOGY_ASYNC_SELECTION_THRESHOLD", source)
         self.assertNotIn("def _mesh_edit_topology_selection_size(", source)
-        should_worker_start = source.index("def _mesh_edit_should_run_topology_worker(")
-        should_worker_body = source[should_worker_start: source.index("def _mesh_edit_cancel_topology_worker", should_worker_start)]
+        should_worker_body = _function_source(source, "_mesh_edit_should_run_topology_worker")
         self.assertIn("return True", should_worker_body)
         self.assertNotIn("_mesh_edit_topology_selection_size", should_worker_body)
         self.assertIn("def _mesh_edit_start_topology_worker(", source)
         self.assertIn("QProgressDialog(f\"Applying {action_text}...\"", source)
-        self.assertIn("progress.canceled.connect(_mesh_edit_cancel_topology_worker)", source)
+        self.assertIn("progress.canceled.connect(_callbacks._mesh_edit_cancel_topology_worker)", source)
         self.assertIn("worker.completed.connect(", source)
-        self.assertIn("worker.cancelled.connect(_mesh_edit_topology_worker_cancelled)", source)
-        self.assertIn("worker.error.connect(_mesh_edit_topology_worker_failed)", source)
-        self.assertIn("thread.start(QThread.LowPriority)", source)
-        self.assertIn("def _mesh_edit_worker_active() -> bool:", source)
-        self.assertIn("if _mesh_edit_worker_active():", source)
-        self.assertIn("commit_callback=_mesh_edit_commit_delete_result", source)
-        self.assertIn("_mesh_edit_commit_subdivide_result(", source)
-        self.assertIn("commit_callback=_mesh_edit_commit_split_result", source)
-        self.assertIn("worker = MeshEditCommandWorker(", source)
-        self.assertIn("MeshEditCommand(", source)
+        self.assertIn("worker.cancelled.connect(_callbacks._mesh_edit_topology_worker_cancelled)", source)
+        self.assertIn("worker.error.connect(_callbacks._mesh_edit_topology_worker_failed)", source)
+        self.assertIn("thread.start(_state.QThread.LowPriority)", source)
+        self.assertIn("def _mesh_edit_worker_active(_state, _callbacks, ) -> bool:", source)
+        self.assertIn("if _callbacks._mesh_edit_worker_active():", source)
+        self.assertIn("commit_callback=_callbacks._mesh_edit_commit_delete_result", source)
+        self.assertIn("_callbacks._mesh_edit_commit_subdivide_result(", source)
+        self.assertIn("commit_callback=_callbacks._mesh_edit_commit_split_result", source)
+        self.assertIn("worker = _state.MeshEditCommandWorker(", source)
+        self.assertIn("command = _state.MeshEditCommand(", source)
         self.assertIn("session.controller.mesh_service", source)
         self.assertIn("before = session.submesh_counts", source)
         self.assertNotIn("for submesh in session.controller.working_mesh(clone=False).submeshes", source)
         self.assertIn("session._result(edit_result, before=before, selection=selection)", source)
-        action_bar_start = source.index("def _mesh_editor_apply_action_bar_service_action(")
-        action_bar_body = source[action_bar_start: source.index("def _mesh_editor_prompt_action_value(", action_bar_start)]
-        self.assertIn("if _mesh_edit_start_topology_worker(", action_bar_body)
+        action_bar_body = _function_source(source, "_mesh_editor_apply_action_bar_service_action")
+        self.assertIn("if _callbacks._mesh_edit_start_topology_worker(", action_bar_body)
         self.assertLess(
-            action_bar_body.index("if _mesh_edit_start_topology_worker("),
-            action_bar_body.index("result = _mesh_editor_apply_static_replacement_edit("),
+            action_bar_body.index("if _callbacks._mesh_edit_start_topology_worker("),
+            action_bar_body.index("result = _callbacks._mesh_editor_apply_static_replacement_edit("),
         )
         self.assertNotIn("MeshTopologyEditApplyWorker", source)
         self.assertNotIn("class MeshTopologyEditApplyWorker(QObject):", worker_source)
@@ -3031,6 +3055,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         callback_factory_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py")
         prompt_state_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_state_callbacks.py")
         prompt_setup_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py")
+        prompt_preflight_source = _read("cdmw/ui/archive_browser/static_replacement_prompt_preflight.py")
         ui_sections_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_ui_sections.py")
         payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
         mesh_native_source = _mesh_native_core_source()
@@ -3042,25 +3067,21 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn('"selection_expansion": {}', source)
         self.assertNotIn("def _mesh_edit_selection_cache_key(", source)
         self.assertNotIn("_MESH_EDIT_SELECTION_CACHE_VERTEX_LIMIT", source)
-        self.assertIn("def _mesh_edit_native_selection_unavailable(action_text: str) -> None:", source)
-        self.assertIn('mesh_edit_status_label.setText(f"Native {action_text} is unavailable.")', source)
-        begin_start = source.index("def _mesh_edit_begin_stroke(payload: object) -> None:")
-        begin_body = source[begin_start: source.index("def _mesh_edit_restore_snapshot", begin_start)]
+        self.assertIn("def _mesh_edit_native_selection_unavailable(_state, _callbacks, action_text: str) -> None:", source)
+        self.assertIn('_state.mesh_edit_status_label.setText(f"Native {action_text} is unavailable.")', source)
+        begin_body = _function_source(source, "_mesh_edit_begin_stroke")
         self.assertNotIn("_mesh_edit_cached_adjacency", source)
         self.assertNotIn("_mesh_edit_cached_mirror_pairs", source)
         self.assertNotIn("build_vertex_adjacency(submesh)", begin_body)
         self.assertNotIn("build_x_mirror_pairs(submesh.vertices)", begin_body)
         self.assertIn(
-            "def _mesh_edit_push_undo_snapshot(snapshot: ParsedMesh, *, take_ownership: bool = False) -> bool:",
+            "def _mesh_edit_push_undo_snapshot(_state, _callbacks, snapshot: _state.ParsedMesh, *, take_ownership: bool = False) -> bool:",
             source,
         )
-        self.assertIn("def _mesh_edit_pop_active_stroke_snapshots() -> None:", source)
+        self.assertIn("def _mesh_edit_pop_active_stroke_snapshots(_state, _callbacks, ) -> None:", source)
         self.assertIn("def _mesh_edit_capture_undo_snapshot(", source)
         self.assertIn("def _mesh_edit_restore_undo_snapshot(", source)
-        capture_undo_start = source.index("def _mesh_edit_capture_undo_snapshot(")
-        capture_undo_body = source[
-            capture_undo_start: source.index("def _mesh_edit_restore_undo_snapshot(", capture_undo_start)
-        ]
+        capture_undo_body = _function_source(source, "_mesh_edit_capture_undo_snapshot")
         self.assertIn("snapshot_native_mesh_submeshes(snapshot)", capture_undo_body)
         self.assertIn("mesh_edit_native_undo_snapshot_failed", capture_undo_body)
         self.assertIn("Python full-mesh undo snapshot fallback is disabled.", capture_undo_body)
@@ -3069,86 +3090,74 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("clone_mesh_for_editing(snapshot)", capture_undo_body)
         self.assertNotIn("def _mesh_edit_python_undo_snapshot_fallback_allowed", source)
         self.assertNotIn("allow_python_mesh_history_snapshot_fallback", source)
-        self.assertIn("def _mesh_edit_capture_live_stroke_base_snapshot(mesh: ParsedMesh) -> object | None:", source)
-        self.assertIn("def _mesh_edit_restore_live_stroke_base_snapshot(snapshot: object) -> bool:", source)
-        self.assertIn("def _mesh_edit_clear_active_stroke() -> None:", source)
+        self.assertIn("def _mesh_edit_capture_live_stroke_base_snapshot(_state, _callbacks, mesh: _state.ParsedMesh) -> object | None:", source)
+        self.assertIn("def _mesh_edit_restore_live_stroke_base_snapshot(_state, _callbacks, snapshot: object) -> bool:", source)
+        self.assertIn("def _mesh_edit_clear_active_stroke(_state, _callbacks, ) -> None:", source)
         self.assertIn("def clone_mesh_for_static_replacement_native_first(", sparse_history_source)
         self.assertIn("snapshot_native_mesh_submeshes(mesh)", sparse_history_source)
         self.assertIn("restore_native_mesh_submesh_snapshot(restored, native_snapshot)", sparse_history_source)
         self.assertIn("allow_python_full_mesh_clone_fallback(mesh, operation, reason)", sparse_history_source)
-        self.assertIn("clone_mesh_for_static_replacement_native_first(", prompt_setup_source)
+        self.assertIn("clone_mesh_for_static_replacement_native_first(", prompt_preflight_source)
         self.assertNotIn("replacement_mesh_base_for_mapping = clone_mesh_for_editing(", prompt_setup_source)
         self.assertNotIn("replacement_mesh_for_mapping = clone_mesh_for_editing(", prompt_setup_source)
-        self.assertIn("edited_source_mesh = clone_mesh_for_static_replacement_native_first(", callback_factory_source)
+        self.assertIn("edited_source_mesh = _state.replacement_mesh_for_mapping", callback_factory_source)
+        self.assertIn("def clone_static_replacement_options_for_worker(", sparse_history_source)
         self.assertNotIn("edited_source_mesh = clone_mesh_for_editing(", callback_factory_source)
-        live_base_capture_start = source.index("def _mesh_edit_capture_live_stroke_base_snapshot(")
-        live_base_capture_body = source[
-            live_base_capture_start: source.index("def _mesh_edit_restore_live_stroke_base_snapshot(", live_base_capture_start)
-        ]
+        live_base_capture_body = _function_source(source, "_mesh_edit_capture_live_stroke_base_snapshot")
         self.assertIn("snapshot_native_mesh_submeshes(mesh)", live_base_capture_body)
         self.assertIn("mesh_edit_native_live_stroke_snapshot_failed", live_base_capture_body)
         self.assertIn("Python full-mesh live stroke clone fallback is disabled.", live_base_capture_body)
         self.assertNotIn("clone_mesh_for_static_replacement_native_first(", live_base_capture_body)
         self.assertNotIn("fallback_allowed=_mesh_edit_python_live_stroke_clone_fallback_allowed", live_base_capture_body)
         self.assertNotIn("return clone_mesh_for_editing(mesh)", live_base_capture_body)
-        live_base_restore_start = source.index("def _mesh_edit_restore_live_stroke_base_snapshot(")
-        live_base_restore_body = source[
-            live_base_restore_start: source.index("def _mesh_edit_clear_active_stroke(", live_base_restore_start)
-        ]
+        live_base_restore_body = _function_source(source, "_mesh_edit_restore_live_stroke_base_snapshot")
         self.assertIn('snapshot.get("kind") == "native_submesh_snapshot"', live_base_restore_body)
         self.assertIn("restore_native_mesh_submesh_snapshot(restored, snapshot)", live_base_restore_body)
-        self.assertIn("if isinstance(snapshot, ParsedMesh):\n            return False", live_base_restore_body)
+        self.assertIn("if isinstance(snapshot, _state.ParsedMesh):\n        return False", live_base_restore_body)
         self.assertNotIn("_mesh_edit_clone_parsed_mesh_snapshot(", live_base_restore_body)
         self.assertNotIn(
             "_mesh_edit_state.replacement_mesh_for_mapping = clone_mesh_for_editing(snapshot)",
             live_base_restore_body,
         )
-        clear_active_start = source.index("def _mesh_edit_clear_active_stroke() -> None:")
-        clear_active_body = source[clear_active_start: source.index("def _mesh_edit_python_normal_fallback_allowed", clear_active_start)]
-        self.assertIn('release_mesh_history_snapshot(mesh_edit_active_stroke.get("base"))', clear_active_body)
-        self.assertEqual(source.count("mesh_edit_active_stroke.clear()"), 1)
-        normal_fallback_start = source.index("def _mesh_edit_python_normal_fallback_allowed")
-        normal_fallback_body = source[
-            normal_fallback_start: source.index("def _mesh_edit_sparse_restore_source_indices", normal_fallback_start)
-        ]
+        clear_active_body = _function_source(source, "_mesh_edit_clear_active_stroke")
+        self.assertIn('_state.release_mesh_history_snapshot(_state.mesh_edit_active_stroke.get("base"))', clear_active_body)
+        self.assertEqual(source.count("_state.mesh_edit_active_stroke.clear()"), 1)
+        normal_fallback_body = _function_source(source, "_mesh_edit_python_normal_fallback_allowed")
         self.assertNotIn("for raw_index in tuple(source_indices or ())", normal_fallback_body)
-        restore_undo_start = source.index("def _mesh_edit_restore_undo_snapshot(")
-        restore_undo_body = source[
-            restore_undo_start: source.index("def _mesh_edit_push_undo_snapshot", restore_undo_start)
-        ]
+        restore_undo_body = _function_source(source, "_mesh_edit_restore_undo_snapshot")
         self.assertIn('snapshot.get("kind") == "native_submesh_snapshot"', restore_undo_body)
         self.assertIn("restore_native_mesh_submesh_snapshot(restored, snapshot)", restore_undo_body)
-        self.assertIn("if isinstance(snapshot, ParsedMesh):\n            return None", restore_undo_body)
+        self.assertIn("if isinstance(snapshot, _state.ParsedMesh):\n        return None", restore_undo_body)
         self.assertNotIn("def _mesh_edit_clone_parsed_mesh_snapshot(", source)
         self.assertNotIn('"history.static_undo_snapshot_restore"', restore_undo_body)
         self.assertNotIn("clone_mesh_for_static_replacement_native_first(", restore_undo_body)
         self.assertNotIn("fallback_allowed=fallback_allowed", restore_undo_body)
         self.assertNotIn("clone_mesh_for_editing(snapshot)", restore_undo_body)
-        self.assertIn("stored_snapshot = _mesh_edit_capture_undo_snapshot(snapshot, take_ownership=take_ownership)", source)
-        self.assertIn("if stored_snapshot is None:\n            return False", source)
+        self.assertIn("stored_snapshot = _callbacks._mesh_edit_capture_undo_snapshot(snapshot, take_ownership=take_ownership)", source)
+        self.assertIn("if stored_snapshot is None:\n        return False", source)
         self.assertIn("retain_mesh_history_snapshot(stored_snapshot)", source)
-        self.assertIn("clear_mesh_history_snapshot_stack(mesh_edit_redo_stack)", source)
-        self.assertIn("_push_geometry_sparse_mesh_edit_snapshot = context.get('_push_geometry_sparse_mesh_edit_snapshot')", source)
+        self.assertIn("_state.clear_mesh_history_snapshot_stack(_state.mesh_edit_redo_stack)", source)
+        self.assertIn("'_push_geometry_sparse_mesh_edit_snapshot',", source)
         self.assertIn("native_screen_stroke = tool != \"remove\" and (", begin_body)
         self.assertIn("native_descriptor_stroke = (bool(native_descriptor_groups) or native_screen_stroke) and callable(", begin_body)
         self.assertLess(
             begin_body.index("native_descriptor_stroke = (bool(native_descriptor_groups) or native_screen_stroke) and callable("),
             begin_body.index("if not native_descriptor_stroke:"),
         )
-        self.assertIn("snapshot = _mesh_edit_capture_live_stroke_base_snapshot(_mesh_edit_state.replacement_mesh_for_mapping)", begin_body)
+        self.assertIn("snapshot = _callbacks._mesh_edit_capture_live_stroke_base_snapshot(_state._mesh_edit_state.replacement_mesh_for_mapping)", begin_body)
         self.assertLess(
-            begin_body.index("snapshot = _mesh_edit_capture_live_stroke_base_snapshot(_mesh_edit_state.replacement_mesh_for_mapping)"),
-            begin_body.index('_push_geometry_undo_snapshot("Mesh edit stroke")'),
+            begin_body.index("snapshot = _callbacks._mesh_edit_capture_live_stroke_base_snapshot(_state._mesh_edit_state.replacement_mesh_for_mapping)"),
+            begin_body.index('_state._push_geometry_undo_snapshot("Mesh edit stroke")'),
         )
-        self.assertIn("undo_source = snapshot if isinstance(snapshot, ParsedMesh) else _mesh_edit_state.replacement_mesh_for_mapping", begin_body)
-        self.assertIn("_mesh_edit_push_undo_snapshot(undo_source, take_ownership=isinstance(snapshot, ParsedMesh))", begin_body)
+        self.assertIn("undo_source = snapshot if isinstance(snapshot, _state.ParsedMesh) else _state._mesh_edit_state.replacement_mesh_for_mapping", begin_body)
+        self.assertIn("_callbacks._mesh_edit_push_undo_snapshot(undo_source, take_ownership=isinstance(snapshot, _state.ParsedMesh))", begin_body)
         self.assertIn('"native_descriptor_stroke": native_descriptor_stroke', begin_body)
         self.assertIn('"undo_snapshot_pushed": not native_descriptor_stroke', begin_body)
         self.assertIn('"geometry_snapshot_pushed": not native_descriptor_stroke', begin_body)
-        self.assertIn('"geometry_history_mesh_edit_revision": int(mesh_edit_revision.get("value", 0) or 0)', begin_body)
+        self.assertIn('"geometry_history_mesh_edit_revision": int(_state.mesh_edit_revision.get("value", 0) or 0)', begin_body)
         self.assertLess(
             begin_body.index("if not native_descriptor_stroke:"),
-            begin_body.index('_push_geometry_undo_snapshot("Mesh edit stroke")'),
+            begin_body.index('_state._push_geometry_undo_snapshot("Mesh edit stroke")'),
         )
         self.assertIn('"snapshot": snapshot', begin_body)
         self.assertIn('"base": snapshot', begin_body)
@@ -3156,48 +3165,38 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("clone_mesh_for_editing(snapshot)", begin_body)
         self.assertIn("def _push_geometry_sparse_mesh_edit_snapshot(", remaining_source)
         self.assertIn("def _restore_sparse_mesh_edit_geometry_history_state(", remaining_source)
-        self.assertIn('snapshot.get("kind") != "native_sparse_vertex_delta"', remaining_source)
+        self.assertIn("snapshot.get('kind') != 'native_sparse_vertex_delta'", remaining_source)
         self.assertIn("def _geometry_history_mesh_snapshot(", remaining_source)
         self.assertIn("snapshot_native_mesh_submeshes(mesh)", remaining_source)
         self.assertIn("allow_python_mesh_history_snapshot_fallback", remaining_source)
-        remaining_snapshot_start = remaining_source.index("def _geometry_history_mesh_snapshot(")
-        remaining_snapshot_body = remaining_source[
-            remaining_snapshot_start: remaining_source.index("def _geometry_history_restore_mesh_snapshot(", remaining_snapshot_start)
-        ]
+        remaining_snapshot_body = _function_source(remaining_source, "_geometry_history_mesh_snapshot")
         self.assertLess(
             remaining_snapshot_body.index("snapshot_native_mesh_submeshes(mesh)"),
             remaining_snapshot_body.index("clone_mesh_for_static_replacement_native_first("),
         )
-        self.assertIn("fallback_allowed=_geometry_python_mesh_snapshot_fallback_allowed", remaining_snapshot_body)
+        self.assertIn("fallback_allowed=_state._geometry_python_mesh_snapshot_fallback_allowed", remaining_snapshot_body)
         self.assertNotIn("return clone_mesh_for_editing(mesh)", remaining_snapshot_body)
         self.assertIn("def _geometry_history_restore_mesh_snapshot(", remaining_source)
         self.assertIn("restore_native_mesh_submesh_snapshot(restored, snapshot)", remaining_source)
-        remaining_restore_mesh_start = remaining_source.index("def _geometry_history_restore_mesh_snapshot(")
-        remaining_restore_mesh_body = remaining_source[
-            remaining_restore_mesh_start: remaining_source.index("def _release_native_submesh_snapshot(", remaining_restore_mesh_start)
-        ]
-        self.assertIn("return _geometry_history_clone_parsed_mesh_snapshot(snapshot)", remaining_restore_mesh_body)
-        self.assertIn('"history.static_geometry_snapshot_restore"', remaining_restore_mesh_body)
-        self.assertIn("clone_mesh_for_static_replacement_native_first(", remaining_restore_mesh_body)
-        self.assertIn("fallback_allowed=_geometry_python_mesh_snapshot_fallback_allowed", remaining_restore_mesh_body)
+        remaining_restore_mesh_body = "\n".join(
+            (
+                _function_source(remaining_source, "_geometry_history_restore_mesh_snapshot"),
+                _function_source(remaining_source, "_geometry_history_clone_parsed_mesh_snapshot"),
+            )
+        )
+        self.assertIn("return _state._geometry_history_clone_parsed_mesh_snapshot(snapshot)", remaining_restore_mesh_body)
+        self.assertIn("'history.static_geometry_snapshot_restore'", remaining_restore_mesh_body)
+        self.assertIn("_state.clone_mesh_for_static_replacement_native_first(", remaining_restore_mesh_body)
+        self.assertIn("fallback_allowed=_state._geometry_python_mesh_snapshot_fallback_allowed", remaining_restore_mesh_body)
         self.assertNotIn("clone_mesh_for_editing(snapshot)", remaining_restore_mesh_body)
         self.assertIn("def _release_geometry_history_snapshot(", remaining_source)
         self.assertIn("dispose_native_mesh_submesh_snapshot(value)", remaining_source)
-        remaining_capture_start = remaining_source.index("def _capture_geometry_history_state(")
-        remaining_capture_body = remaining_source[
-            remaining_capture_start: remaining_source.index("def _refresh_geometry_history_buttons", remaining_capture_start)
-        ]
+        remaining_capture_body = _function_source(remaining_source, "_capture_geometry_history_state")
+        self.assertIn("replacement_snapshot = None if metadata_only else _state._geometry_history_mesh_snapshot(_state.state.replacement_mesh_for_mapping)", remaining_capture_body)
+        self.assertIn("replacement_base_snapshot = None if metadata_only else _state._geometry_history_mesh_snapshot(_state.state.replacement_mesh_base_for_mapping)", remaining_capture_body)
+        self.assertIn("if not metadata_only and _state.state.replacement_mesh_for_mapping is not None and replacement_snapshot is None:", remaining_capture_body)
         self.assertIn(
-            "replacement_snapshot = _geometry_history_mesh_snapshot(state.replacement_mesh_for_mapping)",
-            remaining_capture_body,
-        )
-        self.assertIn(
-            "replacement_base_snapshot = _geometry_history_mesh_snapshot(state.replacement_mesh_base_for_mapping)",
-            remaining_capture_body,
-        )
-        self.assertIn("if state.replacement_mesh_for_mapping is not None and replacement_snapshot is None:", remaining_capture_body)
-        self.assertIn(
-            "if state.replacement_mesh_base_for_mapping is not None and replacement_base_snapshot is None:",
+            "if not metadata_only and _state.state.replacement_mesh_base_for_mapping is not None and replacement_base_snapshot is None:",
             remaining_capture_body,
         )
         self.assertIn("replacement_mesh=replacement_snapshot", remaining_capture_body)
@@ -3207,10 +3206,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             "replacement_base_mesh=clone_mesh_for_editing(state.replacement_mesh_base_for_mapping)",
             remaining_capture_body,
         )
-        self.assertIn("if _restore_sparse_mesh_edit_geometry_history_state(snapshot):", remaining_source)
+        self.assertIn("if _state._restore_sparse_mesh_edit_geometry_history_state(snapshot):", remaining_history_restore_body := _function_source(remaining_source, "_restore_geometry_history_state"))
         self.assertLess(
-            remaining_source.index("if _restore_sparse_mesh_edit_geometry_history_state(snapshot):"),
-            remaining_source.index("_geometry_history_restore_state_helper(snapshot"),
+            remaining_history_restore_body.index("if _state._restore_sparse_mesh_edit_geometry_history_state(snapshot):"),
+            remaining_history_restore_body.index("_state._geometry_history_restore_state_helper(snapshot"),
         )
         self.assertIn("def _geometry_history_restore_mutation_blocked() -> bool:", remaining_source)
         self.assertIn(
@@ -3223,47 +3222,41 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_mesh_edit_payload_native_vertex_groups_helper", source)
         self.assertNotIn("native_descriptor_handled = False", source)
         self.assertNotIn("for native_group in native_descriptor_groups:", source)
-        descriptor_start = source.index("def _mesh_edit_sparse_descriptor_groups(")
-        descriptor_body = source[
-            descriptor_start: source.index("def _mesh_edit_capture_native_stroke_delta(", descriptor_start)
-        ]
+        descriptor_body = _function_source(source, "_mesh_edit_sparse_descriptor_groups")
         self.assertIn('raw_snapshot_id = str(', descriptor_body)
         self.assertIn('group["native_sparse_snapshot_id"] = raw_snapshot_id', descriptor_body)
         self.assertIn("groups.append(group)", descriptor_body)
         self.assertNotIn("not isinstance(raw_indices, (tuple, list)) or not isinstance(raw_binary, Mapping)", descriptor_body)
         self.assertIn("retain_sparse_vertex_snapshot(snapshot)", remaining_source)
         self.assertIn("release_sparse_vertex_snapshot(snapshot)", remaining_source)
-        remaining_history_restore_start = remaining_source.index("def _restore_geometry_history_state(")
-        remaining_history_restore_body = remaining_source[
-            remaining_history_restore_start: remaining_source.index("def _undo_geometry_change", remaining_history_restore_start)
-        ]
-        self.assertIn("if _geometry_history_restore_mutation_blocked():", remaining_history_restore_body)
+        restore_guard = "if not restore_state.metadata_only and _state._geometry_history_restore_mutation_blocked():"
+        self.assertIn(restore_guard, remaining_history_restore_body)
         self.assertLess(
-            remaining_history_restore_body.index("if _restore_sparse_mesh_edit_geometry_history_state(snapshot):"),
-            remaining_history_restore_body.index("if _geometry_history_restore_mutation_blocked():"),
+            remaining_history_restore_body.index("if _state._restore_sparse_mesh_edit_geometry_history_state(snapshot):"),
+            remaining_history_restore_body.index(restore_guard),
         )
         self.assertLess(
-            remaining_history_restore_body.index("if _geometry_history_restore_mutation_blocked():"),
-            remaining_history_restore_body.index("_geometry_history_restore_state_helper(snapshot"),
+            remaining_history_restore_body.index("_state._geometry_history_restore_state_helper(snapshot"),
+            remaining_history_restore_body.index(restore_guard),
         )
         self.assertLess(
-            remaining_history_restore_body.index("if _geometry_history_restore_mutation_blocked():"),
-            remaining_history_restore_body.index("state.replacement_mesh_for_mapping = _geometry_history_restore_mesh_snapshot(replacement_mesh)"),
+            remaining_history_restore_body.index(restore_guard),
+            remaining_history_restore_body.index("_state.state.replacement_mesh_for_mapping = _state._geometry_history_restore_mesh_snapshot(replacement_mesh)"),
         )
         self.assertLess(
-            remaining_history_restore_body.index("if _geometry_history_restore_mutation_blocked():"),
-            remaining_history_restore_body.index("texture_override_assignments.clear()"),
+            remaining_history_restore_body.index(restore_guard),
+            remaining_history_restore_body.index("_state.texture_override_assignments.clear()"),
         )
         self.assertLess(
-            remaining_history_restore_body.index("if _geometry_history_restore_mutation_blocked():"),
-            remaining_history_restore_body.index("source_material_texture_override_assignments.clear()"),
+            remaining_history_restore_body.index(restore_guard),
+            remaining_history_restore_body.index("_state.source_material_texture_override_assignments.clear()"),
         )
         self.assertIn(
-            "state.replacement_mesh_for_mapping = _geometry_history_restore_mesh_snapshot(replacement_mesh)",
+            "_state.state.replacement_mesh_for_mapping = _state._geometry_history_restore_mesh_snapshot(replacement_mesh)",
             remaining_history_restore_body,
         )
         self.assertIn(
-            "state.replacement_mesh_base_for_mapping = _geometry_history_restore_mesh_snapshot(replacement_base_mesh)",
+            "_state.state.replacement_mesh_base_for_mapping = _state._geometry_history_restore_mesh_snapshot(replacement_base_mesh)",
             remaining_history_restore_body,
         )
         self.assertNotIn(
@@ -3276,10 +3269,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             remaining_history_restore_body,
         )
         self.assertNotIn("_queue_static_preview_rebuild()", remaining_history_restore_body)
-        remaining_push_start = remaining_source.index("def _push_geometry_undo_snapshot(")
-        remaining_push_body = remaining_source[
-            remaining_push_start: remaining_source.index("def _pop_geometry_undo_snapshot", remaining_push_start)
-        ]
+        remaining_push_body = _function_source(remaining_source, "_push_geometry_undo_snapshot")
         self.assertIn("if not snapshot:", remaining_push_body)
         self.assertLess(
             remaining_push_body.index("if not snapshot:"),
@@ -3287,16 +3277,18 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("_release_geometry_history_snapshot(snapshot)", remaining_push_body)
         self.assertIn("_release_geometry_history_snapshot(old_snapshot)", remaining_push_body)
-        remaining_undo_start = remaining_source.index("def _undo_geometry_change() -> None:")
-        remaining_undo_body = remaining_source[
-            remaining_undo_start: remaining_source.index("def _reset_geometry_changes", remaining_undo_start)
-        ]
+        remaining_undo_body = _function_source(remaining_source, "_undo_geometry_change")
         self.assertIn("_release_geometry_history_snapshot(snapshot)", remaining_undo_body)
         self.assertNotIn("release_sparse_vertex_snapshot(snapshot)", remaining_undo_body)
-        self.assertIn("clear_mesh_history_snapshot_stack(mesh_edit_undo_stack)", remaining_source)
-        self.assertIn("clear_mesh_history_snapshot_stack(mesh_edit_redo_stack)", remaining_source)
-        apply_start = source.index("def _mesh_edit_apply_preview_payload(payload: object) -> None:")
-        apply_body = source[apply_start: source.index("def _mesh_edit_finish_stroke", apply_start)]
+        self.assertIn("_state.clear_mesh_history_snapshot_stack(_state.mesh_edit_undo_stack)", remaining_source)
+        self.assertIn("_state.clear_mesh_history_snapshot_stack(_state.mesh_edit_redo_stack)", remaining_source)
+        apply_body = "\n".join(
+            (
+                _function_source(source, "_mesh_edit_apply_preview_payload"),
+                _function_source(source, "_mesh_edit_apply_geometry_payload"),
+                _function_source(source, "_mesh_edit_apply_remove_payload"),
+            )
+        )
         self.assertLess(
             apply_body.index("native_descriptor_groups = ("),
             apply_body.index("if has_screen_drag or has_screen_brush or has_screen_radius:"),
@@ -3339,10 +3331,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn('"history.static_geometry_sparse_restore"', remaining_source)
         self.assertIn("Native geometry history restore failed; Python restore fallback is disabled.", remaining_source)
         self.assertIn("Native geometry normal recompute failed; Python normal fallback is disabled.", remaining_source)
-        current_sparse_start = source.index("def _mesh_edit_current_sparse_vertex_snapshot(")
-        current_sparse_body = source[
-            current_sparse_start: source.index("def _mesh_edit_restore_sparse_vertex_snapshot(", current_sparse_start)
-        ]
+        current_sparse_body = _function_source(source, "_mesh_edit_current_sparse_vertex_snapshot")
         self.assertIn("snapshot_native_mesh_sparse_vertex_positions", current_sparse_body)
         self.assertIn("_mesh_edit_python_sparse_current_fallback_allowed(", current_sparse_body)
         self.assertNotIn("vertices = getattr(", current_sparse_body)
@@ -3359,16 +3348,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("_sparse_mesh_edit_positions_for_fallback", remaining_source)
         self.assertNotIn("submesh.vertices = vertices", remaining_source)
         self.assertNotIn("recompute_submesh_normals", remaining_source)
-        restore_sparse_start = source.index("def _mesh_edit_restore_sparse_vertex_snapshot(")
-        restore_sparse_body = source[
-            restore_sparse_start: source.index("def _mesh_edit_restore_native_stroke_delta", restore_sparse_start)
-        ]
+        restore_sparse_body = _function_source(source, "_mesh_edit_restore_sparse_vertex_snapshot")
         self.assertIn("def _mesh_edit_changed_vertex_groups_for_live_update(", source)
-        range_groups_start = source.index("def _mesh_edit_changed_vertex_groups_for_live_update(")
-        range_groups_body = source[range_groups_start: source.index("def _mesh_edit_sparse_vertex_snapshot", range_groups_start)]
-        self.assertIn("compact_range = _mesh_edit_changed_vertex_range(raw_vertices)", range_groups_body)
+        range_groups_body = _function_source(source, "_mesh_edit_changed_vertex_groups_for_live_update")
+        self.assertIn("compact_range = _callbacks._mesh_edit_changed_vertex_range(raw_vertices)", range_groups_body)
         self.assertIn("changed[submesh_index] = compact_range", range_groups_body)
-        self.assertIn("if isinstance(raw_vertices, Mapping):\n                changed[submesh_index] = dict(raw_vertices)", range_groups_body)
+        self.assertIn("if isinstance(raw_vertices, _state.Mapping):", range_groups_body)
+        self.assertIn("changed[submesh_index] = dict(raw_vertices)", range_groups_body)
         self.assertIn("changed_vertices_by_submesh: dict[int, object] = {}", restore_sparse_body)
         self.assertIn("native_restore_applied = native_restore is not None", restore_sparse_body)
         self.assertIn("_mesh_edit_changed_vertex_groups_for_live_update(native_restore or {})", restore_sparse_body)
@@ -3377,30 +3363,21 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("for raw_submesh_index, raw_positions_by_vertex in before_by_submesh.items():", restore_sparse_body)
         self.assertIn("normal_changed_vertices_by_submesh: dict[int, object] = {}", restore_sparse_body)
         self.assertIn("_mesh_edit_changed_vertex_groups_for_live_update(native_normals or {})", restore_sparse_body)
-        self.assertIn("if native_restore_applied and _alignment_d3d11_preview_active():", restore_sparse_body)
+        self.assertIn("if native_restore_applied and _state._alignment_d3d11_preview_active():", restore_sparse_body)
         self.assertIn('mesh_edit_preview_model_dirty["value"] = True', restore_sparse_body)
         self.assertLess(
-            restore_sparse_body.index("if native_restore_applied and _alignment_d3d11_preview_active():"),
-            restore_sparse_body.index("_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
+            restore_sparse_body.index("if native_restore_applied and _state._alignment_d3d11_preview_active():"),
+            restore_sparse_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
         self.assertNotIn("_mesh_edit_index_groups_as_sets_helper(native_restore or {})", restore_sparse_body)
-        sparse_snapshot_start = source.index("def _mesh_edit_sparse_vertex_snapshot(")
-        sparse_snapshot_body = source[
-            sparse_snapshot_start: source.index("def _mesh_edit_is_sparse_vertex_snapshot(", sparse_snapshot_start)
-        ]
-        capture_native_start = source.index("def _mesh_edit_capture_native_stroke_delta(")
-        capture_native_body = source[
-            capture_native_start: source.index("def _mesh_edit_changed_vertices_for_source(", capture_native_start)
-        ]
+        sparse_snapshot_body = _function_source(source, "_mesh_edit_sparse_vertex_snapshot")
+        capture_native_body = _function_source(source, "_mesh_edit_capture_native_stroke_delta")
         self.assertNotIn('submeshes = tuple(getattr(mesh, "submeshes", ()) or ())', capture_native_body)
         self.assertIn("for raw_submesh_index, raw_positions_by_vertex in before_by_submesh.items():", sparse_snapshot_body)
         self.assertIn("for raw_vertex_index, raw_position in raw_positions_by_vertex.items():", sparse_snapshot_body)
         self.assertNotIn("dict(before_by_submesh).items()", sparse_snapshot_body)
         self.assertNotIn("dict(raw_positions_by_vertex).items()", sparse_snapshot_body)
-        remaining_restore_start = remaining_source.index("def _restore_sparse_mesh_edit_geometry_history_state(")
-        remaining_restore_body = remaining_source[
-            remaining_restore_start: remaining_source.index("def _commit_mapping_edit", remaining_restore_start)
-        ]
+        remaining_restore_body = _function_source(remaining_source, "_restore_sparse_mesh_edit_geometry_history_state")
         self.assertIn("def apply_native_mesh_sparse_vertex_restore(", mesh_native_source)
         self.assertIn('"restore-vertices-json"', mesh_native_source)
         self.assertIn('"apply_native_mesh_sparse_vertex_restore"', mesh_native_source)
@@ -3471,24 +3448,24 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn('submeshes = tuple(getattr(mesh, "submeshes", ()) or ())', restore_sparse_body)
         self.assertNotIn("dict(before_by_submesh).items()", restore_sparse_body)
         self.assertIn(
-            "apply_native_mesh_sparse_vertex_restore(state.replacement_mesh_for_mapping, before_positions)",
+            "apply_native_mesh_sparse_vertex_restore(_state.state.replacement_mesh_for_mapping, before_positions)",
             remaining_restore_body,
         )
-        self.assertIn("_mesh_edit_update_live_preview = context.get('_mesh_edit_update_live_preview')", remaining_source)
+        self.assertIn("_state._mesh_edit_update_live_preview = _state.context.get('_mesh_edit_update_live_preview')", remaining_source)
         self.assertIn(
             "_mesh_edit_update_live_preview = alignment_mesh_geometry_preview_section._mesh_edit_update_live_preview",
             prompt_setup_source,
         )
         self.assertIn(
-            "_mesh_edit_replace_live_triangles_or_queue_rebuild = alignment_mesh_edit_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild",
+            "_state._mesh_edit_replace_live_triangles_or_queue_rebuild = _state.alignment_mesh_edit_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild",
             ui_sections_source,
         )
         self.assertIn(
-            "_mesh_edit_replace_live_triangles_or_queue_rebuild=locals().get('_mesh_edit_replace_live_triangles_or_queue_rebuild')",
+            "'_mesh_edit_replace_live_triangles_or_queue_rebuild': vars(_state).get('_mesh_edit_replace_live_triangles_or_queue_rebuild')",
             ui_sections_source,
         )
         self.assertIn(
-            "_mesh_edit_update_live_preview=locals().get('_mesh_edit_update_live_preview')",
+            "'_mesh_edit_update_live_preview': vars(_state).get('_mesh_edit_update_live_preview')",
             ui_sections_source,
         )
         self.assertIn(
@@ -3496,126 +3473,110 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             prompt_setup_source,
         )
         self.assertIn(
-            'live_preview_updater = context.get("_mesh_edit_update_live_preview") or _mesh_edit_update_live_preview',
+            "live_preview_updater = _state.context.get('_mesh_edit_update_live_preview') or _state._mesh_edit_update_live_preview",
             remaining_source,
         )
         self.assertIn(
-            "_mesh_edit_replace_live_triangles_or_queue_rebuild = context.get('_mesh_edit_replace_live_triangles_or_queue_rebuild')",
+            "_state._mesh_edit_replace_live_triangles_or_queue_rebuild = _state.context.get('_mesh_edit_replace_live_triangles_or_queue_rebuild')",
             remaining_source,
         )
-        self.assertIn("_alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')", remaining_source)
+        self.assertIn("_state._alignment_mesh_edit_tab_active = _state.context.get('_alignment_mesh_edit_tab_active')", remaining_source)
         self.assertIn("def _geometry_changed_vertex_groups_for_live_update(", remaining_source)
         self.assertIn("def _geometry_refresh_sparse_restore_preview(", remaining_source)
         self.assertIn("def _geometry_refresh_full_restore_preview() -> None:", remaining_source)
-        sparse_restore_refresh_start = remaining_source.index("def _geometry_refresh_sparse_restore_preview(")
-        sparse_restore_refresh_body = remaining_source[
-            sparse_restore_refresh_start: remaining_source.index("def _geometry_full_restore_source_indices", sparse_restore_refresh_start)
-        ]
-        self.assertIn("if _geometry_mesh_edit_active():", sparse_restore_refresh_body)
+        sparse_restore_refresh_body = _function_source(remaining_source, "_geometry_refresh_sparse_restore_preview")
+        self.assertIn("if _state._geometry_mesh_edit_active():", sparse_restore_refresh_body)
         self.assertIn("Active Mesh Editor geometry restore requires native D3D11 refresh; Python preview rebuild fallback is disabled.", sparse_restore_refresh_body)
         self.assertLess(
-            sparse_restore_refresh_body.index("if _geometry_mesh_edit_active():"),
+            sparse_restore_refresh_body.index("if _state._geometry_mesh_edit_active():"),
             sparse_restore_refresh_body.index("parsed_mesh_to_preview_model("),
         )
-        full_restore_refresh_start = remaining_source.index("def _geometry_refresh_full_restore_preview() -> None:")
-        full_restore_refresh_body = remaining_source[
-            full_restore_refresh_start: remaining_source.index("def _restore_sparse_mesh_edit_geometry_history_state", full_restore_refresh_start)
-        ]
+        full_restore_refresh_body = _function_source(remaining_source, "_geometry_refresh_full_restore_preview")
         self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(", full_restore_refresh_body)
         self.assertIn("replace_all=True", full_restore_refresh_body)
-        self.assertIn("if _geometry_mesh_edit_active():", full_restore_refresh_body)
+        self.assertIn("if _state._geometry_mesh_edit_active():", full_restore_refresh_body)
         self.assertIn("Active Mesh Editor geometry restore requires native D3D11 refresh; Python preview rebuild fallback is disabled.", full_restore_refresh_body)
-        self.assertIn("state.replacement_preview_model = (", full_restore_refresh_body)
-        self.assertIn("_queue_static_preview_rebuild()", full_restore_refresh_body)
+        self.assertIn("_state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model(", full_restore_refresh_body)
+        self.assertIn("_state._queue_static_preview_rebuild()", full_restore_refresh_body)
         self.assertLess(
             full_restore_refresh_body.index("_mesh_edit_replace_live_triangles_or_queue_rebuild("),
             full_restore_refresh_body.index("parsed_mesh_to_preview_model("),
         )
         self.assertLess(
-            full_restore_refresh_body.index("if _geometry_mesh_edit_active():"),
+            full_restore_refresh_body.index("if _state._geometry_mesh_edit_active():"),
             full_restore_refresh_body.index("parsed_mesh_to_preview_model("),
         )
         self.assertIn(
-            "changed_vertices_by_submesh = _geometry_changed_vertex_groups_for_live_update(native_restore or {})",
+            "changed_vertices_by_submesh = _state._geometry_changed_vertex_groups_for_live_update(native_restore or {})",
             remaining_restore_body,
         )
         self.assertIn(
-            "normal_changed_vertices_by_submesh = _geometry_changed_vertex_groups_for_live_update(native_normals or {})",
+            "normal_changed_vertices_by_submesh = _state._geometry_changed_vertex_groups_for_live_update(native_normals or {})",
             remaining_restore_body,
         )
         self.assertIn(
-            "_geometry_refresh_sparse_restore_preview(\n            normal_changed_vertices_by_submesh or changed_vertices_by_submesh",
+            "_state._geometry_refresh_sparse_restore_preview(normal_changed_vertices_by_submesh or changed_vertices_by_submesh",
             remaining_restore_body,
         )
         self.assertNotIn("dict(native_restore or {}).items()", remaining_restore_body)
         self.assertNotIn('submeshes = tuple(getattr(state.replacement_mesh_for_mapping, "submeshes", ()) or ())', remaining_restore_body)
         self.assertNotIn("for raw_submesh_index, raw_positions_by_vertex in before_positions.items():", remaining_restore_body)
-        self.assertNotIn("state.replacement_preview_model = parsed_mesh_to_preview_model(state.replacement_mesh_for_mapping)", remaining_restore_body[: remaining_restore_body.index("def _restore_geometry_history_state(")])
+        self.assertNotIn("_state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model(_state.state.replacement_mesh_for_mapping)", remaining_restore_body)
         self.assertLess(
             remaining_restore_body.index(
-                "apply_native_mesh_sparse_vertex_restore(state.replacement_mesh_for_mapping, before_positions)"
+                "apply_native_mesh_sparse_vertex_restore(_state.state.replacement_mesh_for_mapping, before_positions)"
             ),
             remaining_restore_body.index(
-                "_geometry_python_sparse_restore_fallback_allowed(state.replacement_mesh_for_mapping, before_positions)"
+                "_state._geometry_python_sparse_restore_fallback_allowed(_state.state.replacement_mesh_for_mapping, before_positions)"
             ),
         )
         self.assertIn("return False", remaining_restore_body)
         self.assertIn("def _mesh_edit_replace_active_undo_with_native_sparse_snapshot(", source)
         self.assertIn('"kind": "native_sparse_vertex_delta"', source)
-        replace_sparse_start = source.index("def _mesh_edit_replace_active_undo_with_native_sparse_snapshot() -> None:")
-        replace_sparse_body = source[
-            replace_sparse_start: source.index("def _mesh_edit_inverse_transform_disabled", replace_sparse_start)
-        ]
-        self.assertIn('if bool(mesh_edit_active_stroke.get("undo_snapshot_pushed")) and mesh_edit_undo_stack:', replace_sparse_body)
-        self.assertIn("mesh_edit_undo_stack.append(snapshot)", replace_sparse_body)
-        self.assertIn('mesh_edit_active_stroke["undo_snapshot_pushed"] = True', replace_sparse_body)
-        self.assertIn("def _mesh_edit_push_active_sparse_geometry_snapshot() -> None:", source)
-        push_sparse_geometry_start = source.index("def _mesh_edit_push_active_sparse_geometry_snapshot() -> None:")
-        push_sparse_geometry_body = source[
-            push_sparse_geometry_start: source.index("def _mesh_edit_inverse_transform_disabled", push_sparse_geometry_start)
-        ]
-        self.assertIn('if bool(mesh_edit_active_stroke.get("geometry_snapshot_pushed")):', push_sparse_geometry_body)
-        self.assertIn('_push_geometry_sparse_mesh_edit_snapshot("Mesh edit stroke", snapshot)', push_sparse_geometry_body)
-        self.assertIn('mesh_edit_active_stroke["geometry_snapshot_pushed"] = True', push_sparse_geometry_body)
-        self.assertIn("_mesh_editor_result_mesh_for_state(result)", apply_body)
-        self.assertIn("_mesh_edit_capture_native_stroke_delta(", apply_body)
+        replace_sparse_body = _function_source(source, "_mesh_edit_replace_active_undo_with_native_sparse_snapshot")
+        self.assertIn('if bool(_state.mesh_edit_active_stroke.get("undo_snapshot_pushed")) and _state.mesh_edit_undo_stack:', replace_sparse_body)
+        self.assertIn("_state.mesh_edit_undo_stack.append(snapshot)", replace_sparse_body)
+        self.assertIn('_state.mesh_edit_active_stroke["undo_snapshot_pushed"] = True', replace_sparse_body)
+        self.assertIn("def _mesh_edit_push_active_sparse_geometry_snapshot(_state, _callbacks, ) -> None:", source)
+        push_sparse_geometry_body = _function_source(source, "_mesh_edit_push_active_sparse_geometry_snapshot")
+        self.assertIn('if bool(_state.mesh_edit_active_stroke.get("geometry_snapshot_pushed")):', push_sparse_geometry_body)
+        self.assertIn('_state._push_geometry_sparse_mesh_edit_snapshot("Mesh edit stroke", snapshot)', push_sparse_geometry_body)
+        self.assertIn('_state.mesh_edit_active_stroke["geometry_snapshot_pushed"] = True', push_sparse_geometry_body)
+        self.assertIn("_callbacks._mesh_editor_result_mesh_for_state(result)", apply_body)
+        self.assertIn("_callbacks._mesh_edit_capture_native_stroke_delta(", apply_body)
         self.assertIn('"_require_native_history_delta": True', apply_body)
-        undo_start = source.index("def _mesh_edit_undo() -> None:")
-        undo_body = source[undo_start: source.index("def _mesh_edit_redo() -> None:", undo_start)]
-        undo_local_body = undo_body[undo_body.index("snapshot = mesh_edit_undo_stack.pop()"):]
-        self.assertIn("current_snapshot = _mesh_edit_current_sparse_vertex_snapshot(snapshot)", undo_body)
+        undo_body = _function_source(source, "_mesh_edit_undo")
+        undo_local_body = undo_body[undo_body.index("snapshot = _state.mesh_edit_undo_stack.pop()"):]
+        self.assertIn("current_snapshot = _callbacks._mesh_edit_current_sparse_vertex_snapshot(snapshot)", undo_body)
         self.assertLess(
-            undo_local_body.index("current_snapshot = _mesh_edit_current_sparse_vertex_snapshot(snapshot)"),
-            undo_local_body.index("_mesh_edit_capture_undo_snapshot(_mesh_edit_state.replacement_mesh_for_mapping)"),
+            undo_local_body.index("current_snapshot = _callbacks._mesh_edit_current_sparse_vertex_snapshot(snapshot)"),
+            undo_local_body.index("_callbacks._mesh_edit_capture_undo_snapshot(_state._mesh_edit_state.replacement_mesh_for_mapping)"),
         )
-        self.assertIn("release_mesh_history_snapshot(snapshot)", undo_local_body)
-        redo_start = source.index("def _mesh_edit_redo() -> None:")
-        redo_body = source[redo_start: source.index("def _mesh_edit_reset_scope", redo_start)]
-        redo_local_body = redo_body[redo_body.index("snapshot = mesh_edit_redo_stack.pop()"):]
-        self.assertIn("current_snapshot = _mesh_edit_current_sparse_vertex_snapshot(snapshot)", redo_body)
+        self.assertIn("_state.release_mesh_history_snapshot(snapshot)", undo_local_body)
+        redo_body = _function_source(source, "_mesh_edit_redo")
+        redo_local_body = redo_body[redo_body.index("snapshot = _state.mesh_edit_redo_stack.pop()"):]
+        self.assertIn("current_snapshot = _callbacks._mesh_edit_current_sparse_vertex_snapshot(snapshot)", redo_body)
         self.assertLess(
-            redo_local_body.index("current_snapshot = _mesh_edit_current_sparse_vertex_snapshot(snapshot)"),
-            redo_local_body.index("_mesh_edit_capture_undo_snapshot(_mesh_edit_state.replacement_mesh_for_mapping)"),
+            redo_local_body.index("current_snapshot = _callbacks._mesh_edit_current_sparse_vertex_snapshot(snapshot)"),
+            redo_local_body.index("_callbacks._mesh_edit_capture_undo_snapshot(_state._mesh_edit_state.replacement_mesh_for_mapping)"),
         )
-        self.assertIn("release_mesh_history_snapshot(snapshot)", redo_local_body)
-        finish_start = source.index("def _mesh_edit_finish_stroke(payload: object) -> None:")
-        finish_body = source[finish_start: source.index("def _mesh_edit_cancel_stroke", finish_start)]
-        self.assertIn("_mesh_edit_replace_active_undo_with_native_sparse_snapshot()", finish_body)
-        self.assertIn("_mesh_edit_push_active_sparse_geometry_snapshot()", finish_body)
+        self.assertIn("_state.release_mesh_history_snapshot(snapshot)", redo_local_body)
+        finish_body = "\n".join((_function_source(source, "_mesh_edit_finish_stroke"), _function_source(source, "_mesh_edit_finish_geometry_stroke")))
+        self.assertIn("_callbacks._mesh_edit_replace_active_undo_with_native_sparse_snapshot()", finish_body)
+        self.assertIn("_callbacks._mesh_edit_push_active_sparse_geometry_snapshot()", finish_body)
         self.assertLess(
-            finish_body.index("_mesh_edit_replace_active_undo_with_native_sparse_snapshot()"),
-            finish_body.index("_mesh_edit_push_active_sparse_geometry_snapshot()"),
+            finish_body.index("_callbacks._mesh_edit_replace_active_undo_with_native_sparse_snapshot()"),
+            finish_body.index("_callbacks._mesh_edit_push_active_sparse_geometry_snapshot()"),
         )
         self.assertLess(
-            finish_body.index("_mesh_edit_push_active_sparse_geometry_snapshot()"),
-            finish_body.index("_mesh_edit_clear_active_stroke()", finish_body.index("_mesh_edit_replace_active_undo_with_native_sparse_snapshot()")),
+            finish_body.index("_callbacks._mesh_edit_push_active_sparse_geometry_snapshot()"),
+            finish_body.index("_callbacks._mesh_edit_clear_active_stroke()", finish_body.index("_callbacks._mesh_edit_replace_active_undo_with_native_sparse_snapshot()")),
         )
-        cancel_start = source.index("def _mesh_edit_cancel_stroke(payload: object) -> None:")
-        cancel_body = source[cancel_start: source.index("def _mesh_edit_commit_delete_result", cancel_start)]
-        self.assertIn("if not _mesh_edit_restore_native_stroke_delta():", cancel_body)
+        cancel_body = _function_source(source, "_mesh_edit_cancel_stroke")
+        self.assertIn("if not _callbacks._mesh_edit_restore_native_stroke_delta():", cancel_body)
         self.assertLess(
-            cancel_body.index("if not _mesh_edit_restore_native_stroke_delta():"),
-            cancel_body.index("_mesh_edit_restore_snapshot(snapshot)"),
+            cancel_body.index("if not _callbacks._mesh_edit_restore_native_stroke_delta():"),
+            cancel_body.index("_callbacks._mesh_edit_restore_snapshot(snapshot)"),
         )
         self.assertIn('if tool in {"move", "vertex"}:', source)
         self.assertIn("def _mesh_edit_native_descriptor_selection_payload(", source)
@@ -3636,6 +3597,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("Vec3 transform_selection_pivot(const JsonValue& submeshes, const Transform& transform)", native_core_source)
         self.assertIn("transform.pivot = transform_selection_pivot(*submeshes, transform);", native_core_source)
         service_source = _read("cdmw/services/mesh_service.py")
+        history_source = _read("cdmw/services/mesh_service_history.py")
+        reports_source = _read("cdmw/services/mesh_service_reports.py")
+        kernel_source = _read("cdmw/services/mesh_service_kernel.py")
+        service_payload_source = _read("cdmw/services/mesh_service_payloads.py")
         open_start = service_source.index("    def open_edit_session(")
         open_body = service_source[open_start: service_source.index("    def close_edit_session", open_start)]
         self.assertIn("working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)", open_body)
@@ -3731,27 +3696,30 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('_allow_python_selection_fallback(mesh, "selection.prune")', apply_selection_body)
         self.assertIn("return _source_only_selection_after_operation(mesh, current, incoming, operation)", apply_selection_body)
         apply_command_start = service_source.index("    def apply_command(")
-        apply_command_body = service_source[apply_command_start: service_source.index("    def undo(", apply_command_start)]
+        apply_command_body = service_source[
+            apply_command_start: service_source.index("    def _apply_selection_command(", apply_command_start)
+        ]
+        command_flow_body = service_source[apply_command_start: service_source.index("def _coerce_command(", apply_command_start)]
+        select_command_start = service_source.index("    def _apply_selection_command(")
+        select_branch_body = service_source[
+            select_command_start: service_source.index("    def _apply_geometry_command(", select_command_start)
+        ]
         session_view_start = service_source.index("    def session_view(")
         session_view_body = service_source[session_view_start: service_source.index("    def native_editor_mesh_dirty(", session_view_start)]
         self.assertIn("if not session.native_editor_mesh_dirty_counts:", session_view_body)
         self.assertIn("requires native submesh counts", session_view_body)
         self.assertIn("submesh_count = len(session.native_editor_mesh_dirty_counts)", session_view_body)
         self.assertNotIn("or len(session.working_mesh.submeshes)", session_view_body)
-        undo_start = service_source.index("    def undo(")
-        undo_body = service_source[undo_start: service_source.index("    def redo(", undo_start)]
-        redo_start = service_source.index("    def redo(")
-        redo_body = service_source[redo_start: service_source.index("    def _push_history", redo_start)]
+        undo_start = history_source.index("    def undo(")
+        undo_body = history_source[undo_start: history_source.index("    def redo(", undo_start)]
+        redo_start = history_source.index("    def redo(")
+        redo_body = history_source[redo_start: history_source.index("    def _session", redo_start)]
         self.assertIn('_LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangulate_display"})', service_source)
         self.assertIn("allow_legacy_display_cleanup", apply_command_body)
         self.assertIn("from an explicit legacy/archive path", apply_command_body)
-        select_branch_body = apply_command_body[
-            apply_command_body.index('if action == "select":'):
-            apply_command_body.index("        if selection is None:", apply_command_body.index('if action == "select":'))
-        ]
         self.assertIn("selection = _command_selection(edit_command)", apply_command_body)
-        self.assertIn("fallback_event_start = len(native_mesh_core_fallback_events())", apply_command_body)
-        self.assertIn("diagnostics=_native_blocked_fallback_diagnostics(fallback_event_start)", apply_command_body)
+        self.assertIn("fallback_event_start = len(native_mesh_core_fallback_events())", select_branch_body)
+        self.assertIn("_native_blocked_fallback_diagnostics(fallback_event_start)", select_branch_body)
         self.assertIn("Native editor selection is unavailable; Python selection fallback is blocked.", select_branch_body)
         self.assertNotIn("_apply_selection_operation_to_mesh(", select_branch_body)
         self.assertIn(
@@ -3762,72 +3730,76 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         native_actions_start = service_source.index("_NATIVE_EDITOR_SESSION_ACTIONS =")
         native_actions_body = service_source[
-            native_actions_start:service_source.index("_NATIVE_MATERIAL_OVERRIDE_KEYS", native_actions_start)
+            native_actions_start:service_source.index("def _attach_mesh_asset_status", native_actions_start)
         ]
         self.assertNotIn('"transform",', native_actions_body)
         self.assertNotIn('"subdivide",', native_actions_body)
-        self.assertIn("require_native_editor_session = action in _NATIVE_EDITOR_SESSION_ACTIONS", apply_command_body)
+        self.assertIn("require_native = action in _NATIVE_EDITOR_SESSION_ACTIONS", apply_command_body)
         dirty_non_native_body = apply_command_body[
-            apply_command_body.index("if session.native_editor_mesh_dirty and action not in _NATIVE_EDITOR_SESSION_ACTIONS:"):
+            apply_command_body.index("if session.native_editor_mesh_dirty and not require_native:"):
             apply_command_body.index("        selection = _command_selection(edit_command)")
         ]
         self.assertIn("cannot run while native mesh state is dirty", dirty_non_native_body)
         self.assertNotIn("_sync_native_editor_session_to_working_mesh(", dirty_non_native_body)
         self.assertIn(
-            "if selection is None:\n            if require_native_editor_session:\n                selection = session.selection\n            else:\n                session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)\n                selection = session.selection",
+            "if selection is None:\n            if require_native:\n                selection = session.selection\n            else:\n                session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)\n                selection = session.selection",
             apply_command_body,
         )
+        finalize_changed_start = service_source.index("    def _finalize_changed_geometry(")
+        finalize_changed_body = service_source[finalize_changed_start:]
         self.assertIn(
-            "elif action in MESH_TOPOLOGY_ACTIONS or topology_changed:\n                session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)",
-            apply_command_body,
+            "elif execution.action in MESH_TOPOLOGY_ACTIONS or topology_changed:\n            session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)",
+            finalize_changed_body,
         )
         self.assertNotIn(
             "session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)\n        selection = _command_selection(edit_command)",
             apply_command_body,
         )
         self.assertNotIn("else _prune_selection_to_mesh(session.working_mesh, session.selection)", apply_command_body)
-        self.assertIn("may_change_topology = _command_may_change_topology(action, edit_command, selection)", apply_command_body)
-        self.assertIn("topology_before = _session_mesh_structure_signature(session) if may_change_topology else None", apply_command_body)
-        self.assertNotIn("topology_before = _mesh_structure_signature(session.working_mesh) if action in MESH_GEOMETRY_ACTIONS else None", apply_command_body)
+        self.assertIn("_command_may_change_topology(action, command, selection)", command_flow_body)
+        self.assertIn("_session_mesh_structure_signature(session)", command_flow_body)
+        self.assertNotIn("_mesh_structure_signature(session.working_mesh) if action in MESH_GEOMETRY_ACTIONS else None", command_flow_body)
         self.assertNotIn("apply_native_mesh_editor_session_report", service_source)
         self.assertNotIn("def apply_native_mesh_editor_session_report(", mesh_native_source)
         self.assertNotIn('"apply_native_mesh_editor_session_report"', mesh_native_source)
         self.assertNotIn("_can_defer_native_editor_python_apply", service_source)
         self.assertNotIn("_can_defer_native_editor_history_python_apply", service_source)
         self.assertNotIn("_NATIVE_EDITOR_DEFER_PYTHON_TOPOLOGY_APPLY_ACTIONS", service_source)
-        self.assertIn("def _native_editor_dirty_counts_from_report(", service_source)
+        self.assertIn("def _native_editor_dirty_counts_from_report(", reports_source)
         self.assertIn("submesh_counts=dirty_counts or native_submesh_counts", service_source)
         native_apply_start = service_source.index("def _apply_native_editor_session_geometry_action(")
-        native_apply_body = service_source[native_apply_start: service_source.index("def _native_editor_selection_payload(", native_apply_start)]
+        native_apply_body = service_source[native_apply_start: service_source.index("def _native_live_history_snapshot(", native_apply_start)]
         dirty_guard_body = native_apply_body[native_apply_body.index("if dirty_at_start and "): native_apply_body.index("stroke_phase =")]
         self.assertIn("not session.native_editor_session_ready", dirty_guard_body)
         self.assertNotIn("_sync_native_editor_session_to_working_mesh", dirty_guard_body)
-        self.assertIn("unsupported non-native mesh edit action", apply_command_body)
+        dispatch_start = service_source.index("    def _dispatch_geometry_command(")
+        dispatch_body = service_source[dispatch_start: service_source.index("    @staticmethod", dispatch_start)]
+        self.assertIn("unsupported non-native mesh edit action", dispatch_body)
         self.assertLess(
-            apply_command_body.index("unsupported non-native mesh edit action"),
-            apply_command_body.index("apply_mesh_edit_geometry_action(session.working_mesh, command_for_apply, selection)"),
+            dispatch_body.index("unsupported non-native mesh edit action"),
+            dispatch_body.index("apply_mesh_edit_geometry_action("),
         )
-        self.assertIn("history_mode = session.mode", apply_command_body)
-        self.assertIn("history_selection = session.selection", apply_command_body)
-        self.assertIn("native_editor_history = pushed_history and require_native_editor_session", apply_command_body)
+        self.assertIn("history_mode = session.mode", command_flow_body)
+        self.assertIn("history_selection=session.selection", command_flow_body)
+        self.assertIn("native_history = pushed_history and require_native", command_flow_body)
         self.assertIn("native mesh editor undo requires native history; Python mesh state is stale", undo_body)
         self.assertIn("native mesh editor redo requires native history; Python mesh state is stale", redo_body)
         self.assertNotIn("_sync_native_editor_session_to_working_mesh(", undo_body)
         self.assertNotIn("_sync_native_editor_session_to_working_mesh(", redo_body)
         self.assertIn(
-            "pushed_history and not native_editor_history and _can_defer_native_live_history(action, edit_command)",
-            apply_command_body,
+            "pushed_history and not native_history and _can_defer_native_live_history(action, command)",
+            command_flow_body,
         )
-        self.assertIn('"_require_native_history_delta": True', apply_command_body)
-        self.assertIn("except NativeLiveHistoryUnavailable:", apply_command_body)
-        live_fallback_start = apply_command_body.index("except NativeLiveHistoryUnavailable:")
-        live_fallback_body = apply_command_body[live_fallback_start:apply_command_body.index("except Exception:", live_fallback_start)]
-        self.assertIn("fallback_snapshot = _snapshot(session, prefer_native=True)", live_fallback_body)
-        self.assertIn("native_submesh_snapshot=fallback_snapshot.native_submesh_snapshot", live_fallback_body)
+        self.assertIn('"_require_native_history_delta": True', command_flow_body)
+        self.assertIn("except NativeLiveHistoryUnavailable:", dispatch_body)
+        live_fallback_start = dispatch_body.index("except NativeLiveHistoryUnavailable:")
+        live_fallback_body = dispatch_body[live_fallback_start:dispatch_body.index("except Exception:", live_fallback_start)]
+        self.assertIn("snapshot = _snapshot(execution.session, prefer_native=True)", live_fallback_body)
+        self.assertIn("native_submesh_snapshot=snapshot.native_submesh_snapshot", live_fallback_body)
         self.assertNotIn("mesh=clone_mesh_for_editing(session.working_mesh)", live_fallback_body)
-        self.assertIn("_native_live_history_snapshot(", apply_command_body)
-        self.assertIn("mode=history_mode", apply_command_body)
-        self.assertIn("selection=history_selection", apply_command_body)
+        self.assertIn("_native_live_history_snapshot(", command_flow_body)
+        self.assertIn("mode=execution.history_mode", command_flow_body)
+        self.assertIn("selection=execution.history_selection", command_flow_body)
         self.assertIn("def _native_live_history_snapshot(", service_source)
         self.assertIn("def _vertex_indices_from_delta_descriptor(", service_source)
         self.assertIn("def _delta_vertex_indices_payload(", service_source)
@@ -3836,7 +3808,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _restore_vertex_position_deltas(", service_source)
         restore_delta_start = service_source.index("def _restore_vertex_position_deltas(")
         restore_delta_body = service_source[
-            restore_delta_start: service_source.index("def _effective_pose_rotations", restore_delta_start)
+            restore_delta_start: service_source.index("def _allow_python_history_restore_fallback", restore_delta_start)
         ]
         self.assertIn("apply_native_mesh_sparse_vertex_restore", service_source)
         self.assertIn("dispose_native_mesh_sparse_vertex_snapshot", service_source)
@@ -3847,7 +3819,6 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             restore_delta_body,
         )
         self.assertIn("group: dict[str, object] = _delta_vertex_indices_payload(delta.vertex_indices)", restore_delta_body)
-        self.assertIn("**_delta_vertex_indices_payload(delta.vertex_indices)", restore_delta_body)
         self.assertNotIn('"vertex_indices": delta.vertex_indices', restore_delta_body)
         self.assertLess(
             restore_delta_body.index(
@@ -3857,8 +3828,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("def _delta_positions_by_vertex(", service_source)
         self.assertIn("def _restore_topology_delta(", service_source)
-        self.assertIn("topology_changed=outcome.topology_changed", service_source)
-        self.assertIn("affected=outcome.affected_submesh_indices", service_source)
+        self.assertIn("topology_changed=outcome.topology_changed", history_source)
+        self.assertIn("affected=outcome.affected_submesh_indices", history_source)
         self.assertIn("snapshot_native_mesh_submeshes", service_source)
         self.assertIn("restore_native_mesh_submesh_snapshot", service_source)
         self.assertIn("dispose_native_mesh_submesh_snapshot", service_source)
@@ -3911,7 +3882,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("restored_mesh = ParsedMesh()", restore_body)
         self.assertNotIn("session.working_mesh = restored_mesh", restore_body)
         self.assertIn("_dispose_history_snapshot(snapshot)", service_source)
-        self.assertIn("def _command_may_change_topology(", service_source)
+        self.assertIn("def _command_may_change_topology(", kernel_source)
         controller_source = _read("cdmw/ui/mesh_editor/controller.py")
         undo_update_start = controller_source.index('if result.action in {"undo", "redo"} and result.ok')
         topology_update_start = controller_source.index("if result.topology_changed:", undo_update_start)
@@ -4010,9 +3981,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             restore_snapshot_body.index("_export_native_submesh_snapshot_handle("),
         )
         self.assertIn("if restored_native_sessions:", restore_snapshot_body)
+        self.assertIn("payloads_available = all(", restore_snapshot_body)
+        self.assertIn("if not payloads_available:", restore_snapshot_body)
         self.assertLess(
+            restore_snapshot_body.index("if not payloads_available:"),
             restore_snapshot_body.index("_export_native_submesh_snapshot_handle("),
-            restore_snapshot_body.index('raw_submeshes = snapshot.get("submeshes")'),
         )
         self.assertIn("use_service = _native_mesh_core_service_enabled(stop_event=stop_event)", mesh_native_source)
         self.assertIn("_get_native_mesh_core_service(binary).run_job(", mesh_native_source)
@@ -4025,25 +3998,25 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('operation == "restore_snapshot"', native_core_source)
         self.assertIn('operation == "export_snapshot"', native_core_source)
         self.assertIn('operation == "clear_snapshot"', native_core_source)
-        snapshot_report_start = native_core_source.index("std::string snapshot_submeshes_report_json")
+        snapshot_report_start = native_core_source.index("void mesh_snapshot_write_source_faces")
         snapshot_report_body = native_core_source[
-            snapshot_report_start:native_core_source.index("int snapshot_submeshes_json_command", snapshot_report_start)
+            snapshot_report_start:native_core_source.index("std::string snapshot_submeshes_report_json", snapshot_report_start)
         ]
-        self.assertIn("contiguous_int_range(session->source_face_indices, source_face_start)", snapshot_report_body)
+        self.assertIn("contiguous_int_range(session.source_face_indices, start)", snapshot_report_body)
         self.assertLess(
-            snapshot_report_body.index("contiguous_int_range(session->source_face_indices, source_face_start)"),
-            snapshot_report_body.index("write_int_binary_file(source_faces_path, session->source_face_indices)"),
+            snapshot_report_body.index("contiguous_int_range(session.source_face_indices, start)"),
+            snapshot_report_body.index("write_int_binary_file(path, session.source_face_indices)"),
         )
-        self.assertIn('out << ",\\"source_face_start\\":" << source_face_start', snapshot_report_body)
-        self.assertIn("contiguous_int_range(session->source_vertex_map, source_vertex_map_start)", snapshot_report_body)
+        self.assertIn('out << ",\\"source_face_start\\":" << start', snapshot_report_body)
+        self.assertIn("contiguous_int_range(session.source_vertex_map, start)", snapshot_report_body)
         self.assertLess(
-            snapshot_report_body.index("contiguous_int_range(session->source_vertex_map, source_vertex_map_start)"),
-            snapshot_report_body.index("write_int_binary_file(source_vertex_map_path, session->source_vertex_map)"),
+            snapshot_report_body.index("contiguous_int_range(session.source_vertex_map, start)"),
+            snapshot_report_body.index("write_int_binary_file(map_path, session.source_vertex_map)"),
         )
-        self.assertIn("contiguous_int_stride_range(session->source_vertex_offsets", snapshot_report_body)
+        self.assertIn("contiguous_int_stride_range(session.source_vertex_offsets", snapshot_report_body)
         self.assertLess(
-            snapshot_report_body.index("contiguous_int_stride_range(session->source_vertex_offsets"),
-            snapshot_report_body.index("write_int_binary_file(source_vertex_offsets_path, session->source_vertex_offsets)"),
+            snapshot_report_body.index("contiguous_int_stride_range(session.source_vertex_offsets"),
+            snapshot_report_body.index("write_int_binary_file(offsets_path, session.source_vertex_offsets)"),
         )
         snapshot_item_start = mesh_native_source.index("def _native_submesh_snapshot_item(")
         snapshot_item_body = mesh_native_source[
@@ -4159,9 +4132,6 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _sorted_unique_valid_submesh_indices(", mesh_native_source)
         self.assertIn("for index in _iter_valid_submesh_indices(mesh, submesh_indices)", mesh_native_source)
         self.assertIn("target_indices = _sorted_unique_valid_submesh_indices(mesh, submesh_indices, all_when_none=True)", mesh_native_source)
-        self.assertNotIn("for raw_index in tuple(submesh_indices or ())", mesh_native_source)
-        self.assertNotIn("target_indices = set(range(len(mesh.submeshes)))", mesh_native_source)
-        self.assertNotIn("target_indices = tuple(range(len(mesh.submeshes)))", mesh_native_source)
         selection_domain_start = mesh_native_source.index("def _selection_domain_submesh_items(")
         selection_domain_body = mesh_native_source[
             selection_domain_start: mesh_native_source.index("def apply_native_mesh_transform(", selection_domain_start)
@@ -4253,12 +4223,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("result.vertices = mesh_vertices_from_item(item)", transform_body)
         self.assertNotIn('result.vertices = vertices_from_json(item.get("vertices"))', transform_body)
         self.assertIn("mesh_faces_from_item(item, result.vertices.size())", native_core_source)
-        topology_start = mesh_native_source.index("def _topology_edit_submeshes(")
-        topology_body = mesh_native_source[topology_start: mesh_native_source.index("def _mesh_edit_removed_count(", topology_start)]
+        topology_body = _read("cdmw/modding/mesh_native_topology_payloads.py")
+        topology_geometry_start = topology_body.index("def _put_topology_geometry(")
+        topology_geometry_body = topology_body[
+            topology_geometry_start:topology_body.index("def _put_topology_selection(", topology_geometry_start)
+        ]
         self.assertIn("_ensure_native_mesh_session_submesh(", topology_body)
         self.assertIn("preserve_normals: bool = False", topology_body)
         self.assertIn("selected_vertices_binary_by_submesh", topology_body)
-        self.assertIn("selected_vertices_binary = _native_i32_descriptor(raw_selected_vertices_binary)", topology_body)
+        self.assertIn("selected_vertices_binary = _native_i32_descriptor(raw_binary)", topology_body)
         self.assertIn('item["selected_vertices_binary"] = selected_vertices_binary', topology_body)
         self.assertIn('item["session_id"] = session_id', topology_body)
         self.assertIn('"selected_faces_binary"', topology_body)
@@ -4266,15 +4239,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('"selected_edges_binary"', topology_body)
         self.assertIn('item["vertices_output_path"] = _native_preview_delta_output_path("_topology_vertices.bin")', topology_body)
         self.assertIn('item["faces_output_path"] = _native_preview_delta_output_path("_topology_faces.bin")', topology_body)
-        self.assertIn('item["normals_output_path"] = _native_preview_delta_output_path("_topology_normals.bin")', topology_body)
-        self.assertIn('item["uvs_output_path"] = _native_preview_delta_output_path("_topology_uvs.bin")', topology_body)
-        self.assertIn('item["tangents_output_path"] = _native_preview_delta_output_path("_topology_tangents.bin")', topology_body)
-        self.assertIn('item["tangent_signs_output_path"] = _native_preview_delta_output_path("_topology_tangent_signs.bin")', topology_body)
-        self.assertIn('item["bone_counts_output_path"] = _native_preview_delta_output_path("_topology_bone_counts.bin")', topology_body)
-        self.assertIn('item["bone_indices_output_path"] = _native_preview_delta_output_path("_topology_bone_indices.bin")', topology_body)
-        self.assertIn('item["bone_weights_output_path"] = _native_preview_delta_output_path("_topology_bone_weights.bin")', topology_body)
-        self.assertIn('item["source_vertex_map_output_path"] = _native_preview_delta_output_path("_topology_source_vertex_map.bin")', topology_body)
-        self.assertIn('item["source_vertex_offsets_output_path"] = _native_preview_delta_output_path("_topology_source_vertex_offsets.bin")', topology_body)
+        self.assertIn('("normals", "_topology_normals.bin", preserve_normals)', topology_body)
+        self.assertIn('("uvs", "_topology_uvs.bin", True)', topology_body)
+        self.assertIn('("tangents", "_topology_tangents.bin", True)', topology_body)
+        self.assertIn('("tangent_signs", "_topology_tangent_signs.bin", True)', topology_body)
+        self.assertIn('("source_vertex_map", "_topology_source_vertex_map.bin", True)', topology_body)
+        self.assertIn('("source_vertex_offsets", "_topology_source_vertex_offsets.bin", True)', topology_body)
+        self.assertIn('for name in ("counts", "indices", "weights"):', topology_body)
+        self.assertIn('item[f"bone_{name}_output_path"] = _native_preview_delta_output_path(', topology_body)
         self.assertIn('item["suppress_vertex_remap_report"] = True', topology_body)
         self.assertNotIn('item["copy_vertex_indices_output_path"] = _native_preview_delta_output_path("_topology_copy_vertex_indices.bin")', topology_body)
         self.assertNotIn('item["vertex_blend_indices_output_path"] = _native_preview_delta_output_path("_topology_vertex_blend_indices.bin")', topology_body)
@@ -4285,13 +4257,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _is_identity_i32_sequence(", mesh_native_source)
         self.assertIn("def _put_source_face_indices_json_payload(", mesh_native_source)
         self.assertIn("if not _is_identity_i32_sequence(source_face_indices):", topology_body)
-        self.assertIn("selection_source_face_indices = source_face_indices", topology_body)
-        self.assertIn("if not _is_identity_i32_sequence(selection_source_face_indices):", topology_body)
+        self.assertIn("source_face_indices, face_count = geometry", topology_body)
+        self.assertIn("_put_topology_selection(", topology_body)
         self.assertNotIn("list(range(len(source_face_indices)))", topology_body)
         self.assertNotIn("list(range(len(selection_source_face_indices)))", topology_body)
         self.assertLess(
-            topology_body.index("_ensure_native_mesh_session_submesh("),
-            topology_body.index("faces, source_face_indices = _face_json_with_source_indices("),
+            topology_geometry_body.index("_ensure_native_mesh_session_submesh("),
+            topology_geometry_body.index("faces, source_face_indices = _face_json_with_source_indices("),
         )
         compact_start = mesh_native_source.index("def apply_native_mesh_compact_orphans(")
         compact_body = mesh_native_source[compact_start: mesh_native_source.index("def apply_native_mesh_split(", compact_start)]
@@ -4394,9 +4366,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("write_int_binary_file(result.bone_counts_path, bone_counts)", native_core_source)
         self.assertIn("write_int_binary_file(result.bone_indices_path, flat_bone_indices)", native_core_source)
         self.assertIn("write_double_binary_file(result.bone_weights_path, flat_bone_weights)", native_core_source)
-        edit_report_start = native_core_source.index("std::string mesh_edit_report_json(")
+        edit_report_start = native_core_source.index("void write_mesh_edit_result_channels(")
         edit_report_body = native_core_source[
-            edit_report_start:native_core_source.index("void write_optimization_stats", edit_report_start)
+            edit_report_start:native_core_source.index("void write_mesh_edit_result_remap(", edit_report_start)
         ]
         self.assertIn("contiguous_int_range(result.source_vertex_map, source_vertex_map_start)", edit_report_body)
         self.assertLess(
@@ -4412,18 +4384,23 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('result.vertex_blend_indices_path = string_or(item.get("vertex_blend_indices_output_path"), "")', native_core_source)
         self.assertIn('result.vertex_blend_factors_path = string_or(item.get("vertex_blend_factors_output_path"), "")', native_core_source)
         self.assertIn('result.index_map_path = string_or(item.get("index_map_output_path"), "")', native_core_source)
-        native_edit_payload_start = service_source.index("def _native_editor_edit_payload(")
-        native_edit_payload_body = service_source[
-            native_edit_payload_start:service_source.index("def _native_editor_material_extra_attrs(", native_edit_payload_start)
+        native_edit_payload_start = service_payload_source.index("def _native_editor_edit_payload(")
+        native_edit_payload_body = service_payload_source[
+            native_edit_payload_start:service_payload_source.index("def _native_editor_material_extra_attrs(", native_edit_payload_start)
         ]
         self.assertIn("if action in MESH_TOPOLOGY_ACTIONS:", native_edit_payload_body)
         self.assertIn('payload["suppress_vertex_remap_report"] = True', native_edit_payload_body)
-        self.assertIn("_NATIVE_EDITOR_SCREEN_PAYLOAD_KEYS", service_source)
+        self.assertIn("_NATIVE_EDITOR_SCREEN_PAYLOAD_KEYS", service_payload_source)
         self.assertIn("key_text in _NATIVE_EDITOR_SCREEN_PAYLOAD_KEYS", native_edit_payload_body)
         self.assertIn("payload[key_text] = _native_editor_screen_payload(json_value)", native_edit_payload_body)
-        self.assertIn('bool_or(edit->get("suppress_vertex_remap_report"), false)', native_core_source)
-        self.assertIn('out << ",\\"vertex_remap_report_suppressed\\":true";', edit_report_body)
-        self.assertIn("if (!result.suppress_vertex_remap_report)", edit_report_body)
+        self.assertIn('item.get("suppress_vertex_remap_report")', native_core_source)
+        self.assertIn('bool_or(edit.get("suppress_vertex_remap_report"), false)', native_core_source)
+        remap_start = native_core_source.index("void write_mesh_edit_result_remap(")
+        remap_body = native_core_source[
+            remap_start:native_core_source.index("void write_mesh_edit_result_preview(", remap_start)
+        ]
+        self.assertIn('out << ",\\"vertex_remap_report_suppressed\\":true";', native_core_source)
+        self.assertIn("if (!result.suppress_vertex_remap_report)", remap_body)
         self.assertIn("write_int_binary_file(result.copy_vertex_indices_path, result.copy_vertex_indices)", native_core_source)
         self.assertIn("write_int_binary_file(result.vertex_blend_indices_path, flatten_vertex_blend_indices(result.vertex_blends))", native_core_source)
         self.assertIn("write_double_binary_file(result.vertex_blend_factors_path, flatten_vertex_blend_factors(result.vertex_blends))", native_core_source)
@@ -4447,8 +4424,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('raw_bone_weights_binary = item.get("bone_weights_binary")', mesh_native_source)
         self.assertIn("def _source_vertex_map_report_values(", mesh_native_source)
         self.assertIn("def _source_vertex_offsets_report_values(", mesh_native_source)
-        self.assertIn("_source_vertex_map_report_values(item, len(vertices))", mesh_native_source)
-        self.assertIn("_source_vertex_offsets_report_values(item, len(vertices))", mesh_native_source)
+        self.assertIn("_source_vertex_map_report_values(item, vertex_count)", mesh_native_source)
+        self.assertIn("_source_vertex_offsets_report_values(item, vertex_count)", mesh_native_source)
         self.assertIn("def _copy_vertex_indices_from_report_item(", mesh_native_source)
         self.assertIn("def _vertex_blends_from_report_item(", mesh_native_source)
         self.assertIn('item.get("copy_vertex_indices_binary")', mesh_native_source)
@@ -4460,32 +4437,36 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _read_bone_binary_report_payloads(", mesh_native_source)
         self.assertIn("def _read_i32_binary_report_payload(", mesh_native_source)
         self.assertIn("skip_topology_normals: bool = False", mesh_native_source)
-        self.assertIn("skip_normals=skip_topology_normals or native_normals is not None", mesh_native_source)
+        self.assertIn("skip_normals=skip_topology_normals or channels.normals is not None", mesh_native_source)
         self.assertIn("skip_normals: bool = False", mesh_native_source)
         self.assertGreaterEqual(mesh_native_source.count("skip_topology_normals=recompute_normals"), 4)
         self.assertGreaterEqual(mesh_native_source.count("preserve_normals=not recompute_normals"), 3)
-        self.assertIn("skip_uvs=native_uvs is not None", mesh_native_source)
-        self.assertIn("skip_tangents=native_tangents is not None", mesh_native_source)
-        self.assertIn("skip_tangent_signs=native_tangent_signs is not None", mesh_native_source)
-        self.assertIn("skip_bones=native_bones is not None", mesh_native_source)
-        self.assertIn("has_native_source_vertex_map = bool(native_source_vertex_map)", mesh_native_source)
-        self.assertIn("has_native_source_vertex_offsets = bool(native_source_vertex_offsets)", mesh_native_source)
-        self.assertIn("skip_source_vertex_map=has_native_source_vertex_map", mesh_native_source)
-        self.assertIn("skip_source_vertex_offsets=has_native_source_vertex_offsets", mesh_native_source)
+        self.assertIn("skip_uvs=channels.uvs is not None", mesh_native_source)
+        self.assertIn("skip_tangents=channels.tangents is not None", mesh_native_source)
+        self.assertIn("skip_tangent_signs=channels.tangent_signs is not None", mesh_native_source)
+        self.assertIn("skip_bones=channels.bones is not None", mesh_native_source)
+        self.assertIn("has_source_map = bool(channels.source_vertex_map)", mesh_native_source)
+        self.assertIn("has_source_offsets = bool(channels.source_vertex_offsets)", mesh_native_source)
+        self.assertIn("skip_source_vertex_map=has_source_map", mesh_native_source)
+        self.assertIn("skip_source_vertex_offsets=has_source_offsets", mesh_native_source)
         self.assertIn("_native_preview_delta_output_path(\"_positions.bin\")", mesh_native_source)
         self.assertIn("write_preview_binary_descriptor", native_core_source)
         self.assertIn("\"positions_binary\"", native_core_source)
         self.assertIn("\"source_vertex_indices_binary\"", native_core_source)
         self.assertIn("write_int_binary_file(source_indices_path, source_indices)", native_core_source)
-        apply_report_start = mesh_native_source.index("def _apply_mesh_edit_report(")
+        apply_report_item_start = mesh_native_source.index("def _apply_mesh_edit_report_item(")
+        apply_report_item_body = mesh_native_source[
+            apply_report_item_start:mesh_native_source.index("def _apply_mesh_edit_report(", apply_report_item_start)
+        ]
+        apply_report_start = mesh_native_source.index("def _apply_mesh_edit_report(", apply_report_item_start)
         apply_report_body = mesh_native_source[
             apply_report_start: mesh_native_source.index("def _native_preview_triangle_group(", apply_report_start)
         ]
-        self.assertNotIn("vertices != [_vec3(vertex) for vertex in submesh.vertices]", apply_report_body)
-        self.assertIn("elif raw_vertices is not None or raw_vertices_binary is not None:", apply_report_body)
+        self.assertNotIn("vertices != [_vec3(vertex) for vertex in submesh.vertices]", apply_report_item_body)
+        self.assertIn('elif item.get("vertices") is not None or item.get("vertices_binary") is not None:', apply_report_item_body)
         self.assertIn("changed_vertices_by_submesh: dict[int, Sequence[int] | set[int]] = {}", apply_report_body)
-        self.assertIn("changed = _bounded_changed_vertices(changed, len(vertices))", apply_report_body)
-        self.assertNotIn("changed = set(changed_ordered)", apply_report_body)
+        self.assertIn("changed = _bounded_changed_vertices(state.changed, len(state.vertices))", apply_report_item_body)
+        self.assertNotIn("changed = set(changed_ordered)", apply_report_item_body)
         sparse_writer_start = native_core_source.index("void write_sparse_preview_vertex_update_group(")
         sparse_binary_branch = native_core_source[
             native_core_source.index("if (!changed_positions_path.empty())", sparse_writer_start):
@@ -4680,7 +4661,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("_allow_python_selection_fallback(", uv_region_body)
         self.assertNotIn("_apply_selection_operation_to_mesh(", uv_region_body)
         uv_lasso_start = service_source.index("def select_uv_lasso(")
-        uv_lasso_body = service_source[uv_lasso_start: service_source.index("def skeleton_summary(", uv_lasso_start)]
+        uv_lasso_body = service_source[uv_lasso_start: service_source.index("def apply_command(", uv_lasso_start)]
         self.assertIn("native_vertices = select_native_mesh_uv_vertices(", uv_lasso_body)
         self.assertIn("_record_blocked_python_selection_fallback(", uv_lasso_body)
         self.assertIn("return self._select_native_uv_vertices(", uv_lasso_body)
@@ -4706,7 +4687,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("selection_preview_report_json", native_core_source)
         selection_preview_start = mesh_native_source.index("def build_native_mesh_selection_groups(")
         selection_preview_body = mesh_native_source[
-            selection_preview_start: mesh_native_source.index("def _write_vec3_binary_payload", selection_preview_start)
+            selection_preview_start: mesh_native_source.index("def select_native_mesh_uv_vertices(", selection_preview_start)
         ]
         self.assertIn("_ensure_native_mesh_session_submesh(", selection_preview_body)
         self.assertIn("stop_event: threading.Event | None = None", selection_preview_body)
@@ -4742,16 +4723,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('"selection-prune-json"', mesh_native_source)
         combine_sources_start = mesh_native_source.index("def _combine_native_selection_sources(")
         combine_sources_body = mesh_native_source[
-            combine_sources_start: mesh_native_source.index("def select_native_mesh_uv_vertices(", combine_sources_start)
+            combine_sources_start: mesh_native_source.index("def _empty_pruned_selection(", combine_sources_start)
         ]
         self.assertIn("for raw_index in (current if current is not None else ())", combine_sources_body)
         self.assertIn("for raw_index in (incoming if incoming is not None else ())", combine_sources_body)
         self.assertNotIn("tuple(current or ())", combine_sources_body)
         self.assertNotIn("tuple(incoming or ())", combine_sources_body)
-        prune_bridge_start = mesh_native_source.index("def prune_native_mesh_selection(")
-        prune_bridge_body = mesh_native_source[
-            prune_bridge_start: mesh_native_source.index("def build_native_mesh_preview_triangle_groups(", prune_bridge_start)
-        ]
+        prune_bridge_body = _read("cdmw/modding/mesh_native_selection.py")
         self.assertIn("_ensure_native_mesh_session_submesh(", prune_bridge_body)
         self.assertIn('item["session_id"] = session_id', prune_bridge_body)
         self.assertIn('"face_count": face_count', prune_bridge_body)
@@ -4763,9 +4741,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('start_key="selected_face_start"', prune_bridge_body)
         self.assertIn('binary_key="selected_faces_binary"', prune_bridge_body)
         self.assertIn("selected_all_vertices_by_submesh: Sequence[int] = ()", prune_bridge_body)
-        self.assertIn("selected_all_vertex_sources: set[int] = set()", prune_bridge_body)
+        self.assertIn("selected_all_sources = {", prune_bridge_body)
         self.assertNotIn("tuple(selected_all_vertices_by_submesh or ())", prune_bridge_body)
-        self.assertIn("| selected_all_vertex_sources", prune_bridge_body)
+        self.assertIn("| selected_all_sources", prune_bridge_body)
         self.assertIn('item["selected_all_vertices"] = True', prune_bridge_body)
         self.assertIn('start_key="current_selected_vertex_start"', prune_bridge_body)
         self.assertIn('binary_key="current_selected_vertices_binary"', prune_bridge_body)
@@ -5002,10 +4980,16 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_read_i32_binary_report_payload(raw_index_map_binary", apply_cleanup_body)
         self.assertIn("if index_map is None:", apply_cleanup_body)
         self.assertIn("if native_normals is None:", apply_cleanup_body)
-        self.assertIn("_read_vec3_binary_report_payload(raw_normals_binary", apply_cleanup_body)
-        self.assertIn("_read_vec2_binary_report_payload(raw_uvs_binary", apply_cleanup_body)
-        self.assertIn("_read_bone_binary_report_payloads(", apply_cleanup_body)
-        self.assertIn("_read_i32_binary_report_payload(raw_source_vertex_map_binary", apply_cleanup_body)
+        self.assertIn("_read_vertex_aligned_native_channels(item, len(parsed_vertices))", apply_cleanup_body)
+        channel_reader_source = _read("cdmw/modding/mesh_native_report_geometry.py")
+        channel_reader_start = channel_reader_source.index("def _read_vertex_aligned_native_channels(")
+        channel_reader_body = channel_reader_source[
+            channel_reader_start:channel_reader_source.index("def _apply_cleanup_report(", channel_reader_start)
+        ]
+        self.assertIn("(_read_vec3_binary_report_payload, raw_normals_binary)", channel_reader_body)
+        self.assertIn("(_read_vec2_binary_report_payload, raw_uvs_binary)", channel_reader_body)
+        self.assertIn("_read_bone_binary_report_payloads(", channel_reader_body)
+        self.assertIn("(_read_i32_binary_report_payload, raw_source_vertex_map_binary)", channel_reader_body)
         self.assertIn("if native_normals is None:", apply_cleanup_body)
         self.assertIn("recompute_submesh_normals(submesh)", apply_cleanup_body)
         auto_uv_start = mesh_native_source.index("def native_mesh_auto_uv_report(")
@@ -5050,9 +5034,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_read_vec3_binary_report_payload(raw_vertices_binary", apply_auto_uv_body)
         self.assertIn("_read_vec2_binary_report_payload(raw_uvs_binary", apply_auto_uv_body)
         self.assertIn("_read_face_binary_report_payload(raw_faces_binary", apply_auto_uv_body)
-        self.assertIn("_read_vec3_binary_report_payload(raw_normals_binary", apply_auto_uv_body)
-        self.assertIn("_read_bone_binary_report_payloads(", apply_auto_uv_body)
-        self.assertIn("_read_i32_binary_report_payload(raw_source_vertex_map_binary", apply_auto_uv_body)
+        self.assertIn("_read_vertex_aligned_native_channels(item, len(remap))", apply_auto_uv_body)
+        self.assertIn("(_read_vec3_binary_report_payload, raw_normals_binary)", channel_reader_body)
+        self.assertIn("_read_bone_binary_report_payloads(", channel_reader_body)
+        self.assertIn("(_read_i32_binary_report_payload, raw_source_vertex_map_binary)", channel_reader_body)
         self.assertIn("parsed_changed_ordered = _changed_vertices_from_report_item(item, len(parsed_uvs))", apply_auto_uv_body)
         self.assertIn("has_native_changed_vertices = parsed_changed_ordered is not None", apply_auto_uv_body)
         self.assertIn("old_uvs = () if has_native_changed_vertices else", apply_auto_uv_body)
@@ -5156,13 +5141,18 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('result.normals_path = string_or(item.get("normals_output_path"), "")', auto_uv_native_body)
         self.assertIn('result.tangents_path = string_or(item.get("tangents_output_path"), "")', auto_uv_native_body)
         self.assertIn('result.bone_counts_path = string_or(item.get("bone_counts_output_path"), "")', auto_uv_native_body)
-        self.assertIn("copy_values_by_vertex_remap(vertices, result.vertex_remap)", auto_uv_native_body)
-        self.assertIn("copy_values_by_vertex_remap(mesh_normals_from_item(item), result.vertex_remap)", auto_uv_native_body)
-        self.assertIn("copy_bones_by_vertex_remap(mesh_bones_from_item(item), result.vertex_remap)", auto_uv_native_body)
+        self.assertIn("populate_auto_uv_remapped_channels(result, item, vertices)", auto_uv_native_body)
+        auto_uv_channels_start = native_core_source.index("void populate_auto_uv_remapped_channels(")
+        auto_uv_channels_body = native_core_source[
+            auto_uv_channels_start:native_core_source.index("std::vector<SubmeshAutoUvResult> run_auto_uv", auto_uv_channels_start)
+        ]
+        self.assertIn("copy_values_by_vertex_remap(vertices, result.vertex_remap)", auto_uv_channels_body)
+        self.assertIn("copy_values_by_vertex_remap(mesh_normals_from_item(item), result.vertex_remap)", auto_uv_channels_body)
+        self.assertIn("copy_bones_by_vertex_remap(mesh_bones_from_item(item), result.vertex_remap)", auto_uv_channels_body)
         self.assertIn("mesh_uvs_from_item(item)", auto_uv_native_body)
         self.assertIn("result.changed_vertices.push_back", auto_uv_native_body)
-        self.assertIn("source_vertex_map = session->source_vertex_map", auto_uv_native_body)
-        self.assertIn("source_vertex_offsets = session->source_vertex_offsets", auto_uv_native_body)
+        self.assertIn("source_vertex_map = session->source_vertex_map", auto_uv_channels_body)
+        self.assertIn("source_vertex_offsets = session->source_vertex_offsets", auto_uv_channels_body)
         self.assertNotIn("vertices_from_json(item.get(\"vertices\"))", auto_uv_native_body)
         auto_uv_report_start = native_core_source.index("std::string auto_uv_report_json(")
         auto_uv_report_body = native_core_source[auto_uv_report_start: native_core_source.index("std::string normals_report_json(", auto_uv_report_start)]
@@ -5184,11 +5174,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             ("shrink", "Shrink Selection"),
             ("smooth", "Smooth Selection"),
         ):
-            action_start = source.index(f"def _mesh_edit_{operation}_selection() -> None:")
-            action_body = source[action_start: source.index("def ", action_start + 1)]
-            worker_call = f'_mesh_edit_start_selection_worker("{operation}", "{operation.capitalize()} Selection")'
-            native_call = f'_mesh_edit_native_vertex_selection("{operation}")'
-            unavailable_call = f'_mesh_edit_native_selection_unavailable("{action_text}")'
+            action_body = _function_source(source, f"_mesh_edit_{operation}_selection")
+            worker_call = f'_callbacks._mesh_edit_start_selection_worker("{operation}", "{operation.capitalize()} Selection")'
+            native_call = f'_callbacks._mesh_edit_native_vertex_selection("{operation}")'
+            unavailable_call = f'_callbacks._mesh_edit_native_selection_unavailable("{action_text}")'
             self.assertIn(worker_call, action_body)
             self.assertIn(native_call, action_body)
             self.assertIn(unavailable_call, action_body)
@@ -5319,15 +5308,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("_populate_combo_options_helper(", source)
         self.assertIn("alignment_d3d11_view_mode_combo,", source)
-        self.assertIn("(alignment_d3d11_view_mode_combo, settings.d3d11_view_mode)", source)
+        self.assertIn("(_state.alignment_d3d11_view_mode_combo, settings.d3d11_view_mode)", source)
         self.assertIn("alignment_d3d11_view_mode_combo.currentIndexChanged.connect(_apply_alignment_preview_render_settings)", source)
         self.assertIn("def _alignment_preview_render_settings_from_controls(", source)
         self.assertIn("settings.d3d11_view_mode = str(", source)
         self.assertIn('package_fields = (', source)
         self.assertIn('"use_textures_by_default"', source)
         self.assertIn('"high_quality_by_default"', source)
-        self.assertIn("_alignment_d3d11_invalidate_package_cache(\"material\")", source)
-        self.assertIn("_mark_alignment_d3d11_rebuild_reason(\"material\")", source)
+        self.assertIn("_state._alignment_d3d11_invalidate_package_cache('material')", source)
+        self.assertIn("_state._mark_alignment_d3d11_rebuild_reason('material')", source)
         self.assertIn('bool(getattr(settings, "use_textures_by_default", True))', source)
         self.assertIn('bool(getattr(settings, "high_quality_by_default", True))', source)
 
@@ -5343,7 +5332,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("alignment_basis_mesh: ParsedMesh | None = None", replacer_source)
         self.assertIn("basis_mesh = alignment_basis_mesh or replacement_mesh", replacer_source)
         self.assertIn("alignment_replacement_mesh = copy.copy(basis_mesh)", replacer_source)
-        self.assertIn("alignment_basis_mesh=(", main_source)
+        self.assertIn("alignment_basis_mesh=_state.replacement_mesh_base_for_mapping if _state._mesh_edit_active_for_alignment_basis() else None", main_source)
         self.assertIn("replacement_mesh_base_for_mapping", main_source)
 
     def test_static_replacement_runtime_merge_routes_through_native_mesh_core_first(self) -> None:
@@ -5634,7 +5623,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         i32_range_body = mesh_native_source[i32_range_start: mesh_native_source.index("def _is_identity_i32_sequence(", i32_range_start)]
         self.assertNotIn("items = tuple(int(value) for value in values)", i32_range_body)
         uv_submesh_start = mesh_native_source.index("def apply_native_mesh_uv_transform_submeshes(")
-        uv_submesh_body = mesh_native_source[uv_submesh_start: mesh_native_source.index("def _topology_edit_submeshes(", uv_submesh_start)]
+        uv_submesh_body = mesh_native_source[
+            uv_submesh_start:mesh_native_source.index("def apply_native_mesh_uv_atlas_submesh(", uv_submesh_start)
+        ]
         self.assertIn('"selected_all_vertices": True', uv_submesh_body)
         self.assertIn('"uv_transform": transform_payload', uv_submesh_body)
         self.assertNotIn('"selected_vertices_binary"', uv_submesh_body)
@@ -5694,79 +5685,72 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             )
         )
 
-        live_start = source.index("def _mesh_edit_update_live_preview(")
-        live_body = source[live_start: source.index("def _mesh_edit_begin_stroke", live_start)]
-        self.assertIn("_queue_mesh_edit_live_vertex_updates(", live_body)
+        live_body = _function_source(source, "_mesh_edit_update_live_preview")
+        self.assertIn("_callbacks._queue_mesh_edit_live_vertex_updates(", live_body)
         self.assertIn("include_normals=include_normals", live_body)
         self.assertIn("immediate=immediate", live_body)
-        self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(_mesh_edit_preview_source_indices())", live_body)
+        self.assertIn("_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(_state._mesh_edit_preview_source_indices())", live_body)
         self.assertNotIn("_mesh_edit_replace_live_triangles(_mesh_edit_preview_source_indices())", live_body)
         self.assertLess(
-            live_body.index("_queue_mesh_edit_live_vertex_updates("),
-            live_body.index("_mesh_edit_replace_live_triangles_or_queue_rebuild(_mesh_edit_preview_source_indices())"),
+            live_body.index("_callbacks._queue_mesh_edit_live_vertex_updates("),
+            live_body.index("_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(_state._mesh_edit_preview_source_indices())"),
         )
-        restore_start = source.index("def _mesh_edit_restore_snapshot(")
-        restore_body = source[restore_start: source.index("_mesh_edit_payload_has_drag_motion =", restore_start)]
+        restore_body = _function_source(source, "_mesh_edit_restore_snapshot")
         self.assertIn(
-            "_mesh_edit_replace_live_triangles_or_queue_rebuild(_mesh_edit_preview_source_indices(), replace_all=True)",
+            "_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(_state._mesh_edit_preview_source_indices(), replace_all=True)",
             restore_body,
         )
-        self.assertIn('mesh_edit_preview_model_dirty["value"] = True', restore_body)
+        self.assertIn('_state.mesh_edit_preview_model_dirty["value"] = True', restore_body)
         self.assertLess(
-            restore_body.index("_mesh_edit_replace_live_triangles_or_queue_rebuild(_mesh_edit_preview_source_indices(), replace_all=True)"),
-            restore_body.index("_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
+            restore_body.index("_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(_state._mesh_edit_preview_source_indices(), replace_all=True)"),
+            restore_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
         self.assertNotIn("_mesh_edit_replace_live_triangles(_mesh_edit_preview_source_indices())", restore_body)
-        apply_start = source.index("def _mesh_edit_apply_preview_payload(payload: object) -> None:")
-        apply_body = source[apply_start: source.index("def _mesh_edit_finish_stroke", apply_start)]
-        finish_start = source.index("def _mesh_edit_finish_stroke(payload: object) -> None:")
-        finish_body = source[finish_start: source.index("def _mesh_edit_cancel_stroke", finish_start)]
+        apply_body = _function_source(source, "_mesh_edit_apply_geometry_payload")
+        finish_body = _function_source(source, "_mesh_edit_finish_geometry_stroke")
         self.assertIn('transform_screen_stroke = tool in {"move", "grab", "vertex"} and has_screen_drag', apply_body)
         self.assertIn('params["stroke_phase"] = "update" if transform_screen_stroke_started else "begin"', apply_body)
         self.assertIn('params["stroke_id"] = str(stroke_id)', apply_body)
-        self.assertIn('mesh_edit_active_stroke["native_transform_stroke_started"] = True', apply_body)
-        self.assertIn('native_transform_stroke_started = bool(mesh_edit_active_stroke.get("native_transform_stroke_started"))', finish_body)
+        self.assertIn('_state.mesh_edit_active_stroke["native_transform_stroke_started"] = True', apply_body)
+        self.assertIn('native_transform_stroke_started = bool(_state.mesh_edit_active_stroke.get("native_transform_stroke_started"))', finish_body)
         self.assertIn('stroke_phase="end"', finish_body)
         self.assertIn('stroke_id=str(stroke_id)', finish_body)
-        self.assertIn('mesh_edit_active_stroke["native_update_applied"] = True', apply_body)
+        self.assertIn('_state.mesh_edit_active_stroke["native_update_applied"] = True', apply_body)
         self.assertIn("apply_native_mesh_recalculate_normals(", finish_body)
         self.assertIn("return_changed_vertices=True", finish_body)
-        self.assertIn('native_update_applied = bool(mesh_edit_active_stroke.get("native_update_applied"))', finish_body)
+        self.assertIn('native_update_applied = bool(_state.mesh_edit_active_stroke.get("native_update_applied"))', finish_body)
         self.assertIn("if not native_update_applied:", finish_body)
         self.assertLess(
             finish_body.index("if not native_update_applied:"),
             finish_body.index("apply_native_mesh_recalculate_normals("),
         )
-        self.assertIn("normal_changed_vertices_by_submesh = _mesh_edit_changed_vertex_groups_for_live_update(native_normals or {})", finish_body)
+        self.assertIn("normal_changed_vertices_by_submesh = _callbacks._mesh_edit_changed_vertex_groups_for_live_update(native_normals or {})", finish_body)
         self.assertIn("def _mesh_edit_python_normal_fallback_allowed(", source)
-        normal_fallback_start = source.index("def _mesh_edit_python_normal_fallback_allowed(")
-        normal_fallback_body = source[
-            normal_fallback_start: source.index("def _mesh_edit_sparse_restore_source_indices", normal_fallback_start)
-        ]
+        normal_fallback_body = _function_source(source, "_mesh_edit_python_normal_fallback_allowed")
         self.assertNotIn("_allow_python_normal_recompute_fallback", normal_fallback_body)
         self.assertNotIn("recompute_submesh_normals", normal_fallback_body)
         self.assertIn("Python normal fallback is disabled.", normal_fallback_body)
         self.assertIn("mesh_edit_python_normals_fallback_blocked", source)
         self.assertNotIn("recompute_submesh_normals", finish_body)
         self.assertNotIn("elif _mesh_edit_python_normal_fallback_allowed(", finish_body)
-        self.assertIn("else:\n                _mesh_edit_python_normal_fallback_allowed(", finish_body)
-        self.assertIn("normal_changed_vertices_by_submesh\n                or _mesh_edit_changed_vertex_groups_for_live_update", finish_body)
+        self.assertIn("else:\n            _callbacks._mesh_edit_python_normal_fallback_allowed(", finish_body)
+        self.assertIn("normal_changed_vertices_by_submesh\n            or _callbacks._mesh_edit_changed_vertex_groups_for_live_update", finish_body)
         self.assertNotIn("_mesh_edit_index_groups_as_sets_helper(native_normals or {})", finish_body)
         self.assertLess(
             finish_body.index("return_changed_vertices=True"),
-            finish_body.index("else:\n                _mesh_edit_python_normal_fallback_allowed("),
+            finish_body.index("else:\n            _callbacks._mesh_edit_python_normal_fallback_allowed("),
         )
         self.assertLess(
             finish_body.index("if native_update_applied:"),
-            finish_body.index("_mesh_edit_update_live_preview("),
+            finish_body.index("_callbacks._mesh_edit_update_live_preview("),
         )
-        self.assertIn('mesh_edit_preview_model_dirty["value"] = True', finish_body)
+        self.assertIn('_state.mesh_edit_preview_model_dirty["value"] = True', finish_body)
         self.assertNotIn("recompute_mesh_normals(", finish_body)
         self.assertIn("def _mesh_edit_preview_delta_to_source_delta(", source)
         self.assertIn("def _mesh_edit_preview_point_to_source_point(", source)
         self.assertIn("def _mesh_edit_preview_distance_to_source_distance(", source)
         self.assertIn("_DEFAULT_INVERSE_TRANSFORM_HELPERS = {", source)
-        self.assertIn("_mesh_edit_has_inverse_transform_context_helper = _default_mesh_edit_has_inverse_transform_context", source)
+        self.assertIn("state._mesh_edit_has_inverse_transform_context_helper = (\n            state._default_mesh_edit_has_inverse_transform_context", source)
         self.assertNotIn("_mesh_edit_preview_to_source_point_helper", callback_source)
         self.assertNotIn("_mesh_edit_preview_to_source_vector_helper", callback_source)
         self.assertNotIn("_mesh_edit_preview_to_source_point_helper", prompt_deps_source)
@@ -5779,8 +5763,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("source_distance_for_transformed_distance", prompt_deps_source)
         self.assertNotIn("def _mesh_edit_inverse_transform_helper", callback_source)
         self.assertNotIn("def _mesh_edit_runtime_callback", callback_source)
-        self.assertIn("def _mesh_edit_inverse_transform_disabled() -> RuntimeError:", source)
-        self.assertIn("raise _mesh_edit_inverse_transform_disabled()", source)
+        self.assertIn("def _mesh_edit_inverse_transform_disabled(_state, _callbacks, ) -> RuntimeError:", source)
+        self.assertIn("raise _callbacks._mesh_edit_inverse_transform_disabled()", source)
         self.assertIn("def _mesh_edit_native_screen_selection_payload(", source)
         self.assertIn("def _mesh_edit_native_descriptor_selection_payload(", source)
         self.assertIn("native_screen_stroke = tool != \"remove\" and (", source)
@@ -5799,20 +5783,20 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             screen_start: apply_body.index('if tool in {"move", "grab", "vertex", "smooth", "inflate", "pinch"}:', screen_start)
         ]
         self.assertIn(
-            "descriptor_selection_payload = _mesh_edit_native_descriptor_selection_payload(native_descriptor_groups)",
+            "descriptor_selection_payload = _callbacks._mesh_edit_native_descriptor_selection_payload(native_descriptor_groups)",
             screen_body,
         )
-        self.assertIn('params["screen_drag"] = _native_screen_payload(raw_screen_drag)', screen_body)
+        self.assertIn('params["screen_drag"] = _state._native_screen_payload(raw_screen_drag)', screen_body)
         self.assertIn('params["_native_screen_selection_payload"] = screen_selection_payload', screen_body)
         self.assertIn('params["_native_selection_payload"] = descriptor_selection_payload', screen_body)
-        self.assertIn('params["screen_brush"] = _native_screen_payload(raw_screen_brush)', screen_body)
-        self.assertIn('params["screen_radius"] = _native_screen_payload(raw_screen_radius)', screen_body)
+        self.assertIn('params["screen_brush"] = _state._native_screen_payload(raw_screen_brush)', screen_body)
+        self.assertIn('params["screen_radius"] = _state._native_screen_payload(raw_screen_radius)', screen_body)
         self.assertIn('params["target_mode"] = str(payload.get("target_mode") or "vertex")', screen_body)
         self.assertIn('params["selection_depth_mode"] = str(payload.get("selection_depth_mode") or "visible")', screen_body)
         self.assertIn('"transform"', screen_body)
         self.assertIn('"brush"', screen_body)
-        self.assertIn("_mesh_edit_changed_vertex_groups_for_live_update(result.changed_vertices_by_submesh or {})", screen_body)
-        self.assertIn("_mesh_edit_cleanup_native_vertex_group_descriptors_helper(native_descriptor_groups)", screen_body)
+        self.assertIn("_callbacks._mesh_edit_changed_vertex_groups_for_live_update(result.changed_vertices_by_submesh or {})", screen_body)
+        self.assertIn("_state._mesh_edit_cleanup_native_vertex_group_descriptors_helper(native_descriptor_groups)", screen_body)
         self.assertNotIn("_mesh_edit_preview_delta_to_source_delta", screen_body)
         self.assertNotIn("_mesh_edit_preview_point_to_source_point", screen_body)
         self.assertNotIn("_mesh_edit_preview_distance_to_source_distance", screen_body)
@@ -5829,13 +5813,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn('mesh_edit_active_stroke.pop("inverse_failed"', apply_body)
         self.assertIn(
             'if tool in {"move", "grab", "vertex", "smooth", "inflate", "pinch"}:\n'
-            '            raise RuntimeError("native mesh edit stroke payload did not include native screen update data; Python inverse transform fallback is disabled")',
+            '        raise RuntimeError("native mesh edit stroke payload did not include native screen update data; Python inverse transform fallback is disabled")',
             apply_body,
         )
         self.assertNotIn("_mesh_edit_abort_inverse_stroke()", source)
-        delta_start = source.index("def _mesh_edit_preview_delta_to_source_delta(")
-        delta_body = source[delta_start: source.index("def _mesh_edit_preview_point_to_source_point(", delta_start)]
-        self.assertIn("raise _mesh_edit_inverse_transform_disabled()", delta_body)
+        delta_body = _function_source(source, "_mesh_edit_preview_delta_to_source_delta")
+        self.assertIn("raise _callbacks._mesh_edit_inverse_transform_disabled()", delta_body)
         self.assertNotIn("return delta", delta_body)
         self.assertNotIn("return None", delta_body)
         self.assertNotIn("_mesh_edit_runtime_callback", delta_body)
@@ -5847,39 +5830,29 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("apply_brush_deformation(", apply_body)
         self.assertIn('"transform"', apply_body)
         self.assertIn('"brush"', apply_body)
-        self.assertIn("record_history=False", apply_body)
-        self.assertIn("recompute_normals=False", apply_body)
-        self.assertIn("_mesh_editor_remember_static_replacement_session_mesh()", apply_body)
+        self.assertIn('"record_history": False', apply_body)
+        self.assertIn('"recompute_normals": False', apply_body)
+        self.assertIn("_callbacks._mesh_editor_remember_static_replacement_session_mesh()", apply_body)
         self.assertIn("def _mesh_edit_changed_vertices_for_source(", source)
-        changed_helper_start = source.index("def _mesh_edit_changed_vertex_range(")
-        changed_helper_body = source[
-            changed_helper_start: source.index("def _mesh_edit_sparse_vertex_snapshot", changed_helper_start)
-        ]
+        changed_helper_body = _function_source(source, "_mesh_edit_changed_vertex_range") + "\n" + _function_source(source, "_mesh_edit_changed_vertices_for_source")
         self.assertIn("-> object:", changed_helper_body)
-        self.assertIn("def _mesh_edit_changed_vertex_range(raw_vertices: object) -> range | None:", changed_helper_body)
+        self.assertIn("def _mesh_edit_changed_vertex_range(_state, _callbacks, raw_vertices: object) -> range | None:", changed_helper_body)
         self.assertIn('("changed_vertex_start", "changed_vertex_count")', changed_helper_body)
         self.assertIn('("source_vertex_start", "source_vertex_count")', changed_helper_body)
-        self.assertIn("compact_range = _mesh_edit_changed_vertex_range(raw_vertices)", changed_helper_body)
-        self.assertIn("if isinstance(raw_vertices, Mapping):\n            return dict(raw_vertices)", changed_helper_body)
-        self.assertIn("if isinstance(raw_vertices, Mapping):\n                changed[submesh_index] = dict(raw_vertices)", changed_helper_body)
+        self.assertIn("compact_range = _callbacks._mesh_edit_changed_vertex_range(raw_vertices)", changed_helper_body)
+        self.assertIn("if isinstance(raw_vertices, _state.Mapping):\n        return dict(raw_vertices)", changed_helper_body)
         self.assertNotIn("changed = _mesh_edit_changed_vertices_for_source(result.changed_vertices_by_submesh, source_submesh_index)", apply_body)
         self.assertNotIn("changed = set((result.changed_vertices_by_submesh or {}).get(source_submesh_index, set()))", apply_body)
         self.assertNotIn("tuple(changed or ())", apply_body)
-        self.assertIn("changed_vertices_by_submesh: Mapping[int, object] | None = None,", live_body)
+        self.assertIn("changed_vertices_by_submesh: _state.Mapping[int, object] | None = None,", live_body)
         self.assertNotIn("changed_vertices_by_submesh: Mapping[int, Iterable[int]] | None,", live_body)
-        source_space_allowed_start = source.index("def _mesh_edit_source_space_live_update_allowed(")
-        source_space_allowed_body = source[
-            source_space_allowed_start: source.index("def _mesh_edit_affine_preview_transforms", source_space_allowed_start)
-        ]
-        affine_transform_start = source.index("def _mesh_edit_affine_preview_transforms(")
-        affine_transform_body = source[
-            affine_transform_start: source.index("def _mesh_edit_live_vertex_update_groups", affine_transform_start)
-        ]
+        source_space_allowed_body = _function_source(source, "_mesh_edit_source_space_live_update_allowed")
+        affine_transform_body = _function_source(source, "_mesh_edit_affine_preview_transforms")
         self.assertNotIn("for source_index in tuple(source_indices or ())", source_space_allowed_body)
         self.assertNotIn("for source_index in tuple(source_indices or ())", affine_transform_body)
-        self.assertIn("pending_live_vertices_by_submesh: Dict[int, object] = {}", apply_body)
-        self.assertIn("_mesh_edit_queue_live_vertex_updates_helper(pending_live_vertices_by_submesh, changed_by_submesh)", apply_body)
-        self.assertIn("_mesh_edit_queue_live_vertex_updates_helper(stroke_changed_vertices, changed_by_submesh)", apply_body)
+        self.assertIn("pending_live_vertices_by_submesh: _state.Dict[int, object] = {}", apply_body)
+        self.assertIn("_state._mesh_edit_queue_live_vertex_updates_helper(pending_live_vertices_by_submesh, changed_by_submesh)", apply_body)
+        self.assertIn("_state._mesh_edit_queue_live_vertex_updates_helper(stroke_changed_vertices, changed_by_submesh)", apply_body)
         self.assertNotIn("pending_live_vertices_by_submesh.setdefault(source_submesh_index, set()).update(changed)", apply_body)
         self.assertNotIn("stroke_changed_vertices.setdefault(source_submesh_index, set()).update(changed)", apply_body)
         self.assertNotIn("vertices_by_submesh={source_submesh_index: tuple(vertex_indices or ())}", apply_body)
@@ -5907,62 +5880,52 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
     def test_modify_original_material_preview_is_not_skipped_during_mesh_edit(self) -> None:
         source = _mesh_edit_source()
 
-        refresh_start = source.index("def _refresh_static_dialog_preview(*, live_mesh_edit: bool = False) -> None:")
-        refresh_body = source[refresh_start: source.index("def _safe_refresh_static_dialog_preview", refresh_start)]
+        refresh_body = _function_source(source, "_refresh_static_dialog_preview")
         static_preview_state = _read(
             "cdmw/ui/archive_browser/static_replacement_static_preview_state.py"
         )
-        self.assertIn("needs_original_material_preview = _original_texture_preview_material_preview_enabled_helper(", refresh_body)
+        self.assertIn("needs_original_material_preview = _state._original_texture_preview_material_preview_enabled_helper(", refresh_body)
         self.assertIn("refresh_route.require_original_reference", refresh_body)
         self.assertIn("not mesh_edit_direct_source_preview or needs_original_material_preview", static_preview_state)
-        self.assertIn("_apply_original_material_preview(", refresh_body)
+        self.assertIn("_state._apply_original_material_preview(", refresh_body)
         self.assertNotIn("if not mesh_edit_direct_source_preview:\n                        _apply_original_material_preview(", refresh_body)
 
     def test_active_mesh_edit_live_static_refresh_blocks_python_preview_rebuild(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py")
 
-        refresh_start = source.index("def _safe_refresh_static_dialog_preview(*, live_mesh_edit: bool = False) -> None:")
-        refresh_body = source[
-            refresh_start: source.index(
-                "return SimpleNamespace(_refresh_static_dialog_preview=_refresh_static_dialog_preview",
-                refresh_start,
-            )
-        ]
-        self.assertIn("if live_mesh_edit and _mesh_edit_tab_active():", refresh_body)
+        refresh_body = _function_source(source, "_safe_refresh_static_dialog_preview")
+        self.assertIn("if live_mesh_edit and _state._mesh_edit_tab_active():", refresh_body)
         self.assertIn("mesh_edit_static_preview_refresh_blocked", refresh_body)
         self.assertIn(
             "Active Mesh Editor static preview refresh requires native D3D11; Python preview rebuild fallback is disabled.",
             refresh_body,
         )
         self.assertLess(
-            refresh_body.index("if live_mesh_edit and _mesh_edit_tab_active():"),
-            refresh_body.index("_refresh_static_dialog_preview(live_mesh_edit=live_mesh_edit)"),
+            refresh_body.index("if live_mesh_edit and _state._mesh_edit_tab_active():"),
+            refresh_body.index("_state._refresh_static_dialog_preview(live_mesh_edit=live_mesh_edit)"),
         )
         self.assertLess(
             refresh_body.index("return"),
-            refresh_body.index("_refresh_static_dialog_preview(live_mesh_edit=live_mesh_edit)"),
+            refresh_body.index("_state._refresh_static_dialog_preview(live_mesh_edit=live_mesh_edit)"),
         )
 
     def test_native_mesh_edit_commands_require_host_capability(self) -> None:
         source = _mesh_edit_source()
 
-        helper_start = source.index("def _alignment_d3d11_mesh_edit_commands_active() -> bool:")
-        helper_body = source[helper_start: source.index("def _sync_mesh_edit_preview_settings", helper_start)]
-        self.assertIn("_alignment_d3d11_preview_active()", helper_body)
-        self.assertIn('callable(getattr(alignment_d3d11_preview_host, "set_mesh_edit_state", None))', helper_body)
-        self.assertIn('callable(getattr(alignment_d3d11_preview_host, "update_mesh_edit_vertices", None))', helper_body)
-        self.assertIn('callable(getattr(alignment_d3d11_preview_host, "replace_mesh_edit_triangles", None))', helper_body)
+        helper_body = _function_source(source, "_alignment_d3d11_mesh_edit_commands_active")
+        self.assertIn("_state._alignment_d3d11_preview_active()", helper_body)
+        self.assertIn('callable(getattr(_state.alignment_d3d11_preview_host, "set_mesh_edit_state", None))', helper_body)
+        self.assertIn('callable(getattr(_state.alignment_d3d11_preview_host, "update_mesh_edit_vertices", None))', helper_body)
+        self.assertIn('callable(getattr(_state.alignment_d3d11_preview_host, "replace_mesh_edit_triangles", None))', helper_body)
 
-        sync_start = source.index("def _sync_mesh_edit_preview_settings() -> None:")
-        sync_body = source[sync_start: source.index("def _refresh_mesh_edit_controls", sync_start)]
-        self.assertIn("if _alignment_d3d11_mesh_edit_commands_active():", sync_body)
+        sync_body = _function_source(source, "_sync_mesh_edit_preview_settings")
+        self.assertIn("if _callbacks._alignment_d3d11_mesh_edit_commands_active():", sync_body)
         self.assertLess(
-            sync_body.index("if _alignment_d3d11_mesh_edit_commands_active():"),
-            sync_body.index("alignment_d3d11_preview_host.set_mesh_edit_state("),
+            sync_body.index("if _callbacks._alignment_d3d11_mesh_edit_commands_active():"),
+            sync_body.index("_state.alignment_d3d11_preview_host.set_mesh_edit_state("),
         )
 
-        update_start = source.index("def _mesh_edit_update_live_preview(")
-        update_body = source[update_start: source.index("def _mesh_edit_begin_stroke", update_start)]
+        update_body = _function_source(source, "_mesh_edit_update_live_preview")
         payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
         queue_start = payload_source.index("def mesh_edit_queue_live_vertex_updates(")
         queue_body = payload_source[queue_start: payload_source.index("def mesh_edit_live_vertex_update_groups(", queue_start)]
@@ -6007,44 +5970,43 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("consume(build_native_mesh_preview_vertex_update_groups(mesh, requested))", generated_live_body)
         self.assertIn("missing = {source_index: requested[source_index] for source_index in requested if source_index not in result}", generated_live_body)
         self.assertIn("consume(build_native_mesh_preview_vertex_update_groups(mesh, missing))", generated_live_body)
-        flush_start = source.index("def _flush_mesh_edit_live_vertex_updates() -> None:")
-        flush_body = source[flush_start: source.index("mesh_edit_live_update_timer.timeout.connect", flush_start)]
+        flush_body = _function_source(source, "_flush_mesh_edit_live_vertex_updates")
         self.assertIn('"mesh_edit_live_vertex_update_empty"', flush_body)
         self.assertIn("Native D3D11 mesh edit preview produced no vertex update payload; preview is stale.", flush_body)
         self.assertLess(
             flush_body.index("if not groups:"),
-            flush_body.index("alignment_d3d11_preview_host.update_mesh_edit_vertices(groups)"),
+            flush_body.index("_state.alignment_d3d11_preview_host.update_mesh_edit_vertices(groups)"),
         )
         self.assertIn(
-            "if changed_vertices_by_submesh and not immediate and _alignment_d3d11_preview_active():",
+            "if changed_vertices_by_submesh and not immediate and _state._alignment_d3d11_preview_active():",
             update_body,
         )
         self.assertIn('"mesh_edit_live_preview_deferred"', update_body)
         self.assertIn("Native D3D11 mesh edit commands are unavailable; preview is stale.", update_body)
-        self.assertIn("if _mesh_edit_tab_active():", update_body)
+        self.assertIn("if _state._mesh_edit_tab_active():", update_body)
         self.assertIn("Active Mesh Editor live preview requires native D3D11", update_body)
         self.assertIn('"mesh_edit_live_preview_rebuild_blocked"', update_body)
         self.assertIn("def _native_screen_payload(", source)
         self.assertIn("_LEGACY_SCREEN_CAMERA_FIELDS", source)
-        self.assertIn("params[\"screen_drag\"] = _native_screen_payload(raw_screen_drag)", source)
-        self.assertIn("params[\"screen_brush\"] = _native_screen_payload(raw_screen_brush)", source)
-        self.assertIn("params[\"screen_radius\"] = _native_screen_payload(raw_screen_radius)", source)
-        self.assertIn("screen_payload[\"screen_region\"] = _native_screen_payload(raw_screen_region)", source)
+        self.assertIn("params[\"screen_drag\"] = _state._native_screen_payload(raw_screen_drag)", source)
+        self.assertIn("params[\"screen_brush\"] = _state._native_screen_payload(raw_screen_brush)", source)
+        self.assertIn("params[\"screen_radius\"] = _state._native_screen_payload(raw_screen_radius)", source)
+        self.assertIn("screen_payload[\"screen_region\"] = _state._native_screen_payload(raw_screen_region)", source)
         self.assertNotIn("params[\"screen_drag\"] = dict(raw_screen_drag)", source)
         self.assertNotIn("params[\"screen_brush\"] = dict(raw_screen_brush)", source)
         self.assertNotIn("params[\"screen_radius\"] = dict(raw_screen_radius)", source)
         self.assertNotIn("screen_payload[\"screen_region\"] = dict(raw_screen_region)", source)
         self.assertLess(
             update_body.index("if changed_vertices_by_submesh and not immediate"),
-            update_body.index("_safe_refresh_static_dialog_preview(live_mesh_edit=True)"),
+            update_body.index("_state._safe_refresh_static_dialog_preview(live_mesh_edit=True)"),
         )
         self.assertLess(
-            update_body.index("if _alignment_d3d11_preview_active():"),
-            update_body.index("_safe_refresh_static_dialog_preview(live_mesh_edit=True)"),
+            update_body.index("if _state._alignment_d3d11_preview_active():"),
+            update_body.index("_state._safe_refresh_static_dialog_preview(live_mesh_edit=True)"),
         )
         self.assertLess(
-            update_body.index("if _mesh_edit_tab_active():"),
-            update_body.index("_mesh_edit_refresh_replacement_preview_model()"),
+            update_body.index("if _state._mesh_edit_tab_active():"),
+            update_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model()"),
         )
 
     def test_static_replacement_payload_builders_stream_source_inputs(self) -> None:
@@ -6108,59 +6070,52 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn('f"mesh_edit_{kind}_inverse_error"', source)
         self.assertNotIn("mesh_edit_inverse_fallback_warnings.clear()", source)
         self.assertNotIn('mesh_edit_active_stroke["inverse_failed"] = True', source)
-        self.assertIn("def _mesh_edit_inverse_transform_disabled() -> RuntimeError:", source)
+        self.assertIn("def _mesh_edit_inverse_transform_disabled(_state, _callbacks, ) -> RuntimeError:", source)
 
-        delta_start = source.index("def _mesh_edit_preview_delta_to_source_delta")
-        delta_body = source[delta_start: source.index("def _mesh_edit_preview_point_to_source_point", delta_start)]
-        self.assertIn("raise _mesh_edit_inverse_transform_disabled()", delta_body)
+        delta_body = _function_source(source, "_mesh_edit_preview_delta_to_source_delta")
+        self.assertIn("raise _callbacks._mesh_edit_inverse_transform_disabled()", delta_body)
         self.assertNotIn("return delta", delta_body)
         self.assertNotIn("return None", delta_body)
 
-        point_start = source.index("def _mesh_edit_preview_point_to_source_point")
-        point_body = source[point_start: source.index("def _mesh_edit_preview_distance_to_source_distance", point_start)]
-        self.assertIn("raise _mesh_edit_inverse_transform_disabled()", point_body)
+        point_body = _function_source(source, "_mesh_edit_preview_point_to_source_point")
+        self.assertIn("raise _callbacks._mesh_edit_inverse_transform_disabled()", point_body)
         self.assertNotIn("return point", point_body)
         self.assertNotIn("return None", point_body)
 
-        distance_start = source.index("def _mesh_edit_preview_distance_to_source_distance")
-        distance_body = source[distance_start: source.index("_mesh_edit_vertices_from_payload", distance_start)]
-        self.assertIn("raise _mesh_edit_inverse_transform_disabled()", distance_body)
+        distance_body = _function_source(source, "_mesh_edit_preview_distance_to_source_distance")
+        self.assertIn("raise _callbacks._mesh_edit_inverse_transform_disabled()", distance_body)
         self.assertNotIn("return abs(distance)", distance_body)
         self.assertNotIn("return None", distance_body)
 
-        apply_start = source.index("def _mesh_edit_apply_preview_payload(payload: object) -> None:")
-        apply_body = source[apply_start: source.index("def _mesh_edit_finish_stroke", apply_start)]
+        apply_body = _function_source(source, "_mesh_edit_apply_geometry_payload")
         self.assertNotIn('mesh_edit_active_stroke.pop("inverse_failed"', apply_body)
         self.assertIn("Python inverse transform fallback is disabled", apply_body)
 
     def test_mesh_edit_disables_native_alignment_transform(self) -> None:
         source = _mesh_edit_source()
 
-        sync_start = source.index("def _sync_mesh_edit_preview_settings() -> None:")
-        sync_body = source[sync_start: source.index("def _refresh_mesh_edit_controls", sync_start)]
-        self.assertIn("_clear_alignment_d3d11_fast_transform_state()", sync_body)
-        self.assertIn("alignment_d3d11_preview_host.set_alignment_state(", sync_body)
+        sync_body = _function_source(source, "_sync_mesh_edit_preview_settings")
+        self.assertIn("_state._clear_alignment_d3d11_fast_transform_state()", sync_body)
+        self.assertIn("_state.alignment_d3d11_preview_host.set_alignment_state(", sync_body)
         self.assertIn("enabled=False", sync_body)
-        self.assertIn("alignment_d3d11_preview_host.set_alignment_preview_transform()", sync_body)
+        self.assertIn("_state.alignment_d3d11_preview_host.set_alignment_preview_transform()", sync_body)
 
-        highlight_start = source.index("def _sync_highlight_sets() -> None:")
-        highlight_body = source[highlight_start: source.index("def _preview_mode_qt_widgets", highlight_start)]
-        self.assertIn("_selection_highlight_sets_state_helper(", highlight_body)
-        self.assertIn("mesh_edit_enabled_checkbox = context.get('mesh_edit_enabled_checkbox')", source)
-        self.assertIn("mesh_edit_raw_active=bool(_mesh_edit_raw_preview_active()) if d3d11_active else False", highlight_body)
-        self.assertIn("preview_gizmo_checked=bool(preview_gizmo_checkbox.isChecked()) if d3d11_active else False", highlight_body)
-        self.assertIn("mesh_edit_active=bool(mesh_edit_enabled_checkbox.isChecked()) if d3d11_active else False", highlight_body)
+        highlight_body = _function_source(source, "_sync_highlight_sets")
+        self.assertIn("_state._selection_highlight_sets_state_helper(", highlight_body)
+        self.assertIn("_state.mesh_edit_enabled_checkbox = _state.context.get('mesh_edit_enabled_checkbox')", source)
+        self.assertIn("mesh_edit_raw_active=bool(_state._mesh_edit_raw_preview_active()) if d3d11_active else False", highlight_body)
+        self.assertIn("preview_gizmo_checked=bool(_state.preview_gizmo_checkbox.isChecked()) if d3d11_active else False", highlight_body)
+        self.assertIn("mesh_edit_active=bool(_state.mesh_edit_enabled_checkbox.isChecked()) if d3d11_active else False", highlight_body)
         self.assertIn("part_pick_checked=part_pick_checked", highlight_body)
-        self.assertIn("enabled=bool(selection_state[\"d3d11_gizmo_enabled\"])", highlight_body)
+        self.assertIn("enabled=bool(selection_state['d3d11_gizmo_enabled'])", highlight_body)
 
-        replay_start = source.index("def _replay_alignment_d3d11_fast_transform() -> None:")
-        replay_body = source[replay_start: source.index("def _apply_global_transform_fast_preview", replay_start)]
-        self.assertIn("_alignment_d3d11_fast_transform_replay_state_helper(", replay_body)
-        self.assertIn("raw_geometry_conflict = bool(_mesh_edit_raw_preview_active()) and package_quality == \"mesh_edit_raw\"", replay_body)
+        replay_body = _function_source(source, "_replay_alignment_d3d11_fast_transform")
+        self.assertIn("_state._alignment_d3d11_fast_transform_replay_state_helper(", replay_body)
+        self.assertIn("raw_geometry_conflict = bool(_state._mesh_edit_raw_preview_active()) and package_quality == 'mesh_edit_raw'", replay_body)
         self.assertIn("mesh_edit_raw_active=raw_geometry_conflict", replay_body)
         self.assertIn("package_quality=package_quality", replay_body)
-        self.assertIn("_clear_alignment_d3d11_fast_transform_state()", replay_body)
-        self.assertIn("alignment_d3d11_preview_host.set_alignment_preview_transform()", replay_body)
+        self.assertIn("_state._clear_alignment_d3d11_fast_transform_state()", replay_body)
+        self.assertIn("_state.alignment_d3d11_preview_host.set_alignment_preview_transform()", replay_body)
 
     def test_subdivide_selection_is_explicit_topology_path_not_sculpt_toggle(self) -> None:
         source = _mesh_edit_source()
@@ -6168,6 +6123,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         mesh_native_source = _mesh_native_core_source()
         mesh_ops_source = _read("cdmw/modding/mesh_edit_ops.py")
         mesh_service_source = _read("cdmw/services/mesh_service.py")
+        mesh_history_source = _read("cdmw/services/mesh_service_history.py")
+        mesh_report_source = _read("cdmw/services/mesh_service_reports.py")
         mesh_controller_source = _read("cdmw/ui/mesh_editor/controller.py")
         static_adapter_source = _read("cdmw/ui/mesh_editor/static_replacement_adapter.py")
         native_core_source = _read("native/cdmw_mesh_core/src/main.cpp")
@@ -6175,12 +6132,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
         self.assertIn('"subdivide_selection": "Subdivide Selection"', mesh_edit_state_source)
         self.assertIn('"refine_smooth_selection": "Refine Smooth Selection"', mesh_edit_state_source)
-        self.assertIn('mesh_edit_subdivide_selection_button = QPushButton(mesh_edit_action_control_text["subdivide_selection"])', source)
-        self.assertIn('mesh_edit_refine_smooth_selection_button = QPushButton(mesh_edit_action_control_text["refine_smooth_selection"])', source)
+        self.assertIn("_state.mesh_edit_subdivide_selection_button = _state.QPushButton(_state.mesh_edit_action_control_text['subdivide_selection'])", source)
+        self.assertIn("_state.mesh_edit_refine_smooth_selection_button = _state.QPushButton(_state.mesh_edit_action_control_text['refine_smooth_selection'])", source)
         self.assertIn('"split_selection": "Split Selection To Part"', mesh_edit_state_source)
-        self.assertIn('mesh_edit_split_selection_button = QPushButton(mesh_edit_action_control_text["split_selection"])', source)
-        self.assertIn("def _mesh_edit_subdivide_selection(*, refine_smooth: bool = False) -> None:", source)
-        self.assertIn("def _mesh_edit_split_selection_to_part() -> None:", source)
+        self.assertIn("_state.mesh_edit_split_selection_button = _state.QPushButton(_state.mesh_edit_action_control_text['split_selection'])", source)
+        self.assertIn("def _mesh_edit_subdivide_selection(_state, _callbacks, *, refine_smooth: bool = False) -> None:", source)
+        self.assertIn("def _mesh_edit_split_selection_to_part(_state, _callbacks, ) -> None:", source)
         self.assertIn("mesh_edit_subdivide_selection_button.clicked.connect", source)
         self.assertIn("mesh_edit_refine_smooth_selection_button.clicked.connect", source)
         self.assertIn('"refine_smooth" if refine_smooth else "subdivide"', source)
@@ -6193,12 +6150,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("return apply_static_replacement_edit(mesh, action, **params)", source)
         self.assertIn("active static Mesh Editor edit requires a native session revision", source)
         self.assertIn("active static Mesh Editor edit requires a native session", source)
-        self.assertIn("def _mesh_editor_apply_static_replacement_edit(mesh, action: str, **params: object):", source)
-        self.assertIn("def _mesh_editor_apply_native_update(native_update: object) -> bool:", source)
-        self.assertIn("return apply_native_update_to_host(alignment_d3d11_preview_host, native_update)", source)
+        self.assertIn("def _mesh_editor_apply_static_replacement_edit(_state, _callbacks, mesh, action: str, **params: object):", source)
+        self.assertIn("def _mesh_editor_apply_native_update(_state, _callbacks, native_update: object) -> bool:", source)
+        self.assertIn("return _state.apply_native_update_to_host(_state.alignment_d3d11_preview_host, native_update)", source)
         self.assertIn("mesh_editor_static_replacement_session_state", source)
         self.assertIn("StaticReplacementMeshEditSession(session_id=\"static-replacement\")", source)
-        self.assertIn("mesh_editor_static_replacement_session_state[\"revision\"] = current_revision + (1 if changed else 0)", source)
+        self.assertIn("_state.mesh_editor_static_replacement_session_state[\"revision\"] = current_revision + (1 if changed else 0)", source)
         result_body = static_adapter_source[
             static_adapter_source.index("    def _result("):
             static_adapter_source.index("def apply_static_replacement_edit(", static_adapter_source.index("    def _result("))
@@ -6213,51 +6170,43 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("self.controller.working_mesh(clone=True)", result_body)
         self.assertNotIn("or _mesh_counts(mesh)", result_body)
         self.assertIn("after = edit_result.submesh_counts", result_body)
-        self.assertIn("def _mesh_editor_fresh_static_replacement_session():", source)
-        self.assertIn("mesh_editor_session = _mesh_editor_fresh_static_replacement_session()", source)
+        self.assertIn("def _mesh_editor_fresh_static_replacement_session(_state, _callbacks, ):", source)
+        self.assertIn("mesh_editor_session = _callbacks._mesh_editor_fresh_static_replacement_session()", source)
         self.assertIn("mesh_editor_session.view().undo_count > 0", source)
         self.assertIn("result = mesh_editor_session.undo()", source)
-        self.assertIn("def _mesh_editor_result_has_deferred_native_python_apply(result: object) -> bool:", source)
+        self.assertIn("def _mesh_editor_result_has_deferred_native_python_apply(_state, _callbacks, result: object) -> bool:", source)
         self.assertIn('metrics.get("python_apply_deferred", 0.0)', source)
-        self.assertIn("def _mesh_editor_store_result_mesh(result: object", source)
+        self.assertIn("def _mesh_editor_store_result_mesh(_state, _callbacks, result: object", source)
         self.assertIn("mesh_edit_native_result_submesh_counts", source)
-        self.assertIn("def _mesh_editor_result_submesh_counts(result: object) -> tuple[tuple[int, int], ...]:", source)
-        self.assertIn('mesh_edit_native_result_submesh_counts["value"] = counts if _mesh_editor_result_has_deferred_native_python_apply(result) else ()', source)
-        update_totals_start = source.index("def _mesh_edit_update_mesh_totals() -> None:")
-        update_totals_body = source[update_totals_start:source.index("def _mesh_edit_adjusted_sources_for_live_preview", update_totals_start)]
+        self.assertIn("def _mesh_editor_result_submesh_counts(_state, _callbacks, result: object) -> tuple[tuple[int, int], ...]:", source)
+        self.assertIn('_state.mesh_edit_native_result_submesh_counts["value"] = counts if _callbacks._mesh_editor_result_has_deferred_native_python_apply(result) else ()', source)
+        update_totals_body = _function_source(source, "_mesh_edit_update_mesh_totals")
         self.assertLess(
-            update_totals_body.index('native_counts = tuple(mesh_edit_native_result_submesh_counts.get("value") or ())'),
-            update_totals_body.index("totals = _mesh_edit_mesh_totals_helper("),
+            update_totals_body.index('native_counts = tuple(_state.mesh_edit_native_result_submesh_counts.get("value") or ())'),
+            update_totals_body.index("totals = _state._mesh_edit_mesh_totals_helper("),
         )
-        refresh_model_start = source.index("def _mesh_edit_refresh_replacement_preview_model(")
-        refresh_model_body = source[
-            refresh_model_start:
-            source.index("_mesh_edit_preview_source_indices =", refresh_model_start)
-        ]
+        refresh_model_body = _function_source(source, "_mesh_edit_refresh_replacement_preview_model")
         self.assertLess(
-            refresh_model_body.index('tuple(mesh_edit_native_result_submesh_counts.get("value") or ())'),
-            refresh_model_body.index("parsed_mesh_to_preview_model("),
+            refresh_model_body.index('tuple(_state.mesh_edit_native_result_submesh_counts.get("value") or ())'),
+            refresh_model_body.index("_state.parsed_mesh_to_preview_model("),
         )
         self.assertIn("Python preview rebuild fallback is disabled", refresh_model_body)
-        self.assertIn("allow_defer_for_incremental_d3d11\n            and _mesh_edit_tab_active()\n            and _alignment_d3d11_preview_active()", refresh_model_body)
+        self.assertIn("allow_defer_for_incremental_d3d11\n        and _state._mesh_edit_tab_active()\n        and _state._alignment_d3d11_preview_active()", refresh_model_body)
         self.assertLess(
-            refresh_model_body.index("allow_defer_for_incremental_d3d11\n            and _mesh_edit_tab_active()\n            and _alignment_d3d11_preview_active()"),
-            refresh_model_body.index("parsed_mesh_to_preview_model("),
+            refresh_model_body.index("allow_defer_for_incremental_d3d11\n        and _state._mesh_edit_tab_active()\n        and _state._alignment_d3d11_preview_active()"),
+            refresh_model_body.index("_state.parsed_mesh_to_preview_model("),
         )
-        self.assertIn("def _mesh_edit_replace_result_working_mesh(result: object) -> None:", source)
+        self.assertIn("def _mesh_edit_replace_result_working_mesh(_state, _callbacks, result: object) -> None:", source)
         self.assertIn("native deferred history result did not include preview payload", source)
         self.assertEqual(
             source.count("_mesh_edit_replace_result_working_mesh(result)"),
             2,
         )
-        replace_working_start = source.index("def _mesh_edit_replace_working_mesh(")
-        replace_working_body = source[
-            replace_working_start:source.index("def _mesh_edit_replace_result_working_mesh(result: object) -> None:", replace_working_start)
-        ]
+        replace_working_body = _function_source(source, "_mesh_edit_replace_working_mesh")
         self.assertIn("native_update_applied = bool(", replace_working_body)
         self.assertLess(
-            replace_working_body.index("_mesh_editor_apply_native_update(native_update)"),
-            replace_working_body.index("_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
+            replace_working_body.index("_callbacks._mesh_editor_apply_native_update(native_update)"),
+            replace_working_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
         self.assertIn("if native_update_applied:", replace_working_body)
         self.assertIn("if not native_update_applied:", replace_working_body)
@@ -6267,100 +6216,97 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("mesh_editor_session.view().redo_count > 0", source)
         self.assertIn("result = mesh_editor_session.redo()", source)
         self.assertIn("_mesh_editor_remember_static_replacement_session_mesh()", source)
-        delete_commit_start = source.index("def _mesh_edit_commit_delete_result(result: object) -> None:")
-        delete_commit_body = source[delete_commit_start:source.index("def _mesh_edit_delete_selected_faces() -> None:", delete_commit_start)]
-        self.assertIn("native_update_applied = _mesh_editor_apply_result_native_update(result)", delete_commit_body)
+        delete_commit_body = _function_source(source, "_mesh_edit_commit_delete_result")
+        self.assertIn("native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)", delete_commit_body)
         self.assertLess(
-            delete_commit_body.index("_mesh_editor_apply_result_native_update(result)"),
-            delete_commit_body.index("_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
+            delete_commit_body.index("_callbacks._mesh_editor_apply_result_native_update(result)"),
+            delete_commit_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
         self.assertIn("if not native_update_applied:", delete_commit_body)
-        subdivide_commit_start = source.index("def _mesh_edit_commit_subdivide_result(result: object")
-        subdivide_commit_body = source[subdivide_commit_start:source.index("def _mesh_edit_subdivide_selection(", subdivide_commit_start)]
-        self.assertIn("native_update_applied = _mesh_editor_apply_result_native_update(result)", subdivide_commit_body)
+        subdivide_commit_body = _function_source(source, "_mesh_edit_commit_subdivide_result")
+        self.assertIn("native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)", subdivide_commit_body)
         self.assertLess(
-            subdivide_commit_body.index("_mesh_editor_apply_result_native_update(result)"),
-            subdivide_commit_body.index("_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
+            subdivide_commit_body.index("_callbacks._mesh_editor_apply_result_native_update(result)"),
+            subdivide_commit_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
         self.assertIn("if not native_update_applied:", subdivide_commit_body)
         self.assertIn('"split",', source)
-        self.assertIn("def _mesh_edit_commit_split_result(result: object) -> None:", source)
-        split_commit_start = source.index("def _mesh_edit_commit_split_result(result: object) -> None:")
-        split_commit_body = source[split_commit_start:source.index("def _mesh_edit_split_selection_to_part() -> None:", split_commit_start)]
-        split_start = source.index("def _mesh_edit_split_selection_to_part() -> None:")
-        split_body = source[split_start:source.index("def _mesh_edit_clear_vertex_selection", split_start)]
-        self.assertIn('_mesh_edit_start_topology_worker(\n            "split",', split_body)
+        self.assertIn("def _mesh_edit_commit_split_result(_state, _callbacks, result: object) -> None:", source)
+        split_commit_body = _function_source(source, "_mesh_edit_commit_split_result")
+        split_body = _function_source(source, "_mesh_edit_split_selection_to_part")
+        self.assertIn('_callbacks._mesh_edit_start_topology_worker(\n        "split",', split_body)
         self.assertIn('action_text="Split Selection To Part"', split_body)
-        self.assertIn("commit_callback=_mesh_edit_commit_split_result", split_body)
+        self.assertIn("commit_callback=_callbacks._mesh_edit_commit_split_result", split_body)
         self.assertLess(
-            split_body.index('_mesh_edit_start_topology_worker(\n            "split",'),
-            split_body.index("_mesh_edit_record_snapshot()"),
+            split_body.index('_callbacks._mesh_edit_start_topology_worker(\n        "split",'),
+            split_body.index("_callbacks._mesh_edit_record_snapshot()"),
         )
-        self.assertIn("native_update_applied = _mesh_editor_apply_result_native_update(result)", split_commit_body)
+        self.assertIn("native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)", split_commit_body)
         self.assertIn("if not native_update_applied:", split_commit_body)
-        self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild((source_index, new_source_index))", split_commit_body)
-        self.assertIn("alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", split_commit_body)
-        self.assertIn("appended_source_indices.add(new_source_index)", split_commit_body)
-        self.assertIn('selected_source_part["index"] = new_source_index', split_commit_body)
+        self.assertIn("_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild((source_index, new_source_index))", split_commit_body)
+        self.assertIn("_state.alignment_d3d11_preview_host.clear_mesh_edit_vertex_selection()", split_commit_body)
+        self.assertIn("_state.appended_source_indices.add(new_source_index)", split_commit_body)
+        self.assertIn('_state.selected_source_part["index"] = new_source_index', split_commit_body)
         self.assertNotIn("source_part_adjustments[new_source_index]", split_commit_body)
         self.assertNotIn("deepcopy(source_adjustment)", split_commit_body)
         self.assertLess(
-            split_commit_body.index("if _alignment_d3d11_preview_active():"),
-            split_commit_body.index("_mesh_editor_apply_result_native_update(result)"),
+            split_commit_body.index("if _state._alignment_d3d11_preview_active():"),
+            split_commit_body.index("_callbacks._mesh_editor_apply_result_native_update(result)"),
         )
         self.assertLess(
-            split_commit_body.index("_mesh_editor_apply_result_native_update(result)"),
-            split_commit_body.index("_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
+            split_commit_body.index("_callbacks._mesh_editor_apply_result_native_update(result)"),
+            split_commit_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
-        action_result_start = source.index("def _mesh_editor_commit_action_bar_service_result(")
-        action_result_body = source[action_result_start:source.index("def _mesh_editor_embedded_controller", action_result_start)]
-        sync_new_source_start = source.index("def _mesh_editor_sync_new_source_part(")
-        sync_new_source_body = source[sync_new_source_start:source.index("def _mesh_editor_commit_action_bar_service_result(", sync_new_source_start)]
+        action_result_body = _function_source(source, "_mesh_editor_commit_action_bar_service_result")
+        sync_new_source_body = _function_source(source, "_mesh_editor_sync_new_source_part")
         self.assertIn("appended_source_indices.add(new_source_index)", sync_new_source_body)
-        self.assertIn('selected_source_part["index"] = new_source_index', sync_new_source_body)
+        self.assertIn('selected_source_part["index"] = new_indices[0]', sync_new_source_body)
         self.assertNotIn("source_part_adjustments[new_source_index]", sync_new_source_body)
         self.assertNotIn("deepcopy(source_adjustment)", sync_new_source_body)
-        self.assertIn("native_update_applied = _mesh_editor_apply_result_native_update(result)", action_result_body)
+        self.assertIn("native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)", action_result_body)
         self.assertIn("if not native_update_applied:", action_result_body)
         self.assertLess(
-            action_result_body.index("_mesh_editor_apply_result_native_update(result)"),
-            action_result_body.index("_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
+            action_result_body.index("_callbacks._mesh_editor_apply_result_native_update(result)"),
+            action_result_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
         self.assertLess(
-            action_result_body.index("_mesh_editor_apply_result_native_update(result)"),
-            action_result_body.index("_mesh_edit_replace_live_triangles_or_queue_rebuild("),
+            action_result_body.index("_callbacks._mesh_editor_apply_result_native_update(result)"),
+            action_result_body.index("_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild("),
         )
-        commit_working_start = source.index("def _mesh_edit_commit_working_mesh(")
-        commit_working_body = source[commit_working_start:source.index("def _mesh_edit_apply_preview_payload", commit_working_start)]
-        refresh_preview_start = source.index("def _mesh_edit_refresh_replacement_preview_model(")
-        refresh_preview_body = source[refresh_preview_start:source.index("_mesh_edit_preview_source_indices = lambda", refresh_preview_start)]
+        commit_working_body = _function_source(source, "_mesh_edit_commit_working_mesh")
+        refresh_preview_body = _function_source(source, "_mesh_edit_refresh_replacement_preview_model")
         self.assertIn("Active Mesh Editor preview refresh requires native D3D11", refresh_preview_body)
         self.assertLess(
-            refresh_preview_body.index("and _mesh_edit_tab_active()"),
-            refresh_preview_body.index("parsed_mesh_to_preview_model("),
+            refresh_preview_body.index("and _state._mesh_edit_tab_active()"),
+            refresh_preview_body.index("_state.parsed_mesh_to_preview_model("),
         )
         self.assertIn("native_result: object | None = None", commit_working_body)
         self.assertLess(
-            commit_working_body.index("_mesh_editor_apply_result_native_update(native_result)"),
-            commit_working_body.index("_mesh_edit_update_mesh_totals()"),
+            commit_working_body.index("_callbacks._mesh_editor_apply_result_native_update(native_result)"),
+            commit_working_body.index("_callbacks._mesh_edit_update_mesh_totals()"),
         )
         self.assertLess(
-            commit_working_body.index("_mesh_editor_apply_result_native_update(native_result)"),
-            commit_working_body.index("_mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
+            commit_working_body.index("_callbacks._mesh_editor_apply_result_native_update(native_result)"),
+            commit_working_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
         self.assertIn("if not native_update_applied:", commit_working_body)
         self.assertIn("Active Mesh Editor commit requires native D3D11 refresh", commit_working_body)
-        active_no_d3d_commit_start = commit_working_body.index("elif _mesh_edit_tab_active():")
+        active_no_d3d_commit_start = commit_working_body.index("elif _state._mesh_edit_tab_active():")
         active_no_d3d_commit_body = commit_working_body[
             active_no_d3d_commit_start:commit_working_body.index("else:", active_no_d3d_commit_start)
         ]
         self.assertNotIn("_queue_static_preview_rebuild()", active_no_d3d_commit_body)
         self.assertLess(
-            commit_working_body.index("_mesh_editor_apply_result_native_update(native_result)"),
-            commit_working_body.index("_mesh_edit_replace_live_triangles_or_queue_rebuild(topology_source_indices)"),
+            commit_working_body.index("_callbacks._mesh_editor_apply_result_native_update(native_result)"),
+            commit_working_body.index("_callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(topology_source_indices)"),
         )
-        apply_payload_start = source.index("def _mesh_edit_apply_preview_payload(payload: object) -> None:")
-        apply_payload_body = source[apply_payload_start:source.index("def _mesh_edit_cancel_stroke", apply_payload_start)]
+        apply_payload_body = "\n".join(
+            (
+                _function_source(source, "_mesh_edit_apply_preview_payload"),
+                _function_source(source, "_mesh_edit_apply_geometry_payload"),
+                _function_source(source, "_mesh_edit_apply_remove_payload"),
+            )
+        )
         self.assertGreaterEqual(apply_payload_body.count("_mesh_editor_apply_result_native_update(result)"), 3)
         self.assertLess(
             apply_payload_body.index("_mesh_editor_apply_result_native_update(result)"),
@@ -6371,13 +6317,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("affected_sources = tuple(result.affected_submesh_indices)", source)
         self.assertIn("_queue_static_preview_rebuild()", source)
         self.assertIn("from cdmw.ui.mesh_editor.native_preview_payloads import mesh_edit_selection_groups", source)
-        self.assertIn("def _mesh_edit_current_selection() -> MeshEditSelection:", source)
-        self.assertIn("def _mesh_edit_sync_d3d11_selection() -> bool:", source)
-        selection_sync_start = source.index("def _mesh_edit_sync_d3d11_selection() -> bool:")
-        selection_sync_body = source[selection_sync_start: source.index("def _mesh_edit_set_vertex_selection", selection_sync_start)]
-        self.assertIn('getattr(alignment_d3d11_preview_host, "set_mesh_edit_selection_groups", None)', selection_sync_body)
-        self.assertIn("selection = _mesh_edit_current_selection()", selection_sync_body)
-        self.assertIn("groups = mesh_edit_selection_groups(", selection_sync_body)
+        self.assertIn("def _mesh_edit_current_selection(_state, _callbacks, ) -> _state.MeshEditSelection:", source)
+        self.assertIn("def _mesh_edit_sync_d3d11_selection(_state, _callbacks, ) -> bool:", source)
+        selection_sync_body = _function_source(source, "_mesh_edit_sync_d3d11_selection")
+        self.assertIn('getattr(_state.alignment_d3d11_preview_host, "set_mesh_edit_selection_groups", None)', selection_sync_body)
+        self.assertIn("selection = _callbacks._mesh_edit_current_selection()", selection_sync_body)
+        self.assertIn("groups = _state.mesh_edit_selection_groups(", selection_sync_body)
         self.assertIn("selection,", selection_sync_body)
         self.assertNotIn("allow_python_fallback=True", selection_sync_body)
         self.assertIn('"mesh_edit_selection_group_update_unavailable"', selection_sync_body)
@@ -6386,12 +6331,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('"mesh_edit_selection_group_build_empty"', selection_sync_body)
         self.assertIn('"mesh_edit_selection_group_update_failed"', selection_sync_body)
         self.assertIn("return False", selection_sync_body)
-        self.assertNotIn('getattr(alignment_d3d11_preview_host, "set_mesh_edit_vertex_selection", None)', selection_sync_body)
-        source_selection_start = source.index("def _mesh_edit_set_source_selection(source_indices: Iterable[int]) -> None:")
-        source_selection_body = source[source_selection_start: source.index("def _mesh_edit_finish_selection_worker", source_selection_start)]
-        self.assertIn("if not d3d11_synced and not _alignment_d3d11_preview_active():", source_selection_body)
+        self.assertNotIn('getattr(_state.alignment_d3d11_preview_host, "set_mesh_edit_vertex_selection", None)', selection_sync_body)
+        source_selection_body = _function_source(source, "_mesh_edit_set_source_selection")
+        self.assertIn("if not d3d11_synced and not _state._alignment_d3d11_preview_active():", source_selection_body)
         self.assertLess(
-            selection_sync_body.index("groups = mesh_edit_selection_groups("),
+            selection_sync_body.index("groups = _state.mesh_edit_selection_groups("),
             selection_sync_body.index('"mesh_edit_selection_group_update_failed"'),
         )
         self.assertIn("_mesh_edit_sync_d3d11_selection()", source)
@@ -6705,13 +6649,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             preview_changed_body.index("if isinstance(indices, Mapping):"),
             preview_changed_body.index("tuple(int(index) for index in indices)"),
         )
-        service_result_start = mesh_service_source.index("    def _result(")
-        service_result_body = mesh_service_source[service_result_start: mesh_service_source.index("def _coerce_command(", service_result_start)]
+        service_result_start = mesh_history_source.index("    def _result(")
+        service_result_body = mesh_history_source[service_result_start:]
         self.assertIn("_changed_vertex_indices_for_result(indices)", service_result_body)
         self.assertNotIn("tuple(sorted(indices))", service_result_body)
-        service_changed_result_start = mesh_service_source.index("def _changed_vertex_indices_for_result(")
-        service_changed_result_body = mesh_service_source[service_changed_result_start: mesh_service_source.index("def _can_defer_native_live_history(", service_changed_result_start)]
-        self.assertIn("_CHANGED_VERTEX_RESULT_TUPLE_LIMIT = 10_000", mesh_service_source)
+        service_changed_result_start = mesh_report_source.index("def _changed_vertex_indices_for_result(")
+        service_changed_result_body = mesh_report_source[service_changed_result_start:]
+        self.assertIn("_CHANGED_VERTEX_RESULT_TUPLE_LIMIT = 10_000", mesh_report_source)
         self.assertIn("descriptor = _changed_vertex_descriptor_for_result(indices)", service_changed_result_body)
         self.assertIn("return descriptor", service_changed_result_body)
         self.assertIn("def _changed_vertex_descriptor_for_result(", service_changed_result_body)
@@ -7064,36 +7008,26 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_static_preview_queues_block_active_mesh_edit(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py")
-        blocker_start = source.index("def _active_mesh_edit_preview_queue_blocked(")
-        blocker_body = source[blocker_start:source.index("def _queue_static_preview_refresh", blocker_start)]
-        refresh_start = source.index("def _queue_static_preview_refresh(*_args: object) -> None:")
-        refresh_body = source[refresh_start:source.index("def _queue_selection_preview_refresh", refresh_start)]
-        queue_start = source.index("def _queue_static_preview_rebuild(*_args: object) -> None:")
-        queue_body = source[queue_start:source.index("def _queue_texture_preview_refresh", queue_start)]
-        texture_start = source.index("def _queue_texture_preview_refresh(*_args: object) -> None:")
-        texture_body = source[texture_start:source.index("def _queue_texture_uv_preview_refresh", texture_start)]
-        texture_uv_start = source.index("def _queue_texture_uv_preview_refresh(*_args: object) -> None:")
-        texture_uv_body = source[texture_uv_start:source.index("def _queue_material_edit_refresh", texture_uv_start)]
-        global_transform_start = source.index("def _queue_global_transform_preview_update")
-        global_transform_body = source[
-            global_transform_start: source.index("def _queue_part_transform_preview_update", global_transform_start)
-        ]
-        part_transform_start = source.index("def _queue_part_transform_preview_update")
-        part_transform_body = source[part_transform_start:source.index("for spin in (", part_transform_start)]
-        stale_reload_start = source.index("def _queue_latest_alignment_d3d11_rebuild_for_stale_reload")
-        stale_reload_body = source[stale_reload_start:source.index("def _handle_alignment_d3d11_stale_reload", stale_reload_start)]
+        blocker_body = _function_source(source, "_active_mesh_edit_preview_queue_blocked")
+        refresh_body = _function_source(source, "_queue_static_preview_refresh")
+        queue_body = _function_source(source, "_queue_static_preview_rebuild")
+        texture_body = _function_source(source, "_queue_texture_preview_refresh")
+        texture_uv_body = _function_source(source, "_queue_texture_uv_preview_refresh")
+        global_transform_body = _function_source(source, "_queue_global_transform_preview_update")
+        part_transform_body = _function_source(source, "_queue_part_transform_preview_update")
+        stale_reload_body = _function_source(source, "_queue_latest_alignment_d3d11_rebuild_for_stale_reload")
 
         self.assertIn("Active Mesh Editor static preview {kind} is disabled", blocker_body)
-        self.assertIn("self.set_status_message(message, error=True)", blocker_body)
-        self.assertIn("_mesh_edit_enabled_checked()", blocker_body)
-        self.assertIn("_alignment_mesh_edit_tab_active()", blocker_body)
-        self.assertIn('"mesh_edit_static_preview_refresh_blocked"', refresh_body)
-        self.assertIn('"mesh_edit_static_preview_rebuild_blocked"', queue_body)
-        self.assertIn('"mesh_edit_static_preview_texture_refresh_blocked"', texture_body)
-        self.assertIn('"mesh_edit_static_preview_texture_uv_refresh_blocked"', texture_uv_body)
-        self.assertIn('"mesh_edit_static_preview_transform_refresh_blocked"', global_transform_body)
-        self.assertIn('"mesh_edit_static_preview_transform_refresh_blocked"', part_transform_body)
-        self.assertIn('"mesh_edit_static_preview_stale_reload_blocked"', stale_reload_body)
+        self.assertIn("_state.self.set_status_message(message, error=True)", blocker_body)
+        self.assertIn("_state._mesh_edit_enabled_checked()", blocker_body)
+        self.assertIn("_state._alignment_mesh_edit_tab_active()", blocker_body)
+        self.assertIn("'mesh_edit_static_preview_refresh_blocked'", refresh_body)
+        self.assertIn("'mesh_edit_static_preview_rebuild_blocked'", queue_body)
+        self.assertIn("'mesh_edit_static_preview_texture_refresh_blocked'", texture_body)
+        self.assertIn("'mesh_edit_static_preview_texture_uv_refresh_blocked'", texture_uv_body)
+        self.assertIn("'mesh_edit_static_preview_transform_refresh_blocked'", global_transform_body)
+        self.assertIn("'mesh_edit_static_preview_transform_refresh_blocked'", part_transform_body)
+        self.assertIn("'mesh_edit_static_preview_stale_reload_blocked'", stale_reload_body)
         self.assertLess(refresh_body.index("_active_mesh_edit_preview_queue_blocked"), refresh_body.index("static_preview_refresh_timer.start()"))
         self.assertLess(queue_body.index("_active_mesh_edit_preview_queue_blocked"), queue_body.index("static_preview_refresh_timer.start()"))
         self.assertLess(queue_body.index("_active_mesh_edit_preview_queue_blocked"), queue_body.index("static_preview_settle_timer.start()"))
@@ -7105,38 +7039,17 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_source_part_adjustment_callbacks_block_active_mesh_edit_mutation(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py")
-        transform_guard_start = source.index("def _active_mesh_edit_part_adjustment_mutation_blocked(")
-        transform_guard_body = source[
-            transform_guard_start: source.index("def _sync_linked_scale", transform_guard_start)
-        ]
-        translate_start = source.index("def _apply_alignment_part_translation_delta(")
-        translate_body = source[translate_start: source.index("def _apply_alignment_part_rotation_delta", translate_start)]
-        rotate_start = source.index("def _apply_alignment_part_rotation_delta(")
-        rotate_body = source[rotate_start: source.index("def _sync_alignment_preview_rotation_context", rotate_start)]
-        d3d11_translate_start = source.index("def _apply_alignment_d3d11_translation_total(")
-        d3d11_translate_body = source[
-            d3d11_translate_start: source.index("def _apply_alignment_d3d11_rotation_total", d3d11_translate_start)
-        ]
-        d3d11_rotate_start = source.index("def _apply_alignment_d3d11_rotation_total(")
-        d3d11_rotate_body = source[
-            d3d11_rotate_start: source.index("def _finish_alignment_d3d11_translation", d3d11_rotate_start)
-        ]
-        include_guard_start = source.index("def _active_mesh_edit_include_exclude_mutation_blocked(")
-        include_guard_body = source[
-            include_guard_start: source.index("def _set_source_parts_apply_pending", include_guard_start)
-        ]
-        routing_guard_start = source.index("def _active_mesh_edit_source_routing_mutation_blocked(")
-        routing_guard_body = source[
-            routing_guard_start: source.index("def _set_source_parts_apply_pending", routing_guard_start)
-        ]
-        check_start = source.index("def _source_item_check_state_changed(")
-        check_body = source[check_start: source.index("_outliner_source_index_from_item", check_start)]
-        target_start = source.index("def _apply_parts_outliner_source_target(")
-        target_body = source[target_start: source.index("def _handle_parts_outliner_source_drop", target_start)]
-        role_start = source.index("def _apply_parts_outliner_source_role(")
-        role_body = source[role_start: source.index("def _open_parts_outliner_target_dropdown", role_start)]
-        set_mapping_start = source.index("def _set_mapping_indices(")
-        set_mapping_body = source[set_mapping_start: source.index("return SimpleNamespace(", set_mapping_start)]
+        transform_guard_body = _function_source(source, "_active_mesh_edit_part_adjustment_mutation_blocked")
+        translate_body = _function_source(source, "_apply_alignment_part_translation_delta")
+        rotate_body = _function_source(source, "_apply_alignment_part_rotation_delta")
+        d3d11_translate_body = _function_source(source, "_apply_alignment_d3d11_translation_total")
+        d3d11_rotate_body = _function_source(source, "_apply_alignment_d3d11_rotation_total")
+        include_guard_body = _function_source(source, "_active_mesh_edit_include_exclude_mutation_blocked")
+        routing_guard_body = _function_source(source, "_active_mesh_edit_source_routing_mutation_blocked")
+        check_body = _function_source(source, "_source_item_check_state_changed")
+        target_body = _function_source(source, "_apply_parts_outliner_source_target")
+        role_body = _function_source(source, "_apply_parts_outliner_source_role")
+        set_mapping_body = _function_source(source, "_set_mapping_indices")
 
         self.assertIn("Active Mesh Editor source-part {kind} changes require native geometry execution", transform_guard_body)
         self.assertIn("Python adjustment mutation fallback is disabled", transform_guard_body)
@@ -7192,17 +7105,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             set_mapping_body.index("_active_mesh_edit_source_routing_mutation_blocked"),
-            set_mapping_body.index("texture_overrides_dirty[\"dirty\"] = True"),
+            set_mapping_body.index("_state.texture_overrides_dirty['dirty'] = True"),
         )
 
     def test_mapping_edit_callbacks_block_active_mesh_edit_mutation(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py")
-        flush_start = source.index("def _flush_mapping_edit_refresh(")
-        flush_body = source[flush_start: source.index("return SimpleNamespace(_capture_geometry_history_state", flush_start)]
-        guard_start = source.index("def _active_mesh_edit_mapping_mutation_blocked(")
-        guard_body = source[guard_start: source.index("def _commit_mapping_edit", guard_start)]
-        commit_start = source.index("def _commit_mapping_edit(")
-        commit_body = source[commit_start: source.index("return SimpleNamespace(_commit_mapping_edit", commit_start)]
+        flush_body = _function_source(source, "_flush_mapping_edit_refresh")
+        guard_body = _function_source(source, "_active_mesh_edit_mapping_mutation_blocked")
+        commit_body = _function_source(source, "_commit_mapping_edit")
 
         self.assertIn("Active Mesh Editor mapping edits require native material execution", guard_body)
         self.assertIn("Python routing mutation fallback is disabled", guard_body)
@@ -7275,17 +7185,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_complete_swap_routing_blocks_active_mesh_edit_mutation(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_routing_callbacks.py")
-        guard_start = source.index("def _active_mesh_edit_complete_swap_routing_blocked(")
-        guard_body = source[guard_start: source.index("def _apply_complete_external_swap_routing_to_ui", guard_start)]
-        apply_start = source.index("def _apply_complete_external_swap_routing_to_ui(")
-        apply_body = source[apply_start: source.index("def _select_complete_swap_material_profile_silently", apply_start)]
+        guard_body = _function_source(source, "_active_mesh_edit_complete_swap_routing_blocked")
+        apply_body = _function_source(source, "_apply_complete_external_swap_routing_to_ui")
 
         self.assertIn("Active Mesh Editor complete-swap material routing requires native material execution", guard_body)
         self.assertIn("Python texture routing mutation fallback is disabled", guard_body)
         self.assertIn("_alignment_mesh_edit_tab_active()", guard_body)
         self.assertLess(
             apply_body.index("_active_mesh_edit_complete_swap_routing_blocked"),
-            apply_body.index("mappings = _complete_external_swap_mappings()"),
+            apply_body.index("mappings = _state._complete_external_swap_mappings()"),
         )
         self.assertLess(
             apply_body.index("_active_mesh_edit_complete_swap_routing_blocked"),
@@ -7297,7 +7205,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             apply_body.index("_active_mesh_edit_complete_swap_routing_blocked"),
-            apply_body.index("texture_overrides_dirty[\"dirty\"] = True"),
+            apply_body.index("_state.texture_overrides_dirty['dirty'] = True"),
         )
         self.assertLess(
             apply_body.index("_active_mesh_edit_complete_swap_routing_blocked"),
@@ -7312,42 +7220,20 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_selection_mapping.py")
         callback_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py")
         remaining_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py")
-        guard_start = source.index("def _active_mesh_edit_material_override_mutation_blocked(")
-        guard_body = source[guard_start: source.index("_current_source_part_adjustments =", guard_start)]
-        role_start = source.index("def _set_source_role_override_value(")
-        role_body = source[role_start: source.index("_disabled_source_part_indices =", role_start)]
-        action_guard_start = callback_source.index("def _active_mesh_edit_source_part_output_mutation_blocked(")
-        action_guard_body = callback_source[
-            action_guard_start: callback_source.index("def _update_selected_part_material_adjustment", action_guard_start)
-        ]
-        selected_role_start = callback_source.index("def _set_selected_source_role(")
-        selected_role_body = callback_source[
-            selected_role_start: callback_source.index("def _set_selected_source_glow_color", selected_role_start)
-        ]
-        selected_glow_start = callback_source.index("def _set_selected_source_glow_color(")
-        selected_glow_body = callback_source[
-            selected_glow_start: callback_source.index("def _selected_part_target_index", selected_glow_start)
-        ]
-        reset_start = callback_source.index("def _reset_selected_part(")
-        reset_body = callback_source[
-            reset_start: callback_source.index("def _remove_selected_part_from_output", reset_start)
-        ]
-        remove_start = callback_source.index("def _remove_selected_part_from_output(")
-        remove_body = callback_source[
-            remove_start: callback_source.index("return SimpleNamespace(", remove_start)
-        ]
-        glow_guard_start = remaining_source.index("def _active_mesh_edit_source_glow_mutation_blocked(")
-        glow_guard_body = remaining_source[
-            glow_guard_start: remaining_source.index("def _apply_current_glow_color_to_role_overrides", glow_guard_start)
-        ]
-        glow_start = remaining_source.index("def _apply_current_glow_color_to_role_overrides(")
-        glow_body = remaining_source[glow_start: remaining_source.index("def _flush_source_role_overrides_for_export", glow_start)]
-        flush_start = remaining_source.index("def _flush_source_role_overrides_for_export(")
-        flush_body = remaining_source[flush_start: remaining_source.index("def _refresh_ui_texture_sets_after_source_part_material_override", flush_start)]
+        guard_body = _function_source(source, "_mesh_edit_material_override_blocked")
+        role_body = _function_source(source, "_set_source_role_override_value")
+        action_guard_body = _function_source(callback_source, "_active_mesh_edit_source_part_output_mutation_blocked")
+        selected_role_body = _function_source(callback_source, "_set_selected_source_role")
+        selected_glow_body = _function_source(callback_source, "_set_selected_source_glow_color")
+        reset_body = _function_source(callback_source, "_reset_selected_part")
+        remove_body = _function_source(callback_source, "_remove_selected_part_from_output")
+        glow_guard_body = _function_source(remaining_source, "_active_mesh_edit_source_glow_mutation_blocked")
+        glow_body = _function_source(remaining_source, "_apply_current_glow_color_to_role_overrides")
+        flush_body = _function_source(remaining_source, "_flush_source_role_overrides_for_export")
 
         self.assertIn("Active Mesh Editor source material overrides require native material execution", guard_body)
         self.assertIn("Python adjustment mutation fallback is disabled", guard_body)
-        self.assertIn("_alignment_mesh_edit_tab_active()", guard_body)
+        self.assertIn("resident_material_parameters_available", guard_body)
         self.assertIn("Active Mesh Editor source glow overrides require native material execution", glow_guard_body)
         self.assertIn("Python adjustment mutation fallback is disabled", glow_guard_body)
         self.assertIn("_alignment_mesh_edit_tab_active()", glow_guard_body)
@@ -7364,7 +7250,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             role_body.index("_active_mesh_edit_material_override_mutation_blocked"),
-            role_body.index("texture_overrides_dirty[\"dirty\"] = True"),
+            role_body.index('texture_overrides_dirty["dirty"] = True'),
         )
         self.assertLess(
             glow_body.index("_active_mesh_edit_source_glow_mutation_blocked"),
@@ -7388,7 +7274,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             selected_glow_body.index("_active_mesh_edit_source_part_output_mutation_blocked"),
-            selected_glow_body.index("texture_overrides_dirty[\"dirty\"] = True"),
+            selected_glow_body.index("_state.texture_overrides_dirty['dirty'] = True"),
         )
         self.assertLess(
             reset_body.index("_active_mesh_edit_source_part_output_mutation_blocked"),
@@ -7405,12 +7291,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_source_part_material_tuning_blocks_active_mesh_edit_mutation(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py")
-        guard_start = source.index("def _active_mesh_edit_material_tuning_mutation_blocked(")
-        guard_body = source[
-            guard_start: source.index("def _update_selected_part_material_adjustment", guard_start)
-        ]
-        update_start = source.index("def _update_selected_part_material_adjustment(")
-        update_body = source[update_start: source.index("def _use_copied_original_texture_for_selected_source", update_start)]
+        guard_body = _function_source(source, "_active_mesh_edit_material_tuning_mutation_blocked")
+        update_body = _function_source(source, "_update_selected_part_material_adjustment")
 
         self.assertIn("Active Mesh Editor source material tuning requires native material execution", guard_body)
         self.assertIn("Python adjustment mutation fallback is disabled", guard_body)
@@ -7425,7 +7307,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             update_body.index("_active_mesh_edit_material_tuning_mutation_blocked"),
-            update_body.index("texture_overrides_dirty[\"dirty\"] = True"),
+            update_body.index("_state.texture_overrides_dirty['dirty'] = True"),
         )
         self.assertLess(
             update_body.index("_active_mesh_edit_material_tuning_mutation_blocked"),
@@ -7480,14 +7362,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_donor_material_actions_block_active_mesh_edit_mutation(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_texture_callbacks.py")
-        guard_start = source.index("def _active_mesh_edit_donor_material_mutation_blocked(")
-        guard_body = source[
-            guard_start: source.index("def _clear_selected_donor_material_source", guard_start)
-        ]
-        clear_start = source.index("def _clear_selected_donor_material_source(")
-        clear_body = source[clear_start: source.index("def _load_donor_sidecar_texts", clear_start)]
-        apply_start = source.index("def _apply_selected_donor_material(")
-        apply_body = source[apply_start: source.index("donor_apply_button.clicked.connect", apply_start)]
+        guard_body = _function_source(source, "_active_mesh_edit_donor_material_mutation_blocked")
+        clear_body = _function_source(source, "_clear_selected_donor_material_source")
+        apply_body = _function_source(source, "_apply_selected_donor_material")
 
         self.assertIn("Active Mesh Editor donor material routing requires native material execution", guard_body)
         self.assertIn("Python donor material plan mutation fallback is disabled", guard_body)
@@ -7498,7 +7375,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             clear_body.index("_active_mesh_edit_donor_material_mutation_blocked"),
-            clear_body.index("texture_overrides_dirty[\"dirty\"] = True"),
+            clear_body.index("_state.texture_overrides_dirty['dirty'] = True"),
         )
         self.assertLess(
             clear_body.index("_active_mesh_edit_donor_material_mutation_blocked"),
@@ -7510,7 +7387,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             apply_body.index("_active_mesh_edit_donor_material_mutation_blocked"),
-            apply_body.index("texture_overrides_dirty[\"dirty\"] = True"),
+            apply_body.index("_state.texture_overrides_dirty['dirty'] = True"),
         )
         self.assertLess(
             apply_body.index("_active_mesh_edit_donor_material_mutation_blocked"),
@@ -7563,14 +7440,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_texture_table_overrides_block_active_mesh_edit_mutation(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_texture_callbacks.py")
-        guard_start = source.index("def _active_mesh_edit_texture_table_mutation_blocked(")
-        guard_body = source[
-            guard_start: source.index("def _sync_selected_texture_editor", guard_start)
-        ]
-        set_start = source.index("def _set_texture_row_assignment(")
-        set_body = source[set_start: source.index("def _update_texture_summary_label", set_start)]
+        guard_body = _function_source(source, "_active_mesh_edit_texture_table_mutation_blocked")
+        set_body = _function_source(source, "_set_texture_row_assignment")
 
-        self.assertIn("_alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')", source)
+        self.assertIn("_state._alignment_mesh_edit_tab_active = _state.context.get('_alignment_mesh_edit_tab_active')", source)
         self.assertIn("Active Mesh Editor texture table overrides require native material execution", guard_body)
         self.assertIn("Python texture override mutation fallback is disabled", guard_body)
         self.assertIn("_alignment_mesh_edit_tab_active()", guard_body)
@@ -7581,7 +7454,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertEqual(1, source.count("_set_texture_row_assignment_helper("))
 
     def test_selected_vertex_skin_weights_are_native_owned(self) -> None:
-        service_source = _read("cdmw/services/mesh_service.py")
+        service_source = _read("cdmw/services/mesh_service_rigging.py")
+        facade_source = _read("cdmw/services/mesh_service.py")
         mesh_native_source = _read("cdmw/modding/mesh_native_core.py")
         native_core_source = _read("native/cdmw_mesh_core/src/main.cpp")
 
@@ -7628,7 +7502,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("invalidate_native_mesh_session_submeshes(session.working_mesh, vertex_map.keys())", normalize_body)
 
         transfer_start = service_source.index("def transfer_selected_vertex_weights_from_source(")
-        transfer_body = service_source[transfer_start: service_source.index("def texture_edit_target(", transfer_start)]
+        transfer_body = service_source[transfer_start: service_source.index("def _require_clean_python_skeleton_state(", transfer_start)]
         self.assertIn("transfer_native_mesh_skin_weights_from_source(", transfer_body)
         self.assertIn("native mesh editor skin weight edit unavailable; Python mesh state is stale", transfer_body)
         self.assertIn("self._push_history(session, prefer_native=True)", transfer_body)
@@ -7643,18 +7517,18 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             transfer_body.index("transfer_native_mesh_skin_weights_from_source("),
-            transfer_body.index("_source_vertex_index_for_transfer("),
+            transfer_body.index("_source_weight_row_for_transfer("),
         )
         self.assertIn("_allow_python_skin_weight_fallback(", transfer_body)
         self.assertLess(
             transfer_body.index("_allow_python_skin_weight_fallback("),
-            transfer_body.index("_source_vertex_index_for_transfer("),
+            transfer_body.index("_source_weight_row_for_transfer("),
         )
         self.assertIn("invalidate_native_mesh_session_submeshes(session.working_mesh, operations_by_submesh.keys())", transfer_body)
-        self.assertIn("def _allow_python_skin_weight_fallback(", service_source)
-        skin_fallback_start = service_source.index("def _allow_python_skin_weight_fallback(")
-        skin_fallback_body = service_source[
-            skin_fallback_start: service_source.index("def _delta_positions_by_vertex(", skin_fallback_start)
+        self.assertIn("def _allow_python_skin_weight_fallback(", facade_source)
+        skin_fallback_start = facade_source.index("def _allow_python_skin_weight_fallback(")
+        skin_fallback_body = facade_source[
+            skin_fallback_start: facade_source.index("def _delta_positions_by_vertex(", skin_fallback_start)
         ]
         self.assertNotIn("_PYTHON_MESH_SELECTION_FALLBACK_FACE_LIMIT", skin_fallback_body)
         self.assertNotIn("selected_vertex_count <= _PYTHON_MESH_SELECTION_FALLBACK_VERTEX_LIMIT", skin_fallback_body)
@@ -7721,7 +7595,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("nudge_bone_weight_native", skin_native_body)
         self.assertIn("normalize_weight_row_native", skin_native_body)
         self.assertIn("source_bone_assignments_from_item(item)", skin_native_body)
-        self.assertIn("nearest_source_vertex_index_native", skin_native_body)
+        self.assertIn("closest_source_weight_sample_native", skin_native_body)
         self.assertIn("transfer_weight_row_native", skin_native_body)
         self.assertIn('operation != "adjust" && operation != "normalize" && operation != "transfer"', skin_native_body)
         self.assertIn("mutable_mesh_session_submesh_for_item(item)", skin_native_body)
@@ -7735,23 +7609,22 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_source_part_mutations_use_native_d3d11_triangle_refresh_before_python_preview_rebuild(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_source_part_mutation_callbacks.py")
-        self.assertIn("_alignment_d3d11_preview_active = context.get('_alignment_d3d11_preview_active')", source)
-        self.assertIn("_alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')", source)
+        self.assertIn("_state._alignment_d3d11_preview_active = _state.context.get('_alignment_d3d11_preview_active')", source)
+        self.assertIn("_state._alignment_mesh_edit_tab_active = _state.context.get('_alignment_mesh_edit_tab_active')", source)
         self.assertIn(
-            "_mesh_edit_preview_source_indices = context.get('_mesh_edit_preview_source_indices')",
+            "_state._mesh_edit_preview_source_indices = _state.context.get('_mesh_edit_preview_source_indices')",
             source,
         )
         self.assertIn(
-            "_mesh_edit_replace_live_triangles_or_queue_rebuild = context.get('_mesh_edit_replace_live_triangles_or_queue_rebuild')",
+            "_state._mesh_edit_replace_live_triangles_or_queue_rebuild = _state.context.get('_mesh_edit_replace_live_triangles_or_queue_rebuild')",
             source,
         )
-        helper_start = source.index("def _source_part_refresh_geometry_preview(")
-        helper_body = source[helper_start: source.index("def _delete_selected_source_parts(", helper_start)]
-        self.assertIn("if callable(_alignment_d3d11_preview_active) and _alignment_d3d11_preview_active():", helper_body)
+        helper_body = _function_source(source, "_source_part_refresh_geometry_preview")
+        self.assertIn("if callable(_state._alignment_d3d11_preview_active) and _state._alignment_d3d11_preview_active():", helper_body)
         self.assertIn("_mesh_edit_replace_live_triangles_or_queue_rebuild(", helper_body)
         self.assertIn("replace_all=replace_all", helper_body)
         self.assertIn("_source_part_current_preview_indices()", helper_body)
-        self.assertIn("if _source_part_mesh_edit_active():", helper_body)
+        self.assertIn("if _state._source_part_mesh_edit_active():", helper_body)
         self.assertIn("Active Mesh Editor source-part preview requires native D3D11 refresh; Python preview rebuild fallback is disabled.", helper_body)
         self.assertIn("_set_source_parts_preview_rebuild_pending(reason)", helper_body)
         self.assertIn("_queue_static_preview_rebuild()", helper_body)
@@ -7760,34 +7633,20 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             helper_body.index("parsed_mesh_to_preview_model("),
         )
         self.assertLess(
-            helper_body.index("if _source_part_mesh_edit_active():"),
+            helper_body.index("if _state._source_part_mesh_edit_active():"),
             helper_body.index("parsed_mesh_to_preview_model("),
         )
-        active_block_start = source.index("def _source_part_active_geometry_mutation_blocked(")
-        active_block_body = source[
-            active_block_start: source.index("def _source_part_append_capture_mesh_snapshot(", active_block_start)
-        ]
-        self.assertIn("if not _source_part_mesh_edit_active():", active_block_body)
+        active_block_body = _function_source(source, "_source_part_active_geometry_mutation_blocked")
+        self.assertIn("if not _state._source_part_mesh_edit_active():", active_block_body)
         self.assertIn("Active Mesh Editor source-part topology changes require native geometry execution", active_block_body)
         self.assertIn("Python mesh mutation fallback is disabled", active_block_body)
-        material_routing_guard_start = source.index("def _source_part_material_routing_mutation_blocked(")
-        material_routing_guard_body = source[
-            material_routing_guard_start: source.index("def _source_part_append_capture_mesh_snapshot(", material_routing_guard_start)
-        ]
-        self.assertIn("if not _source_part_mesh_edit_active():", material_routing_guard_body)
+        material_routing_guard_body = _function_source(source, "_source_part_material_routing_mutation_blocked")
+        self.assertIn("if not _state._source_part_mesh_edit_active():", material_routing_guard_body)
         self.assertIn("Active Mesh Editor source-part material routing requires native material execution", material_routing_guard_body)
         self.assertIn("Python routing mutation fallback is disabled", material_routing_guard_body)
-        rollback_capture_start = source.index("def _source_part_append_capture_mesh_snapshot(")
-        rollback_capture_body = source[
-            rollback_capture_start: source.index("def _source_part_append_restore_mesh_snapshot(", rollback_capture_start)
-        ]
-        rollback_restore_start = source.index("def _source_part_append_restore_mesh_snapshot(")
-        rollback_restore_body = source[
-            rollback_restore_start: source.index("def _source_part_append_release_rollback_snapshots(", rollback_restore_start)
-        ]
-        rollback_restore_direct_body = source[
-            rollback_restore_start: source.index("def _source_part_append_clone_parsed_mesh_snapshot(", rollback_restore_start)
-        ]
+        rollback_capture_body = _function_source(source, "_source_part_append_capture_mesh_snapshot")
+        rollback_restore_body = _function_source(source, "_source_part_append_restore_mesh_snapshot")
+        rollback_restore_direct_body = _function_source(source, "_source_part_append_clone_parsed_mesh_snapshot")
         self.assertIn("snapshot_native_mesh_submeshes(mesh)", rollback_capture_body)
         self.assertIn("allow_python_full_mesh_clone_fallback(", rollback_capture_body)
         self.assertLess(
@@ -7797,32 +7656,29 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("fallback_allowed=_fallback_allowed", rollback_capture_body)
         self.assertNotIn("return clone_mesh_for_editing(mesh)", rollback_capture_body)
         self.assertIn("restore_native_mesh_submesh_snapshot(restored, snapshot)", rollback_restore_body)
-        self.assertIn("return _source_part_append_clone_parsed_mesh_snapshot(snapshot)", rollback_restore_direct_body)
+        self.assertIn("return _state._source_part_append_clone_parsed_mesh_snapshot(snapshot)", rollback_restore_body)
         self.assertNotIn("return clone_mesh_for_editing(snapshot)", rollback_restore_direct_body)
-        self.assertIn('"source_part.append_rollback_restore"', rollback_restore_body)
-        self.assertIn("clone_mesh_for_static_replacement_native_first(", rollback_restore_body)
-        self.assertIn("fallback_allowed=_fallback_allowed", rollback_restore_body)
-        self.assertNotIn("clone_mesh_for_editing(snapshot)", rollback_restore_body)
+        self.assertIn("'source_part.append_rollback_restore'", rollback_restore_direct_body)
+        self.assertIn("_state.clone_mesh_for_static_replacement_native_first(", rollback_restore_direct_body)
+        self.assertIn("fallback_allowed=_fallback_allowed", rollback_restore_direct_body)
+        self.assertNotIn("clone_mesh_for_editing(snapshot)", rollback_restore_direct_body)
 
-        delete_start = source.index("def _delete_selected_source_parts(")
-        delete_body = source[delete_start: source.index("def _apply_source_part_preview_changes(", delete_start)]
-        self.assertIn("if _source_part_active_geometry_mutation_blocked():", delete_body)
+        delete_body = _function_source(source, "_delete_selected_source_parts")
+        self.assertIn("if not resident_state_only and _state._source_part_active_geometry_mutation_blocked():", delete_body)
         self.assertIn("_source_part_refresh_geometry_preview(", delete_body)
         self.assertIn("replace_all=True", delete_body)
         self.assertNotIn("_set_replacement_preview_model(parsed_mesh_to_preview_model", delete_body)
         self.assertNotIn("_queue_static_preview_rebuild()", delete_body)
         self.assertLess(
-            delete_body.index("if _source_part_active_geometry_mutation_blocked():"),
+            delete_body.index("if not resident_state_only and _state._source_part_active_geometry_mutation_blocked():"),
             delete_body.index("replacement_mesh_for_mapping.submeshes[:] = kept_submeshes"),
         )
 
-        apply_start = source.index("def _apply_source_part_preview_changes(")
-        apply_body = source[apply_start: source.index("def _apply_source_material_grouped_routing(", apply_start)]
+        apply_body = _function_source(source, "_apply_source_part_preview_changes")
         self.assertIn("_source_part_refresh_geometry_preview(rebuild_reason, replace_all=True)", apply_body)
         self.assertNotIn("_queue_static_preview_rebuild()", apply_body)
 
-        material_routing_start = source.index("def _apply_source_material_grouped_routing(")
-        material_routing_body = source[material_routing_start: source.index("def _duplicate_selected_part(", material_routing_start)]
+        material_routing_body = _function_source(source, "_apply_source_material_grouped_routing")
         self.assertLess(
             material_routing_body.index("_source_part_material_routing_mutation_blocked"),
             material_routing_body.index("group_replacement_texture_sets("),
@@ -7844,21 +7700,19 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             material_routing_body.index("_refresh_source_material_plan"),
         )
 
-        duplicate_start = source.index("def _duplicate_selected_part(")
-        duplicate_body = source[duplicate_start: source.index("def _append_mesh_part_to_geometry(", duplicate_start)]
-        self.assertIn("if _source_part_active_geometry_mutation_blocked():", duplicate_body)
+        duplicate_body = _function_source(source, "_duplicate_selected_part")
+        self.assertIn("if _state._source_part_active_geometry_mutation_blocked():", duplicate_body)
         self.assertIn("_source_part_refresh_geometry_preview(duplicate_route.status_text, (new_index,))", duplicate_body)
         self.assertNotIn("_set_replacement_preview_model(parsed_mesh_to_preview_model", duplicate_body)
         self.assertNotIn("_queue_static_preview_rebuild()", duplicate_body)
         self.assertLess(
-            duplicate_body.index("if _source_part_active_geometry_mutation_blocked():"),
+            duplicate_body.index("if _state._source_part_active_geometry_mutation_blocked():"),
             duplicate_body.index("replacement_mesh_for_mapping.submeshes.append(working_copy)"),
         )
 
-        append_start = source.index("def _append_mesh_part_to_geometry(")
-        append_body = source[append_start: source.index("return SimpleNamespace(", append_start)]
-        self.assertIn("if _source_part_active_geometry_mutation_blocked():", append_body)
-        self.assertIn("_source_part_refresh_geometry_preview(\"cancelled mesh part import\", replace_all=True)", append_body)
+        append_body = _function_source(source, "_append_mesh_part_to_geometry") + "\n" + _function_source(source, "_rollback_cancelled_appended_mesh_part_import")
+        self.assertIn("if _state._source_part_active_geometry_mutation_blocked():", append_body)
+        self.assertIn("_state._source_part_refresh_geometry_preview('cancelled mesh part import', replace_all=True)", append_body)
         self.assertIn("_source_part_refresh_geometry_preview(", append_body)
         self.assertIn("append_result.source_indices", append_body)
         self.assertIn("_source_part_append_capture_mesh_snapshot(", append_body)
@@ -7875,9 +7729,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("_set_replacement_preview_model(parsed_mesh_to_preview_model", append_body)
         self.assertNotIn("_queue_static_preview_rebuild()", append_body)
         self.assertLess(
-            append_body.index("if _source_part_active_geometry_mutation_blocked():"),
-            append_body.index("append_scene_result = import_scene_mesh_with_report(source_path)"),
+            append_body.index("if _state._source_part_active_geometry_mutation_blocked():"),
+            append_body.index("source_task_controller.start("),
         )
+        self.assertIn("SceneImportRequest(source_path=source_path)", append_body)
+        self.assertNotIn("import_scene_mesh_with_report(source_path)", append_body)
 
     def test_copied_original_append_uses_native_d3d11_triangle_refresh_before_python_preview_rebuild(self) -> None:
         remaining_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py")
@@ -7891,90 +7747,80 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             'prompt_shell_context["_mesh_edit_replace_live_triangles_or_queue_rebuild"] = _mesh_edit_replace_live_triangles_or_queue_rebuild',
             prompt_setup_source,
         )
-        self.assertIn("_alignment_d3d11_preview_active = context.get('_alignment_d3d11_preview_active')", remaining_source)
-        self.assertIn("_alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')", remaining_source)
-        self.assertIn("prompt_shell_context = context.get('prompt_shell_context')", remaining_source)
+        self.assertIn("_state._alignment_d3d11_preview_active = _state.context.get('_alignment_d3d11_preview_active')", remaining_source)
+        self.assertIn("_state._alignment_mesh_edit_tab_active = _state.context.get('_alignment_mesh_edit_tab_active')", remaining_source)
+        self.assertIn("_state.prompt_shell_context = _state.context.get('prompt_shell_context')", remaining_source)
         self.assertIn("def _copied_original_live_triangle_replacer() -> object:", remaining_source)
-        self.assertIn("prompt_shell_context.get('_mesh_edit_replace_live_triangles_or_queue_rebuild')", remaining_source)
+        self.assertIn("_state.prompt_shell_context.get('_mesh_edit_replace_live_triangles_or_queue_rebuild')", remaining_source)
 
-        helper_start = remaining_source.index("def _refresh_copied_original_source_preview(")
-        helper_body = remaining_source[
-            helper_start: remaining_source.index("def _refresh_copied_original_texture_ui(", helper_start)
-        ]
-        self.assertIn("if callable(_alignment_d3d11_preview_active) and _alignment_d3d11_preview_active():", helper_body)
+        helper_body = _function_source(remaining_source, "_refresh_copied_original_source_preview")
+        self.assertIn("if callable(_state._alignment_d3d11_preview_active) and _state._alignment_d3d11_preview_active():", helper_body)
         self.assertIn("replacer((int(source_index),))", helper_body)
-        self.assertIn("if _copied_original_mesh_edit_active():", helper_body)
+        self.assertIn("if _state._copied_original_mesh_edit_active():", helper_body)
         self.assertIn("Active Mesh Editor copied-source preview requires native D3D11 refresh; Python preview rebuild fallback is disabled.", helper_body)
-        self.assertIn("_queue_static_preview_rebuild()", helper_body)
+        self.assertIn("_state._queue_static_preview_rebuild()", helper_body)
         self.assertLess(
             helper_body.index("replacer((int(source_index),))"),
             helper_body.index("parsed_mesh_to_preview_model("),
         )
         self.assertLess(
-            helper_body.index("if _copied_original_mesh_edit_active():"),
+            helper_body.index("if _state._copied_original_mesh_edit_active():"),
             helper_body.index("parsed_mesh_to_preview_model("),
         )
 
-        append_start = remaining_source.index("def _append_original_part_payload_as_source(")
-        append_body = remaining_source[
-            append_start: remaining_source.index("return SimpleNamespace(_refresh_copied_original_texture_ui", append_start)
-        ]
-        self.assertIn("if _copied_original_mesh_edit_active():", append_body)
+        append_body = _function_source(remaining_source, "_append_original_part_payload_as_source")
+        self.assertIn("if _state._copied_original_mesh_edit_active():", append_body)
         self.assertIn("Active Mesh Editor copied-original append requires native geometry execution", append_body)
         self.assertIn("Python mesh mutation fallback is disabled", append_body)
-        self.assertIn("_refresh_copied_original_source_preview(new_source_index)", append_body)
-        self.assertNotIn("state.replacement_preview_model = parsed_mesh_to_preview_model", append_body)
-        self.assertNotIn("_queue_static_preview_rebuild()", append_body)
+        self.assertIn("_state._refresh_copied_original_source_preview(new_source_index)", append_body)
+        self.assertNotIn("_state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model", append_body)
+        self.assertNotIn("_state._queue_static_preview_rebuild()", append_body)
         self.assertLess(
-            append_body.index("if _copied_original_mesh_edit_active():"),
-            append_body.index("_push_geometry_undo_snapshot(undo_label)"),
+            append_body.index("if _state._copied_original_mesh_edit_active():"),
+            append_body.index("_state._push_geometry_undo_snapshot(undo_label)"),
         )
         self.assertLess(
-            append_body.index("if _copied_original_mesh_edit_active():"),
-            append_body.index("state.replacement_mesh_for_mapping.submeshes.append(copied_part)"),
+            append_body.index("if _state._copied_original_mesh_edit_active():"),
+            append_body.index("_state.state.replacement_mesh_for_mapping.submeshes.append(copied_part)"),
         )
 
     def test_selected_part_enable_uses_native_d3d11_triangle_refresh_before_static_rebuild(self) -> None:
         remaining_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py")
 
         self.assertIn("def _selected_part_live_triangle_replacer() -> object:", remaining_source)
-        self.assertIn("prompt_shell_context.get('_mesh_edit_replace_live_triangles_or_queue_rebuild')", remaining_source)
+        self.assertIn("_state.prompt_shell_context.get('_mesh_edit_replace_live_triangles_or_queue_rebuild')", remaining_source)
 
-        helper_start = remaining_source.index("def _refresh_selected_part_enable_preview(")
-        helper_body = remaining_source[
-            helper_start: remaining_source.index("def _update_selected_part_adjustment(", helper_start)
-        ]
-        self.assertIn("if callable(_alignment_d3d11_preview_active) and _alignment_d3d11_preview_active():", helper_body)
+        helper_body = _function_source(remaining_source, "_refresh_selected_part_enable_preview")
+        self.assertIn("if callable(_state._alignment_d3d11_preview_active) and _state._alignment_d3d11_preview_active():", helper_body)
         self.assertIn("replacer(source_indices)", helper_body)
-        self.assertIn("if _selected_part_mesh_edit_active():", helper_body)
+        self.assertIn("if _state._selected_part_mesh_edit_active():", helper_body)
         self.assertIn("Active Mesh Editor source enable preview requires native D3D11 refresh; Python preview rebuild fallback is disabled.", helper_body)
-        self.assertIn("_set_source_parts_preview_rebuild_pending(_source_part_include_exclude_pending_reason_helper())", helper_body)
-        self.assertIn("_queue_static_preview_rebuild()", helper_body)
+        self.assertIn("_state._set_source_parts_preview_rebuild_pending(_state._source_part_include_exclude_pending_reason_helper())", helper_body)
+        self.assertIn("_state._queue_static_preview_rebuild()", helper_body)
         self.assertLess(
             helper_body.index("replacer(source_indices)"),
-            helper_body.index("_queue_static_preview_rebuild()"),
+            helper_body.index("_state._queue_static_preview_rebuild()"),
         )
         self.assertLess(
-            helper_body.index("if _selected_part_mesh_edit_active():"),
-            helper_body.index("_queue_static_preview_rebuild()"),
+            helper_body.index("if _state._selected_part_mesh_edit_active():"),
+            helper_body.index("_state._queue_static_preview_rebuild()"),
         )
 
-        update_start = remaining_source.index("def _update_selected_part_adjustment(")
-        update_body = remaining_source[
-            update_start: remaining_source.index("return SimpleNamespace(_update_selected_part_adjustment", update_start)
-        ]
-        self.assertIn("if _selected_part_mesh_edit_active():", update_body)
-        self.assertIn("Active Mesh Editor source-part transform changes require native geometry execution", update_body)
-        self.assertIn("Python adjustment mutation fallback is disabled", update_body)
-        self.assertIn("_refresh_selected_part_enable_preview(apply_state.target_indices)", update_body)
-        self.assertNotIn("_set_source_parts_preview_rebuild_pending(_source_part_include_exclude_pending_reason_helper())", update_body)
-        self.assertNotIn("_queue_static_preview_rebuild()", update_body)
+        update_body = _function_source(remaining_source, "_update_selected_part_adjustment")
+        for token in (
+            "mesh_edit_active = _state._selected_part_mesh_edit_active()", "if mesh_edit_active and apply_state.geometry_changed:",
+            "Active Mesh Editor source-part transform changes require native geometry execution", "Python adjustment mutation fallback is disabled", "not resident_material_parameters_available(_state.dialog)",
+            "Active Mesh Editor part visibility is unavailable until the resident material channel is ready.", "resident_updated = mesh_edit_active and send_resident_material_parameters(", "{'visible': bool(apply_state.enabled)}",
+            "source_submesh_indices=(target_source_index,)", "elif mesh_edit_active:", "_state._set_source_parts_apply_pending(_state._source_part_include_exclude_pending_reason_helper())", "_state._refresh_selected_part_enable_preview(apply_state.target_indices)",
+        ):
+            self.assertIn(token, update_body)
+        self.assertNotIn("_state._queue_static_preview_rebuild()", update_body)
         self.assertLess(
-            update_body.index("if _selected_part_mesh_edit_active():"),
-            update_body.index("_push_geometry_undo_snapshot(_source_part_edit_undo_label_helper(\"adjust\"))"),
+            update_body.index("if mesh_edit_active and apply_state.geometry_changed:"),
+            update_body.index("if push_undo:"),
         )
         self.assertLess(
-            update_body.index("if _selected_part_mesh_edit_active():"),
+            update_body.index("if mesh_edit_active and apply_state.geometry_changed:"),
             update_body.index("adjustment.offset_xyz = apply_state.offset_xyz"),
         )
 

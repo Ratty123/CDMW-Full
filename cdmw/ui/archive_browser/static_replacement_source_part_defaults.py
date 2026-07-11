@@ -14,6 +14,7 @@ def is_default_source_part_adjustment(adjustment: object) -> bool:
         and str(getattr(adjustment, "pivot_mode", "part_center") or "part_center") == "part_center"
         and not str(getattr(adjustment, "material_role", "") or "").strip()
         and not tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())
+        and getattr(adjustment, "emissive_strength", None) is None
         and abs(float(getattr(adjustment, "material_brightness", 0.0) or 0.0)) <= 1e-8
         and abs(float(getattr(adjustment, "material_contrast", 0.0) or 0.0)) <= 1e-8
         and abs(float(getattr(adjustment, "material_saturation", 0.0) or 0.0)) <= 1e-8

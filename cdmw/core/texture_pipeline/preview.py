@@ -9,21 +9,17 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from cdmw.core.common import raise_if_cancelled, run_process_with_cancellation
 from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
+from cdmw.core.texture_decode_cache import (
+    preview_cache_locks,
+    preview_pair_is_valid,
+    preview_png_is_valid,
+    preview_staging_dir,
+    publish_preview_pair,
+)
 from cdmw.core.texture_pipeline.inspection import describe_png_color_type, parse_dds, read_png_header_info
 from cdmw.models import ComparePreviewPaneResult, DdsInfo, NormalizedConfig, RunCancelled, TextureProcessingPlan
 
-_PREVIEW_CACHE_LOCKS: Dict[str, threading.Lock] = {}
-_PREVIEW_CACHE_LOCKS_GUARD = threading.Lock()
 _COMPARE_DISPLAY_PREVIEW_MAX_DIMENSION = 1536
-
-
-def _get_preview_cache_lock(cache_key: str) -> threading.Lock:
-    with _PREVIEW_CACHE_LOCKS_GUARD:
-        lock = _PREVIEW_CACHE_LOCKS.get(cache_key)
-        if lock is None:
-            lock = threading.Lock()
-            _PREVIEW_CACHE_LOCKS[cache_key] = lock
-        return lock
 
 def collect_relative_dds_paths(
     root: Path,
@@ -74,6 +70,55 @@ def build_preview_png_command(
         cmd.extend(["-w", str(int(width)), "-h", str(int(height))])
     cmd.append(str(dds_path))
     return cmd
+
+
+def _ensure_texconv_preview_cached(
+    texconv_path: Path,
+    dds_path: Path,
+    *,
+    cache_key: str,
+    preview_path: Path,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    slot_kind: str = "base",
+    max_dimension: int = 0,
+    display: bool = False,
+    stop_event: Optional[threading.Event] = None,
+) -> Path:
+    label = "display preview" if display else "preview"
+    with preview_cache_locks((f"texconv:{cache_key}",)):
+        raise_if_cancelled(stop_event, f"{label.capitalize()} generation cancelled for {dds_path.name}.")
+        if preview_pair_is_valid(preview_path):
+            return preview_path
+        with preview_staging_dir(preview_path.parent) as staging:
+            cmd = build_preview_png_command(
+                texconv_path,
+                dds_path,
+                staging,
+                width=width,
+                height=height,
+            )
+            return_code, stdout, stderr = run_process_with_cancellation(cmd, stop_event=stop_event)
+            if return_code != 0:
+                detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
+                raise ValueError(f"Could not generate {label} for {dds_path.name}: {detail}")
+            candidates = [staging / f"{dds_path.stem}.png"]
+            candidates.extend(path for path in sorted(staging.glob("*.png")) if path not in candidates)
+            staged = next((path for path in candidates if preview_png_is_valid(path)), None)
+            if staged is None:
+                article = "a display PNG preview" if display else "a PNG preview"
+                raise ValueError(f"texconv did not produce {article} for {dds_path.name}.")
+            from cdmw.core.texture_native import texconv_preview_report
+
+            report = texconv_preview_report(
+                dds_path,
+                staged,
+                slot_kind=slot_kind,
+                max_dimension=max_dimension,
+            )
+            publish_preview_pair(staged, preview_path, report)
+        request_app_temp_cache_prune()
+        return preview_path
 
 
 def _staging_png_format_for_plan(entry: TextureProcessingPlan) -> str:
@@ -155,61 +200,13 @@ def ensure_dds_preview_png(
     ).hexdigest()
     cache_dir = app_temp_cache_path("preview_cache", cache_key)
     preview_path = cache_dir / f"{dds_path.stem}.png"
-    preview_lock = _get_preview_cache_lock(cache_key)
-
-    with preview_lock:
-        if preview_path.exists():
-            try:
-                if preview_path.stat().st_size > 0:
-                    return preview_path
-            except OSError:
-                pass
-
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cmd = build_preview_png_command(texconv_path, dds_path, cache_dir)
-        return_code, stdout, stderr = run_process_with_cancellation(cmd, stop_event=stop_event)
-        if return_code != 0:
-            detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
-            raise ValueError(f"Could not generate preview for {dds_path.name}: {detail}")
-
-        if preview_path.exists():
-            try:
-                if preview_path.stat().st_size > 0:
-                    try:
-                        from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
-
-                        write_native_texture_report_sidecar(
-                            preview_path,
-                            texconv_preview_report(dds_path, preview_path, slot_kind="base"),
-                        )
-                    except Exception:
-                        pass
-                    request_app_temp_cache_prune()
-                    return preview_path
-            except OSError:
-                pass
-
-        candidates: List[Path] = []
-        for candidate in sorted(cache_dir.glob("*.png")):
-            try:
-                if candidate.stat().st_size > 0:
-                    candidates.append(candidate)
-            except OSError:
-                continue
-        if candidates:
-            try:
-                from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
-
-                write_native_texture_report_sidecar(
-                    candidates[0],
-                    texconv_preview_report(dds_path, candidates[0], slot_kind="base"),
-                )
-            except Exception:
-                pass
-            request_app_temp_cache_prune()
-            return candidates[0]
-
-    raise ValueError(f"texconv did not produce a PNG preview for {dds_path.name}.")
+    return _ensure_texconv_preview_cached(
+        texconv_path,
+        dds_path,
+        cache_key=cache_key,
+        preview_path=preview_path,
+        stop_event=stop_event,
+    )
 
 
 def _preview_resize_dimensions(
@@ -311,65 +308,18 @@ def ensure_dds_display_preview_png(
     ).hexdigest()
     cache_dir = app_temp_cache_path("preview_cache_display", cache_key)
     preview_path = cache_dir / f"{dds_path.stem}.png"
-    preview_lock = _get_preview_cache_lock(cache_key)
-
-    with preview_lock:
-        raise_if_cancelled(stop_event, f"Display preview generation cancelled for {dds_path.name}.")
-        if preview_path.exists():
-            try:
-                if preview_path.stat().st_size > 0:
-                    return preview_path
-            except OSError:
-                pass
-
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cmd = build_preview_png_command(
-            texconv_path,
-            dds_path,
-            cache_dir,
-            width=target_width,
-            height=target_height,
-        )
-        return_code, stdout, stderr = run_process_with_cancellation(cmd, stop_event=stop_event)
-        if return_code != 0:
-            detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
-            raise ValueError(f"Could not generate display preview for {dds_path.name}: {detail}")
-
-        if preview_path.exists():
-            try:
-                if preview_path.stat().st_size > 0:
-                    try:
-                        from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
-
-                        write_native_texture_report_sidecar(
-                            preview_path,
-                            texconv_preview_report(dds_path, preview_path, slot_kind=slot_kind, max_dimension=max_dimension),
-                        )
-                    except Exception:
-                        pass
-                    request_app_temp_cache_prune()
-                    return preview_path
-            except OSError:
-                pass
-
-        for candidate in sorted(cache_dir.glob("*.png")):
-            try:
-                if candidate.stat().st_size > 0:
-                    try:
-                        from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
-
-                        write_native_texture_report_sidecar(
-                            candidate,
-                            texconv_preview_report(dds_path, candidate, slot_kind=slot_kind, max_dimension=max_dimension),
-                        )
-                    except Exception:
-                        pass
-                    request_app_temp_cache_prune()
-                    return candidate
-            except OSError:
-                continue
-
-    raise ValueError(f"texconv did not produce a display PNG preview for {dds_path.name}.")
+    return _ensure_texconv_preview_cached(
+        texconv_path,
+        dds_path,
+        cache_key=cache_key,
+        preview_path=preview_path,
+        width=target_width,
+        height=target_height,
+        slot_kind=slot_kind,
+        max_dimension=max_dimension,
+        display=True,
+        stop_event=stop_event,
+    )
 
 
 def stage_dds_to_pngs(

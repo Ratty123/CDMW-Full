@@ -1,18 +1,26 @@
 # .NET Mesh Editor Authoritative Renderer Audit
 
-Last updated: 2026-07-07
+Last updated: 2026-07-11
 
 ## Current .NET viewport implementation
 
 - Entry point: `tools/dotnet_mesh_editor_experiment/ProgramEntry.cs`.
 - UI host and viewport shells: `tools/dotnet_mesh_editor_experiment/Program.cs`.
-- Extracted form partial files: `ExperimentForm.Controls.cs`, `ExperimentForm.Json.cs`, `ExperimentForm.Output.cs`, and `ExperimentForm.Protocol.cs`.
-- Extracted viewport partial files: `MeshViewport.Geometry.cs`, `MeshViewport.Renderer.cs`, `MeshViewport.Status.cs`, `MeshViewport.Topology.cs`, `MeshViewport.SelectionCommands.cs`, `MeshViewport.SelectionActions.cs`, `MeshViewport.SelectionPicking.cs`, `MeshViewport.Input.cs`, and `MeshViewport.Painting.cs`.
-- Extracted support files: `RuntimeSupport.cs`, `NativeWindowHost.cs`, `ObjDocument.cs`, `NetEdgeTopology.cs`, `NetMaterialSet.cs`, `NetTextureSet.cs`, and `GeometryPrimitives.cs`.
+- Extracted form partials include controls, host state, JSON, output, and
+  protocol owners under `ExperimentForm.*.cs`.
+- Extracted viewport partials include bounds, geometry, renderer/resources,
+  host diagnostics, status, topology, selection, input, and painting owners
+  under `MeshViewport.*.cs`.
+- Support owners include `RuntimeSupport.cs`, `NativeWindowHost.cs`,
+  `ObjDocument.cs`, `NetEdgeTopology.cs`, `NetMaterialSet.cs`,
+  `NetTextureSet*.cs`, and `GeometryPrimitives.cs`.
 - UI host: WinForms `ExperimentForm`, embedded through `--embedded --parent-hwnd` and `NativeWindowHost`.
-- Current viewport class: `MeshViewport : Control` attempts `D3D11MaterialViewport` first, then falls back to `WpfGpuMeshViewport` through `ElementHost`, then GDI.
+- Current viewport class: `MeshViewport : Control` requires
+  `D3D11MaterialViewport` in embedded production. WPF through `ElementHost` and
+  GDI are explicit developer fallbacks.
 - Current primary drawing path: `D3D11MaterialViewport`, a .NET/Vortice Direct3D 11 HWND swap-chain renderer with HLSL vertex/pixel shaders, vertex/index buffers, material constant buffers, SRVs, and a sampler.
-- Current fallback drawing path: WPF `Viewport3D`, then WinForms/GDI+ software drawing if the D3D11 and WPF paths cannot initialize.
+- Developer fallback drawing path: WPF `Viewport3D`, then WinForms/GDI+
+  software drawing if the D3D11 and WPF paths cannot initialize.
 - Current render modes: D3D11 HLSL material/textured mesh, WPF fallback material/textured mesh, wire overlay, local X-Ray overlay, local vertex/edge/face/part overlays in D3D11 and fallback paths, and material debug channels for parity inspection.
 - Current mesh source: Wavefront OBJ loaded by `ObjDocument.Load` from the .NET handoff package.
 - Current save path: OBJ output plus required `edit_operations.json`; Python/C++ rejects .NET output that lacks authoritative edit operation records before replacing the working mesh.
@@ -25,18 +33,24 @@ Last updated: 2026-07-07
 - The .NET helper receives resolved Base/Albedo/Diffuse, Normal, Material/Specular/Roughness/Metallic, Emissive, and Height paths when the source mesh has preview texture attributes or material texture input slots.
 - The D3D11 viewport uses decoded local image files and decoded DDS resources as material texture resources. DDS BC1/DXT1, BC2/DXT3, BC3/DXT5, BC4, BC5, R8/RG8, RGBA8, BGRA8/BGRX8, and common uncompressed 32-bit DDS resources are decoded into local bitmaps when possible; unsupported DDS now tries the bundled `cd-texture-dx.exe batch-preview-json` path first, then falls back to `texconv.exe` when available.
 
-## Current native/host preview rendering path
+## Native/host preview rendering outside Edit Mesh
 
 - Host D3D11 preview is launched through `mesh_editor_native_preview_command` in `cdmw/ui/mesh_editor/native_preview_runtime.py`.
 - Preview packages are prepared by `mesh_editor_write_native_preview_package` / `mesh_editor_write_prepared_native_preview_package`.
-- The native D3D11 preview owns the current full preview render path outside the .NET software viewport.
-- Texture/material previews, native buffers, and high-quality texture flags remain host/native responsibilities today.
+- The native D3D11 preview owns normal archive/material preview outside the
+  embedded .NET Edit Mesh viewport. It is not the canonical Edit Mesh renderer.
+- Python/C++ retain package, material, texture-resolution, session, and archive
+  authority while the production .NET/Vortice child owns Edit Mesh presentation
+  and input.
 
 ## Current .NET mesh rendering path
 
 - The .NET viewport reads `ObjDocument.Submeshes` and builds D3D11 vertex/index buffers with expanded per-corner vertices, normals, tangents, bitangents, and UVs. The WPF fallback builds `MeshGeometry3D` models from the same OBJ data.
-- `D3D11MaterialViewport` renders submeshes through a D3D11 swap chain and HLSL shaders. `WpfGpuMeshViewport` renders through WPF `Viewport3D` only when D3D11 initialization is unavailable.
-- The renderer now probes the custom D3D11/Vortice/HLSL path first and only attaches it after device, swap chain, shader, render target, depth target, and geometry setup succeed; WPF GPU composition is fallback.
+- `D3D11MaterialViewport` renders submeshes through a D3D11 swap chain and HLSL shaders. `WpfGpuMeshViewport` is the explicit developer fallback.
+- The renderer probes the custom D3D11/Vortice/HLSL path first and only
+  attaches it after device, swap chain, shader, render target, depth target, and
+  geometry setup succeed; WPF GPU composition is never accepted by embedded
+  production.
 - `D3D11MaterialViewport` has an explicit D3D11/Vortice shader path with constant buffers, SRVs, sampler state, HLSL shaders, per-pixel normal/material/specular/roughness/metallic/height/emissive sampling, and material debug modes for final/base/normal/roughness/metallic/emissive/specular inspection. WPF material-map support remains as fallback.
 
 ## Current overlay rendering path
@@ -59,32 +73,36 @@ Last updated: 2026-07-07
 - Edge picking and edge overlays are local in the .NET viewport.
 - Selection payloads include local edge ids, stable edge descriptors, and a topology generation so host/native code can reject stale edge selections after topology refreshes.
 
-## Current host/native selection dependency
+## Current host/native edit authority
 
 - The .NET helper emits `select_request`, `stroke_*`, and `command_request` events.
 - Python/C++ returns selection/preview updates.
-- This means .NET currently depends on host/native code for actual selection semantics and edit commands.
-- This is acceptable for parser/rebuild authority, but not acceptable for the requested fully local edge picking/overlay behavior.
+- .NET resolves local vertex/face/edge/part picking and overlays immediately,
+  then synchronizes that selection mirror with the host.
+- Python/C++ intentionally remains authoritative for edit semantics, resident
+  session state, validation, rebuild, and archive output.
 
-## Why the .NET viewport is not a full material/textured renderer
+## Production renderer status
 
-- It is now backed by a custom D3D11/Vortice material renderer first, with WPF `Viewport3D` as fallback.
+- It is backed by a custom D3D11/Vortice material renderer, with WPF
+  `Viewport3D` available only as a developer fallback.
 - The first explicit swap chain, HLSL shaders, constant buffers, vertex/index buffers, sampler state, shader resource views, and render states now exist in `D3D11MaterialViewport`.
 - The handoff package now contains material and resolved texture payloads, and .NET can decode common DDS formats into local D3D11/WPF-consumable bitmaps. Unsupported DDS uses the bundled `cd-texture-dx.exe` preview helper first, then DirectXTex `texconv` when available.
 - The .NET project now depends on Vortice.Direct3D11, Vortice.DXGI, and Vortice.D3DCompiler.
-- Remaining target work is runtime visual QA and true GPU overlay draw-pass parity for the D3D11 child viewport, not creation of the first shader backend.
+- Remaining target work is same-camera golden comparison and any material/DDS
+  formats not covered by current real-archive evidence.
 - Embedded production mode now treats D3D11 as required. If D3D11 initialization fails, the helper reports `blocked_renderer_unavailable`; WPF/GDI fallback is allowed only through an explicit developer renderer fallback.
 - Renderer status now exposes material parity blockers, including `native_dds_parity=false`, `dds_native_dxgi_upload=false`, and bitmap upload fallback. Host UI treats those states as non-authoritative and blocks embedded production import when material parity is required.
 
-## Why edge overlay depended on host/native code
+## Historical edge-overlay gap (resolved)
 
 - The .NET viewport had no unique edge list, face-to-edge map, edge-to-face adjacency, hover edge, or selected-edge set.
 - The .NET viewport sent selection intent to the host instead of resolving edge hits locally.
 - No local edge overlay buffer/draw pass existed.
 
-## Planned repair approach
+## Implemented repair approach
 
-### Safe immediate repair
+### Production repair
 
 Implemented in this pass:
 
@@ -125,9 +143,8 @@ Implemented in this pass:
 - Added material debug channel toggles and renderer status parity metadata for base, normal, roughness, metallic, emissive, specular, and final output.
 - Kept host commit/import/material refresh unchanged.
 
-### Required larger renderer replacement
+### Remaining renderer work
 
-- Validate and harden the new custom D3D11/Vortice backend against real embedded .NET sessions and real PAC materials.
 - Extend DDS/native texture decode beyond BC1/BC2/BC3/BC4/BC5/R8/RG8/RGBA8/BGRA8, especially BC6H/BC7 and other DX10/DXGI formats if required by PAC assets.
 - Extend shader-level parity beyond the current base, normal, roughness, metallic, emissive, specular, and final debug modes if Crimson material packing requires more channels.
 - Add golden screenshot comparison against native renderer for real PAC assets.
@@ -135,14 +152,13 @@ Implemented in this pass:
 
 ## Target architecture gap
 
-The current code now has local edge topology, stable edge descriptors, topology generation, local vertex/face/edge/part picking, host-owned selection and transform command routing, shared .NET camera/projection semantics, material/texture handoff, common DDS and DX10/DXGI DDS decoding, `cd-texture-dx` DDS fallback, default .NET startup for Edit Mesh, packaged .NET helper discovery, explicit D3D11 startup probing/fallback, device-lost reset, D3D11-owned overlay primitives for local selection state, material debug channels, release dirty-tree preflight, and a first custom D3D11/Vortice/HLSL material viewport. WPF remains fallback. Remaining validation is runtime visual QA/golden screenshots for the new .NET D3D11 viewport against real PAC assets.
+The current code now has local edge topology, stable edge descriptors, topology generation, local vertex/face/edge/part picking, host-owned selection and transform command routing, shared .NET camera/projection semantics, material/texture handoff, common DDS and DX10/DXGI DDS decoding, `cd-texture-dx` DDS fallback, default .NET startup for Edit Mesh, packaged .NET helper discovery, explicit D3D11 startup probing/fallback, device-lost reset, D3D11-owned overlay primitives for local selection state, material debug channels, release dirty-tree preflight, and a custom D3D11/Vortice/HLSL material viewport. WPF remains developer-only fallback. Real embedded PAC/material/edit validation now passes; remaining work is automated same-camera golden comparison and any game formats outside current DDS coverage.
 
 ## Real archive proof
 
-- `scripts/codex_check.ps1 -Area mesh -GameRoot "C:\\games\\Steam\\steamapps\\common\\Crimson Desert"` passed on 2026-07-07.
-- Proof scenario: `real-archive-mesh-editor-d3d11-side-by-side-edit-smoke`.
+- `scripts/codex_check.ps1 -Area mesh -GameRoot "C:\\games\\Steam\\steamapps\\common\\Crimson Desert"` passed on 2026-07-10.
+- Proof scenario: `real-archive-mesh-editor-dotnet-edit-smoke`.
 - Proof source path: `character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac`.
-- Evidence report path: `C:\\Users\\Ratrider\\AppData\\Local\\Temp\\cdmw-real-archive-mesh-editor-d3d11-side-by-side-codex-check\\evidence_report.json`.
-- Result: `ok: true`; before/after D3D11 captures and visual edit proof were produced.
+- Result: `ok: true`; `.NET/Vortice` backend `d3d11_vortice_shader`, native edit backend `cdmw_mesh_core_0.1`, three real archive DDS bindings, selected-only geometry, before/after/diff captures, 1.214 ms handler p95, 101.14 ms maximum heartbeat gap, and unchanged PAMT/PAZ hashes.
 
-Note: this proof validates the real archive mesh editor/D3D11 side-by-side edit pipeline. It does not by itself prove the new embedded .NET D3D11/Vortice viewport runtime behavior.
+Legacy `real-archive-mesh-editor-d3d11-*` scenarios remain compatibility-only and are not accepted as the user-facing renderer proof.

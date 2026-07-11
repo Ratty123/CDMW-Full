@@ -81,11 +81,13 @@ Use `docs/test-matrix.md`.
 
 ## Mesh Editor validation
 
-- For user-facing Mesh Editor viewport/edit proof, use a real game `.pac` mesh:
-  `.\scripts\codex_check.ps1 -Area mesh` or
-  `tools/mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-d3d11-side-by-side-edit-smoke`.
-- If the user supplied a specific PAC, also run the Mesh Editor startup/rebuild
-  smoke against that file.
+- For user-facing Mesh Editor edit proof, use the read-only real game archive
+  PAC smoke:
+  `.\scripts\codex_check.ps1 -Area mesh -GameRoot <Crimson-Desert-root>`.
+- That gate must use the embedded .NET/Vortice renderer
+  `d3d11_vortice_shader` with edit backend `cdmw_mesh_core_0.1`. Legacy
+  `real-archive-mesh-editor-d3d11-*` scenarios are compatibility-only.
+- `mesh-unit` must stay non-visual; do not add the D3D11 dev harness file to it.
 - `build_synthetic_mesh`, `harness_quad`, `full-suite-smoke`,
   `native-mesh-editor-d3d11-delta`, `native-mesh-editor-d3d11-payloads`, and
   `scripts/codex_check.ps1 -Area mesh-unit` are unit/protocol regression

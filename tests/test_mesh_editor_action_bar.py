@@ -56,7 +56,7 @@ from cdmw.models import (
     TextureEditorSourceBinding,
 )
 from cdmw.services.mesh_service import MeshService
-from cdmw.services.mesh_dotnet_experiment import MeshDotNetExperimentPackage
+from cdmw.services.mesh_dotnet_experiment import MeshDotNetExperimentPackage, mesh_dotnet_material_input_signature
 from cdmw.services.mesh_texture_sources import MeshTextureSourceResolution, resolve_mesh_texture_source
 from cdmw.ui.mesh_editor import (
     MeshEditorActionBar,
@@ -598,7 +598,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(button.isEnabled())
         self.assertTrue(button.isHidden())
 
-        with patch("cdmw.ui.mesh_editor.tab.find_mesh_dotnet_experiment_editor", return_value=None):
+        with patch.object(tab, "_dotnet_editor_executable_path", return_value=None):
             button.click()
 
         self.assertIn("not configured", messages[-1][0])
@@ -663,10 +663,107 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.standalone_dotnet_target_embedded = True
         tab.standalone_dotnet_target_controller = builder.controller
 
-        self.assertTrue(tab._handle_dotnet_protocol_event({"event": "ready"}))
+        self.assertTrue(tab._handle_dotnet_protocol_event({"event": "ready", "renderer": {"backend": "d3d11_vortice_shader", "gpu_backed": True, "renderer_blocked": False}}))
 
         self.assertTrue(getattr(builder, "_mesh_editor_embedded_dotnet_active", False))
         self.assertEqual("ready", getattr(builder, "_mesh_editor_embedded_dotnet_state", ""))
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_dotnet_ready_accepts_material_parity_warning(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetParityReady")
+        settings.clear()
+        tab = MeshEditorTab(settings=settings)
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_embedded = True
+        tab.standalone_dotnet_target_controller = builder.controller
+        process = _FakeProcess()
+        process._state = process.Running
+        tab.standalone_dotnet_editor_process = process  # type: ignore[assignment]
+
+        ok = tab._handle_dotnet_protocol_event(
+            {
+                "event": "ready",
+                "renderer": {
+                    "backend": "d3d11_vortice_shader", "gpu_backed": True, "renderer_blocked": False,
+                    "native_dds_parity": False,
+                    "dds_native_dxgi_upload": False,
+                    "dds_upload_mode": "bitmap_rgba_upload",
+                },
+            }
+        )
+
+        self.assertTrue(ok)
+        self.assertFalse(process.terminated)
+        self.assertIs(process, tab.standalone_dotnet_editor_process)
+        self.assertTrue(getattr(builder, "_mesh_editor_embedded_dotnet_active", False))
+        self.assertEqual("ready", getattr(builder, "_mesh_editor_embedded_dotnet_state", ""))
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_dotnet_output_import_accepts_warning_and_keeps_resident_embedded_mesh(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetParityImport")
+        settings.clear()
+        tab = MeshEditorTab(settings=settings)
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_embedded = True
+        tab.standalone_dotnet_target_controller = builder.controller
+        with tempfile.TemporaryDirectory() as tmp:
+            package_dir = Path(tmp)
+            package = MeshDotNetExperimentPackage(
+                package_dir=package_dir,
+                mesh_path=package_dir / "mesh.obj",
+                obj_sidecar_path=package_dir / "mesh.obj.meta.json",
+                cdmeta_path=package_dir / "mesh.cdmeta.json",
+                original_asset_hash_path=package_dir / "original_asset_hash.txt",
+                status_path=package_dir / "dotnet_status.json",
+                output_dir=package_dir / "output",
+                edit_operations_path=package_dir / "output" / "edit_operations.json",
+                launch_manifest_path=package_dir / "dotnet_launch.json",
+            )
+
+            ok = tab._start_standalone_dotnet_output_import(
+                package,
+                {
+                    "renderer": {
+                        "backend": "d3d11_vortice_shader", "gpu_backed": True, "renderer_blocked": False,
+                        "native_dds_parity": False,
+                        "dds_native_dxgi_upload": False,
+                    },
+                },
+            )
+
+        self.assertTrue(ok)
+        self.assertIsNone(tab.standalone_dotnet_import_thread)
+        self.assertEqual(["dotnet_output_ignored"], builder.finalized_dotnet_imports)
+        self.assertFalse(builder.replaced_meshes)
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_dotnet_missing_renderer_ready_stops_embedded_process(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetBlockedReady")
+        settings.clear()
+        tab = MeshEditorTab(settings=settings)
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_embedded = True
+        tab.standalone_dotnet_target_controller = builder.controller
+        process = _FakeProcess()
+        process._state = process.Running
+        tab.standalone_dotnet_editor_process = process  # type: ignore[assignment]
+
+        ok = tab._handle_dotnet_protocol_event({"event": "ready"})
+
+        self.assertFalse(ok)
+        self.assertTrue(process.terminated)
+        self.assertIsNone(tab.standalone_dotnet_editor_process)
+        self.assertFalse(getattr(builder, "_mesh_editor_embedded_dotnet_active", True))
+        self.assertEqual("failed", getattr(builder, "_mesh_editor_embedded_dotnet_state", ""))
         app.processEvents()
         tab.deleteLater()
 
@@ -724,7 +821,137 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         self.assertEqual(((2, ((4, 9),)),), selection.edges_by_submesh)
 
-    def test_dotnet_command_request_passes_local_selection_to_host_action(self) -> None:
+    def test_dotnet_selection_request_replaces_resident_selection(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetSelectionRequest"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_target_embedded = True
+        captured: list[tuple[str, MeshEditSelection | None, dict[str, object]]] = []
+
+        def fake_apply(
+            action: str,
+            *,
+            selection: MeshEditSelection | None = None,
+            mode: str | None = None,
+            **params: object,
+        ) -> MeshEditResult:
+            captured.append((action, selection, dict(params)))
+            return MeshEditResult(action=action, status="ok", revision=0)
+
+        with patch.object(builder.controller, "apply", side_effect=fake_apply), patch.object(
+            tab,
+            "_apply_dotnet_result_update",
+            return_value=True,
+        ):
+            self.assertTrue(
+                tab._handle_dotnet_protocol_event(
+                    {
+                        "event": "selection_request",
+                        "local_selection": {"vertices_by_submesh": {"0": [2]}},
+                    }
+                )
+            )
+
+        self.assertEqual("select", captured[0][0])
+        assert captured[0][1] is not None
+        self.assertEqual(((0, (2,)),), captured[0][1].vertices_by_submesh)
+        self.assertEqual("replace", captured[0][2]["operation"])
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_dotnet_stroke_reuses_local_selection_across_incremental_updates(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetStrokeSelection"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_target_embedded = True
+        captured: list[tuple[str, MeshEditSelection | None, dict[str, object]]] = []
+
+        def fake_apply(
+            action: str,
+            *,
+            selection: MeshEditSelection | None = None,
+            mode: str | None = None,
+            **params: object,
+        ) -> MeshEditResult:
+            captured.append((action, selection, dict(params)))
+            return MeshEditResult(action=action, status="ok", revision=0)
+
+        screen = {
+            "x": 50,
+            "y": 50,
+            "radius": 24,
+            "viewport_width": 100,
+            "viewport_height": 100,
+            "world_view_projection": [1.0] * 16,
+        }
+        begin = {
+            "stroke_id": "7",
+            "tool": "move",
+            "screen_brush": screen,
+            "screen_drag": {**screen, "start_x": 50, "start_y": 50, "end_x": 50, "end_y": 50},
+            "local_selection": {"vertices_by_submesh": {"0": [0]}},
+        }
+        update = {
+            "stroke_id": "7",
+            "tool": "move",
+            "screen_brush": {**screen, "x": 55},
+            "screen_drag": {**screen, "start_x": 50, "start_y": 50, "end_x": 55, "end_y": 50},
+        }
+
+        with patch.object(builder.controller, "apply", side_effect=fake_apply), patch.object(
+            tab,
+            "_apply_dotnet_result_update",
+            return_value=True,
+        ):
+            self.assertTrue(tab._handle_dotnet_stroke_event(begin, "begin"))
+            self.assertTrue(tab._handle_dotnet_stroke_event(update, "update"))
+            self.assertTrue(tab._handle_dotnet_stroke_event({"stroke_id": "7", "tool": "move"}, "end"))
+            assert tab.standalone_live_stroke_dispatcher is not None
+            self.assertTrue(tab.standalone_live_stroke_dispatcher.wait_idle(2.0))
+            app.processEvents()
+
+        self.assertEqual(["select", "transform", "transform", "transform"], [item[0] for item in captured])
+        self.assertNotIn("_native_screen_selection_payload", captured[1][2])
+        self.assertNotIn("_native_screen_selection_payload", captured[2][2])
+        self.assertEqual((50, 50, 55, 50), tuple(captured[2][2]["screen_drag"][key] for key in ("start_x", "start_y", "end_x", "end_y")))
+        self.assertEqual("", tab.standalone_native_mesh_edit_stroke_id)
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_dotnet_rejects_selection_strokes_and_commands_while_topology_worker_is_active(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetBusyMutationGate"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_target_embedded = True
+        process = _FakeProcess(tab)
+        process._state = process.Running
+        tab.standalone_dotnet_editor_process = process
+        tab.standalone_action_worker = object()  # type: ignore[assignment]
+
+        with patch.object(builder.controller, "apply") as apply:
+            self.assertTrue(
+                tab._handle_dotnet_local_selection_request(
+                    {"local_selection": {"vertices_by_submesh": {"0": [0]}}}
+                )
+            )
+            self.assertTrue(tab._handle_dotnet_stroke_event({}, "begin"))
+            self.assertTrue(tab._handle_dotnet_command_request({"command": "move", "delta": [0.1, 0.0, 0.0]}))
+            apply.assert_not_called()
+
+        busy_results = [write for write in process.stdin_writes if b'"status":"busy"' in write]
+        self.assertEqual(3, len(busy_results))
+        tab.standalone_action_worker = None
+        tab.standalone_dotnet_editor_process = None
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_dotnet_command_request_sends_topology_action_to_worker_with_local_selection(self) -> None:
         app = QApplication.instance() or QApplication([])
         settings = QSettings("CDMWTests", "MeshEditorDotNetCommandLocalSelection")
         settings.clear()
@@ -733,37 +960,34 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
         tab.standalone_dotnet_target_embedded = True
-        captured: list[tuple[str, MeshEditSelection | None, dict[str, object]]] = []
+        captured: list[tuple[object, MeshEditCommand, str]] = []
 
-        def fake_apply_editor_action(
-            action: object,
-            *,
-            selection: MeshEditSelection | None = None,
-            mode: str | None = None,
-            **params: object,
-        ) -> MeshEditResult:
-            captured.append((str(action), selection, dict(params)))
-            return MeshEditResult(action=str(action), status="ok", revision=builder.controller.session_view().revision)
-
-        builder.controller.apply_editor_action = fake_apply_editor_action  # type: ignore[method-assign]
-
-        self.assertTrue(
-            tab._handle_dotnet_command_request(
-                {
-                    "event": "command_request",
-                    "command": "delete",
-                    "local_selection": {
-                        "faces_by_submesh": {"0": [1]},
-                        "edges_by_submesh": {"0": [[2, 3]]},
-                    },
-                }
+        with patch.object(
+            tab,
+            "_start_dotnet_action_worker",
+            side_effect=lambda controller, command, command_name: captured.append(
+                (controller, command, command_name)
+            ) or True,
+        ):
+            self.assertTrue(
+                tab._handle_dotnet_command_request(
+                    {
+                        "event": "command_request",
+                        "command": "delete",
+                        "local_selection": {
+                            "faces_by_submesh": {"0": [1]},
+                            "edges_by_submesh": {"0": [[2, 3]]},
+                        },
+                    }
+                )
             )
-        )
 
-        self.assertEqual("delete", captured[0][0])
-        assert captured[0][1] is not None
-        self.assertEqual(((0, (1,)),), captured[0][1].faces_by_submesh)
-        self.assertEqual(((0, ((2, 3),)),), captured[0][1].edges_by_submesh)
+        self.assertIs(builder.controller, captured[0][0])
+        self.assertEqual("delete", captured[0][1].action)
+        assert captured[0][1].selection is not None
+        self.assertEqual(((0, (1,)),), captured[0][1].selection.faces_by_submesh)
+        self.assertEqual(((0, ((2, 3),)),), captured[0][1].selection.edges_by_submesh)
+        self.assertEqual("delete", captured[0][2])
         app.processEvents()
         tab.deleteLater()
 
@@ -828,7 +1052,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             1.0,
         )
 
-        self.assertTrue(builder.replaced_meshes)
+        self.assertFalse(builder.replaced_meshes)
         self.assertEqual(["dotnet_output_import"], builder.finalized_dotnet_imports)
         self.assertIn("safe to rebuild", tab.embedded_workspace.status_label.text())
         app.processEvents()
@@ -1382,6 +1606,11 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 }
             )
             host.mesh_edit_stroke_finished.emit({"stroke_id": 7, "tool": "move"})
+            dispatcher = tab.standalone_live_stroke_dispatcher
+            self.assertIsNotNone(dispatcher)
+            assert dispatcher is not None
+            self.assertTrue(dispatcher.wait_idle(2.0))
+            app.processEvents()
 
         self.assertEqual(["transform", "transform", "transform"], [item[0] for item in captured])
         self.assertEqual(["begin", "update", "end"], [item[2]["stroke_phase"] for item in captured])
@@ -1441,6 +1670,11 @@ class MeshEditorActionBarTests(unittest.TestCase):
                     ),
                 }
             )
+            dispatcher = tab.standalone_live_stroke_dispatcher
+            self.assertIsNotNone(dispatcher)
+            assert dispatcher is not None
+            self.assertTrue(dispatcher.wait_idle(2.0))
+            app.processEvents()
 
         native_selection = captured[0]["_native_selection_payload"]
         assert isinstance(native_selection, dict)
@@ -2686,7 +2920,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
     def test_mesh_editor_shell_wires_texture_open_request_to_texture_editor_bridge(self) -> None:
         source = Path("cdmw/ui/shell/tool_tabs.py").read_text(encoding="utf-8")
         self.assertIn("open_texture_source_requested.connect(self._open_source_in_texture_editor)", source)
-        self.assertIn("native_dds_ready.connect(self.mesh_editor_tab.apply_texture_editor_dds_preview)", source)
+        self.assertIn(
+            "native_dds_ready.connect(lambda *args: self.mesh_editor_tab.apply_texture_editor_dds_result(*args))",
+            source,
+        )
+        self.assertIn("resident_texture_patch_ready.connect", source)
+        self.assertIn("apply_texture_editor_region_patch(patch)", source)
         self.assertIn("get_archive_texture_entries_by_normalized_path=", source)
         self.assertIn("get_archive_texture_entries_by_basename=", source)
 
@@ -3341,7 +3580,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-dotnet-button", mode="edit")
         self.assertTrue(button.isEnabled())
 
-        with patch("cdmw.ui.mesh_editor.tab.find_mesh_dotnet_experiment_editor", return_value=None):
+        with patch.object(tab, "_dotnet_editor_executable_path", return_value=None):
             button.click()
 
         self.assertIn("not configured", messages[-1][0])
@@ -3495,7 +3734,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             package_dir = Path(temp_dir) / "package"
             exported: list[object] = []
 
-            def fake_export_obj(_mesh: object, output_dir: str, name: str) -> list[str]:
+            def fake_export_obj(_mesh: object, output_dir: str, name: str, **_kwargs: object) -> list[str]:
                 root = Path(output_dir)
                 obj_path = root / f"{name}.obj"
                 mtl_path = root / f"{name}.mtl"
@@ -3673,8 +3912,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
                 launch_manifest_path=package_dir / "dotnet_launch.json",
+                material_signature=mesh_dotnet_material_input_signature(builder.controller.working_mesh(clone=False)),
             )
             tab.standalone_dotnet_target_embedded = True
+            tab.standalone_dotnet_target_controller = builder.controller
             _FakeProcess.instances.clear()
             with patch("cdmw.ui.mesh_editor.tab.QProcess", _FakeProcess):
                 self.assertTrue(tab._launch_standalone_dotnet_editor_package(package))
@@ -3685,9 +3926,128 @@ class MeshEditorActionBarTests(unittest.TestCase):
             hwnd = int(process.arguments[process.arguments.index("--parent-hwnd") + 1])
             self.assertGreater(hwnd, 0)
             self.assertTrue(tab._request_embedded_dotnet_editor_close())
-            self.assertTrue((package_dir / "dotnet_close_requested.txt").is_file())
-            self.assertTrue(any(b'"event":"close_request"' in write for write in process.stdin_writes))
+            self.assertFalse((package_dir / "dotnet_close_requested.txt").exists())
+            self.assertTrue(any(b'"event":"deactivate_request"' in write for write in process.stdin_writes))
             self.assertFalse(process.terminated)
+            self.assertIs(process, tab.standalone_dotnet_editor_process)
+            self.assertEqual("closing", tab.standalone_dotnet_embedded_state)
+            self.assertEqual([], builder.finalized_dotnet_imports)
+            revision_before_late_event = builder.controller.session_view().revision
+            process.emit_stdout(
+                '{"event":"command_request","command":"move","delta":[0.05,0,0],'
+                '"local_selection":{"vertices_by_submesh":{"0":[0]}}}\n'
+            )
+            self.assertGreater(builder.controller.session_view().revision, revision_before_late_event)
+            self.assertEqual([], builder.finalized_dotnet_imports)
+            process.emit_stdout('{"event":"deactivated"}\n')
+            self.assertEqual("suspended", tab.standalone_dotnet_embedded_state)
+            self.assertEqual(["dotnet_deactivated"], builder.finalized_dotnet_imports)
+
+            tab._start_dotnet_editor_requested(builder.controller, embedded=True)
+
+            self.assertIs(process, tab.standalone_dotnet_editor_process)
+            self.assertTrue(any(b'"event":"activate_request"' in write for write in process.stdin_writes))
+            self.assertEqual("launching", tab.standalone_dotnet_embedded_state)
+            process.emit_stdout('{"event":"activated"}\n')
+            self.assertEqual("ready", tab.standalone_dotnet_embedded_state)
+            self.assertTrue(getattr(builder, "_mesh_editor_embedded_dotnet_active", False))
+
+            self.assertTrue(tab._request_embedded_dotnet_editor_close())
+            self.assertEqual(1, len(builder.finalized_dotnet_imports))
+            process.emit_stdout('{"event":"deactivated"}\n')
+            finalized_count = len(builder.finalized_dotnet_imports)
+            self.assertEqual(2, finalized_count)
+            process._state = process.NotRunning
+            process.finished.emit(0, 0)
+
+            self.assertEqual(finalized_count, len(builder.finalized_dotnet_imports))
+            self.assertEqual("closed", tab.standalone_dotnet_embedded_state)
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_tab_unexpected_embedded_dotnet_exit_keeps_resident_edits(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetUnexpectedExit"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        builder.controller.select(vertices_by_submesh={0: (0,)})
+        builder.controller.apply_editor_action("transform_move", translate=(0.0, 0.0, 0.25))
+        resident_revision = builder.controller.session_view().revision
+        fallbacks: list[tuple[str, str]] = []
+        setattr(builder, "_mesh_editor_embedded_dotnet_failed", lambda reason, detail: fallbacks.append((reason, detail)))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_dir = Path(temp_dir) / "package"
+            output_dir = package_dir / "output"
+            output_dir.mkdir(parents=True)
+            package = MeshDotNetExperimentPackage(
+                package_dir=package_dir,
+                mesh_path=package_dir / "mesh.obj",
+                obj_sidecar_path=package_dir / "mesh.obj.meta.json",
+                cdmeta_path=package_dir / "mesh.cdmeta.json",
+                original_asset_hash_path=package_dir / "original_asset_hash.txt",
+                status_path=package_dir / "dotnet_status.json",
+                output_dir=output_dir,
+                edit_operations_path=output_dir / "edit_operations.json",
+                launch_manifest_path=package_dir / "dotnet_launch.json",
+            )
+            process = _FakeProcess(tab)
+            tab.standalone_dotnet_target_embedded = True
+            tab.standalone_dotnet_target_controller = builder.controller
+            tab.standalone_dotnet_editor_process = process
+            tab._set_embedded_dotnet_state("ready", active=True)
+
+            tab._handle_standalone_dotnet_editor_finished(process, package)
+
+        self.assertIsNone(tab.standalone_dotnet_editor_process)
+        self.assertIs(builder.controller, tab.standalone_dotnet_target_controller)
+        self.assertEqual(resident_revision, builder.controller.session_view().revision)
+        self.assertGreater(resident_revision, 0)
+        self.assertEqual([], builder.finalized_dotnet_imports)
+        self.assertEqual("failed", tab.standalone_dotnet_embedded_state)
+        self.assertEqual("mesh_edit_dotnet_fallback", fallbacks[0][0])
+        self.assertIn("exited unexpectedly", fallbacks[0][1])
+        self.assertFalse(getattr(builder, "_mesh_editor_embedded_dotnet_active", True))
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_tab_reactivation_repackages_changed_material_inputs(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetMaterialRefresh"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        mesh = builder.controller.working_mesh(clone=False)
+        original_signature = mesh_dotnet_material_input_signature(mesh)
+        process = _FakeProcess(tab)
+        process._state = process.Running
+        package = MeshDotNetExperimentPackage(
+            package_dir=Path("package"),
+            mesh_path=Path("package/mesh.obj"),
+            obj_sidecar_path=Path("package/mesh.obj.meta.json"),
+            cdmeta_path=Path("package/mesh.cdmeta.json"),
+            original_asset_hash_path=Path("package/original_asset_hash.txt"),
+            status_path=Path("package/dotnet_status.json"),
+            output_dir=Path("package/output"),
+            edit_operations_path=Path("package/output/edit_operations.json"),
+            launch_manifest_path=Path("package/dotnet_launch.json"),
+            material_signature=original_signature,
+        )
+        tab.standalone_dotnet_target_embedded = True
+        tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_editor_process = process
+        tab.standalone_dotnet_experiment_package = package
+        mesh.submeshes[0].texture = "changed_material.dds"
+
+        with patch.object(tab, "_dotnet_editor_executable_path", return_value=None), patch.object(
+            tab,
+            "_notify_embedded_dotnet_launch_failed",
+        ):
+            tab._start_dotnet_editor_requested(builder.controller, embedded=True)
+
+        self.assertTrue(process.terminated)
+        self.assertIsNone(tab.standalone_dotnet_editor_process)
+        self.assertFalse(any(b'"event":"activate_request"' in write for write in process.stdin_writes))
+        self.assertEqual("failed", tab.standalone_dotnet_embedded_state)
         app.processEvents()
         tab.deleteLater()
 
@@ -3769,7 +4129,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
             process = _FakeProcess.instances[-1]
             self.assertTrue(any(b'"event":"session_state"' in write for write in process.stdin_writes))
-            process.emit_stdout('{"event":"ready"}\n')
+            process.emit_stdout('{"event":"ready","renderer":{"backend":"d3d11_vortice_shader","gpu_backed":true,"renderer_blocked":false}}\n')
             self.assertTrue(any(b'"selection_depth_mode":"visible"' in write for write in process.stdin_writes))
 
             captured: list[tuple[str, dict[str, object]]] = []
@@ -3978,14 +4338,16 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativeUnavailable"))
 
-        with patch("cdmw.ui.mesh_editor.tab.native_mesh_core_available", return_value=False):
+        with patch("cdmw.ui.mesh_editor.tab.native_mesh_core_available", return_value=False) as native_available:
             tab.open_mesh_session(build_synthetic_mesh(), session_id="native-unavailable-ui", mode="edit")
+            native_available.reset_mock()
             assert tab.standalone_controller is not None
             tab.standalone_controller.select(vertices_by_submesh={0: (0,)})
             tab.update_editor_session_state(
                 tab.standalone_controller.session_view(),
                 active_selection_mode=tab.standalone_controller.active_selection_mode,
             )
+            native_available.assert_not_called()
 
             self.assertIn("Native Mesh Editor unavailable", tab.standalone_status_label.text())
             self.assertTrue(tab.action_bar.button_for_key("mode_edit").isEnabled())

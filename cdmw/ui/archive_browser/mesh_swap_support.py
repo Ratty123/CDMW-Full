@@ -2,39 +2,41 @@
 from __future__ import annotations
 
 import re
+import threading
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
-from cdmw.core.archive import (
-    _extract_archive_model_sidecar_texture_references,
-    _extract_archive_sidecar_texture_lookup_paths,
-    _find_archive_model_related_entries,
-    _find_archive_model_sidecar_entries,
-    _is_material_sidecar_extension,
+from cdmw.services.archive_query_service import (
+    extract_archive_model_sidecar_texture_references as _extract_archive_model_sidecar_texture_references,
+    find_archive_model_related_entries as _find_archive_model_related_entries,
+    find_archive_model_sidecar_entries as _find_archive_model_sidecar_entries,
     build_archive_model_texture_references,
-    ensure_archive_preview_source,
-    read_archive_entry_data,
-    try_decode_text_like_archive_data,
 )
-from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
-from cdmw.core.archive_relationships import build_archive_relationship_plan, resolve_material_texture_graph
-from cdmw.core.upscale_profiles import normalize_texture_reference_for_sidecar_lookup, parse_material_sidecar_profile
-from cdmw.models import ArchiveEntry
-from cdmw.modding.asset_replacement import classify_texture_binding
-from cdmw.modding.mesh_parser import parse_mesh
-from cdmw.modding.scene_importer import SceneImportResult
-from cdmw.modding.static_mesh_replacer import _semantic_tokens
+from cdmw.services.archive_workflow_service import _extract_archive_sidecar_texture_lookup_paths
+from cdmw.domain.archives.format import is_material_sidecar_extension as _is_material_sidecar_extension
+from cdmw.services.archive_preview_service import ensure_archive_preview_source
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.services.preview_workflow_service import try_decode_text_like_archive_data
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.archives.filters import archive_entry_identity_key
+from cdmw.services.archive_workflow_service import build_archive_relationship_plan, resolve_material_texture_graph
+from cdmw.services.texture_workflow_service import normalize_texture_reference_for_sidecar_lookup, parse_material_sidecar_profile
+from cdmw.models import ArchiveEntry, ArchiveEntryIdentity
+from cdmw.services.mesh_workflow_service import classify_texture_binding
+from cdmw.services.mesh_workflow_service import parse_mesh
+from cdmw.services.mesh_workflow_service import SceneImportResult
+from cdmw.services.mesh_workflow_service import _semantic_tokens
 
 
 class ArchiveMeshSwapSupportMixin:
     @staticmethod
-    def _archive_entry_identity_key(entry: Optional[ArchiveEntry]) -> str:
+    def _archive_entry_identity_key(entry: Optional[ArchiveEntry]) -> ArchiveEntryIdentity | tuple[()]:
         if entry is None:
-            return ""
-        normalized_path = entry.path.replace("\\", "/").strip().lower()
-        return f"{entry.pamt_path.resolve()}::{normalized_path}"
+            return ()
+        return archive_entry_identity_key(entry)
 
     def _same_archive_entry(self, first: Optional[ArchiveEntry], second: Optional[ArchiveEntry]) -> bool:
         return bool(first is not None and second is not None and self._archive_entry_identity_key(first) == self._archive_entry_identity_key(second))
@@ -51,9 +53,17 @@ class ArchiveMeshSwapSupportMixin:
             return Path("_in_game_mesh_sources").joinpath(*parts)
         return Path("_in_game_mesh_sources") / entry.basename
 
-    def _load_archive_mesh_scene_import_result(self, source_entry: ArchiveEntry) -> SceneImportResult:
+    def _load_archive_mesh_scene_import_result(
+        self,
+        source_entry: ArchiveEntry,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> SceneImportResult:
+        raise_if_cancelled(stop_event, "In-game mesh swap preparation cancelled.")
         data, _decompressed, _note = read_archive_entry_data(source_entry)
+        raise_if_cancelled(stop_event, "In-game mesh swap preparation cancelled.")
         source_mesh = parse_mesh(data, source_entry.path)
+        raise_if_cancelled(stop_event, "In-game mesh swap preparation cancelled.")
         return SceneImportResult(
             mesh=source_mesh,
             diagnostics=(f"Using in-game archive mesh source: {source_entry.path}",),
@@ -153,19 +163,46 @@ class ArchiveMeshSwapSupportMixin:
         return "Other"
 
     def _archive_model_related_entries_for_swap(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
-        from cdmw.core.archive import _find_archive_model_related_entries
+        from cdmw.services.archive_query_service import find_archive_model_related_entries as _find_archive_model_related_entries
 
         return _find_archive_model_related_entries(entry, self.archive_entries_by_basename)
 
     def _archive_model_sidecar_entries_for_swap(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
-        from cdmw.core.archive import _find_archive_model_sidecar_entries
+        from cdmw.services.archive_query_service import find_archive_model_sidecar_entries as _find_archive_model_sidecar_entries
 
         return _find_archive_model_sidecar_entries(entry, self.archive_entries_by_basename)
 
-    def _archive_character_appearance_entries_for_swap(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
+    def _archive_character_appearance_entries_for_swap(
+        self,
+        entry: ArchiveEntry,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Tuple[ArchiveEntry, ...]:
+        raise_if_cancelled(stop_event, "Character appearance scan cancelled.")
         normalized_entry_path = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower()
         if "/character/" not in normalized_entry_path:
             return ()
+        entry_key = self._archive_entry_identity_key(entry)
+        result_cache = getattr(self, "archive_character_appearance_swap_cache", {})
+        if entry_key in result_cache:
+            return tuple(result_cache[entry_key])
+        extension_index = getattr(self, "archive_entries_by_extension", {}) or {}
+        if not extension_index and getattr(self, "archive_entries", ()):
+            if stop_event is None:
+                self._ensure_archive_basic_index_worker_started()
+            return ()
+        appearance_candidates: List[ArchiveEntry] = []
+        seen_candidates: set[ArchiveEntryIdentity] = set()
+        for extension in (".app_xml", ".xml"):
+            for candidate in extension_index.get(extension, ()):
+                raise_if_cancelled(stop_event, "Character appearance scan cancelled.")
+                if not isinstance(candidate, ArchiveEntry) or not self._archive_entry_is_appearance_descriptor(candidate):
+                    continue
+                candidate_key = self._archive_entry_identity_key(candidate)
+                if candidate_key in seen_candidates:
+                    continue
+                seen_candidates.add(candidate_key)
+                appearance_candidates.append(candidate)
         source_stem = PurePosixPath(normalized_entry_path).stem.lower()
         source_tokens = {
             token
@@ -179,9 +216,8 @@ class ArchiveMeshSwapSupportMixin:
             if token
         )
         scored: List[Tuple[int, ArchiveEntry]] = []
-        for candidate in tuple(getattr(self, "archive_entries", ()) or ()):
-            if not isinstance(candidate, ArchiveEntry) or not self._archive_entry_is_appearance_descriptor(candidate):
-                continue
+        for candidate in appearance_candidates:
+            raise_if_cancelled(stop_event, "Character appearance scan cancelled.")
             candidate_path = candidate.path.replace("\\", "/").strip().lower()
             if "/character/appearance/" not in candidate_path:
                 continue
@@ -198,6 +234,7 @@ class ArchiveMeshSwapSupportMixin:
                 data, _decompressed, _note = read_archive_entry_data(candidate)
                 text = (try_decode_text_like_archive_data(data) or "").lower()
             except Exception:
+                raise_if_cancelled(stop_event, "Character appearance scan cancelled.")
                 text = ""
             if source_stem and source_stem in text:
                 score += 120
@@ -216,7 +253,10 @@ class ArchiveMeshSwapSupportMixin:
                 seen.add(key)
             if len(result) >= 8:
                 break
-        return tuple(result)
+        resolved = tuple(result)
+        result_cache[entry_key] = resolved
+        self.archive_character_appearance_swap_cache = result_cache
+        return resolved
 
     def _resolve_archive_entries_for_reference_basenames(self, basenames: Sequence[str]) -> Tuple[ArchiveEntry, ...]:
         result: List[ArchiveEntry] = []
@@ -232,8 +272,16 @@ class ArchiveMeshSwapSupportMixin:
                     seen.add(key)
         return tuple(result)
 
-    def _archive_character_app_graph_entries_for_swap(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
-        appearance_entries = self._archive_character_appearance_entries_for_swap(entry)
+    def _archive_character_app_graph_entries_for_swap(
+        self,
+        entry: ArchiveEntry,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Tuple[ArchiveEntry, ...]:
+        appearance_entries = self._archive_character_appearance_entries_for_swap(
+            entry,
+            stop_event=stop_event,
+        )
         if not appearance_entries:
             return ()
         result: List[ArchiveEntry] = []
@@ -248,6 +296,7 @@ class ArchiveMeshSwapSupportMixin:
                 seen.add(key)
 
         for appearance_entry in appearance_entries:
+            raise_if_cancelled(stop_event, "Character appearance graph scan cancelled.")
             _add_entry(appearance_entry)
             try:
                 relationship_plan = build_archive_relationship_plan(
@@ -256,13 +305,22 @@ class ArchiveMeshSwapSupportMixin:
                     mode="swap_source",
                 )
             except Exception:
+                raise_if_cancelled(stop_event, "Character appearance graph scan cancelled.")
                 continue
             for edge in relationship_plan.edges:
                 _add_entry(edge.related_entry)
         return tuple(result[:96])
 
-    def _archive_character_app_graph_texture_entries_for_swap(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
-        graph_entries = self._archive_character_app_graph_entries_for_swap(entry)
+    def _archive_character_app_graph_texture_entries_for_swap(
+        self,
+        entry: ArchiveEntry,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Tuple[ArchiveEntry, ...]:
+        graph_entries = self._archive_character_app_graph_entries_for_swap(
+            entry,
+            stop_event=stop_event,
+        )
         if not graph_entries:
             return ()
         texture_entries_by_key: Dict[str, ArchiveEntry] = {}
@@ -277,17 +335,25 @@ class ArchiveMeshSwapSupportMixin:
                 texture_entries_by_key[key] = texture_entry
 
         for graph_entry in graph_entries:
+            raise_if_cancelled(stop_event, "Character appearance texture graph scan cancelled.")
             try:
                 relationship_plan = resolve_material_texture_graph(graph_entry, self.archive_entries)
             except Exception:
+                raise_if_cancelled(stop_event, "Character appearance texture graph scan cancelled.")
                 relationship_plan = None
             for edge in tuple(getattr(relationship_plan, "edges", ()) or ()):
                 _add_texture(edge.related_entry)
         return tuple(texture_entries_by_key.values())
 
-    def _archive_model_source_texture_entries_for_swap(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
-        from cdmw.core.archive import _extract_archive_sidecar_texture_lookup_paths
+    def _archive_model_source_texture_entries_for_swap(
+        self,
+        entry: ArchiveEntry,
+        *,
+        stop_event: Optional[threading.Event] = None,
+    ) -> Tuple[ArchiveEntry, ...]:
+        from cdmw.services.archive_workflow_service import _extract_archive_sidecar_texture_lookup_paths
 
+        raise_if_cancelled(stop_event, "In-game mesh texture scan cancelled.")
         texture_entries_by_key: "OrderedDict[str, ArchiveEntry]" = OrderedDict()
         texture_entry_scores_by_key: Dict[str, int] = {}
         source_path_text = entry.path.replace("\\", "/").strip().lower()
@@ -331,8 +397,10 @@ class ArchiveMeshSwapSupportMixin:
         try:
             relationship_plan = resolve_material_texture_graph(entry, self.archive_entries)
             for edge in relationship_plan.edges:
+                raise_if_cancelled(stop_event, "In-game mesh texture scan cancelled.")
                 _add_texture(edge.related_entry, referenced_path=edge.related_path)
         except Exception:
+            raise_if_cancelled(stop_event, "In-game mesh texture scan cancelled.")
             pass
 
         try:
@@ -355,17 +423,20 @@ class ArchiveMeshSwapSupportMixin:
                 sidecar_texts_by_basename=source_sidecar_texts_by_basename,
             )
             for reference in source_texture_references:
+                raise_if_cancelled(stop_event, "In-game mesh texture scan cancelled.")
                 _add_texture(
                     getattr(reference, "resolved_entry", None),
                     referenced_path=str(getattr(reference, "source_path", "") or getattr(reference, "texture_path", "") or ""),
                 )
         except Exception:
+            raise_if_cancelled(stop_event, "In-game mesh texture scan cancelled.")
             pass
 
         # Some sidecars carry plain texture attributes that are not recognized by
         # the material-binding parser yet. Resolve those raw paths directly so the
         # swap scope still exposes the DDS files for manual inclusion.
         for sidecar_entry in self._archive_model_sidecar_entries_for_swap(entry):
+            raise_if_cancelled(stop_event, "In-game mesh texture scan cancelled.")
             try:
                 sidecar_data, _decompressed, _note = read_archive_entry_data(sidecar_entry)
                 sidecar_text = try_decode_text_like_archive_data(sidecar_data) or ""
@@ -386,10 +457,16 @@ class ArchiveMeshSwapSupportMixin:
     def _build_archive_swap_source_texture_evidence(
         self,
         source_entry: ArchiveEntry,
+        *,
+        stop_event: Optional[threading.Event] = None,
     ) -> Tuple[Tuple[Path, ...], Tuple[Mapping[str, object], ...]]:
         """Expose source-side DDS/sidecar evidence to Mesh Replacement Alignment suggestions."""
 
-        texture_entries = self._archive_model_source_texture_entries_for_swap(source_entry)
+        raise_if_cancelled(stop_event, "In-game mesh texture evidence cancelled.")
+        texture_entries = self._archive_model_source_texture_entries_for_swap(
+            source_entry,
+            stop_event=stop_event,
+        )
         if not texture_entries:
             return (), ()
         bindings: Tuple[object, ...] = ()
@@ -403,6 +480,7 @@ class ArchiveMeshSwapSupportMixin:
         bindings_by_normalized_path: Dict[str, List[object]] = {}
         bindings_by_basename: Dict[str, List[object]] = {}
         for binding in bindings:
+            raise_if_cancelled(stop_event, "In-game mesh texture evidence cancelled.")
             texture_path = str(getattr(binding, "texture_path", "") or "").replace("\\", "/").strip()
             normalized = normalize_texture_reference_for_sidecar_lookup(texture_path)
             if normalized:
@@ -414,6 +492,7 @@ class ArchiveMeshSwapSupportMixin:
         profile_records_by_basename: Dict[str, List[Tuple[object, object, object]]] = {}
         source_sidecar_entries = tuple(self._archive_model_sidecar_entries_for_swap(source_entry))
         for sidecar_entry in source_sidecar_entries:
+            raise_if_cancelled(stop_event, "In-game mesh texture evidence cancelled.")
             try:
                 sidecar_data, _decompressed, _note = read_archive_entry_data(sidecar_entry)
                 sidecar_text = try_decode_text_like_archive_data(sidecar_data) or ""
@@ -510,6 +589,7 @@ class ArchiveMeshSwapSupportMixin:
         evidence_rows: List[Mapping[str, object]] = []
         seen_local_paths: set[str] = set()
         for texture_entry in texture_entries:
+            raise_if_cancelled(stop_event, "In-game mesh texture evidence cancelled.")
             try:
                 local_path, _note = ensure_archive_preview_source(texture_entry)
                 local_path = local_path.expanduser().resolve()

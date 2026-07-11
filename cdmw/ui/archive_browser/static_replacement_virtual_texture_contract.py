@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 
-from cdmw.modding.material_replacer import SidecarPatchPlan, patch_material_sidecar_text
-from cdmw.modding.static_mesh_replacer import StaticTextureSlotOverride
+from cdmw.services.mesh_workflow_service import SidecarPatchPlan, patch_material_sidecar_text
+from cdmw.services.mesh_workflow_service import StaticTextureSlotOverride
 
 
 def alignment_virtual_contract_rows(

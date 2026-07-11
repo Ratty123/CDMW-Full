@@ -12,12 +12,10 @@ Use this file to choose the right doc before opening everything.
 - `test-matrix.md`: validation commands by area.
 - `release-confidence-plan.md`: release/readiness validation order and latest
   broad confidence evidence.
-- `mesh_editor_v2_plan.md`: Phase 0 implementation map and staged integration
-  points for the strict MeshAsset editing pipeline.
-- `mesh_editor_net_repair_audit.md`: working audit for the embedded .NET Mesh
-  Editor UI, bridge, and commit lifecycle repair.
-- `mesh_editor_net_authoritative_renderer_audit.md`: working audit for the
-  .NET renderer authority, material/texture, and local edge-selection gap.
+- `mesh_editor_net_repair_audit.md`: current embedded .NET Mesh Editor UI,
+  bridge, lifecycle, and real-archive proof state.
+- `mesh_editor_net_authoritative_renderer_audit.md`: production .NET/Vortice
+  renderer authority, material/texture path, and remaining parity gaps.
 
 ## Subfolders
 
@@ -38,6 +36,9 @@ Use this file to choose the right doc before opening everything.
   - `worker-lifecycle.md`: worker/thread shutdown rules.
 - `reference/`: cross-cutting notes.
   - `known-pitfalls.md`: durable repo pitfalls and boundary traps.
+  - `app-startup-benchmark-phase5.json`: same-machine startup baseline.
+  - `app-startup-benchmark-phase6.json`: current cold import, first-window,
+    first-tab, and helper-ready gate evidence compared with that baseline.
 - `plans/active/`: current implementation plans only. Delete superseded,
   completed, handoff, and new-chat bootstrap notes.
 - `ai/PROJECT_MEMORY.md`: compact durable AI handoff facts, not chat logs.

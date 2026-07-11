@@ -58,8 +58,8 @@ from cdmw.constants import (
     UPSCALE_TEXTURE_PRESET_COLOR_UI,
     UPSCALE_TEXTURE_PRESET_COLOR_UI_EMISSIVE,
 )
-from cdmw.core.archive import ArchiveEntry
-from cdmw.core.mod_package import (
+from cdmw.models import ArchiveEntry
+from cdmw.domain.packages.export_policy import (
     MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY,
     MOD_PACKAGE_MANAGER_PROFILE_LABELS,
     MOD_PACKAGE_MANAGER_PROFILES,
@@ -68,7 +68,7 @@ from cdmw.core.mod_package import (
     mod_package_export_options_for_manager,
     mod_package_profile_uses_manager_metadata,
 )
-from cdmw.core.replace_assistant import (
+from cdmw.services.replace_assistant_service import (
     ReplaceAssistantArchiveIndex,
     build_replace_assistant_archive_index,
     build_replace_assistant_items,
@@ -78,7 +78,7 @@ from cdmw.core.replace_assistant import (
     match_replace_assistant_item_to_local_original,
     match_replace_assistant_original,
 )
-from cdmw.core.realesrgan_ncnn import discover_realesrgan_ncnn_models
+from cdmw.services.texture_workflow_service import discover_realesrgan_ncnn_models
 from cdmw.models import (
     ArchivePreviewResult,
     MatchedOriginalTexture,

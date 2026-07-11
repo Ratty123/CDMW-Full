@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Optional
 
-from cdmw.core.texture_editor import make_texture_editor_workspace_root
 from cdmw.models import TextureEditorDocument, TextureEditorSourceBinding
+from cdmw.services.texture_editor_service import TextureEditorService
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +23,7 @@ class TextureEditorHandoffDeliveryState:
 
 
 def texture_editor_default_workspace_root(base_dir: Path) -> Path:
-    return make_texture_editor_workspace_root(base_dir)
+    return TextureEditorService.make_workspace_root(base_dir)
 
 
 def texture_editor_selection_region_default_path(
@@ -189,8 +189,21 @@ def texture_editor_workspace_export_task_label(suffix: str) -> str:
     return f"Exporting {str(suffix).replace('_', ' ')} PNG..."
 
 
-def texture_editor_handoff_source_binding(document: TextureEditorDocument) -> TextureEditorSourceBinding:
-    return dataclasses.replace(document.source_binding)
+def texture_editor_handoff_source_binding(
+    document: TextureEditorDocument,
+    *,
+    mesh_commit_mode: str = "",
+) -> TextureEditorSourceBinding:
+    binding = dataclasses.replace(document.source_binding)
+    if binding.launch_origin == "mesh_editor" and mesh_commit_mode:
+        binding.mesh_commit_mode = str(mesh_commit_mode)
+    return binding
+
+
+def texture_editor_native_dds_action_text(document: Optional[TextureEditorDocument]) -> str:
+    if document is not None and document.source_binding.launch_origin == "mesh_editor":
+        return "Assign DDS..."
+    return "Export DDS..."
 
 
 def texture_editor_handoff_export_suffix(target: str) -> str:

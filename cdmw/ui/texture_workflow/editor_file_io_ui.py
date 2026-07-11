@@ -104,6 +104,9 @@ class TextureEditorFileIoUiMixin:
             preview_max_dimension=max(1024, int(max(getattr(self.document, "width", 1), getattr(self.document, "height", 1)))),
             temp_root=Path(self.workspace_root) / "native_temp",
         )
+    def _emit_native_dds_ready(self, path: Path, *, commit_mode: str) -> None:
+        if self.document is not None:
+            self.native_dds_ready.emit(str(path), texture_editor_handoff_source_binding(self.document, mesh_commit_mode=commit_mode))
     def _refresh_atlas_action_state(self, *, has_doc: bool, busy: bool) -> None:
         atlas_actions = texture_editor_atlas_action_state(
             self.document,
@@ -411,8 +414,7 @@ class TextureEditorFileIoUiMixin:
                 return
             self.native_dds_status_label.setText(native_texture_editor_backend_status_text())
             self._set_status(texture_editor_native_dds_status_text(native_result.dds_path, native_result.report), False)
-            if self.document is not None:
-                self.native_dds_ready.emit(str(native_result.dds_path), texture_editor_handoff_source_binding(self.document))
+            self._emit_native_dds_ready(native_result.dds_path, commit_mode="assign")
             self._refresh_ui()
 
         self._run_async_task(
@@ -447,8 +449,7 @@ class TextureEditorFileIoUiMixin:
                 texture_editor_compressed_preview_status_text(native_result.preview_path or native_result.dds_path, native_result.report),
                 False,
             )
-            if self.document is not None:
-                self.native_dds_ready.emit(str(native_result.dds_path), texture_editor_handoff_source_binding(self.document))
+            self._emit_native_dds_ready(native_result.dds_path, commit_mode="preview")
             self._refresh_ui()
 
         self._run_async_task(

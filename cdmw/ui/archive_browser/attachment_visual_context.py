@@ -6,12 +6,16 @@ import dataclasses
 import math
 import os
 import re
+import threading
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.archive import parse_socket_bone_data_xml, read_archive_entry_data
-from cdmw.core.xml_text import decode_xml_text_payload
-from cdmw.modding.skeleton_parser import parse_pab
+from cdmw.services.archive_workflow_service import parse_socket_bone_data_xml
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.cancellable_file_service import read_file_bytes_cancellable
+from cdmw.domain.xml_text import decode_xml_text_payload
+from cdmw.services.mesh_workflow_service import parse_pab
 from cdmw.models import (
     ArchiveEntry,
     AssetFamilyGraph,
@@ -190,24 +194,35 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
         *,
         preferred_entry: Optional[ArchiveEntry] = None,
         extra_roots: Sequence[object] = (),
+        stop_event: threading.Event | None = None,
     ) -> Optional[AttachmentSocketDocument]:
+        raise_if_cancelled(stop_event, "Attachment socket resolution cancelled.")
         entry = preferred_entry if isinstance(preferred_entry, ArchiveEntry) else None
         if entry is None:
             entry = self._attachment_visual_find_archive_entry_by_path_or_basename(virtual_path)
         if isinstance(entry, ArchiveEntry):
             try:
                 data, _decompressed, _note = read_archive_entry_data(entry)
+                raise_if_cancelled(stop_event, "Attachment socket resolution cancelled.")
                 document = parse_socket_bone_data_xml(decode_xml_text_payload(data).text, source_path=entry.path)
             except Exception:
                 document = None
+            raise_if_cancelled(stop_event, "Attachment socket resolution cancelled.")
             if isinstance(document, AttachmentSocketDocument) and (document.sockets or document.stack_equip_infos):
                 return document
         loose_path = self._attachment_visual_find_loose_evidence_path(virtual_path, extra_roots=extra_roots)
         if loose_path is None:
             return None
         try:
-            document = parse_socket_bone_data_xml(decode_xml_text_payload(loose_path.read_bytes()).text, source_path=str(loose_path))
+            document = parse_socket_bone_data_xml(
+                decode_xml_text_payload(
+                    read_file_bytes_cancellable(loose_path, stop_event=stop_event)
+                ).text,
+                source_path=str(loose_path),
+            )
+            raise_if_cancelled(stop_event, "Attachment socket resolution cancelled.")
         except Exception:
+            raise_if_cancelled(stop_event, "Attachment socket resolution cancelled.")
             return None
         return document if document.sockets or document.stack_equip_infos else None
 
@@ -321,10 +336,12 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
         model_entry: Optional[ArchiveEntry],
         *,
         extra_roots: Sequence[object] = (),
+        stop_event: threading.Event | None = None,
     ) -> Dict[str, object]:
         best_context: Dict[str, object] = {}
         best_count = 0
         for candidate_path in self._attachment_visual_candidate_skeleton_paths(graph, evidence, model_entry):
+            raise_if_cancelled(stop_event, "Attachment skeleton resolution cancelled.")
             payload: Optional[bytes] = None
             source_path = candidate_path
             entry = self._attachment_visual_find_archive_entry_by_path_or_basename(candidate_path)
@@ -334,14 +351,16 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
                     source_path = entry.path
                 except Exception:
                     payload = None
+                raise_if_cancelled(stop_event, "Attachment skeleton resolution cancelled.")
             if payload is None:
                 loose_path = self._attachment_visual_find_loose_evidence_path(candidate_path, extra_roots=extra_roots)
                 if loose_path is not None:
                     try:
-                        payload = loose_path.read_bytes()
+                        payload = read_file_bytes_cancellable(loose_path, stop_event=stop_event)
                         source_path = str(loose_path)
                     except Exception:
                         payload = None
+                    raise_if_cancelled(stop_event, "Attachment skeleton resolution cancelled.")
             if not payload:
                 continue
             try:
@@ -349,6 +368,7 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
                 context = self._attachment_visual_build_skeleton_context(skeleton, source_path)
             except Exception:
                 context = None
+            raise_if_cancelled(stop_event, "Attachment skeleton resolution cancelled.")
             count = int(context.get("skeleton_bone_count", 0) or 0) if isinstance(context, Mapping) else 0
             if isinstance(context, dict) and count > best_count:
                 best_context = context
@@ -363,6 +383,7 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
         skeleton_context: Optional[Mapping[str, object]],
         *,
         extra_roots: Sequence[object] = (),
+        stop_event: threading.Event | None = None,
     ) -> Optional[AttachmentSocketDocument]:
         candidates: List[str] = []
 
@@ -398,7 +419,12 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
         add("phm_01.pab.sockets.xml")
         add("character/phm_01.pab.sockets.xml")
         for candidate in candidates:
-            document = self._attachment_visual_socket_document_from_path(candidate, extra_roots=extra_roots)
+            raise_if_cancelled(stop_event, "Attachment socket resolution cancelled.")
+            document = self._attachment_visual_socket_document_from_path(
+                candidate,
+                extra_roots=extra_roots,
+                stop_event=stop_event,
+            )
             if isinstance(document, AttachmentSocketDocument):
                 return document
         return None
@@ -411,14 +437,22 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
         *,
         socket_entry: Optional[ArchiveEntry] = None,
         extra_roots: Sequence[object] = (),
+        stop_event: threading.Event | None = None,
     ) -> Dict[str, object]:
-        context = self._attachment_visual_skeleton_context(graph, evidence, model_entry, extra_roots=extra_roots)
+        context = self._attachment_visual_skeleton_context(
+            graph,
+            evidence,
+            model_entry,
+            extra_roots=extra_roots,
+            stop_event=stop_event,
+        )
         character_document = self._attachment_visual_character_socket_document(
             graph,
             evidence,
             model_entry,
             context,
             extra_roots=extra_roots,
+            stop_event=stop_event,
         )
         weapon_document = None
         if isinstance(evidence, AttachmentPlacementEvidence):
@@ -426,6 +460,7 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
                 evidence.socket_file_path,
                 preferred_entry=socket_entry,
                 extra_roots=extra_roots,
+                stop_event=stop_event,
             )
         character_socket = self._attachment_visual_find_socket_info(
             character_document,

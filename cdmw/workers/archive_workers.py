@@ -9,7 +9,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, Signal, Slot, Qt
+from PySide6.QtGui import QImage, QImageReader
 
 from cdmw.core.archive import (
     ArchiveNameSearchIndex,
@@ -28,6 +29,25 @@ from cdmw.core.archive_accelerator import build_archive_basic_indexes_accelerate
 from cdmw.core.item_index import build_archive_item_search_index
 from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
 from cdmw.models import ArchiveEntry, RunCancelled
+
+
+def _archive_item_icon_converter_cache_key(texconv_key: str) -> str:
+    parts = [f"texconv={str(texconv_key or '')}"]
+    try:
+        from cdmw.core.texture_native import find_directxtex_texture_binary
+
+        binary = find_directxtex_texture_binary()
+    except Exception:
+        binary = None
+    if binary is None:
+        parts.append("directxtex=missing")
+    else:
+        try:
+            stat = binary.stat()
+            parts.append(f"directxtex={binary.resolve()}:{stat.st_size}:{stat.st_mtime_ns}")
+        except OSError:
+            parts.append(f"directxtex={binary}:missing")
+    return "|".join(parts)
 
 
 def _normalize_shard_entry_signatures(value: object) -> Dict[str, str]:
@@ -139,6 +159,7 @@ class ArchiveBasicIndexWorker(QObject):
         entries: Sequence[ArchiveEntry],
         *,
         native_archive_acceleration: bool,
+        request_id: int = 0,
         entry_metadata_signature: str = "",
         entry_metadata_sources: Sequence[Tuple[object, object, object]] = (),
         shard_entry_signatures: Optional[Mapping[str, str]] = None,
@@ -149,6 +170,7 @@ class ArchiveBasicIndexWorker(QObject):
         self.cache_root = cache_root
         self.entries = entries
         self.native_archive_acceleration = bool(native_archive_acceleration)
+        self.request_id = int(request_id)
         self.entry_metadata_signature = str(entry_metadata_signature or "").strip()
         self.entry_metadata_sources = tuple(
             tuple(row)
@@ -204,6 +226,7 @@ class ArchiveBasicIndexWorker(QObject):
                             "cache_loaded": bool(basic_cache.get("cache_loaded", True)),
                             "cache_path": str(basic_cache.get("cache_path") or ""),
                             "elapsed_s": elapsed,
+                            "request_id": self.request_id,
                         }
                     )
                     return
@@ -244,6 +267,7 @@ class ArchiveBasicIndexWorker(QObject):
                     "cache_loaded": False,
                     "cache_path": cache_path_text,
                     "elapsed_s": elapsed,
+                    "request_id": self.request_id,
                 }
             )
         except RunCancelled as exc:
@@ -267,6 +291,7 @@ class ArchiveEnhancedIndexWorker(QObject):
         cache_root: Path,
         entries: Sequence[ArchiveEntry],
         *,
+        request_id: int = 0,
         entry_metadata_signature: str = "",
         entry_metadata_sources: Sequence[Tuple[object, object, object]] = (),
         shard_entry_signatures: Optional[Mapping[str, str]] = None,
@@ -276,6 +301,7 @@ class ArchiveEnhancedIndexWorker(QObject):
         self.package_root = package_root
         self.cache_root = cache_root
         self.entries = entries
+        self.request_id = int(request_id)
         self.entry_metadata_signature = str(entry_metadata_signature or "").strip()
         self.entry_metadata_sources = tuple(
             tuple(row)
@@ -326,6 +352,7 @@ class ArchiveEnhancedIndexWorker(QObject):
                         ],
                         "name_search_index": derived_cache.get("name_search_index"),
                         "cache_loaded": True,
+                        "request_id": self.request_id,
                     }
                 )
                 return
@@ -375,6 +402,7 @@ class ArchiveEnhancedIndexWorker(QObject):
                     "item_asset_catalog": item_asset_catalog,
                     "name_search_index": name_search_index,
                     "cache_loaded": False,
+                    "request_id": self.request_id,
                 }
             )
         except RunCancelled as exc:
@@ -416,7 +444,7 @@ class ArchiveStructureFilterWorker(QObject):
             self.finished.emit()
 
 class ArchiveItemIconWarmupWorker(QObject):
-    icon_prepared = Signal(int, object, str, str)
+    icon_prepared = Signal(int, object, str, str, object)
     finished = Signal(int)
 
     def __init__(
@@ -441,7 +469,7 @@ class ArchiveItemIconWarmupWorker(QObject):
         self.package_root = package_root
         self.cache_root = cache_root
         self.texconv_key = str(texconv_key or "")
-        self.thumbnail_converter_key = str(thumbnail_converter_key or texconv_key or "")
+        self.thumbnail_converter_key = str(thumbnail_converter_key or "")
         self.texconv_path = texconv_path
         self.max_dimension = max(32, int(max_dimension or 120))
         self.stop_event = threading.Event()
@@ -487,180 +515,226 @@ class ArchiveItemIconWarmupWorker(QObject):
             add_candidate(f"{normalized}.png")
         return candidates
 
-    @Slot()
-    def run(self) -> None:
-        try:
-            try:
-                from cdmw.core.texture_native import ensure_directxtex_dds_preview_pngs
-            except Exception:
-                ensure_directxtex_dds_preview_pngs = None
+    def _decoded_preview_image(self, path: Path) -> QImage:
+        reader = QImageReader(str(path))
+        reader.setAutoTransform(True)
+        source_size = reader.size()
+        if source_size.isValid() and max(source_size.width(), source_size.height()) > self.max_dimension:
+            reader.setScaledSize(
+                source_size.scaled(
+                    self.max_dimension,
+                    self.max_dimension,
+                    Qt.KeepAspectRatio,
+                )
+            )
+        image = reader.read()
+        if image.isNull():
+            return image
+        if max(image.width(), image.height()) > self.max_dimension:
+            image = image.scaled(
+                self.max_dimension,
+                self.max_dimension,
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation,
+            )
+        return image
 
-            pending_dds: List[Tuple[Tuple[Tuple[str, ...], str], ArchiveEntry, Path]] = []
-            pending_dds_keys: set[Tuple[Tuple[str, ...], str]] = set()
-            emitted_keys: set[Tuple[Tuple[str, ...], str]] = set()
+    def _emit_prepared(
+        self,
+        prepared_key: Tuple[Tuple[str, ...], str],
+        preview_path: Path,
+        note: str,
+        emitted_keys: set[Tuple[Tuple[str, ...], str]],
+    ) -> bool:
+        if prepared_key in emitted_keys:
+            return True
+        if self.stop_event.is_set():
+            return False
+        image = self._decoded_preview_image(preview_path)
+        if image.isNull() or self.stop_event.is_set():
+            return False
+        emitted_keys.add(prepared_key)
+        self.icon_prepared.emit(self.generation, prepared_key, str(preview_path), note, image)
+        return True
 
-            def emit_prepared(
-                prepared_key: Tuple[Tuple[str, ...], str],
-                preview_path: Path,
-                note: str,
-            ) -> None:
-                if prepared_key in emitted_keys:
-                    return
-                emitted_keys.add(prepared_key)
-                self.icon_prepared.emit(self.generation, prepared_key, str(preview_path), note)
+    def _emit_missing(
+        self,
+        prepared_key: Tuple[Tuple[str, ...], str],
+        note: str,
+        emitted_keys: set[Tuple[Tuple[str, ...], str]],
+    ) -> None:
+        if prepared_key in emitted_keys or self.stop_event.is_set():
+            return
+        emitted_keys.add(prepared_key)
+        self.icon_prepared.emit(self.generation, prepared_key, "", note, QImage())
 
-            def emit_missing(prepared_key: Tuple[Tuple[str, ...], str], note: str) -> None:
-                if prepared_key in emitted_keys:
-                    return
-                emitted_keys.add(prepared_key)
-                self.icon_prepared.emit(self.generation, prepared_key, "", note)
-
-            for row in self.rows:
+    def _collect_icon_sources(
+        self,
+        converter_key: str,
+        emitted_keys: set[Tuple[Tuple[str, ...], str]],
+    ) -> List[Tuple[Tuple[Tuple[str, ...], str], ArchiveEntry, Path]]:
+        pending_dds: List[Tuple[Tuple[Tuple[str, ...], str], ArchiveEntry, Path]] = []
+        pending_dds_keys: set[Tuple[Tuple[str, ...], str]] = set()
+        for row in self.rows:
+            if self.stop_event.is_set():
+                break
+            icon_paths = self._row_values(row, "icon_paths")
+            if not icon_paths:
+                continue
+            prepared_key = (icon_paths, self.texconv_key)
+            prepared_note = ""
+            for icon_path in icon_paths:
                 if self.stop_event.is_set():
                     break
-                icon_paths = self._row_values(row, "icon_paths")
-                if not icon_paths:
-                    continue
-                prepared_key = (icon_paths, self.texconv_key)
-                prepared_note = ""
-                for icon_path in icon_paths:
+                for entry in self._path_candidates(icon_path)[:4]:
                     if self.stop_event.is_set():
                         break
-                    for entry in self._path_candidates(icon_path)[:4]:
-                        if self.stop_event.is_set():
-                            break
-                        cached = load_archive_item_icon_thumbnail_cache(
-                            self.package_root,
-                            self.cache_root,
-                            icon_paths,
-                            entry,
-                            size=self.max_dimension,
-                            converter_key=self.thumbnail_converter_key,
-                        )
-                        if cached is not None:
-                            cached_path, cached_note = cached
-                            emit_prepared(prepared_key, cached_path, cached_note)
-                            break
-                        try:
-                            source_path, _note = ensure_archive_preview_source(entry, stop_event=self.stop_event)
-                        except Exception as exc:
-                            if self.stop_event.is_set():
-                                break
-                            prepared_note = f"Recovered icon source could not be prepared: {exc}"
-                            continue
-                        preview_path = source_path
-                        if entry.extension == ".dds":
-                            pending_dds.append((prepared_key, entry, source_path))
-                            pending_dds_keys.add(prepared_key)
-                            break
-                        if preview_path.exists():
-                            prepared_note = f"Recovered inventory icon: {entry.path}"
-                            try:
-                                preview_path = save_archive_item_icon_thumbnail_cache(
-                                    self.package_root,
-                                    self.cache_root,
-                                    icon_paths,
-                                    entry,
-                                    preview_path,
-                                    size=self.max_dimension,
-                                    converter_key=self.thumbnail_converter_key,
-                                    note=prepared_note,
-                                )
-                            except Exception:
-                                pass
-                            emit_prepared(prepared_key, preview_path, prepared_note)
-                            break
-                    if prepared_key in emitted_keys:
-                        break
-                if self.stop_event.is_set():
-                    break
-                if prepared_key not in emitted_keys and prepared_key not in pending_dds_keys:
-                    emit_missing(
+                    cached = load_archive_item_icon_thumbnail_cache(
+                        self.package_root,
+                        self.cache_root,
+                        icon_paths,
+                        entry,
+                        size=self.max_dimension,
+                        converter_key=converter_key,
+                    )
+                    if cached is not None and self._emit_prepared(
                         prepared_key,
-                        prepared_note or "Recovered icon path could not be resolved in the loaded archive index.",
-                    )
-
-            if self.stop_event.is_set() or not pending_dds:
-                return
-
-            dds_jobs = [
-                {
-                    "dds_path": str(source_path),
-                    "max_dimension": self.max_dimension,
-                    "slot_kind": "base",
-                }
-                for _prepared_key, _entry, source_path in pending_dds
-            ]
-            batch_results: Dict[str, Path] = {}
-            if ensure_directxtex_dds_preview_pngs is not None:
-                try:
-                    batch_results = ensure_directxtex_dds_preview_pngs(
-                        dds_jobs,
-                        timeout_seconds=45.0,
-                        stop_event=self.stop_event,
-                    )
-                except Exception:
-                    batch_results = {}
-
-            failed_dds_notes: Dict[Tuple[Tuple[str, ...], str], str] = {}
-            for prepared_key, entry, source_path in pending_dds:
-                if self.stop_event.is_set():
-                    break
-                if prepared_key in emitted_keys:
-                    continue
-                try:
-                    batch_key = str(source_path.expanduser().resolve())
-                except OSError:
-                    batch_key = str(source_path)
-                preview_path = batch_results.get(batch_key)
-                if preview_path is None:
+                        cached[0],
+                        cached[1],
+                        emitted_keys,
+                    ):
+                        break
                     try:
-                        preview_path = ensure_dds_display_preview_png(
-                            self.texconv_path,
-                            source_path,
-                            max_dimension=self.max_dimension,
-                            slot_kind="base",
-                            stop_event=self.stop_event,
-                        )
+                        source_path, _note = ensure_archive_preview_source(entry, stop_event=self.stop_event)
                     except Exception as exc:
                         if self.stop_event.is_set():
                             break
-                        failed_dds_notes.setdefault(
-                            prepared_key,
-                            f"Recovered icon DDS found, but thumbnail conversion failed: {exc}",
-                        )
+                        prepared_note = f"Recovered icon source could not be prepared: {exc}"
                         continue
-                if not preview_path.exists():
-                    failed_dds_notes.setdefault(
+                    if entry.extension == ".dds":
+                        pending_dds.append((prepared_key, entry, source_path))
+                        pending_dds_keys.add(prepared_key)
+                        break
+                    if source_path.exists():
+                        prepared_note = f"Recovered inventory icon: {entry.path}"
+                        try:
+                            preview_path = save_archive_item_icon_thumbnail_cache(
+                                self.package_root,
+                                self.cache_root,
+                                icon_paths,
+                                entry,
+                                source_path,
+                                size=self.max_dimension,
+                                converter_key=converter_key,
+                                note=prepared_note,
+                            )
+                        except Exception:
+                            preview_path = source_path
+                        if self._emit_prepared(prepared_key, preview_path, prepared_note, emitted_keys):
+                            break
+                if prepared_key in emitted_keys:
+                    break
+            if prepared_key not in emitted_keys and prepared_key not in pending_dds_keys:
+                self._emit_missing(
+                    prepared_key,
+                    prepared_note or "Recovered icon path could not be resolved in the loaded archive index.",
+                    emitted_keys,
+                )
+        return pending_dds
+
+    def _prepare_dds_icons(
+        self,
+        pending_dds: Sequence[Tuple[Tuple[Tuple[str, ...], str], ArchiveEntry, Path]],
+        converter_key: str,
+        emitted_keys: set[Tuple[Tuple[str, ...], str]],
+    ) -> None:
+        try:
+            from cdmw.core.texture_native import ensure_directxtex_dds_preview_pngs
+        except Exception:
+            ensure_directxtex_dds_preview_pngs = None
+        jobs = [
+            {"dds_path": str(path), "max_dimension": self.max_dimension, "slot_kind": "base"}
+            for _key, _entry, path in pending_dds
+        ]
+        batch_results: Dict[str, Path] = {}
+        if ensure_directxtex_dds_preview_pngs is not None:
+            try:
+                batch_results = ensure_directxtex_dds_preview_pngs(
+                    jobs,
+                    timeout_seconds=45.0,
+                    stop_event=self.stop_event,
+                )
+            except Exception:
+                batch_results = {}
+        failed_notes: Dict[Tuple[Tuple[str, ...], str], str] = {}
+        for prepared_key, entry, source_path in pending_dds:
+            if self.stop_event.is_set():
+                return
+            if prepared_key in emitted_keys:
+                continue
+            try:
+                batch_key = str(source_path.expanduser().resolve())
+            except OSError:
+                batch_key = str(source_path)
+            preview_path = batch_results.get(batch_key)
+            if preview_path is None:
+                try:
+                    preview_path = ensure_dds_display_preview_png(
+                        self.texconv_path,
+                        source_path,
+                        max_dimension=self.max_dimension,
+                        slot_kind="base",
+                        stop_event=self.stop_event,
+                    )
+                except Exception as exc:
+                    if self.stop_event.is_set():
+                        return
+                    failed_notes.setdefault(
                         prepared_key,
-                        "Recovered icon DDS found, but thumbnail conversion did not produce a preview.",
+                        f"Recovered icon DDS found, but thumbnail conversion failed: {exc}",
                     )
                     continue
-                note = f"Recovered inventory icon: {entry.path}"
-                try:
-                    cached_path = save_archive_item_icon_thumbnail_cache(
-                        self.package_root,
-                        self.cache_root,
-                        prepared_key[0],
-                        entry,
-                        preview_path,
-                        size=self.max_dimension,
-                        converter_key=self.thumbnail_converter_key,
-                        note=note,
-                    )
-                except Exception:
-                    cached_path = preview_path
-                emit_prepared(prepared_key, cached_path, note)
-            if not self.stop_event.is_set():
-                for prepared_key, _entry, _source_path in pending_dds:
-                    if prepared_key not in emitted_keys:
-                        emit_missing(
-                            prepared_key,
-                            failed_dds_notes.get(
-                                prepared_key,
-                                "Recovered icon path could not be resolved in the loaded archive index.",
-                            ),
-                        )
+            if not preview_path.exists():
+                failed_notes.setdefault(
+                    prepared_key,
+                    "Recovered icon DDS found, but thumbnail conversion did not produce a preview.",
+                )
+                continue
+            note = f"Recovered inventory icon: {entry.path}"
+            try:
+                cached_path = save_archive_item_icon_thumbnail_cache(
+                    self.package_root,
+                    self.cache_root,
+                    prepared_key[0],
+                    entry,
+                    preview_path,
+                    size=self.max_dimension,
+                    converter_key=converter_key,
+                    note=note,
+                )
+            except Exception:
+                cached_path = preview_path
+            if not self._emit_prepared(prepared_key, cached_path, note, emitted_keys):
+                failed_notes.setdefault(prepared_key, "Recovered icon thumbnail could not be decoded.")
+        for prepared_key, _entry, _source_path in pending_dds:
+            if prepared_key not in emitted_keys:
+                self._emit_missing(
+                    prepared_key,
+                    failed_notes.get(
+                        prepared_key,
+                        "Recovered icon path could not be resolved in the loaded archive index.",
+                    ),
+                    emitted_keys,
+                )
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            converter_key = self.thumbnail_converter_key or _archive_item_icon_converter_cache_key(self.texconv_key)
+            emitted_keys: set[Tuple[Tuple[str, ...], str]] = set()
+            pending_dds = self._collect_icon_sources(converter_key, emitted_keys)
+            if pending_dds and not self.stop_event.is_set():
+                self._prepare_dds_icons(pending_dds, converter_key, emitted_keys)
         finally:
             self.finished.emit(self.generation)
 

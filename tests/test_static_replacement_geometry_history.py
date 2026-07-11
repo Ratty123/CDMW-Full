@@ -95,12 +95,15 @@ def test_geometry_history_capture_and_restore_state_normalize_snapshot_fields() 
         transform_source_indices=("2",),
         selected_original_highlights=("0",),
         selected_target_original_highlights=("1",),
+        metadata_only=True,
+        material_authority_state={"profile": "material_authority_manual", "manual": {"roughness": 17}},
     )
 
     assert snapshot["reason"] == "Delete source part"
     assert snapshot["appended_source_indices"] == {2}
     assert snapshot["mesh_edit_revision"] == 5
     assert snapshot["morph_slider_values"] == {"jaw": 0.25}
+    assert snapshot["metadata_only"] is True
 
     restore = geometry_history_restore_state(
         snapshot,
@@ -115,6 +118,11 @@ def test_geometry_history_capture_and_restore_state_normalize_snapshot_fields() 
     assert restore.selected_target_source_highlights == {2, 3}
     assert restore.original_copy_text_by_index == {1: "src 2"}
     assert restore.mapping_text_by_target == {0: "1, 2"}
+    assert restore.metadata_only is True
+    assert restore.material_authority_state == {
+        "profile": "material_authority_manual",
+        "manual": {"roughness": 17},
+    }
 
 
 def test_geometry_history_push_state_respects_guard_and_limit() -> None:

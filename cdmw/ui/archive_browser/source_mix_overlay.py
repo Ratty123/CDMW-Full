@@ -9,7 +9,6 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QDialog,
     QFileDialog,
     QHBoxLayout,
@@ -22,50 +21,80 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.archive_modding import (
-    ARCHIVE_MESH_EXTENSIONS,
-    ArchiveLooseExportResult,
-    ArchivePatchRequest,
-    export_archive_payloads_to_mod_ready_loose,
-)
-from cdmw.core.source_mix import (
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
+from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
+from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
+from cdmw.services.texture_workflow_service import (
     SourceMixCandidate,
     SourceMixSelection,
     group_source_mix_candidates_by_family,
-    scan_loose_folder_source,
     source_mix_role_for_virtual_path,
     validate_source_mix_selections,
 )
 from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
-from cdmw.modding.scene_importer import import_scene_mesh_with_report
+from cdmw.ui.archive_browser.source_mix_task_controller import (
+    source_mix_task_controller_for_guard,
+)
+from cdmw.workers.source_mix_workers import (
+    SceneImportRequest,
+    SceneImportTaskResult,
+    SourceMixIndexSnapshot,
+    SourceMixScanRequest,
+    SourceMixScanResult,
+    run_scene_import,
+    run_source_mix_scan,
+)
 
 
 class ArchiveSourceMixOverlayMixin:
-    def _open_archive_loose_mod_overlay_dialog(self) -> None:
-        selected_dir = QFileDialog.getExistingDirectory(
-            self,
-            "Import Loose Mod Folder",
-            str(self._suggest_workspace_base_dir()),
-        )
-        if not selected_dir:
+    def _open_archive_loose_mod_overlay_dialog(
+        self,
+        _checked: bool = False,
+        *,
+        _scan_result: object | None = None,
+        _selected_dir: str = "",
+    ) -> None:
+        if not isinstance(_scan_result, SourceMixScanResult):
+            selected_dir = QFileDialog.getExistingDirectory(
+                self,
+                "Import Loose Mod Folder",
+                str(self._suggest_workspace_base_dir()),
+            )
+            if not selected_dir:
+                return
+            scan_root = Path(selected_dir)
+            controller = source_mix_task_controller_for_guard(
+                self,
+                self,
+                attribute="_source_mix_overlay_scan_controller",
+            )
+            request = SourceMixScanRequest(
+                source_path=scan_root,
+                source_kind="loose",
+                index_snapshot=SourceMixIndexSnapshot.capture(
+                    self.archive_entries_by_normalized_path,
+                    self.archive_entries_by_basename,
+                ),
+            )
+            controller.start(
+                request,
+                run_source_mix_scan,
+                status_message=f"Scanning loose mod folder: {scan_root.name}...",
+                on_complete=lambda result: self._open_archive_loose_mod_overlay_dialog(
+                    _scan_result=result,
+                    _selected_dir=str(scan_root),
+                ),
+                on_error=lambda message: QMessageBox.warning(
+                    self,
+                    "Import Loose Mod Folder",
+                    message,
+                ),
+            )
             return
-        scan_root = Path(selected_dir)
-        self.set_status_message(f"Scanning loose mod folder: {scan_root.name}...")
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        QApplication.processEvents()
-        scan_error: Optional[Exception] = None
-        try:
-            candidates = scan_loose_folder_source(scan_root)
-            candidates = self._resolve_source_mix_candidate_targets(candidates)
-        except Exception as exc:
-            candidates = ()
-            scan_error = exc
-        finally:
-            QApplication.restoreOverrideCursor()
-        if scan_error is not None:
-            QMessageBox.warning(self, "Import Loose Mod Folder", str(scan_error))
-            return
+        selected_dir = str(_selected_dir or _scan_result.source_path)
+        candidates = _scan_result.candidates
         if not candidates:
             QMessageBox.information(self, "Import Loose Mod Folder", "No payload files were found in the selected folder.")
             return
@@ -77,6 +106,7 @@ class ArchiveSourceMixOverlayMixin:
         dialog = QDialog(self)
         dialog.setWindowTitle("Loose Mod Overlay Review")
         dialog.resize(1180, 760)
+        source_task_controller = source_mix_task_controller_for_guard(self, dialog)
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
@@ -327,34 +357,51 @@ class ArchiveSourceMixOverlayMixin:
             if not isinstance(target_entry, ArchiveEntry):
                 self.set_status_message("This source row has no archive target to replace.", error=True)
                 return
-            try:
-                scene_result = import_scene_mesh_with_report(candidate.source_path)
-            except Exception as exc:
-                QMessageBox.warning(dialog, "Use as Mesh Replacement Source", str(exc))
-                return
-            supplemental_paths = (
-                tuple(scene_result.discovered_texture_files)
-                + tuple(scene_result.extracted_embedded_files)
-                + tuple(getattr(scene_result, "discovered_supplemental_files", ()) or ())
-            )
-            dialog.accept()
-            QTimer.singleShot(
-                0,
-                lambda target=target_entry, source_path=candidate.source_path, result=scene_result, supplementals=supplemental_paths: self._start_archive_mesh_patch(
-                    target,
-                    preset_setup=MeshImportSetupSelection(
-                        scene_path=source_path,
-                        import_mode="static_replacement",
-                        supplemental_files=tuple(supplementals),
-                        scene_import_result=result,
-                        source_label=f"Loose family source: {source_path}",
-                        placement_review_title="Loose Family Mesh Source Placement",
-                        placement_context_note=(
-                            "This source came from a loose mod family overlay. Review geometry, textures, and placement before export."
+            source_path = candidate.source_path
+
+            def _scene_imported(result: object) -> None:
+                if not isinstance(result, SceneImportTaskResult):
+                    QMessageBox.warning(dialog, "Use as Mesh Replacement Source", "Scene import returned an unexpected result.")
+                    return
+                scene_result = result.scene
+                supplemental_paths = (
+                    tuple(scene_result.discovered_texture_files)
+                    + tuple(scene_result.extracted_embedded_files)
+                    + tuple(getattr(scene_result, "discovered_supplemental_files", ()) or ())
+                )
+                dialog.accept()
+                QTimer.singleShot(
+                    0,
+                    lambda target=target_entry, imported_path=source_path, scene=scene_result, supplementals=supplemental_paths: self._start_archive_mesh_patch(
+                        target,
+                        preset_setup=MeshImportSetupSelection(
+                            scene_path=imported_path,
+                            import_mode="static_replacement",
+                            supplemental_files=tuple(supplementals),
+                            scene_import_result=scene,
+                            source_label=f"Loose family source: {imported_path}",
+                            placement_review_title="Loose Family Mesh Source Placement",
+                            placement_context_note=(
+                                "This source came from a loose mod family overlay. Review geometry, textures, and placement before export."
+                            ),
                         ),
                     ),
+                )
+
+            started = source_task_controller.start(
+                SceneImportRequest(source_path=source_path),
+                run_scene_import,
+                status_message=f"Importing loose mesh source: {source_path.name}...",
+                on_complete=_scene_imported,
+                on_error=lambda message: QMessageBox.warning(
+                    dialog,
+                    "Use as Mesh Replacement Source",
+                    message,
                 ),
+                on_idle=lambda: use_mesh_source_button.setEnabled(True),
             )
+            if started:
+                use_mesh_source_button.setEnabled(False)
 
         use_mesh_source_button.clicked.connect(lambda _checked=False: _use_current_candidate_as_mesh_source())
 

@@ -65,6 +65,13 @@ class _StartupAutoloadSplash:
 class _FinishableStartupSplash:
     def __init__(self) -> None:
         self.finished = False
+        self.details: list[str] = []
+
+    def set_detail(self, detail: str, *_args: object) -> None:
+        self.details.append(detail)
+
+    def remaining_minimum_visible_ms(self) -> int:
+        raise AssertionError("startup release must not impose a presentation dwell")
 
     def finish(self) -> None:
         self.finished = True
@@ -107,6 +114,70 @@ class _DashboardWarningWindow(DashboardControllerMixin):
         self.calls.append("splash")
 
 
+class _ReleaseStartupWindow(StartupPromptMixin):
+    def __init__(self) -> None:
+        self._startup_splash_window = _FinishableStartupSplash()
+        self._startup_splash_holds_main_window = False
+        self._startup_splash_released = False
+        self._startup_splash_release_pending = False
+        self._startup_splash_finish_pending = False
+        self._startup_splash_finish_after_paint_deadline = 0.0
+        self._startup_texture_preview_defer_env = False
+        self.archive_scan_worker = None
+        self.worker_thread = None
+        self.archive_startup_index_warmup_required = True
+        self.events: list[str] = []
+
+    def _record_runtime_event(self, event: str, **_fields: object) -> None:
+        self.events.append(event)
+
+
+class _FirstPaintStartupWindow(StartupPromptMixin):
+    def __init__(self) -> None:
+        self._startup_splash_window = _FinishableStartupSplash()
+        self._startup_splash_holds_main_window = True
+        self._startup_splash_released = True
+        self._startup_splash_release_pending = False
+        self._startup_splash_finish_pending = True
+        self._startup_splash_finish_after_paint_deadline = 0.0
+        self._shutting_down = False
+        self.archive_entries = [object()]
+        self.archive_browser_tab = object()
+        self.archive_browser_first_visible_paint_done = False
+        self.archive_browser_first_visible_started_at = 0.0
+        self.shown = False
+        self.events: list[str] = []
+        self.logs: list[str] = []
+        self.paint_markers: list[int] = []
+
+    def isVisible(self) -> bool:
+        return self.shown
+
+    def show(self) -> None:
+        self.shown = True
+
+    def raise_(self) -> None:
+        return
+
+    def activateWindow(self) -> None:
+        return
+
+    def repaint(self) -> None:
+        return
+
+    def _is_tool_visible_or_current(self, _widget: object) -> bool:
+        return True
+
+    def _schedule_archive_browser_first_visible_paint_marker(self, delay_ms: int) -> None:
+        self.paint_markers.append(delay_ms)
+
+    def append_archive_log(self, message: str, *, verbose: bool = False) -> None:
+        self.logs.append(message)
+
+    def _record_runtime_event(self, event: str, **_fields: object) -> None:
+        self.events.append(event)
+
+
 class ShellStartupControllerTests(unittest.TestCase):
     def test_format_startup_splash_detail_wraps_and_truncates_text(self) -> None:
         detail = format_startup_splash_detail("Preparing archive browser with many related preview caches", max_chars=52, split_at=28)
@@ -128,8 +199,9 @@ class ShellStartupControllerTests(unittest.TestCase):
             self.assertFalse(payload["closed"])
 
             adapter.finish()
-            payload = json.loads(command_file.read_text(encoding="utf-8"))
-            self.assertTrue(payload["closed"])
+            self.assertFalse(command_file.exists())
+            self.assertFalse(command_file.with_suffix(".ready").exists())
+            self.assertFalse(command_file.with_suffix(".json.tmp").exists())
 
     def test_create_startup_splash_uses_external_command_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -210,6 +282,59 @@ class ShellStartupControllerTests(unittest.TestCase):
         self.assertTrue(window._startup_splash_released)
         self.assertFalse(window._startup_splash_release_pending)
         self.assertIn("splash_finished", window.events)
+
+    def test_startup_splash_release_has_no_fixed_presentation_dwell(self) -> None:
+        window = _ReleaseStartupWindow()
+        splash = window._startup_splash_window
+
+        with patch("cdmw.ui.shell.startup_controller.QTimer.singleShot") as single_shot:
+            window._release_startup_splash()
+
+        self.assertTrue(splash.finished)
+        self.assertTrue(window._startup_splash_released)
+        self.assertIsNone(window._startup_splash_window)
+        single_shot.assert_not_called()
+
+    def test_archive_first_paint_fallback_is_short_and_cleans_up_on_timeout(self) -> None:
+        window = _FirstPaintStartupWindow()
+        splash = window._startup_splash_window
+
+        with (
+            patch("cdmw.ui.shell.startup_controller.time.monotonic", return_value=100.0),
+            patch("cdmw.ui.shell.startup_controller.QApplication.instance", return_value=None),
+            patch("cdmw.ui.shell.startup_controller.QTimer.singleShot") as single_shot,
+        ):
+            window._finish_startup_splash_and_show_main_window()
+
+        self.assertTrue(window.shown)
+        self.assertGreater(window._startup_splash_finish_after_paint_deadline, 100.0)
+        self.assertLessEqual(window._startup_splash_finish_after_paint_deadline - 100.0, 1.0)
+        self.assertEqual([80], window.paint_markers)
+        single_shot.assert_called_once_with(180, window._finish_startup_splash_after_main_window_paint)
+
+        with patch(
+            "cdmw.ui.shell.startup_controller.time.monotonic",
+            return_value=window._startup_splash_finish_after_paint_deadline + 0.001,
+        ):
+            window._finish_startup_splash_after_main_window_paint()
+
+        self.assertTrue(splash.finished)
+        self.assertIsNone(window._startup_splash_window)
+        self.assertIn("startup_splash_first_paint_timeout", window.events)
+        self.assertTrue(any("timed out" in message for message in window.logs))
+
+    def test_archive_first_paint_readiness_finishes_without_timeout_warning(self) -> None:
+        window = _FirstPaintStartupWindow()
+        splash = window._startup_splash_window
+        window._startup_splash_finish_after_paint_deadline = 101.0
+        window.archive_browser_first_visible_paint_done = True
+
+        with patch("cdmw.ui.shell.startup_controller.time.monotonic", return_value=100.5):
+            window._finish_startup_splash_after_main_window_paint()
+
+        self.assertTrue(splash.finished)
+        self.assertNotIn("startup_splash_first_paint_timeout", window.events)
+        self.assertEqual([], window.logs)
 
     def test_stale_archive_cache_warning_closes_startup_splash_first(self) -> None:
         window = _DashboardWarningWindow()

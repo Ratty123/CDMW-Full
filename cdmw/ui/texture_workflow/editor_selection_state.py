@@ -9,19 +9,19 @@ from typing import AbstractSet, Dict, List, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
-from cdmw.core.texture_editor import (
+from cdmw.domain.textures.editor_composite import flatten_texture_editor_layers
+from cdmw.domain.textures.editor_document import snap_lasso_points_to_edges
+from cdmw.domain.textures.editor_layers import extract_texture_editor_selection
+from cdmw.domain.textures.editor_selection import (
     apply_texture_editor_lasso_selection,
     apply_texture_editor_rect_selection,
-    build_texture_editor_selection_mask,
     clear_texture_editor_selection,
-    extract_texture_editor_selection,
-    flatten_texture_editor_layers,
     grow_texture_editor_selection,
     select_all_texture_editor,
     shrink_texture_editor_selection,
-    snap_lasso_points_to_edges,
     update_texture_editor_selection_settings,
 )
+from cdmw.domain.textures.editor_selection_masks import build_texture_editor_selection_mask
 from cdmw.models import TextureEditorDocument, TextureEditorSelection, TextureEditorToolSettings
 from cdmw.ui.texture_workflow.editor_layer_state import texture_editor_layer_pixel_target_state
 

@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from types import SimpleNamespace
+import threading
 from typing import Any
 
-from cdmw.modding.scene_import_result_ops import refresh_parsed_mesh_totals
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.services.mesh_workflow_service import refresh_parsed_mesh_totals
 from cdmw.ui.archive_browser.static_replacement_geometry_math import (
+    Bounds3,
     transformed_vertices_for_work_area,
 )
 
@@ -20,12 +23,40 @@ def static_replacement_prompt_mesh_vertices(mesh: object) -> list[tuple[float, f
     ]
 
 
-def apply_static_replacement_work_area_fit(mesh: object, fit: object) -> None:
+def static_replacement_prompt_mesh_bounds(
+    mesh: object,
+    *,
+    stop_event: threading.Event | None = None,
+) -> Bounds3 | None:
+    minimum = [float("inf"), float("inf"), float("inf")]
+    maximum = [float("-inf"), float("-inf"), float("-inf")]
+    found = False
     for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        for index, vertex in enumerate(getattr(submesh, "vertices", ()) or ()):
+            if index % 4096 == 0:
+                raise_if_cancelled(stop_event, "Static replacement preflight stopped by user.")
+            found = True
+            for axis in range(3):
+                value = float(vertex[axis])
+                minimum[axis] = min(minimum[axis], value)
+                maximum[axis] = max(maximum[axis], value)
+    if not found:
+        return None
+    return (tuple(minimum), tuple(maximum))  # type: ignore[return-value]
+
+
+def apply_static_replacement_work_area_fit(
+    mesh: object,
+    fit: object,
+    *,
+    stop_event: threading.Event | None = None,
+) -> None:
+    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        raise_if_cancelled(stop_event, "Static replacement preflight stopped by user.")
         vertices = tuple(getattr(submesh, "vertices", ()) or ())
         if not vertices:
             continue
-        submesh.vertices = transformed_vertices_for_work_area(vertices, fit)
+        submesh.vertices = transformed_vertices_for_work_area(vertices, fit, stop_event=stop_event)
         submesh.vertex_count = len(submesh.vertices)
         submesh.face_count = len(getattr(submesh, "faces", ()) or ())
     refresh_parsed_mesh_totals(mesh)
@@ -95,5 +126,6 @@ def build_static_replacement_prompt_sidecar_context(
 __all__ = [
     "apply_static_replacement_work_area_fit",
     "build_static_replacement_prompt_sidecar_context",
+    "static_replacement_prompt_mesh_bounds",
     "static_replacement_prompt_mesh_vertices",
 ]

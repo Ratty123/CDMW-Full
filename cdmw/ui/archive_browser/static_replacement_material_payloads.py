@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from cdmw.modding.material_replacer import ReplacementTextureSet, ReplacementTextureSlot
+from cdmw.services.mesh_workflow_service import ReplacementTextureSet, ReplacementTextureSlot
 
-from cdmw.modding.static_mesh_replacer import (
+from cdmw.services.mesh_workflow_service import (
     StaticDonorMaterialPlan,
     StaticSourceMaterialTextureOverride,
 )

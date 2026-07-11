@@ -1,5 +1,7 @@
 import json
 import tempfile
+import threading
+import time
 import unittest
 import zipfile
 from pathlib import Path
@@ -7,6 +9,7 @@ from unittest import mock
 
 from cdmw.core.model_catalogue import (
     DEFAULT_MODEL_MIRROR_URL,
+    _download_url_to_file,
     MirrorDownloadCandidate,
     build_mirror_catalogue_index,
     download_mirror_model,
@@ -25,6 +28,7 @@ from cdmw.core.model_catalogue import (
     upsert_catalogue_records,
     zip_contains_importable_model,
 )
+from cdmw.models import RunCancelled
 
 
 class ModelCatalogueTests(unittest.TestCase):
@@ -506,6 +510,161 @@ class ModelCatalogueTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "Unsafe path"):
                 safe_extract_zip(archive, root / "out")
+
+    def test_safe_extract_zip_replaces_stale_destination_contents(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive = root / "model.zip"
+            destination = root / "out"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("scene/model.gltf", "{}")
+                zip_file.writestr("scene/old.png", b"old")
+            safe_extract_zip(archive, destination)
+            self.assertTrue((destination / "scene" / "old.png").is_file())
+
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("scene/model.gltf", '{"asset": {"version": "2.0"}}')
+            safe_extract_zip(archive, destination)
+
+            self.assertTrue((destination / "scene" / "model.gltf").is_file())
+            self.assertFalse((destination / "scene" / "old.png").exists())
+
+    def test_safe_extract_zip_replaces_dirty_same_archive_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive = root / "model.zip"
+            destination = root / "out"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("scene/model.gltf", "clean")
+
+            safe_extract_zip(archive, destination)
+            (destination / "scene" / "model.gltf").write_text("dirty", encoding="utf-8")
+            safe_extract_zip(archive, destination)
+
+            self.assertEqual("clean", (destination / "scene" / "model.gltf").read_text(encoding="utf-8"))
+
+    def test_safe_extract_zip_enforces_member_and_expanded_size_limits(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive = root / "large.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("a.gltf", b"123456")
+                zip_file.writestr("b.bin", b"123456")
+
+            with self.assertRaisesRegex(ValueError, "too many members"):
+                safe_extract_zip(archive, root / "members", max_members=1)
+            with self.assertRaisesRegex(ValueError, "expanded size"):
+                safe_extract_zip(archive, root / "bytes", max_total_bytes=10)
+
+    def test_safe_extract_zip_rejects_high_compression_ratio_and_low_disk_space(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            compressed_archive = root / "compressed.zip"
+            with zipfile.ZipFile(compressed_archive, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+                zip_file.writestr("scene/model.bin", b"\0" * (2 * 1024 * 1024))
+            with self.assertRaisesRegex(ValueError, "compression ratio"):
+                safe_extract_zip(compressed_archive, root / "compressed")
+
+            normal_archive = root / "normal.zip"
+            with zipfile.ZipFile(normal_archive, "w") as zip_file:
+                zip_file.writestr("scene/model.gltf", "1234")
+            with mock.patch("cdmw.core.model_catalogue.shutil.disk_usage", return_value=mock.Mock(free=3)):
+                with self.assertRaisesRegex(ValueError, "free disk space"):
+                    safe_extract_zip(normal_archive, root / "no-space")
+
+    def test_safe_extract_zip_rejects_case_collisions_and_cancellation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive = root / "duplicate.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("Scene/model.gltf", "{}")
+                zip_file.writestr("scene/MODEL.gltf", "{}")
+            with self.assertRaisesRegex(ValueError, "Duplicate path"):
+                safe_extract_zip(archive, root / "duplicate")
+
+            cancelled = threading.Event()
+            cancelled.set()
+            with self.assertRaises(RunCancelled):
+                safe_extract_zip(archive, root / "cancelled", stop_event=cancelled)
+            self.assertFalse((root / "cancelled").exists())
+
+    def test_streaming_download_enforces_free_space_and_removes_temporary_file(self) -> None:
+        class Response:
+            headers = {"Content-Length": "4"}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def read(self, _size: int) -> bytes:
+                return b"data"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "model.glb"
+            with (
+                mock.patch("cdmw.core.model_catalogue.urlopen", return_value=Response()),
+                mock.patch("cdmw.core.model_catalogue.shutil.disk_usage", return_value=mock.Mock(free=3)),
+            ):
+                with self.assertRaisesRegex(ValueError, "free disk space"):
+                    _download_url_to_file("https://example.test/model.glb", output, timeout=1.0, min_free_bytes=0)
+
+            self.assertFalse(output.exists())
+            self.assertEqual([], list(output.parent.glob(".model.glb.*.tmp")))
+
+    def test_streaming_download_enforces_total_elapsed_timeout(self) -> None:
+        class SlowResponse:
+            headers = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def read(self, _size: int) -> bytes:
+                time.sleep(0.02)
+                return b"data"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "model.glb"
+            with mock.patch("cdmw.core.model_catalogue.urlopen", return_value=SlowResponse()):
+                with self.assertRaisesRegex(TimeoutError, "total time limit"):
+                    _download_url_to_file("https://example.test/model.glb", output, timeout=0.001, min_free_bytes=0)
+
+            self.assertFalse(output.exists())
+            self.assertEqual([], list(output.parent.glob(".model.glb.*.tmp")))
+
+    def test_streaming_download_cancellation_removes_temporary_file(self) -> None:
+        class Response:
+            headers = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def read(self, _size: int) -> bytes:
+                raise AssertionError("cancelled download must not read")
+
+        cancelled = threading.Event()
+        cancelled.set()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "model.glb"
+            with mock.patch("cdmw.core.model_catalogue.urlopen", return_value=Response()):
+                with self.assertRaises(RunCancelled):
+                    _download_url_to_file(
+                        "https://example.test/model.glb",
+                        output,
+                        timeout=1.0,
+                        stop_event=cancelled,
+                        min_free_bytes=0,
+                    )
+
+            self.assertFalse(output.exists())
+            self.assertEqual([], list(output.parent.glob(".model.glb.*.tmp")))
 
 
 if __name__ == "__main__":

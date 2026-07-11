@@ -16,23 +16,10 @@ except Exception:  # pragma: no cover - optional dependency
     lz4_block = None  # type: ignore[assignment]
 
 from cdmw.constants import APP_NAME, DDS_MAGIC
+from cdmw.domain.archives.mutation import ArchivePatchRequest, ArchivePatchResult
 from cdmw.models import ArchiveEntry
 
 ARCHIVE_PATCH_BACKUP_ROOT = Path(tempfile.gettempdir()) / APP_NAME / "archive_patch_backups"
-
-
-@dataclass(slots=True)
-class ArchivePatchRequest:
-    entry: ArchiveEntry
-    payload_data: bytes
-
-
-@dataclass(slots=True)
-class ArchivePatchResult:
-    backup_dir: Path
-    changed_entries: Dict[str, ArchiveEntry]
-    changed_paths: List[str]
-    warnings: List[str]
 
 
 class _VfsPathResolver:
@@ -208,13 +195,13 @@ def _parse_mutable_pamt(pamt_path: Path) -> _MutablePamt:
 
 
 def _calculate_pa_checksum(value: bytes) -> int:
-    from cdmw.core.archive import calculate_pa_checksum
+    from cdmw.core.archive_format import calculate_pa_checksum
 
     return int(calculate_pa_checksum(value))
 
 
 def _crypt_archive_payload(data: bytes, basename: str) -> bytes:
-    from cdmw.core.archive import crypt_chacha20_filename
+    from cdmw.core.archive_format import crypt_chacha20_filename
 
     return crypt_chacha20_filename(data, basename)
 
@@ -544,7 +531,7 @@ def restore_archive_patch_backup(
     return resolved
 
 def _refresh_changed_entries(pamt_paths: Iterable[Path], changed_paths: Iterable[str]) -> Dict[str, ArchiveEntry]:
-    from cdmw.core.archive import parse_archive_pamt
+    from cdmw.core.archive_format import parse_archive_pamt
 
     changed_lookup = {_normalize_virtual_path(path) for path in changed_paths}
     refreshed: Dict[str, ArchiveEntry] = {}
@@ -695,7 +682,7 @@ def build_archive_texture_payload_from_dds(
 
     pathc_last4: Optional[int] = None
     try:
-        from cdmw.core.archive import load_pathc_collection, resolve_archive_pathc_path
+        from cdmw.core.archive_preview_support import load_pathc_collection, resolve_archive_pathc_path
 
         pathc_path = resolve_archive_pathc_path(entry)
         if pathc_path.is_file():
@@ -725,7 +712,7 @@ def build_archive_texture_payload_from_png(
     texconv_path: Optional[Path],
     on_log: Optional[Callable[[str], None]] = None,
 ) -> bytes:
-    from cdmw.core.archive import ensure_archive_preview_source
+    from cdmw.core.archive_media_preview import ensure_archive_preview_source
     from cdmw.core.texture_pipeline.inspection import parse_dds
     from cdmw.core.texture_pipeline.texconv import build_texconv_command
     from cdmw.domain.textures.output import max_mips_for_size

@@ -76,7 +76,7 @@ def test_take_material_edit_refresh_state_returns_payload_and_resets() -> None:
 
 
 def test_material_edit_refresh_status_helpers_keep_debounce_messages() -> None:
-    assert material_edit_refresh_interval_ms() == 520
+    assert material_edit_refresh_interval_ms() == 150
     assert source_material_plan_refresh_interval_ms() == 260
 
     queued = material_edit_refresh_queued_performance("role change")

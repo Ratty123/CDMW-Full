@@ -10,10 +10,11 @@ from typing import Optional, Sequence
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 
-from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
+from cdmw.domain.archives.filters import archive_entry_identity_key
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
-from cdmw.modding.scene_importer import SceneImportResult
+from cdmw.services.mesh_workflow_service import SceneImportResult
 from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
 
 
@@ -78,9 +79,9 @@ class MeshEditorShellBridgeMixin:
             except (OSError, RuntimeError, TypeError, ValueError):
                 supplemental.append(str(path or "").replace("\\", "/").strip().lower())
         parts = {
-            "target": self._archive_entry_identity_key(target_entry) if isinstance(target_entry, ArchiveEntry) else self._mesh_editor_entry_key(target_entry),
+            "target": archive_entry_identity_key(target_entry) if isinstance(target_entry, ArchiveEntry) else self._mesh_editor_entry_key(target_entry),
             "mode": str(getattr(request, "mode", "") or "").strip().lower(),
-            "source_entry": self._archive_entry_identity_key(source_entry) if isinstance(source_entry, ArchiveEntry) else self._mesh_editor_entry_key(source_entry),
+            "source_entry": archive_entry_identity_key(source_entry) if isinstance(source_entry, ArchiveEntry) else self._mesh_editor_entry_key(source_entry),
             "source_path": source_path_key,
             "source_skeleton": str(getattr(source_skeleton, "path", "") or "") if source_skeleton is not None else "",
             "has_source_skeleton": source_skeleton is not None,

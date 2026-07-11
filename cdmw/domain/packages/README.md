@@ -1,11 +1,12 @@
 # Package Domain
 
-Owns package manifest and preflight rules used before final package creation or
-export.
+Owns immutable export/profile policy, package layout rules, retrofit value
+models, manifest summaries, and preflight rules used before package creation.
 
 Keep filesystem writes, archive mutation, and UI confirmation outside this
-package. Services and core package builders apply these rules during execution.
+package. `PackageService`, workers, and core compatibility builders coordinate
+I/O while applying these rules.
 
-Related docs: `docs/archive_safety_model.md`, `docs/architecture.md`.
+Related docs: `docs/features/archive-safety-model.md`, `docs/architecture.md`.
 Related tests: package, archive mutation, and architecture entries in
 `docs/test-matrix.md`.

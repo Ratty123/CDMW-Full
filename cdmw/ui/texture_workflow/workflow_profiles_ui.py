@@ -39,13 +39,30 @@ from cdmw.constants import (
 )
 from cdmw.domain.textures.profiles import get_texture_processing_profile_keys
 from cdmw.models import TextureProcessingPlan, TextureRule, TextureWorkflowProfile
+from cdmw.ui.shell.texture_panel_persistence import finish_texture_workflow_panel_body
 from cdmw.ui.widgets import CollapsibleSection, EmptyStateTreeWidget, make_tree_columns_persistent
 
 
 class TextureWorkflowProfilesUiMixin:
     """Build profile/rule/match widgets for texture workflow."""
-    def _build_workflow_profiles_section(self) -> CollapsibleSection:
-        self.filters_section = CollapsibleSection("Workflow Profiles, Rules & Matches", expanded=False)
+    def _build_workflow_profiles_section(self, *, expanded: bool = False) -> CollapsibleSection:
+        self.texture_rules_legacy_text = ""
+        self.workflow_profiles_state: List[TextureWorkflowProfile] = []
+        self.texture_rules_state: List[TextureRule] = []
+        self.workflow_matched_processing_plan: List[TextureProcessingPlan] = []
+        self._workflow_editor_syncing = False
+        self._workflow_match_refresh_timer = QTimer(self)
+        self._workflow_match_refresh_timer.setSingleShot(True)
+        self._workflow_match_refresh_timer.setInterval(300)
+        self._workflow_match_refresh_timer.timeout.connect(self._refresh_workflow_matched_files_view)
+        self.filters_section = CollapsibleSection(
+            "Workflow Profiles, Rules & Matches",
+            body_builder=lambda body_layout: TextureWorkflowProfilesUiMixin._build_workflow_profiles_body(self, body_layout),
+        )
+        self.filters_section.set_expanded(expanded)
+        return self.filters_section
+
+    def _build_workflow_profiles_body(self, body_layout: QVBoxLayout) -> None:
         filters_group = QWidget()
         filters_layout = QVBoxLayout(filters_group)
         filters_layout.setContentsMargins(0, 0, 0, 0)
@@ -68,16 +85,25 @@ class TextureWorkflowProfilesUiMixin:
         texture_rules_hint.setWordWrap(True)
         texture_rules_hint.setToolTip("")
 
-        self.texture_rules_legacy_text = ""
-        self.workflow_profiles_state: List[TextureWorkflowProfile] = []
-        self.texture_rules_state: List[TextureRule] = []
-        self.workflow_matched_processing_plan: List[TextureProcessingPlan] = []
-        self._workflow_editor_syncing = False
-        self._workflow_match_refresh_timer = QTimer(self)
-        self._workflow_match_refresh_timer.setSingleShot(True)
-        self._workflow_match_refresh_timer.setInterval(300)
-        self._workflow_match_refresh_timer.timeout.connect(self._refresh_workflow_matched_files_view)
+        profiles_group = TextureWorkflowProfilesUiMixin._build_workflow_profiles_group(self)
 
+        rules_group = TextureWorkflowProfilesUiMixin._build_workflow_rules_group(self)
+
+        matched_group = TextureWorkflowProfilesUiMixin._build_workflow_matches_group(self)
+
+        filters_layout.addWidget(filters_label)
+        filters_layout.addWidget(filters_hint)
+        filters_layout.addWidget(self.filters_edit)
+        filters_layout.addWidget(texture_rules_label)
+        filters_layout.addWidget(texture_rules_hint)
+        filters_layout.addWidget(profiles_group)
+        filters_layout.addWidget(rules_group)
+        filters_layout.addWidget(matched_group)
+        body_layout.addWidget(filters_group)
+        finish_texture_workflow_panel_body(self, "filters")
+
+
+    def _build_workflow_profiles_group(self) -> QGroupBox:
         profiles_group = QGroupBox("Workflow Profiles")
         profiles_layout = QVBoxLayout(profiles_group)
         profiles_layout.setContentsMargins(10, 10, 10, 10)
@@ -212,7 +238,9 @@ class TextureWorkflowProfilesUiMixin:
         profile_detail_layout.addWidget(dds_panel)
         profile_detail_layout.addWidget(ncnn_panel)
         profiles_layout.addWidget(profile_detail_group)
+        return profiles_group
 
+    def _build_workflow_rules_group(self) -> QGroupBox:
         rules_group = QGroupBox("Ordered Rules")
         rules_layout = QVBoxLayout(rules_group)
         rules_layout.setContentsMargins(10, 10, 10, 10)
@@ -357,7 +385,9 @@ class TextureWorkflowProfilesUiMixin:
             lambda: self.show_documentation_dialog(topic_id="workflow_planner_paths")
         )
         rules_layout.addWidget(rule_detail_group)
+        return rules_group
 
+    def _build_workflow_matches_group(self) -> QGroupBox:
         matched_group = QGroupBox("Matched Files")
         matched_layout = QVBoxLayout(matched_group)
         matched_layout.setContentsMargins(10, 10, 10, 10)
@@ -401,17 +431,6 @@ class TextureWorkflowProfilesUiMixin:
             save_callback=self.schedule_settings_save,
         )
         matched_layout.addWidget(self.workflow_matched_files_tree)
-
-        filters_layout.addWidget(filters_label)
-        filters_layout.addWidget(filters_hint)
-        filters_layout.addWidget(self.filters_edit)
-        filters_layout.addWidget(texture_rules_label)
-        filters_layout.addWidget(texture_rules_hint)
-        filters_layout.addWidget(profiles_group)
-        filters_layout.addWidget(rules_group)
-        filters_layout.addWidget(matched_group)
-        self.filters_section.body_layout.addWidget(filters_group)
-        return self.filters_section
-
+        return matched_group
 
 __all__ = ["TextureWorkflowProfilesUiMixin"]

@@ -25,18 +25,16 @@ from cdmw.constants import (
     ARCHIVE_EXTENSION_FILTER,
     ARCHIVE_BROWSER_VIEW_MODE,
 )
-from cdmw.core.archive import (
-    normalize_archive_browser_sort_column,
-    normalize_archive_browser_sort_order,
-    normalize_archive_extension_filter,
-    normalize_archive_structure_filter_value,
-)
+from cdmw.domain.archives.format import normalize_archive_extension_filter
 from cdmw.domain.archives.filters import (
     ArchiveFilterState,
     archive_browser_entry_category,
     archive_filter_text_explicitly_requests_item_name,
     archive_filter_text_needs_item_name_search,
     build_archive_category_entry_index,
+    normalize_archive_browser_sort_column,
+    normalize_archive_browser_sort_order,
+    normalize_archive_structure_filter_value,
 )
 
 

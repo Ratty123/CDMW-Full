@@ -8,16 +8,32 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections import deque
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled, run_process_with_cancellation
+from cdmw.core.atomic_file import atomic_write_text
 from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native_path
+from cdmw.core.dds_resource_limits import (
+    DDS_MAX_DECODED_BYTES,
+    DDS_MAX_PAYLOAD_BYTES,
+    checked_dds_mip_byte_counts,
+)
 from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
+from cdmw.core.texture_decode_cache import (
+    preview_cache_locks,
+    preview_pair_is_valid,
+    preview_sidecar_path,
+    preview_staging_dir,
+    publish_preview_pair,
+)
 from cdmw.models import RunCancelled
 
 DIRECTXTEX_TEXTURE_BACKEND_ID = "directxtex_native_0.1"
-_DIRECTXTEX_FAILURE_REPORTS: list[Dict[str, Any]] = []
+_DIRECTXTEX_FAILURE_REPORTS: deque[Dict[str, Any]] = deque(maxlen=128)
+_DIRECTXTEX_FAILURE_REPORTS_LOCK = threading.Lock()
+_UNSUPPORTED_NATIVE_DDS_REASON = "DDS format is not a supported 2D texture format"
 
 
 def _repo_root() -> Path:
@@ -57,10 +73,11 @@ def native_texture_available() -> bool:
 
 
 def directxtex_texture_failure_reports(*, clear: bool = False) -> tuple[Dict[str, Any], ...]:
-    reports = tuple(dict(report) for report in _DIRECTXTEX_FAILURE_REPORTS)
-    if bool(clear):
-        _DIRECTXTEX_FAILURE_REPORTS.clear()
-    return reports
+    with _DIRECTXTEX_FAILURE_REPORTS_LOCK:
+        reports = tuple(dict(report) for report in _DIRECTXTEX_FAILURE_REPORTS)
+        if bool(clear):
+            _DIRECTXTEX_FAILURE_REPORTS.clear()
+        return reports
 
 
 def _stderr_summary(stderr: object, *, limit: int = 2000) -> str:
@@ -92,7 +109,8 @@ def _record_directxtex_failure(
     }
     if reason:
         report["reason"] = str(reason)
-    _DIRECTXTEX_FAILURE_REPORTS.append(report)
+    with _DIRECTXTEX_FAILURE_REPORTS_LOCK:
+        _DIRECTXTEX_FAILURE_REPORTS.append(report)
     return report
 
 
@@ -107,15 +125,41 @@ def _native_diagnostic_args() -> list[str]:
     return args
 
 
+def _dds_decode_rejection_reason(dds_path: Path) -> str:
+    try:
+        source_size = int(dds_path.stat().st_size)
+        info = inspect_dds_native_path(dds_path)
+    except (OSError, ValueError) as exc:
+        return f"DDS header inspection failed: {exc}"
+    if source_size > DDS_MAX_PAYLOAD_BYTES:
+        return f"DDS file exceeds the {DDS_MAX_PAYLOAD_BYTES:,}-byte resource limit."
+    if info.width <= 0 or info.height <= 0:
+        return info.reason or "DDS dimensions are invalid."
+    if info.reason and info.reason != _UNSUPPORTED_NATIVE_DDS_REASON:
+        return info.reason
+    decoded_bytes_per_pixel = 16 if info.compressed_family == "bc6h" or info.reason else 4
+    try:
+        checked_dds_mip_byte_counts(
+            info.width,
+            info.height,
+            info.mip_count,
+            decoded_bytes_per_pixel,
+            max_bytes=DDS_MAX_DECODED_BYTES,
+            label="DDS decoded image",
+        )
+    except ValueError as exc:
+        return str(exc)
+    return ""
+
+
 def native_texture_report_sidecar_path(preview_path: Path) -> Path:
-    return preview_path.with_name(f"{preview_path.name}.cdmw_texture.json")
+    return preview_sidecar_path(preview_path)
 
 
 def write_native_texture_report_sidecar(preview_path: Path, report: Mapping[str, Any]) -> bool:
     try:
         report_path = native_texture_report_sidecar_path(preview_path)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(dict(report), indent=2, sort_keys=True), encoding="utf-8")
+        atomic_write_text(report_path, json.dumps(dict(report), indent=2, sort_keys=True))
         return True
     except OSError:
         return False
@@ -240,10 +284,21 @@ def directxtex_preview_result_key(
 
 
 def _cached_preview_is_valid(preview_path: Path) -> bool:
+    return preview_pair_is_valid(preview_path)
+
+
+def _decode_staging_parent(preview_path: Path, temp_root: Optional[Path]) -> Path:
+    preview_path.parent.mkdir(parents=True, exist_ok=True)
+    if temp_root is None:
+        return preview_path.parent
+    candidate = Path(temp_root).expanduser().resolve()
+    candidate.mkdir(parents=True, exist_ok=True)
     try:
-        return preview_path.is_file() and preview_path.stat().st_size > 0 and native_texture_report_sidecar_path(preview_path).is_file()
+        if candidate.stat().st_dev == preview_path.parent.stat().st_dev:
+            return candidate
     except OSError:
-        return False
+        pass
+    return preview_path.parent
 
 
 def ensure_directxtex_dds_preview_png(
@@ -286,6 +341,7 @@ def ensure_directxtex_dds_preview_pngs(
     if binary is None:
         return {}
     normalized_jobs: list[Dict[str, object]] = []
+    seen_cache_keys: set[str] = set()
     results: Dict[str, Path] = {}
     for job in jobs:
         raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
@@ -298,10 +354,30 @@ def ensure_directxtex_dds_preview_pngs(
             continue
         if not dds_path.is_file():
             continue
+        rejection_reason = _dds_decode_rejection_reason(dds_path)
+        if rejection_reason:
+            _record_directxtex_failure(
+                binary=binary,
+                operation="batch-preview-json",
+                returncode="rejected",
+                stderr=rejection_reason,
+                source_path=dds_path,
+                fallback_available=True,
+                reason="unsafe_dds_input",
+            )
+            continue
         max_dimension = max(1, int(job.get("max_dimension") or job.get("max_dim") or 4096))
         slot_kind = str(job.get("slot_kind") or job.get("slot") or "base").strip().lower() or "base"
         srgb = str(job.get("srgb") or "auto").strip().lower() or "auto"
         normal_space = str(job.get("normal_space") or "auto").strip().lower() or "auto"
+        cache_key = directxtex_texture_cache_key(
+            dds_path,
+            max_dimension=max_dimension,
+            slot_kind=slot_kind,
+            srgb=srgb,
+            normal_space=normal_space,
+            binary=binary,
+        )
         preview_path = _directxtex_preview_cache_path(
             dds_path,
             max_dimension=max_dimension,
@@ -318,125 +394,38 @@ def ensure_directxtex_dds_preview_pngs(
             srgb=srgb,
             normal_space=normal_space,
         )
+        normalized = {
+            "input": key,
+            "output": str(preview_path),
+            "max_dimension": max_dimension,
+            "slot": slot_kind,
+            "srgb": srgb,
+            "normal_space": normal_space,
+            "result_key": job_key,
+            "cache_key": cache_key,
+        }
         if _cached_preview_is_valid(preview_path):
             results[key] = preview_path
             if include_job_keys:
                 results[job_key] = preview_path
             continue
-        normalized_jobs.append(
-            {
-                "input": key,
-                "output": str(preview_path),
-                "max_dimension": max_dimension,
-                "slot": slot_kind,
-                "srgb": srgb,
-                "normal_space": normal_space,
-                "result_key": job_key,
-            }
-        )
+        if cache_key not in seen_cache_keys:
+            seen_cache_keys.add(cache_key)
+            normalized_jobs.append(normalized)
     if not normalized_jobs:
         return results
+    lock_keys = [f"directxtex:{job['cache_key']}" for job in normalized_jobs]
+    with preview_cache_locks(lock_keys):
+        from cdmw.core.texture_native_preview_cache import ensure_preview_batch_locked
 
-    job_keys_by_output = {
-        str(job.get("output", "")): str(job.get("result_key", ""))
-        for job in normalized_jobs
-        if str(job.get("output", "")) and str(job.get("result_key", ""))
-    }
-    job_root = Path(tempfile.mkdtemp(prefix="cdmw_directxtex_batch_"))
-    job_path = job_root / "job.json"
-    report_path = job_root / "report.json"
-    try:
-        try:
-            raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
-            for job in normalized_jobs:
-                Path(str(job["output"])).parent.mkdir(parents=True, exist_ok=True)
-            job_path.write_text(
-                json.dumps({"version": 1, "backend": DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": normalized_jobs}, indent=2),
-                encoding="utf-8",
-            )
-            returncode, _stdout, _stderr = run_process_with_cancellation(
-                [str(binary), "batch-preview-json", str(job_path), str(report_path), *_native_diagnostic_args()],
-                timeout_seconds=max(1.0, float(timeout_seconds)),
-                stop_event=stop_event,
-            )
-        except RunCancelled:
-            raise
-        except Exception as exc:
-            _record_directxtex_failure(
-                binary=binary,
-                operation="batch-preview-json",
-                returncode="exception",
-                stderr=str(exc),
-                fallback_available=True,
-                reason=type(exc).__name__,
-            )
-            return results
-        if returncode != 0 or not report_path.is_file():
-            _record_directxtex_failure(
-                binary=binary,
-                operation="batch-preview-json",
-                returncode=returncode,
-                stderr=_stderr,
-                fallback_available=True,
-                reason="missing_report" if not report_path.is_file() else "nonzero_returncode",
-            )
-            return results
-        try:
-            parsed = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            _record_directxtex_failure(
-                binary=binary,
-                operation="batch-preview-json",
-                returncode=returncode,
-                stderr=str(exc),
-                fallback_available=True,
-                reason="invalid_report_json",
-            )
-            return results
-        items = parsed.get("items") if isinstance(parsed, dict) else None
-        if not isinstance(items, list):
-            _record_directxtex_failure(
-                binary=binary,
-                operation="batch-preview-json",
-                returncode=returncode,
-                stderr="",
-                fallback_available=True,
-                reason="missing_report_items",
-            )
-            return results
-        for item in items:
-            if not isinstance(item, dict) or str(item.get("status") or "").lower() != "decoded":
-                continue
-            output_path = Path(str(item.get("output_path") or item.get("output") or ""))
-            source_path = Path(str(item.get("source_path") or item.get("input") or ""))
-            if not output_path.is_file() or not source_path:
-                continue
-            item.setdefault("backend", DIRECTXTEX_TEXTURE_BACKEND_ID)
-            item.setdefault("native_backend", "directxtex")
-            if write_native_texture_report_sidecar(output_path, item):
-                try:
-                    source_key = str(source_path.expanduser().resolve())
-                except OSError:
-                    source_key = str(source_path)
-                results[source_key] = output_path
-                if include_job_keys:
-                    result_key = str(item.get("result_key") or "").strip()
-                    if not result_key:
-                        result_key = job_keys_by_output.get(str(output_path), "")
-                    if not result_key:
-                        result_key = directxtex_preview_result_key(
-                            source_path,
-                            max_dimension=int(item.get("max_dimension") or item.get("max_dim") or 4096),
-                            slot_kind=str(item.get("slot") or item.get("slot_kind") or "base"),
-                            srgb=str(item.get("srgb") or "auto"),
-                            normal_space=str(item.get("normal_space") or "auto"),
-                        )
-                    results[result_key] = output_path
-        if results:
-            request_app_temp_cache_prune()
-        return results
-    finally:
-        shutil.rmtree(job_root, ignore_errors=True)
+        return ensure_preview_batch_locked(
+            binary,
+            normalized_jobs,
+            results,
+            timeout_seconds=timeout_seconds,
+            include_job_keys=include_job_keys,
+            stop_event=stop_event,
+        )
 
 
 def ensure_native_dds_preview_png(
@@ -478,90 +467,90 @@ def decode_dds_preview_with_directxtex(
     preview_path = Path(output_png_path).expanduser().resolve()
     if not source_path.is_file():
         return None
-    temp_parent = Path(temp_root).expanduser().resolve() if temp_root is not None else None
-    if temp_parent is not None:
-        temp_parent.mkdir(parents=True, exist_ok=True)
-    job_root = Path(tempfile.mkdtemp(prefix="cdmw_directxtex_preview_", dir=str(temp_parent) if temp_parent is not None else None))
-    job_path = job_root / "job.json"
-    report_path = job_root / "report.json"
-    try:
-        preview_path.parent.mkdir(parents=True, exist_ok=True)
-        job = {
-            "input": str(source_path),
-            "output": str(preview_path),
-            "max_dimension": max(1, int(max_dimension or 4096)),
-            "slot": str(slot_kind or "base").strip().lower() or "base",
-            "srgb": str(srgb or "auto").strip().lower() or "auto",
-            "normal_space": str(normal_space or "auto").strip().lower() or "auto",
-        }
-        job_path.write_text(
-            json.dumps({"version": 1, "backend": DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": [job]}, indent=2),
-            encoding="utf-8",
+    rejection_reason = _dds_decode_rejection_reason(source_path)
+    if rejection_reason:
+        _record_directxtex_failure(
+            binary=binary,
+            operation="batch-preview-json",
+            returncode="rejected",
+            stderr=rejection_reason,
+            source_path=source_path,
+            fallback_available=True,
+            reason="unsafe_dds_input",
         )
-        try:
-            returncode, _stdout, _stderr = run_process_with_cancellation(
-                [str(binary), "batch-preview-json", str(job_path), str(report_path), *_native_diagnostic_args()],
-                timeout_seconds=max(1.0, float(timeout_seconds)),
-                stop_event=stop_event,
+        return None
+    cache_key = hashlib.sha256(
+        (
+            f"direct-output|{directxtex_texture_cache_key(source_path, max_dimension=max_dimension, slot_kind=slot_kind, srgb=srgb, normal_space=normal_space, binary=binary)}"
+            f"|{preview_path}"
+        ).encode("utf-8")
+    ).hexdigest()
+    with preview_cache_locks((f"directxtex-output:{cache_key}",)):
+        cached_report = read_native_texture_report_sidecar(preview_path)
+        if _cached_preview_is_valid(preview_path) and cached_report.get("cache_key") == cache_key:
+            return cached_report
+        with preview_staging_dir(_decode_staging_parent(preview_path, temp_root)) as job_root:
+            staged = job_root / preview_path.name
+            job_path = job_root / "job.json"
+            report_path = job_root / "report.json"
+            job = {
+                "input": str(source_path),
+                "output": str(staged),
+                "max_dimension": max(1, int(max_dimension or 4096)),
+                "slot": str(slot_kind or "base").strip().lower() or "base",
+                "srgb": str(srgb or "auto").strip().lower() or "auto",
+                "normal_space": str(normal_space or "auto").strip().lower() or "auto",
+            }
+            job_path.write_text(
+                json.dumps({"version": 1, "backend": DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": [job]}, indent=2),
+                encoding="utf-8",
             )
-        except RunCancelled:
-            raise
-        except Exception as exc:
-            _record_directxtex_failure(
-                binary=binary,
-                operation="batch-preview-json",
-                returncode="exception",
-                stderr=str(exc),
-                source_path=source_path,
-                fallback_available=True,
-                reason=type(exc).__name__,
-            )
-            return None
-        if returncode != 0 or not report_path.is_file():
-            _record_directxtex_failure(
-                binary=binary,
-                operation="batch-preview-json",
-                returncode=returncode,
-                stderr=_stderr,
-                source_path=source_path,
-                fallback_available=True,
-                reason="missing_report" if not report_path.is_file() else "nonzero_returncode",
-            )
-            return None
-        try:
-            parsed = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            _record_directxtex_failure(
-                binary=binary,
-                operation="batch-preview-json",
-                returncode=returncode,
-                stderr=str(exc),
-                source_path=source_path,
-                fallback_available=True,
-                reason="invalid_report_json",
-            )
-            return None
-        items = parsed.get("items") if isinstance(parsed, dict) else None
-        if not isinstance(items, list) or not items:
-            _record_directxtex_failure(
-                binary=binary,
-                operation="batch-preview-json",
-                returncode=returncode,
-                stderr="",
-                source_path=source_path,
-                fallback_available=True,
-                reason="missing_report_items",
-            )
-            return None
-        item = items[0]
-        if not isinstance(item, dict) or str(item.get("status") or "").lower() != "decoded" or not preview_path.is_file():
-            return None
-        item.setdefault("backend", DIRECTXTEX_TEXTURE_BACKEND_ID)
-        item.setdefault("native_backend", "directxtex")
-        write_native_texture_report_sidecar(preview_path, item)
-        return dict(item)
-    finally:
-        shutil.rmtree(job_root, ignore_errors=True)
+            try:
+                returncode, _stdout, stderr = run_process_with_cancellation(
+                    [str(binary), "batch-preview-json", str(job_path), str(report_path), *_native_diagnostic_args()],
+                    timeout_seconds=max(1.0, float(timeout_seconds)),
+                    stop_event=stop_event,
+                )
+            except RunCancelled:
+                raise
+            except Exception as exc:
+                _record_directxtex_failure(
+                    binary=binary,
+                    operation="batch-preview-json",
+                    returncode="exception",
+                    stderr=str(exc),
+                    source_path=source_path,
+                    fallback_available=True,
+                    reason=type(exc).__name__,
+                )
+                return None
+            from cdmw.core.texture_native_preview_cache import read_preview_items
+
+            items = read_preview_items(binary, report_path, returncode, stderr, source_path=source_path)
+            if not items or not isinstance(items[0], dict):
+                return None
+            item = dict(items[0])
+            if str(item.get("status") or "").lower() != "decoded" or not staged.is_file():
+                return None
+            item.setdefault("backend", DIRECTXTEX_TEXTURE_BACKEND_ID)
+            item.setdefault("native_backend", "directxtex")
+            item["source_path"] = str(source_path)
+            item["output_path"] = str(preview_path)
+            item["cache_key"] = cache_key
+            try:
+                publish_preview_pair(staged, preview_path, item)
+            except (OSError, ValueError) as exc:
+                _record_directxtex_failure(
+                    binary=binary,
+                    operation="batch-preview-json",
+                    returncode="publication_failed",
+                    stderr=str(exc),
+                    source_path=source_path,
+                    fallback_available=True,
+                    reason="atomic_publication_failed",
+                )
+                return None
+            return item
 
 
 def encode_dds_with_directxtex(

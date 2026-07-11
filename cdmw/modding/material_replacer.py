@@ -17,7 +17,6 @@ from cdmw.domain.textures.material_authority import (
     material_profile_mask_binding_mode,
     material_profile_support_policy,
 )
-
 from .asset_replacement import classify_texture_binding, infer_cd_texture_role_from_path
 from .mesh_parser import ParsedMesh
 from .pac_xml_profiles import (
@@ -153,6 +152,7 @@ class ReplacementTextureSet:
     base_color_factor: Optional[tuple[float, float, float]] = None
     source_role_tags: tuple[str, ...] = ()
     accent_glow_color_rgb: tuple[float, float, float] = ()
+    emissive_strength: Optional[float] = None
 
 
 _SPECULAR_GLOSSINESS_SUBTYPES = {"specular_glossiness", "specularglossiness", "specular_gloss", "specgloss"}
@@ -484,7 +484,6 @@ from .material_texture_payloads import (
     _source_slot_needs_base_color_factor,
     _source_slot_needs_base_alpha_factor,
     _source_slot_needs_base_color_adjustment,
-    _auto_balance_source_base_rgb,
     _source_slot_png_with_base_color_factor_path,
     material_authority_preview_texture_slots,
     _dds_format_is_bc1,
@@ -566,6 +565,15 @@ from .material_sidecar_payloads import (
     _apply_donor_material_plan_to_sidecar,
     _build_donor_material_sidecar_payloads,
 )
+
+
+def _bind_lazy_material_exports(module_name: str, namespace: Mapping[str, object]) -> None:
+    for export_name, current in tuple(globals().items()):
+        marker = getattr(current, "_cdmw_lazy_material_export", None)
+        if marker != (module_name, export_name) or export_name not in namespace:
+            continue
+        globals()[export_name] = namespace[export_name]
+
 
 try:
     from .material_source_driven import (
@@ -649,6 +657,7 @@ except ImportError as exc:
 
             return getattr(module, name)(*args, **kwargs)
 
+        _lazy._cdmw_lazy_material_export = ("cdmw.modding.material_source_driven", name)
         return _lazy
 
     _source_driven_slots = _lazy_material_source_driven('_source_driven_slots')
@@ -781,6 +790,7 @@ except ImportError as exc:
 
             return getattr(module, name)(*args, **kwargs)
 
+        _lazy._cdmw_lazy_material_export = ("cdmw.modding.material_texture_routing", name)
         return _lazy
 
     group_replacement_texture_sets = _lazy_material_texture_routing('group_replacement_texture_sets')

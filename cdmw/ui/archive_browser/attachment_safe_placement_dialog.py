@@ -33,16 +33,12 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_COLOR
-from cdmw.core.archive import (
-    build_archive_preview_result,
-    build_prefab_socket_name_patch,
-    read_archive_entry_data,
-)
-from cdmw.core.archive_modding import (
-    ArchiveLooseExportResult,
-    ArchivePatchRequest,
-    export_archive_payloads_to_mod_ready_loose,
-)
+from cdmw.services.archive_preview_service import build_archive_preview_result
+from cdmw.services.archive_workflow_service import build_prefab_socket_name_patch
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
+from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
 from cdmw.models import (
     ArchiveEntry,
     ArchivePreviewResult,
@@ -52,11 +48,19 @@ from cdmw.models import (
     ModelPreviewData,
     clamp_model_preview_render_settings,
 )
-from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
+from cdmw.services.preview_rendering_service import find_native_d3d11_host
+from cdmw.ui.archive_browser.attachment_task_controller import (
+    attachment_task_controller_for_guard,
+)
 from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
 from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as _d3d11_status_file_signature
 from cdmw.ui.shell.responsiveness_controller import expand_tree_columns_to_available_width
 from cdmw.workers.d3d11_package_workers import AlignmentD3D11PackageWorker
+from cdmw.workers.attachment_io_workers import (
+    AttachmentContextRequest,
+    AttachmentContextResult,
+    run_attachment_context_resolution,
+)
 from cdmw.workers.preview_workers import VisualPlacementPreviewWorker
 
 
@@ -70,6 +74,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         target_graph: AssetFamilyGraph,
         donor_graph: Optional[AssetFamilyGraph] = None,
         package_plan_rows: Sequence[dict] = (),
+        _context_result: AttachmentContextResult | None = None,
     ) -> None:
         # D3D11-only placement editor: crash dumps showed Qt fail-fast inside Qt renderer widgets.
         target_model_entry = self._attachment_visual_model_entry(target_entry, target_graph)
@@ -96,32 +101,65 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         if isinstance(donor_evidence, AttachmentPlacementEvidence) and donor_evidence.weapon_socket_name:
             socket_name = donor_evidence.weapon_socket_name
         extra_socket_roots: List[Path] = []
-        context_state: Dict[str, Dict[str, object]] = {}
+        context_request = AttachmentContextRequest(
+            target_graph=target_graph,
+            target_evidence=target_evidence,
+            target_model_entry=target_model_entry,
+            target_socket_entry=target_socket_entry,
+            donor_graph=donor_graph,
+            donor_evidence=donor_evidence,
+            donor_model_entry=donor_model_entry,
+            donor_socket_entry=donor_socket_entry,
+        )
 
-        def _resolve_contexts() -> None:
-            context_state["target"] = self._attachment_visual_resolve_context(
-                target_graph,
-                target_evidence,
-                target_model_entry,
-                socket_entry=target_socket_entry,
-                extra_roots=extra_socket_roots,
+        def _run_context_request(request: AttachmentContextRequest, *, stop_event: object) -> object:
+            return run_attachment_context_resolution(
+                request,
+                resolver=self._attachment_visual_resolve_context,
+                stop_event=stop_event,
             )
-            context_state["donor"] = (
-                self._attachment_visual_resolve_context(
+
+        if not isinstance(_context_result, AttachmentContextResult):
+            controller = attachment_task_controller_for_guard(
+                self,
+                self,
+                attribute="_attachment_safe_context_controller",
+            )
+            plan_snapshot = tuple(dict(row) for row in package_plan_rows)
+
+            def _context_ready(result: object) -> None:
+                if not isinstance(result, AttachmentContextResult):
+                    QMessageBox.warning(self, "Safe Placement Editor", "Context resolver returned an unexpected result.")
+                    return
+                self._open_archive_attachment_safe_placement_dialog(
+                    target_entry,
+                    donor_entry,
+                    target_graph,
                     donor_graph,
-                    donor_evidence,
-                    donor_model_entry,
-                    socket_entry=donor_socket_entry,
-                    extra_roots=extra_socket_roots,
+                    package_plan_rows=plan_snapshot,
+                    _context_result=result,
                 )
-                if isinstance(donor_graph, AssetFamilyGraph)
-                else {}
-            )
 
-        _resolve_contexts()
+            controller.start(
+                context_request,
+                _run_context_request,
+                status_message=f"Resolving placement context for {target_entry.basename}...",
+                on_complete=_context_ready,
+                on_error=lambda message: QMessageBox.warning(
+                    self,
+                    "Safe Placement Editor",
+                    message,
+                ),
+            )
+            return
+        context_state: Dict[str, Dict[str, object]] = {
+            "target": dict(_context_result.target),
+            "donor": dict(_context_result.donor),
+        }
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Safe Placement Editor - {target_entry.basename}")
         dialog.resize(1280, 780)
+        context_task_controller = attachment_task_controller_for_guard(self, dialog)
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
@@ -938,10 +976,31 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             if not selected_dir:
                 return
             extra_socket_roots.append(Path(selected_dir))
-            _resolve_contexts()
-            _populate_candidates()
-            _refresh_status()
-            _queue_placement_d3d11_preview_debounced()
+            request = dataclasses.replace(
+                context_request,
+                extra_roots=tuple(extra_socket_roots),
+                request_id=0,
+            )
+
+            def _context_ready(result: object) -> None:
+                if not isinstance(result, AttachmentContextResult):
+                    return
+                context_state["target"] = dict(result.target)
+                context_state["donor"] = dict(result.donor)
+                _populate_candidates()
+                _refresh_status()
+                _queue_placement_d3d11_preview_debounced()
+
+            started = context_task_controller.start(
+                request,
+                _run_context_request,
+                status_message=f"Resolving socket evidence from {Path(selected_dir).name}...",
+                on_complete=_context_ready,
+                on_error=lambda message: QMessageBox.warning(dialog, "Socket Evidence", message),
+                on_idle=lambda: evidence_root_button.setEnabled(True),
+            )
+            if started:
+                evidence_root_button.setEnabled(False)
 
         def _reset_adjustment() -> None:
             for spin in offset_spins + rotation_spins:
@@ -987,13 +1046,13 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             export_root, package_info, create_no_encrypt_file, _include_related, export_options = target_settings
             selected_evidence = _candidate_evidence()
             selected_socket_name = str(getattr(selected_evidence, "weapon_socket_name", "") or socket_name)
-            edited_socket_payload = (
-                self._attachment_visual_edited_socket_payload(
+            edited_socket_spec = (
+                (
                     socket_entry,
                     selected_socket_name,
-                    visual_offset=_visual_offset(),
-                    visual_rotation_degrees=_visual_rotation(),
-                    translation_scale=self._attachment_visual_context_transform_scale(_candidate_context()),
+                    tuple(_visual_offset()),
+                    tuple(_visual_rotation()),
+                    self._attachment_visual_context_transform_scale(_candidate_context()),
                 )
                 if isinstance(socket_entry, ArchiveEntry) and selected_socket_name and has_manual_adjustment
                 else None
@@ -1011,6 +1070,15 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             package_info = self._placement_swap_package_info_with_diagnostics(package_info, diagnostics)
 
             def _task(log: Callable[[str], None]) -> ArchiveLooseExportResult:
+                edited_socket_payload = None
+                if isinstance(edited_socket_spec, tuple):
+                    edited_socket_payload = self._attachment_visual_edited_socket_payload(
+                        edited_socket_spec[0],
+                        edited_socket_spec[1],
+                        visual_offset=edited_socket_spec[2],
+                        visual_rotation_degrees=edited_socket_spec[3],
+                        translation_scale=edited_socket_spec[4],
+                    )
                 requests_by_path: Dict[str, ArchivePatchRequest] = {}
                 for row in plan_snapshot:
                     donor = row.get("donor_entry")

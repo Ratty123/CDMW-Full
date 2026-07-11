@@ -10,12 +10,12 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QMessageBox
 
 from cdmw.constants import UPSCALE_BACKEND_NONE
-from cdmw.core.classification_registry import get_registered_texture_classification
-from cdmw.core.texture_pipeline.discovery import collect_dds_files
-from cdmw.core.texture_pipeline.planning import build_texture_processing_plan
-from cdmw.core.texture_pipeline.preflight import build_texture_policy_preview_payload
-from cdmw.core.texture_pipeline.runtime_config import normalize_config, validate_backend_runtime_requirements
-from cdmw.core.upscale_profiles import get_texture_preset_definition
+from cdmw.services.texture_workflow_service import get_registered_texture_classification
+from cdmw.services.texture_workflow_service import collect_dds_files
+from cdmw.services.texture_workflow_service import build_texture_processing_plan
+from cdmw.services.texture_workflow_service import build_texture_policy_preview_payload
+from cdmw.services.texture_workflow_service import normalize_config, validate_backend_runtime_requirements
+from cdmw.services.texture_workflow_service import get_texture_preset_definition
 from cdmw.models import AppConfig, ArchiveEntry, RunSummary
 from cdmw.ui.policy_preview_dialog import TexturePolicyPreviewDialog
 from cdmw.workers.texture_workers import BuildWorker, DdsToPngWorker, ScanWorker

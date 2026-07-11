@@ -6,15 +6,15 @@ from typing import Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QTreeWidgetItem
 
-from cdmw.core.classification_registry import (
+from cdmw.services.texture_workflow_service import (
     remove_registered_texture_classifications,
     set_registered_texture_classifications,
 )
-from cdmw.core.research import (
+from cdmw.domain.research.contracts import (
     UnknownResolverGroup,
     UnknownResolverMember,
-    build_unknown_resolver_detail,
 )
+from cdmw.services.research_service import research_service
 from cdmw.ui.research.archive_picker_state import normalize_archive_path
 from cdmw.ui.research.classification_review_state import (
     can_accept_unknown_current_role,
@@ -142,7 +142,7 @@ def _handle_unknown_member_selection_changed(
         if selected_entry is not None
         else {}
     )
-    detail_text = build_unknown_resolver_detail(
+    detail_text = research_service.classification.build_detail(
         group,
         member.path,
         entries_by_path=selected_entries_by_path,

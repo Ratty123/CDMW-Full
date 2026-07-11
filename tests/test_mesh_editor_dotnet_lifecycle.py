@@ -11,6 +11,7 @@ from cdmw.services.mesh_dotnet_experiment import (
     write_mesh_dotnet_launch_diagnostics,
     write_mesh_dotnet_launch_manifest,
 )
+from tests.mesh_editor_source_support import mesh_editor_tab_source
 
 
 def _package(root: Path) -> MeshDotNetExperimentPackage:
@@ -89,7 +90,7 @@ def test_dotnet_launch_diagnostics_preserves_process_error_tails(tmp_path: Path)
 
 
 def test_mesh_editor_tab_contains_persistent_dotnet_runtime_events() -> None:
-    source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "mesh_editor" / "tab.py").read_text(encoding="utf-8")
+    source = mesh_editor_tab_source()
 
     for event_name in (
         "mesh_dotnet_executable_resolved",
@@ -103,6 +104,8 @@ def test_mesh_editor_tab_contains_persistent_dotnet_runtime_events() -> None:
         "mesh_dotnet_process_error",
         "mesh_dotnet_process_finished",
         "mesh_dotnet_embedded_parent_hwnd_unavailable",
+        "mesh_dotnet_embedded_ready_accepted",
+        "mesh_dotnet_embedded_process_stopped_after_blocker",
     ):
         assert event_name in source
     assert "stderr_tail" in source

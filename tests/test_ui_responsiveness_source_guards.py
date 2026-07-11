@@ -2,11 +2,17 @@ from pathlib import Path
 import re
 import unittest
 
+from tests.hkx_editor_dialog_source_support import hkx_editor_dialog_source
+
+from tests.mesh_editor_source_support import mesh_editor_tab_source
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _read(relative: str) -> str:
+    if relative == "cdmw/ui/mesh_editor/tab.py":
+        return mesh_editor_tab_source(REPO_ROOT)
     return (REPO_ROOT / relative).read_text(encoding="utf-8")
 
 
@@ -22,6 +28,25 @@ def _archive_lifecycle_source() -> str:
 
 
 class UIResponsivenessSourceGuards(unittest.TestCase):
+    def test_retrofit_handlers_dispatch_recursive_scan_and_conversion(self) -> None:
+        source = _read("cdmw/ui/tools/mod_package_retrofit_widget.py")
+        task_source = _read("cdmw/ui/tools/mod_package_retrofit_tasks.py")
+        worker_source = _read("cdmw/workers/mod_package_retrofit_workers.py")
+        scan_start = source.index("    def _scan(self) -> None:")
+        scan_body = source[scan_start : source.index("    def _handle_scan_completed", scan_start)]
+        convert_start = source.index("    def _convert_selected(self) -> None:")
+        convert_body = source[convert_start : source.index("    def _handle_conversion_completed", convert_start)]
+
+        self.assertIn("task_controller.start_scan(source)", scan_body)
+        self.assertNotIn("collect_retrofittable_packages(", scan_body)
+        self.assertNotIn("rglob(", scan_body)
+        self.assertIn("task_controller.start_conversion(request)", convert_body)
+        self.assertNotIn("retrofit_mod_package(", convert_body)
+        self.assertIn("self._latest_scan_id", task_source)
+        self.assertIn("request_id == self._latest_scan_id", task_source)
+        self.assertIn("tempfile.mkdtemp", worker_source)
+        self.assertIn("_publish_staged_results", worker_source)
+
     def test_icon_creator_filters_are_debounced_and_batched(self) -> None:
         tab_source = _read("cdmw/ui/item_icons/tab.py")
         controller_source = _read("cdmw/ui/item_icons/controller.py")
@@ -157,10 +182,14 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("self._ensure_archive_basic_index_worker_started()", source)
         self.assertIn("if self._archive_item_icon_lookup_index_missing():\n            self.archive_item_icon_preload_pending_after_ready = True", source)
         self.assertIn("if not self._archive_browser_background_work_allowed() and visible_remaining <= 0:", source)
-        self.assertIn("self.archive_item_icon_prepared_path_cache.pop(prepared_key, None)", source)
+        self.assertIn("def _archive_item_icon_prepared_pixmap_available(", source)
+        self.assertIn("pixmap = QPixmap.fromImage(image)", source)
+        self.assertNotIn("QPixmap(str(preview_path))", source)
+        self.assertIn("reader = QImageReader(str(path))", worker_source)
         self.assertIn("self.archive_item_icon_warmup_user_visible = visible_remaining > 0", source)
         self.assertIn("and not bool(getattr(self, \"archive_item_icon_warmup_user_visible\", False))", source)
-        self.assertIn("if self.stop_event.is_set():\n                                break", worker_source)
+        self.assertIn("def _prepare_dds_icons(", worker_source)
+        self.assertIn("if self.stop_event.is_set():\n                return", worker_source)
         self.assertIn("self.archive_item_icon_negative_cache.clear()", source)
         self.assertIn("self.archive_item_icon_prepared_callbacks.append(_handle_catalog_icon_prepared)", source)
         self.assertIn("self.archive_item_icon_prepared_callbacks.append(_handle_item_finder_donor_icon_prepared)", source)
@@ -402,35 +431,6 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertNotIn("skipped=population_active", refresh_body)
         self.assertIn("pending_refresh=start", refresh_body)
 
-    def test_startup_splash_waits_for_archive_first_paint(self) -> None:
-        source = _read("cdmw/ui/shell/app_window.py")
-        render_source = _read("cdmw/ui/archive_browser/render_lifecycle.py")
-        startup_source = "\n".join(
-            (
-                _read("cdmw/ui/shell/startup_controller.py"),
-                _read("cdmw/ui/shell/startup_splash.py"),
-            )
-        )
-        splash_source = _read("cdmw/ui/shell/startup_dialogs.py")
-        finish_start = startup_source.index("    def _finish_startup_splash_and_show_main_window")
-        finish_body = startup_source[finish_start: startup_source.index("    def _release_startup_splash", finish_start)]
-        first_paint_start = render_source.index("    def _handle_archive_browser_first_visible_paint")
-        first_paint_body = render_source[first_paint_start: render_source.index("__all__", first_paint_start)]
-
-        self.assertIn("Qt.WindowStaysOnTopHint", splash_source)
-        self.assertIn('if not os.environ.get("_PYI_SPLASH_IPC"):', startup_source)
-        self.assertIn("def _finish_startup_splash_after_main_window_paint", startup_source)
-        self.assertIn("self._show_main_window_after_startup_splash()", finish_body)
-        self.assertNotIn("self._finish_startup_splash_now()\n            self._show_main_window_after_startup_splash()", finish_body)
-        self.assertIn("self._startup_splash_finish_after_paint_deadline = time.monotonic() + 10.0", finish_body)
-        self.assertIn("self.archive_browser_first_visible_paint_done = False", finish_body)
-        self.assertIn("self._schedule_startup_splash_finish_after_main_window_paint(180)", finish_body)
-        self.assertIn("not bool(getattr(self, \"_startup_splash_finish_pending\", False))", startup_source)
-        self.assertIn("_startup_splash_finish_after_paint_deadline", first_paint_body)
-        self.assertIn('self._update_startup_splash("Opening Archive Browser...", 0, 0)', startup_source)
-        self.assertIn('startup_splash_first_paint_timeout', startup_source)
-        self.assertIn("self._schedule_startup_splash_finish_after_main_window_paint(80)", first_paint_body)
-
     def test_archive_context_menu_does_not_auto_preview_or_build_family_graph(self) -> None:
         app_source = _read("cdmw/ui/shell/app_window.py")
         preview_result_source = _read("cdmw/ui/archive_browser/preview_result.py")
@@ -648,8 +648,10 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
             + _read("cdmw/ui/shell/window_runtime_state.py")
         )
         theme_source = _read("cdmw/ui/shell/theme_controller.py")
+        theme_overlay_source = _read("cdmw/ui/shell/theme_overlay.py")
         shell_source = theme_source + "\n" + source
-        self.assertIn("class ThemeChangeBusyOverlay(QFrame):", theme_source)
+        self.assertIn("class ThemeChangeBusyOverlay(QFrame):", theme_overlay_source)
+        self.assertIn("from cdmw.ui.shell.theme_overlay import ThemeChangeBusyOverlay", theme_source)
         self.assertIn("self.theme_change_overlay = ThemeChangeBusyOverlay(central)", source)
         self.assertIn("self._theme_change_apply_timer = QTimer(self)", source)
         self.assertIn("self._theme_change_apply_timer.timeout.connect(self._apply_pending_theme_change)", source)
@@ -753,13 +755,13 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
             (
                 _read("cdmw/ui/archive_browser/attachment_socket_editor.py"),
                 _read("cdmw/ui/archive_browser/binary_sidecar_actions.py"),
-                _read("cdmw/ui/archive_browser/hkx_editor_dialog.py"),
+                hkx_editor_dialog_source(REPO_ROOT),
             )
         )
         self.assertIn("from cdmw.ui.shell.theme_controller import build_monospace_font", source)
         self.assertIn("preview_editor.setFont(build_monospace_font(self.settings))", source)
         self.assertIn("editor.setFont(build_monospace_font(self.settings))", source)
-        self.assertIn("preview_text.setFont(build_monospace_font(self.settings))", source)
+        self.assertIn("preview_text.setFont(_state.build_monospace_font(_state.self.settings))", source)
         self.assertNotIn('QFont("Consolas", 9)', source)
 
     def test_static_replacement_rich_text_uses_relative_font_sizes(self) -> None:

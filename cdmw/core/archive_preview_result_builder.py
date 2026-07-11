@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import import_module
 import threading
 import time
 from dataclasses import replace
@@ -25,17 +26,15 @@ from cdmw.models import (
 from cdmw.core.common import RunCancelled
 from cdmw.core.archive_model_references import _ArchiveModelSidecarTextureBinding
 from cdmw.core.archive_model_textures import _FAST_ARCHIVE_PREVIEW_TEXTURE_NOTE
-
-
-def _archive_core():
-    from cdmw.core import archive as archive_core
-
-    return archive_core
+from cdmw.core.archive_compat_exports import ARCHIVE_EXPORTS
 
 
 def _archive_proxy(name: str):
+    module_name, attribute_name = ARCHIVE_EXPORTS[name]
+
     def _proxy(*args, **kwargs):
-        return getattr(_archive_core(), name)(*args, **kwargs)
+        owner = getattr(import_module(module_name), attribute_name)
+        return owner(*args, **kwargs)
 
     return _proxy
 

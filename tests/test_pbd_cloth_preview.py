@@ -3,6 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 import unittest
 
+from tests.native_source_text import d3d11_preview_source
+
 from cdmw.core.pbd_cloth import (
     build_cloth_constraints,
     build_cloth_pin_weights,
@@ -252,7 +254,7 @@ class PbdClothPreviewTests(unittest.TestCase):
     def test_native_d3d11_pbd_runtime_tracks_root_motion(self) -> None:
         from pathlib import Path
 
-        source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        source = d3d11_preview_source()
 
         self.assertIn("root_motion_initialized", source)
         self.assertIn("cloth_root_translation_for_batch", source)

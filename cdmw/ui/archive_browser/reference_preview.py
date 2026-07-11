@@ -25,15 +25,13 @@ from PySide6.QtWidgets import (
 
 from cdmw.ui.archive_browser.actions import archive_context_menu_icons
 from cdmw.constants import DEFAULT_UI_PREVIEW_COLOR_SCHEME
-from cdmw.core.archive import (
-    archive_entry_identity_key,
-    build_archive_asset_family_graph,
-    build_archive_entry_metadata_summary,
-    build_archive_preview_result,
-)
-from cdmw.core.material_sidecar_editor import is_material_sidecar_entry
+from cdmw.domain.archives.filters import archive_entry_identity_key
+from cdmw.services.archive_query_service import build_archive_asset_family_graph
+from cdmw.services.archive_read_service import build_archive_entry_metadata_summary
+from cdmw.services.archive_preview_service import build_archive_preview_result
+from cdmw.services.material_sidecar_service import is_material_sidecar_entry
 from cdmw.models import ArchiveEntry, ArchivePreviewResult
-from cdmw.rendering.native_preview_core import (
+from cdmw.services.preview_rendering_service import (
     NativePreviewCoreAttempt,
     run_native_preview_core_preview_job,
 )

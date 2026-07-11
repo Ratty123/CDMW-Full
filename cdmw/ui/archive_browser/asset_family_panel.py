@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
 
-from cdmw.core.archive import (
+from cdmw.services.archive_query_service import (
     build_archive_asset_family_graph,
     build_archive_item_icon_references_from_catalog,
     merge_archive_reference_rows,

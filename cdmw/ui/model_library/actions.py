@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -10,11 +11,35 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QTreeWidgetItem
 
-from cdmw.core.model_catalogue import (
-    build_mirror_catalogue_index,
-    scan_local_model_files,
-    search_catalogue_records,
+from cdmw.services.model_library_service import ModelLibraryService
+from cdmw.workers.model_library_rows import (
+    ModelLibraryPreparedRowsResult,
+    freeze_model_library_rows,
+    prepare_model_library_rows,
 )
+
+
+def scan_local_model_files(
+    roots: object,
+    *,
+    stop_event: Optional[threading.Event] = None,
+    service: Optional[ModelLibraryService] = None,
+) -> tuple[object, ...]:
+    return (service or ModelLibraryService()).scan_local_models(roots, stop_event=stop_event)  # type: ignore[arg-type]
+
+
+def build_mirror_catalogue_index(*, service: Optional[ModelLibraryService] = None, **kwargs: object) -> dict[str, object]:
+    return (service or ModelLibraryService()).build_catalogue_index(**kwargs)  # type: ignore[arg-type]
+
+
+def search_catalogue_records(
+    db_path: Path,
+    query: str,
+    *,
+    service: Optional[ModelLibraryService] = None,
+    **filters: object,
+) -> tuple[dict[str, object], ...]:
+    return (service or ModelLibraryService()).search_catalogue(db_path, query, **filters)
 
 
 class ModelLibraryActionsMixin:
@@ -71,6 +96,9 @@ class ModelLibraryActionsMixin:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def scan_local_roots(self) -> None:
+        if self._task_thread is not None and self._task_thread.isRunning():
+            self._set_status("A model library task is already running.", error=True)
+            return
         self._set_active_results_view("local")
         roots = list(self.local_roots)
         if not roots:
@@ -79,18 +107,44 @@ class ModelLibraryActionsMixin:
             self._set_status("Add at least one local model folder before scanning.", error=True)
             return
 
+        request_id = self._next_results_request_id()
+        self._results_selection_keys[request_id] = self._payload_population_key(self._selected_payload())
+        request = self._model_library_rows_request([], view="local", normalize_local=True, request_id=request_id)
+        stop_event = threading.Event()
+        self._stop_event = stop_event
+        self._results_task_stop_event = stop_event
+        self._results_task_kind = "scan"
+        self._populating_results = True
+
         def task(progress: Callable[[str], None]) -> object:
             progress("Scanning local model folders...")
-            return [item.to_dict() for item in scan_local_model_files(roots)]
+            rows = (
+                item.to_dict()
+                for item in scan_local_model_files(
+                    roots,
+                    stop_event=stop_event,
+                    service=self.model_library_service,
+                )
+            )
+            prepared_request = replace(
+                request,
+                rows=freeze_model_library_rows(rows, stop_event=stop_event),
+            )
+            return prepare_model_library_rows(prepared_request, stop_event=stop_event)
 
         def complete(result: object) -> None:
-            models = result if isinstance(result, list) else []
+            if not isinstance(result, ModelLibraryPreparedRowsResult):
+                return
+            if result.request_id != self._results_request_id:
+                if not self._model_library_shutting_down:
+                    self._populate_results([row.payload.to_dict() for row in result.all_rows])
+                return
             self._texture_status_cache.clear()
-            self.local_models = self._normalize_local_model_rows([dict(item) for item in models if isinstance(item, dict)])
-            self._populate_results(self.local_models)
-            visible_count = self.results_tree.topLevelItemCount()
-            suffix = "" if visible_count == len(self.local_models) else f" ({visible_count:,} matching current filter)"
-            self._set_status(f"Showing Local Library: {len(self.local_models):,} model file(s){suffix}.")
+            if not self._apply_prepared_results(result):
+                return
+            visible_count = len(result.visible_indices)
+            suffix = "" if visible_count == len(result.all_rows) else f" ({visible_count:,} matching current filter)"
+            self._set_status(f"Showing Local Library: {len(result.all_rows):,} model file(s){suffix}.")
 
         self._run_task("Scanning local model folders...", task, complete)
 
@@ -126,6 +180,7 @@ class ModelLibraryActionsMixin:
 
         def task(progress: Callable[[str], None]) -> object:
             return build_mirror_catalogue_index(
+                service=self.model_library_service,
                 mirror_url=mirror_url,
                 output_dir=output_dir,
                 max_shards=max_shards,
@@ -166,6 +221,9 @@ class ModelLibraryActionsMixin:
             self._set_status("Cancelling current model library task...")
 
     def search_mirror(self, *, query_override: Optional[str] = None) -> None:
+        if self._task_thread is not None and self._task_thread.isRunning():
+            self._set_status("A model library task is already running.", error=True)
+            return
         self._set_active_results_view("mirror")
         self._save_mirror_settings()
         query = self.search_edit.text().strip() if query_override is None else str(query_override)
@@ -182,13 +240,23 @@ class ModelLibraryActionsMixin:
         creator_filter = self.creator_filter_edit.text().strip()
         creator_excludes = self.creator_exclude_edit.text().strip()
         format_filter = str(self.format_filter_combo.currentData() or "")
+        self._use_result_source_order()
+        request_id = self._next_results_request_id()
+        self._results_selection_keys[request_id] = self._payload_population_key(self._selected_payload())
+        request = self._model_library_rows_request([], view="mirror", request_id=request_id)
+        stop_event = threading.Event()
+        self._stop_event = stop_event
+        self._results_task_stop_event = stop_event
+        self._results_task_kind = "search"
+        self._populating_results = True
 
         def task(progress: Callable[[str], None]) -> object:
             progress("Searching mirror catalogue...")
-            return list(
+            rows = list(
                 search_catalogue_records(
                     db_path,
                     query,
+                    service=self.model_library_service,
                     limit=limit,
                     license_contains=license_filter,
                     creator_contains=creator_filter,
@@ -196,12 +264,21 @@ class ModelLibraryActionsMixin:
                     required_format=format_filter,
                 )
             )
+            prepared_request = replace(
+                request,
+                rows=freeze_model_library_rows(rows, stop_event=stop_event),
+            )
+            return prepare_model_library_rows(prepared_request, stop_event=stop_event)
 
         def complete(result: object) -> None:
-            rows = result if isinstance(result, list) else []
-            self.mirror_results = [dict(item) for item in rows if isinstance(item, dict)]
-            self._use_result_source_order()
-            self._populate_results(self.mirror_results)
+            if not isinstance(result, ModelLibraryPreparedRowsResult):
+                return
+            if result.request_id != self._results_request_id:
+                if not self._model_library_shutting_down:
+                    self._populate_results([row.payload.to_dict() for row in result.all_rows])
+                return
+            if not self._apply_prepared_results(result):
+                return
             filters = [value for value in (license_filter, creator_filter, format_filter) if value]
             if creator_excludes:
                 filters.append(f"excluding creators: {creator_excludes}")
@@ -212,7 +289,7 @@ class ModelLibraryActionsMixin:
             suffix = f" {hidden:,} downloaded result(s) hidden." if hidden else ""
             self._update_results_view_label()
             self._set_status(
-                f"Showing Mirror Catalogue: {self.results_tree.topLevelItemCount():,}/{len(self.mirror_results):,} result(s) for {label}.{suffix}"
+                f"Showing Mirror Catalogue: {len(result.visible_indices):,}/{len(result.all_rows):,} result(s) for {label}.{suffix}"
             )
 
         self._run_task("Searching mirror catalogue...", task, complete)

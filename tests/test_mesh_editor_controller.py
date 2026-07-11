@@ -660,7 +660,7 @@ class MeshEditorControllerTests(unittest.TestCase):
         )
 
         with (
-            patch("cdmw.modding.mesh_native_core.build_native_mesh_preview_vertex_update_groups", return_value=[native_group]) as native_groups,
+            patch("cdmw.services.mesh_workflow_service.build_native_mesh_preview_vertex_update_groups", return_value=[native_group]) as native_groups,
             patch("cdmw.ui.mesh_editor.native_preview_payloads._vec3", side_effect=AssertionError("python vertex packing")),
         ):
             update = controller.legacy_python_update_for_result(result, allow_archive_legacy_preview_rebuild=True)
@@ -762,7 +762,7 @@ class MeshEditorControllerTests(unittest.TestCase):
             self.assertEqual({0: range(0, 4)}, changed_vertices_by_submesh)
             return []
 
-        with patch("cdmw.modding.mesh_native_core.build_native_mesh_preview_vertex_update_groups", side_effect=native_groups):
+        with patch("cdmw.services.mesh_workflow_service.build_native_mesh_preview_vertex_update_groups", side_effect=native_groups):
             controller.legacy_python_update_for_result(result, allow_archive_legacy_preview_rebuild=True)
 
     def test_controller_preserves_large_changed_vertex_set_for_native_update(self) -> None:
@@ -907,7 +907,7 @@ class MeshEditorControllerTests(unittest.TestCase):
         result = MeshEditResult(action="undo", status="ok", revision=2)
 
         with (
-            patch("cdmw.modding.mesh_native_core.build_native_mesh_preview_triangle_groups", return_value=[native_group]) as native_groups,
+            patch("cdmw.services.mesh_workflow_service.build_native_mesh_preview_triangle_groups", return_value=[native_group]) as native_groups,
             patch("cdmw.ui.mesh_editor.native_preview_payloads._valid_face_items", side_effect=AssertionError("python triangle packing")),
         ):
             update = controller.legacy_python_update_for_result(result, allow_archive_legacy_preview_rebuild=True)
@@ -1065,7 +1065,7 @@ class MeshEditorControllerTests(unittest.TestCase):
             update = controller.native_update_for_result(undo)
 
         self.assertTrue(undo.ok)
-        self.assertFalse(update.replace_all_triangles)
+        self.assertEqual((False, 1), (update.replace_all_triangles, update.final_submesh_count))
         self.assertEqual((1,), update.triangle_source_submesh_indices)
         self.assertEqual((), update.triangle_groups)
         self.assertTrue(update.refresh_selection)
@@ -1093,13 +1093,14 @@ class MeshEditorControllerTests(unittest.TestCase):
             native_preview_triangle_groups=(native_group,),
             topology_changed=True,
             submesh_count_delta=-1,
+            submesh_counts=((3, 1), (3, 1)),
         )
 
         with patch.object(controller, "working_mesh", side_effect=AssertionError("full mesh refresh")):
             update = controller.native_update_for_result(result)
 
         self.assertFalse(update.replace_all_triangles)
-        self.assertEqual((0, 2), update.triangle_source_submesh_indices)
+        self.assertEqual((2, (0, 1, 2)), (update.final_submesh_count, update.triangle_source_submesh_indices))
         self.assertEqual((native_group,), tuple(update.triangle_groups))
         self.assertTrue(update.refresh_selection)
 
@@ -1120,7 +1121,7 @@ class MeshEditorControllerTests(unittest.TestCase):
             update = controller.native_update_for_result(result)
 
         self.assertFalse(update.replace_all_triangles)
-        self.assertEqual((1,), update.triangle_source_submesh_indices)
+        self.assertEqual((1, (1,)), (update.final_submesh_count, update.triangle_source_submesh_indices))
         self.assertEqual((), update.triangle_groups)
         self.assertTrue(update.refresh_selection)
         self.assertEqual(1, len(update.selection_groups))
@@ -1815,7 +1816,6 @@ class MeshEditorControllerTests(unittest.TestCase):
         finally:
             session.close()
         self.assertEqual(2, len(original.submeshes[0].faces))
-
 
 if __name__ == "__main__":
     unittest.main()

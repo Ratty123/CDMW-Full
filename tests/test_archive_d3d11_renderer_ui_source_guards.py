@@ -3,6 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 import unittest
 
+from tests.native_source_text import d3d11_preview_source
+from tests.static_replacement_source_support import static_replacement_callback_factory_source
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def _archive_preview_shell_source() -> str:
     return "\n".join(
@@ -37,13 +43,37 @@ def _archive_d3d11_runtime_source() -> str:
             Path("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_callbacks.py").read_text(encoding="utf-8"),
             Path("cdmw/ui/archive_browser/static_replacement_d3d11_state.py").read_text(encoding="utf-8"),
             Path("cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py").read_text(encoding="utf-8"),
-            Path("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py").read_text(encoding="utf-8"),
+            static_replacement_callback_factory_source(ROOT),
             Path("cdmw/ui/archive_browser/attachment_safe_placement_dialog.py").read_text(encoding="utf-8"),
         )
     )
 
 
 class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
+    def test_native_d3d11_host_releases_model_texture_caches(self) -> None:
+        source = d3d11_preview_source()
+        diagnostics_source = Path("native/common/native_diagnostics.h").read_text(encoding="utf-8")
+
+        self.assertIn("void release_model_resources", source)
+        self.assertIn("PSSetShaderResources(0, kTotalSrvCount, null_srvs)", source)
+        self.assertIn("context_->Flush()", source)
+        self.assertIn("batches_.clear()", source)
+        self.assertIn('reason_text == "parent_unresponsive"', source)
+        self.assertIn('reason_text == "parent_window_gone"', source)
+        self.assertIn("srv_cache_.clear()", source)
+        self.assertIn("texture_info_cache_.clear()", source)
+        self.assertIn('release_model_resources("reload")', source)
+        self.assertIn('release_model_resources("clear")', source)
+        self.assertIn("release_model_resources(close_reason.c_str())", source)
+        self.assertIn("model_resources_released", source)
+        self.assertIn("texture_cache_entries", source)
+        self.assertIn("texture_cache_releases", source)
+        self.assertIn("estimated_texture_bytes", source)
+        self.assertIn("process_working_set_bytes", source)
+        self.assertIn("process_private_bytes", source)
+        self.assertIn("GetProcessMemoryInfo", diagnostics_source)
+        self.assertIn("current_process_memory", diagnostics_source)
+
     def test_embedded_d3d11_renderer_option_is_removed(self) -> None:
         source = _archive_preview_shell_source()
         renderer_source = Path("cdmw/ui/model_preview_native.py").read_text(encoding="utf-8")
@@ -79,9 +109,7 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
             )
         )
 
-        import_start = source.index("from cdmw.rendering.model_preview_prepare import")
-        import_end = source.index(")", import_start)
-        self.assertIn("prepare_model_preview", source[import_start:import_end])
+        self.assertIn("from cdmw.services.preview_rendering_service import", source)
         self.assertIn("prepare_model_preview(", source)
         self.assertNotIn("NativePreviewPanel.prepare_model_preview", source)
         self.assertIn("prepared_preview_model=prepared_preview_model", source)
@@ -134,7 +162,7 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("_kill_archive_isolated_renderer_process_if_running(process)", source)
 
     def test_native_d3d11_overlay_uses_view_specific_workspace_grid(self) -> None:
-        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        native_source = d3d11_preview_source()
 
         self.assertIn("workspace_grid_y_for_view", native_source)
         grid_start = native_source.index("void draw_workspace_grid(")
@@ -182,6 +210,8 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
             + "\n"
             + Path("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py").read_text(encoding="utf-8")
             + "\n"
+            + static_replacement_callback_factory_source(ROOT)
+            + "\n"
             + Path("cdmw/ui/archive_browser/attachment_safe_placement_dialog.py").read_text(encoding="utf-8")
         )
         model_library_source = (
@@ -189,7 +219,7 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
             + "\n"
             + Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
         )
-        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        native_source = d3d11_preview_source()
 
         self.assertIn('MODEL_PREVIEW_BACKGROUND_COLOR = "#15191d"', constants_source)
         self.assertIn('MODEL_PREVIEW_TEXT_COLOR = "#c8d3df"', constants_source)
@@ -207,7 +237,7 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
             self.assertNotIn("get_theme(", body)
 
         self.assertIn(
-            "theme_payload=_alignment_d3d11_theme_payload_helper(",
+            "theme_payload=_state._alignment_d3d11_theme_payload_helper(",
             main_source,
         )
         self.assertIn("MODEL_PREVIEW_BACKGROUND_COLOR,", main_source)
@@ -247,7 +277,7 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
 
     def test_native_d3d11_texture_integrity_and_diagnostics_are_reported(self) -> None:
         source = _archive_d3d11_runtime_source()
-        native_source = Path("native/cdmw_d3d11_preview/src/main.cpp").read_text(encoding="utf-8")
+        native_source = d3d11_preview_source()
 
         self.assertIn("texture manifest empty despite", source)
         self.assertIn("Native D3D11 Texture Failures:", source)

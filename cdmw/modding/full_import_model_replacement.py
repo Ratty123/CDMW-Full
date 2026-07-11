@@ -20,10 +20,15 @@ FULL_IMPORT_MODEL_REPLACEMENT_PLACEMENT_NOTE = (
 def apply_full_import_model_replacement_preset(
     options: StaticMeshReplacementOptions | None = None,
 ) -> StaticMeshReplacementOptions:
+    preserve_tuning = options is not None
     base = options or StaticMeshReplacementOptions()
     return dataclasses.replace(
         base,
-        transform=dataclasses.replace(base.transform, scale_to_original_length=True),
+        transform=dataclasses.replace(
+            base.transform,
+            alignment_mode="grid_flat",
+            scale_to_original_length=True,
+        ),
         rebuild_material_sidecar=True,
         complete_external_swap=True,
         full_import_model_replacement=True,
@@ -32,8 +37,8 @@ def apply_full_import_model_replacement_preset(
         enable_missing_base_color_parameters=True,
         texture_output_size_mode="source",
         complete_swap_atlas_mode="auto_when_needed",
-        complete_swap_material_profile=FULL_IMPORT_MODEL_REPLACEMENT_PROFILE,
-        accent_glow_strength=0.0,
+        complete_swap_material_profile=base.complete_swap_material_profile if preserve_tuning else FULL_IMPORT_MODEL_REPLACEMENT_PROFILE,
+        accent_glow_strength=base.accent_glow_strength if preserve_tuning else 0.0,
         prune_removed_target_texture_parameters=True,
         prune_unmapped_original_texture_parameters=True,
     )

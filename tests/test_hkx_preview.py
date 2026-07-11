@@ -1342,7 +1342,7 @@ class HkxPreviewTests(unittest.TestCase):
             del data
             return self._body_preview_stub(path), ParsedMesh(path=path, format="pac")
 
-        with mock.patch("cdmw.core.archive.build_mesh_preview_from_bytes", side_effect=_preview_stub):
+        with mock.patch("cdmw.core.archive_mesh_import_preview.build_mesh_preview_from_bytes", side_effect=_preview_stub):
             result = build_archive_preview_result(
                 None,
                 hkx_entry,
@@ -1368,11 +1368,11 @@ class HkxPreviewTests(unittest.TestCase):
         entries = self._archive_entries((("character/bin__/meshphysics/body.hkx", hkx_data),))
         with (
             mock.patch(
-                "cdmw.core.archive.build_hkx_preview",
+                "cdmw.core.archive_hkx.build_hkx_preview",
                 return_value=SimpleNamespace(preview_text="HKX tagfile preview for body.hkx", detail_lines=["HKX summary"]),
             ) as preview_mock,
-            mock.patch("cdmw.core.archive.build_hkx_editable_geometry_document") as document_mock,
-            mock.patch("cdmw.core.archive.build_hkx_model_preview_from_document") as visual_mock,
+            mock.patch("cdmw.core.archive_hkx.build_hkx_editable_geometry_document") as document_mock,
+            mock.patch("cdmw.core.archive_hkx.build_hkx_model_preview_from_document") as visual_mock,
         ):
             result = build_archive_preview_result(
                 None,
@@ -1409,7 +1409,7 @@ class HkxPreviewTests(unittest.TestCase):
             preview_calls.append(path)
             return self._body_preview_stub(path), ParsedMesh(path=path, format="pac")
 
-        with mock.patch("cdmw.core.archive.build_mesh_preview_from_bytes", side_effect=_preview_stub):
+        with mock.patch("cdmw.core.archive_mesh_import_preview.build_mesh_preview_from_bytes", side_effect=_preview_stub):
             first = build_archive_preview_result(
                 None,
                 entries[0],

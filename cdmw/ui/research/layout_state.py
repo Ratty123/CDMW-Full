@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from cdmw.ui.widgets import (
+from cdmw.ui.layout_utils import (
     build_bounded_splitter_sizes,
     build_responsive_splitter_sizes,
     clamp_splitter_sizes,

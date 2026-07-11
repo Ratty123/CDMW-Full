@@ -18,6 +18,7 @@ class UnavailableTextureEditorTab(QWidget):
     send_to_texture_workflow_requested = Signal(str, object)
     send_to_item_icons_requested = Signal(str, object)
     native_dds_ready = Signal(str, object)
+    resident_texture_patch_ready = Signal(object)
 
     def __init__(self, missing_import: ModuleNotFoundError | None, parent: QWidget | None = None) -> None:
         super().__init__(parent)

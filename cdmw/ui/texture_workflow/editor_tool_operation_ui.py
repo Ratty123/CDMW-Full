@@ -106,7 +106,6 @@ class TextureEditorToolOperationUiMixin:
             self._refresh_editor_views(
                 canvas=True,
                 layers=self.document.floating_selection is None,
-                history=True,
                 transform=self.document.floating_selection is not None,
                 status=True,
                 tool_visibility=False,
@@ -132,7 +131,6 @@ class TextureEditorToolOperationUiMixin:
             )
             self._refresh_editor_views(
                 canvas=True,
-                history=True,
                 selection=True,
                 status=True,
                 tool_visibility=False,
@@ -142,7 +140,11 @@ class TextureEditorToolOperationUiMixin:
             self._set_status(texture_editor_clone_source_required_status(), True)
             return
         active_layer = self.layer_pixels.get(self.document.active_layer_id or "")
-        active_layer_has_visible_pixels = texture_editor_layer_has_visible_pixels(active_layer)
+        active_layer_has_visible_pixels = (
+            texture_editor_layer_has_visible_pixels(active_layer)
+            if tool_settings.tool in {"sharpen", "soften"}
+            else True
+        )
         if texture_editor_empty_active_layer_filter_blocked(
             tool_settings,
             active_layer_exists=active_layer is not None,
@@ -199,7 +201,6 @@ class TextureEditorToolOperationUiMixin:
         )
         self._refresh_editor_views(
             canvas=True,
-            history=True,
             status=True,
             tool_visibility=False,
         )
@@ -250,7 +251,6 @@ class TextureEditorToolOperationUiMixin:
         )
         self._refresh_editor_views(
             canvas=True,
-            history=True,
             status=True,
             tool_visibility=False,
         )

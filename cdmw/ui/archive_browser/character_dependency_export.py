@@ -7,7 +7,8 @@ from collections.abc import Callable
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
-from cdmw.core.archive_relationships import CharacterDependencyPlan, build_character_dependency_plan
+from cdmw.domain.archives.relationships import CharacterDependencyPlan
+from cdmw.services.archive_workflow_service import build_character_dependency_plan
 from cdmw.models import ArchiveEntry
 
 

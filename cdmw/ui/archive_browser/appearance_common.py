@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import re
-from pathlib import Path, PurePosixPath
+import threading
+from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt
@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.archive import read_archive_entry_data, try_decode_text_like_archive_data
 from cdmw.models import ArchiveEntry
+from cdmw.workers.appearance_workers import appearance_swap_exact_app_match
 
 
 class ArchiveAppearanceCommonMixin:
@@ -155,23 +155,23 @@ class ArchiveAppearanceCommonMixin:
         return None, None, "Select one target body .app_xml and one donor .pac/.pam/.pamlod model first."
 
     @staticmethod
-    def _appearance_swap_exact_app_match(model_entry: ArchiveEntry, app_entry: ArchiveEntry) -> bool:
-        model_stem = PurePosixPath(str(model_entry.path or "").replace("\\", "/")).stem.strip().casefold()
-        if not model_stem:
-            return False
-        try:
-            data, _decompressed, _note = read_archive_entry_data(app_entry)
-            text = (try_decode_text_like_archive_data(data) or data.decode("utf-8-sig", errors="ignore")).casefold()
-        except Exception:
-            return False
-        exact_name_pattern = re.compile(r"\bname\s*=\s*['\"]" + re.escape(model_stem) + r"['\"]", flags=re.IGNORECASE)
-        return bool(exact_name_pattern.search(text))
+    def _appearance_swap_exact_app_match(
+        model_entry: ArchiveEntry,
+        app_entry: ArchiveEntry,
+        *,
+        stop_event: threading.Event | None = None,
+    ) -> bool:
+        return appearance_swap_exact_app_match(model_entry, app_entry, stop_event=stop_event)
 
-    def _find_exact_appearance_contexts_for_model(self, donor_model_entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
+    def _find_exact_appearance_contexts_for_model(
+        self,
+        donor_model_entry: ArchiveEntry,
+        *,
+        stop_event: threading.Event | None = None,
+    ) -> Tuple[ArchiveEntry, ...]:
         matches: List[ArchiveEntry] = []
-        for candidate in tuple(self.archive_entries):
-            if str(candidate.extension or "").lower() != ".app_xml":
-                continue
-            if self._appearance_swap_exact_app_match(donor_model_entry, candidate):
+        extension_index = getattr(self, "archive_entries_by_extension", {}) or {}
+        for candidate in tuple(extension_index.get(".app_xml", ()) or ()):
+            if self._appearance_swap_exact_app_match(donor_model_entry, candidate, stop_event=stop_event):
                 matches.append(candidate)
         return tuple(matches)

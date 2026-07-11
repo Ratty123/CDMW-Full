@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Callable, List, Mapping, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QAbstractItemModel, QItemSelectionModel, QModelIndex, QObject, Qt, Signal
 from PySide6.QtWidgets import QAbstractItemView, QTreeView
@@ -106,7 +106,6 @@ class ArchiveBrowserModel(QAbstractItemModel):
         self._flat_loaded_count = 0
         self._row_cache: "OrderedDict[Tuple[int, bool], ArchiveBrowserRowPayload]" = OrderedDict()
         self._row_cache_limit = max(1, min(100_000, int(row_cache_limit or 12000)))
-        self._flat_node_cache: Dict[int, ArchiveBrowserNode] = {}
 
     def clear(self) -> None:
         self.beginResetModel()
@@ -114,7 +113,6 @@ class ArchiveBrowserModel(QAbstractItemModel):
         self._entries = ()
         self._flat_loaded_count = 0
         self._row_cache.clear()
-        self._flat_node_cache.clear()
         self.endResetModel()
 
     def set_archive_state(
@@ -138,7 +136,6 @@ class ArchiveBrowserModel(QAbstractItemModel):
         self._fetch_batch_size = max(100, min(5000, int(fetch_batch_size or 500)))
         self._flat_loaded_count = min(len(entries), self._fetch_batch_size) if self._mode == "flat" else 0
         self._row_cache.clear()
-        self._flat_node_cache.clear()
         self._root.children = self._build_top_level_nodes()
         self.endResetModel()
 
@@ -241,10 +238,7 @@ class ArchiveBrowserModel(QAbstractItemModel):
         row_number: int = 0,
     ) -> ArchiveBrowserNode:
         if parent is None:
-            cached = self._flat_node_cache.get(int(entry_index))
-            if cached is not None:
-                return cached
-            cached = ArchiveBrowserNode(
+            return ArchiveBrowserNode(
                 "file",
                 int(entry_index),
                 parent=None,
@@ -254,8 +248,6 @@ class ArchiveBrowserModel(QAbstractItemModel):
                 tooltips=(),
                 row_number=int(entry_index),
             )
-            self._flat_node_cache[int(entry_index)] = cached
-            return cached
         return ArchiveBrowserNode(
             "file",
             int(entry_index),
@@ -300,23 +292,28 @@ class ArchiveBrowserModel(QAbstractItemModel):
     def _node_for_index(self, index: QModelIndex) -> Optional[ArchiveBrowserNode]:
         if not index.isValid():
             return self._root
+        if self._mode == "flat":
+            row = int(index.row())
+            return self._file_node(row, None, show_full_path=True) if 0 <= row < self._flat_loaded_count else None
         node = index.internalPointer()
         return node if isinstance(node, ArchiveBrowserNode) else None
 
     def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
         if row < 0 or column < 0 or column >= self.columnCount(parent):
             return QModelIndex()
+        if self._mode == "flat":
+            if parent.isValid() or row >= self._flat_loaded_count:
+                return QModelIndex()
+            return self.createIndex(row, column)
         parent_node = self._node_for_index(parent)
         if parent_node is None:
             return QModelIndex()
-        if self._mode == "flat" and parent_node is self._root:
-            if row >= self._flat_loaded_count:
-                return QModelIndex()
-            return self.createIndex(row, column, self._file_node(row, None, show_full_path=True))
         child = parent_node.child(row)
         return self.createIndex(row, column, child) if child is not None else QModelIndex()
 
     def parent(self, index: QModelIndex) -> QModelIndex:
+        if self._mode == "flat":
+            return QModelIndex()
         node = self._node_for_index(index)
         if node is None or node.parent is None or node.parent is self._root:
             return QModelIndex()
@@ -324,11 +321,11 @@ class ArchiveBrowserModel(QAbstractItemModel):
         return self.createIndex(parent_node.row(), 0, parent_node)
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        if self._mode == "flat":
+            return 0 if parent.isValid() else self._flat_loaded_count
         parent_node = self._node_for_index(parent)
         if parent_node is None:
             return 0
-        if self._mode == "flat" and parent_node is self._root:
-            return self._flat_loaded_count
         return parent_node.childCount()
 
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
@@ -342,6 +339,21 @@ class ArchiveBrowserModel(QAbstractItemModel):
 
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> object:
         if not index.isValid():
+            return None
+        if self._mode == "flat":
+            entry_index = int(index.row())
+            if not (0 <= entry_index < self._flat_loaded_count):
+                return None
+            if role == Qt.DisplayRole:
+                return self._payload_for_file(entry_index, show_full_path=True).columns[index.column()]
+            if role == Qt.ToolTipRole:
+                return self._payload_for_file(entry_index, show_full_path=True).tooltip(index.column())
+            if role == Qt.UserRole:
+                return "file"
+            if role == Qt.UserRole + 1:
+                return entry_index
+            if role == Qt.UserRole + 2:
+                return True
             return None
         node = self._node_for_index(index)
         if node is None:
@@ -361,11 +373,11 @@ class ArchiveBrowserModel(QAbstractItemModel):
         return None
 
     def hasChildren(self, parent: QModelIndex = QModelIndex()) -> bool:
+        if self._mode == "flat":
+            return not parent.isValid() and bool(self._entries)
         node = self._node_for_index(parent)
         if node is None:
             return False
-        if self._mode == "flat" and node is self._root:
-            return bool(self._entries)
         if node.kind == "folder":
             key = node.value if isinstance(node.value, tuple) else ()
             return bool(self._tree_child_folders.get(key) or self._tree_direct_files.get(key))
@@ -374,11 +386,11 @@ class ArchiveBrowserModel(QAbstractItemModel):
         return bool(node.children)
 
     def canFetchMore(self, parent: QModelIndex) -> bool:
+        if self._mode == "flat":
+            return not parent.isValid() and self._flat_loaded_count < len(self._entries)
         node = self._node_for_index(parent)
         if node is None:
             return False
-        if self._mode == "flat" and node is self._root:
-            return self._flat_loaded_count < len(self._entries)
         if node.kind not in {"folder", "category"}:
             return False
         if node.kind == "category":
@@ -388,10 +400,9 @@ class ArchiveBrowserModel(QAbstractItemModel):
         return (not node.fetched) or node.direct_loaded < len(direct_files)
 
     def fetchMore(self, parent: QModelIndex) -> None:
-        node = self._node_for_index(parent)
-        if node is None:
-            return
-        if self._mode == "flat" and node is self._root:
+        if self._mode == "flat":
+            if parent.isValid():
+                return
             start = self._flat_loaded_count
             end = min(len(self._entries), start + self._fetch_batch_size)
             if end <= start:
@@ -399,6 +410,9 @@ class ArchiveBrowserModel(QAbstractItemModel):
             self.beginInsertRows(QModelIndex(), start, end - 1)
             self._flat_loaded_count = end
             self.endInsertRows()
+            return
+        node = self._node_for_index(parent)
+        if node is None:
             return
         if node.kind not in {"folder", "category"}:
             return

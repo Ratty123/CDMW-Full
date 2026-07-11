@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QApplication, QWidget
+
+from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
+
 
 _texture_editor_tab_class: type | None = None
 _texture_editor_import_error: ModuleNotFoundError | None = None
@@ -12,7 +15,6 @@ _texture_editor_import_attempted = False
 
 
 def _load_texture_editor_tab_class() -> type | None:
-    """Load optional texture editor only when the GUI actually builds tabs."""
     global _texture_editor_import_attempted, _texture_editor_import_error, _texture_editor_tab_class
     if _texture_editor_import_attempted:
         return _texture_editor_tab_class
@@ -30,71 +32,110 @@ def _load_texture_editor_tab_class() -> type | None:
 
 
 class ShellToolTabsMixin:
-    """Build secondary tool tabs after archive/texture foundations exist."""
+    """Register optional tools cheaply; build each tool on first use."""
 
-    def _build_shell_tool_tabs(self, pump_startup_splash: Callable[[str], None]) -> None:
-        from cdmw.core.archive import ensure_archive_preview_source
-        from cdmw.ui.item_icons import ItemIconLibraryTab
-        from cdmw.ui.mesh_editor import MeshEditorSessionRequest, MeshEditorTab
-        from cdmw.ui.model_library import ModelLibraryTab
-        from cdmw.ui.recolor_variants_tab import RecolorVariantsTab
-        from cdmw.ui.replace_assistant_tab import ReplaceAssistantTab
-        from cdmw.ui.research import ResearchTab
-        from cdmw.ui.settings_tab import SettingsTab
-        from cdmw.ui.text_search import TextSearchTab
-        from cdmw.ui.texture_workflow.unavailable_editor import UnavailableTextureEditorTab
+    def _add_lazy_shell_tool(
+        self,
+        tabs: object,
+        title: str,
+        key: str,
+        factory: Callable[[], QWidget],
+    ) -> LazyToolTab:
+        container = LazyToolTab(factory)
+        container.setObjectName(key)
+        container.when_created(self._finish_lazy_shell_tool)
+        tabs.addTab(container, title)
+        return container
 
-        _ = MeshEditorSessionRequest
+    def _finish_lazy_shell_tool(self, widget: QWidget) -> None:
+        if self.ui_localizer.language_code != "en":
+            self.ui_localizer.apply(widget)
+        from cdmw.ui.shell.theme_controller import apply_window_ui_fonts
 
-        pump_startup_splash("Preparing mesh editor...")
-        self.mesh_editor_tab = MeshEditorTab(
+        app = QApplication.instance()
+        if app is not None:
+            apply_window_ui_fonts(widget, app, settings=self.settings)
+        self._cache_responsive_control_widgets()
+        self._apply_responsive_window_defaults(
+            apply_expensive_metrics=False,
+            adjust_window_geometry=False,
+        )
+
+    def _create_mesh_editor_tab(self) -> QWidget:
+        from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
+        from cdmw.ui.mesh_editor.tab import MeshEditorTab
+
+        tab = MeshEditorTab(
             settings=self.settings,
             theme_key=self.current_theme_key,
-            get_archive_texture_entries_by_normalized_path=lambda: getattr(self, "archive_entries_by_normalized_path", {}) or {},
-            get_archive_texture_entries_by_basename=lambda: getattr(self, "archive_entries_by_basename", {}) or {},
+            get_archive_texture_entries_by_normalized_path=lambda: getattr(
+                self, "archive_entries_by_normalized_path", {}
+            )
+            or {},
+            get_archive_texture_entries_by_basename=lambda: getattr(
+                self, "archive_entries_by_basename", {}
+            )
+            or {},
         )
-        self.mesh_editor_tab.status_message_requested.connect(
+        tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
         )
-        self.mesh_editor_tab.modify_original_requested.connect(self._mesh_editor_modify_original_requested)
-        self.mesh_editor_tab.import_replacement_requested.connect(self._mesh_editor_import_replacement_requested)
-        self.mesh_editor_tab.import_preview_requested.connect(self._mesh_editor_import_preview_requested)
-        self.mesh_editor_tab.preview_rebuilt_asset_requested.connect(self._mesh_editor_preview_rebuilt_asset_requested)
-        self.mesh_editor_tab.package_rebuilt_asset_requested.connect(self._mesh_editor_package_rebuilt_asset_requested)
-        self.mesh_editor_tab.in_game_swap_requested.connect(self._mesh_editor_in_game_swap_requested)
-        self.mesh_editor_tab.open_archive_target_requested.connect(self._mesh_editor_show_archive_target_requested)
-        self.mesh_editor_tab.mesh_action_requested.connect(self._mesh_editor_action_requested)
-        self.mesh_editor_tab.open_texture_source_requested.connect(self._open_source_in_texture_editor)
-        self.assets_tabs.addTab(self.mesh_editor_tab, "Mesh Editor")
+        tab.modify_original_requested.connect(self._mesh_editor_modify_original_requested)
+        tab.import_replacement_requested.connect(self._mesh_editor_import_replacement_requested)
+        tab.import_preview_requested.connect(self._mesh_editor_import_preview_requested)
+        tab.preview_rebuilt_asset_requested.connect(self._mesh_editor_preview_rebuilt_asset_requested)
+        tab.package_rebuilt_asset_requested.connect(self._mesh_editor_package_rebuilt_asset_requested)
+        tab.in_game_swap_requested.connect(self._mesh_editor_in_game_swap_requested)
+        tab.open_archive_target_requested.connect(self._mesh_editor_show_archive_target_requested)
+        tab.mesh_action_requested.connect(self._mesh_editor_action_requested)
+        tab.open_texture_source_requested.connect(self._open_source_in_texture_editor)
+        current_entry = self._current_archive_entry()
+        tab.set_archive_selection(
+            current_entry
+            if current_entry is not None and current_entry.extension in ARCHIVE_MESH_EXTENSIONS
+            else None
+        )
+        return tab
 
-        pump_startup_splash("Preparing model library...")
-        self.model_library_tab = ModelLibraryTab(
+    def _create_model_library_tab(self) -> QWidget:
+        from cdmw.ui.model_library import ModelLibraryTab
+
+        tab = ModelLibraryTab(
             settings=self.settings,
             base_dir=self.settings_file_path.parent,
             theme_key=self.current_theme_key,
             record_runtime_event=getattr(self, "_record_runtime_event", None),
+            model_library_service=self.app_context.services.require_model_library(),
         )
-        self.model_library_tab.status_message_requested.connect(
+        tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
         )
-        self.model_library_tab.import_mesh_requested.connect(
-            self._import_local_model_to_current_archive
-        )
-        self.model_library_tab.preview_mesh_requested.connect(
-            self._preview_model_library_mesh
-        )
-        self.assets_tabs.addTab(self.model_library_tab, "Model Library")
+        tab.import_mesh_requested.connect(self._import_local_model_to_current_archive)
+        tab.preview_mesh_requested.connect(self._preview_model_library_mesh)
+        tab.item_icon_source_generated.connect(self._handle_model_library_item_icon_generated)
+        return tab
 
-        pump_startup_splash("Preparing research tools...")
-        self.text_search_tab = TextSearchTab(
+    def _create_text_search_tab(self) -> QWidget:
+        from cdmw.ui.text_search import TextSearchTab
+
+        tab = TextSearchTab(
             settings=self.settings,
             base_dir=self.settings_file_path.parent,
             theme_key=self.current_theme_key,
         )
-        self.text_search_tab.status_message_requested.connect(
+        tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
         )
-        self.research_tab = ResearchTab(
+        tab.set_archive_entries(
+            getattr(self, "archive_entries", []),
+            self.archive_package_root_edit.text().strip(),
+        )
+        return tab
+
+    def _create_research_tab(self) -> QWidget:
+        from cdmw.ui.research import ResearchTab
+
+        tab = ResearchTab(
             settings=self.settings,
             base_dir=self.settings_file_path.parent,
             get_archive_entries=lambda: self.archive_entries,
@@ -104,7 +145,7 @@ class ShellToolTabsMixin:
             get_texconv_path=lambda: self.texconv_path_edit.text(),
             get_app_config=self.collect_config,
             get_current_archive_path=self.current_archive_path_for_research,
-            get_current_text_search_path=self.text_search_tab.current_result_path,
+            get_current_text_search_path=lambda: self.text_search_tab.current_result_path(),
             get_current_compare_path=self.current_compare_path_for_research,
             get_archive_browser_tree_state=lambda: {
                 "entries": self.archive_filtered_entries,
@@ -115,24 +156,119 @@ class ShellToolTabsMixin:
                 "tree_index_ready": self.archive_tree_index_ready,
             },
         )
-        self.research_tab.status_message_requested.connect(
+        tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
         )
-        self.research_tab.focus_archive_browser_requested.connect(
-            lambda: self._activate_tool_widget(self.archive_browser_tab)
+        tab.focus_archive_browser_requested.connect(lambda: self._activate_tool_widget(self.archive_browser_tab))
+        tab.extract_related_set_requested.connect(self.extract_related_archive_set_from_paths)
+        tab.review_reference_in_text_search_requested.connect(self._review_reference_in_text_search)
+        return tab
+
+    def _create_replace_assistant_tab(self) -> QWidget:
+        from cdmw.ui.replace_assistant_tab import ReplaceAssistantTab
+
+        tab = ReplaceAssistantTab(
+            settings=self.settings,
+            base_dir=self.settings_file_path.parent,
+            get_archive_entries=lambda: self.archive_entries,
+            get_original_root=lambda: self.original_dds_edit.text(),
+            get_texconv_path=lambda: self.texconv_path_edit.text(),
+            get_current_config=self.collect_config,
         )
-        self.research_tab.extract_related_set_requested.connect(self.extract_related_archive_set_from_paths)
-        self.research_tab.review_reference_in_text_search_requested.connect(
-            self._review_reference_in_text_search
+        tab.status_message_requested.connect(
+            lambda message, is_error: self.set_status_message(message, error=is_error)
         )
-        self.research_tabs.addTab(self.research_tab, "Texture Research")
-        self.research_tabs.addTab(self.text_search_tab, "Text Search")
+        tab.open_in_texture_editor_requested.connect(self._open_source_in_texture_editor)
+        tab.set_archive_entries(
+            getattr(self, "archive_entries", []),
+            self.archive_package_root_edit.text().strip(),
+        )
+        return tab
+
+    def _create_recolor_variants_tab(self) -> QWidget:
+        from cdmw.ui.recolor_variants_tab import RecolorVariantsTab
+
+        tab = RecolorVariantsTab(
+            settings=self.settings,
+            base_dir=self.settings_file_path.parent,
+            get_texconv_path=lambda: self.texconv_path_edit.text(),
+        )
+        tab.status_message_requested.connect(
+            lambda message, is_error: self.set_status_message(message, error=is_error)
+        )
+        tab.open_recolor_target_in_editor_requested.connect(self._open_recolor_variant_target_in_texture_editor)
+        return tab
+
+    def _create_texture_editor_tab(self) -> QWidget:
+        texture_editor_tab_class = _load_texture_editor_tab_class()
+        if texture_editor_tab_class is None:
+            from cdmw.ui.texture_workflow.unavailable_editor import UnavailableTextureEditorTab
+
+            tab = UnavailableTextureEditorTab(_texture_editor_import_error)
+        else:
+            tab = texture_editor_tab_class(
+                settings=self.settings,
+                base_dir=self.settings_file_path.parent,
+                get_texconv_path=lambda: self.texconv_path_edit.text(),
+                get_png_root=lambda: self.png_root_edit.text(),
+                get_original_dds_root=lambda: self.original_dds_edit.text(),
+                get_archive_entries=lambda: self.archive_entries,
+                get_current_config=self.collect_config,
+            )
+        tab.set_ui_translator(self.ui_localizer.translate)
+        tab.sync_ui_font_from_application()
+        tab.status_message_requested.connect(
+            lambda message, is_error: self.set_status_message(message, error=is_error)
+        )
+        tab.browse_archive_requested.connect(self._show_archive_browser_from_texture_editor)
+        tab.open_in_compare_requested.connect(self._show_compare_from_texture_editor)
+        tab.send_to_replace_assistant_requested.connect(self._handle_texture_editor_send_to_replace_assistant)
+        tab.send_to_texture_workflow_requested.connect(self._handle_texture_editor_send_to_texture_workflow)
+        tab.send_to_item_icons_requested.connect(self._handle_texture_editor_send_to_item_icons)
+        tab.native_dds_ready.connect(lambda *args: self.mesh_editor_tab.apply_texture_editor_dds_result(*args))
+        tab.resident_texture_patch_ready.connect(
+            lambda patch: self.mesh_editor_tab.apply_texture_editor_region_patch(patch)
+        )
+        return tab
+
+    def _create_item_icons_tab(self) -> QWidget:
+        from cdmw.services.archive_preview_service import ensure_archive_preview_source
+        from cdmw.ui.item_icons import ItemIconLibraryTab
+
+        tab = ItemIconLibraryTab(
+            settings=self.settings,
+            base_dir=self.settings_file_path.parent,
+            get_archive_entries=lambda: self.archive_entries,
+            get_texconv_path=lambda: self.texconv_path_edit.text(),
+            resolve_target_template_path=lambda entry: ensure_archive_preview_source(entry)[0],
+            get_current_archive_path=self.current_archive_path_for_research,
+            item_icon_service=self.app_context.services.require_item_icons(),
+        )
+        tab.status_message_requested.connect(
+            lambda message, is_error: self.set_status_message(message, error=is_error)
+        )
+        tab.open_in_texture_editor_requested.connect(self._open_source_in_texture_editor)
+        tab.open_target_in_archive_requested.connect(
+            lambda target_path: self._show_archive_browser_from_texture_editor(target_path)
+        )
+        return tab
+
+    def _create_mod_package_retrofit_tab(self) -> QWidget:
+        from cdmw.ui.tools.mod_package_retrofit_tasks import ModPackageRetrofitToolWidget
+
+        tab = ModPackageRetrofitToolWidget()
+        tab.setObjectName("mod_package_retrofit")
+        self._build_mod_package_retrofit_tool(tab, run_initial_scan=False)
+        return tab
+
+    def _build_shell_tool_tabs(self, pump_startup_splash: Callable[[str], None]) -> None:
+        from cdmw.ui.settings_tab import SettingsTab
 
         pump_startup_splash("Preparing settings...")
         self.settings_tab = SettingsTab(
             settings=self.settings,
             theme_key=self.current_theme_key,
-            asset_authoring_service=getattr(self.app_context.services, "asset_authoring", None),
+            asset_authoring_service=lambda: self.app_context.services.asset_authoring,
         )
         self.settings_tab.set_language_options(
             self.ui_localizer.available_languages(),
@@ -153,96 +289,37 @@ class ShellToolTabsMixin:
         settings_tab_index = self.main_tabs.addTab(self.settings_tab, "Settings")
         self.main_tabs.setTabVisible(settings_tab_index, False)
 
-        pump_startup_splash("Preparing assistant tools...")
-        self.replace_assistant_tab = ReplaceAssistantTab(
-            settings=self.settings,
-            base_dir=self.settings_file_path.parent,
-            get_archive_entries=lambda: self.archive_entries,
-            get_original_root=lambda: self.original_dds_edit.text(),
-            get_texconv_path=lambda: self.texconv_path_edit.text(),
-            get_current_config=self.collect_config,
+        pump_startup_splash("Registering optional tools...")
+        self.mesh_editor_tab = self._add_lazy_shell_tool(
+            self.assets_tabs, "Mesh Editor", "mesh_editor", self._create_mesh_editor_tab
         )
-        self.replace_assistant_tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+        self.model_library_tab = self._add_lazy_shell_tool(
+            self.assets_tabs, "Model Library", "model_library", self._create_model_library_tab
         )
-        self.replace_assistant_tab.open_in_texture_editor_requested.connect(self._open_source_in_texture_editor)
-        self.texture_tabs.addTab(self.replace_assistant_tab, "Replacer")
-
-        pump_startup_splash("Preparing recolor variants...")
-        self.recolor_variants_tab = RecolorVariantsTab(
-            settings=self.settings,
-            base_dir=self.settings_file_path.parent,
-            get_texconv_path=lambda: self.texconv_path_edit.text(),
+        self.item_icons_tab = self._add_lazy_shell_tool(
+            self.assets_tabs, "Icon Creator", "item_icons", self._create_item_icons_tab
         )
-        self.recolor_variants_tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+        self.replace_assistant_tab = self._add_lazy_shell_tool(
+            self.texture_tabs, "Replacer", "replace_assistant", self._create_replace_assistant_tab
         )
-        self.recolor_variants_tab.open_recolor_target_in_editor_requested.connect(
-            self._open_recolor_variant_target_in_texture_editor
+        self.recolor_variants_tab = self._add_lazy_shell_tool(
+            self.texture_tabs, "Recolor Variants", "recolor_variants", self._create_recolor_variants_tab
         )
-        self.texture_tabs.addTab(self.recolor_variants_tab, "Recolor Variants")
-
-        pump_startup_splash("Preparing texture editor...")
-        texture_editor_tab_class = _load_texture_editor_tab_class()
-        if texture_editor_tab_class is None:
-            self.texture_editor_tab = UnavailableTextureEditorTab(_texture_editor_import_error)
-        else:
-            self.texture_editor_tab = texture_editor_tab_class(
-                settings=self.settings,
-                base_dir=self.settings_file_path.parent,
-                get_texconv_path=lambda: self.texconv_path_edit.text(),
-                get_png_root=lambda: self.png_root_edit.text(),
-                get_original_dds_root=lambda: self.original_dds_edit.text(),
-                get_archive_entries=lambda: self.archive_entries,
-                get_current_config=self.collect_config,
-            )
-        self.texture_editor_tab.set_ui_translator(self.ui_localizer.translate)
-        self.texture_editor_tab.sync_ui_font_from_application()
-        self.texture_editor_tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
+        self.texture_editor_tab = self._add_lazy_shell_tool(
+            self.texture_tabs, "Editor", "texture_editor", self._create_texture_editor_tab
         )
-        self.texture_editor_tab.browse_archive_requested.connect(self._show_archive_browser_from_texture_editor)
-        self.texture_editor_tab.open_in_compare_requested.connect(self._show_compare_from_texture_editor)
-        self.texture_editor_tab.send_to_replace_assistant_requested.connect(
-            self._handle_texture_editor_send_to_replace_assistant
+        self.research_tab = self._add_lazy_shell_tool(
+            self.research_tabs, "Texture Research", "research", self._create_research_tab
         )
-        self.texture_editor_tab.send_to_texture_workflow_requested.connect(
-            self._handle_texture_editor_send_to_texture_workflow
+        self.text_search_tab = self._add_lazy_shell_tool(
+            self.research_tabs, "Text Search", "text_search", self._create_text_search_tab
         )
-        self.texture_editor_tab.send_to_item_icons_requested.connect(
-            self._handle_texture_editor_send_to_item_icons
+        self.mod_package_retrofit_tab = self._add_lazy_shell_tool(
+            self.tools_tabs,
+            "Retrofit/Repackage",
+            "mod_package_retrofit",
+            self._create_mod_package_retrofit_tab,
         )
-        self.texture_editor_tab.native_dds_ready.connect(self.mesh_editor_tab.apply_texture_editor_dds_preview)
-        self.texture_tabs.addTab(self.texture_editor_tab, "Editor")
-
-        self.item_icons_tab = ItemIconLibraryTab(
-            settings=self.settings,
-            base_dir=self.settings_file_path.parent,
-            get_archive_entries=lambda: self.archive_entries,
-            get_texconv_path=lambda: self.texconv_path_edit.text(),
-            resolve_target_template_path=lambda entry: ensure_archive_preview_source(entry)[0],
-            get_current_archive_path=self.current_archive_path_for_research,
-        )
-        self.item_icons_tab.status_message_requested.connect(
-            lambda message, is_error: self.set_status_message(message, error=is_error)
-        )
-        self.item_icons_tab.open_in_texture_editor_requested.connect(self._open_source_in_texture_editor)
-        self.item_icons_tab.open_target_in_archive_requested.connect(
-            lambda target_path: self._show_archive_browser_from_texture_editor(target_path)
-        )
-        self.model_library_tab.item_icon_source_generated.connect(
-            self._handle_model_library_item_icon_generated
-        )
-        self.assets_tabs.addTab(self.item_icons_tab, "Icon Creator")
-
-        pump_startup_splash("Preparing package tools...")
-        self.mod_package_retrofit_tab = QWidget()
-        self.mod_package_retrofit_tab.setObjectName("mod_package_retrofit")
-        self._build_mod_package_retrofit_tool(
-            self.mod_package_retrofit_tab,
-            run_initial_scan=False,
-        )
-        self.tools_tabs.addTab(self.mod_package_retrofit_tab, "Retrofit/Repackage")
 
     def _register_shell_tool_tabs(self) -> None:
         self._initialize_archive_cache_status_chip()

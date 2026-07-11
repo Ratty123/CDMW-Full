@@ -10,7 +10,7 @@ except ImportError:  # pragma: no cover
     ArchiveEntry = object  # type: ignore[assignment]
 
 try:  # pragma: no cover
-    from cdmw.modding.scene_importer import SceneImportResult
+    from cdmw.services.mesh_workflow_service import SceneImportResult
 except ImportError:  # pragma: no cover
     SceneImportResult = object  # type: ignore[assignment]
 

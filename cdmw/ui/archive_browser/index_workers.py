@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QThread, QTimer
 
-from cdmw.core.archive import ArchiveNameSearchIndex
+from cdmw.services.archive_workflow_service import ArchiveNameSearchIndex
 from cdmw.workers.archive_workers import (
     ArchiveBasicIndexWorker,
     ArchiveDerivedIndexCacheWriteWorker,
@@ -34,6 +34,8 @@ class ArchiveIndexWorkerMixin:
             self.archive_basic_index_state = "ready"
             return
         self.archive_basic_index_state = "warming"
+        request_id = int(getattr(self, "archive_basic_index_request_id", 0) or 0) + 1
+        self.archive_basic_index_request_id = request_id
         performance_settings = self._current_archive_performance_settings()
         package_root_text = self.archive_package_root_edit.text().strip()
         worker = ArchiveBasicIndexWorker(
@@ -41,6 +43,7 @@ class ArchiveIndexWorkerMixin:
             self.archive_cache_root,
             tuple(self.archive_entries),
             native_archive_acceleration=performance_settings.native_archive_acceleration,
+            request_id=request_id,
             entry_metadata_signature=self.archive_entry_metadata_signature,
             entry_metadata_sources=self.archive_entry_metadata_sources,
             shard_entry_signatures=getattr(self, "archive_scan_shard_entry_signatures", {}) or {},
@@ -51,13 +54,24 @@ class ArchiveIndexWorkerMixin:
         thread.started.connect(worker.run)
         worker.log_message.connect(self.append_log)
         worker.log_message.connect(self.append_archive_log)
-        worker.progress_changed.connect(self._handle_archive_scan_progress)
+        worker.progress_changed.connect(
+            lambda current, total, detail, rid=request_id: self._handle_archive_basic_index_progress(
+                current,
+                total,
+                detail,
+                request_id=rid,
+            )
+        )
         worker.completed.connect(self._handle_archive_basic_index_complete)
-        worker.error.connect(self._handle_archive_basic_index_error)
+        worker.error.connect(
+            lambda message, rid=request_id: self._handle_archive_basic_index_error(message, request_id=rid)
+        )
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_archive_basic_index_refs)
+        thread.finished.connect(
+            lambda rid=request_id, owner_thread=thread: self._cleanup_archive_basic_index_refs(rid, owner_thread)
+        )
         self.archive_basic_index_worker = worker
         self.archive_basic_index_thread = thread
         try:
@@ -65,10 +79,31 @@ class ArchiveIndexWorkerMixin:
         except Exception:
             thread.start()
 
+    def _handle_archive_basic_index_progress(
+        self,
+        current: int,
+        total: int,
+        detail: str,
+        *,
+        request_id: int,
+    ) -> None:
+        if self._shutting_down or int(request_id) != int(getattr(self, "archive_basic_index_request_id", 0) or 0):
+            return
+        self._handle_archive_scan_progress(current, total, detail)
+
     def _handle_archive_basic_index_complete(self, result: object) -> None:
         if self._shutting_down:
             return
         payload = result if isinstance(result, Mapping) else {}
+        request_id = int(payload.get("request_id", getattr(self, "archive_basic_index_request_id", 0)) or 0)
+        if request_id != int(getattr(self, "archive_basic_index_request_id", 0) or 0):
+            self._record_runtime_event(
+                "archive_basic_index_result_ignored",
+                reason="stale_result_ignored",
+                request_id=request_id,
+                current_request_id=getattr(self, "archive_basic_index_request_id", 0),
+            )
+            return
         path_index = payload.get("path_index")
         basename_index = payload.get("basename_index")
         extension_index = payload.get("extension_index")
@@ -126,16 +161,22 @@ class ArchiveIndexWorkerMixin:
         self._try_apply_startup_saved_filters()
         self._maybe_release_startup_after_archive_ready()
 
-    def _handle_archive_basic_index_error(self, message: str) -> None:
+    def _handle_archive_basic_index_error(self, message: str, *, request_id: int | None = None) -> None:
+        if request_id is not None and int(request_id) != int(getattr(self, "archive_basic_index_request_id", 0) or 0):
+            return
         self.archive_basic_index_state = "failed"
         self.append_archive_log(f"Warning: path lookup could not be built: {message}")
         self.set_status_message("Path lookup failed; direct archive browsing remains available.", error=True)
         self._try_apply_startup_saved_filters()
         self._maybe_release_startup_after_archive_ready()
 
-    def _cleanup_archive_basic_index_refs(self) -> None:
+    def _cleanup_archive_basic_index_refs(self, _request_id: int = 0, owner_thread: object | None = None) -> None:
+        if owner_thread is not None and self.archive_basic_index_thread is not owner_thread:
+            return
         self.archive_basic_index_thread = None
         self.archive_basic_index_worker = None
+        if self.archive_deferred_basic_index_start_pending and not self._shutting_down:
+            QTimer.singleShot(0, self._start_archive_basic_index_worker)
         self._maybe_release_startup_after_archive_ready()
 
     def _start_archive_enhanced_index_worker(self) -> None:
@@ -148,6 +189,8 @@ class ArchiveIndexWorkerMixin:
         self.archive_enhanced_index_auto_prewarm_pending = False
         self.archive_enhanced_index_state = "warming"
         self.archive_enhanced_index_activity = "loading"
+        request_id = int(getattr(self, "archive_enhanced_index_request_id", 0) or 0) + 1
+        self.archive_enhanced_index_request_id = request_id
         self._set_archive_load_progress("Loading archive search cache...", phase="Indexing")
         self.set_status_message("Loading archive search cache...")
         package_root_text = self.archive_package_root_edit.text().strip()
@@ -155,6 +198,7 @@ class ArchiveIndexWorkerMixin:
             Path(package_root_text).expanduser(),
             self.archive_cache_root,
             tuple(self.archive_entries),
+            request_id=request_id,
             entry_metadata_signature=self.archive_entry_metadata_signature,
             entry_metadata_sources=self.archive_entry_metadata_sources,
             shard_entry_signatures=getattr(self, "archive_scan_shard_entry_signatures", {}) or {},
@@ -165,13 +209,24 @@ class ArchiveIndexWorkerMixin:
         thread.started.connect(worker.run)
         worker.log_message.connect(self.append_log)
         worker.log_message.connect(self.append_archive_log)
-        worker.progress_changed.connect(self._handle_archive_enhanced_index_progress)
+        worker.progress_changed.connect(
+            lambda current, total, detail, rid=request_id: self._handle_archive_enhanced_index_progress(
+                current,
+                total,
+                detail,
+                request_id=rid,
+            )
+        )
         worker.completed.connect(self._handle_archive_enhanced_index_complete)
-        worker.error.connect(self._handle_archive_enhanced_index_error)
+        worker.error.connect(
+            lambda message, rid=request_id: self._handle_archive_enhanced_index_error(message, request_id=rid)
+        )
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_archive_enhanced_index_refs)
+        thread.finished.connect(
+            lambda rid=request_id, owner_thread=thread: self._cleanup_archive_enhanced_index_refs(rid, owner_thread)
+        )
         self.archive_enhanced_index_worker = worker
         self.archive_enhanced_index_thread = thread
         try:
@@ -179,8 +234,17 @@ class ArchiveIndexWorkerMixin:
         except Exception:
             thread.start()
 
-    def _handle_archive_enhanced_index_progress(self, current: int, total: int, detail: str) -> None:
+    def _handle_archive_enhanced_index_progress(
+        self,
+        current: int,
+        total: int,
+        detail: str,
+        *,
+        request_id: int | None = None,
+    ) -> None:
         if self._shutting_down:
+            return
+        if request_id is not None and int(request_id) != int(getattr(self, "archive_enhanced_index_request_id", 0) or 0):
             return
         detail_text = str(detail or "Preparing archive search cache...")
         lower_detail = detail_text.lower()
@@ -194,6 +258,15 @@ class ArchiveIndexWorkerMixin:
         if self._shutting_down:
             return
         payload = result if isinstance(result, Mapping) else {}
+        request_id = int(payload.get("request_id", getattr(self, "archive_enhanced_index_request_id", 0)) or 0)
+        if request_id != int(getattr(self, "archive_enhanced_index_request_id", 0) or 0):
+            self._record_runtime_event(
+                "archive_enhanced_index_result_ignored",
+                reason="stale_result_ignored",
+                request_id=request_id,
+                current_request_id=getattr(self, "archive_enhanced_index_request_id", 0),
+            )
+            return
         name_search_index = payload.get("name_search_index")
         self.archive_name_search_index = name_search_index if isinstance(name_search_index, ArchiveNameSearchIndex) else None
         self.archive_item_search_aliases = dict(payload.get("item_search_aliases", {}) or {})
@@ -229,7 +302,9 @@ class ArchiveIndexWorkerMixin:
             QTimer.singleShot(0, self._start_archive_derived_index_cache_writer)
         self._maybe_release_startup_after_archive_ready()
 
-    def _handle_archive_enhanced_index_error(self, message: str) -> None:
+    def _handle_archive_enhanced_index_error(self, message: str, *, request_id: int | None = None) -> None:
+        if request_id is not None and int(request_id) != int(getattr(self, "archive_enhanced_index_request_id", 0) or 0):
+            return
         self.archive_enhanced_index_state = "failed"
         self.archive_enhanced_index_activity = "idle"
         self.append_archive_log(f"Warning: item-name search could not be built: {message}")
@@ -237,9 +312,13 @@ class ArchiveIndexWorkerMixin:
         self._try_apply_startup_saved_filters()
         self._maybe_release_startup_after_archive_ready()
 
-    def _cleanup_archive_enhanced_index_refs(self) -> None:
+    def _cleanup_archive_enhanced_index_refs(self, _request_id: int = 0, owner_thread: object | None = None) -> None:
+        if owner_thread is not None and self.archive_enhanced_index_thread is not owner_thread:
+            return
         self.archive_enhanced_index_thread = None
         self.archive_enhanced_index_worker = None
+        if self.archive_deferred_enhanced_index_start_pending and not self._shutting_down:
+            QTimer.singleShot(0, self._start_archive_enhanced_index_worker)
         self._maybe_release_startup_after_archive_ready()
 
     def _start_archive_derived_index_cache_writer(self) -> None:

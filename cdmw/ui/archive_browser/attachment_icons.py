@@ -6,9 +6,9 @@ from collections.abc import Callable, Mapping
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Tuple
 
-from cdmw.core.archive import ensure_archive_preview_source
-from cdmw.core.archive_modding import MeshImportSupplementalFileSpec
-from cdmw.core.item_icon import ItemIconOverrideSpec, build_item_icon_payload
+from cdmw.services.archive_preview_service import ensure_archive_preview_source
+from cdmw.domain.archives.mesh_contracts import MeshImportSupplementalFileSpec
+from cdmw.domain.library.item_icons import ItemIconOverrideSpec
 from cdmw.models import ArchiveEntry, AssetFamilyGraph, AttachmentPlacementEvidence
 
 
@@ -141,7 +141,7 @@ class ArchiveAttachmentIconMixin:
         if not isinstance(target_entry, ArchiveEntry):
             raise ValueError("A resolved existing target icon entry is required for custom item icons.")
         target_template_path, _note = ensure_archive_preview_source(target_entry)
-        result = build_item_icon_payload(
+        result = self.app_context.services.require_item_icons().build_payload(
             icon_spec,
             target_template_path=target_template_path,
             texconv_path=texconv_path,

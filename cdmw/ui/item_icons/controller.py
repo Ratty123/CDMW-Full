@@ -8,7 +8,7 @@ from typing import Optional, Sequence
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QAbstractItemView, QMessageBox, QTreeWidgetItem
 
-from cdmw.core.item_icon import ItemIconLibraryRecord
+from cdmw.domain.library.item_icons import ItemIconLibraryRecord
 from cdmw.ui.item_icons.state import is_probable_item_icon_entry
 
 
@@ -134,6 +134,69 @@ class ItemIconRecordListMixin:
         if path is None:
             return None
         return self._records_by_key.get(str(path).casefold())
+
+    def _record_tree_item(self, key: str) -> Optional[QTreeWidgetItem]:
+        for index in range(self.records_tree.topLevelItemCount()):
+            item = self.records_tree.topLevelItem(index)
+            if str(item.data(0, Qt.ItemDataRole.UserRole) or "").casefold() == key:
+                return item
+        return None
+
+    def _apply_record_to_item(self, item: QTreeWidgetItem, record: ItemIconLibraryRecord) -> None:
+        item.setText(0, ("* " if record.favorite else "") + record.path.name)
+        item.setText(1, f"{record.width}x{record.height}" if record.width and record.height else "-")
+        item.setText(2, ", ".join(record.tags))
+        item.setText(3, record.source_kind)
+        item.setText(4, record.relative_path)
+        item.setData(0, Qt.ItemDataRole.UserRole, str(record.path))
+        item.setToolTip(0, str(record.path))
+        item.setToolTip(4, str(record.path))
+
+    def _upsert_loaded_record(self, record: ItemIconLibraryRecord, *, select: bool = False) -> None:
+        key = str(record.path).casefold()
+        position = self._record_positions_by_key.get(key)
+        if position is None:
+            self._record_positions_by_key[key] = len(self.records)
+            self.records.append(record)
+        elif 0 <= position < len(self.records):
+            self.records[position] = record
+        self._records_by_key[key] = record
+
+        pending_match = False
+        for index, pending in enumerate(self._pending_record_rows):
+            if str(pending.path).casefold() == key:
+                self._pending_record_rows[index] = record
+                pending_match = True
+                break
+        item = self._record_tree_item(key)
+        if self._record_matches_filter(record, self.filter_edit.text().strip()):
+            if item is not None:
+                self._apply_record_to_item(item, record)
+            elif not pending_match:
+                self.records_tree.addTopLevelItem(self._build_record_item(record))
+        elif item is not None:
+            self.records_tree.takeTopLevelItem(self.records_tree.indexOfTopLevelItem(item))
+        if select:
+            self.select_source_path(record.path)
+
+    def _remove_loaded_record(self, path: Path) -> bool:
+        key = str(path).casefold()
+        selected = self.current_source_path()
+        was_selected = selected is not None and str(selected).casefold() == key
+        position = self._record_positions_by_key.pop(key, None)
+        self._records_by_key.pop(key, None)
+        if position is not None and 0 <= position < len(self.records):
+            self.records.pop(position)
+            self._record_positions_by_key = {
+                str(record.path).casefold(): index for index, record in enumerate(self.records)
+            }
+        self._pending_record_rows = [
+            record for record in self._pending_record_rows if str(record.path).casefold() != key
+        ]
+        item = self._record_tree_item(key)
+        if item is not None:
+            self.records_tree.takeTopLevelItem(self.records_tree.indexOfTopLevelItem(item))
+        return was_selected
 
     def current_source_path(self, item: Optional[QTreeWidgetItem] = None) -> Optional[Path]:
         current = item or self.records_tree.currentItem()

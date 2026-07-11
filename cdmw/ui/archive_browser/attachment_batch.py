@@ -19,12 +19,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.core.archive import read_archive_entry_data
-from cdmw.core.archive_modding import (
-    ArchiveLooseExportResult,
-    ArchivePatchRequest,
-    export_archive_payloads_to_mod_ready_loose,
-)
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
+from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
 from cdmw.models import ArchiveEntry
 from cdmw.ui.shell.responsiveness_controller import expand_tree_columns_to_available_width
 
@@ -250,31 +248,31 @@ class ArchiveAttachmentBatchMixin:
             source = self._open_archive_attachment_donor_picker_dialog(dialog, target)
             if not isinstance(source, ArchiveEntry):
                 return
-            try:
-                target_graph, _target_refs = self._archive_asset_family_graph_for_entry(target)
-                source_graph, _source_refs = self._archive_asset_family_graph_for_entry(source)
-                rows, warnings = self._build_attachment_donor_package_plan(
-                    target,
-                    source,
-                    target_graph,
-                    source_graph,
-                    legacy_raw_prefab_copy=experimental_model_checkbox.isChecked(),
-                    experimental_copy_source_model=False,
-                    experimental_copy_source_hkx=experimental_hkx_checkbox.isChecked(),
-                )
-            except Exception as exc:
-                _set_item_state(
-                    target,
-                    source=source,
-                    rows=(),
-                    warnings=(str(exc),),
-                    status="Blocked",
-                    note=f"Could not build package plan: {exc}",
-                )
-                return
-            status = _bulk_pair_compatibility_status(warnings) if rows else "Blocked"
-            note = _bulk_pair_ready_note(warnings) if rows else "Batch raw copy is off; use Review Selected Pair for target-only placement package."
-            _set_item_state(target, source=source, rows=rows, warnings=warnings, status=status, note=note)
+
+            def _prepared(preparation: object) -> None:
+                try:
+                    rows, warnings = self._build_attachment_donor_package_plan(
+                        target,
+                        source,
+                        preparation.target_graph,
+                        preparation.donor_graph,
+                        legacy_raw_prefab_copy=experimental_model_checkbox.isChecked(),
+                        experimental_copy_source_model=False,
+                        experimental_copy_source_hkx=experimental_hkx_checkbox.isChecked(),
+                    )
+                except Exception as exc:
+                    _set_item_state(target, source=source, rows=(), warnings=(str(exc),), status="Blocked", note=f"Could not build package plan: {exc}")
+                    return
+                status = _bulk_pair_compatibility_status(warnings) if rows else "Blocked"
+                note = _bulk_pair_ready_note(warnings) if rows else "Batch raw copy is off; use Review Selected Pair for target-only placement package."
+                _set_item_state(target, source=source, rows=rows, warnings=warnings, status=status, note=note)
+
+            self._run_archive_attachment_placement_prepare(
+                target,
+                source,
+                status_message=f"Preparing placement source for {target.basename}...",
+                on_prepared=_prepared,
+            )
 
         def _rebuild_all_assigned_pairs() -> None:
             assigned_states = tuple(pair_state.values())
@@ -330,7 +328,16 @@ class ArchiveAttachmentBatchMixin:
             target = state.get("target")
             source = state.get("source")
             if isinstance(target, ArchiveEntry) and isinstance(source, ArchiveEntry):
-                self._open_archive_attachment_placement_diff_dialog(target, source)
+                self._run_archive_attachment_placement_prepare(
+                    target,
+                    source,
+                    status_message=f"Preparing placement review for {target.basename}...",
+                    on_prepared=lambda preparation: self._open_archive_attachment_placement_diff_dialog(
+                        target,
+                        source,
+                        preparation=preparation,
+                    ),
+                )
 
         def _build_bulk_package() -> None:
             ready_states = [

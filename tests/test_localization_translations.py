@@ -1,8 +1,67 @@
+import json
+import os
 from pathlib import Path
-
 import re
+import time
+from time import perf_counter
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from cdmw.ui.localization import UiLocalizer
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
+
+from cdmw.ui.localization import UiLocalizer, collect_translatable_source_strings
+from cdmw.ui.shell.language_controller import LanguageControllerMixin
+from cdmw.ui.shell.utility_controller import UtilityControllerMixin
+
+
+class _LanguageWindow(UtilityControllerMixin, QMainWindow):
+    def __init__(self) -> None:
+        QMainWindow.__init__(self)
+        self.worker_thread = None
+        self.utility_worker = None
+        self._utility_completion_handler = None
+        self._utility_error_handler = None
+        self._utility_updates_archive_progress = False
+
+    def _background_task_active(self) -> bool:
+        return self.worker_thread is not None
+
+    def set_status_message(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
+    def append_log(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
+    def set_busy(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
+    def _handle_utility_log_message(self, _message: str) -> None:
+        pass
+
+    def _handle_utility_progress_changed(self, _current: int, _total: int, _detail: str) -> None:
+        pass
+
+    def _handle_worker_error(self, message: str) -> None:
+        if self._utility_error_handler is not None:
+            self._utility_error_handler(message)
+
+    def _cleanup_worker_refs(self) -> None:
+        self.worker_thread = None
+        self.utility_worker = None
+        self._utility_completion_handler = None
+        self._utility_error_handler = None
+
+
+def _wait_for(app: QApplication, predicate: object, timeout: float = 5.0) -> bool:
+    deadline = perf_counter() + timeout
+    while perf_counter() < deadline:
+        app.processEvents()
+        if predicate():
+            return True
+        time.sleep(0.005)
+    return bool(predicate())
 
 
 def _source(*paths: str) -> str:
@@ -17,6 +76,88 @@ def _about_documentation_source() -> str:
         "cdmw/ui/shell/about_documentation_es.py",
         "cdmw/ui/shell/about_documentation_de.py",
     )
+
+
+def test_packaged_language_catalogue_contains_known_key_without_source_tree() -> None:
+    with patch.object(Path, "rglob", side_effect=AssertionError("runtime source scan")):
+        translations = collect_translatable_source_strings((Path("missing-packaged-source"),))
+
+    assert "Open DirectXTex / texconv Page" in translations
+    assert translations["Open DirectXTex / texconv Page"] == ""
+
+
+def test_initial_english_language_apply_skips_widget_tree_walk() -> None:
+    class _Localizer:
+        language_code = "en"
+        apply_calls: list[object] = []
+
+        @staticmethod
+        def available_languages() -> tuple[tuple[str, str], ...]:
+            return (("en", "English"), ("es", "Spanish"))
+
+        def apply(self, root: object) -> None:
+            self.apply_calls.append(root)
+
+        @staticmethod
+        def translate(value: str) -> str:
+            return value
+
+    localizer = _Localizer()
+    window = SimpleNamespace(
+        settings_tab=SimpleNamespace(set_language_options=lambda *_args, **_kwargs: None),
+        texture_editor_tab=None,
+        ui_localizer=localizer,
+        _update_ncnn_preset_hint=lambda: None,
+        _schedule_column_autofit=lambda: None,
+    )
+
+    LanguageControllerMixin._apply_ui_language(window)  # type: ignore[arg-type]
+    assert localizer.apply_calls == []
+
+    localizer.language_code = "es"
+    LanguageControllerMixin._apply_ui_language(window)  # type: ignore[arg-type]
+    localizer.language_code = "en"
+    LanguageControllerMixin._apply_ui_language(window)  # type: ignore[arg-type]
+
+    assert localizer.apply_calls == [window, window]
+
+
+def test_language_export_handler_stays_fast_and_includes_live_widget_strings(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    window = _LanguageWindow()
+    QLabel("Live instantiated widget string", window)
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="es")
+    localizer.translations["Live instantiated widget string"] = "Cadena de widget activa"
+    window.ui_localizer = localizer  # type: ignore[attr-defined]
+    window.settings_file_path = tmp_path / "settings.ini"  # type: ignore[attr-defined]
+    output_path = tmp_path / "es_language.json"
+
+    with (
+        patch.object(Path, "rglob", side_effect=AssertionError("runtime source scan")),
+        patch(
+            "cdmw.ui.shell.language_controller.QFileDialog.getSaveFileName",
+            return_value=(str(output_path), "JSON Files (*.json)"),
+        ),
+        patch("cdmw.ui.shell.language_controller.QMessageBox.warning") as warning,
+        patch("cdmw.ui.shell.language_controller.QMessageBox.information") as information,
+    ):
+        started = perf_counter()
+        LanguageControllerMixin._export_language_file(window)  # type: ignore[arg-type]
+        elapsed = perf_counter() - started
+        assert _wait_for(
+            app,
+            lambda: output_path.exists() and window.worker_thread is None and information.called,
+        )
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert elapsed < 0.05
+    assert payload["language_code"] == "es"
+    assert payload["translations"]["Open DirectXTex / texconv Page"]
+    assert payload["translations"]["Live instantiated widget string"] == "Cadena de widget activa"
+    warning.assert_not_called()
+    assert window.worker_thread is None
+    window.deleteLater()
+    app.processEvents()
 
 
 def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> None:
@@ -180,17 +321,17 @@ def test_profile_window_and_documentation_cover_current_settings_scope() -> None
 
 def test_mod_packaging_documentation_covers_supported_manager_formats() -> None:
     main_window_source = _about_documentation_source()
-    retrofit_source = Path("cdmw/ui/tools/mod_package_retrofit.py").read_text(encoding="utf-8")
+    retrofit_source = Path("cdmw/ui/tools/mod_package_retrofit_widget.py").read_text(encoding="utf-8")
 
     assert "DMM, CDUMM, JMM JSON, Crimson Sharp / Crimson Browser, and Field-JSON v3.1" in main_window_source
     assert "CDUMM uses <code>manifest.json</code>, <code>modinfo.json</code>, <code>.no_encrypt</code>, and a <code>files/</code> wrapper" in main_window_source
     assert "DMM texture folders use <code>modinfo.json</code>" in main_window_source
     assert "DMM mesh folders keep <code>manifest.json</code> plus <code>modinfo.json</code>" in main_window_source
 
-    assert "def _apply_widget_localization(widget: QWidget) -> None:" in retrofit_source
-    assert "_apply_widget_localization(parent)" in retrofit_source
-    assert "_apply_widget_localization(manager_combo)" in retrofit_source
-    assert "_apply_widget_localization(structure_combo)" in retrofit_source
+    assert "def _apply_widget_localization(self, widget: QWidget) -> None:" in retrofit_source
+    assert "self._apply_widget_localization(self.parent)" in retrofit_source
+    assert "self._apply_widget_localization(manager)" in retrofit_source
+    assert "self._apply_widget_localization(structure)" in retrofit_source
 
 
 def test_documentation_and_readme_cover_current_mesh_and_dds_workflows() -> None:

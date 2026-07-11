@@ -3,6 +3,8 @@ from __future__ import annotations
 import base64
 import dataclasses
 import json
+import os
+import shutil
 import uuid
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
@@ -21,7 +23,7 @@ from cdmw.core.texture_editor import (
 from cdmw.core.texture_pipeline.inspection import parse_dds
 from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
 from cdmw.core.upscale_profiles import infer_texture_semantics, is_technical_texture_type
-from cdmw.services.workspace_layout import workspace_paths
+from cdmw.domain.workspace import workspace_paths
 from cdmw.models import (
     DdsInfo,
     TextureEditorAdjustmentLayer,
@@ -296,19 +298,37 @@ def _adjustment_layer_from_dict(data: Dict[str, object]) -> TextureEditorAdjustm
         revision=int(data.get("revision", 0) or 0),
     )
 
-def save_texture_editor_project(
+
+def _texture_editor_assets_dir(project_path: Path) -> Path:
+    assets_root = project_path.with_suffix("")
+    return assets_root.parent / f"{assets_root.name}_assets"
+
+
+def _path_exists(path: Path) -> bool:
+    return path.exists() or path.is_symlink()
+
+
+def _remove_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink(missing_ok=True)
+    elif path.exists():
+        shutil.rmtree(path)
+
+
+def _replace_path(source: Path, destination: Path) -> None:
+    os.replace(source, destination)
+
+
+def _write_texture_editor_project(
     document: TextureEditorDocument,
     layer_pixels: Dict[str, np.ndarray],
     project_path: Path,
+    assets_dir: Path,
     *,
-    floating_pixels: Optional[np.ndarray] = None,
-) -> TextureEditorDocument:
-    project_path = project_path.expanduser().resolve()
-    project_path.parent.mkdir(parents=True, exist_ok=True)
-    assets_dir = project_path.with_suffix("")
-    assets_dir = assets_dir.parent / f"{assets_dir.name}_assets"
+    floating_pixels: Optional[np.ndarray],
+) -> Tuple[TextureEditorLayer, ...]:
     layers_dir = assets_dir / "layers"
-    layers_dir.mkdir(parents=True, exist_ok=True)
+    layers_dir.mkdir(parents=True)
 
     saved_layers: List[TextureEditorLayer] = []
     saved_masks: Dict[str, str] = {}
@@ -319,12 +339,7 @@ def save_texture_editor_project(
         file_name = f"{index:02d}_{_safe_slug(layer.name)}.png"
         relative_png = PurePosixPath("layers") / file_name
         save_rgba_array_png(pixels, layers_dir / file_name)
-        saved_layers.append(
-            dataclasses.replace(
-                layer,
-                relative_png_path=relative_png.as_posix(),
-            )
-        )
+        saved_layers.append(dataclasses.replace(layer, relative_png_path=relative_png.as_posix()))
         if layer.mask_layer_id and layer.mask_layer_id in layer_pixels:
             masks_dir = assets_dir / "masks"
             masks_dir.mkdir(parents=True, exist_ok=True)
@@ -356,15 +371,131 @@ def save_texture_editor_project(
     }
     if document.floating_selection is not None and floating_pixels is not None:
         floating_dir = assets_dir / "floating"
-        floating_dir.mkdir(parents=True, exist_ok=True)
+        floating_dir.mkdir(parents=True)
         floating_name = "floating_selection.png"
         save_rgba_array_png(floating_pixels, floating_dir / floating_name)
         payload["floating_pixels_path"] = (PurePosixPath("floating") / floating_name).as_posix()
     project_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return tuple(saved_layers)
+
+
+def _restore_texture_editor_project(
+    project_path: Path,
+    assets_dir: Path,
+    backup_project_path: Path,
+    backup_assets_dir: Path,
+    *,
+    had_project: bool,
+    had_assets: bool,
+    project_backup_ready: bool,
+) -> List[BaseException]:
+    errors: List[BaseException] = []
+    try:
+        if had_assets and _path_exists(backup_assets_dir):
+            _remove_path(assets_dir)
+            _replace_path(backup_assets_dir, assets_dir)
+        elif not had_assets:
+            _remove_path(assets_dir)
+    except BaseException as exc:
+        errors.append(exc)
+    try:
+        if had_project and project_backup_ready:
+            _replace_path(backup_project_path, project_path)
+        elif not had_project:
+            _remove_path(project_path)
+        else:
+            _remove_path(backup_project_path)
+    except BaseException as exc:
+        errors.append(exc)
+    return errors
+
+
+def _publish_texture_editor_project(
+    staged_project_path: Path,
+    staged_assets_dir: Path,
+    project_path: Path,
+    assets_dir: Path,
+    backup_project_path: Path,
+    backup_assets_dir: Path,
+) -> None:
+    had_project = _path_exists(project_path)
+    had_assets = _path_exists(assets_dir)
+    project_backup_ready = False
+    try:
+        if had_project:
+            shutil.copy2(project_path, backup_project_path)
+            project_backup_ready = True
+        if had_assets:
+            _replace_path(assets_dir, backup_assets_dir)
+        _replace_path(staged_assets_dir, assets_dir)
+        _replace_path(staged_project_path, project_path)
+    except BaseException:
+        rollback_errors = _restore_texture_editor_project(
+            project_path,
+            assets_dir,
+            backup_project_path,
+            backup_assets_dir,
+            had_project=had_project,
+            had_assets=had_assets,
+            project_backup_ready=project_backup_ready,
+        )
+        if rollback_errors:
+            recovery_paths = ", ".join(
+                str(path)
+                for path in (backup_project_path, backup_assets_dir)
+                if _path_exists(path)
+            )
+            raise RuntimeError(
+                "Texture Editor project save failed and rollback was incomplete. "
+                f"Recovery data was retained at: {recovery_paths or 'no recoverable backup path'}"
+            ) from rollback_errors[0]
+        raise
+    for backup_path in (backup_project_path, backup_assets_dir):
+        try:
+            _remove_path(backup_path)
+        except OSError:
+            pass
+
+
+def save_texture_editor_project(
+    document: TextureEditorDocument,
+    layer_pixels: Dict[str, np.ndarray],
+    project_path: Path,
+    *,
+    floating_pixels: Optional[np.ndarray] = None,
+) -> TextureEditorDocument:
+    project_path = project_path.expanduser().resolve()
+    project_path.parent.mkdir(parents=True, exist_ok=True)
+    assets_dir = _texture_editor_assets_dir(project_path)
+    transaction_id = uuid.uuid4().hex
+    staged_project_path = project_path.parent / f".{project_path.name}.{transaction_id}.tmp.json"
+    staged_assets_dir = _texture_editor_assets_dir(staged_project_path)
+    backup_project_path = project_path.parent / f".{project_path.name}.{transaction_id}.backup"
+    backup_assets_dir = assets_dir.parent / f".{assets_dir.name}.{transaction_id}.backup"
+    try:
+        saved_layers = _write_texture_editor_project(
+            document,
+            layer_pixels,
+            staged_project_path,
+            staged_assets_dir,
+            floating_pixels=floating_pixels,
+        )
+        load_texture_editor_project(staged_project_path)
+        _publish_texture_editor_project(
+            staged_project_path,
+            staged_assets_dir,
+            project_path,
+            assets_dir,
+            backup_project_path,
+            backup_assets_dir,
+        )
+    finally:
+        _remove_path(staged_project_path)
+        _remove_path(staged_assets_dir)
     return dataclasses.replace(
         document,
         project_path=project_path,
-        layers=tuple(saved_layers),
+        layers=saved_layers,
     )
 
 def load_texture_editor_project(
@@ -372,8 +503,7 @@ def load_texture_editor_project(
 ) -> Tuple[TextureEditorDocument, Dict[str, np.ndarray], Optional[np.ndarray]]:
     resolved = project_path.expanduser().resolve()
     data = json.loads(resolved.read_text(encoding="utf-8"))
-    assets_dir = resolved.with_suffix("")
-    assets_dir = assets_dir.parent / f"{assets_dir.name}_assets"
+    assets_dir = _texture_editor_assets_dir(resolved)
     layers: List[TextureEditorLayer] = []
     layer_pixels: Dict[str, np.ndarray] = {}
     missing_assets: List[str] = []
@@ -426,7 +556,11 @@ def load_texture_editor_project(
         if len(missing_assets) > 3:
             sample += ", ..."
         raise FileNotFoundError(f"Texture Editor project is missing required asset files: {sample}")
-    source_binding = TextureEditorSourceBinding(**(data.get("source_binding") or {}))
+    source_binding_data = dict(data.get("source_binding") or {})
+    source_binding_data["mesh_submesh_indices"] = tuple(
+        int(index) for index in tuple(source_binding_data.get("mesh_submesh_indices") or ())
+    )
+    source_binding = TextureEditorSourceBinding(**source_binding_data)
     document = TextureEditorDocument(
         title=str(data.get("title", resolved.stem)),
         width=int(data.get("width", 0)),

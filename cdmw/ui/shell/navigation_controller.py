@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QTabWidget, QVBoxLayout, QWidget
 
+from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
 from cdmw.ui.shell.tab_registry import DetachedToolWindow
 from cdmw.ui.widgets import QuickStartDialog
 
@@ -315,6 +316,8 @@ class NavigationControllerMixin:
         tab_widget = self._tool_tab_widgets_by_key.get(key) if key else self._find_tool_tab_widget(widget)
         if tab_widget is not None:
             self._select_tab_widget(tab_widget, widget)
+        if isinstance(widget, LazyToolTab):
+            widget.ensure_widget()
         self._handle_tool_activated(widget)
         self._update_window_menu_state()
 

@@ -25,21 +25,23 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.constants import (
+    DEFAULT_UPSCALE_BACKEND,
     DDS_FORMAT_MODE_CUSTOM,
     DDS_MIP_MODE_CUSTOM,
     DDS_SIZE_MODE_CUSTOM,
     DDS_SIZE_MODE_ORIGINAL,
     DDS_SIZE_MODE_PNG,
     UPSCALE_BACKEND_CHAINNER,
+    UPSCALE_BACKEND_NONE,
     UPSCALE_BACKEND_REALESRGAN_NCNN,
 )
-from cdmw.core.ncnn_model_catalog import (
+from cdmw.services.texture_workflow_service import (
     NCNN_CATALOG_SOURCE_LINKS,
     NCNN_MODEL_CATALOG,
     get_ncnn_catalog_entry,
 )
-from cdmw.core.realesrgan_ncnn import discover_realesrgan_ncnn_models, resolve_ncnn_model_dir
-from cdmw.core.upscale_profiles import get_texture_preset_definition
+from cdmw.services.texture_workflow_service import discover_realesrgan_ncnn_models, resolve_ncnn_model_dir
+from cdmw.services.texture_workflow_service import get_texture_preset_definition
 from cdmw.ui.safe_upscale_wizard import SafeUpscaleWizard
 from cdmw.ui.shell.theme_controller import build_monospace_font
 
@@ -47,7 +49,10 @@ from cdmw.ui.shell.theme_controller import build_monospace_font
 class TextureWorkflowSetupPanelMixin:
     """Texture workflow setup and backend UI helpers."""
     def _current_upscale_backend(self) -> str:
-        return self._combo_value(self.upscale_backend_combo)
+        if self.chainner_section.is_body_built():
+            return self._combo_value(self.upscale_backend_combo)
+        saved = str(self.settings.value("upscale/backend", DEFAULT_UPSCALE_BACKEND) or DEFAULT_UPSCALE_BACKEND)
+        return saved if saved in {UPSCALE_BACKEND_NONE, UPSCALE_BACKEND_CHAINNER, UPSCALE_BACKEND_REALESRGAN_NCNN} else DEFAULT_UPSCALE_BACKEND
 
     def _sync_upscale_backend_stack_height(self) -> None:
         current_page = self.upscale_backend_stack.currentWidget()
@@ -60,6 +65,8 @@ class TextureWorkflowSetupPanelMixin:
         self.upscale_backend_stack.setMaximumHeight(target_height)
 
     def _apply_upscale_backend_state(self) -> None:
+        if not self.chainner_section.is_body_built():
+            return
         backend = self._current_upscale_backend()
         if backend == UPSCALE_BACKEND_CHAINNER:
             self.upscale_backend_stack.setCurrentIndex(1)
@@ -97,10 +104,12 @@ class TextureWorkflowSetupPanelMixin:
         self.mod_ready_export_root_edit.setEnabled(self.enable_mod_ready_loose_export_checkbox.isChecked())
         self.mod_ready_export_browse_button.setEnabled(self.enable_mod_ready_loose_export_checkbox.isChecked())
         self.mod_ready_package_group.setVisible(self.enable_mod_ready_loose_export_checkbox.isChecked())
-        self._refresh_workflow_profile_ncnn_model_combo()
-        self._sync_workflow_editor_state()
+        if self.filters_section.is_body_built():
+            self._refresh_workflow_profile_ncnn_model_combo()
+            self._sync_workflow_editor_state()
         self._update_ncnn_preset_hint()
-        self._refresh_dds_output_hints()
+        if self.dds_output_section.is_body_built():
+            self._refresh_dds_output_hints()
         self._sync_upscale_backend_stack_height()
 
     def _build_ncnn_model_picker_page(self) -> QWidget:
@@ -255,12 +264,16 @@ class TextureWorkflowSetupPanelMixin:
                 row_frame.setVisible(False)
 
     def _apply_dds_staging_enabled_state(self) -> None:
+        if not self.dds_output_section.is_body_built():
+            return
         enabled = self.enable_dds_staging_checkbox.isChecked()
         self.dds_staging_root_edit.setEnabled(enabled)
         self.dds_staging_browse_button.setEnabled(enabled)
         self._apply_upscale_backend_state()
 
     def _apply_dds_output_state(self) -> None:
+        if not self.dds_output_section.is_body_built():
+            return
         format_is_custom = self._combo_value(self.dds_format_mode_combo) == DDS_FORMAT_MODE_CUSTOM
         size_is_custom = self._combo_value(self.dds_size_mode_combo) == DDS_SIZE_MODE_CUSTOM
         mip_is_custom = self._combo_value(self.dds_mip_mode_combo) == DDS_MIP_MODE_CUSTOM
@@ -358,6 +371,8 @@ class TextureWorkflowSetupPanelMixin:
             )
 
     def _update_ncnn_preset_hint(self) -> None:
+        if not self.chainner_section.is_body_built():
+            return
         tr = self.ui_localizer.translate
         preset_definition = get_texture_preset_definition(self._combo_value(self.upscale_texture_preset_combo))
         upscale_list = ", ".join(preset_definition.upscale_types)

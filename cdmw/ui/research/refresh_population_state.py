@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping, TypeVar
 
-from cdmw.core.research import (
+from cdmw.domain.research.contracts import (
     MaterialTextureReferenceRow,
     MipAnalysisRow,
     NormalValidationRow,

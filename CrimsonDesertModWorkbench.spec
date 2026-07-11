@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import sys
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 
 ROOT = Path(SPECPATH).resolve()
@@ -63,6 +63,7 @@ def _should_collect_numpy_submodule(name):
 datas = []
 binaries = []
 hiddenimports = []
+hiddenimports += collect_submodules("cdmw")
 hiddenimports += [
     "cdmw.rendering.native_d3d11_host",
     "cdmw.rendering.ingame_capture",
@@ -109,7 +110,7 @@ def _exclude_collected_payloads(entries, names):
 
 _add_data_if_exists(datas, "assets/cdmw.ico", "assets")
 _add_data_if_exists(datas, "assets/cdmw.png", "assets")
-_add_data_tree_if_exists(datas, "assets/theme_icons", "assets/theme_icons", suffixes={".ico", ".png", ".svg"})
+_add_data_tree_if_exists(datas, "assets/theme_icons", "assets/theme_icons", suffixes={".ico", ".png"})
 _add_data_tree_if_exists(datas, "schemas", "schemas", suffixes={".json"})
 _add_data_if_exists(datas, "THIRD_PARTY_NOTICES.md", ".")
 _add_data_if_exists(datas, "LICENSE", ".")
@@ -150,6 +151,11 @@ _add_native_binary_tree(
     required_release=(ROOT / "tools" / "dotnet_mesh_editor_experiment" / "Cdmw.MeshEditorExperiment.csproj").exists(),
     suffixes={".exe", ".dll", ".json", ".pdb"},
 )
+_add_data_if_exists(
+    datas,
+    "native/cdmw_mesh_dotnet_editor/build/Release/D3D11MaterialShaders.hlsl",
+    "native",
+)
 _add_native_binary("native/cd_hkx/target/release/cd-hkx.exe", "native")
 if PROFILE != "release":
     _add_native_binary("native/cd_texture_dx/build/Debug/cd-texture-dx.exe", "native")
@@ -162,6 +168,11 @@ if PROFILE != "release":
         "native/cdmw_mesh_dotnet_editor/build/Debug",
         "native",
         suffixes={".exe", ".dll", ".json", ".pdb"},
+    )
+    _add_data_if_exists(
+        datas,
+        "native/cdmw_mesh_dotnet_editor/build/Debug/D3D11MaterialShaders.hlsl",
+        "native",
     )
 
 vgmstream_dir = ROOT / ".tools" / "vgmstream"

@@ -857,7 +857,10 @@ class ModPackageRetrofitTests(unittest.TestCase):
                 Path("cdmw/ui/archive_browser/mod_package_retrofit_dialog.py").read_text(encoding="utf-8"),
                 Path("cdmw/ui/archive_browser/mod_package_retrofit_view.py").read_text(encoding="utf-8"),
                 Path("cdmw/ui/tools/mod_package_retrofit.py").read_text(encoding="utf-8"),
+                Path("cdmw/ui/tools/mod_package_retrofit_widget.py").read_text(encoding="utf-8"),
                 Path("cdmw/ui/tools/mod_package_retrofit_view.py").read_text(encoding="utf-8"),
+                Path("cdmw/ui/tools/mod_package_retrofit_tasks.py").read_text(encoding="utf-8"),
+                Path("cdmw/workers/mod_package_retrofit_workers.py").read_text(encoding="utf-8"),
             )
         )
 
@@ -871,11 +874,11 @@ class ModPackageRetrofitTests(unittest.TestCase):
         self.assertIn("content_splitter.setHandleWidth(8)", source)
         self.assertIn("left_panel.setMinimumWidth(540)", source)
         self.assertIn("right_panel.setMinimumWidth(420)", source)
-        self.assertIn("QTimer.singleShot(120, _apply_content_splitter_sizes)", source)
+        self.assertIn("QTimer.singleShot(120, self._apply_content_splitter_sizes)", source)
         self.assertIn("diff_preview.setMinimumWidth(360)", source)
         self.assertIn("RETROFIT_MANAGER_PROFILES", source)
         self.assertIn("MOD_PACKAGE_MANAGER_PROFILE_LABELS", source)
-        self.assertIn("manager_combo.addItem", source)
+        self.assertIn("manager.addItem", source)
         self.assertIn("compare_payload_bytes=False", source)
         self.assertIn("build_retrofit_path_repair_summary", source)
         self.assertNotIn("Update for current game version + repackage", source)
@@ -890,7 +893,15 @@ class ModPackageRetrofitTests(unittest.TestCase):
         self.assertNotIn("Merge Selected for CDUMM", source)
         self.assertNotIn("merge_retrofittable_mod_packages(", source)
         self.assertNotIn("table.setUniformRowHeights", source)
-        self.assertIn("scan_retrofittable_mod_packages(source)", source)
+        self.assertIn("task_controller.start_scan(source)", source)
+        self.assertIn("scan_retrofittable_mod_packages(source, stop_event=stop_event)", source)
+        self.assertIn("task_controller.start_conversion(request)", source)
+        scan_start = source.index("    def _scan(self) -> None:")
+        scan_body = source[scan_start : source.index("    def _handle_scan_completed", scan_start)]
+        convert_start = source.index("    def _convert_selected(self) -> None:")
+        convert_body = source[convert_start : source.index("    def _handle_conversion_completed", convert_start)]
+        self.assertNotIn("collect_retrofittable_packages(", scan_body)
+        self.assertNotIn("retrofit_mod_package(", convert_body)
 
 
 if __name__ == "__main__":

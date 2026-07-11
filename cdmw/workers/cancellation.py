@@ -3,6 +3,8 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 
+from cdmw.domain.cancellation import raise_if_cancelled
+
 
 @dataclass(slots=True)
 class CancellationToken:
@@ -15,5 +17,4 @@ class CancellationToken:
         return self._event.is_set()
 
     def raise_if_cancelled(self) -> None:
-        if self.is_stop_requested():
-            raise RuntimeError("Operation cancelled")
+        raise_if_cancelled(self._event, "Operation cancelled")

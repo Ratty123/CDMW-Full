@@ -31,7 +31,13 @@ internal sealed partial class MeshViewport
             ["d3d11_hlsl"] = _d3d11Viewport is not null,
             ["d3d11_status"] = _d3d11Viewport?.LastError ?? _lastD3D11Error,
             ["device_removed_reason"] = _d3d11Viewport?.DeviceRemovedReason ?? string.Empty,
+            ["viewport"] = RenderSurfaceStatusPayload(),
             ["material_debug_mode"] = MaterialDebugModeName(MaterialDebugMode),
+            ["display_mode"] = DisplayMode,
+            ["show_solid"] = ShowSolid,
+            ["show_wire"] = ShowWire,
+            ["show_vertices"] = ShowVertices,
+            ["textures_enabled"] = TexturesEnabled,
             ["material_parity_contract"] = "base_normal_roughness_metallic_emissive_specular_final_experiment_only",
             ["material_contract_gap"] = new[]
             {
@@ -42,7 +48,12 @@ internal sealed partial class MeshViewport
                 "normal-y policy parity",
             },
             ["capabilities"] = ActiveCapabilities(),
+            ["geometry_resources"] = RendererResourceMetricsPayload(),
             ["material_slots"] = _materials.SlotCount,
+            ["material_generation"] = _materials.Generation,
+            ["material_signature"] = _materials.Signature,
+            ["material_parameter_state_count"] = _materials.ParameterStateCount,
+            ["material_parameter_roles"] = _materials.ParameterRoles,
             ["texture_references"] = _materials.TextureReferenceCount,
             ["resolved_texture_references"] = _materials.ResolvedTextureReferenceCount,
             ["existing_texture_files"] = _materials.ExistingTextureFileCount,
@@ -51,6 +62,12 @@ internal sealed partial class MeshViewport
             ["dds_resources"] = _textureSet.DdsResourceCount,
             ["dds_decoded_resources"] = _textureSet.DdsDecodedCount,
             ["texture_load_failures"] = _textureSet.TextureLoadFailureCount,
+            ["texture_decode_attempts"] = _textureSet.DecodeAttemptCount,
+            ["texture_decode_successes"] = _textureSet.DecodeSuccessCount,
+            ["texture_decode_reuses"] = _textureSet.DecodeReuseCount,
+            ["incremental_texture_decodes"] = _textureSet.IncrementalDecodeCount,
+            ["texture_decode_singleflight_joins"] = _textureSet.DecodeSingleflightJoinCount,
+            ["decoded_bitmap_prunes"] = _textureSet.DecodedBitmapPruneCount,
             ["dds_upload_mode"] = "bitmap_rgba_upload",
             ["native_dds_parity"] = false,
             ["dds_native_dxgi_upload"] = false,
@@ -77,8 +94,12 @@ internal sealed partial class MeshViewport
             "material_manifest",
             "decoded_texture_resources",
             "material_debug_channels",
+            "viewport_display_modes_v1",
             "strokes",
             "commands",
+            "mesh_edit_revision_ack_v1",
+            "host_tool_state_v1",
+            "resident_material_updates_v2",
         };
         if (_rendererBlocked)
         {
@@ -88,6 +109,8 @@ internal sealed partial class MeshViewport
         {
             capabilities.Add("d3d11_vortice_hlsl_material_renderer");
             capabilities.Add("d3d11_overlay_vertices_edges_faces_parts_wire_xray");
+            capabilities.Add("resident_material_parameter_updates_v1");
+            capabilities.Add("resident_texture_region_updates_v1");
         }
         else if (_gpuViewport is not null)
         {
@@ -115,6 +138,17 @@ internal sealed partial class MeshViewport
             ["target_mode"] = CurrentTargetMode(),
             ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
         };
+    }
+
+    private void NotifyLocalSelectionChanged()
+    {
+        EditorEventRequested?.Invoke("selection_request", new Dictionary<string, object?>
+        {
+            ["operation"] = "replace",
+            ["target_mode"] = CurrentTargetMode(),
+            ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
+            ["local_selection"] = SelectionSnapshotPayload(),
+        });
     }
 
     public bool TryHandleLocalCommand(string command, string targetMode)

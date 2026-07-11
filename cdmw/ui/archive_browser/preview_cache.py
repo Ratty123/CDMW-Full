@@ -11,15 +11,16 @@ from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtGui import QImageReader
 
-from cdmw.core.archive import build_archive_entry_metadata_summary, resolve_archive_pathc_path
+from cdmw.services.archive_read_service import build_archive_entry_metadata_summary
+from cdmw.services.archive_query_service import resolve_archive_pathc_path
 from cdmw.models import ArchiveEntry, ArchivePreviewResult, ModelPreviewData, ModelPreviewMesh
-from cdmw.rendering.model_preview_prepare import PreparedModelPreviewData
-from cdmw.rendering.native_preview_core import (
+from cdmw.services.preview_rendering_service import PreparedModelPreviewData
+from cdmw.services.preview_rendering_service import (
     NativePreviewCoreServiceClient,
     find_native_preview_core_binary,
     render_settings_to_native_preview_core_dict,
 )
-from cdmw.rendering.native_preview_package_cache import (
+from cdmw.services.preview_rendering_service import (
     NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
     clear_native_preview_package_cache,
     is_durable_native_preview_package_path,
@@ -27,7 +28,7 @@ from cdmw.rendering.native_preview_package_cache import (
     native_preview_package_cache_entry_dir,
     native_preview_package_cache_budget,
 )
-from cdmw.modding.pac_xml_profiles import clear_pac_xml_profile_index_cache
+from cdmw.services.mesh_workflow_service import clear_pac_xml_profile_index_cache
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 from cdmw.workers.archive_preview_native import NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
 
@@ -69,10 +70,13 @@ class ArchivePreviewCacheMixin:
     ) -> str:
         if entry is None:
             return ""
-        texconv_key = str(texconv_path).strip().lower() if texconv_path is not None else ""
-        loose_roots_key = ""
+        # Loose model/material dependencies are discovered while building the
+        # preview.  Until that exact dependency set is available here, bypass
+        # result caching so an edited overlay can never reuse stale geometry or
+        # textures.
         if include_loose_preview_assets:
-            loose_roots_key = "|".join(str(path).strip().lower() for path in loose_search_roots)
+            return ""
+        texconv_key = str(texconv_path).strip().lower() if texconv_path is not None else ""
         preview_settings = self._current_model_preview_render_settings()
         support_slots_key = ",".join(self._archive_preview_support_texture_slots(preview_settings))
         renderer_backend_key = str(self._archive_model_renderer_backend() or "").strip().lower()
@@ -108,8 +112,7 @@ class ArchivePreviewCacheMixin:
                 "flipv" if preview_settings.flip_texture_v else "noflipv",
                 "hq" if preview_settings.high_quality_by_default else "lq",
                 "tex" if preview_settings.use_textures_by_default else "flat",
-                "loose" if include_loose_preview_assets else "archive",
-                loose_roots_key,
+                "archive",
             ]
         )
 

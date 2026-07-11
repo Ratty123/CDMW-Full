@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 
@@ -20,13 +20,72 @@ class SourcePartDeleteIndexMapState:
     deleted_indices: tuple[int, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class SourcePartContextActionSpec:
+    key: str
+    label: str
+    enabled: bool
+    unavailable_reason: str = ""
+
+
 def source_part_context_menu_text() -> dict[str, str]:
     return {
+        "select_only": "Select Only",
+        "toggle_selection": "Toggle Selection",
+        "duplicate": "Duplicate Selected Part(s)",
         "delete_selected_parts": "Delete Selected Part(s)",
+        "hide_selected_parts": "Hide Selected Part(s)",
+        "show_selected_parts": "Show Selected Part(s)",
+        "route_selected_target": "Route to Selected Target",
+        "undo": "Undo Part Action",
+        "redo": "Redo Part Action",
+        "reset": "Reset Part",
         "apply": "Apply",
         "set_role_glow": "Set Role: Glow / emissive",
         "set_role_auto": "Set Role: Auto / inferred",
     }
+
+
+def source_part_context_action_specs(
+    *,
+    has_selection: bool,
+    all_visible: bool,
+    can_route: bool,
+    can_undo: bool,
+    can_redo: bool,
+) -> tuple[SourcePartContextActionSpec, ...]:
+    text = source_part_context_menu_text()
+    selected = bool(has_selection)
+    return (
+        SourcePartContextActionSpec("select_only", text["select_only"], selected),
+        SourcePartContextActionSpec("toggle_selection", text["toggle_selection"], selected),
+        SourcePartContextActionSpec("duplicate", text["duplicate"], selected),
+        SourcePartContextActionSpec("delete", text["delete_selected_parts"], selected),
+        SourcePartContextActionSpec("set_role_glow", text["set_role_glow"], selected),
+        SourcePartContextActionSpec("set_role_auto", text["set_role_auto"], selected),
+        SourcePartContextActionSpec(
+            "toggle_visibility",
+            text["hide_selected_parts" if all_visible else "show_selected_parts"],
+            selected,
+        ),
+        SourcePartContextActionSpec("route_selected_target", text["route_selected_target"], selected and can_route),
+        SourcePartContextActionSpec("undo", text["undo"], bool(can_undo)),
+        SourcePartContextActionSpec("redo", text["redo"], bool(can_redo)),
+        SourcePartContextActionSpec(
+            "reset",
+            text["reset"],
+            False,
+            "Resident part reset is disabled until a native reset command is supported.",
+        ),
+    )
+
+
+def dispatch_source_part_context_action(
+    action_key: object,
+    handlers: Mapping[str, Callable[[], object]],
+) -> bool:
+    handler = handlers.get(str(action_key or "").strip().lower())
+    return bool(callable(handler) and handler() is not False)
 
 
 def source_part_delete_status_text() -> dict[str, str]:
@@ -162,9 +221,12 @@ def source_part_edit_undo_label(action: str) -> str:
 
 
 __all__ = [
+    "SourcePartContextActionSpec",
     "SourcePartDeleteIndexMapState",
     "SourcePartDeleteSelectionState",
     "source_part_context_menu_text",
+    "source_part_context_action_specs",
+    "dispatch_source_part_context_action",
     "source_part_delete_index_map_state",
     "source_part_delete_selection_state",
     "source_part_delete_status_text",

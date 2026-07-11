@@ -11,7 +11,7 @@ from typing import Callable, Dict, Mapping, Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox
 
-from cdmw.core.archive import (
+from cdmw.services.archive_environment_service import (
     invalidate_archive_browser_cache,
     resolve_crimson_desert_executable,
     sha256_file,
@@ -24,6 +24,9 @@ from cdmw.ui.shell.startup_splash import (
     format_startup_splash_detail,
     make_startup_splash_pump,
 )
+
+
+_ARCHIVE_FIRST_PAINT_FALLBACK_SECONDS = 1.0
 
 
 class StartupController:
@@ -201,7 +204,9 @@ class StartupPromptMixin:
         self._update_startup_splash("Opening workspace...", 1, 1)
         self._show_main_window_after_startup_splash()
         self._startup_splash_holds_main_window = False
-        self._startup_splash_finish_after_paint_deadline = time.monotonic() + 10.0
+        self._startup_splash_finish_after_paint_deadline = (
+            time.monotonic() + _ARCHIVE_FIRST_PAINT_FALLBACK_SECONDS
+        )
         if (
             getattr(self, "archive_entries", None)
             and self._is_tool_visible_or_current(self.archive_browser_tab)
@@ -222,21 +227,6 @@ class StartupPromptMixin:
         if getattr(self, "_startup_splash_released", False):
             return
         splash = getattr(self, "_startup_splash_window", None)
-        if splash is not None:
-            try:
-                remaining_ms = (
-                    0
-                    if os.environ.get("CDMW_GUI_STARTUP_SMOKE") == "1"
-                    else int(splash.remaining_minimum_visible_ms())
-                )
-            except Exception:
-                remaining_ms = 0
-            if remaining_ms > 0 and not getattr(self, "_startup_splash_release_pending", False):
-                self._startup_splash_release_pending = True
-                QTimer.singleShot(remaining_ms, self._release_startup_splash)
-                return
-            if remaining_ms > 0:
-                return
         if bool(getattr(self, "_startup_texture_preview_defer_env", False)):
             os.environ.pop("CDMW_DEFER_TEXTURE_PREVIEW", None)
             self._startup_texture_preview_defer_env = False

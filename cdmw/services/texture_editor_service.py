@@ -12,13 +12,35 @@ from PIL import Image
 
 from cdmw.core import texture_native
 from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native_path
-from cdmw.core.texture_editor import export_texture_editor_flattened_png
+from cdmw.core.texture_editor_project_io import (
+    create_texture_editor_document_from_source as _create_document_from_source,
+    load_texture_editor_project as _load_project,
+    make_texture_editor_workspace_root as _make_workspace_root,
+    save_texture_editor_project as _save_project,
+)
+from cdmw.core.texture_editor_raster_ops import (
+    export_texture_editor_flattened_png as _export_flattened_png,
+    export_texture_editor_grid_slices as _export_grid_slices,
+    export_texture_editor_region_png as _export_region_png,
+)
 from cdmw.domain.textures.editor_presets import resolve_texture_editor_dds_preset
 from cdmw.models import TextureEditorDocument
 
 
 class NativeTextureEditorExportError(RuntimeError):
     pass
+
+
+class TextureEditorService:
+    """Project and image I/O boundary for Texture Editor workers."""
+
+    make_workspace_root = staticmethod(_make_workspace_root)
+    create_document_from_source = staticmethod(_create_document_from_source)
+    load_project = staticmethod(_load_project)
+    save_project = staticmethod(_save_project)
+    export_flattened_png = staticmethod(_export_flattened_png)
+    export_region_png = staticmethod(_export_region_png)
+    export_grid_slices = staticmethod(_export_grid_slices)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,10 +63,6 @@ class TextureEditorNativeDdsResult:
     preview_path: Optional[Path] = None
     preview_report: Dict[str, object] = field(default_factory=dict)
     preview_rgba: Optional[np.ndarray] = None
-
-
-def _copy_layer_pixels(layer_pixels: Mapping[str, np.ndarray]) -> Dict[str, np.ndarray]:
-    return {str(key): value.copy() for key, value in layer_pixels.items()}
 
 
 def _safe_slug(value: str) -> str:
@@ -136,7 +154,7 @@ class TextureEditorNativeDdsService:
             temp_parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="cdmw_texture_editor_", dir=str(temp_parent) if temp_parent is not None else None) as temp_dir:
             png_path = Path(temp_dir) / f"{_safe_slug(document.title)}.png"
-            export_texture_editor_flattened_png(document, _copy_layer_pixels(layer_pixels), png_path)
+            _export_flattened_png(document, layer_pixels, png_path)
             report = texture_native.encode_dds_with_directxtex(
                 png_path,
                 dds_path,
@@ -191,6 +209,7 @@ class TextureEditorNativeDdsService:
 
 __all__ = [
     "NativeTextureEditorExportError",
+    "TextureEditorService",
     "TextureEditorNativeDdsOptions",
     "TextureEditorNativeDdsResult",
     "TextureEditorNativeDdsService",

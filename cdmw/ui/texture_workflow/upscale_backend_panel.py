@@ -41,26 +41,60 @@ from cdmw.constants import (
     UPSCALE_TEXTURE_PRESET_COLOR_UI,
     UPSCALE_TEXTURE_PRESET_COLOR_UI_EMISSIVE,
 )
-from cdmw.core.mod_package import (
+from cdmw.domain.packages.export_policy import (
     MOD_PACKAGE_MANAGER_PROFILES,
     MOD_PACKAGE_MANAGER_PROFILE_LABELS,
     MOD_PACKAGE_METADATA_ARTIFACTS_BY_KEY,
     mod_package_export_options_for_manager,
 )
 from cdmw.ui.shell.help_widgets import make_help_button
+from cdmw.ui.shell.texture_panel_persistence import finish_texture_workflow_panel_body
 from cdmw.ui.widgets import CollapsibleSection
 
 
 class TextureWorkflowUpscaleBackendPanelMixin:
     """Build backend, texture policy, and mod-package controls."""
-    def _build_upscale_backend_section(self, pump_startup_splash: Callable[[str], None]) -> CollapsibleSection:
-        self.chainner_section = CollapsibleSection("Upscaling", expanded=False)
+    def _build_upscale_backend_section(
+        self,
+        pump_startup_splash: Callable[[str], None],
+        *,
+        expanded: bool = False,
+    ) -> CollapsibleSection:
+        self.chainner_section = CollapsibleSection(
+            "Upscaling",
+            body_builder=lambda body_layout: TextureWorkflowUpscaleBackendPanelMixin._build_upscale_backend_body(
+                self,
+                body_layout,
+                pump_startup_splash,
+            ),
+        )
+        self.chainner_section.set_expanded(expanded)
+        return self.chainner_section
+
+    def _build_upscale_backend_body(
+        self,
+        body_layout: QVBoxLayout,
+        pump_startup_splash: Callable[[str], None],
+    ) -> None:
         upscale_group = QWidget()
         upscale_layout = QVBoxLayout(upscale_group)
         upscale_layout.setContentsMargins(0, 0, 0, 0)
         upscale_layout.setSpacing(8)
         pump_startup_splash("Preparing processing controls...")
 
+        TextureWorkflowUpscaleBackendPanelMixin._build_upscale_backend_selector(self, upscale_layout)
+
+        TextureWorkflowUpscaleBackendPanelMixin._build_chainner_backend_page(self)
+
+        TextureWorkflowUpscaleBackendPanelMixin._build_upscale_policy_controls(self)
+
+        TextureWorkflowUpscaleBackendPanelMixin._build_upscale_policy_layout(self, upscale_layout)
+
+        body_layout.addWidget(upscale_group)
+        finish_texture_workflow_panel_body(self, "chainner")
+
+
+    def _build_upscale_backend_selector(self, upscale_layout: QVBoxLayout) -> None:
         upscale_backend_grid = QGridLayout()
         upscale_backend_grid.setHorizontalSpacing(10)
         upscale_backend_grid.setVerticalSpacing(8)
@@ -103,6 +137,7 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         upscale_none_layout.addWidget(no_upscale_hint)
         self.upscale_backend_stack.addWidget(upscale_none_page)
 
+    def _build_chainner_backend_page(self) -> None:
         chainner_page = QWidget()
         chainner_page.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         chainner_layout = QVBoxLayout(chainner_page)
@@ -170,6 +205,7 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         chainner_layout.addWidget(self.chainner_override_edit)
         self.upscale_backend_stack.addWidget(chainner_page)
 
+    def _build_upscale_policy_controls(self) -> None:
         self.upscale_backend_stack.addWidget(self._build_ncnn_model_picker_page())
 
         self.ncnn_scale_spin = QSpinBox()
@@ -288,6 +324,7 @@ class TextureWorkflowUpscaleBackendPanelMixin:
             "instead of preserving them. This can produce broken normals, bad masks, or incorrect shading."
         )
 
+    def _build_upscale_policy_layout(self, upscale_layout: QVBoxLayout) -> None:
         self.texture_policy_group = QGroupBox("Texture Policy")
         policy_layout = QGridLayout(self.texture_policy_group)
         policy_layout.setHorizontalSpacing(10)
@@ -380,9 +417,5 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         direct_layout.addWidget(make_help_button("Optional post-upscale correction applied after direct backend output and before DDS rebuild. Source Match modes decide per texture whether to correct visible RGB, scalar grayscale, or skip."), 3, 2)
         direct_layout.addWidget(self.retry_smaller_tile_checkbox, 4, 0, 1, 2)
         upscale_layout.addWidget(self.direct_backend_controls_group)
-
-        self.chainner_section.body_layout.addWidget(upscale_group)
-        return self.chainner_section
-
 
 __all__ = ["TextureWorkflowUpscaleBackendPanelMixin"]

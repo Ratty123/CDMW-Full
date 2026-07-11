@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from cdmw.models import AppConfig
-from cdmw.services.workspace_layout import app_root_from_workspace_member, workspace_paths
+from cdmw.domain.workspace import app_root_from_workspace_member, workspace_paths
 
 def common_workspace_root_from_config(config: AppConfig) -> Optional[Path]:
     candidates: List[Path] = []

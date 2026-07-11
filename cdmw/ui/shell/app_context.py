@@ -15,6 +15,14 @@ class AppContext:
     event_bus: AppEventBus
 
     @classmethod
+    def from_settings(cls, settings: QSettings) -> "AppContext":
+        return cls(
+            settings=settings,
+            services=ServiceContainer.create_default(settings=settings),
+            event_bus=AppEventBus(),
+        )
+
+    @classmethod
     def create_default(cls) -> "AppContext":
         settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
         services = ServiceContainer.create_default(settings=settings)

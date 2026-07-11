@@ -538,6 +538,28 @@ class MeshDeformerTests(unittest.TestCase):
         self.assertTrue(second_layout["has_bones"])
         self.assertEqual(1, second_layout["max_influences"])
 
+    def test_write_roundtrip_manifest_does_not_mark_all_empty_bone_rows_skinned(self) -> None:
+        submesh = _submesh()
+        submesh.bone_indices = [(), (), (), ()]
+        submesh.bone_weights = [(), (), (), ()]
+        mesh = ParsedMesh(
+            path="weapon/model/sword.pac",
+            format="pac",
+            submeshes=[submesh],
+            total_vertices=4,
+            total_faces=2,
+            has_bones=True,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            obj_path = Path(temp_dir) / "sword.obj"
+            with mock.patch("cdmw.modding.mesh_native_core.write_native_obj_roundtrip_manifest", return_value=False):
+                sidecar_path = write_roundtrip_manifest(mesh, obj_path)
+            payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
+
+        self.assertFalse(payload["skeleton_info"]["skinned"])
+        self.assertFalse(payload["import_rules"]["preserve_bone_weights"])
+
     def test_live_delete_can_defer_orphan_compaction(self) -> None:
         sm = _submesh()
         sm.uvs = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from threading import Event
 from types import SimpleNamespace
 
 from cdmw.ui.archive_browser import static_replacement_sparse_history as sparse_history
@@ -33,7 +35,7 @@ def test_sparse_vertex_snapshot_ids_read_resident_group_handles() -> None:
 def test_release_disposes_after_last_retained_snapshot_reference(monkeypatch) -> None:
     disposed: list[str] = []
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.dispose_native_mesh_sparse_vertex_snapshot",
+        "cdmw.services.mesh_workflow_service.dispose_native_mesh_sparse_vertex_snapshot",
         lambda snapshot_id: disposed.append(str(snapshot_id)) or True,
     )
 
@@ -52,7 +54,7 @@ def test_release_disposes_after_last_retained_snapshot_reference(monkeypatch) ->
 def test_stack_replace_keeps_retained_snapshots_and_releases_removed_handles(monkeypatch) -> None:
     disposed: list[str] = []
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.dispose_native_mesh_sparse_vertex_snapshot",
+        "cdmw.services.mesh_workflow_service.dispose_native_mesh_sparse_vertex_snapshot",
         lambda snapshot_id: disposed.append(str(snapshot_id)) or True,
     )
 
@@ -76,7 +78,7 @@ def test_stack_replace_keeps_retained_snapshots_and_releases_removed_handles(mon
 def test_mesh_history_snapshot_release_disposes_native_submesh_snapshot(monkeypatch) -> None:
     disposed: list[str] = []
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.dispose_native_mesh_submesh_snapshot",
+        "cdmw.services.mesh_workflow_service.dispose_native_mesh_submesh_snapshot",
         lambda snapshot: disposed.append(str(snapshot["handle"]["id"])) or True,
     )
 
@@ -94,11 +96,11 @@ def test_mesh_history_stack_clear_releases_sparse_and_native_handles(monkeypatch
     disposed_sparse: list[str] = []
     disposed_submesh: list[str] = []
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.dispose_native_mesh_sparse_vertex_snapshot",
+        "cdmw.services.mesh_workflow_service.dispose_native_mesh_sparse_vertex_snapshot",
         lambda snapshot_id: disposed_sparse.append(str(snapshot_id)) or True,
     )
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.dispose_native_mesh_submesh_snapshot",
+        "cdmw.services.mesh_workflow_service.dispose_native_mesh_submesh_snapshot",
         lambda snapshot: disposed_submesh.append(str(snapshot["handle"]["id"])) or True,
     )
 
@@ -118,7 +120,7 @@ def test_mesh_history_stack_clear_releases_sparse_and_native_handles(monkeypatch
 def test_mesh_history_stack_replace_releases_removed_native_handles(monkeypatch) -> None:
     disposed: list[str] = []
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.dispose_native_mesh_submesh_snapshot",
+        "cdmw.services.mesh_workflow_service.dispose_native_mesh_submesh_snapshot",
         lambda snapshot: disposed.append(str(snapshot["handle"]["id"])) or True,
     )
 
@@ -136,9 +138,9 @@ def test_mesh_history_stack_replace_releases_removed_native_handles(monkeypatch)
 def test_sparse_history_restore_blocks_python_fallback_when_native_available(monkeypatch) -> None:
     events: list[tuple[str, dict[str, object]]] = []
     mesh = SimpleNamespace(total_vertices=3, total_faces=1, submeshes=())
-    monkeypatch.setattr("cdmw.modding.mesh_native_core.native_mesh_core_available", lambda: True)
+    monkeypatch.setattr("cdmw.services.mesh_workflow_service.native_mesh_core_available", lambda: True)
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.record_native_mesh_core_fallback",
+        "cdmw.services.mesh_workflow_service.record_native_mesh_core_fallback",
         lambda operation, _reason, **details: events.append((str(operation), details)),
     )
 
@@ -160,9 +162,9 @@ def test_sparse_history_restore_blocks_python_fallback_when_native_available(mon
 def test_mesh_history_snapshot_blocks_python_fallback_when_native_available(monkeypatch) -> None:
     events: list[tuple[str, dict[str, object]]] = []
     mesh = SimpleNamespace(total_vertices=3, total_faces=1, submeshes=())
-    monkeypatch.setattr("cdmw.modding.mesh_native_core.native_mesh_core_available", lambda: True)
+    monkeypatch.setattr("cdmw.services.mesh_workflow_service.native_mesh_core_available", lambda: True)
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.record_native_mesh_core_fallback",
+        "cdmw.services.mesh_workflow_service.record_native_mesh_core_fallback",
         lambda operation, _reason, **details: events.append((str(operation), details)),
     )
 
@@ -183,9 +185,9 @@ def test_mesh_history_snapshot_blocks_python_fallback_when_native_available(monk
 def test_full_mesh_clone_blocks_python_fallback_with_operation_reason(monkeypatch) -> None:
     events: list[tuple[str, str, dict[str, object]]] = []
     mesh = SimpleNamespace(total_vertices=3, total_faces=1, submeshes=())
-    monkeypatch.setattr("cdmw.modding.mesh_native_core.native_mesh_core_available", lambda: True)
+    monkeypatch.setattr("cdmw.services.mesh_workflow_service.native_mesh_core_available", lambda: True)
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.record_native_mesh_core_fallback",
+        "cdmw.services.mesh_workflow_service.record_native_mesh_core_fallback",
         lambda operation, reason, **details: events.append((str(operation), str(reason), details)),
     )
 
@@ -213,7 +215,7 @@ def test_static_replacement_clone_uses_native_snapshot_before_python(monkeypatch
     disposed: list[object] = []
     invalidated: list[tuple[object, tuple[int, ...]]] = []
 
-    monkeypatch.setattr("cdmw.modding.mesh_native_core.snapshot_native_mesh_submeshes", lambda _mesh: snapshot)
+    monkeypatch.setattr("cdmw.services.mesh_workflow_service.snapshot_native_mesh_submeshes", lambda _mesh: snapshot)
 
     def restore(restored: ParsedMesh, _snapshot: object) -> bool:
         restored.path = "restored.pam"
@@ -221,17 +223,17 @@ def test_static_replacement_clone_uses_native_snapshot_before_python(monkeypatch
         restored.submeshes = []
         return True
 
-    monkeypatch.setattr("cdmw.modding.mesh_native_core.restore_native_mesh_submesh_snapshot", restore)
+    monkeypatch.setattr("cdmw.services.mesh_workflow_service.restore_native_mesh_submesh_snapshot", restore)
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.invalidate_native_mesh_session_submeshes",
+        "cdmw.services.mesh_workflow_service.invalidate_native_mesh_session_submeshes",
         lambda restored, indices: invalidated.append((restored, tuple(indices))),
     )
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.dispose_native_mesh_submesh_snapshot",
+        "cdmw.services.mesh_workflow_service.dispose_native_mesh_submesh_snapshot",
         lambda native_snapshot: disposed.append(native_snapshot) or True,
     )
     monkeypatch.setattr(
-        "cdmw.modding.mesh_deformer.clone_mesh_for_editing",
+        "cdmw.services.mesh_workflow_service.clone_mesh_for_editing",
         lambda _mesh: (_ for _ in ()).throw(AssertionError("Python clone fallback should not run")),
     )
 
@@ -264,11 +266,11 @@ def test_static_replacement_clone_uses_python_for_native_unsupported_setup_mesh(
     fallback_calls: list[object] = []
 
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.snapshot_native_mesh_submeshes",
+        "cdmw.services.mesh_workflow_service.snapshot_native_mesh_submeshes",
         lambda _mesh: (_ for _ in ()).throw(AssertionError("native snapshot should not run")),
     )
     monkeypatch.setattr(
-        "cdmw.modding.mesh_deformer.clone_mesh_for_editing",
+        "cdmw.services.mesh_workflow_service.clone_mesh_for_editing",
         lambda candidate: fallback_calls.append(candidate) or ParsedMesh(path="cloned.obj", format="obj"),
     )
 
@@ -288,9 +290,9 @@ def test_static_replacement_clone_uses_custom_fallback_guard(monkeypatch) -> Non
     mesh = SimpleNamespace(submeshes=())
     fallback_calls: list[object] = []
 
-    monkeypatch.setattr("cdmw.modding.mesh_native_core.snapshot_native_mesh_submeshes", lambda _mesh: None)
+    monkeypatch.setattr("cdmw.services.mesh_workflow_service.snapshot_native_mesh_submeshes", lambda _mesh: None)
     monkeypatch.setattr(
-        "cdmw.modding.mesh_deformer.clone_mesh_for_editing",
+        "cdmw.services.mesh_workflow_service.clone_mesh_for_editing",
         lambda _mesh: (_ for _ in ()).throw(AssertionError("Python clone fallback should be guarded")),
     )
 
@@ -305,12 +307,32 @@ def test_static_replacement_clone_uses_custom_fallback_guard(monkeypatch) -> Non
     assert fallback_calls == [mesh]
 
 
+def test_static_replacement_worker_options_clone_edited_mesh(monkeypatch) -> None:
+    @dataclass(frozen=True)
+    class Options:
+        edited_source_mesh: object | None
+
+    source_mesh = object()
+    cloned_mesh = object()
+    options = Options(edited_source_mesh=source_mesh)
+    monkeypatch.setattr(
+        sparse_history,
+        "clone_mesh_for_static_replacement_native_first",
+        lambda mesh, *_args: cloned_mesh if mesh is source_mesh else None,
+    )
+
+    worker_options = sparse_history.clone_static_replacement_options_for_worker(options, Event())
+
+    assert worker_options == Options(edited_source_mesh=cloned_mesh)
+    assert options.edited_source_mesh is source_mesh
+
+
 def test_morph_slider_bake_clone_blocks_python_fallback(monkeypatch) -> None:
     events: list[tuple[str, str, dict[str, object]]] = []
     mesh = SimpleNamespace(total_vertices=3, total_faces=1, submeshes=())
-    monkeypatch.setattr("cdmw.modding.mesh_native_core.native_mesh_core_available", lambda: True)
+    monkeypatch.setattr("cdmw.services.mesh_workflow_service.native_mesh_core_available", lambda: True)
     monkeypatch.setattr(
-        "cdmw.modding.mesh_native_core.record_native_mesh_core_fallback",
+        "cdmw.services.mesh_workflow_service.record_native_mesh_core_fallback",
         lambda operation, reason, **details: events.append((str(operation), str(reason), details)),
     )
 

@@ -8,21 +8,23 @@ from typing import Dict, Iterable, Optional, Sequence, Tuple
 
 import numpy as np
 
-from cdmw.core.texture_editor import (
+from cdmw.domain.textures.editor_layers import (
     add_texture_editor_layer,
-    apply_texture_editor_selection_to_layer_mask,
     bump_texture_editor_layer_revision,
     create_texture_editor_layer_mask,
     delete_texture_editor_layer_mask,
     duplicate_texture_editor_layer,
     invert_texture_editor_layer_mask,
-    load_texture_editor_layer_mask_as_selection,
     merge_texture_editor_layer_down,
     move_texture_editor_layer,
     remove_texture_editor_layer,
     reorder_texture_editor_layer,
     set_texture_editor_layer_mask_enabled,
     update_texture_editor_layer,
+)
+from cdmw.domain.textures.editor_selection import (
+    apply_texture_editor_selection_to_layer_mask,
+    load_texture_editor_layer_mask_as_selection,
 )
 from cdmw.models import TextureEditorDocument, TextureEditorLayer
 

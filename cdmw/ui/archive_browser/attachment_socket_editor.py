@@ -30,48 +30,63 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.archive import read_archive_entry_data
-from cdmw.core.archive_modding import (
-    ArchiveLooseExportResult,
-    ArchivePatchRequest,
-    export_archive_payloads_to_mod_ready_loose,
-)
-from cdmw.core.xml_text import decode_xml_text_payload, encode_xml_text_like_source
+from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
+from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
+from cdmw.domain.xml_text import decode_xml_text_payload, encode_xml_text_like_source
 from cdmw.models import ArchiveEntry, AttachmentSocketInfo
+from cdmw.ui.archive_browser.attachment_task_controller import attachment_task_controller_for_guard
+from cdmw.ui.archive_browser.attachment_socket_xml_format import (
+    archive_socket_xml_candidates,
+    attachment_socket_xml_numbered_text,
+    attachment_socket_xml_text,
+    attachment_transform_values_close,
+)
+from cdmw.workers.attachment_io_workers import AttachmentPayloadReadRequest, AttachmentPayloadReadResult, run_attachment_payload_read
 from cdmw.ui.shell.theme_controller import build_monospace_font
 from cdmw.ui.widgets import PreviewSyntaxHighlighter
-
 
 class ArchiveAttachmentSocketEditorMixin:
     """Socket XML dialog, compare picker, and loose export helpers."""
 
     @staticmethod
     def _attachment_socket_xml_text(root: ET.Element, *, include_declaration: bool) -> str:
-        try:
-            ET.indent(root, space="  ")
-        except Exception:
-            pass
-        document_text = ET.tostring(root, encoding="unicode")
-        if include_declaration:
-            document_text = '<?xml version="1.0" encoding="utf-8"?>\n' + document_text
-        return document_text.rstrip() + "\n"
+        return attachment_socket_xml_text(root, include_declaration=include_declaration)
 
     def _attachment_socket_xml_numbered_text(self, root: ET.Element, *, include_declaration: bool) -> str:
-        lines = self._attachment_socket_xml_text(root, include_declaration=include_declaration).splitlines()
-        line_width = max(2, len(str(len(lines))))
-        return "\n".join(f"{index:>{line_width}} | {line}" for index, line in enumerate(lines, start=1)) + "\n"
+        return attachment_socket_xml_numbered_text(root, include_declaration=include_declaration)
 
     def _open_archive_socket_xml_editor_dialog(
         self,
         socket_entry: ArchiveEntry,
         *,
         owner: Optional[QWidget] = None,
+        _payload_result: AttachmentPayloadReadResult | None = None,
     ) -> None:
-        try:
-            data, _decompressed, _note = read_archive_entry_data(socket_entry)
-        except Exception as exc:
-            QMessageBox.warning(owner or self, "Socket XML Editor", f"Could not read socket XML:\n{exc}")
+        guard = owner or self
+        if not isinstance(_payload_result, AttachmentPayloadReadResult):
+            controller = attachment_task_controller_for_guard(
+                self,
+                guard,
+                attribute="_attachment_socket_open_controller",
+            )
+            controller.start(
+                AttachmentPayloadReadRequest(archive_entry=socket_entry),
+                run_attachment_payload_read,
+                status_message=f"Reading socket XML: {socket_entry.basename}...",
+                on_complete=lambda result: self._open_archive_socket_xml_editor_dialog(
+                    socket_entry,
+                    owner=owner,
+                    _payload_result=result if isinstance(result, AttachmentPayloadReadResult) else None,
+                ),
+                on_error=lambda message: QMessageBox.warning(
+                    guard,
+                    "Socket XML Editor",
+                    f"Could not read socket XML:\n{message}",
+                ),
+            )
             return
+        data = _payload_result.data
         decoded_socket_xml = decode_xml_text_payload(data)
         original_text = decoded_socket_xml.text
         try:
@@ -98,6 +113,7 @@ class ArchiveAttachmentSocketEditorMixin:
         dialog = QDialog(owner or self)
         dialog.setWindowTitle(f"Edit Socket Values - {socket_entry.basename}")
         dialog.resize(1180, 700)
+        payload_task_controller = attachment_task_controller_for_guard(self, dialog)
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
@@ -380,12 +396,7 @@ class ArchiveAttachmentSocketEditorMixin:
                     return item
             return None
 
-        def _values_close(first: Sequence[float], second: Sequence[float]) -> bool:
-            first_values = tuple(first or ())
-            second_values = tuple(second or ())
-            if len(first_values) != len(second_values):
-                return False
-            return all(abs(float(left) - float(right)) <= 0.00001 for left, right in zip(first_values, second_values))
+        _values_close = attachment_transform_values_close
 
         def _refresh_compare_copy_buttons() -> None:
             item = compare_tree.currentItem()
@@ -498,33 +509,11 @@ class ArchiveAttachmentSocketEditorMixin:
             cached = socket_xml_candidate_cache.get("entries")
             if isinstance(cached, tuple):
                 return cached
-            candidates: List[ArchiveEntry] = []
-            seen: set[Tuple[str, str, int]] = set()
-            for basename, entries in self.archive_entries_by_basename.items():
-                normalized_basename = str(basename or "").casefold()
-                if not (
-                    normalized_basename.endswith(".sockets.xml")
-                    or (normalized_basename.endswith(".xml") and "socket" in normalized_basename)
-                ):
-                    continue
-                for candidate in entries or ():
-                    if not isinstance(candidate, ArchiveEntry) or self._same_archive_entry(candidate, socket_entry):
-                        continue
-                    candidate_path = str(candidate.path or "").replace("\\", "/")
-                    path_key = candidate_path.casefold()
-                    if not (path_key.endswith(".sockets.xml") or ("socketbonedata" in path_key and path_key.endswith(".xml"))):
-                        continue
-                    key = (
-                        path_key,
-                        str(candidate.pamt_path).strip().casefold(),
-                        int(candidate.offset),
-                    )
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    candidates.append(candidate)
-            candidates.sort(key=lambda entry: str(entry.path or "").casefold())
-            cached_candidates = tuple(candidates)
+            cached_candidates = archive_socket_xml_candidates(
+                self.archive_entries_by_basename,
+                socket_entry,
+                same_entry=self._same_archive_entry,
+            )
             socket_xml_candidate_cache["entries"] = cached_candidates
             return cached_candidates
 
@@ -539,13 +528,37 @@ class ArchiveAttachmentSocketEditorMixin:
             _refresh_compare_tree()
             editor_tabs.setCurrentWidget(compare_page)
 
+        def _start_compare_payload_read(
+            request: AttachmentPayloadReadRequest,
+            status_message: str,
+            source_path: str,
+            entry: Optional[ArchiveEntry],
+        ) -> None:
+            payload_task_controller.start(
+                request,
+                run_attachment_payload_read,
+                status_message=status_message,
+                on_complete=lambda result: _load_compare_sockets(
+                    decode_xml_text_payload(result.data).text,
+                    source_path,
+                    entry,
+                )
+                if isinstance(result, AttachmentPayloadReadResult)
+                else None,
+                on_error=lambda message: QMessageBox.warning(
+                    dialog,
+                    "Compare Socket XML",
+                    f"Could not read socket XML:\n{message}",
+                ),
+            )
+
         def _load_compare_archive_entry(entry: ArchiveEntry) -> None:
-            try:
-                data, _decompressed, _note = read_archive_entry_data(entry)
-            except Exception as exc:
-                QMessageBox.warning(dialog, "Compare Socket XML", f"Could not read compare socket XML:\n{exc}")
-                return
-            _load_compare_sockets(decode_xml_text_payload(data).text, entry.path, entry)
+            _start_compare_payload_read(
+                AttachmentPayloadReadRequest(archive_entry=entry),
+                f"Reading compare socket XML: {entry.basename}...",
+                entry.path,
+                entry,
+            )
 
         def _open_archive_socket_compare_picker() -> None:
             picker = QDialog(dialog)
@@ -659,12 +672,12 @@ class ArchiveAttachmentSocketEditorMixin:
             if not selected_path:
                 return
             source_path = Path(selected_path)
-            try:
-                text = decode_xml_text_payload(source_path.read_bytes()).text
-            except Exception as exc:
-                QMessageBox.warning(dialog, "Compare Socket XML", f"Could not read socket XML:\n{exc}")
-                return
-            _load_compare_sockets(text, str(source_path), None)
+            _start_compare_payload_read(
+                AttachmentPayloadReadRequest(file_path=source_path),
+                f"Reading compare socket XML: {source_path.name}...",
+                str(source_path),
+                None,
+            )
 
         def _copy_compare_values(*, use_selected_socket: bool) -> None:
             item = compare_tree.currentItem()

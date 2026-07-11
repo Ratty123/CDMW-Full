@@ -21,8 +21,8 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.constants import APP_TITLE
-from cdmw.core.archive import ArchiveEntry
-from cdmw.core.replace_assistant import (
+from cdmw.models import ArchiveEntry
+from cdmw.services.replace_assistant_service import (
     ReplaceAssistantArchiveIndex,
     match_replace_assistant_item_to_archive_entry,
     match_replace_assistant_item_to_local_original,

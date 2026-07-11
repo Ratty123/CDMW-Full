@@ -13,7 +13,7 @@ from typing import Iterable, Mapping, Sequence
 
 from cdmw.domain.mesh import MeshEditSelection
 from cdmw.models import PreparedModelPreviewBatch, PreparedModelPreviewData
-from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.services.mesh_workflow_service import ParsedMesh
 
 _VERTEX_STRUCT = struct.Struct("<23f")
 _NATIVE_MATERIAL_OVERRIDE_KEYS = (
@@ -91,7 +91,7 @@ def _mesh_to_native_preview_native(
     pose_rotations: Mapping[int, Sequence[object]] | Mapping[object, object] | None = None,
 ) -> PreparedModelPreviewData | None:
     try:
-        from cdmw.modding.mesh_native_core import (
+        from cdmw.services.mesh_workflow_service import (
             _ensure_native_mesh_session_submesh,
             find_native_mesh_core_binary,
             write_native_pose_preview_geometry_blob,
@@ -319,7 +319,7 @@ def _persist_native_i32_descriptor(value: object) -> dict[str, object] | None:
     if descriptor is None or int(descriptor.get("count", 0) or 0) <= 0:
         return descriptor
     try:
-        from cdmw.modding.mesh_native_core import _native_preview_delta_output_path
+        from cdmw.services.mesh_workflow_service import _native_preview_delta_output_path
 
         target = Path(_native_preview_delta_output_path(".bin"))
         shutil.copyfile(str(descriptor["path"]), target)
@@ -460,7 +460,7 @@ def _mesh_edit_triangle_groups_native(mesh: ParsedMesh, source_submesh_indices: 
     if not source_submesh_indices:
         return {}
     try:
-        from cdmw.modding.mesh_native_core import build_native_mesh_preview_triangle_groups
+        from cdmw.services.mesh_workflow_service import build_native_mesh_preview_triangle_groups
     except ImportError:
         return {}
     native_groups = build_native_mesh_preview_triangle_groups(mesh, source_indices=source_submesh_indices)
@@ -679,7 +679,7 @@ def _mesh_edit_selection_groups_native(
     stop_event: threading.Event | None = None,
 ) -> list[dict[str, object]] | None:
     try:
-        from cdmw.modding.mesh_native_core import build_native_mesh_selection_groups
+        from cdmw.services.mesh_workflow_service import build_native_mesh_selection_groups
     except ImportError:
         return None
     return build_native_mesh_selection_groups(
@@ -905,7 +905,7 @@ def _mesh_edit_vertex_update_groups_native(mesh: ParsedMesh, changed_vertices_by
     if not changed_vertices_by_submesh:
         return {}
     try:
-        from cdmw.modding.mesh_native_core import (
+        from cdmw.services.mesh_workflow_service import (
             build_native_mesh_preview_vertex_update_groups,
             invalidate_native_mesh_session_submeshes,
         )
@@ -1063,7 +1063,7 @@ def _consume_native_vertex_update_group(
 
 def _record_native_preview_fallback(mesh: ParsedMesh, operation: str, reason: str, **details: object) -> None:
     try:
-        from cdmw.modding.mesh_native_core import record_native_mesh_core_fallback
+        from cdmw.services.mesh_workflow_service import record_native_mesh_core_fallback
     except ImportError:
         return
     record_native_mesh_core_fallback(
@@ -1079,7 +1079,7 @@ def _native_mesh_core_available_for_preview() -> bool:
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE"):
         return False
     try:
-        from cdmw.modding.mesh_native_core import native_mesh_core_available
+        from cdmw.services.mesh_workflow_service import native_mesh_core_available
     except ImportError:
         return False
     try:

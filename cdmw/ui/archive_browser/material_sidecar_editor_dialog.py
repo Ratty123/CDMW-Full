@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import dataclasses
-import json
-import shutil
-import time
-from pathlib import Path, PurePosixPath
-from typing import Dict, List, Mapping, Optional, Tuple
+import json, shutil, threading
+from pathlib import Path
+from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 from PySide6.QtCore import QProcess, QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon
@@ -32,35 +29,34 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.archive import (
-    _attach_model_sidecar_texture_preview_paths,
-    _parse_archive_model_sidecar_texture_bindings,
-    build_archive_preview_result,
-    read_archive_entry_data,
-    set_model_texture_display_preview_max_dimension,
-)
-from cdmw.core.material_sidecar_editor import (
-    apply_material_sidecar_edits,
-    detect_material_sidecar_related_files,
-    discover_material_sidecar_values,
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.services.archive_workflow_service import set_model_texture_display_preview_max_dimension
+from cdmw.services.material_sidecar_service import (
     export_material_sidecar_mod_package,
 )
-from cdmw.core.upscale_profiles import normalize_texture_reference_for_sidecar_lookup
 from cdmw.models import (
     ArchiveEntry,
     ArchivePreviewResult,
     ModelPreviewData,
     ModelPreviewRenderSettings,
-    PreparedModelPreviewData,
 )
-from cdmw.rendering.model_preview_prepare import prepare_model_preview
-from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_package
+from cdmw.services.material_sidecar_document_service import (
+    MaterialSidecarEditorDocument,
+    MaterialSidecarExportPreparation,
+    prepare_material_sidecar_export,
+)
+from cdmw.services.material_sidecar_preview_service import (
+    MaterialSidecarPreviewBuildRequest,
+    MaterialSidecarPreviewBuildResult,
+    build_material_sidecar_preview,
+)
 from cdmw.ui.archive_browser import material_sidecar_editor_helpers as material_sidecar_text
+from cdmw.ui.archive_browser.material_sidecar_document_controller import (
+    ArchiveMaterialSidecarDocumentControllerMixin,
+)
 from cdmw.ui.archive_browser.material_sidecar_editor_helpers import (
-    fast_material_preview_package_from_manifest,
     material_editor_color_from_value,
     material_preview_entry_key,
-    material_preview_package_matches_entry,
     material_value_swatch_icon,
     selected_value_ready_for_live_refresh,
 )
@@ -68,16 +64,11 @@ from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
 from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as _d3d11_status_file_signature
 from cdmw.ui.widgets import make_tree_columns_persistent
 
-
-class ArchiveMaterialSidecarEditorMixin:
-    def _open_material_sidecar_editor(self, entry: ArchiveEntry) -> None:
-        try:
-            data, _decompressed, _note = read_archive_entry_data(entry)
-            original_text = self._decode_material_sidecar_bytes(data)
-        except Exception as exc:
-            self.set_status_message(material_sidecar_text.material_sidecar_read_failed_status(exc), error=True)
-            return
-        rows = discover_material_sidecar_values(original_text)
+class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentControllerMixin):
+    def _show_material_sidecar_editor(self, document: MaterialSidecarEditorDocument) -> None:
+        entry = document.entry
+        original_text = document.original_text
+        rows = document.rows
         if not rows:
             title, message = material_sidecar_text.material_sidecar_empty_values_dialog_text()
             QMessageBox.information(self, title, message)
@@ -98,7 +89,6 @@ class ArchiveMaterialSidecarEditorMixin:
         preview_accuracy_warning.setObjectName("WarningText")
         preview_accuracy_warning.setWordWrap(True)
         layout.addWidget(preview_accuracy_warning)
-
         content_splitter = QSplitter(Qt.Horizontal)
         editor_panel = QWidget()
         editor_layout = QVBoxLayout(editor_panel)
@@ -108,7 +98,6 @@ class ArchiveMaterialSidecarEditorMixin:
         preview_layout = QVBoxLayout(preview_panel)
         preview_layout.setContentsMargins(8, 0, 0, 0)
         preview_layout.setSpacing(8)
-
         tree = QTreeWidget()
         tree.setColumnCount(5)
         tree.setHeaderLabels(list(material_sidecar_text.material_sidecar_tree_headers()))
@@ -119,9 +108,7 @@ class ArchiveMaterialSidecarEditorMixin:
         tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         tree.setSelectionBehavior(QAbstractItemView.SelectRows)
         tree.setSelectionMode(QAbstractItemView.SingleSelection)
-
         material_value_swatch_icons: Dict[str, QIcon] = {}
-
         def _update_material_value_swatch(item: Optional[QTreeWidgetItem]) -> None:
             if item is None:
                 return
@@ -139,7 +126,6 @@ class ArchiveMaterialSidecarEditorMixin:
                 item.setToolTip(3, material_sidecar_text.material_sidecar_preview_color_tooltip(item.text(3), color.name()))
             finally:
                 del blocker
-
         for row in rows:
             item = material_sidecar_text.material_sidecar_value_tree_item(row)
             _update_material_value_swatch(item)
@@ -465,6 +451,10 @@ class ArchiveMaterialSidecarEditorMixin:
         def _shutdown_material_preview() -> None:
             live_preview_timer.stop()
             material_preview_status_timer.stop()
+            preview_generation["value"] += 1
+            worker = preview_generation.pop("worker", None)
+            if worker is getattr(self, "utility_worker", None):
+                worker.stop()
             _stop_material_preview_process()
             QTimer.singleShot(
                 material_sidecar_text.material_sidecar_preview_package_cleanup_delay_ms(),
@@ -625,29 +615,17 @@ class ArchiveMaterialSidecarEditorMixin:
                 return None
             return result
 
-        def _active_archive_material_preview_package(model_entry: ArchiveEntry) -> Optional[Path]:
-            package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
-            if package_dir is None:
-                return None
-            try:
-                package_path = Path(package_dir)
-            except (TypeError, ValueError):
-                return None
-            if not package_path.is_dir():
-                return None
-            if not material_preview_package_matches_entry(package_path, model_entry):
-                return None
-            return package_path
-
-        def _archive_material_preview_source_package(model_entry: ArchiveEntry) -> Optional[Path]:
+        def _archive_material_preview_source_package() -> Optional[Path]:
             current_archive_result = _current_archive_material_preview_result()
             if isinstance(current_archive_result, ArchivePreviewResult):
                 current_package_text = str(getattr(current_archive_result, "native_preview_package_path", "") or "").strip()
                 if current_package_text:
-                    candidate_package_dir = Path(current_package_text)
-                    if candidate_package_dir.is_dir() and material_preview_package_matches_entry(candidate_package_dir, model_entry):
-                        return candidate_package_dir
-            return _active_archive_material_preview_package(model_entry)
+                    return Path(current_package_text)
+            try:
+                package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
+                return Path(package_dir) if package_dir is not None else None
+            except (TypeError, ValueError):
+                return None
 
         def _start_material_preview_refresh(*, include_texture_edits: bool, live: bool = False) -> None:
             current_item_for_sync = _current_item()
@@ -688,217 +666,76 @@ class ArchiveMaterialSidecarEditorMixin:
             generation = preview_generation["value"]
             texconv_text = self.texconv_path_edit.text().strip()
             texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-            if texconv_path is not None and not texconv_path.is_file():
-                texconv_path = None
             companion_entry = self._find_archive_preview_companion_entry(preview_model_entry)
             preview_settings = _material_value_preview_render_settings(material_effects_active=material_effects_active)
             base_cache_key = f"{preview_model_entry.path}|{preview_settings.visible_texture_mode}"
             current_archive_result = _current_archive_material_preview_result()
-            reusable_package_dir: Optional[Path] = None
-            if not all_preview_edits and isinstance(current_archive_result, ArchivePreviewResult):
-                current_package_text = str(getattr(current_archive_result, "native_preview_package_path", "") or "").strip()
-                if current_package_text:
-                    candidate_package_dir = Path(current_package_text)
-                    if candidate_package_dir.is_dir() and material_preview_package_matches_entry(candidate_package_dir, preview_model_entry):
-                        reusable_package_dir = candidate_package_dir
-            if reusable_package_dir is None and not all_preview_edits:
-                reusable_package_dir = _archive_material_preview_source_package(preview_model_entry)
-            if reusable_package_dir is not None:
-                package_dir = reusable_package_dir
-                if package_dir.is_dir():
-                    if isinstance(current_archive_result, ArchivePreviewResult):
-                        material_preview_base_result_state["key"] = base_cache_key
-                        material_preview_base_result_state["result"] = dataclasses.replace(
-                            current_archive_result,
-                            preview_model=self._clone_archive_preview_model(current_archive_result.preview_model, strip_images=True),
-                        )
-                    summary = material_sidecar_text.material_sidecar_reused_package_summary()
-                    preview_status_label.setText(summary)
-                    _launch_material_preview_package(
-                        package_dir,
-                        reset_view=True,
-                        summary=summary,
-                        cleanup_owned_package=False,
-                    )
-                    return
+            reusable_package_dir = (
+                _archive_material_preview_source_package()
+                if not all_preview_edits
+                else None
+            )
             fast_source_package_dir = (
-                _archive_material_preview_source_package(preview_model_entry)
+                _archive_material_preview_source_package()
                 if material_preview_edits and not texture_edits_active
                 else None
             )
-            if fast_source_package_dir is not None:
-                started = time.perf_counter()
-                fast_package = fast_material_preview_package_from_manifest(
-                    fast_source_package_dir,
-                    cache_root=self._native_preview_package_cache_root(),
-                    label_normalizer=self._normalized_material_preview_label,
-                    preview_sidecar_text=preview_sidecar_text,
-                    edited_values=material_preview_edits,
-                    color_edits_active=color_edits_active,
-                )
-                if fast_package is not None:
-                    package_dir, batch_count, vertex_count, notes = fast_package
-                    elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
-                    _configure_material_value_preview_host(material_effects_active=True)
-                    summary = material_sidecar_text.material_sidecar_manifest_update_summary(
-                        live=live,
-                        color_edits_active=color_edits_active,
-                        elapsed_ms=elapsed_ms,
-                        batch_count=batch_count,
-                        vertex_count=vertex_count,
-                        notes=notes,
-                    )
-                    preview_status_label.setText(summary)
-                    _launch_material_preview_package(
-                        package_dir,
-                        reset_view=not bool(live),
-                        summary=summary,
-                    )
-                    return
             cached_base_result = (
                 material_preview_base_result_state.get("result")
                 if str(material_preview_base_result_state.get("key") or "") == base_cache_key and not texture_edits_active
                 else None
             )
             if cached_base_result is None and not texture_edits_active and isinstance(current_archive_result, ArchivePreviewResult):
-                cached_base_result = dataclasses.replace(
-                    current_archive_result,
-                    preview_model=self._clone_archive_preview_model(current_archive_result.preview_model, strip_images=True),
-                )
+                cached_base_result = current_archive_result
             preview_status_label.setText(material_sidecar_text.material_sidecar_building_preview_status())
 
-            def _task(log: Callable[[str], None]) -> object:
-                started = time.perf_counter()
-                notes: List[str] = []
-                base_result_for_cache: Optional[ArchivePreviewResult] = None
-                if isinstance(cached_base_result, ArchivePreviewResult) and isinstance(cached_base_result.preview_model, ModelPreviewData):
-                    log(material_sidecar_text.material_sidecar_cached_geometry_log(preview_model_entry.path))
-                    result = cached_base_result
-                    preview_model = self._clone_archive_preview_model(cached_base_result.preview_model, strip_images=True)
-                    notes.append(material_sidecar_text.material_sidecar_cached_geometry_note())
-                else:
-                    log(material_sidecar_text.material_sidecar_building_model_log(preview_model_entry.path, entry.path))
-                    result = build_archive_preview_result(
-                        texconv_path,
-                        preview_model_entry,
-                        companion_entry=companion_entry,
-                        texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                        texture_entries_by_basename=self.archive_entries_by_basename,
-                        sidecar_entries_by_texture_path=self.archive_sidecar_entries_by_texture_path,
-                        sidecar_entries_by_texture_basename=self.archive_sidecar_entries_by_texture_basename,
-                        include_loose_preview_assets=False,
-                        visible_texture_mode=preview_settings.visible_texture_mode,
-                    )
-                    preview_model = self._clone_archive_preview_model(result.preview_model, strip_images=True)
-                if isinstance(preview_model, ModelPreviewData):
-                    parsed_bindings = _parse_archive_model_sidecar_texture_bindings(
-                        preview_sidecar_text,
-                        sidecar_path=entry.path,
-                    )
-                    if parsed_bindings:
-                        sidecar_texts_by_path: Dict[str, Tuple[str, ...]] = {}
-                        sidecar_texts_by_basename: Dict[str, Tuple[str, ...]] = {}
-                        for binding in parsed_bindings:
-                            normalized_texture = normalize_texture_reference_for_sidecar_lookup(binding.texture_path)
-                            if normalized_texture:
-                                sidecar_texts_by_path[normalized_texture] = (preview_sidecar_text,)
-                                texture_basename = PurePosixPath(normalized_texture).name.lower()
-                                if texture_basename:
-                                    sidecar_texts_by_basename[texture_basename] = (preview_sidecar_text,)
-                        notes.extend(
-                            _attach_model_sidecar_texture_preview_paths(
-                                texconv_path,
-                                preview_model_entry,
-                                preview_model,
-                                parsed_mesh=None,
-                                sidecar_texture_bindings=parsed_bindings,
-                                visible_texture_mode=preview_settings.visible_texture_mode,
-                                texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                                texture_entries_by_basename=self.archive_entries_by_basename,
-                                sidecar_texts_by_normalized_path=sidecar_texts_by_path,
-                                sidecar_texts_by_basename=sidecar_texts_by_basename,
-                            )
-                        )
-                    base_result_for_cache = dataclasses.replace(
-                        result,
-                        preview_model=self._clone_archive_preview_model(preview_model, strip_images=True),
-                    )
-                    notes.extend(
-                        self._apply_material_sidecar_preview_overrides_to_model(
-                            preview_model,
-                            preview_sidecar_text,
-                            edited_values=material_preview_edits,
-                        )
-                    )
-                warnings = list(self._material_sidecar_texture_resolution_warnings(preview_sidecar_text)) if include_texture_edits else []
-                if not isinstance(preview_model, ModelPreviewData):
-                    return (
-                        generation,
-                        None,
-                        base_result_for_cache,
-                        base_cache_key,
-                        tuple(notes),
-                        tuple(warnings),
-                        bool(live),
-                        material_effects_active,
-                        color_edits_active,
-                        0.0,
-                        0,
-                        0,
-                    )
-                prepared_model, prepared_preview = prepare_model_preview(
-                    preview_model,
-                    render_settings=preview_settings,
-                    enable_material_combiner=True,
-                )
-                if not isinstance(prepared_preview, PreparedModelPreviewData):
-                    raise ValueError(material_sidecar_text.material_sidecar_prepare_failed_message())
-                package_dir = write_isolated_d3d11_preview_package(
-                    prepared_model,
-                    prepared_preview,
-                    render_settings=preview_settings,
-                    use_textures=bool(preview_settings.use_textures_by_default and not color_edits_active),
-                    high_quality_textures=bool(preview_settings.high_quality_by_default),
-                    backend="d3d11",
-                    enable_material_combiner=True,
-                    prefer_direct_dds=True,
-                )
-                elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
-                return (
-                    generation,
-                    package_dir,
-                    base_result_for_cache,
-                    base_cache_key,
-                    tuple(notes),
-                    tuple(warnings),
-                    bool(live),
-                    material_effects_active,
-                    color_edits_active,
-                    elapsed_ms,
-                    len(getattr(prepared_preview, "batches", ()) or ()),
-                    int(getattr(prepared_preview, "vertex_count", 0) or 0),
-                )
+            preview_request = MaterialSidecarPreviewBuildRequest(
+                generation=generation,
+                preview_model_entry=preview_model_entry,
+                sidecar_entry=entry,
+                companion_entry=companion_entry,
+                texconv_path=texconv_path,
+                preview_sidecar_text=preview_sidecar_text,
+                material_preview_edits=dict(material_preview_edits),
+                include_texture_edits=include_texture_edits,
+                live=bool(live),
+                material_effects_active=material_effects_active,
+                color_edits_active=color_edits_active,
+                preview_settings=preview_settings,
+                base_cache_key=base_cache_key,
+                reusable_package_dir=reusable_package_dir,
+                fast_source_package_dir=fast_source_package_dir,
+                current_archive_result=current_archive_result,
+                cached_base_result=cached_base_result,
+                cache_root=self._native_preview_package_cache_root(),
+                texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
+                texture_entries_by_basename=self.archive_entries_by_basename,
+                sidecar_entries_by_texture_path=self.archive_sidecar_entries_by_texture_path,
+                sidecar_entries_by_texture_basename=self.archive_sidecar_entries_by_texture_basename,
+                clone_preview_model=self._clone_archive_preview_model,
+                apply_preview_overrides=self._apply_material_sidecar_preview_overrides_to_model,
+                texture_resolution_warnings=self._material_sidecar_texture_resolution_warnings,
+                label_normalizer=self._normalized_material_preview_label,
+                cached_geometry_log=material_sidecar_text.material_sidecar_cached_geometry_log(preview_model_entry.path),
+                cached_geometry_note=material_sidecar_text.material_sidecar_cached_geometry_note(),
+                building_model_log=material_sidecar_text.material_sidecar_building_model_log(preview_model_entry.path, entry.path),
+                prepare_failed_message=material_sidecar_text.material_sidecar_prepare_failed_message(),
+            )
+
+            def _task(log: Callable[[str], None], stop_event: threading.Event) -> object:
+                return build_material_sidecar_preview(preview_request, log, stop_event)
 
             def _handle_complete(result: object) -> None:
-                if not isinstance(result, tuple) or len(result) != 12:
+                if not isinstance(result, MaterialSidecarPreviewBuildResult):
                     preview_status_label.setText(material_sidecar_text.material_sidecar_preview_unexpected_payload_status())
                     return
-                (
-                    result_generation,
-                    package_dir_object,
-                    base_result_for_cache,
-                    base_result_cache_key,
-                    notes,
-                    warnings,
-                    was_live,
-                    material_effects_active_result,
-                    color_edits_active_result,
-                    elapsed_ms,
-                    batch_count,
-                    vertex_count,
-                ) = result
+                result_kind = result.kind
+                result_generation = result.generation
+                package_dir_object = result.package_dir
+                base_result_for_cache = result.base_result_for_cache
+                base_result_cache_key = result.base_cache_key
                 if int(result_generation) != int(preview_generation["value"]) or not dialog.isVisible():
-                    if package_dir_object is not None:
+                    if package_dir_object is not None and result_kind != "reused":
                         _remove_material_preview_package(package_dir_object)
                     return
                 if isinstance(base_result_for_cache, ArchivePreviewResult):
@@ -908,24 +745,24 @@ class ArchiveMaterialSidecarEditorMixin:
                     preview_status_label.setText(material_sidecar_text.material_sidecar_no_model_preview_status())
                     return
                 package_dir = Path(package_dir_object)
-                _configure_material_value_preview_host(
-                    material_effects_active=bool(material_effects_active_result)
-                )
-                summary = material_sidecar_text.material_sidecar_built_package_summary(
-                    live=was_live,
-                    color_edits_active=color_edits_active_result,
-                    material_effects_active=material_effects_active_result,
-                    elapsed_ms=elapsed_ms,
-                    batch_count=batch_count,
-                    vertex_count=vertex_count,
-                    notes=notes,
-                    warnings=warnings,
+                _configure_material_value_preview_host(material_effects_active=result.material_effects_active)
+                summary = material_sidecar_text.material_sidecar_preview_result_summary(
+                    str(result_kind),
+                    live=result.live,
+                    color_edits_active=result.color_edits_active,
+                    material_effects_active=result.material_effects_active,
+                    elapsed_ms=result.elapsed_ms,
+                    batch_count=result.batch_count,
+                    vertex_count=result.vertex_count,
+                    notes=result.notes,
+                    warnings=result.warnings,
                 )
                 preview_status_label.setText(summary)
                 _launch_material_preview_package(
                     package_dir,
-                    reset_view=not bool(was_live),
+                    reset_view=not result.live,
                     summary=summary,
+                    cleanup_owned_package=result_kind != "reused",
                 )
                 if bool(preview_generation.get("queued_live")) and dialog.isVisible():
                     preview_generation["queued_live"] = False
@@ -936,7 +773,9 @@ class ArchiveMaterialSidecarEditorMixin:
                 task=_task,
                 on_complete=_handle_complete,
                 show_archive_progress=True,
+                task_accepts_cancel=True,
             )
+            preview_generation["worker"] = getattr(self, "utility_worker", None)
 
         def _schedule_live_preview_for_item(item: Optional[QTreeWidgetItem]) -> None:
             if item is None or preview_model_entry_state.get("entry") is None or not live_preview_checkbox.isChecked():
@@ -974,24 +813,16 @@ class ArchiveMaterialSidecarEditorMixin:
                 return
             selected_value_live_refresh_timer.start()
 
-        def _export() -> None:
-            edited_values = _edited_values()
-            if not edited_values:
-                title, message = material_sidecar_text.material_sidecar_no_changes_dialog_text()
-                QMessageBox.information(dialog, title, message)
+        def _continue_material_sidecar_export(
+            request_id: int,
+            preparation: MaterialSidecarExportPreparation,
+        ) -> None:
+            if request_id != int(getattr(self, "_material_sidecar_export_request_id", 0) or 0):
                 return
-            try:
-                edit_result = apply_material_sidecar_edits(original_text, edited_values)
-            except Exception as exc:
-                QMessageBox.warning(dialog, material_sidecar_text.material_sidecar_edit_failed_dialog_title(), str(exc))
+            if not dialog.isVisible():
                 return
-            related_files = detect_material_sidecar_related_files(
-                entry,
-                references=tuple(self.current_archive_model_texture_references),
-                archive_entries_by_basename=self.archive_entries_by_basename,
-            )
             selected_related_entries = self._prompt_material_sidecar_related_files(
-                related_files,
+                preparation.related_files,
                 edited_entry=entry,
             )
             if selected_related_entries is None:
@@ -1005,20 +836,26 @@ class ArchiveMaterialSidecarEditorMixin:
                 return
             export_root, package_info, create_no_encrypt_file, _include_related_files, export_options = target
 
-            def _task(log: Callable[[str], None]) -> object:
+            def _task(log: Callable[[str], None], stop_event: threading.Event) -> object:
                 return export_material_sidecar_mod_package(
                     edited_entry=entry,
-                    edited_text=edit_result.text,
+                    edited_text=preparation.edit_result.text,
                     related_entries=selected_related_entries,
                     parent_root=export_root,
                     package_info=package_info,
                     export_options=export_options,
                     create_no_encrypt_file=create_no_encrypt_file,
-                    read_entry_bytes=lambda archive_entry: read_archive_entry_data(archive_entry)[0],
+                    read_entry_bytes=lambda archive_entry: read_archive_entry_data(
+                        archive_entry,
+                        stop_event=stop_event,
+                    )[0],
                     on_log=log,
+                    stop_event=stop_event,
                 )
 
             def _handle_complete(result: object) -> None:
+                if request_id != int(getattr(self, "_material_sidecar_export_request_id", 0) or 0):
+                    return
                 package_root = getattr(result, "package_root", None)
                 if not isinstance(package_root, Path):
                     self.set_status_message(material_sidecar_text.material_sidecar_unexpected_export_payload_status(), error=True)
@@ -1027,11 +864,50 @@ class ArchiveMaterialSidecarEditorMixin:
                 QMessageBox.information(dialog, title, message)
                 self.set_status_message(material_sidecar_text.material_sidecar_export_complete_status(package_root))
 
-            self._run_utility_task(
+            self._run_utility_task_when_idle(
                 status_message=material_sidecar_text.material_sidecar_export_task_status(entry.basename),
                 task=_task,
                 on_complete=_handle_complete,
                 show_archive_progress=True,
+                task_accepts_cancel=True,
+            )
+
+        def _handle_material_sidecar_export_prepared(request_id: int, result: object) -> None:
+            if request_id != int(getattr(self, "_material_sidecar_export_request_id", 0) or 0):
+                return
+            if not isinstance(result, MaterialSidecarExportPreparation):
+                self.set_status_message("Material sidecar export preparation returned invalid data.", error=True)
+                return
+            self._run_when_background_idle(
+                lambda: _continue_material_sidecar_export(request_id, result),
+                label="opening the material sidecar export options",
+            )
+
+        def _export() -> None:
+            edited_values = _edited_values()
+            if not edited_values:
+                title, message = material_sidecar_text.material_sidecar_no_changes_dialog_text()
+                QMessageBox.information(dialog, title, message)
+                return
+            request_id = int(getattr(self, "_material_sidecar_export_request_id", 0) or 0) + 1
+            self._material_sidecar_export_request_id = request_id
+            references = tuple(self.current_archive_model_texture_references)
+            archive_entries_by_basename = self.archive_entries_by_basename
+            self._run_utility_task_when_idle(
+                status_message=f"Preparing material sidecar export for {entry.basename}...",
+                task=lambda _log, stop_event: prepare_material_sidecar_export(
+                    entry,
+                    original_text,
+                    dict(edited_values),
+                    references=references,
+                    archive_entries_by_basename=archive_entries_by_basename,
+                    stop_event=stop_event,
+                ),
+                on_complete=lambda result: _handle_material_sidecar_export_prepared(
+                    request_id,
+                    result,
+                ),
+                task_accepts_cancel=True,
             )
 
         pick_color_button.clicked.connect(_pick_color)

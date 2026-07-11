@@ -6,7 +6,10 @@ from typing import Optional
 from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
 
-from cdmw.core.research import MaterialTextureReferenceRow, TextureSetGroup
+from cdmw.domain.research.contracts import (
+    MaterialTextureReferenceRow,
+    TextureSetGroup,
+)
 from cdmw.ui.research.archive_picker_state import cached_archive_snapshot_cache_key
 from cdmw.ui.research.analysis_state import (
     compare_path_missing_status_text,

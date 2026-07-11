@@ -19,6 +19,7 @@ from cdmw.ui.texture_workflow.editor_action_state import (
 from cdmw.ui.texture_workflow.editor_floating_state import (
     texture_editor_floating_canvas_transform_state,
 )
+from cdmw.ui.texture_workflow.editor_export_state import texture_editor_native_dds_action_text
 from cdmw.ui.texture_workflow.editor_images import (
     _rgba_array_to_qimage,
     texture_editor_layer_thumbnail_preview_pixels,
@@ -86,12 +87,17 @@ class TextureEditorRefreshUiMixin:
             self._refresh_zoom_indicators()
             self._refresh_navigation_overlays()
             return
+        canvas_dirty_bounds = self._composite_dirty_bounds
         flattened = self._current_composite_rgba()
         original_flattened = texture_editor_active_session_compare_flattened(
             self._sessions,
             self._active_session_index,
         )
-        self.canvas.set_rgba_images(flattened, original_rgba=original_flattened)
+        self.canvas.set_rgba_images(
+            flattened,
+            original_rgba=original_flattened,
+            dirty_bounds=canvas_dirty_bounds,
+        )
         self.canvas.set_selection(self.document.selection)
         self.canvas.set_quick_mask_overlay(texture_editor_quick_mask_overlay_image(self.document))
         floating_state = texture_editor_floating_canvas_transform_state(self.document, self._floating_pixels)
@@ -282,19 +288,16 @@ class TextureEditorRefreshUiMixin:
     def _refresh_ui(self) -> None:
         sidebar_scroll = self._capture_left_sidebar_scroll()
         self._refresh_editor_views(
-            canvas=True,
-            metadata=True,
-            layers=True,
-            history=True,
-            selection=True,
-            adjustments=True,
-            transform=True,
-            status=True,
+            canvas=True, metadata=True, layers=True, history=True, selection=True,
+            adjustments=True, transform=True, status=True,
             tool_visibility=False,
         )
         self._refresh_channel_controls()
         has_doc = self.document is not None
         busy = self._busy()
+        native_dds_action_text = texture_editor_native_dds_action_text(self.document)
+        self.export_dds_button.setText(native_dds_action_text)
+        self.action_export_dds.setText(native_dds_action_text)
         main_actions = texture_editor_main_action_state(self.document, busy=busy)
         for button in (
             self.open_file_button,

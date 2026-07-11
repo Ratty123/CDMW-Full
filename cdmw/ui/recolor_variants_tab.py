@@ -3,10 +3,10 @@ from __future__ import annotations
 import dataclasses
 import threading
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional
 
-from PySide6.QtCore import QObject, QSettings, Qt, QThread, QUrl, Signal, Slot
-from PySide6.QtGui import QColor, QDesktopServices, QPixmap
+from PySide6.QtCore import QSettings, Qt, QThread, QUrl, Signal, Slot
+from PySide6.QtGui import QColor, QDesktopServices, QImage, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.recolor_variants import (
+from cdmw.services.texture_workflow_service import (
     RecolorVariantAnalysis,
     RecolorVariantBuildResult,
     RecolorVariantOutputProfile,
@@ -38,7 +38,6 @@ from cdmw.core.recolor_variants import (
     RecolorVariantRule,
     RecolorVariantTemplate,
     analyze_recolor_variant_package,
-    build_recolor_variant_outputs,
     export_recolor_variant_templates,
     import_recolor_variant_templates,
     load_recolor_variant_templates,
@@ -59,58 +58,7 @@ from cdmw.ui.widgets import (
     responsive_sidebar_bounds,
     set_sidebar_width_policy,
 )
-
-
-class RecolorVariantBuildWorker(QObject):
-    completed = Signal(object)
-    failed = Signal(str)
-    log_message = Signal(str)
-    progress_changed = Signal(int, int, str)
-    finished = Signal()
-
-    def __init__(
-        self,
-        analysis: RecolorVariantAnalysis,
-        template: RecolorVariantTemplate,
-        output_root: Path,
-        profiles: Sequence[RecolorVariantOutputProfile],
-        *,
-        texconv_path: Optional[Path],
-        overwrite_existing: bool,
-    ) -> None:
-        super().__init__()
-        self.analysis = analysis
-        self.template = template
-        self.output_root = output_root
-        self.profiles = tuple(profiles)
-        self.texconv_path = texconv_path
-        self.overwrite_existing = bool(overwrite_existing)
-        self.stop_event = threading.Event()
-
-    def stop(self) -> None:
-        self.stop_event.set()
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            result = build_recolor_variant_outputs(
-                self.analysis,
-                self.template,
-                self.output_root,
-                self.profiles,
-                texconv_path=self.texconv_path,
-                overwrite_existing=self.overwrite_existing,
-                stop_event=self.stop_event,
-                on_log=self.log_message.emit,
-                on_progress=self.progress_changed.emit,
-            )
-            self.completed.emit(result)
-        except RunCancelled:
-            self.failed.emit("Recolor variant build cancelled.")
-        except Exception as exc:
-            self.failed.emit(str(exc))
-        finally:
-            self.finished.emit()
+from cdmw.workers.recolor_variant_workers import RecolorVariantBuildWorker, RecolorVariantOperationWorker
 
 
 class _RecolorPreviewLabel(QLabel):
@@ -131,6 +79,16 @@ class _RecolorPreviewLabel(QLabel):
 
     def set_preview_path(self, path: Path, fallback: str) -> None:
         pixmap = QPixmap(str(path))
+        if pixmap.isNull():
+            self.set_placeholder(fallback)
+            return
+        self._placeholder = fallback
+        self._source_pixmap = pixmap
+        self.setText("")
+        self._sync_pixmap()
+
+    def set_preview_image(self, image: QImage, fallback: str) -> None:
+        pixmap = QPixmap.fromImage(image)
         if pixmap.isNull():
             self.set_placeholder(fallback)
             return
@@ -174,7 +132,12 @@ class RecolorVariantsTab(QWidget):
         self.last_output_roots: tuple[Path, ...] = ()
         self.current_preview_image: Optional[RecolorVariantPreviewImage] = None
         self.worker_thread: Optional[QThread] = None
-        self.build_worker: Optional[RecolorVariantBuildWorker] = None
+        self.build_worker: Optional[object] = None
+        self._worker_kind = ""
+        self._operation_request_id = 0
+        self._operation_complete_handler: Optional[Callable[[object], None]] = None
+        self._operation_error_handler: Optional[Callable[[str], None]] = None
+        self._open_in_editor_after_preview_target_id = ""
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
@@ -256,6 +219,7 @@ class RecolorVariantsTab(QWidget):
 
         self._reload_template_combo()
         self._load_settings()
+        self.source_path_edit.textChanged.connect(self._handle_source_path_changed)
         self._sync_template_editor()
         self._sync_action_state()
 
@@ -685,36 +649,116 @@ class RecolorVariantsTab(QWidget):
             QMessageBox.warning(self, "Export failed", str(exc))
             self.status_message_requested.emit(f"Recolor template export failed: {exc}", True)
 
+    def _start_recolor_operation(
+        self,
+        kind: str,
+        task: Callable[[threading.Event], object],
+        complete_handler: Callable[[object], None],
+        error_handler: Callable[[str], None],
+    ) -> bool:
+        if self.worker_thread is not None:
+            self.status_message_requested.emit("A recolor operation is already running.", True)
+            return False
+        self._operation_request_id += 1
+        request_id = self._operation_request_id
+        thread = QThread(self)
+        worker = RecolorVariantOperationWorker(request_id, task)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._handle_operation_completed, Qt.ConnectionType.QueuedConnection)
+        worker.failed.connect(self._handle_operation_failed, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(self._request_recolor_thread_quit, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(self._handle_worker_finished, Qt.ConnectionType.QueuedConnection)
+        self.worker_thread = thread
+        self.build_worker = worker
+        self._worker_kind = str(kind)
+        self._operation_complete_handler = complete_handler
+        self._operation_error_handler = error_handler
+        self._sync_action_state()
+        thread.start()
+        return True
+
+    @Slot(int, object)
+    def _handle_operation_completed(self, request_id: int, result: object) -> None:
+        if int(request_id) != int(self._operation_request_id):
+            return
+        handler = self._operation_complete_handler
+        if handler is not None:
+            handler(result)
+
+    @Slot(int, str)
+    def _handle_operation_failed(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self._operation_request_id):
+            return
+        handler = self._operation_error_handler
+        if handler is not None:
+            handler(str(message))
+
+    def _handle_source_path_changed(self, _text: str) -> None:
+        if self._worker_kind != "analysis":
+            return
+        self._operation_request_id += 1
+        worker = self.build_worker
+        if worker is not None and hasattr(worker, "stop"):
+            worker.stop()
+
+    @Slot()
+    def _request_recolor_thread_quit(self) -> None:
+        thread = self.worker_thread
+        if thread is not None:
+            try:
+                thread.quit()
+            except RuntimeError:
+                pass
+
     def analyze_source(self) -> None:
         source_text = self.source_path_edit.text().strip()
         if not source_text:
             self.status_message_requested.emit("Choose a Source Mod folder or zip first.", True)
             return
         source = Path(source_text).expanduser()
-        if not source.exists():
-            self.status_message_requested.emit(f"Source Mod not found: {source}", True)
-            return
         self._save_settings()
         self._append_log(f"Analyzing recolor targets: {source}")
-        try:
-            self.analysis = analyze_recolor_variant_package(source)
-        except Exception as exc:
+        source_key = str(source.absolute()).casefold()
+
+        def task(stop_event: threading.Event) -> object:
+            if not source.exists():
+                raise FileNotFoundError(f"Source Mod not found: {source}")
+            if stop_event.is_set():
+                raise RunCancelled("Recolor analysis cancelled.")
+            result = analyze_recolor_variant_package(source, stop_event=stop_event)
+            if stop_event.is_set():
+                raise RunCancelled("Recolor analysis cancelled.")
+            return result
+
+        def failed(message: str) -> None:
             self.analysis = None
-            self.status_message_requested.emit(f"Recolor analysis failed: {exc}", True)
-            return
-        self._populate_targets_tree()
-        editable_count = len(self.analysis.editable_targets)
-        self.summary_label.setText(
-            f"{self.analysis.package_info.title}: {editable_count} editable target(s), "
-            f"{len(self.analysis.targets) - editable_count} locked/risky target(s), "
-            f"{len(self.analysis.payload_paths)} payload file(s)."
-        )
-        self.outputs_tree.clear()
-        self._refresh_preview_summary()
-        for warning in self.analysis.warnings:
-            self._append_log(f"Warning: {warning}")
-        self.status_message_requested.emit("Recolor analysis complete.", False)
-        self._sync_action_state()
+            self.status_message_requested.emit(f"Recolor analysis failed: {message}", True)
+
+        def completed(value: object) -> None:
+            if not isinstance(value, RecolorVariantAnalysis):
+                failed("Analysis returned an unexpected result.")
+                return
+            if str(Path(self.source_path_edit.text().strip()).expanduser().absolute()).casefold() != source_key:
+                return
+            self.analysis = value
+            self._populate_targets_tree()
+            editable_count = len(value.editable_targets)
+            self.summary_label.setText(
+                f"{value.package_info.title}: {editable_count} editable target(s), "
+                f"{len(value.targets) - editable_count} locked/risky target(s), "
+                f"{len(value.payload_paths)} payload file(s)."
+            )
+            self.outputs_tree.clear()
+            self._refresh_preview_summary()
+            for warning in value.warnings:
+                self._append_log(f"Warning: {warning}")
+            self.status_message_requested.emit("Recolor analysis complete.", False)
+            self._sync_action_state()
+
+        if self._start_recolor_operation("analysis", task, completed, failed):
+            self.status_message_requested.emit("Analyzing recolor targets...", False)
 
     def _populate_targets_tree(self) -> None:
         self.targets_tree.clear()
@@ -794,6 +838,12 @@ class RecolorVariantsTab(QWidget):
         return matching_recolor_variant_rule(target, self._template_from_controls().rules)
 
     def _handle_target_selection_changed(self) -> None:
+        if self._worker_kind == "preview":
+            self._operation_request_id += 1
+            worker = self.build_worker
+            if worker is not None and hasattr(worker, "stop"):
+                worker.stop()
+        self._open_in_editor_after_preview_target_id = ""
         self.current_preview_image = None
         self._clear_preview_images()
         target = self._selected_target()
@@ -874,6 +924,19 @@ class RecolorVariantsTab(QWidget):
             return
         label.setPixmap(pixmap.scaled(label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
+    def _set_preview_image(self, label: QLabel, image: QImage, fallback: str) -> None:
+        pixmap = QPixmap.fromImage(image)
+        if pixmap.isNull():
+            if isinstance(label, _RecolorPreviewLabel):
+                label.set_placeholder(fallback)
+            else:
+                label.setText(fallback)
+            return
+        if isinstance(label, _RecolorPreviewLabel):
+            label.set_preview_image(image, fallback)
+            return
+        label.setPixmap(pixmap.scaled(label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
     def _texture_editor_settings_for_rule(self, rule: RecolorVariantRule) -> TextureEditorToolSettings:
         return texture_editor_settings_for_recolor_variant_rule(rule)
 
@@ -887,26 +950,62 @@ class RecolorVariantsTab(QWidget):
             return
         texconv_text = self.get_texconv_path().strip()
         texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-        if texconv_path is not None and not texconv_path.is_file():
-            texconv_path = None
-        try:
-            self.current_preview_image = preview_recolor_variant_target_image(
-                self.analysis,
-                self._template_from_controls(),
-                target.target_id,
+        analysis = self.analysis
+        if analysis is None:
+            return
+        template = self._template_from_controls()
+        target_id = target.target_id
+
+        def task(stop_event: threading.Event) -> object:
+            preview = preview_recolor_variant_target_image(
+                analysis,
+                template,
+                target_id,
                 texconv_path=texconv_path,
+                stop_event=stop_event,
             )
-        except Exception as exc:
+            source_image = QImage(str(preview.source_png))
+            result_image = QImage(str(preview.preview_png))
+            if source_image.isNull() or result_image.isNull():
+                raise ValueError("Recolor preview images could not be decoded.")
+            return preview, source_image, result_image
+
+        def failed(message: str) -> None:
             self.current_preview_image = None
             self._clear_preview_images()
-            self.status_message_requested.emit(f"Recolor preview failed: {exc}", True)
-            return
-        self._set_preview_pixmap(self.preview_source_image_label, self.current_preview_image.source_png, "Before unavailable")
-        self._set_preview_pixmap(self.preview_result_image_label, self.current_preview_image.preview_png, "After unavailable")
-        for warning in self.current_preview_image.warnings:
-            self._append_log(f"Warning: {warning}")
-        self.status_message_requested.emit("Selected recolor preview updated.", False)
-        self._sync_action_state()
+            self._open_in_editor_after_preview_target_id = ""
+            self.status_message_requested.emit(f"Recolor preview failed: {message}", True)
+
+        def completed(value: object) -> None:
+            if not isinstance(value, tuple) or len(value) != 3:
+                failed("Preview returned an unexpected result.")
+                return
+            preview, source_image, result_image = value
+            selected = self._selected_target()
+            if (
+                not isinstance(preview, RecolorVariantPreviewImage)
+                or not isinstance(source_image, QImage)
+                or not isinstance(result_image, QImage)
+                or selected is None
+                or selected.target_id != target_id
+                or self._template_from_controls() != template
+            ):
+                return
+            self.current_preview_image = preview
+            self._set_preview_image(self.preview_source_image_label, source_image, "Before unavailable")
+            self._set_preview_image(self.preview_result_image_label, result_image, "After unavailable")
+            for warning in preview.warnings:
+                self._append_log(f"Warning: {warning}")
+            self.status_message_requested.emit("Selected recolor preview updated.", False)
+            self._sync_action_state()
+            if self._open_in_editor_after_preview_target_id == target_id:
+                self._open_in_editor_after_preview_target_id = ""
+                self._emit_selected_target_to_editor(selected)
+
+        if self._start_recolor_operation("preview", task, completed, failed):
+            self.status_message_requested.emit("Preparing selected recolor preview...", False)
+        else:
+            self._open_in_editor_after_preview_target_id = ""
 
     def open_selected_target_in_editor(self) -> None:
         target = self._selected_target()
@@ -917,8 +1016,13 @@ class RecolorVariantsTab(QWidget):
             self.status_message_requested.emit("Only DDS texture targets can open in Texture Editor.", True)
             return
         if self.current_preview_image is None or self.current_preview_image.target_id != target.target_id:
+            self._open_in_editor_after_preview_target_id = target.target_id
             self.refresh_selected_preview()
-        if self.current_preview_image is None:
+            return
+        self._emit_selected_target_to_editor(target)
+
+    def _emit_selected_target_to_editor(self, target: object) -> None:
+        if self.current_preview_image is None or self.analysis is None:
             return
         rule = self._matching_rule_for_target(target)
         if rule is None:
@@ -975,6 +1079,9 @@ class RecolorVariantsTab(QWidget):
         return tuple(profiles)
 
     def start_build(self) -> None:
+        if self.worker_thread is not None:
+            self.status_message_requested.emit("A recolor operation is already running.", True)
+            return
         if self.analysis is None:
             self.status_message_requested.emit("Analyze a Source Mod first.", True)
             return
@@ -990,8 +1097,6 @@ class RecolorVariantsTab(QWidget):
         template = self._template_from_controls()
         texconv_text = self.get_texconv_path().strip()
         texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-        if texconv_path is not None and not texconv_path.is_file():
-            texconv_path = None
         self.build_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.outputs_tree.clear()
@@ -1006,21 +1111,26 @@ class RecolorVariantsTab(QWidget):
             texconv_path=texconv_path,
             overwrite_existing=self.overwrite_checkbox.isChecked(),
         )
+        self._operation_request_id += 1
+        self._worker_kind = "build"
+        self._operation_complete_handler = None
+        self._operation_error_handler = None
         self.build_worker.moveToThread(self.worker_thread)
         self.worker_thread.started.connect(self.build_worker.run)
-        self.build_worker.completed.connect(self._handle_build_complete)
-        self.build_worker.failed.connect(self._handle_build_failed)
-        self.build_worker.log_message.connect(self._append_log)
-        self.build_worker.progress_changed.connect(self._handle_progress)
-        self.build_worker.finished.connect(self.worker_thread.quit)
+        self.build_worker.completed.connect(self._handle_build_complete, Qt.ConnectionType.QueuedConnection)
+        self.build_worker.failed.connect(self._handle_build_failed, Qt.ConnectionType.QueuedConnection)
+        self.build_worker.log_message.connect(self._append_log, Qt.ConnectionType.QueuedConnection)
+        self.build_worker.progress_changed.connect(self._handle_progress, Qt.ConnectionType.QueuedConnection)
+        self.build_worker.finished.connect(self._request_recolor_thread_quit, Qt.ConnectionType.QueuedConnection)
         self.build_worker.finished.connect(self.build_worker.deleteLater)
         self.worker_thread.finished.connect(self._handle_worker_finished)
         self.worker_thread.start()
 
     def stop_build(self) -> None:
-        if self.build_worker is not None:
+        if self.build_worker is not None and hasattr(self.build_worker, "stop"):
             self.build_worker.stop()
-            self._append_log("Stopping recolor variant build...")
+            label = "build" if self._worker_kind == "build" else self._worker_kind or "operation"
+            self._append_log(f"Stopping recolor {label}...")
 
     @Slot(object)
     def _handle_build_complete(self, result: RecolorVariantBuildResult) -> None:
@@ -1067,8 +1177,10 @@ class RecolorVariantsTab(QWidget):
             self.worker_thread.deleteLater()
         self.worker_thread = None
         self.build_worker = None
-        self.build_button.setEnabled(self.analysis is not None)
-        self.stop_button.setEnabled(False)
+        self._worker_kind = ""
+        self._operation_complete_handler = None
+        self._operation_error_handler = None
+        self._sync_action_state()
 
     def open_output_folder(self) -> None:
         if self.last_output_roots:
@@ -1083,6 +1195,8 @@ class RecolorVariantsTab(QWidget):
 
     def _sync_action_state(self) -> None:
         busy = self.worker_thread is not None
+        self.analyze_button.setEnabled(not busy)
+        self.source_browse_button.setEnabled(not busy)
         self.build_button.setEnabled(self.analysis is not None and not busy)
         self.preview_template_button.setEnabled(self.analysis is not None and not busy)
         target = self._selected_target() if self.analysis is not None else None
@@ -1096,6 +1210,34 @@ class RecolorVariantsTab(QWidget):
         else:
             self.open_selected_in_editor_button.setToolTip("")
         self.stop_button.setEnabled(busy)
+
+    def iter_shutdown_workers(self) -> tuple[tuple[str, QThread, object], ...]:
+        if self.worker_thread is None or self.build_worker is None:
+            return ()
+        try:
+            if not self.worker_thread.isRunning():
+                return ()
+        except RuntimeError:
+            return ()
+        return ((str(getattr(self, "_worker_kind", "") or "build"), self.worker_thread, self.build_worker),)
+
+    def request_shutdown(self) -> None:
+        self._operation_request_id = int(getattr(self, "_operation_request_id", 0) or 0) + 1
+        self._open_in_editor_after_preview_target_id = ""
+        self._operation_complete_handler = None
+        self._operation_error_handler = None
+        self.stop_build()
+        if self.worker_thread is None:
+            return
+        try:
+            self.worker_thread.requestInterruption()
+            self.worker_thread.quit()
+        except RuntimeError:
+            pass
+
+    def closeEvent(self, event: object) -> None:  # type: ignore[override]
+        self.request_shutdown()
+        super().closeEvent(event)  # type: ignore[arg-type]
 
 
 def _settings_bool(value: object, default: bool = False) -> bool:

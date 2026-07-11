@@ -169,6 +169,7 @@ internal sealed partial class MeshViewport
             StatusRequested?.Invoke($"Edge mode: selected={_selectedEdges.Count} drag={edgeIds.Length} xray={(ShowXRay ? "on" : "off")}");
         }
         _hoverEdgeId = -1;
+        NotifyLocalSelectionChanged();
         UpdateGpuViewport();
         Invalidate();
     }
@@ -306,6 +307,7 @@ internal sealed partial class MeshViewport
             }
             _hoverEdgeId = -1;
             StatusRequested?.Invoke($"Edge mode: selected={_selectedEdges.Count} hover=0 xray={(ShowXRay ? "on" : "off")}");
+            NotifyLocalSelectionChanged();
             UpdateGpuViewport();
             Invalidate();
             return;
@@ -313,6 +315,7 @@ internal sealed partial class MeshViewport
         ApplyEdgeSelectionOperation(edgeId, CurrentSelectionOperation());
         _hoverEdgeId = edgeId;
         StatusRequested?.Invoke($"Edge mode: selected={_selectedEdges.Count} hover=1 xray={(ShowXRay ? "on" : "off")}");
+        NotifyLocalSelectionChanged();
         UpdateGpuViewport();
         Invalidate();
     }
@@ -471,7 +474,7 @@ internal sealed partial class MeshViewport
         return area < -0.01f;
     }
 
-    private string CurrentTargetMode()
+    internal string CurrentTargetMode()
     {
         var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
         return options.TryGetValue("target_mode", out var value)

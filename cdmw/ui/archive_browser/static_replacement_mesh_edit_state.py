@@ -692,7 +692,7 @@ def _allow_python_selected_vertex_points_fallback(
     if mesh is None or not selected_vertices_by_source:
         return True
     try:
-        from cdmw.modding.mesh_native_core import native_mesh_core_available, record_native_mesh_core_fallback
+        from cdmw.services.mesh_workflow_service import native_mesh_core_available, record_native_mesh_core_fallback
     except Exception:
         return True
     try:
@@ -743,7 +743,7 @@ def _mesh_edit_native_selection_bounds(
     if mesh is None or not selected_vertices_by_source:
         return None
     try:
-        from cdmw.modding.mesh_native_core import summarize_native_mesh_selection_bounds
+        from cdmw.services.mesh_workflow_service import summarize_native_mesh_selection_bounds
     except Exception:
         return None
     try:

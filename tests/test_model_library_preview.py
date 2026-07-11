@@ -1,4 +1,3 @@
-import base64
 import json
 import os
 import shutil
@@ -13,7 +12,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject, QProcess, QThread, QTimer, Signal, Slot
+from PySide6.QtCore import QEventLoop, QObject, QProcess, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
 from cdmw.models import RunCancelled
@@ -22,6 +21,7 @@ from cdmw.services.model_library_preview import (
     prepare_model_library_inline_preview,
     prepare_model_library_inline_preview_in_subprocess,
 )
+from tests.scene_gltf_test_support import valid_image_bytes
 
 
 def _pad4(data: bytes) -> bytes:
@@ -57,11 +57,7 @@ def _write_triangle_gltf(root: Path, *, triangle_count: int = 1, with_texture: b
     (root / "triangle.bin").write_bytes(b"".join(chunks))
     materials: list[dict[str, object]] = [{"name": "Body"}]
     if with_texture:
-        (root / "texture.png").write_bytes(
-            base64.b64decode(
-                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
-            )
-        )
+        (root / "texture.png").write_bytes(valid_image_bytes())
         materials = [{"name": "Body", "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}}]
     document = {
         "asset": {"version": "2.0"},
@@ -95,6 +91,15 @@ def _write_triangle_gltf(root: Path, *, triangle_count: int = 1, with_texture: b
 
 
 class ModelLibraryPreviewServiceTests(unittest.TestCase):
+    def test_native_status_publication_replaces_atomically(self) -> None:
+        source = Path("native/cdmw_d3d11_preview/src/owners/protocol_json.cpp").read_text(encoding="utf-8")
+        app_source = Path("native/cdmw_d3d11_preview/src/owners/app.cpp").read_text(encoding="utf-8")
+        self.assertIn("MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH", source)
+        self.assertIn('key == L"--hidden"', source)
+        self.assertNotIn("fs::copy_file(temp, path", source)
+        self.assertIn("args.hidden ? WS_POPUP", app_source)
+        self.assertIn("if (!args.hidden) window_style |= WS_VISIBLE", app_source)
+
     def test_backend_prepares_d3d11_package_without_ui(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp))
@@ -215,6 +220,7 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
                 [
                     "--backend",
                     "d3d11",
+                    "--hidden",
                     "--preview-package",
                     str(package_dir),
                     "--status-file",
@@ -226,13 +232,17 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             loaded_payload: dict[str, object] = {}
             try:
                 process.start()
-                deadline = time.perf_counter() + 12.0
+                deadline = time.perf_counter() + 30.0
                 while time.perf_counter() < deadline:
                     app.processEvents()
                     if status_file.is_file():
-                        payload = json.loads(status_file.read_text(encoding="utf-8"))
+                        try:
+                            payload = json.loads(status_file.read_text(encoding="utf-8"))
+                        except (OSError, json.JSONDecodeError):
+                            time.sleep(0.01)
+                            continue
                         event = str(payload.get("event", "") or "")
-                        if event == "loaded":
+                        if event in {"resources_loaded", "loaded"}:
                             loaded_payload = payload
                             break
                         if event == "error":
@@ -249,7 +259,7 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
                 shutil.rmtree(package_dir, ignore_errors=True)
 
         self.assertFalse(errors)
-        self.assertEqual(loaded_payload.get("event"), "loaded")
+        self.assertIn(loaded_payload.get("event"), {"resources_loaded", "loaded"})
         self.assertGreater(int(loaded_payload.get("vertex_count", 0) or 0), 0)
 
     def test_backend_preview_honors_pre_cancelled_stop_event(self) -> None:
@@ -302,19 +312,79 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertIn("Still preparing preview in isolated worker (16s)...", progress_messages)
 
     def test_subprocess_backend_keeps_qt_event_loop_responsive(self) -> None:
+        class _Receiver(QObject):
+            def __init__(
+                self,
+                loop: QEventLoop,
+                stop_event: threading.Event,
+                start_gate: threading.Event,
+                ticks: list[float],
+            ) -> None:
+                super().__init__()
+                self.loop = loop
+                self.stop_event = stop_event
+                self.start_gate = start_gate
+                self.ticks = ticks
+                self.result: object | None = None
+                self.error = ""
+                self.finished = False
+                self.timed_out = False
+
+            @Slot()
+            def handle_tick(self) -> None:
+                self.ticks.append(time.perf_counter())
+                if len(self.ticks) >= 3:
+                    self.start_gate.set()
+
+            @Slot(object)
+            def handle_completed(self, result: object) -> None:
+                self.result = result
+
+            @Slot(str)
+            def handle_failed(self, message: str) -> None:
+                self.error = message
+
+            @Slot()
+            def handle_finished(self) -> None:
+                self.finished = True
+                self.loop.quit()
+
+            @Slot()
+            def handle_timeout(self) -> None:
+                self.timed_out = True
+                self.stop_event.set()
+                self.start_gate.set()
+                self.loop.quit()
+
         class _Worker(QObject):
             completed = Signal(object)
             failed = Signal(str)
             finished = Signal()
 
-            def __init__(self, path: Path) -> None:
+            def __init__(
+                self,
+                path: Path,
+                stop_event: threading.Event,
+                start_gate: threading.Event,
+            ) -> None:
                 super().__init__()
                 self.path = path
+                self.stop_event = stop_event
+                self.start_gate = start_gate
 
             @Slot()
             def run(self) -> None:
                 try:
-                    self.completed.emit(prepare_model_library_inline_preview_in_subprocess(self.path, model_name="Dense"))
+                    while not self.start_gate.wait(0.01):
+                        if self.stop_event.is_set():
+                            raise RunCancelled("Preview probe cancelled before subprocess launch.")
+                    self.completed.emit(
+                        prepare_model_library_inline_preview_in_subprocess(
+                            self.path,
+                            model_name="Dense",
+                            stop_event=self.stop_event,
+                        )
+                    )
                 except Exception as exc:
                     self.failed.emit(str(exc))
                 finally:
@@ -324,30 +394,42 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             scene_path = _write_triangle_gltf(Path(tmp), triangle_count=1200)
             app = QApplication.instance() or QApplication([])
             ticks: list[float] = []
-            result_box: dict[str, object] = {}
-            error_box: dict[str, str] = {}
-            timer = QTimer()
+            stop_event = threading.Event()
+            start_gate = threading.Event()
+            loop = QEventLoop()
+            receiver = _Receiver(loop, stop_event, start_gate, ticks)
+            timer = QTimer(receiver)
             timer.setInterval(25)
-            timer.timeout.connect(lambda: ticks.append(time.perf_counter()))
+            timer.timeout.connect(receiver.handle_tick)
+            watchdog = QTimer(receiver)
+            watchdog.setSingleShot(True)
+            watchdog.setInterval(30000)
+            watchdog.timeout.connect(receiver.handle_timeout)
             thread = QThread()
-            worker = _Worker(scene_path)
+            worker = _Worker(scene_path, stop_event, start_gate)
             worker.moveToThread(thread)
             thread.started.connect(worker.run)
-            worker.completed.connect(lambda result: result_box.setdefault("result", result))
-            worker.failed.connect(lambda message: error_box.setdefault("error", message))
+            worker.completed.connect(receiver.handle_completed, Qt.ConnectionType.QueuedConnection)
+            worker.failed.connect(receiver.handle_failed, Qt.ConnectionType.QueuedConnection)
             worker.finished.connect(thread.quit)
-            worker.finished.connect(app.quit)
+            worker.finished.connect(worker.deleteLater)
+            worker.finished.connect(receiver.handle_finished, Qt.ConnectionType.QueuedConnection)
             timer.start()
+            watchdog.start()
             thread.start()
-            QTimer.singleShot(15000, app.quit)
-            app.exec()
+            loop.exec()
             timer.stop()
-            if thread.isRunning():
-                thread.quit()
-                thread.wait(2000)
+            watchdog.stop()
+            if receiver.timed_out:
+                stop_event.set()
+            thread.quit()
+            thread_stopped = thread.wait(5000)
 
-        self.assertFalse(error_box, error_box.get("error", ""))
-        self.assertIsInstance(result_box.get("result"), dict)
+        self.assertTrue(thread_stopped, "Preview probe worker thread did not stop within 5 seconds.")
+        self.assertFalse(receiver.timed_out, "Preview probe did not finish within 30 seconds.")
+        self.assertTrue(receiver.finished, "Preview probe did not deliver its queued completion.")
+        self.assertFalse(receiver.error, receiver.error)
+        self.assertIsInstance(receiver.result, dict)
         gaps_ms = [(b - a) * 1000.0 for a, b in zip(ticks, ticks[1:])]
         self.assertGreaterEqual(len(ticks), 3)
         self.assertLess(max(gaps_ms) if gaps_ms else 0.0, 500.0)

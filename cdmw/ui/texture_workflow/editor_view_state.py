@@ -7,7 +7,7 @@ from typing import Dict, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
-from cdmw.core.texture_editor import flatten_texture_editor_layers, flatten_texture_editor_layers_region
+from cdmw.domain.textures.editor_composite import flatten_texture_editor_layers, flatten_texture_editor_layers_region
 from cdmw.models import TextureEditorDocument
 from cdmw.ui.texture_workflow.editor_floating_state import (
     compose_texture_editor_floating_selection,
@@ -162,6 +162,8 @@ def texture_editor_composite_render_state(
             document_height=document.height,
         )
         if bounds is not None:
+            if not composite_cache.flags.writeable:
+                composite_cache = composite_cache.copy()
             x0, y0, width, height = bounds
             x1 = x0 + width
             y1 = y0 + height
@@ -172,11 +174,10 @@ def texture_editor_composite_render_state(
                 floating_pixels,
                 bounds,
             )
-            composed = composite_cache.copy()
-            composed[y0:y1, x0:x1] = composed_region
+            composite_cache[y0:y1, x0:x1] = composed_region
             return TextureEditorCompositeRenderState(
-                rgba=composed,
-                cache=composed,
+                rgba=composite_cache,
+                cache=composite_cache,
                 cache_revision=int(revision),
                 dirty_bounds=None,
             )

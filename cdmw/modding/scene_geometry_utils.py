@@ -66,6 +66,31 @@ def _transform_vector(
     )
 
 
+def _linear_determinant(matrix: tuple[float, ...]) -> float:
+    return (
+        matrix[0] * (matrix[5] * matrix[10] - matrix[6] * matrix[9])
+        - matrix[1] * (matrix[4] * matrix[10] - matrix[6] * matrix[8])
+        + matrix[2] * (matrix[4] * matrix[9] - matrix[5] * matrix[8])
+    )
+
+
+def _transform_normal(
+    normal: tuple[float, float, float],
+    matrix: tuple[float, ...],
+) -> tuple[float, float, float]:
+    inverse = _invert_affine_matrix(matrix)
+    if inverse is None:
+        return _normalize_vec(_transform_vector(normal, matrix))
+    x, y, z = normal
+    return _normalize_vec(
+        (
+            inverse[0] * x + inverse[4] * y + inverse[8] * z,
+            inverse[1] * x + inverse[5] * y + inverse[9] * z,
+            inverse[2] * x + inverse[6] * y + inverse[10] * z,
+        )
+    )
+
+
 def _normalize_vec(value: tuple[float, float, float]) -> tuple[float, float, float]:
     length = math.sqrt(value[0] * value[0] + value[1] * value[1] + value[2] * value[2])
     if length <= 1e-8:
@@ -140,18 +165,30 @@ def _copy_submesh_with_transform(
     matrix: tuple[float, ...],
 ) -> SubMesh:
     vertices = [_transform_point(vertex, matrix) for vertex in submesh.vertices]
-    normals = [_normalize_vec(_transform_vector(normal, matrix)) for normal in submesh.normals]
+    mirrored = _linear_determinant(matrix) < 0.0
+    faces = [
+        (face[0], face[2], face[1]) if mirrored else tuple(face)
+        for face in submesh.faces
+        if len(face) == 3
+    ]
+    normals = [_transform_normal(normal, matrix) for normal in submesh.normals]
+    tangents = [_normalize_vec(_transform_vector(tangent, matrix)) for tangent in submesh.tangents]
     copied = SubMesh(
         name=submesh.name,
         material=submesh.material,
         texture=submesh.texture,
         vertices=vertices,
         uvs=list(submesh.uvs),
-        normals=normals if len(normals) == len(vertices) else _compute_smooth_normals(vertices, submesh.faces),
-        faces=list(submesh.faces),
+        normals=normals if len(normals) == len(vertices) else _compute_smooth_normals(vertices, faces),
+        tangents=tangents if len(tangents) == len(vertices) else [],
+        faces=faces,
         vertex_count=len(vertices),
-        face_count=len(submesh.faces),
+        face_count=len(faces),
     )
+    tangent_signs = list(getattr(submesh, "tangent_signs", ()) or ())
+    if len(tangent_signs) == len(vertices):
+        sign_scale = -1.0 if mirrored else 1.0
+        setattr(copied, "tangent_signs", [float(value) * sign_scale for value in tangent_signs])
     for attr_name in (
         "texture_slots",
         "preview_color",

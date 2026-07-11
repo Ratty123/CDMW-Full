@@ -8,7 +8,7 @@ from typing import Dict, Optional
 
 from PySide6.QtWidgets import QMessageBox, QWidget
 
-from cdmw.core.archive import archive_scan_shard_cache_health
+from cdmw.services.archive_environment_service import archive_scan_shard_cache_health
 
 
 class DashboardControllerMixin:

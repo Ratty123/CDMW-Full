@@ -413,7 +413,7 @@ def summarize_mesh_skinning(
         for index, submesh in enumerate(submeshes)
     )
     max_bone_index = max((part.max_bone_index for part in parts), default=-1)
-    skinned = bool(getattr(mesh, "has_bones", False)) or any(part.skinned for part in parts)
+    skinned = any(part.skinned for part in parts)
     animation_playback = summarize_mesh_animation_playback(
         bones,
         animation_clip,
@@ -785,6 +785,10 @@ def _first_sequence(mapping: Mapping[str, object], keys: tuple[str, ...]) -> tup
     return ()
 
 
+def _has_nonempty_bone_rows(*row_sets: tuple[object, ...]) -> bool:
+    return any(_row_tuple(row) for rows in row_sets for row in rows)
+
+
 def _part_summary(
     index: int,
     submesh: object,
@@ -795,7 +799,7 @@ def _part_summary(
     vertices = tuple(getattr(submesh, "vertices", ()) or ())
     bone_indices = tuple(getattr(submesh, "bone_indices", ()) or ())
     bone_weights = tuple(getattr(submesh, "bone_weights", ()) or ())
-    skinned = bool(bone_indices or bone_weights)
+    skinned = _has_nonempty_bone_rows(bone_indices, bone_weights)
     if not skinned:
         return MeshSkinningPartSummary(
             index=index,

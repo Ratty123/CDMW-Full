@@ -4,18 +4,22 @@ from array import array
 import ctypes
 import json
 import os
-import platform
 import tempfile
 import threading
 import time
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QProcess, QTimer, Qt, Signal
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QFrame, QWidget
 
 from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_COLOR
-from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
+from cdmw.services.preview_rendering_service import find_native_d3d11_host
+from cdmw.services.preview_rendering_service import (
+    NativePreviewPackageCacheLease,
+    acquire_native_preview_package_cache_lease_for_path,
+)
 
 
 def _write_i32_preview_delta(values: Sequence[int], suffix: str) -> tuple[dict[str, object], Path] | None:
@@ -140,6 +144,37 @@ def _mesh_edit_json_groups(groups: Sequence[Mapping[str, object]] | None) -> Seq
     return tuple(groups)
 
 
+def _delete_after_paths(value: object) -> tuple[Path, ...]:
+    paths: set[Path] = set()
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, Mapping):
+            if bool(item.get("delete_after")):
+                for key in ("path", "payload_file"):
+                    raw_path = str(item.get(key) or "").strip()
+                    if raw_path:
+                        paths.add(Path(raw_path))
+            pending.extend(item.values())
+        elif isinstance(item, (list, tuple)):
+            pending.extend(item)
+    return tuple(paths)
+
+
+def _remove_paths(paths: Iterable[Path]) -> None:
+    try:
+        from cdmw.services.mesh_workflow_service import release_native_preview_delta_path
+    except Exception:
+        release_native_preview_delta_path = None
+    for path in set(Path(item) for item in paths):
+        if release_native_preview_delta_path is not None and release_native_preview_delta_path(path):
+            continue
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 class NativeD3D11PreviewHostFrame(QFrame):
     _WM_SET_ZOOM = 0x8000 + 0x431
     _WM_SET_FIT = 0x8000 + 0x432
@@ -150,6 +185,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
     _HOST_CLASS = "CDMWNativeD3D11PreviewWindow"
     _MESH_EDIT_VERTEX_FILE_THRESHOLD = 512 * 1024
     _MESH_EDIT_TRIANGLE_FILE_THRESHOLD = 512 * 1024
+    _MESH_EDIT_ACK_TIMEOUT_SECONDS = 1.0
     view_state_changed = Signal(float, bool)
     view_state_payload_changed = Signal(object)
     debug_details_changed = Signal(str)
@@ -191,13 +227,33 @@ class NativeD3D11PreviewHostFrame(QFrame):
         self._last_event_payload: Dict[str, object] = {}
         self._last_mesh_edit_send_metrics: Dict[str, object] = {}
         self._side_by_side_split_ratio = 0.5
+        self._host_command_lock = threading.RLock()
+        self._mesh_edit_sender_condition = threading.Condition()
+        self._mesh_edit_sender_pending: tuple[int, int, int, int, dict[str, object], tuple[Path, ...]] | None = None
+        self._mesh_edit_sender_generation = 0
+        self._mesh_edit_sender_thread: threading.Thread | None = None
+        self._mesh_edit_sender_stopping = False
+        self._mesh_edit_sender_inflight_revision = 0
+        self._mesh_edit_sender_latest_revision = 0
+        self._mesh_edit_sender_last_sent_revision = 0
+        self._mesh_edit_sender_last_acked_revision = 0
+        self._mesh_edit_sender_last_rejected_revision = 0
+        self._mesh_edit_sender_ack_count = 0
+        self._mesh_edit_sender_rejected_count = 0
+        self._mesh_edit_sender_ignored_ack_count = 0
+        self._mesh_edit_sender_coalesced_count = 0
+        self._mesh_edit_revision_ack_capable: bool | None = None
+        self._native_preview_package_cache_leases: dict[str, NativePreviewPackageCacheLease] = {}
+        self._tracked_renderer_process: object | None = None
+        self.destroyed.connect(self._stop_mesh_edit_sender)
+        self.destroyed.connect(self._release_native_preview_package_cache_leases)
 
     def _host_hwnd(self) -> int:
         try:
             parent_hwnd = int(self.winId())
         except Exception:
             return 0
-        if parent_hwnd <= 0 or platform.system().lower() != "windows":
+        if parent_hwnd <= 0 or os.name != "nt":
             return 0
         try:
             user32 = ctypes.windll.user32
@@ -286,44 +342,347 @@ class NativeD3D11PreviewHostFrame(QFrame):
             sender_hwnd = int(self.winId())
         except Exception:
             return False
-        return self._send_host_json_command_to_hwnd(hwnd, sender_hwnd, payload)
+        with self._host_command_lock:
+            return self._send_host_json_command_to_hwnd(hwnd, sender_hwnd, payload)
 
-    def _send_host_json_command_async(self, payload: Mapping[str, object], *, cleanup_path: Optional[Path] = None) -> bool:
+    def _send_host_json_command_async(
+        self,
+        payload: Mapping[str, object],
+        *,
+        cleanup_path: Optional[Path] = None,
+        cleanup_paths: Iterable[Path] = (),
+    ) -> bool:
+        owned_paths = set(_delete_after_paths(payload))
+        owned_paths.update(Path(path) for path in cleanup_paths)
+        if cleanup_path is not None:
+            owned_paths.add(Path(cleanup_path))
         if "_send_host_json_command" in self.__dict__:
-            return self._send_host_json_command(payload)
+            ok = self._send_host_json_command(payload)
+            if not ok:
+                _remove_paths(owned_paths)
+            return ok
         hwnd = self._host_hwnd()
         if hwnd <= 0:
+            _remove_paths(owned_paths)
             return False
         try:
             sender_hwnd = int(self.winId())
         except Exception:
+            _remove_paths(owned_paths)
             return False
-        payload_copy = dict(payload)
+        try:
+            revision = int(payload.get("revision", 0) or 0)
+        except (TypeError, ValueError, OverflowError):
+            revision = 0
+        if revision <= 0:
+            _remove_paths(owned_paths)
+            return False
+        with self._mesh_edit_sender_condition:
+            if self._mesh_edit_sender_stopping or revision < self._mesh_edit_sender_latest_revision:
+                _remove_paths(owned_paths)
+                return False
+            previous = self._mesh_edit_sender_pending
+            self._mesh_edit_sender_pending = (
+                self._mesh_edit_sender_generation,
+                revision,
+                hwnd,
+                sender_hwnd,
+                dict(payload),
+                tuple(owned_paths),
+            )
+            if previous is not None:
+                self._mesh_edit_sender_coalesced_count += 1
+                _remove_paths(set(previous[5]) - owned_paths)
+            if self._mesh_edit_sender_thread is None or not self._mesh_edit_sender_thread.is_alive():
+                self._mesh_edit_sender_thread = threading.Thread(
+                    target=self._mesh_edit_sender_loop,
+                    name="cdmw-d3d11-mesh-edit-send",
+                    daemon=True,
+                )
+                self._mesh_edit_sender_thread.start()
+            self._mesh_edit_sender_condition.notify_all()
+            return True
 
-        def _send() -> None:
-            ok = self._send_host_json_command_to_hwnd(hwnd, sender_hwnd, payload_copy)
-            if not ok and cleanup_path is not None:
+    def _mesh_edit_sender_loop(self) -> None:
+        while True:
+            with self._mesh_edit_sender_condition:
+                while self._mesh_edit_sender_pending is None and not self._mesh_edit_sender_stopping:
+                    self._mesh_edit_sender_condition.wait()
+                if self._mesh_edit_sender_stopping:
+                    pending = self._mesh_edit_sender_pending
+                    self._mesh_edit_sender_pending = None
+                    if pending is not None:
+                        _remove_paths(pending[5])
+                    return
+                generation, revision, hwnd, sender_hwnd, payload, cleanup_paths = self._mesh_edit_sender_pending
+                self._mesh_edit_sender_pending = None
+                self._mesh_edit_sender_inflight_revision = revision
+                ack_count = self._mesh_edit_sender_ack_count
+            with self._host_command_lock:
+                with self._mesh_edit_sender_condition:
+                    stale_generation = generation != self._mesh_edit_sender_generation
+                ok = False if stale_generation else self._send_host_json_command_to_hwnd(hwnd, sender_hwnd, payload)
+            if not ok:
+                _remove_paths(cleanup_paths)
+            with self._mesh_edit_sender_condition:
+                if generation != self._mesh_edit_sender_generation:
+                    _remove_paths(cleanup_paths)
+                    self._mesh_edit_sender_inflight_revision = 0
+                    self._mesh_edit_sender_condition.notify_all()
+                    continue
+                if ok:
+                    self._mesh_edit_sender_last_sent_revision = max(
+                        self._mesh_edit_sender_last_sent_revision,
+                        revision,
+                    )
+                    deadline = time.monotonic() + self._MESH_EDIT_ACK_TIMEOUT_SECONDS
+                    while (
+                        self._mesh_edit_sender_ack_count == ack_count
+                        and not self._mesh_edit_sender_stopping
+                        and time.monotonic() < deadline
+                    ):
+                        self._mesh_edit_sender_condition.wait(max(0.0, deadline - time.monotonic()))
+                self._mesh_edit_sender_inflight_revision = 0
+                self._mesh_edit_sender_condition.notify_all()
+
+    def _reserve_mesh_edit_revision(self, requested: int | None = None) -> int:
+        with self._mesh_edit_sender_condition:
+            if requested is None:
+                revision = self._mesh_edit_sender_latest_revision + 1
+            else:
                 try:
-                    cleanup_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
+                    revision = int(requested)
+                except (TypeError, ValueError, OverflowError):
+                    return 0
+                if revision <= self._mesh_edit_sender_latest_revision:
+                    return 0
+            self._mesh_edit_sender_latest_revision = revision
+            return revision
 
-        threading.Thread(target=_send, name="cdmw-d3d11-mesh-edit-send", daemon=True).start()
-        return True
+    @staticmethod
+    def _mesh_edit_revision_from_payload(payload: Mapping[str, object]) -> int:
+        raw_revision = payload.get("edit_revision", payload.get("revision", 0))
+        try:
+            return int(raw_revision or 0)
+        except (TypeError, ValueError, OverflowError):
+            return 0
+
+    def _note_mesh_edit_protocol_capabilities(self, payload: Mapping[str, object]) -> None:
+        raw_capabilities = payload.get("capabilities", payload.get("protocol_capabilities", ()))
+        if isinstance(raw_capabilities, Mapping):
+            capabilities = {
+                str(key).strip().lower()
+                for key, enabled in raw_capabilities.items()
+                if bool(enabled)
+            }
+        elif isinstance(raw_capabilities, (list, tuple, set)):
+            capabilities = {str(item).strip().lower() for item in raw_capabilities}
+        else:
+            capabilities = set()
+        if "mesh_edit_revision_ack_v1" in capabilities:
+            self._mesh_edit_revision_ack_capable = True
+
+    def _accept_mesh_edit_update_ack(self, payload: Mapping[str, object]) -> bool:
+        self._note_mesh_edit_protocol_capabilities(payload)
+        revision = self._mesh_edit_revision_from_payload(payload)
+        status = str(payload.get("status", "applied") or "applied").strip().lower()
+        with self._mesh_edit_sender_condition:
+            inflight = self._mesh_edit_sender_inflight_revision
+            if revision <= 0:
+                if self._mesh_edit_revision_ack_capable is True or inflight <= 0:
+                    self._mesh_edit_sender_ignored_ack_count += 1
+                    return False
+                self._mesh_edit_revision_ack_capable = False
+                revision = inflight
+            elif inflight <= 0 or revision != inflight or revision <= self._mesh_edit_sender_last_acked_revision:
+                self._mesh_edit_sender_ignored_ack_count += 1
+                return False
+            if status == "applied":
+                self._mesh_edit_sender_last_acked_revision = max(
+                    self._mesh_edit_sender_last_acked_revision,
+                    revision,
+                )
+            else:
+                self._mesh_edit_sender_last_rejected_revision = max(
+                    self._mesh_edit_sender_last_rejected_revision,
+                    revision,
+                )
+                try:
+                    native_last_applied = int(payload.get("last_applied_revision", 0) or 0)
+                except (TypeError, ValueError, OverflowError):
+                    native_last_applied = 0
+                self._mesh_edit_sender_latest_revision = max(
+                    self._mesh_edit_sender_latest_revision,
+                    native_last_applied,
+                )
+                self._mesh_edit_sender_rejected_count += 1
+            self._mesh_edit_sender_ack_count += 1
+            self._mesh_edit_sender_condition.notify_all()
+            return True
+
+    def _wait_for_mesh_edit_sender_idle(self, timeout_seconds: float = 2.0) -> bool:
+        deadline = time.monotonic() + max(0.0, float(timeout_seconds))
+        with self._mesh_edit_sender_condition:
+            while self._mesh_edit_sender_pending is not None or self._mesh_edit_sender_inflight_revision > 0:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0.0:
+                    return False
+                self._mesh_edit_sender_condition.wait(remaining)
+            return True
+
+    def _reset_mesh_edit_sender_for_package(self) -> None:
+        """Start each loaded package with an independent edit-revision stream."""
+
+        with self._mesh_edit_sender_condition:
+            self._mesh_edit_sender_generation += 1
+            pending = self._mesh_edit_sender_pending
+            self._mesh_edit_sender_pending = None
+            self._mesh_edit_sender_inflight_revision = 0
+            self._mesh_edit_sender_latest_revision = 0
+            self._mesh_edit_sender_last_sent_revision = 0
+            self._mesh_edit_sender_last_acked_revision = 0
+            self._mesh_edit_sender_last_rejected_revision = 0
+            self._mesh_edit_sender_ack_count = 0
+            self._mesh_edit_sender_rejected_count = 0
+            self._mesh_edit_sender_ignored_ack_count = 0
+            self._mesh_edit_sender_coalesced_count = 0
+            self._mesh_edit_revision_ack_capable = None
+            self._last_mesh_edit_send_metrics = {}
+            self._mesh_edit_sender_condition.notify_all()
+        if pending is not None:
+            _remove_paths(pending[5])
+
+    def _stop_mesh_edit_sender(self, *_args: object) -> None:
+        with self._mesh_edit_sender_condition:
+            self._mesh_edit_sender_stopping = True
+            pending = self._mesh_edit_sender_pending
+            self._mesh_edit_sender_pending = None
+            self._mesh_edit_sender_condition.notify_all()
+        if pending is not None:
+            _remove_paths(pending[5])
+        thread = self._mesh_edit_sender_thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=0.1)
+
+    @staticmethod
+    def _native_preview_package_lease_key(package_dir: Path) -> str:
+        try:
+            return os.path.normcase(str(Path(package_dir).resolve()))
+        except OSError:
+            return os.path.normcase(str(Path(package_dir).absolute()))
+
+    def _hold_native_preview_package_cache_lease(self, package_dir: Path) -> tuple[str, bool]:
+        key = self._native_preview_package_lease_key(package_dir)
+        if key in self._native_preview_package_cache_leases:
+            return key, False
+        lease = acquire_native_preview_package_cache_lease_for_path(Path(package_dir))
+        if lease is None:
+            return "", False
+        self._native_preview_package_cache_leases[key] = lease
+        return key, True
+
+    def hold_native_preview_package_cache_lease(self, package_dir: Path) -> bool:
+        key, _new = self._hold_native_preview_package_cache_lease(package_dir)
+        return bool(key)
+
+    def release_native_preview_package_cache_lease(self, package_dir: Path) -> None:
+        key = self._native_preview_package_lease_key(package_dir)
+        lease = self._native_preview_package_cache_leases.pop(key, None)
+        if lease is not None:
+            lease.release()
+
+    def retain_native_preview_package_cache_lease(self, package_dir: Path) -> None:
+        keep_key = self._native_preview_package_lease_key(package_dir)
+        for key, lease in tuple(self._native_preview_package_cache_leases.items()):
+            if key == keep_key:
+                continue
+            self._native_preview_package_cache_leases.pop(key, None)
+            lease.release()
+
+    def _release_native_preview_package_cache_leases(self, *_args: object) -> None:
+        leases = tuple(self._native_preview_package_cache_leases.values())
+        self._native_preview_package_cache_leases.clear()
+        for lease in leases:
+            lease.release()
+
+    def release_native_preview_package_cache_leases(self) -> None:
+        self._release_native_preview_package_cache_leases()
+
+    def _release_cache_leases_if_process_stopped(self, process: object) -> None:
+        if process is not self._tracked_renderer_process:
+            return
+        try:
+            running = process.state() != QProcess.ProcessState.NotRunning  # type: ignore[attr-defined]
+        except (AttributeError, RuntimeError):
+            running = False
+        if not running:
+            self._release_native_preview_package_cache_leases()
+
+    def track_renderer_process(self, process: object) -> None:
+        """Release package pins when the currently attached renderer stops."""
+
+        self._tracked_renderer_process = process
+        try:
+            process.finished.connect(  # type: ignore[attr-defined]
+                lambda *_args, target=process: (
+                    self._release_native_preview_package_cache_leases()
+                    if target is self._tracked_renderer_process
+                    else None
+                )
+            )
+            process.errorOccurred.connect(  # type: ignore[attr-defined]
+                lambda *_args, target=process: QTimer.singleShot(
+                    0,
+                    lambda: self._release_cache_leases_if_process_stopped(target),
+                )
+            )
+            process.destroyed.connect(  # type: ignore[attr-defined]
+                lambda *_args, target=process: (
+                    self._release_native_preview_package_cache_leases()
+                    if target is self._tracked_renderer_process
+                    else None
+                )
+            )
+        except (AttributeError, RuntimeError, TypeError):
+            pass
+
+    def closeEvent(self, event: object) -> None:  # type: ignore[override]
+        self._stop_mesh_edit_sender()
+        self._release_native_preview_package_cache_leases()
+        super().closeEvent(event)  # type: ignore[arg-type]
 
     def last_mesh_edit_send_metrics(self) -> Dict[str, object]:
-        return dict(self._last_mesh_edit_send_metrics)
+        with self._mesh_edit_sender_condition:
+            return {
+                **dict(self._last_mesh_edit_send_metrics),
+                "latest_revision": self._mesh_edit_sender_latest_revision,
+                "last_sent_revision": self._mesh_edit_sender_last_sent_revision,
+                "last_acked_revision": self._mesh_edit_sender_last_acked_revision,
+                "last_rejected_revision": self._mesh_edit_sender_last_rejected_revision,
+                "queue_depth": int(self._mesh_edit_sender_pending is not None),
+                "rejected_updates": self._mesh_edit_sender_rejected_count,
+                "ignored_acks": self._mesh_edit_sender_ignored_ack_count,
+                "revision_ack_capable": self._mesh_edit_revision_ack_capable,
+                "coalesced_updates": self._mesh_edit_sender_coalesced_count,
+                "generation": self._mesh_edit_sender_generation,
+            }
 
     def load_package(self, package_dir: Path, status_file: Path, *, reset_view: bool = False) -> bool:
-        return self._send_host_json_command(
-            {
-                "command": "load_package",
-                "package_dir": str(Path(package_dir)),
-                "status_file": str(Path(status_file)),
-                "reset_view": bool(reset_view),
-                "side_by_side_split_ratio": float(self._side_by_side_split_ratio),
-            }
-        )
+        lease_key, lease_was_new = self._hold_native_preview_package_cache_lease(package_dir)
+        with self._host_command_lock:
+            self._reset_mesh_edit_sender_for_package()
+            loaded = self._send_host_json_command(
+                {
+                    "command": "load_package",
+                    "package_dir": str(Path(package_dir)),
+                    "status_file": str(Path(status_file)),
+                    "reset_view": bool(reset_view),
+                    "side_by_side_split_ratio": float(self._side_by_side_split_ratio),
+                }
+            )
+        if not loaded and lease_was_new and lease_key:
+            self.release_native_preview_package_cache_lease(package_dir)
+        return loaded
 
     def view_state_snapshot(self) -> Dict[str, object]:
         return {
@@ -621,14 +980,20 @@ class NativeD3D11PreviewHostFrame(QFrame):
             }
         )
 
-    def capture_replacement_icon(self, output_path: Path) -> bool:
+    def capture_replacement_icon_image(self) -> QImage:
         screen = self.screen() or QApplication.primaryScreen()
         if screen is None:
-            return False
+            return QImage()
         pixmap = screen.grabWindow(int(self.winId()))
         if pixmap.isNull():
-            return False
-        return bool(pixmap.save(str(output_path), "PNG"))
+            return QImage()
+        return pixmap.toImage().copy()
+
+    def capture_replacement_icon(self, output_path: Path) -> bool:
+        """Compatibility wrapper for callers that still request direct output."""
+
+        image = self.capture_replacement_icon_image()
+        return not image.isNull() and bool(image.save(str(output_path), "PNG"))
 
     def set_alignment_state(
         self,
@@ -775,12 +1140,24 @@ class NativeD3D11PreviewHostFrame(QFrame):
             }
         )
 
-    def update_mesh_edit_vertices(self, groups: Sequence[Mapping[str, object]]) -> bool:
+    def update_mesh_edit_vertices(
+        self,
+        groups: Sequence[Mapping[str, object]],
+        *,
+        revision: int | None = None,
+    ) -> bool:
+        payload = {
+            "command": "update_mesh_edit_vertices",
+            "groups": _mesh_edit_json_groups(groups),
+        }
+        reserved_revision = self._reserve_mesh_edit_revision(revision)
+        if reserved_revision <= 0:
+            _remove_paths(_delete_after_paths(payload))
+            return False
+        payload["edit_revision"] = reserved_revision
+        payload["revision"] = reserved_revision
         return self._send_mesh_edit_json_or_file(
-            {
-                "command": "update_mesh_edit_vertices",
-                "groups": _mesh_edit_json_groups(groups),
-            },
+            payload,
             file_command="update_mesh_edit_vertices_file",
             file_prefix="cdmw_mesh_edit_vertices_",
             threshold=self._MESH_EDIT_VERTEX_FILE_THRESHOLD,
@@ -846,8 +1223,15 @@ class NativeD3D11PreviewHostFrame(QFrame):
                 "payload_file": str(temp_path),
                 "delete_after": True,
             }
+            if "edit_revision" in payload:
+                command_payload["edit_revision"] = payload["edit_revision"]
+                command_payload["revision"] = payload["edit_revision"]
             ok = (
-                self._send_host_json_command_async(command_payload, cleanup_path=temp_path)
+                self._send_host_json_command_async(
+                    command_payload,
+                    cleanup_path=temp_path,
+                    cleanup_paths=_delete_after_paths(payload),
+                )
                 if async_send
                 else self._send_host_json_command(command_payload)
             )
@@ -1002,7 +1386,7 @@ class NativeD3D11PreviewHostFrame(QFrame):
         return ok
 
     def nativeEvent(self, event_type: object, message: object) -> tuple[bool, int]:  # type: ignore[override]
-        if platform.system().lower() != "windows":
+        if os.name != "nt":
             return super().nativeEvent(event_type, message)
         try:
             class _Msg(ctypes.Structure):
@@ -1033,8 +1417,11 @@ class NativeD3D11PreviewHostFrame(QFrame):
             payload = json.loads(raw.decode("utf-8", errors="replace"))
             if not isinstance(payload, Mapping):
                 return True, 1
-            self._last_event_payload = dict(payload)
             event = str(payload.get("event", "") or "").strip().lower()
+            self._note_mesh_edit_protocol_capabilities(payload)
+            if event == "mesh_edit_vertices_updated" and not self._accept_mesh_edit_update_ack(payload):
+                return True, 1
+            self._last_event_payload = dict(payload)
             def int_payload_field(name: str, fallback: int = -1) -> int:
                 try:
                     return int(payload.get(name, fallback))
@@ -1188,6 +1575,9 @@ def native_d3d11_renderer_command(
         parent_hwnd = 0
     if parent_hwnd:
         arguments.extend(["--parent-hwnd", str(parent_hwnd)])
+    hold_package = getattr(host_widget, "hold_native_preview_package_cache_lease", None)
+    if callable(hold_package):
+        hold_package(Path(package_dir))
     return str(host_binary), arguments
 
 

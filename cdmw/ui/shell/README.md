@@ -6,9 +6,10 @@ activation handling, diagnostics, and app-level dialogs.
 
 Keep this package focused on application frame behavior. Feature tabs belong in
 `cdmw/ui/<feature>/`; business coordination belongs in `cdmw/services/`; slow
-work belongs in `cdmw/workers/`. `app_window.py` is still a legacy allowlisted
-implementation file while shell responsibilities continue to shrink.
+work belongs in `cdmw/workers/`. `MainWindow` has only `QMainWindow` as a base;
+shell/archive/texture/mesh behavior is supplied by owned controllers and the
+compatibility provider registry.
 
-Related docs: `docs/startup_flow.md`, `docs/architecture.md`.
+Related docs: `docs/runbooks/startup-flow.md`, `docs/architecture.md`.
 Related tests: `tests/test_shell_*.py`, architecture guards, and shell entries
 in `docs/test-matrix.md`.

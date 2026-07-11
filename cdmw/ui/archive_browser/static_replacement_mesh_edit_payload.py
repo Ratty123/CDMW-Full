@@ -34,7 +34,7 @@ from cdmw.ui.archive_browser.static_replacement_mesh_edit_state import (
 
 def _record_native_preview_fallback(mesh: object, operation: str, reason: str, **details: object) -> None:
     try:
-        from cdmw.modding.mesh_native_core import record_native_mesh_core_fallback
+        from cdmw.services.mesh_workflow_service import record_native_mesh_core_fallback
     except Exception:
         return
     record_native_mesh_core_fallback(
@@ -50,7 +50,7 @@ def _native_mesh_core_available_for_preview() -> bool:
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE"):
         return False
     try:
-        from cdmw.modding.mesh_native_core import native_mesh_core_available
+        from cdmw.services.mesh_workflow_service import native_mesh_core_available
     except Exception:
         return False
     try:
@@ -874,7 +874,7 @@ def _mesh_edit_generated_live_vertex_update_groups(
     if not changed_vertices_by_submesh:
         return {}
     try:
-        from cdmw.modding.mesh_native_core import (
+        from cdmw.services.mesh_workflow_service import (
             build_native_mesh_preview_vertex_update_groups,
             invalidate_native_mesh_session_submeshes,
         )
@@ -1086,7 +1086,7 @@ def _mesh_edit_triangle_replace_groups_native(mesh: object, source_indices: Sequ
     if not source_indices:
         return {}
     try:
-        from cdmw.modding.mesh_native_core import build_native_mesh_preview_triangle_groups
+        from cdmw.services.mesh_workflow_service import build_native_mesh_preview_triangle_groups
     except Exception:
         return {}
     try:

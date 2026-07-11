@@ -4,79 +4,14 @@ from html import escape
 from pathlib import Path
 from typing import Mapping, Optional, Sequence
 
-from cdmw.core.mod_package_retrofit import (
+from cdmw.domain.packages.retrofit import (
     RetrofitPathRepairSummary,
     RetrofittableModPackage,
-    scan_retrofittable_mod_packages,
 )
-
-
-def collect_retrofittable_packages(source: Path) -> list[RetrofittableModPackage]:
-    collected: list[RetrofittableModPackage] = []
-    seen_roots: set[Path] = set()
-    if not source.is_dir():
-        for package in scan_retrofittable_mod_packages(source):
-            if package.root not in seen_roots:
-                collected.append(package)
-                seen_roots.add(package.root)
-        return collected
-
-    skipped_dir_names = {
-        "converted",
-        "_archive",
-        "retrofit_output",
-        "converted_output",
-    }
-
-    def _should_skip_dir(path: Path) -> bool:
-        name_lower = path.name.casefold()
-        if name_lower in skipped_dir_names:
-            return True
-        if name_lower.startswith("retrofit_") or name_lower.startswith("converted_"):
-            return True
-        return False
-
-    stack = [source]
-    while stack:
-        current = stack.pop()
-        if not current.is_dir():
-            continue
-        current_packages = scan_retrofittable_mod_packages(current)
-        for package in current_packages:
-            if package.root not in seen_roots:
-                collected.append(package)
-                seen_roots.add(package.root)
-        if len(current_packages) == 1 and current_packages[0].root == current:
-            continue
-        for child in sorted(current.iterdir(), key=lambda item: item.name.casefold()):
-            if child.is_dir():
-                if _should_skip_dir(child):
-                    continue
-                stack.append(child)
-            elif child.is_file() and child.suffix.lower() == ".zip":
-                package = scan_retrofittable_mod_packages(child)
-                if package and package[0].root not in seen_roots:
-                    collected.append(package[0])
-                    seen_roots.add(package[0].root)
-
-    return collected
-
-
-def next_available_retrofit_package_name(
-    package_name: str,
-    profile: str,
-    output_root: Path,
-    suffixes: dict[str, int],
-) -> str:
-    base_key = f"{package_name}_{profile}"
-    suffix = suffixes.get(base_key, 0)
-    while True:
-        candidate = package_name if suffix == 0 else f"{package_name}_{suffix}"
-        target_root = output_root / f"{candidate}_{profile}"
-        if not target_root.exists():
-            suffixes[base_key] = suffix + 1
-            return candidate
-        suffix += 1
+from cdmw.workers.mod_package_retrofit_workers import (
+    collect_retrofittable_packages,
+    next_available_retrofit_package_name,
+)
 
 
 def retrofit_readiness_for_summary(

@@ -10,7 +10,7 @@ from PySide6.QtCore import QThread, Qt
 from PySide6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import QTextEdit, QTreeWidgetItem
 
-from cdmw.core.text_search import TextSearchPreview, TextSearchResult
+from cdmw.services.text_search_service import TextSearchPreview, TextSearchResult
 from cdmw.ui.text_search.workers import TextSearchPreviewWorker
 from cdmw.ui.themes import get_theme
 

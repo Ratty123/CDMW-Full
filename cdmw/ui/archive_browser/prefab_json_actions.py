@@ -7,11 +7,13 @@ from typing import Callable
 
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from cdmw.core.archive_extraction import read_archive_entry_data
-from cdmw.core.archive_loose_export import ArchiveLooseExportResult, export_archive_payloads_to_mod_ready_loose
-from cdmw.core.archive_patching import ArchivePatchRequest
-from cdmw.core.prefab_json import PrefabEditJsonError, apply_prefab_edit_json, dumps_prefab_edit_json
+from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
+from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+from cdmw.domain.archives.prefab import PrefabEditJsonError
+from cdmw.services.archive_workflow_service import apply_prefab_edit_json, dumps_prefab_edit_json
 from cdmw.models import ArchiveEntry
+from cdmw.services.archive_mutation_service import ArchivePatchRequest
+from cdmw.services.archive_read_service import read_archive_entry_data
 
 
 class ArchivePrefabJsonActionsMixin:

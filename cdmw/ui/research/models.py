@@ -8,7 +8,7 @@ from typing import List, Sequence, TypeVar
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
 
-from cdmw.core.research import (
+from cdmw.domain.research.contracts import (
     MaterialTextureReferenceRow,
     MipAnalysisRow,
     NormalValidationRow,

@@ -11,16 +11,16 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QMessageBox
 
 from cdmw.constants import ARCHIVE_STRUCTURE_FILTER
-from cdmw.core.archive import (
-    _find_archive_model_related_entries,
-    _is_material_sidecar_extension,
+from cdmw.services.archive_query_service import (
+    find_archive_model_related_entries as _find_archive_model_related_entries,
     build_archive_relationship_references,
-    ensure_archive_preview_source,
-    order_archive_entries_by_active_overrides,
     sort_archive_entries_for_browser,
 )
-from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
-from cdmw.core.upscale_profiles import classify_texture_type
+from cdmw.domain.archives.format import is_material_sidecar_extension as _is_material_sidecar_extension
+from cdmw.services.archive_preview_service import ensure_archive_preview_source
+from cdmw.domain.archives.filters import order_archive_entries_by_active_overrides
+from cdmw.services.preview_workflow_service import ensure_dds_display_preview_png
+from cdmw.services.texture_workflow_service import classify_texture_type
 from cdmw.models import ArchiveEntry
 
 

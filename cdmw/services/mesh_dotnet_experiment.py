@@ -14,6 +14,7 @@ from uuid import uuid4
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
+from cdmw.core.atomic_file import atomic_copy_file, atomic_write_text
 from cdmw.domain.mesh.operations import (
     mesh_edit_operations_from_dicts,
     mesh_edit_operations_to_dicts,
@@ -22,6 +23,14 @@ from cdmw.domain.mesh.operations import (
 from cdmw.modding.mesh_exporter import export_obj
 from cdmw.modding.mesh_obj_importer import import_obj
 from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.services.mesh_dotnet_material_state import (
+    _dotnet_manifest_resource_bindings,
+    _dotnet_material_input_channels,
+    _dotnet_resolved_texture_channels,
+    _source_file_stat_key,
+    mesh_dotnet_material_input_signature,
+    mesh_dotnet_material_state_payload,
+)
 
 
 MESH_DOTNET_EXPERIMENT_BINARY_NAME = "cdmw-mesh-dotnet-editor.exe" if os.name == "nt" else "cdmw-mesh-dotnet-editor"
@@ -38,6 +47,7 @@ class MeshDotNetExperimentPackage:
     output_dir: Path
     edit_operations_path: Path
     launch_manifest_path: Path
+    material_signature: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,55 +108,37 @@ def _dotnet_texture_channels(texture: str) -> dict[str, object]:
     }
 
 
-def _dotnet_material_input_channels(source: object | None) -> dict[str, str]:
-    result: dict[str, str] = {}
-    if source is None:
-        return result
-    for item in tuple(getattr(source, "preview_material_texture_inputs", ()) or ()): 
-        semantic = str(getattr(item, "semantic_type", "") or getattr(item, "slot_kind", "") or "").strip().lower()
-        path = str(getattr(item, "source_path", "") or getattr(item, "preview_texture_path", "") or "").strip()
-        if semantic and path and semantic not in result:
-            result[semantic] = path
-    return result
+def _link_or_copy_file(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(source, target)
+    except OSError:
+        shutil.copy2(source, target)
 
 
-def _dotnet_resolved_texture_channels(source: object | None) -> dict[str, str]:
-    if source is None:
-        return {}
-    result = _dotnet_material_input_channels(source)
-    pairs = {
-        "base": ("preview_texture_path", "preview_texture_dds_path", "preview_base_texture_default_path"),
-        "albedo": ("preview_texture_path", "preview_texture_dds_path", "preview_base_texture_default_path"),
-        "diffuse": ("preview_texture_path", "preview_texture_dds_path", "preview_base_texture_default_path"),
-        "normal": ("preview_normal_texture_path", "preview_normal_texture_dds_path", "preview_normal_texture_default_path"),
-        "material": ("preview_material_texture_path", "preview_material_texture_dds_path", "preview_material_texture_default_path"),
-        "specular": ("preview_material_texture_path", "preview_material_texture_dds_path", "preview_material_texture_default_path"),
-        "roughness": ("preview_material_texture_path", "preview_material_texture_dds_path", "preview_material_texture_default_path"),
-        "metallic": ("preview_material_texture_path", "preview_material_texture_dds_path", "preview_material_texture_default_path"),
-        "height": ("preview_height_texture_path", "preview_height_texture_dds_path", "preview_height_texture_default_path"),
-    }
-    for channel, attrs in pairs.items():
-        for attr in attrs:
-            value = str(getattr(source, attr, "") or "").strip()
-            if value:
-                result[channel] = value
-                break
-    return result
-
-
-def _copy_dotnet_texture_channel_resources(channels: Mapping[str, str], package_dir: Path) -> dict[str, str]:
+def _copy_dotnet_texture_channel_resources(
+    channels: Mapping[str, str],
+    package_dir: Path,
+    copy_cache: dict[str, str],
+) -> dict[str, str]:
     textures_dir = package_dir / "textures"
     result: dict[str, str] = {}
     for channel, value in channels.items():
         source = Path(str(value or "")).expanduser()
         if not source.is_file():
             continue
-        digest = hashlib.sha1(str(source.resolve()).encode("utf-8", errors="ignore")).hexdigest()[:10]
+        cache_key = _source_file_stat_key(source)
+        cached = copy_cache.get(cache_key)
+        if cached:
+            result[channel] = cached
+            continue
+        digest = hashlib.sha1(cache_key.encode("utf-8", errors="ignore")).hexdigest()[:10]
         target = textures_dir / f"{channel}_{digest}_{source.name}"
-        target.parent.mkdir(parents=True, exist_ok=True)
         if not target.is_file():
-            shutil.copyfile(source, target)
-        result[channel] = target.relative_to(package_dir).as_posix()
+            _link_or_copy_file(source, target)
+        relative = target.relative_to(package_dir).as_posix()
+        copy_cache[cache_key] = relative
+        result[channel] = relative
     return result
 
 
@@ -165,11 +157,16 @@ def _dotnet_submesh_material_payload(
     *,
     source_submesh: object | None = None,
     package_dir: Path,
+    texture_copy_cache: dict[str, str],
+    resource_payloads: dict[str, dict[str, str]],
 ) -> dict[str, object]:
     submesh_map = submesh if isinstance(submesh, Mapping) else {}
     texture = str(submesh_map.get("texture", "") or "").strip()
     resolved_channels = _dotnet_resolved_texture_channels(source_submesh)
-    packaged_channels = _copy_dotnet_texture_channel_resources(resolved_channels, package_dir)
+    packaged_channels = _copy_dotnet_texture_channel_resources(resolved_channels, package_dir, texture_copy_cache)
+    resource_channels, resources = _dotnet_manifest_resource_bindings(resolved_channels, packaged_channels)
+    for resource_id, resource in resources.items():
+        resource_payloads.setdefault(resource_id, resource)
     return {
         "submesh_index": _safe_int(submesh_map.get("submesh_index"), fallback_index),
         "name": str(submesh_map.get("name", "") or "").strip(),
@@ -179,12 +176,19 @@ def _dotnet_submesh_material_payload(
         "channels": _dotnet_texture_channels(texture),
         "resolved_channels": resolved_channels,
         "packaged_channels": packaged_channels,
+        "resource_channels": resource_channels,
         "resolved_texture_count": len([value for value in resolved_channels.values() if value]),
         "packaged_texture_count": len(packaged_channels),
     }
 
 
-def _write_dotnet_material_manifest(path: Path, *, mesh: ParsedMesh, sidecar_payload: Mapping[str, object]) -> None:
+def _write_dotnet_material_manifest(
+    path: Path,
+    *,
+    mesh: ParsedMesh,
+    sidecar_payload: Mapping[str, object],
+    material_signature: str,
+) -> None:
     raw_slots = sidecar_payload.get("material_slots", [])
     slots = list(raw_slots) if isinstance(raw_slots, list) else []
     if not slots:
@@ -209,25 +213,32 @@ def _write_dotnet_material_manifest(path: Path, *, mesh: ParsedMesh, sidecar_pay
             }
             for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ()))
         ]
+    texture_copy_cache: dict[str, str] = {}
+    resource_payloads: dict[str, dict[str, str]] = {}
+    submesh_payloads = [
+        _dotnet_submesh_material_payload(
+            submesh,
+            index,
+            source_submesh=source_submeshes[index] if index < len(source_submeshes) else None,
+            package_dir=path.parent,
+            texture_copy_cache=texture_copy_cache,
+            resource_payloads=resource_payloads,
+        )
+        for index, submesh in enumerate(submeshes)
+    ]
     payload = {
         "format": "cdmw_mesh_dotnet_materials_v1",
         "renderer_authority": "dotnet_mesh_editor",
         "source": "mesh.cdmeta.json",
         "texture_channels": ["base", "normal", "specular", "roughness", "metallic", "emissive", "height", "material"],
         "material_slots": [_dotnet_material_slot_payload(slot, index) for index, slot in enumerate(slots)],
-        "submeshes": [
-            _dotnet_submesh_material_payload(
-                submesh,
-                index,
-                source_submesh=source_submeshes[index] if index < len(source_submeshes) else None,
-                package_dir=path.parent,
-            )
-            for index, submesh in enumerate(submeshes)
-        ],
+        "resources": [resource_payloads[key] for key in sorted(resource_payloads)],
+        "submeshes": submesh_payloads,
         "fallbacks": {"base": "neutral_checker", "normal": "flat_normal", "emissive": "black"},
         "source_mesh": str(getattr(mesh, "path", "") or ""),
+        "material_signature": str(material_signature or ""),
     }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_text(path, json.dumps(payload, indent=2))
 
 
 def default_mesh_dotnet_experiment_editor_path(*, release: bool = True) -> Path:
@@ -265,13 +276,34 @@ def _mesh_dotnet_candidate_paths(
         candidates.extend(
             [
                 ("exe_root_flat", exe_root / "native" / MESH_DOTNET_EXPERIMENT_BINARY_NAME),
+                ("exe_root_internal_flat", exe_root / "_internal" / "native" / MESH_DOTNET_EXPERIMENT_BINARY_NAME),
                 (
                     "exe_root_release",
                     exe_root / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Release" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
                 ),
                 (
+                    "exe_root_internal_release",
+                    exe_root
+                    / "_internal"
+                    / "native"
+                    / "cdmw_mesh_dotnet_editor"
+                    / "build"
+                    / "Release"
+                    / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
+                ),
+                (
                     "exe_root_debug",
                     exe_root / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Debug" / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
+                ),
+                (
+                    "exe_root_internal_debug",
+                    exe_root
+                    / "_internal"
+                    / "native"
+                    / "cdmw_mesh_dotnet_editor"
+                    / "build"
+                    / "Debug"
+                    / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
                 ),
             ]
         )
@@ -367,6 +399,7 @@ def build_mesh_dotnet_experiment_package(
     *,
     output_root: Path | str | None = None,
 ) -> MeshDotNetExperimentPackage:
+    material_signature = mesh_dotnet_material_input_signature(mesh)
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_mesh_dotnet_experiment"
     package_dir = root / f"package_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
     package_dir.mkdir(parents=True, exist_ok=False)
@@ -380,15 +413,20 @@ def build_mesh_dotnet_experiment_package(
         raise RuntimeError("Mesh .NET experiment package did not create mesh.obj.meta.json.")
 
     cdmeta_path = package_dir / "mesh.cdmeta.json"
-    shutil.copyfile(obj_sidecar_path, cdmeta_path)
+    atomic_copy_file(obj_sidecar_path, cdmeta_path)
     sidecar_payload = json.loads(cdmeta_path.read_text(encoding="utf-8"))
     if not isinstance(sidecar_payload, dict):
         raise RuntimeError("Mesh .NET experiment sidecar is not a JSON object.")
     original_asset_hash = str(sidecar_payload.get("source_asset_hash", "") or "")
     original_asset_hash_path = package_dir / "original_asset_hash.txt"
-    original_asset_hash_path.write_text(original_asset_hash, encoding="utf-8")
+    atomic_write_text(original_asset_hash_path, original_asset_hash)
     net_materials_path = package_dir / "net_materials.json"
-    _write_dotnet_material_manifest(net_materials_path, mesh=mesh, sidecar_payload=sidecar_payload)
+    _write_dotnet_material_manifest(
+        net_materials_path,
+        mesh=mesh,
+        sidecar_payload=sidecar_payload,
+        material_signature=material_signature,
+    )
 
     output_dir = package_dir / "output"
     output_dir.mkdir()
@@ -406,9 +444,11 @@ def build_mesh_dotnet_experiment_package(
         output_dir=output_dir,
         edit_operations_path=edit_operations_path,
         launch_manifest_path=launch_manifest_path,
+        material_signature=material_signature,
     )
     created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    launch_manifest_path.write_text(
+    atomic_write_text(
+        launch_manifest_path,
         json.dumps(
             {
                 "format": "cdmw_mesh_dotnet_experiment_handoff_v1",
@@ -440,6 +480,7 @@ def build_mesh_dotnet_experiment_package(
                     "obj_sidecar": obj_sidecar_path.name,
                     "original_asset_hash": original_asset_hash_path.name,
                     "materials": net_materials_path.name,
+                    "material_signature": material_signature,
                 },
                 "output": {
                     "directory": output_dir.name,
@@ -452,7 +493,6 @@ def build_mesh_dotnet_experiment_package(
             },
             indent=2,
         ),
-        encoding="utf-8",
     )
     return package
 
@@ -521,7 +561,7 @@ def write_mesh_dotnet_launch_manifest(
     }
     payload.update(launch)
     payload["launch"] = launch
-    package.launch_manifest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_text(package.launch_manifest_path, json.dumps(payload, indent=2))
     return package.launch_manifest_path
 
 
@@ -532,7 +572,7 @@ def write_mesh_dotnet_launch_diagnostics(
     path = package.package_dir / "dotnet_launch_diagnostics.json"
     diagnostics = dict(payload or {})
     diagnostics.setdefault("created_at", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
-    path.write_text(json.dumps(diagnostics, indent=2, default=str), encoding="utf-8")
+    atomic_write_text(path, json.dumps(diagnostics, indent=2, default=str))
     return path
 
 
@@ -555,7 +595,8 @@ def write_mesh_dotnet_experiment_evaluation(
     blocker_count = _sequence_len(getattr(validation_report, "blockers", None))
     warning_count = _sequence_len(getattr(validation_report, "warnings", None))
     recommendation = _dotnet_recommendation(event, dotnet_metrics, native_metrics, validation_ok)
-    path.write_text(
+    atomic_write_text(
+        path,
         "\n".join(
             [
                 "# Mesh .NET Editor Evaluation",
@@ -585,7 +626,6 @@ def write_mesh_dotnet_experiment_evaluation(
                 "",
             ]
         ),
-        encoding="utf-8",
     )
     return path
 
@@ -670,7 +710,7 @@ def _ensure_output_sidecar(package: MeshDotNetExperimentPackage, obj_path: Path)
     if sidecar_path.is_file():
         return
     sidecar_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(package.obj_sidecar_path, sidecar_path)
+    atomic_copy_file(package.obj_sidecar_path, sidecar_path)
 
 
 def _dotnet_edit_operations_path(
@@ -729,8 +769,8 @@ def mesh_dotnet_renderer_blockers(
     block_reason = str(renderer.get("renderer_block_reason", "") or "").strip()
     if backend == "blocked_renderer_unavailable" or renderer.get("renderer_blocked") is True:
         blockers.append(f"blocked_renderer_unavailable{': ' + block_reason if block_reason else ''}")
-    if bool(embedded) and not bool(developer_override) and backend in {"winforms_gdi_fallback", "wpf_viewport3d_gpu"}:
-        blockers.append(f"embedded production .NET renderer cannot use degraded backend: {backend}")
+    if bool(embedded) and not ((backend, renderer.get("gpu_backed"), renderer.get("renderer_blocked")) == ("d3d11_vortice_shader", True, False) or (bool(developer_override) and (backend, renderer.get("gpu_backed"), renderer.get("renderer_blocked")) in {("wpf_viewport3d_gpu", True, False), ("winforms_gdi_fallback", False, False)})):
+        blockers.append(f"embedded production .NET renderer requires backend=d3d11_vortice_shader, gpu_backed=true, renderer_blocked=false; got backend={backend or '<missing>'}, gpu_backed={renderer.get('gpu_backed')!r}, renderer_blocked={renderer.get('renderer_blocked')!r}")
     if bool(require_material_parity) and not bool(developer_override):
         warnings = mesh_dotnet_material_parity_warnings(status_payload)
         if warnings:
@@ -830,6 +870,8 @@ __all__ = [
     "mesh_dotnet_experiment_command",
     "mesh_dotnet_experiment_evaluation_path",
     "mesh_dotnet_experiment_output_obj_path",
+    "mesh_dotnet_material_input_signature",
+    "mesh_dotnet_material_state_payload",
     "mesh_dotnet_material_parity_warnings",
     "mesh_dotnet_renderer_blockers",
     "write_mesh_dotnet_experiment_evaluation",

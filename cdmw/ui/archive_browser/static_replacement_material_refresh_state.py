@@ -78,7 +78,7 @@ def take_source_material_plan_refresh_state(state: MutableMapping[str, object]) 
 
 
 def material_edit_refresh_interval_ms() -> int:
-    return 520
+    return 150
 
 
 def source_material_plan_refresh_interval_ms() -> int:

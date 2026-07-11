@@ -57,11 +57,14 @@ class ServiceLayerTests(unittest.TestCase):
         self.assertIs(container.settings, next_settings)
         self.assertIs(container.filesystem.settings, next_settings)
 
-    def test_archive_mutation_service_is_explicitly_unwired(self) -> None:
+    def test_container_requires_configured_archive_mutation_service(self) -> None:
         service = ArchiveMutationService()
+        container = ServiceContainer(archive_mutations=service)
 
-        with self.assertRaises(NotImplementedError):
-            service.apply_patch(object())
+        self.assertIs(service, container.require_archive_mutations())
+        container.archive_mutations = None
+        with self.assertRaisesRegex(RuntimeError, "not configured"):
+            container.require_archive_mutations()
 
     def test_settings_service_resolves_and_prepares_settings_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -139,6 +142,21 @@ class ServiceLayerTests(unittest.TestCase):
             self.assertTrue(source.exists())
             self.assertTrue(destination.exists())
             self.assertEqual([(source, destination, "destination exists")], report.skipped)
+
+    def test_legacy_workspace_migration_never_moves_source_checkout_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".git").write_text("gitdir: elsewhere", encoding="utf-8")
+            (root / "cdmw").mkdir()
+            source = root / "tools"
+            source.mkdir()
+            (source / "harness.py").write_text("# source", encoding="utf-8")
+
+            report = migrate_legacy_workspace_layout(root, _SettingsDict())
+
+            self.assertTrue((source / "harness.py").is_file())
+            self.assertFalse((root / "workspace" / "tools").exists())
+            self.assertEqual([(source, root / "workspace" / "tools", "source checkout")], report.skipped)
 
     def test_services_do_not_import_pyside_widgets(self) -> None:
         for path in Path("cdmw/services").rglob("*.py"):

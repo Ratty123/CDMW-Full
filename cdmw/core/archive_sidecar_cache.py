@@ -36,15 +36,15 @@ from cdmw.models import ArchiveEntry, RunCancelled
 
 
 def format_byte_size(value: int) -> str:
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_extraction import format_byte_size as owner
 
-    return archive_core.format_byte_size(value)
+    return owner(value)
 
 
 def _read_archive_entry_data_from_handle(*args, **kwargs):
-    from cdmw.core import archive as archive_core
+    from cdmw.core.archive_extraction import _read_archive_entry_data_from_handle as owner
 
-    return archive_core._read_archive_entry_data_from_handle(*args, **kwargs)
+    return owner(*args, **kwargs)
 
 
 _ARCHIVE_SIDECAR_CACHE_SUPPORTED_VERSIONS = {8, 9, 10}

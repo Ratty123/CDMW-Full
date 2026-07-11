@@ -75,7 +75,6 @@ class MeshVertex:
     bone_indices: tuple[int, ...] = ()
     bone_weights: tuple[float, ...] = ()
 
-
 @dataclass
 class SubMesh:
     """A submesh within a PAM/PAC file."""
@@ -90,6 +89,9 @@ class SubMesh:
     bone_indices: list[tuple[int, ...]] = field(default_factory=list)
     bone_weights: list[tuple[float, ...]] = field(default_factory=list)
     source_vertex_map: list[int] = field(default_factory=list)
+    source_vertex_map_authority: str = ""
+    source_bone_palette: tuple[int, ...] = ()
+    source_skin_weight_layout: str = ""
     vertex_count: int = 0
     face_count: int = 0
     source_vertex_offsets: list[int] = field(default_factory=list)
@@ -100,7 +102,6 @@ class SubMesh:
     source_bbox_min: tuple[float, float, float] = (0.0, 0.0, 0.0)
     source_bbox_extent: tuple[float, float, float] = (0.0, 0.0, 0.0)
     source_lod_count: int = 0
-
 
 @dataclass
 class ParsedMesh:
@@ -116,7 +117,6 @@ class ParsedMesh:
     has_uvs: bool = False
     has_bones: bool = False
 
-
 @dataclass
 class PreviewMesh:
     """Flattened buffers used by the Explorer preview."""
@@ -127,7 +127,6 @@ class PreviewMesh:
     submesh_count: int = 0
     total_vertices: int = 0
     total_faces: int = 0
-
 
 @dataclass
 class PacDescriptor:
@@ -141,7 +140,6 @@ class PacDescriptor:
     palette: tuple[int, ...] = ()
     descriptor_offset: int = 0
     stored_lod_count: int = 0
-
 
 @dataclass
 class BinarySectionRange:
@@ -158,7 +156,6 @@ class MaterialSlot:
     index: int
     name: str = ""
     texture: str = ""
-
 
 @dataclass
 class SubmeshDescriptor:
@@ -897,7 +894,7 @@ def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedM
 
 # ── PAC Parser (skinned mesh) ────────────────────────────────────────
 
-def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:
+def _parse_pac_legacy(data: bytes, filename: str = "") -> ParsedMesh:
     """Parse a .pac skinned character mesh.
 
     PAC format (reverse-engineered from binary analysis):
@@ -1637,7 +1634,7 @@ def _parse_compact_skinnedmesh_box_pac(data: bytes, filename: str = "") -> Parse
     return result
 
 
-def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:  # noqa: F811
+def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:
     """Parse a decompressed PAC skinned mesh file."""
     if len(data) < 0x50 or data[:4] != PAR_MAGIC:
         raise ValueError(f"Not a valid PAC file: bad magic {data[:4]!r}")
@@ -1791,6 +1788,9 @@ def _parse_pac_geometry_section(
             bone_indices=bone_indices,
             bone_weights=bone_weights,
             source_vertex_map=list(range(len(verts))),
+            source_vertex_map_authority="target_donor_record",
+            source_bone_palette=tuple(desc.palette),
+            source_skin_weight_layout="pac_palette_u8x4",
             vertex_count=len(verts),
             face_count=len(faces),
             source_vertex_offsets=source_offsets,
