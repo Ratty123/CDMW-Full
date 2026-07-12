@@ -568,7 +568,13 @@ class AlignmentD3D11PackageWorker(QObject):
                 if not isinstance(raw_batch, Mapping):
                     continue
                 role = str(raw_batch.get("editor_role", raw_batch.get("role", "")) or "").strip().lower()
-                if role == "original_reference":
+                identity = raw_batch.get("editor_identity")
+                identity_role = (
+                    str(identity.get("role", "") or "").strip().lower()
+                    if isinstance(identity, Mapping)
+                    else ""
+                )
+                if "original_reference" in {role, identity_role}:
                     continue
                 replacement_batches.append(copy.deepcopy(dict(raw_batch)))
         if not replacement_batches:

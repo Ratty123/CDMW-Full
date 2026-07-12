@@ -12,7 +12,9 @@ New worker code uses shared contracts in `cdmw/workers/`.
 - Worker-heavy tabs implement `request_shutdown()` and
   `iter_shutdown_workers()`.
 - Shell close flow requests tab shutdowns, asks tracked threads to quit, waits
-  asynchronously, and force-stops only after timeout.
+  asynchronously, and force-stops only after timeout. It retains every owned
+  `QThread` until nonblocking `wait(0)` confirms native teardown; `finished`
+  alone is not a safe ownership-release boundary.
 - Picker close handlers request cooperative cancellation and return
   immediately; the shell retains thread ownership until completion.
 - Cancellable subprocesses run in an owned process group. Cancellation and
@@ -26,7 +28,8 @@ New worker code uses shared contracts in `cdmw/workers/`.
 - Output workers stage complete results beside the destination and publish by
   atomic rename; cancellation or write failure leaves prior output intact.
 
-Never call blocking `thread.wait(...)` from UI close paths.
+Never call blocking `thread.wait(...)` from UI close paths. `wait(0)` is the
+nonblocking completion fence used by the close poller.
 
 Model Library ZIP resolution/extraction and shell scene import/companion scans
 stay in their existing task/utility workers. Recolor analysis and DDS preview

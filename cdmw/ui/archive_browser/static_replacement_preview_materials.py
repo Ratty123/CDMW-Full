@@ -122,6 +122,20 @@ def copy_original_preview_material(
                 setattr(dst_mesh, attr, clone_preview_attr_value(getattr(src_mesh, attr)))
 
 
+def copy_preview_material_bindings_to_mesh(mesh: object, preview_model: object) -> int:
+    """Keep resolved preview bindings on an exact-clone ParsedMesh session source."""
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    preview_meshes = tuple(getattr(preview_model, "meshes", ()) or ())
+    if not submeshes or len(submeshes) != len(preview_meshes):
+        return 0
+    for submesh, preview_mesh in zip(submeshes, preview_meshes):
+        for attr in ORIGINAL_PREVIEW_TEXTURE_ATTRS:
+            if attr.endswith("_image") or not hasattr(preview_mesh, attr):
+                continue
+            setattr(submesh, attr, clone_preview_attr_value(getattr(preview_mesh, attr)))
+    return len(submeshes)
+
+
 def copy_exact_clone_original_preview_materials(
     preview_model: object,
     *,
@@ -262,5 +276,6 @@ __all__ = [
     "clone_preview_attr_value",
     "copy_exact_clone_original_preview_materials",
     "copy_original_preview_material",
+    "copy_preview_material_bindings_to_mesh",
     "preview_mesh_surface_matches",
 ]

@@ -155,6 +155,16 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetMaterialParameterMixin):
                 self._notify_embedded_dotnet_ready()
                 self.update_editor_action_state(selection_empty=self.current_selection_empty)
             self._send_dotnet_session_state()
+            comparison_mode, interaction_mode = self._dotnet_initial_scene_modes(
+                embedded=bool(self.standalone_dotnet_target_embedded)
+            )
+            self._send_dotnet_scene_state(
+                comparison_mode=comparison_mode,
+                interaction_mode=interaction_mode,
+                placement=self._dotnet_current_placement_state(
+                    embedded=bool(self.standalone_dotnet_target_embedded)
+                ),
+            )
             return True
         if event == "protocol_ready":
             self._observe_dotnet_capabilities(payload)
@@ -167,6 +177,16 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetMaterialParameterMixin):
                 self._notify_embedded_dotnet_ready()
                 self.update_editor_action_state(selection_empty=self.current_selection_empty)
             self._send_dotnet_session_state()
+            comparison_mode, interaction_mode = self._dotnet_initial_scene_modes(
+                embedded=bool(self.standalone_dotnet_target_embedded)
+            )
+            self._send_dotnet_scene_state(
+                comparison_mode=comparison_mode,
+                interaction_mode=interaction_mode,
+                placement=self._dotnet_current_placement_state(
+                    embedded=bool(self.standalone_dotnet_target_embedded)
+                ),
+            )
             return True
         if event == "deactivated":
             if self.standalone_dotnet_target_embedded:
@@ -213,8 +233,24 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetMaterialParameterMixin):
             return self._handle_dotnet_stroke_event(payload, event.removeprefix("stroke_"))
         if event in {"command_request", "command_requested"}:
             return self._handle_dotnet_command_request(payload)
+        if event == "placement_transform_request":
+            handler = getattr(self.active_builder(), "_mesh_editor_apply_dotnet_placement_state", None)
+            placement = payload.get("placement")
+            if not callable(handler) or not isinstance(placement, Mapping):
+                return False
+            try:
+                return bool(handler(placement))
+            except Exception as exc:
+                self._set_dotnet_status(f"Mesh .NET placement update failed: {exc}", error=True)
+                return False
         if event == "save_request":
-            return self._request_embedded_dotnet_editor_close()
+            if self.standalone_dotnet_target_embedded:
+                return self._request_embedded_dotnet_editor_close()
+            sent = self._send_dotnet_protocol_message({"event": "close_request"})
+            if sent:
+                self._flush_dotnet_protocol_messages()
+                self._set_dotnet_status("Saving resident .NET mesh edits...")
+            return bool(sent)
         if event == "error":
             message = str(payload.get("message", "") or "Mesh .NET editor reported an error.")
             self._set_dotnet_status(message, error=True)
@@ -289,7 +325,6 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetMaterialParameterMixin):
         detail = "Mesh .NET editor started but did not report ready within 10 seconds."
         self._record_mesh_dotnet_event(
             "mesh_dotnet_ready_timeout",
-            embedded=bool(self.standalone_dotnet_target_embedded),
             **self._dotnet_process_event_payload(self.standalone_dotnet_editor_process),
         )
         self._stop_standalone_dotnet_editor_process(embedded_state="failed")
@@ -344,15 +379,15 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetMaterialParameterMixin):
         controller = self._dotnet_target_controller()
         if controller is None or not self._dotnet_resident_material_updates_supported():
             return False
+        generation = self.standalone_dotnet_material_generation + 1
         try:
             view = controller.session_view()
             mesh = mesh_snapshot if mesh_snapshot is not None else controller.working_mesh(clone=False)
-            self.standalone_dotnet_material_generation += 1
             payload = _tab.mesh_dotnet_material_state_payload(
                 mesh,
                 session_id=view.session_id,
                 edit_revision=view.revision,
-                generation=self.standalone_dotnet_material_generation,
+                generation=generation,
                 affected_submeshes=affected_submeshes,
             )
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -361,14 +396,14 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetMaterialParameterMixin):
             return False
         payload["reason"] = str(reason or "changed")
         if not self._send_dotnet_protocol_message(payload):
-            _material_commit.remember_sent_material_resources(self, None)
             self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
             return False
+        self.standalone_dotnet_material_generation = generation
         _material_commit.remember_sent_material_resources(self, payload, committed_resources)
         self.standalone_dotnet_lifecycle_counts["material_state_update_count"] += 1
         self._record_mesh_dotnet_event(
             "mesh_dotnet_material_state_update",
-            generation=self.standalone_dotnet_material_generation,
+            generation=generation,
             edit_revision=view.revision,
             material_signature=str(payload.get("material_signature", "") or ""),
             affected_submesh_count=len(tuple(payload.get("affected_submeshes", ()) or ())),
@@ -583,6 +618,13 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetMaterialParameterMixin):
         }
         if revision is not None:
             payload["revision"] = int(revision)
+        if not ok:
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_command_result_failed",
+                command=str(command or "command"),
+                status=str(status or "error"),
+                diagnostics=tuple(str(item) for item in diagnostics),
+            )
         return self._send_dotnet_protocol_message(payload)
     def _send_dotnet_native_update(
         self,
@@ -608,13 +650,6 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetMaterialParameterMixin):
         if revision is not None:
             base["edit_revision"] = int(revision)
             base["revision"] = int(revision)
-        if update.refresh_selection:
-            self._send_dotnet_protocol_message({
-                **base,
-                "event": "selection_update",
-                "selection": self._dotnet_selection_payload(selection or _tab.MeshEditSelection()),
-                "selection_groups": update.selection_groups,
-            })
         if update.material_override_groups:
             self.apply_resident_material_parameters(update.material_override_groups)
         edit_packets: list[dict[str, object]] = []
@@ -634,8 +669,15 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetMaterialParameterMixin):
                 "final_submesh_count": update.final_submesh_count,
                 "material_override_groups": update.material_override_groups,
             })
+        if update.refresh_selection:
+            edit_packets.append({
+                **base,
+                "event": "selection_update",
+                "selection": self._dotnet_selection_payload(selection or _tab.MeshEditSelection()),
+                "selection_groups": update.selection_groups,
+            })
         self.standalone_dotnet_update_queue.enqueue(int(revision or 0), edit_packets)
-        self._sync_dotnet_update_ack_timer()
+        QTimer.singleShot(0, self._sync_dotnet_update_ack_timer)
         if result is not None:
             self._send_dotnet_command_result(
                 result.action,

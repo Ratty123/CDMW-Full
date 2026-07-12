@@ -167,6 +167,58 @@ def test_parameter_ack_requires_current_session_revision_and_generation(
     )
 
 
+def test_failed_new_parameter_send_preserves_prior_ack_and_export_commit(
+    resident_parameter_tab: tuple[QApplication, MeshEditorTab, _EmbeddedMeshBuilder, _FakeProcess],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _app, tab, builder, process = resident_parameter_tab
+    first_group = ({"source_submesh_indices": [0], "roughness": 0.25},)
+    assert tab.apply_resident_material_parameters(first_group)
+    assert _flush_parameter_update(tab)
+    first = _parameter_writes(process)[-1]
+
+    assert tab.apply_resident_material_parameters(({
+        "source_submesh_indices": [0],
+        "roughness": 0.75,
+    },))
+    monkeypatch.setattr(tab, "_send_dotnet_protocol_message", lambda _payload: False)
+    assert not _flush_parameter_update(tab)
+    assert tab.standalone_dotnet_material_parameter_generation == first["parameter_generation"]
+
+    assert tab._handle_dotnet_protocol_event({
+        "event": "material_parameter_applied",
+        "session_id": first["session_id"],
+        "edit_revision": first["edit_revision"],
+        "parameter_generation": first["parameter_generation"],
+    })
+    snapshot = builder.controller.mesh_service.capture_export_snapshot(str(first["session_id"]))
+    assert snapshot.material_parameter_groups == first_group
+
+
+def test_export_waiter_blocks_until_material_parameter_ack_is_committed(
+    resident_parameter_tab: tuple[QApplication, MeshEditorTab, _EmbeddedMeshBuilder, _FakeProcess],
+) -> None:
+    _app, tab, builder, process = resident_parameter_tab
+    group = ({"source_submesh_indices": [0], "roughness": 0.35},)
+    assert tab.apply_resident_material_parameters(group)
+    assert _flush_parameter_update(tab)
+    payload = _parameter_writes(process)[-1]
+    session_id = str(payload["session_id"])
+
+    assert tab.standalone_texture_region_queue.idle()
+    assert not tab._wait_for_dotnet_export_updates(0.0)
+    assert builder.controller.mesh_service.capture_export_snapshot(session_id).material_parameter_groups == ()
+
+    assert tab._handle_dotnet_protocol_event({
+        "event": "material_parameter_applied",
+        "session_id": session_id,
+        "edit_revision": payload["edit_revision"],
+        "parameter_generation": payload["parameter_generation"],
+    })
+    assert tab._wait_for_dotnet_export_updates(0.0)
+    assert builder.controller.mesh_service.capture_export_snapshot(session_id).material_parameter_groups == group
+
+
 def test_native_material_override_update_uses_separate_parameter_event(
     resident_parameter_tab: tuple[QApplication, MeshEditorTab, _EmbeddedMeshBuilder, _FakeProcess],
 ) -> None:

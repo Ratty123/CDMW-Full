@@ -33,6 +33,7 @@ from cdmw.workers.mesh_editor_aux_workers import (
     MeshFileSessionLoadWorker,
     MeshTextureSourceResolveWorker,
 )
+from cdmw.workers.mesh_export_readback import readback_editable_package_metadata
 
 _LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangulate_display"})
 _BASE_TEXTURE_CHANNELS = frozenset({"base", "base_color", "albedo", "diffuse"})
@@ -247,9 +248,11 @@ def _normalized_texture_binding_path(value: object) -> str:
 def _package_reparse_report(
     staging_dir: Path,
     name: str,
+    source_mesh: ParsedMesh,
     texture_rows: Sequence[Mapping[str, object]] = (),
     texture_bindings: Sequence[Mapping[str, object]] = (),
 ) -> dict[str, object]:
+    metadata_readback = readback_editable_package_metadata(staging_dir, name, source_mesh)
     glb_mesh = import_glb_with_sidecar(staging_dir / f"{name}.glb")
     obj_mesh = import_obj(str(staging_dir / f"{name}.obj"))
     mtl_text = (staging_dir / f"{name}.mtl").read_text(encoding="utf-8", errors="replace")
@@ -268,6 +271,7 @@ def _package_reparse_report(
         "obj_submesh_count": len(tuple(obj_mesh.submeshes or ())),
         "dds_readback": [dict(row.get("readback") or {}) for row in texture_rows],
         "texture_bindings": [dict(binding) for binding in texture_bindings],
+        **metadata_readback,
     }
 
 
@@ -367,6 +371,7 @@ class MeshEditablePackageExportWorker(QObject):
                 reparse = _package_reparse_report(
                     staging_dir,
                     self.name,
+                    snapshot.mesh,
                     texture_rows,
                     texture_bindings,
                 )

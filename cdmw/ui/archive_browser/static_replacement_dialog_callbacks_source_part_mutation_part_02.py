@@ -84,15 +84,23 @@ def _source_part_mutation_step_018(_state):
         texture_sets = _state.group_replacement_texture_sets(_state.texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
         _state._set_texture_sets(texture_sets)
         _state._apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
-        try:
+        if callable(_state._texture_set_for_source_index) and callable(_state._source_part_append_texture_control_state_helper):
             appended_texture_sets = [_state._texture_set_for_source_index(int(source_index), texture_sets) for source_index in tuple(append_result.source_indices or ())]
             append_texture_control_state = _state._source_part_append_texture_control_state_helper(has_texture_files=bool(append_result.texture_files), texture_sets=tuple(appended_texture_sets))
             if append_texture_control_state.enable_rebuild_sidecar:
-                _state.rebuild_sidecar_checkbox.setChecked(True)
+                rebuild_sidecar_checkbox = _state.rebuild_sidecar_checkbox
+                if callable(rebuild_sidecar_checkbox) and not callable(getattr(rebuild_sidecar_checkbox, 'setChecked', None)):
+                    rebuild_sidecar_checkbox = rebuild_sidecar_checkbox()
+                set_checked = getattr(rebuild_sidecar_checkbox, 'setChecked', None)
+                if callable(set_checked):
+                    set_checked(True)
             if append_texture_control_state.enable_inject_base_color:
-                _state.inject_base_color_checkbox.setChecked(True)
-        except NameError:
-            pass
+                inject_base_color_checkbox = _state.inject_base_color_checkbox
+                if callable(inject_base_color_checkbox) and not callable(getattr(inject_base_color_checkbox, 'setChecked', None)):
+                    inject_base_color_checkbox = inject_base_color_checkbox()
+                set_checked = getattr(inject_base_color_checkbox, 'setChecked', None)
+                if callable(set_checked):
+                    set_checked(True)
         _state.source_tree.clearSelection()
         for source_index in append_result.source_indices:
             item = _state.source_items_by_index.get(int(source_index))
@@ -104,15 +112,13 @@ def _source_part_mutation_step_018(_state):
         _state._fit_alignment_tree_height_to_rows(_state.source_tree, **_state.source_tree_layout_state.height_fit_kwargs)
         _state._refresh_source_tree_selection_state()
         _state._refresh_source_assignment_columns()
-        try:
+        if callable(_state._refresh_source_material_plan):
             _state._refresh_source_material_plan()
-        except NameError:
-            pass
-        try:
+        if callable(_state._refresh_texture_row_guidance):
             _state._refresh_texture_row_guidance()
-            _state._refresh_texture_table(_state.selected_texture_row.get('row'))
-        except NameError:
-            pass
+        if callable(_state._refresh_texture_table):
+            selected_texture_row = _state.selected_texture_row if isinstance(_state.selected_texture_row, dict) else {}
+            _state._refresh_texture_table(selected_texture_row.get('row'))
         _state._load_selected_part_controls()
         _state._source_part_refresh_geometry_preview(_state._source_part_added_mesh_part_status_helper(source_path.name, placement_note), append_result.source_indices)
         assignment_action = _state._prompt_assign_appended_mesh_parts(source_path, append_result.source_indices, placement_note=placement_note, discovered_texture_files=tuple(append_scene_result.discovered_texture_files or ()))
@@ -125,14 +131,10 @@ def _source_part_mutation_step_018(_state):
             finally:
                 _state._source_part_append_release_rollback_snapshots(append_rollback_snapshot)
         _state._refresh_source_assignment_columns()
-        try:
+        if callable(_state._refresh_added_part_texture_tree):
             _state._refresh_added_part_texture_tree(int(append_result.source_indices[0]) if append_result.source_indices else None)
-        except NameError:
-            pass
-        try:
+        if callable(_state._refresh_source_material_plan):
             _state._refresh_source_material_plan()
-        except NameError:
-            pass
         _state._source_part_refresh_geometry_preview(_state._source_part_added_mesh_part_status_helper(source_path.name, placement_note), append_result.source_indices)
         _state._source_part_append_release_rollback_snapshots(append_rollback_snapshot)
         _state.self.set_status_message(_state._source_part_added_mesh_part_status_helper(source_path.name, placement_note))

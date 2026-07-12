@@ -84,8 +84,10 @@ class MeshEditorDotNetMaterialParameterMixin:
             self.standalone_dotnet_sent_material_parameter_generation = 0
             self.standalone_dotnet_applied_material_parameter_generation = 0
             self.standalone_dotnet_completed_material_parameter_generation = 0
-        self.standalone_dotnet_material_parameter_generation += 1
-        generation = self.standalone_dotnet_material_parameter_generation
+        pending_generation = int(
+            (self.standalone_dotnet_pending_material_parameter_payload or {}).get("parameter_generation", 0) or 0
+        )
+        generation = max(self.standalone_dotnet_material_parameter_generation, pending_generation) + 1
         revision = max(0, int(view.revision or 0))
         self.standalone_dotnet_material_parameter_revision = revision
         self.standalone_dotnet_pending_material_parameter_payload = {
@@ -107,14 +109,13 @@ class MeshEditorDotNetMaterialParameterMixin:
         if payload is None:
             return False
         generation = int(payload.get("parameter_generation", 0) or 0)
-        if generation != self.standalone_dotnet_material_parameter_generation:
+        if generation <= self.standalone_dotnet_material_parameter_generation:
             return False
         if not self._send_dotnet_protocol_message(payload):
-            _material_commit.remember_sent_material_parameters(self, None)
-            self.standalone_dotnet_completed_material_parameter_generation = generation
             self.standalone_dotnet_lifecycle_counts["material_parameter_failed_count"] += 1
             self._set_dotnet_status("Could not send resident Mesh Editor material parameters.", error=True)
             return False
+        self.standalone_dotnet_material_parameter_generation = generation
         self.standalone_dotnet_sent_material_parameter_generation = generation
         _material_commit.remember_sent_material_parameters(self, payload)
         self.standalone_dotnet_lifecycle_counts["material_parameter_update_count"] += 1

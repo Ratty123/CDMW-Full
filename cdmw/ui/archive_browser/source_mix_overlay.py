@@ -48,6 +48,16 @@ from cdmw.workers.source_mix_workers import (
 )
 
 
+def _source_mix_index_snapshot(owner) -> Optional[SourceMixIndexSnapshot]:
+    lookup_indexes = owner._archive_lookup_indexes_snapshot()
+    if lookup_indexes is None:
+        owner.set_status_message(
+            "Archive path lookup is warming; retry Import Loose Mod Folder when indexing finishes."
+        )
+        return None
+    return SourceMixIndexSnapshot.capture(lookup_indexes[0], lookup_indexes[1])
+
+
 class ArchiveSourceMixOverlayMixin:
     def _open_archive_loose_mod_overlay_dialog(
         self,
@@ -57,6 +67,9 @@ class ArchiveSourceMixOverlayMixin:
         _selected_dir: str = "",
     ) -> None:
         if not isinstance(_scan_result, SourceMixScanResult):
+            index_snapshot = _source_mix_index_snapshot(self)
+            if index_snapshot is None:
+                return
             selected_dir = QFileDialog.getExistingDirectory(
                 self,
                 "Import Loose Mod Folder",
@@ -73,10 +86,7 @@ class ArchiveSourceMixOverlayMixin:
             request = SourceMixScanRequest(
                 source_path=scan_root,
                 source_kind="loose",
-                index_snapshot=SourceMixIndexSnapshot.capture(
-                    self.archive_entries_by_normalized_path,
-                    self.archive_entries_by_basename,
-                ),
+                index_snapshot=index_snapshot,
             )
             controller.start(
                 request,

@@ -90,7 +90,7 @@ internal sealed class ObjDocument
         return document;
     }
 
-    public void Save(string outputPath, string inputObjPath)
+    public void Save(string outputPath, string inputObjPath, int? submeshCount = null)
     {
         var outputDir = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrWhiteSpace(outputDir))
@@ -114,7 +114,7 @@ internal sealed class ObjDocument
         var vertexOffset = 0;
         var uvOffset = 0;
         var normalOffset = 0;
-        foreach (var submesh in Submeshes)
+        foreach (var submesh in Submeshes.Take(Math.Clamp(submeshCount ?? Submeshes.Count, 0, Submeshes.Count)))
         {
             writer.WriteLine($"o {submesh.Name}");
             foreach (var vertex in submesh.Vertices)

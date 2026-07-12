@@ -20,6 +20,7 @@ internal sealed partial class D3D11MaterialViewport : Control
     private readonly ObjDocument _document;
     private readonly NetMaterialSet _materials;
     private readonly NetTextureSet _textureSet;
+    private readonly NetSceneState _scene;
     private readonly List<D3D11SubmeshBatch> _batches = new();
     private readonly Dictionary<string, D3D11TextureSrvCacheEntry> _textureSrvCache = new(StringComparer.OrdinalIgnoreCase);
     private ID3D11Device? _device;
@@ -56,10 +57,12 @@ internal sealed partial class D3D11MaterialViewport : Control
     private IReadOnlyDictionary<int, HashSet<int>> _overlaySelectedVertices = new Dictionary<int, HashSet<int>>();
     private IReadOnlyDictionary<int, HashSet<int>> _overlaySelectedFaces = new Dictionary<int, HashSet<int>>();
     private IReadOnlySet<int> _overlaySelectedSources = new HashSet<int>();
-    private int _overlaySelectedSubmeshIndex;
+    private int _overlaySelectedSubmeshIndex = -1;
     private bool _overlayShowWire;
     private bool _overlayShowVertices;
     private bool _overlayShowXRay;
+    private Point? _overlayBrushCursor;
+    private float _overlayBrushRadius = 24.0f;
     private int _materialDebugMode;
     private long _texturedSolidBatchDrawCount;
     private long _untexturedSolidBatchDrawCount;
@@ -76,11 +79,12 @@ internal sealed partial class D3D11MaterialViewport : Control
     public event Action<string>? BackendUnavailable;
     public event Action<double, double, string>? FrameRendered;
 
-    public D3D11MaterialViewport(ObjDocument document, NetMaterialSet materials, NetTextureSet textureSet)
+    public D3D11MaterialViewport(ObjDocument document, NetMaterialSet materials, NetTextureSet textureSet, NetSceneState scene)
     {
         _document = document;
         _materials = materials;
         _textureSet = textureSet;
+        _scene = scene;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.Opaque | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
         Dock = DockStyle.Fill;
         BackColor = System.Drawing.Color.FromArgb(18, 20, 24);
@@ -116,7 +120,9 @@ internal sealed partial class D3D11MaterialViewport : Control
         int selectedSubmeshIndex,
         bool showWire,
         bool showVertices,
-        bool showXRay)
+        bool showXRay,
+        Point? brushCursor,
+        float brushRadius)
     {
         _overlayTopology = topology;
         _overlaySelectedEdges = selectedEdges;
@@ -129,6 +135,8 @@ internal sealed partial class D3D11MaterialViewport : Control
         _overlayShowWire = showWire;
         _overlayShowVertices = showVertices;
         _overlayShowXRay = showXRay;
+        _overlayBrushCursor = brushCursor;
+        _overlayBrushRadius = Math.Clamp(brushRadius, 1.0f, 512.0f);
         Invalidate();
     }
 
@@ -479,7 +487,9 @@ internal sealed partial class D3D11MaterialViewport : Control
         {
             foreach (var batch in _batches)
             {
-                if (_materials.ParametersForSubmesh(batch.SubmeshIndex).Visible is false) continue;
+                if (!_scene.IsVisible(batch.SubmeshIndex)
+                    || (_scene.ComparisonMode == "overlay" && _scene.IsReference(batch.SubmeshIndex))
+                    || _materials.ParametersForSubmesh(batch.SubmeshIndex).Visible is false) continue;
                 var constants = BuildCameraConstants(batch);
                 _context.UpdateSubresource(ref constants, _cameraBuffer);
                 _context.PSSetShaderResources(0u, batch.Materials.ShaderResources);
@@ -577,8 +587,8 @@ internal sealed partial class D3D11MaterialViewport : Control
         var emissiveColor = parameters.EmissiveColor ?? Vector3.One;
         return new D3D11CameraConstants
         {
-            WorldViewProjection = _camera.WorldViewProjection,
-            World = _camera.World,
+            WorldViewProjection = _scene.ModelMatrix(batch.SubmeshIndex) * _camera.WorldViewProjection,
+            World = _scene.ModelMatrix(batch.SubmeshIndex) * _camera.World,
             CameraPosition = -_camera.Forward * Math.Max(10.0f, _camera.SceneSize * 4.0f + 10.0f),
             MaterialRoughness = 0.45f,
             LightDirection = Vector3.Normalize(new Vector3(-0.35f, -0.55f, -0.65f)),
@@ -637,6 +647,11 @@ internal sealed partial class D3D11MaterialViewport : Control
             MaterialEmissiveOverrideFlags = new Vector4(
                 parameters.EmissiveColor.HasValue ? 1.0f : 0.0f,
                 parameters.EmissiveIntensity.HasValue ? 1.0f : 0.0f,
+                0.0f,
+                0.0f),
+            MaterialChannelSelectors = new Vector4(
+                _materials.ChannelComponentIndexForSubmesh(batch.SubmeshIndex, "roughness"),
+                _materials.ChannelComponentIndexForSubmesh(batch.SubmeshIndex, "metallic"),
                 0.0f,
                 0.0f),
         };
@@ -765,4 +780,5 @@ internal struct D3D11CameraConstants
     public Vector4 MaterialSurfaceBlends;
     public Vector4 MaterialEmissiveOverride;
     public Vector4 MaterialEmissiveOverrideFlags;
+    public Vector4 MaterialChannelSelectors;
 }

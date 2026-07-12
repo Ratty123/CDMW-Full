@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -96,3 +97,39 @@ def test_startup_autodetect_source_has_no_nested_event_pump() -> None:
     body = source[start : source.index("def _handle_autodetect_result", start)]
     assert "processEvents(" not in body
     assert "setOverrideCursor" not in body
+
+
+def test_startup_path_thread_refs_survive_native_thread_tail(monkeypatch: pytest.MonkeyPatch) -> None:
+    callbacks: list[object] = []
+    deleted: list[bool] = []
+
+    class TailThread:
+        def __init__(self) -> None:
+            self.wait_results = [False, True]
+
+        def wait(self, _milliseconds: int) -> bool:
+            return self.wait_results.pop(0)
+
+        def deleteLater(self) -> None:
+            deleted.append(True)
+
+    thread = TailThread()
+    worker = object()
+    owner = SimpleNamespace(
+        _path_task_thread=thread,
+        _path_task_worker=worker,
+        _pending_path_task=None,
+        isVisible=lambda: False,
+    )
+    owner._handle_path_task_finished = lambda target=None: startup_path_task_controller.StartupPathTaskControllerMixin._handle_path_task_finished(owner, target)
+    monkeypatch.setattr(startup_path_task_controller.QTimer, "singleShot", lambda _ms, callback: callbacks.append(callback))
+
+    owner._handle_path_task_finished(thread)
+
+    assert owner._path_task_thread is thread
+    assert owner._path_task_worker is worker
+    assert len(callbacks) == 1
+    callbacks.pop()()
+    assert owner._path_task_thread is None
+    assert owner._path_task_worker is None
+    assert deleted == [True]

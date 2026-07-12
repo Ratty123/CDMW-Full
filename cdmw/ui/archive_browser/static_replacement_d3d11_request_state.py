@@ -328,7 +328,7 @@ def alignment_d3d11_cache_key_with_native_reference(
     signature_hash = str(native_reference_signature_hash or "").strip()
     if signature_hash:
         key = f"{key}|native_ref={signature_hash}"
-    return f"{key}|original_reference_native_splice=disabled_v2"
+    return f"{key}|original_reference_native_splice=role_aware_v3"
 
 
 def alignment_d3d11_remember_request_cache_key(

@@ -391,10 +391,11 @@ class ArchiveMeshDirectPatchMixin:
     @staticmethod
     def _archive_mesh_import_file_filter() -> str:
         return (
-            "Mesh Files (*.obj *.dae *.gltf *.glb *.pac *.pam *.pamlod);;"
+            "Mesh Files (*.obj *.dae *.gltf *.glb *.zip *.pac *.pam *.pamlod);;"
             "Wavefront OBJ (*.obj);;"
             "Collada DAE (*.dae);;"
             "glTF / GLB (*.gltf *.glb);;"
+            "Model Archives (*.zip);;"
             "Local Game Mesh (*.pac *.pam *.pamlod)"
         )
 

@@ -189,10 +189,16 @@ def install_window_feature_controller(
     *,
     controller_attribute: str,
     providers: Sequence[type | LazyFeatureProvider],
+    bridged_members: Sequence[str] = (),
 ) -> None:
     """Install stable compatibility descriptors backed by an owned controller."""
 
     members = _provider_members(tuple(providers))
+    bridges = frozenset(bridged_members)
+    unknown_bridges = bridges.difference(members)
+    if unknown_bridges:
+        names = ", ".join(sorted(unknown_bridges))
+        raise TypeError(f"Main window bridge(s) have no composed provider: {names}.")
     installed: dict[str, str] = dict(getattr(window_type, "__cdmw_composed_members__", {}))
     for name, descriptor in members.items():
         previous_controller = installed.get(name)
@@ -200,9 +206,13 @@ def install_window_feature_controller(
             raise TypeError(
                 f"Main window member {name!r} is already owned by {previous_controller!r}."
             )
-        if name in window_type.__dict__:
+        if name in bridges:
+            if name not in window_type.__dict__:
+                raise TypeError(f"Main window bridge {name!r} is not defined on the class.")
+        elif name in window_type.__dict__:
             raise TypeError(f"Main window already defines composed member {name!r}.")
-        setattr(window_type, name, _ForwardedFeatureMember(controller_attribute, name, descriptor))
+        else:
+            setattr(window_type, name, _ForwardedFeatureMember(controller_attribute, name, descriptor))
         installed[name] = controller_attribute
     window_type.__cdmw_composed_members__ = installed
 

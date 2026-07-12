@@ -48,6 +48,7 @@ from cdmw.ui.archive_browser.mesh_import_setup_state import (
     mesh_import_continue_button_text as _mesh_import_continue_button_text,
     mesh_import_placement_status_chips as _mesh_import_placement_status_chips,
     mesh_import_replacement_status_chip as _mesh_import_replacement_status_chip,
+    mesh_import_setup_control_text as _mesh_import_setup_control_text,
     mesh_import_static_guidance_text as _mesh_import_static_guidance_text,
 )
 
@@ -107,7 +108,7 @@ class ArchiveMeshImportExportMixin:
         has_roundtrip_sidecar = bool(prepared_preflight.has_roundtrip_sidecar) if is_obj else False
         profile = prepared_preflight.profile
         original_mesh_for_setup = prepared_preflight.original_mesh
-        preflight = prepared_preflight.preflight
+        preflight, setup_control_text = prepared_preflight.preflight, _mesh_import_setup_control_text()
 
         dialog = QDialog(self)
         dialog.setObjectName("MeshImportSetupDialog")

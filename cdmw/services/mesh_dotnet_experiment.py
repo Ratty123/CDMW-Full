@@ -21,10 +21,14 @@ from cdmw.domain.mesh.operations import (
     validate_mesh_edit_operations,
 )
 from cdmw.modding.mesh_exporter import export_obj
+from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
 from cdmw.modding.mesh_obj_importer import import_obj
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.mesh_dotnet_material_state import (
     _dotnet_manifest_resource_bindings,
+    _dotnet_initial_material_parameters,
+    _dotnet_material_channel_components,
     _dotnet_material_input_channels,
     _dotnet_resolved_texture_channels,
     _source_file_stat_key,
@@ -48,6 +52,10 @@ class MeshDotNetExperimentPackage:
     edit_operations_path: Path
     launch_manifest_path: Path
     material_signature: str = ""
+    scene_mesh_path: Path | None = None
+    scene_manifest_path: Path | None = None
+    editable_submesh_count: int = 0
+    reference_submesh_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +185,8 @@ def _dotnet_submesh_material_payload(
         "resolved_channels": resolved_channels,
         "packaged_channels": packaged_channels,
         "resource_channels": resource_channels,
+        "channel_components": _dotnet_material_channel_components(source_submesh),
+        "parameters": _dotnet_initial_material_parameters(source_submesh, resolved_channels),
         "resolved_texture_count": len([value for value in resolved_channels.values() if value]),
         "packaged_texture_count": len(packaged_channels),
     }
@@ -237,6 +247,75 @@ def _write_dotnet_material_manifest(
         "fallbacks": {"base": "neutral_checker", "normal": "flat_normal", "emissive": "black"},
         "source_mesh": str(getattr(mesh, "path", "") or ""),
         "material_signature": str(material_signature or ""),
+    }
+    atomic_write_text(path, json.dumps(payload, indent=2))
+
+
+def _mesh_scene_bounds(meshes: Sequence[ParsedMesh]) -> tuple[list[float], list[float]]:
+    vertices = [
+        vertex
+        for mesh in meshes
+        for submesh in tuple(getattr(mesh, "submeshes", ()) or ())
+        for vertex in tuple(getattr(submesh, "vertices", ()) or ())
+        if len(vertex) >= 3
+    ]
+    if not vertices:
+        return [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]
+    return (
+        [min(float(vertex[axis]) for vertex in vertices) for axis in range(3)],
+        [max(float(vertex[axis]) for vertex in vertices) for axis in range(3)],
+    )
+
+
+def _build_dotnet_scene_mesh(mesh: ParsedMesh, reference_mesh: ParsedMesh | None) -> ParsedMesh:
+    scene_mesh = clone_mesh_for_editing(mesh)
+    if reference_mesh is not None:
+        reference = clone_mesh_for_editing(reference_mesh)
+        for index, submesh in enumerate(reference.submeshes):
+            submesh.name = f"original_reference_{index}_{submesh.name or 'part'}"
+        scene_mesh.submeshes.extend(reference.submeshes)
+    refresh_mesh_totals(scene_mesh)
+    return scene_mesh
+
+
+def _write_dotnet_scene_manifest(
+    path: Path,
+    *,
+    mesh: ParsedMesh,
+    reference_mesh: ParsedMesh | None,
+    editable_submesh_count: int,
+    comparison_mode: str,
+    interaction_mode: str,
+) -> None:
+    bounds_min, bounds_max = _mesh_scene_bounds(tuple(item for item in (mesh, reference_mesh) if item is not None))
+    extent = max((bounds_max[axis] - bounds_min[axis] for axis in range(3)), default=0.0)
+    center = [(bounds_min[axis] + bounds_max[axis]) * 0.5 for axis in range(3)]
+    reference_count = len(tuple(getattr(reference_mesh, "submeshes", ()) or ())) if reference_mesh is not None else 0
+    payload = {
+        "format": "cdmw_mesh_dotnet_scene_v1",
+        "renderer_authority": "dotnet_vortice_resident_scene",
+        "editable_submesh_count": int(editable_submesh_count),
+        "reference_submesh_count": int(reference_count),
+        "roles": {
+            "replacement": list(range(int(editable_submesh_count))),
+            "original_reference": list(range(int(editable_submesh_count), int(editable_submesh_count) + int(reference_count))),
+        },
+        "comparison_mode": str(comparison_mode or "side_by_side"),
+        "interaction_mode": str(interaction_mode or "placement"),
+        "grid": {
+            "visible": True,
+            "origin": [center[0], bounds_min[1], center[2]],
+            "normal_axis": "y",
+            "spacing": max(float(extent) / 10.0, 0.01),
+            "major_line_every": 5,
+        },
+        "placement": {
+            "translation": [0.0, 0.0, 0.0],
+            "rotation_degrees": [0.0, 0.0, 0.0],
+            "scale": [1.0, 1.0, 1.0],
+        },
+        "gizmo": {"visible": True, "tool": "move", "space": "world"},
+        "bounds": {"min": bounds_min, "max": bounds_max, "center": center},
     }
     atomic_write_text(path, json.dumps(payload, indent=2))
 
@@ -398,6 +477,9 @@ def build_mesh_dotnet_experiment_package(
     mesh: ParsedMesh,
     *,
     output_root: Path | str | None = None,
+    reference_mesh: ParsedMesh | None = None,
+    comparison_mode: str = "side_by_side",
+    interaction_mode: str = "placement",
 ) -> MeshDotNetExperimentPackage:
     material_signature = mesh_dotnet_material_input_signature(mesh)
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_mesh_dotnet_experiment"
@@ -428,6 +510,35 @@ def build_mesh_dotnet_experiment_package(
         material_signature=material_signature,
     )
 
+    editable_submesh_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
+    reference_submesh_count = len(tuple(getattr(reference_mesh, "submeshes", ()) or ())) if reference_mesh is not None else 0
+    scene_mesh = _build_dotnet_scene_mesh(mesh, reference_mesh)
+    scene_exported_paths = tuple(Path(path) for path in export_obj(scene_mesh, str(package_dir), "scene"))
+    scene_mesh_path = package_dir / "scene.obj"
+    scene_sidecar_path = package_dir / "scene.obj.meta.json"
+    if scene_mesh_path not in scene_exported_paths or not scene_mesh_path.is_file():
+        raise RuntimeError("Mesh .NET experiment package did not create scene.obj.")
+    if scene_sidecar_path not in scene_exported_paths or not scene_sidecar_path.is_file():
+        raise RuntimeError("Mesh .NET experiment package did not create scene.obj.meta.json.")
+    scene_sidecar_payload = json.loads(scene_sidecar_path.read_text(encoding="utf-8"))
+    if not isinstance(scene_sidecar_payload, dict):
+        raise RuntimeError("Mesh .NET experiment scene sidecar is not a JSON object.")
+    _write_dotnet_material_manifest(
+        net_materials_path,
+        mesh=scene_mesh,
+        sidecar_payload=scene_sidecar_payload,
+        material_signature=material_signature,
+    )
+    scene_manifest_path = package_dir / "dotnet_scene.json"
+    _write_dotnet_scene_manifest(
+        scene_manifest_path,
+        mesh=mesh,
+        reference_mesh=reference_mesh,
+        editable_submesh_count=editable_submesh_count,
+        comparison_mode=comparison_mode,
+        interaction_mode=interaction_mode,
+    )
+
     output_dir = package_dir / "output"
     output_dir.mkdir()
     status_path = package_dir / "dotnet_status.json"
@@ -445,6 +556,10 @@ def build_mesh_dotnet_experiment_package(
         edit_operations_path=edit_operations_path,
         launch_manifest_path=launch_manifest_path,
         material_signature=material_signature,
+        scene_mesh_path=scene_mesh_path,
+        scene_manifest_path=scene_manifest_path,
+        editable_submesh_count=editable_submesh_count,
+        reference_submesh_count=reference_submesh_count,
     )
     created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     atomic_write_text(
@@ -480,6 +595,8 @@ def build_mesh_dotnet_experiment_package(
                     "obj_sidecar": obj_sidecar_path.name,
                     "original_asset_hash": original_asset_hash_path.name,
                     "materials": net_materials_path.name,
+                    "scene": scene_mesh_path.name,
+                    "scene_state": scene_manifest_path.name,
                     "material_signature": material_signature,
                 },
                 "output": {
@@ -511,7 +628,7 @@ def mesh_dotnet_experiment_command(
         "--input-package",
         str(package.package_dir),
         "--mesh",
-        str(package.mesh_path),
+        str(package.scene_mesh_path or package.mesh_path),
         "--metadata",
         str(package.cdmeta_path),
         "--status",
@@ -743,12 +860,14 @@ def _dotnet_renderer_payload(status_payload: Mapping[str, object] | None) -> Map
 def mesh_dotnet_material_parity_warnings(status_payload: Mapping[str, object] | None) -> tuple[str, ...]:
     renderer = _dotnet_renderer_payload(status_payload)
     warnings: list[str] = []
-    if renderer.get("native_dds_parity") is False:
+    dds_resources = renderer.get("dds_resources")
+    dds_present = not (dds_resources == 0 or str(dds_resources or "").strip() == "0")
+    if dds_present and renderer.get("native_dds_parity") is False:
         warnings.append("native DDS parity is not available")
-    if renderer.get("dds_native_dxgi_upload") is False:
+    if dds_present and renderer.get("dds_native_dxgi_upload") is False:
         warnings.append("native DXGI DDS upload is not available")
     upload_mode = str(renderer.get("dds_upload_mode", "") or "").strip().lower()
-    if upload_mode and upload_mode != "native_dxgi_upload":
+    if dds_present and upload_mode and upload_mode != "native_dxgi_upload":
         warnings.append(f"DDS upload mode is {upload_mode}")
     gap = renderer.get("material_contract_gap")
     if isinstance(gap, Sequence) and not isinstance(gap, (str, bytes)) and tuple(gap):

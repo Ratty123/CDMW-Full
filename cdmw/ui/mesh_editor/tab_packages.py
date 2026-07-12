@@ -61,7 +61,7 @@ class MeshEditorPackageMixin:
             controller.active_session_id,
             output_dir,
             expected_mesh_revision=controller.session_view().revision,
-            texture_updates_waiter=self.standalone_texture_region_queue.wait_idle,
+            texture_updates_waiter=self._wait_for_dotnet_export_updates,
         )
         thread = QThread(self)
         worker.moveToThread(thread)

@@ -325,8 +325,22 @@ static PathcCollectionNative load_pathc_collection_native(const fs::path& path) 
     return collection;
 }
 
-static const PathcCollectionNative& cached_pathc_collection_native(const fs::path& path) {
+static std::map<std::string, PathcCollectionNative>& resident_pathc_cache() {
     static std::map<std::string, PathcCollectionNative> cache;
+    return cache;
+}
+
+static size_t resident_pathc_cache_count() {
+    return resident_pathc_cache().size();
+}
+
+static void release_resident_pathc_cache() {
+    std::map<std::string, PathcCollectionNative> empty;
+    resident_pathc_cache().swap(empty);
+}
+
+static const PathcCollectionNative& cached_pathc_collection_native(const fs::path& path) {
+    auto& cache = resident_pathc_cache();
     const std::string key = fs::absolute(path).string();
     auto found = cache.find(key);
     if (found != cache.end()) return found->second;
@@ -562,7 +576,7 @@ static constexpr size_t kDecodedEntryCacheMaxBytes = 256ull * 1024ull * 1024ull;
 static constexpr size_t kDecodedEntryCacheMaxSingleBytes = 64ull * 1024ull * 1024ull;
 static constexpr size_t kDecodedEntryCacheRecycleBytes = 192ull * 1024ull * 1024ull;
 static constexpr std::uint64_t kServiceMaxJobs = 32;
-static constexpr unsigned long long kServicePrivateRecycleBytes = 768ull * 1024ull * 1024ull;
+static constexpr unsigned long long kServicePrivateRecycleBytes = 512ull * 1024ull * 1024ull;
 
 static size_t decoded_entry_cache_entries() {
     return g_decoded_entry_cache.size();

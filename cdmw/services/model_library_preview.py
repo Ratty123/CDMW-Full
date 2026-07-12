@@ -183,7 +183,7 @@ def prepare_model_library_inline_preview(
     quality_reduction = None
     max_faces = _INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
     max_vertices = _INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
-    if backend == "native_d3d11" and bool(high_quality_textures):
+    if backend == "native_d3d11":
         max_faces = _NATIVE_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
         max_vertices = _NATIVE_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
     if any(

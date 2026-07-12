@@ -108,7 +108,7 @@ class WorkspacePanelBuilderMixin:
         tabs.setMinimumWidth(300)
         tabs.setMaximumWidth(430)
         self.right_panels = tabs
-        self.outliner = self._tree(("Part", "Faces", "Rev"), "MeshEditorOutlinerPanel")
+        self.outliner = self._part_tree(("Part", "Faces", "Rev"), "MeshEditorOutlinerPanel")
         self._configure_part_tree(self.outliner)
         self.properties_tree = self._tree(("Property", "Value"), "MeshEditorPropertiesPanel")
         uv_panel = self._build_uv_panel()
@@ -615,7 +615,7 @@ class WorkspacePanelBuilderMixin:
             action_grid.addWidget(button, index // 2, index % 2)
         action_grid.setColumnStretch(1, 1)
         layout.addLayout(action_grid)
-        self.material_tree = self._tree(("Material", "Texture", "Slot"), "MeshEditorMaterialPanel")
+        self.material_tree = self._part_tree(("Material", "Texture", "Slot"), "MeshEditorMaterialPanel")
         self._configure_part_tree(self.material_tree)
         layout.addWidget(self.material_tree, 1)
         return frame

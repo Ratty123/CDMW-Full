@@ -267,6 +267,7 @@ internal sealed partial class ExperimentForm
             return;
         }
         _textureSet.PruneToResources(_materials.TextureLoadResources());
+        RefreshSubmeshList();
 
         _lastAppliedMaterialGeneration = update.Generation;
         _materialStateAppliedCount++;
@@ -352,6 +353,7 @@ internal sealed partial class ExperimentForm
             return;
         }
 
+        RefreshSubmeshList();
         _lastAppliedMaterialParameterGeneration = update.ParameterGeneration;
         _materialParameterAppliedCount++;
         WriteProtocolEvent("material_parameter_applied", new Dictionary<string, object?>

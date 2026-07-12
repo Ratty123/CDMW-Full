@@ -475,6 +475,8 @@ def _native_preview_triangle_group_with_report_material(
     submesh_index: int,
 ) -> dict[str, object]:
     result = dict(group)
+    if "name" in item:
+        result.setdefault("part_name", str(item.get("name") or f"part_{submesh_index}"))
     if "material" in item or "name" in item:
         result.setdefault("material_name", str(item.get("material") or item.get("name") or f"part_{submesh_index}"))
     if "texture" in item:

@@ -1,6 +1,6 @@
 # .NET Mesh Editor Repair Audit
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 ## Current entry point
 
@@ -52,8 +52,17 @@ Last updated: 2026-07-11
 
 - Enter edit mode: host starts the embedded .NET helper by default when the helper is available and a parent HWND exists; `mesh_editor/use_embedded_dotnet_viewport=false` remains a developer fallback. Helper availability is tracked separately as `_mesh_editor_dotnet_available`.
 - During launch: the classic Qt edit toolbar hides as soon as `_mesh_editor_embedded_dotnet_state` enters `launching`. Native D3D11 stays alive underneath until accepted .NET `ready`; a 10-second ready watchdog restores native fallback after a hung launch.
+- During embedded .NET ownership, the WinForms editor exposes its single dark,
+  scrollable left tool panel. The legacy Qt toolbar and merged right-side Qt
+  controls remain hidden; they return only for native fallback.
 - During edit mode: local selection is mirrored to the resident service, strokes use incremental pointer segments, heavy commands run through `MeshEditCommandWorker`, and .NET consumes native preview deltas.
 - Stop edit mode: host sends `deactivate_request`, waits for its ordered acknowledgement and any active command to finish/cancel, syncs the resident session once, hides .NET as `suspended`, and restores the textured preview. A two-second acknowledgement watchdog stops a stuck helper before committing resident edits. Re-entry sends `activate_request` to the same process only when its material signature still matches.
+- Leaving Edit Mesh explicitly queues the material/texture refresh after the
+  geometry transition, even when no legacy raw-preview transition was recorded.
+- The .NET Parts list mirrors all selected resident parts, refreshes after
+  topology/material changes, and routes visibility, duplicate, and delete
+  through the existing resident builder authority. Live vertex/topology updates
+  retain the current camera center; Reset/Fit is the only recenter operation.
 - Failure path: invalid HWND embedding, failed launch, unexpected process
   error/finish, or renderer-blocked `ready` clears embedded ownership and
   restores the legacy compatibility edit controls without finalizing away

@@ -68,3 +68,16 @@ def test_dotnet_revision_queue_rejects_stale_pending_and_keeps_legacy_alias(tmp_
     assert queue.metrics()["ack_timeouts"] == 1
     queue.reset()
     assert not timeout_path.exists()
+
+
+def test_same_revision_selection_follows_active_topology_without_being_discarded() -> None:
+    sent: list[dict[str, object]] = []
+    queue = DotNetRevisionUpdateQueue(lambda payload: not sent.append(dict(payload)))
+    queue.observe_capabilities({"capabilities": [MESH_EDIT_REVISION_CAPABILITY]})
+
+    assert queue.enqueue(4, (_packet("preview_triangle_update"),))
+    assert queue.enqueue(4, ({"event": "selection_update", "selection": {"source_indices": [2]}},))
+
+    assert [packet["event"] for packet in sent] == ["preview_triangle_update", "selection_update"]
+    assert queue.metrics()["discarded_stale_updates"] == 0
+    assert queue.acknowledge("preview_triangle_update_ack", {"edit_revision": 4, "status": "applied"})

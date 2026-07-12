@@ -593,6 +593,10 @@ struct NativePackage {
     int face_count = 0;
     int dds_candidates = 0;
     int dds_extracted = 0;
+    double pamt_index_ms = 0.0;
+    size_t pamt_index_entries = 0;
+    bool pamt_index_cache_hit = false;
+    std::string pamt_index_cache_path;
     std::string mesh_parse = "unsupported";
     std::string material_index = "none";
     std::string material_graph_status = "not_started";

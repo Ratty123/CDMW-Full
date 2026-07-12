@@ -53,6 +53,10 @@ def _d3d11_package_lifecycle_step_048(_state):
         @_state.Slot(int, str)
         def handle_error(self, request_id: int, message: str) -> None:
             _state._handle_alignment_d3d11_package_error(request_id, message)
+
+        @_state.Slot()
+        def handle_thread_finished(self) -> None:
+            _state._cleanup_alignment_d3d11_package_worker_refs()
     _state._AlignmentD3D11PackageWorkerReceiver = _AlignmentD3D11PackageWorkerReceiver
 
 def _d3d11_package_lifecycle_step_049(_state):
@@ -173,8 +177,10 @@ def _d3d11_package_lifecycle_step_050(_state):
         worker.error.connect(_state.alignment_d3d11_package_worker_receiver.handle_error, _state.Qt.QueuedConnection)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(_state._cleanup_alignment_d3d11_package_worker_refs)
+        thread.finished.connect(
+            _state.alignment_d3d11_package_worker_receiver.handle_thread_finished,
+            _state.Qt.QueuedConnection,
+        )
         _state._alignment_d3d11_record_package_worker_refs_helper(_state.alignment_d3d11_state, worker=worker, thread=thread)
         loading_detail = _state._alignment_d3d11_package_loading_detail_helper(package_quality=package_quality_key, high_quality_textures=high_quality_textures, mesh_edit_raw_package=mesh_edit_raw_package, fast_geometry_loaded=bool(_state.alignment_d3d11_state.get('fast_geometry_loaded')))
         _state._set_alignment_d3d11_progress(0, f'Preparing preview - {loading_detail}.', request_id=request_id, stage='package', detail=f'Building preview package. quality={package_quality} reason={rebuild_reason} label={label}', active=not live_frame_available)
@@ -243,8 +249,29 @@ def _d3d11_package_lifecycle_step_053(_state):
 
 def _d3d11_package_lifecycle_step_054(_state):
 
-    def _cleanup_alignment_d3d11_package_worker_refs() -> None:
+    def _cleanup_alignment_d3d11_package_worker_refs(thread: object=None, worker: object=None) -> None:
+        thread = thread if isinstance(thread, _state.QThread) else _state.alignment_d3d11_state.get('thread')
+        worker = _state.alignment_d3d11_state.get('worker') if worker is None else worker
+        if isinstance(thread, _state.QThread):
+            try:
+                if not thread.wait(0):
+                    _state.QTimer.singleShot(1, lambda target_thread=thread, target_worker=worker: _state._cleanup_alignment_d3d11_package_worker_refs(target_thread, target_worker))
+                    return
+            except RuntimeError:
+                pass
+        if _state.alignment_d3d11_state.get('thread') is not thread or _state.alignment_d3d11_state.get('worker') is not worker:
+            if isinstance(thread, _state.QThread):
+                try:
+                    thread.deleteLater()
+                except RuntimeError:
+                    pass
+            return
         _state._alignment_d3d11_clear_package_worker_refs_helper(_state.alignment_d3d11_state)
+        if isinstance(thread, _state.QThread):
+            try:
+                thread.deleteLater()
+            except RuntimeError:
+                pass
         pending_request = _state._alignment_d3d11_take_pending_request_helper(_state.alignment_d3d11_state, label_fallback='Live alignment preview', display_mode_fallback=str(_state.preview_mode_combo.currentData() or 'side_by_side'))
         pending_model = pending_request['model']
         if _state._alignment_dialog_widgets_live() and _state._alignment_d3d11_preview_active() and isinstance(pending_model, _state.ModelPreviewData):

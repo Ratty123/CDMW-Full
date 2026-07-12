@@ -72,12 +72,7 @@ class ArchivePreviewResultMixin:
         role_label = self._archive_entry_role_label(selected_entry)
         self.archive_preview_role_badge.setText(role_label)
         self.archive_preview_role_badge.setVisible(bool(selected_entry))
-        health_text = self._archive_preview_health_text(
-            result,
-            selected_entry,
-            result.model_texture_references if not self.archive_preview_showing_loose else (),
-        )
-        self._set_archive_preview_health_message(health_text)
+        self._apply_archive_preview_health(result, selected_entry)
         self._set_archive_preview_base_detail_text(detail_text, include_current_model_debug=False)
         self._update_archive_preview_warning_controls(
             badge_text=warning_badge,
@@ -92,6 +87,11 @@ class ArchivePreviewResultMixin:
             )
         else:
             self._clear_archive_texture_reference_views()
+
+        if (not self.archive_preview_showing_loose and preferred_view == "info"
+                and str(getattr(result, "quality_tier", "") or "").strip().lower() == "quick"
+                and self._archive_isolated_renderer_process_running()):
+            return 0.0
 
         if preferred_view == "image" and (preview_image is not None or preview_image_path):
             self._deactivate_archive_model_renderers_for_non_model_preview()
@@ -278,6 +278,11 @@ class ArchivePreviewResultMixin:
         self._update_archive_model_action_controls(None)
         self._set_archive_preview_image_controls_enabled(False)
         return 0.0
+
+    def _apply_archive_preview_health(self, result: ArchivePreviewResult, selected_entry: object) -> None:
+        references = result.model_texture_references if not self.archive_preview_showing_loose else ()
+        health_text = self._archive_preview_health_text(result, selected_entry, references)
+        self._set_archive_preview_health_message(health_text)
 
     def _toggle_archive_loose_preview(self) -> None:
         result = self.current_archive_preview_result

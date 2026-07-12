@@ -21,6 +21,7 @@ def _texture_original_texture_material_step_001(_state):
     _state.QPushButton = _state.context.get('QPushButton')
     _state.QSplitter = _state.context.get('QSplitter')
     _state.QThread = _state.context.get('QThread')
+    _state.QTimer = _state.context.get('QTimer')
     _state.QTreeWidget = _state.context.get('QTreeWidget')
     _state.QTreeWidgetItem = _state.context.get('QTreeWidgetItem')
     _state.QVBoxLayout = _state.context.get('QVBoxLayout')
@@ -228,16 +229,42 @@ def _texture_original_texture_material_step_005(_state):
         if isinstance(worker, _state.AlignmentOriginalTexturePreviewWorker):
             worker.stop()
         thread = _state.alignment_d3d11_state.get('original_texture_thread')
-        if isinstance(thread, _state.QThread) and thread.isRunning():
-            thread.quit()
-            thread.wait(150)
+        if isinstance(thread, _state.QThread):
+            try:
+                if thread.isRunning():
+                    thread.quit()
+            except RuntimeError:
+                pass
+            _state._cleanup_original_reference_texture_worker_refs(thread, worker)
+            return
         _state._alignment_d3d11_clear_original_texture_worker_refs_helper(_state.alignment_d3d11_state)
     _state._stop_original_reference_texture_worker = _stop_original_reference_texture_worker
 
 def _texture_original_texture_material_step_006(_state):
 
-    def _cleanup_original_reference_texture_worker_refs() -> None:
+    def _cleanup_original_reference_texture_worker_refs(thread: object=None, worker: object=None) -> None:
+        thread = thread if isinstance(thread, _state.QThread) else _state.alignment_d3d11_state.get('original_texture_thread')
+        worker = _state.alignment_d3d11_state.get('original_texture_worker') if worker is None else worker
+        if isinstance(thread, _state.QThread):
+            try:
+                if not thread.wait(0):
+                    _state.QTimer.singleShot(1, lambda target_thread=thread, target_worker=worker: _state._cleanup_original_reference_texture_worker_refs(target_thread, target_worker))
+                    return
+            except RuntimeError:
+                pass
+        if _state.alignment_d3d11_state.get('original_texture_thread') is not thread or _state.alignment_d3d11_state.get('original_texture_worker') is not worker:
+            if isinstance(thread, _state.QThread):
+                try:
+                    thread.deleteLater()
+                except RuntimeError:
+                    pass
+            return
         _state._alignment_d3d11_clear_original_texture_worker_refs_helper(_state.alignment_d3d11_state)
+        if isinstance(thread, _state.QThread):
+            try:
+                thread.deleteLater()
+            except RuntimeError:
+                pass
     _state._cleanup_original_reference_texture_worker_refs = _cleanup_original_reference_texture_worker_refs
 
 def _texture_original_texture_material_step_007(_state):
@@ -305,6 +332,16 @@ def _texture_original_texture_material_step_009(_state):
                     raise _state.RunCancelled('Original texture preview cancelled.')
                 archive_preview_authoritative = _state.ModelPreviewData is not None and isinstance(current_archive_preview_model, _state.ModelPreviewData)
                 preview_model = _state._clone_preview_model(current_archive_preview_model) if archive_preview_authoritative else None
+                native_preview_model = preview_model
+                if native_preview_model is None and _state.original_reference_preview_model is not None:
+                    native_preview_model = _state._clone_preview_model(_state.original_reference_preview_model)
+                native_manifest_attempted = native_preview_model is not None
+                if native_manifest_attempted:
+                    native_material_batches = _state._load_native_preview_core_material_manifest_for_alignment(native_preview_model, package_root_text)
+                    if stop_event.is_set():
+                        raise _state.RunCancelled('Original texture preview cancelled.')
+                    if native_material_batches:
+                        return (native_preview_model, native_material_batches)
                 if preview_model is None and callable(_state.build_archive_preview_result):
                     preview_result = _state.build_archive_preview_result(texconv_path, _state.entry, companion_entry=companion_entry, texture_entries_by_normalized_path=archive_texture_entries_by_normalized_path, texture_entries_by_basename=archive_texture_entries_by_basename, sidecar_entries_by_texture_path=archive_sidecar_entries_by_texture_path, sidecar_entries_by_texture_basename=archive_sidecar_entries_by_texture_basename, visible_texture_mode=normalized_visible_texture_mode, support_texture_slots=support_texture_slots, stop_event=stop_event)
                     preview_candidate = getattr(preview_result, 'preview_model', None)
@@ -329,7 +366,7 @@ def _texture_original_texture_material_step_009(_state):
                         raise _state.RunCancelled('Original texture preview cancelled.')
                     _state._attach_model_support_texture_preview_paths(texconv_path, _state.entry, preview_model, parsed_mesh=_state.original_mesh_for_mapping, sidecar_texture_bindings=_state.sidecar_bindings, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename)
                 _state.self._attach_archive_model_preview_images(preview_model)
-                native_material_batches = _state._load_native_preview_core_material_manifest_for_alignment(preview_model, package_root_text)
+                native_material_batches = 0 if native_manifest_attempted else _state._load_native_preview_core_material_manifest_for_alignment(preview_model, package_root_text)
                 return (preview_model, native_material_batches)
             _state._stop_original_reference_texture_worker()
             worker_request_id = _state._alignment_d3d11_next_original_texture_worker_request_id_helper(_state.alignment_d3d11_state)
@@ -341,8 +378,12 @@ def _texture_original_texture_material_step_009(_state):
             worker.error.connect(_state.original_texture_worker_receiver.handle_error, _state.Qt.QueuedConnection)
             worker.finished.connect(thread.quit)
             worker.finished.connect(worker.deleteLater)
-            thread.finished.connect(thread.deleteLater)
-            thread.finished.connect(_state._cleanup_original_reference_texture_worker_refs)
+            _state.original_texture_worker_receiver.watch_thread(
+                thread,
+                worker,
+                _state._cleanup_original_reference_texture_worker_refs,
+                _state.Qt.QueuedConnection,
+            )
             _state._alignment_d3d11_record_original_texture_worker_refs_helper(_state.alignment_d3d11_state, worker=worker, thread=thread)
             thread.start()
         except Exception as exc:

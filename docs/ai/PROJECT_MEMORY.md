@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 ## Repository rules
 
@@ -19,6 +19,11 @@ Last updated: 2026-07-11
 - Keep `docs/plans/active/` to one current implementation plan. Delete completed
   plans and architecture-map-only placeholder modules; durable behavior belongs
   in owning docs, not completion logs.
+- Repo workflows live under `.agents/skills/`: `cdmw-validate-change`,
+  `cdmw-async-ui-work`, `cdmw-safe-archive-mutation`, and
+  `cdmw-verify-mesh-editor`. Keep stable invariants in `AGENTS.md`; keep detailed
+  commands and contracts in their owning docs/scripts instead of duplicating
+  them inside skills.
 
 ## Validated restructure baseline
 
@@ -55,9 +60,10 @@ Last updated: 2026-07-11
   PAC/archive/texture provenance and hashes, backend, geometry selection,
   captures, timings, fallback state, archive fingerprints, and individual gate
   results.
-- Use a system temporary base for pytest. Configured `codex_check` area tests
-  fail closed if paths drift; full QA compiles `cdmw`, `tests`, and `tools`;
-  run focused owners before nonvisual QA, native builds, package, and real-game gates.
+- Use a system temporary pytest base. Configured gates fail closed; full QA compiles `cdmw`, `tests`, and `tools`.
+- Corpus gates require complete classification, zero read errors/crashes, and
+  unchanged source-archive hashes; dated totals belong in
+  `docs/release-confidence-plan.md`.
 
 ## Shared identities, I/O, and lifecycle
 
@@ -118,37 +124,22 @@ Last updated: 2026-07-11
   BGRA8 uploads after first copy-on-write resource creation, and acknowledged
   cleanup. Preparation failure must advance pending work and every lease is
   released exactly once.
-- Native/.NET renderers retain mesh/GPU buffers, source-vertex-to-render-corner
-  mappings, SRV arrays, and immutable draw resources. Sparse edits update only
-  affected position/normal/UV ranges. Ordinary topology edits rebuild affected
-  submesh batches; explicit replace-all packets carry a complete snapshot,
-  final submesh count, and original material lineage.
-- Preview packages use singleflight creation, leases, atomic publication, and
-  explicit consume/ack cleanup. Pruning cannot delete staging or in-use data.
-- The .NET editor is the production embedded/standalone presentation and input
-  child. Embedded production accepts only `d3d11_vortice_shader`; WPF/GDI is an
-  explicit developer override. Python/C++ retain parser, resident-session,
-  validation, rebuild, material, and archive authority. Process reuse requires
-  compatible mode, session, package signature, and parent HWND; deactivation is
-  acknowledgement-driven.
+- Native/.NET renderers retain mesh/GPU buffers, corner mappings, SRV arrays, and immutable draw resources. Sparse edits update affected ranges; topology edits rebuild affected batches and preserve original material lineage.
+- Preview packages use singleflight, leases, atomic publication, consume/ack cleanup, and safe pruning. Source-stamped PAMT indexes have parse fallback; per-job material maps release while bounded decoded entries remain reusable.
+- The .NET/Vortice editor is the production embedded/standalone presentation child; Python/C++ retain data authority. It starts for replacement builders and original/imported sessions before Edit Mesh. One resident scene contains editable submeshes first and a render-only original reference, plus Y-up grid, four comparison modes, placement TRS, and move/rotate/scale gizmo state. Edit Mesh only gates mutation; turning it off keeps the renderer resident and placement controls visible. Scene-format Flip V normalization is format-driven even when preflight performs the import. Builder close still uses acknowledged deactivation and one final sync.
 - Resident material protocol v2 updates shader parameters, texture resources,
   and affected bindings in the same process after `Ready`. Automatic and Manual
   are the normal Material Authority profiles. Unsupported target resource/
   height controls disable with an exact reason; enabled no-ops are forbidden.
-- External OBJ/DAE/glTF/GLB missing/incomplete UVs use the bundled cancellable
-  xatlas path and report review-required. Failure blocks with a TEXCOORD_0 DCC
-  remedy. glTF slots sharing one UV set and affine transform bake that transform
-  before the internal V flip and publish TEXCOORD_0/identity metadata with a
-  versioned provenance report. Different UV sets/transforms use one per-material
-  xatlas layout plus sampler-aware, color-space-correct raster baking, native
-  MikkTSpace tangents, normal-basis conversion, eight-pixel gutters, and atomic
-  hashed PNGs. Missing/sparse/compressed or unsupported inputs block safely.
-  PAC/PAM input is never auto-unwrapped.
-- Current hidden hardware .NET soak: 1M vertices/1K updates at 59.96 Hz,
-  0.205 ms handler p95, zero post-warmup RSS growth, one initial full build,
-  and passing partial tail-shrink/material-lineage proof. Current real nude-PAC
-  gate has 67/67 gates true, 0.637 ms edit-handler p95, 36.4 ms maximum
-  heartbeat gap, and unchanged source archives.
+- External OBJ/DAE/glTF/GLB missing/incomplete UVs use cancellable xatlas and report review-required. Shared UV transforms bake before the V flip; differing sets use sampler/color-space-correct raster baking, native tangents, normal-basis conversion, gutters, and atomic hashes. Unsupported input blocks safely; PAC/PAM is never auto-unwrapped.
+- External ZIP import uses verified extraction; geometry fits the original frame, centers and Y-grounds, and overlay/side-by-side share one grid. Exact `cd_phm_01_sword_0016.pac` plus `wolf_gravestone_sword_free (1).zip` uses archive-resolved original textures and ZIP-owned imported textures.
+- Hardware soak must cover production-scale sparse updates, tail shrink,
+  material lineage, handler time, and post-warmup RSS; dated results belong in
+  `docs/release-confidence-plan.md`.
+- The real nude-PAC gate must leave archives unchanged. Mesh Edit starts with no
+  selected part; face/vertex modes can render without textures. Parts visibility
+  never changes the alignment basis, duplicate/delete are resident actions, and
+  wheel zoom spans `1.0` to `500000.0`.
 
 ## Startup and packaging contracts
 
@@ -156,17 +147,19 @@ Last updated: 2026-07-11
   must not pull NumPy, OpenCV, or preview stacks into cold facade import.
 - Startup smoke uses a unique instance namespace and an atomic marker written
   only after window construction. Lock collision is failure.
+- Startup autoload completes path/name lookup caches in the archive scan worker before releasing the splash; manual Archive Browser loads may defer them. The top status must terminalize as `Ready`/`Cache: Healthy`, including failure paths.
 - Lazy composed `MainWindow` callbacks are QObject-owned and import-deferred.
   Worker signals need those or an owning-thread QObject receiver; lambdas/plain
   callables execute in the worker even with `QueuedConnection`.
+- Shell Qt virtuals are explicit controller bridges. Close retains all owned
+  `QThread`s until nonblocking `wait(0)` confirms native teardown; only then may
+  QObject teardown publish `clean_shutdown: true`.
 - Release builds reject stale provider metadata. The configured-archive gate
   loads 1.67M entries, paints, filters, and requires a clean shutdown.
-- Durable baseline evidence is
-  `docs/reference/app-startup-benchmark-phase5.json`; the passing Phase 6 result
-  is `docs/reference/app-startup-benchmark-phase6.json`: public import p95
-  197.077 ms with no forbidden heavy modules, first-window p95 1746.569 ms
-  (31.258% better than baseline), first-tab p95 233.923 ms, and helper-ready
-  p95 517.075 ms.
+- Startup benchmark evidence is owned by
+  `docs/reference/app-startup-benchmark-phase5.json` and
+  `docs/reference/app-startup-benchmark-phase6.json`; dated timing summaries
+  belong in `docs/release-confidence-plan.md`.
 - Release Python dependencies are pinned by tested constraints. CI runs
   nonvisual gates on Python 3.11 and 3.14 and packaging is gated by QA.
 - Portable self-contained .NET remains the default. Change publish mode only
@@ -178,6 +171,8 @@ Last updated: 2026-07-11
   not import core. Core receives workspace/config dependencies by injection.
 - Internal callers import focused owners; compatibility facades expose cached
   lazy symbols with stable identity and import-order behavior.
+- Theme palette data lives in `cdmw/ui/theme_schemes.py`; `cdmw/ui/themes.py`
+  preserves public lookup and owns Qt palette/stylesheet generation.
 - Research UI imports dependency-free `cdmw/domain/research/` contracts/rules
   and the composed `ResearchService`; `cdmw.core.research` is compatibility-only.
 - Split cohesive hotspots behind unchanged facades. New owner modules are at

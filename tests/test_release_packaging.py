@@ -82,8 +82,8 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert source.index(packaged_smoke) < source.index('Stage "Verifying packaged startup"')
     assert source.index("Verifying packaged startup") < source.index("Publishing build output")
     assert source.index("generate_window_feature_provider_members.py") < source.index("Starting PyInstaller")
-    assert 'native/cdmw_mesh_dotnet_editor/build/Release/D3D11MaterialShaders.hlsl' in spec_source
-    assert 'native/cdmw_mesh_dotnet_editor/build/Debug/D3D11MaterialShaders.hlsl' in spec_source
+    assert 'NATIVE_CONFIGURATION = "Debug" if PROFILE == "debug" else "Release"' in spec_source
+    assert 'native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}/D3D11MaterialShaders.hlsl' in spec_source
 
 
 def test_release_spec_collects_all_app_submodules_for_lazy_facades() -> None:

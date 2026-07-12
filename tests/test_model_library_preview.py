@@ -180,24 +180,24 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
 
             self.assertEqual(result["audit_category"], "")
 
-    def test_backend_preview_reduces_dense_mesh_for_package_speed(self) -> None:
+    def test_qt_preview_reduces_dense_mesh_for_package_speed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp), triangle_count=1200)
 
-            result = prepare_model_library_inline_preview(scene_path, model_name="Dense")
+            result = prepare_model_library_inline_preview(scene_path, model_name="Dense", renderer_backend="qt")
 
             self.assertEqual(result["source_faces"], 1200)
             self.assertLess(result["faces"], result["source_faces"])
             self.assertIsNotNone(result["quality_reduction"])
 
-    def test_native_high_quality_preview_preserves_moderate_mesh_detail(self) -> None:
+    def test_native_fast_texture_preview_preserves_moderate_mesh_detail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp), triangle_count=1200)
 
             result = prepare_model_library_inline_preview(
                 scene_path,
                 model_name="Dense",
-                high_quality_textures=True,
+                high_quality_textures=False,
             )
 
             self.assertEqual(result["source_faces"], 1200)

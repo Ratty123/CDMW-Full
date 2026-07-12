@@ -7,8 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import QEventLoop, QObject, QThread, QTimer, Signal, Slot
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QEvent, QEventLoop, QObject, QThread, QTimer, Signal, Slot
+from PySide6.QtWidgets import QApplication, QMainWindow
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -99,6 +99,75 @@ def test_composed_controller_rejects_ambiguous_ownership() -> None:
             _Window,
             controller_attribute="_archive_controller",
             providers=(DuplicateProvider,),
+        )
+
+
+def test_composed_controller_keeps_explicit_qt_virtual_bridge() -> None:
+    class Provider:
+        def closeEvent(self, event: object) -> None:
+            self.virtual_events.append("close")
+            event.accept()
+            self.loop.quit()
+
+        def resizeEvent(self, _event: object) -> None:
+            self.virtual_events.append("resize")
+
+        def changeEvent(self, _event: object) -> None:
+            self.virtual_events.append("change")
+
+    class Window(QMainWindow):
+        def __init__(self, loop: QEventLoop) -> None:
+            super().__init__()
+            self.loop = loop
+            self.virtual_events: list[str] = []
+            self._controller = WindowFeatureController(self, (Provider,))
+
+        def closeEvent(self, event: object) -> None:  # type: ignore[override]
+            self._controller.resolve("closeEvent")(event)
+
+        def resizeEvent(self, event: object) -> None:  # type: ignore[override]
+            self._controller.resolve("resizeEvent")(event)
+
+        def changeEvent(self, event: object) -> None:  # type: ignore[override]
+            self._controller.resolve("changeEvent")(event)
+
+    install_window_feature_controller(
+        Window,
+        controller_attribute="_controller",
+        providers=(Provider,),
+        bridged_members=("changeEvent", "closeEvent", "resizeEvent"),
+    )
+    app = QApplication.instance() or QApplication([])
+    loop = QEventLoop()
+    window = Window(loop)
+    window.resize(320, 200)
+    window.show()
+    app.processEvents()
+    QApplication.sendEvent(window, QEvent(QEvent.Type.LanguageChange))
+    QTimer.singleShot(0, window.close)
+    QTimer.singleShot(2000, loop.quit)
+
+    loop.exec()
+
+    assert {"change", "close", "resize"}.issubset(window.virtual_events)
+    assert Window.__dict__["closeEvent"].__name__ == "closeEvent"
+    assert Window.__cdmw_composed_members__["closeEvent"] == "_controller"
+
+
+def test_composed_controller_rejects_unlisted_existing_member() -> None:
+    class Provider:
+        def callback(self) -> None:
+            pass
+
+    class Window:
+        def callback(self) -> None:
+            pass
+
+    with pytest.raises(TypeError, match="already defines composed member"):
+        install_window_feature_controller(
+            Window,
+            controller_attribute="_controller",
+            providers=(Provider,),
         )
 
 

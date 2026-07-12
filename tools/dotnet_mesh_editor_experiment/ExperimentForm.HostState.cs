@@ -28,12 +28,15 @@ internal sealed partial class ExperimentForm
         {
             _selectionTarget.SelectedItem = targetItem;
         }
-        _viewport.ActiveTool = tool;
-        _statusLabel.Text = $"Tool: {tool}";
+        ActivateTool(tool, tool[..1].ToUpperInvariant() + tool[1..]);
         WriteProtocolEvent("tool_state_applied", new Dictionary<string, object?>
         {
             ["tool"] = tool,
-            ["target_mode"] = _viewport.CurrentTargetMode()
+            ["target_mode"] = _viewport.CurrentTargetMode(),
+            ["local_selection"] = _viewport.SelectionSnapshotPayload(),
+            ["selected_part_index"] = _viewport.SelectedSubmeshIndex,
+            ["parts_list_selected_index"] = _submeshList.SelectedIndex,
+            ["parts_list_selected_indices"] = _submeshList.SelectedIndices.Cast<int>().ToArray(),
         });
     }
 }

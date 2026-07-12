@@ -8,8 +8,36 @@ from collections.abc import Mapping
 from typing import Dict, Optional
 
 from cdmw.services.archive_workflow_service import ArchiveRowIndex
+from cdmw.services.preview_rendering_service import native_preview_core_service_process_id
 from cdmw.models import ArchivePreviewResult
 from cdmw.ui.shell.diagnostics_controller import windows_process_memory_snapshot as _windows_process_memory_snapshot
+
+
+def _snapshot_value(snapshot: Mapping[str, object], key: str, fallback: object = 0) -> int:
+    try:
+        return int(snapshot.get(key, fallback) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _preview_core_process_metrics(diagnostics: Mapping[str, object]) -> Dict[str, int]:
+    last_job_pid = 0
+    for key in ("native_preview_core_process_pid", "preview_core_process_pid"):
+        last_job_pid = _snapshot_value(diagnostics, key)
+        if last_job_pid > 0:
+            break
+    live_pid = int(native_preview_core_service_process_id() or 0)
+    live_memory = _windows_process_memory_snapshot(live_pid)
+    if not live_memory:
+        live_pid = 0
+    return {
+        "preview_core_process_pid": live_pid,
+        "preview_core_process_private_bytes": _snapshot_value(live_memory, "private_bytes"),
+        "preview_core_process_working_set_bytes": _snapshot_value(live_memory, "working_set_bytes"),
+        "preview_core_last_job_process_pid": last_job_pid,
+        "preview_core_last_job_process_private_bytes": _snapshot_value(diagnostics, "process_private_bytes"),
+        "preview_core_last_job_process_working_set_bytes": _snapshot_value(diagnostics, "process_working_set_bytes"),
+    }
 
 
 class ArchivePreviewMemoryAuditMixin:
@@ -43,21 +71,7 @@ class ArchivePreviewMemoryAuditMixin:
             d3d11_pid = 0
         d3d11_memory = _windows_process_memory_snapshot(d3d11_pid)
 
-        preview_core_pid = 0
-        for key in ("native_preview_core_process_pid", "preview_core_process_pid"):
-            try:
-                preview_core_pid = int(native_preview_diagnostics.get(key, 0) or 0)
-            except (TypeError, ValueError):
-                preview_core_pid = 0
-            if preview_core_pid > 0:
-                break
-        preview_core_memory = _windows_process_memory_snapshot(preview_core_pid)
-
-        def _snapshot_value(snapshot: Mapping[str, object], key: str, fallback: object = 0) -> int:
-            try:
-                return int(snapshot.get(key, fallback) or 0)
-            except (TypeError, ValueError):
-                return 0
+        preview_core_metrics = _preview_core_process_metrics(native_preview_diagnostics)
 
         item_preload_timer = getattr(self, "archive_item_icon_preload_timer", None)
         preview_core_idle_timer = getattr(self, "archive_preview_core_idle_shutdown_timer", None)
@@ -188,21 +202,11 @@ class ArchivePreviewMemoryAuditMixin:
             "archive_name_search_loaded": getattr(self, "archive_name_search_index", None) is not None,
             "main_process_private_bytes": _snapshot_value(main_memory, "private_bytes"),
             "main_process_working_set_bytes": _snapshot_value(main_memory, "working_set_bytes"),
-            "preview_core_process_pid": preview_core_pid,
+            **preview_core_metrics,
             "preview_core_idle_shutdown_ms": int(getattr(self, "archive_preview_core_idle_shutdown_ms", 0) or 0),
             "preview_core_idle_shutdown_count": int(getattr(self, "archive_preview_core_idle_shutdown_count", 0) or 0),
             "preview_core_idle_shutdown_timer_active": bool(
                 preview_core_idle_timer is not None and preview_core_idle_timer.isActive()
-            ),
-            "preview_core_process_private_bytes": _snapshot_value(
-                preview_core_memory,
-                "private_bytes",
-                native_preview_diagnostics.get("process_private_bytes", 0),
-            ),
-            "preview_core_process_working_set_bytes": _snapshot_value(
-                preview_core_memory,
-                "working_set_bytes",
-                native_preview_diagnostics.get("process_working_set_bytes", 0),
             ),
             "preview_core_decoded_cache_bytes": int(native_preview_diagnostics.get("decoded_cache_bytes", 0) or 0),
             "preview_core_decoded_cache_entries": int(native_preview_diagnostics.get("decoded_cache_entries", 0) or 0),

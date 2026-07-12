@@ -22,7 +22,6 @@ from cdmw.services.mesh_dotnet_experiment import (
     write_mesh_dotnet_experiment_evaluation,
 )
 from cdmw.workers import mesh_editor_aux_workers, mesh_editor_workers
-from scripts.release_preflight import classify_git_status, release_blockers
 from tests.mesh_editor_source_support import mesh_editor_tab_source
 
 
@@ -168,12 +167,11 @@ def test_dotnet_experiment_packaging_scripts_publish_and_bundle_helper() -> None
     assert (root / "schemas" / "mesh" / "mesh.cdmeta.schema.json").is_file()
     assert '_add_data_tree_if_exists(datas, "schemas", "schemas", suffixes={".json"})' in spec_source
     assert "_add_native_binary_tree" in spec_source
-    assert "native/cdmw_mesh_dotnet_editor/build/Release" in spec_source
-    assert "native/cdmw_mesh_dotnet_editor/build/Debug" in spec_source
-    assert "native/cdmw_mesh_dotnet_editor/build/Release/D3D11MaterialShaders.hlsl" in spec_source
-    assert "native/cdmw_mesh_dotnet_editor/build/Debug/D3D11MaterialShaders.hlsl" in spec_source
-    assert "native/cdmw_d3d11_preview/build/bin/Release/texconv.exe" in spec_source
-    assert "native/cdmw_d3d11_preview/build/bin/Debug/texconv.exe" in spec_source
+    assert 'NATIVE_CONFIGURATION = "Debug" if PROFILE == "debug" else "Release"' in spec_source
+    assert "native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}" in spec_source
+    assert "native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}/D3D11MaterialShaders.hlsl" in spec_source
+    assert "native/cdmw_d3d11_preview/build/bin/{NATIVE_CONFIGURATION}/texconv.exe" in spec_source
+    assert 'if PROFILE != "release":' not in spec_source
     assert "suffixes={\".exe\", \".dll\", \".json\", \".pdb\"}" in spec_source
 
 
@@ -434,8 +432,6 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "MaterialsPath" in source
     assert "material_manifest" in source
     assert "decoded_texture_resources" in source
-    assert "DisabledButton(\"Copy\"" in source
-    assert "metadata-preserving paste" in source
     assert "authority_contract" in source
     assert "dotnet_viewport_python_cpp_validation" in source
     assert "native_authoritative_operation_required" in source
@@ -546,6 +542,37 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
     assert "--developer-renderer-fallback" in developer_args
 
 
+def test_dotnet_package_carries_resident_editable_and_original_scene(tmp_path: Path) -> None:
+    editable = _mesh()
+    reference = _mesh()
+    reference.path = "character/original_body.pac"
+
+    package = build_mesh_dotnet_experiment_package(
+        editable,
+        output_root=tmp_path,
+        reference_mesh=reference,
+        comparison_mode="side_by_side",
+        interaction_mode="placement",
+    )
+
+    assert package.scene_mesh_path is not None and package.scene_mesh_path.is_file()
+    assert package.scene_manifest_path is not None and package.scene_manifest_path.is_file()
+    assert package.editable_submesh_count == 1
+    assert package.reference_submesh_count == 1
+    scene = json.loads(package.scene_manifest_path.read_text(encoding="utf-8"))
+    assert scene["format"] == "cdmw_mesh_dotnet_scene_v1"
+    assert scene["roles"] == {"replacement": [0], "original_reference": [1]}
+    assert scene["comparison_mode"] == "side_by_side"
+    assert scene["interaction_mode"] == "placement"
+    assert scene["grid"]["visible"] is True
+    assert scene["gizmo"]["tool"] == "move"
+    materials = json.loads((package.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+    assert len(materials["submeshes"]) == 2
+    _program, args = mesh_dotnet_experiment_command("C:/tools/MeshEditorExperiment.exe", package)
+    assert args[args.index("--mesh") + 1] == str(package.scene_mesh_path)
+    assert package.mesh_path != package.scene_mesh_path
+
+
 def test_dotnet_renderer_status_requires_exact_embedded_production_backend() -> None:
     valid = {"renderer": {"backend": "d3d11_vortice_shader", "gpu_backed": True, "renderer_blocked": False}}
     assert mesh_dotnet_renderer_blockers(valid, embedded=True) == ()
@@ -580,6 +607,7 @@ def test_dotnet_renderer_status_blocks_missing_material_parity_when_required() -
     payload = {
         "renderer": {
             "backend": "d3d11_vortice_shader",
+            "dds_resources": 1,
             "native_dds_parity": False,
             "dds_native_dxgi_upload": False,
             "dds_upload_mode": "bitmap_rgba_upload",
@@ -595,6 +623,22 @@ def test_dotnet_renderer_status_blocks_missing_material_parity_when_required() -
     assert blockers
     assert blockers[0].startswith("material parity incomplete:")
     assert mesh_dotnet_renderer_blockers(payload, require_material_parity=True, developer_override=True) == ()
+
+
+def test_dotnet_renderer_status_does_not_report_dds_gap_for_png_only_materials() -> None:
+    payload = {
+        "renderer": {
+            "backend": "d3d11_vortice_shader",
+            "dds_resources": 0,
+            "native_dds_parity": False,
+            "dds_native_dxgi_upload": False,
+            "dds_upload_mode": "bitmap_rgba_upload",
+            "material_contract_gap": [],
+        }
+    }
+
+    assert mesh_dotnet_material_parity_warnings(payload) == ()
+    assert mesh_dotnet_renderer_blockers(payload, require_material_parity=True) == ()
 
 
 def test_dotnet_renderer_status_blocks_explicit_renderer_unavailable() -> None:
@@ -686,28 +730,6 @@ def test_dotnet_experiment_output_import_rejects_missing_operation_records(
         assert "authoritative edit operation records" in str(exc)
     else:
         raise AssertionError("missing edit operations should be rejected")
-
-
-def test_release_preflight_blocks_generated_and_unclassified_source() -> None:
-    inventory = classify_git_status(
-        [
-            "?? tools/dotnet_mesh_editor_experiment/bin/Release/app.dll",
-            "?? cdmw/new_feature.py",
-            "?? scratch/new_feature.py",
-            "?? tests/test_new_feature.py",
-            " M cdmw/services/mesh_service.py",
-            "?? notes.tmp",
-        ]
-    )
-
-    assert inventory["generated_output"] == ["tools/dotnet_mesh_editor_experiment/bin/Release/app.dll"]
-    assert inventory["unclassified_untracked_source"] == ["scratch/new_feature.py"]
-    assert inventory["required_source_or_docs"] == [
-        "cdmw/new_feature.py",
-        "cdmw/services/mesh_service.py",
-        "tests/test_new_feature.py",
-    ]
-    assert release_blockers(inventory) == ["generated_output_present", "unclassified_untracked_source_present"]
 
 
 def test_dotnet_experiment_evaluation_writes_keep_drop_note(tmp_path: Path) -> None:

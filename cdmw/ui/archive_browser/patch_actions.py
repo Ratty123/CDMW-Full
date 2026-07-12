@@ -19,8 +19,19 @@ from cdmw.services.archive_mutation_service import ArchivePatchRequest, ArchiveP
 
 class ArchivePatchActionsMixin:
     def _apply_archive_patch_result(self, patch_result: ArchivePatchResult) -> None:
+        lookup_indexes = self._archive_lookup_indexes_snapshot()
+        if lookup_indexes is None:
+            pending = list(getattr(self, "_archive_patch_results_pending_index", ()) or ())
+            pending.append(patch_result)
+            self._archive_patch_results_pending_index = pending[-16:]
+            self.archive_preview_cache.clear()
+            self.set_status_message(
+                "Archive patch completed; resident cache update is waiting for path indexing."
+            )
+            return
+        path_index, _basename_index = lookup_indexes
         for normalized_path, updated_entry in patch_result.changed_entries.items():
-            for existing_entry in self.archive_entries_by_normalized_path.get(normalized_path, []):
+            for existing_entry in path_index.get(normalized_path, []):
                 if existing_entry.pamt_path.resolve() != updated_entry.pamt_path.resolve():
                     continue
                 existing_entry.paz_file = updated_entry.paz_file

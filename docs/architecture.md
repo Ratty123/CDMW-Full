@@ -18,8 +18,10 @@ behind compatibility wrappers.
   `window_feature_providers.py` registers the legacy feature providers;
   `window_feature_controller.py` installs stable descriptors that bind those
   methods to the window, preserving call sites while implementation owners are
-  extracted. Lazy method callbacks are QObject-bound to preserve UI-thread
-  signal delivery without importing the provider before first use. Its
+  extracted. Qt virtuals (`closeEvent`, `resizeEvent`, and `changeEvent`) use
+  explicit class-body bridges into that controller. Lazy method callbacks are
+  QObject-bound to preserve UI-thread signal delivery without importing the
+  provider before first use. Its
   generated member manifest is refreshed with
   `scripts/generate_window_feature_provider_members.py`; `--check` detects
   changed provider sources without importing the full UI graph. New behavior
@@ -66,7 +68,10 @@ behind compatibility wrappers.
   presentation and input host. Its required renderer backend is the
   .NET/Vortice D3D11 path `d3d11_vortice_shader`; WPF/GDI rendering is available
   only through an explicit developer override. The resident C++ edit backend
-  remains `cdmw_mesh_core_0.1`.
+  remains `cdmw_mesh_core_0.1`. One resident scene protocol owns editable and
+  original-reference roles, Y-up grid, comparison mode, placement transform,
+  and move/rotate/scale gizmo state. `Edit Mesh` changes mutation permission; it
+  does not choose or restart the renderer.
 
 ## Layer Rules
 
@@ -245,6 +250,9 @@ rigging, and rebuild behavior live in the focused `mesh_service_*.py` owners;
 the facade composes the history, rigging, and rebuild mixins and reexports the
 original helper objects for import compatibility. New owners stay below 800
 lines and 150 lines per function.
+Resident export snapshots pin session ID, mesh revision, material generation,
+texture revisions, and exact source hash/size before worker export. Final
+GLB/OBJ/DDS/sidecar/draw/rig/reference readback must match that snapshot.
 
 `cdmw/services/diagnostic_bundle_service.py` owns diagnostic cache/report scans,
 chaiNNer analysis, source-file reads, and transactional ZIP publication. The
@@ -275,6 +283,12 @@ textures, neutral untextured faces, wireframe, and resident-buffer vertices.
 Mode changes reuse the same process, mesh buffers, decoded resources, and SRVs;
 the real-PAC proof rejects black geometry and restores textured mode before
 painting and export.
+Physical proof input and screen-region capture are fail-closed: the published
+.NET form must own the foreground, and the sampled point must be a viewport
+descendant owned by the renderer PID. Part highlighting derives only from the
+resident source/part selection; edit mode starts with no selected part, and
+face/vertex selection does not select a part. Blank space in the Parts list
+clears both the row and viewport highlight.
 
 `tools/headless_feature_stress.py` is likewise a cached lazy CLI facade. Its
 profile/task construction, cache probes, worker/native preflight probes,
@@ -334,6 +348,12 @@ grandfather list. Existing source guards are location-aware and currently point 
 ## Performance Rules
 
 Large archive listing stays virtualized. Filtering and previews stay debounced.
+Native `.pac`/`.pam`/`.pamlod` selections use a 450 ms dwell so rapid row
+navigation does not start expensive previews; other previewable files retain the
+90 ms debounce. After that dwell, cold native model requests publish quick
+metadata before full package generation. If a native model is already visible,
+quick metadata updates labels/details without stopping that renderer; the host
+stays resident until the replacement package is ready.
 Icon/thumbnail work must prioritize visible rows and run in background workers.
 Archive scan, conversion, rebuild, import/export, hashing, recursive IO, and
 package build work must stay off the UI thread.
@@ -350,6 +370,13 @@ only into unique staging directories, then validated PNG/report pairs publish
 sidecar-first and PNG-last with rollback. Failed or corrupt outputs are never
 returned as cache hits, and native failure diagnostics retain only the newest
 128 records.
+The native preview core keeps its in-process PAMT lookup and also publishes a
+source-size/mtime-stamped, lookup-only index under `cache_root/pamt_index`.
+Missing, stale, or corrupt index files fall back to the PAMT parser and never
+block a valid preview. Resident PAMT, PATHC, technique, material-graph, and
+parsed-sidecar maps release after each job before memory reporting; the bounded
+decoded-entry cache remains reusable. When durable package staging owns the
+output, temporary job/report roots are removed after the report is consumed.
 
 ## Archive Mutation Safety
 

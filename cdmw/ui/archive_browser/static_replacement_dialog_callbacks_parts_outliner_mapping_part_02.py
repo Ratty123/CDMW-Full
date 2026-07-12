@@ -146,7 +146,7 @@ def _parts_outliner_mapping_step_035(_state):
 
 def _parts_outliner_mapping_step_036(_state):
 
-    def _set_mapping_indices(target_index: int, source_indices: Sequence[int], *, push_undo: bool=True, undo_label: str='Change target routing', defer_preview: bool=False) -> None:
+    def _set_mapping_indices(target_index: int, source_indices: Sequence[int], *, push_undo: bool=True, undo_label: str='Change target routing', defer_preview: bool=False, confirmed_resident_sync: bool=False) -> None:
         edit = _state.mapping_edits_by_target.get(target_index)
         if edit is None:
             return
@@ -173,6 +173,11 @@ def _parts_outliner_mapping_step_036(_state):
             _state._set_mesh_replacement_selection_view(**_state._selection_view_update_kwargs_helper(selection_payload))
         _state._update_selection_context()
         preview_action = _state._source_part_routing_preview_action_helper(defer_preview=defer_preview, pending_reason='routing removal changed')
+        if confirmed_resident_sync:
+            clear_pending = getattr(_state, '_clear_source_parts_apply_pending', None)
+            if callable(clear_pending):
+                clear_pending()
+            return
         if _state._resident_parts_session_active():
             _state._set_source_parts_apply_pending('resident source routing change awaits renderer/service confirmation')
         elif preview_action['apply_pending']:

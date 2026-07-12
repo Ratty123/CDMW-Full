@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [0.10.0-alpha.2] - 2026-06-06
 
+### Added
+- Added Desert Dawn, High Contrast, and OLED Black app themes with matching theme-aware app icons and contrast-checked text, selections, and control borders.
+
 ### Changed
 - Changed Mesh Editor D3D11 preview packaging so Modify Original previews reuse Archive Preview material parity more closely, including texture settings, support-map toggles, and D3D11 view-mode controls.
 - Changed mesh-edit live updates to patch vertex buffers in place where possible instead of rebuilding full triangle payloads during brush/move strokes.

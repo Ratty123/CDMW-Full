@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -151,3 +152,76 @@ def test_generated_material_resource_commits_only_after_matching_renderer_ack(tm
     tab.deleteLater()
     builder.deleteLater()
     app.processEvents()
+
+
+def test_failed_new_material_attempt_preserves_inflight_generation_and_commit(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorMaterialGenerationFailure"))
+    builder = _EmbeddedMeshBuilder()
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab.standalone_dotnet_editor_process = process
+    tab._connect_dotnet_protocol(process)
+    tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+    hook = getattr(builder, "_mesh_editor_embedded_apply_material_resources")
+    session_id = builder.controller.session_view().session_id
+
+    def binding(name: str, data: bytes) -> dict[str, object]:
+        source = tmp_path / f"{name}.dds"
+        source.write_bytes(data)
+        return {
+            "resource_id": f"authority/{name}",
+            "channel": "base",
+            "source_dds_path": source,
+            "affected_submeshes": [0],
+        }
+
+    def acknowledge(generation: int) -> bool:
+        return tab._handle_dotnet_protocol_event({
+            "event": "material_state_applied",
+            "session_id": session_id,
+            "generation": generation,
+            "material_signature": f"generation-{generation}",
+        })
+
+    try:
+        first = binding("first", b"first")
+        assert hook(builder.controller.working_mesh(clone=False), (first,), affected_submeshes=(0,))
+        first_generation = tab.standalone_dotnet_material_generation
+        assert first_generation == 1
+        assert not tab._wait_for_dotnet_export_updates(0.0)
+
+        with patch(
+            "cdmw.ui.mesh_editor.tab_dotnet_protocol._tab.mesh_dotnet_material_state_payload",
+            side_effect=RuntimeError("injected snapshot failure"),
+        ):
+            assert not tab._send_dotnet_material_state(reason="injected_snapshot_failure")
+
+        assert tab.standalone_dotnet_material_generation == first_generation
+        assert tab.standalone_dotnet_sent_material_resource_payload["generation"] == first_generation
+        assert acknowledge(first_generation)
+        assert tab._wait_for_dotnet_export_updates(0.0)
+        assert builder.controller.mesh_service.capture_export_snapshot(session_id).texture_resources[0].dds_data == b"first"
+
+        second = binding("second", b"second")
+        assert hook(builder.controller.working_mesh(clone=False), (second,), affected_submeshes=(0,))
+        second_generation = tab.standalone_dotnet_material_generation
+        assert second_generation == 2
+        with patch.object(tab, "_send_dotnet_protocol_message", return_value=False):
+            assert not tab._send_dotnet_material_state(reason="injected_write_failure")
+
+        assert tab.standalone_dotnet_material_generation == second_generation
+        assert tab.standalone_dotnet_sent_material_resource_payload["generation"] == second_generation
+        assert acknowledge(second_generation)
+        resources = {
+            resource.resource_id: resource.dds_data
+            for resource in builder.controller.mesh_service.capture_export_snapshot(session_id).texture_resources
+        }
+        assert resources["authority/second"] == b"second"
+    finally:
+        tab.deleteLater()
+        builder.deleteLater()
+        app.processEvents()

@@ -61,16 +61,16 @@ class MeshEditorInteractionMixin:
                 controller.transfer_selected_vertex_weights_from_source(source_skeleton=self.standalone_source_skeleton)
             else:
                 return False
+            self.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
+            if self.standalone_compare_mode != "source":
+                if self._standalone_native_preview_update_active():
+                    if self.standalone_native_package_thread is None:
+                        self.start_standalone_native_preview_async(reset_view=False)
+                else:
+                    self._refresh_standalone_preview()
         except Exception as exc:
             self.status_message_requested.emit(f"Mesh Editor skeleton preview failed: {exc}", True)
             return False
-        self.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
-        if self.standalone_compare_mode != "source":
-            if self._standalone_native_preview_update_active():
-                if self.standalone_native_package_thread is None:
-                    self.start_standalone_native_preview_async(reset_view=False)
-            else:
-                self._refresh_standalone_preview()
         self.status_message_requested.emit("Mesh Editor skeleton preview updated.", False)
         return True
     def _tick_standalone_animation_playback(self) -> None:

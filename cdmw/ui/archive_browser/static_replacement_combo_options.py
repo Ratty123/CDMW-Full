@@ -18,6 +18,7 @@ PREVIEW_MODE_OPTIONS: tuple[ComboOption, ...] = (
     ("Side by side", "side_by_side"),
     ("Overlay", "overlay"),
     ("Replacement only", "replacement_only"),
+    ("Original only", "original_only"),
 )
 
 TEXTURE_UV_ROTATION_OPTIONS: tuple[ComboOption, ...] = (

@@ -14,6 +14,7 @@ from cdmw.services.preview_workflow_service import (
 )
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.library.models import IMPORTABLE_MODEL_EXTENSIONS, is_importable_model_path
+from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.services.mesh_workflow_service import SCENE_TEXTURE_SOURCE_EXTENSIONS, SceneImportResult, import_scene_mesh_with_report
 from cdmw.models import ArchivePreviewResult, RunCancelled
 from cdmw.services.preview_rendering_service import prepare_model_preview
@@ -282,25 +283,22 @@ class ModelLibraryShellBridgeMixin:
             if self._archive_entry_identity_key(self._current_archive_mesh_entry()) != entry_key:
                 self.set_status_message("Model library import result ignored because the selected archive mesh changed.", error=True)
                 return
-            self._open_mesh_editor_for_entry(
-                current_entry,
-                mode="external_import",
-                source_path=scene_path,
-                scene_import_result=value,
-                activate=True,
-            )
-            setup = self._prompt_archive_mesh_import_setup(
+
+            def setup_complete(setup: object) -> None:
+                if not isinstance(setup, MeshImportSetupSelection):
+                    return
+                setup.source_label = source_label
+                self.set_status_message(f"Opening mesh replacement workflow for model library item: {model_name}.")
+                self._start_archive_mesh_patch(current_entry, preset_setup=setup)
+
+            self._prepare_archive_mesh_import_setup_async(
                 current_entry,
                 scene_path,
                 title="Model Library Mesh Import Setup",
+                on_complete=setup_complete,
                 scene_import_result=value,
                 source_label=source_label,
             )
-            if setup is None:
-                return
-            setup.source_label = source_label
-            self.set_status_message(f"Opening mesh replacement workflow for model library item: {model_name}.")
-            self._start_archive_mesh_patch(current_entry, preset_setup=setup)
 
         self._run_utility_task(
             status_message=f"Importing model library scene: {model_name}...",

@@ -19,6 +19,7 @@ from cdmw.workers.mesh_editor_workers import (
     MeshEditablePackageExportWorker,
     MeshRebuildReportWorker,
     _apply_export_texture_bindings,
+    _package_reparse_report,
     _wait_for_texture_updates,
 )
 from tools.mesh_harness.fixtures import build_synthetic_mesh
@@ -530,6 +531,9 @@ def test_editable_package_export_waits_for_texture_ack_and_reports_coherent_arti
         {"resource_id": "body/material", "channel": "material", "revision": 1},
     ]
     assert report["output_reparse"]["status"] == "passed"
+    assert report["output_reparse"]["draw_section_lineage_readback"] == "passed"
+    assert report["output_reparse"]["rig_skinning_readback"] == "passed"
+    assert report["output_reparse"]["reference_metadata_readback"] == "passed"
     assert any(row["role"] == "mesh_glb" for row in report["artifacts"])
     texture_rows = [row for row in report["artifacts"] if row["role"] == "texture_dds"]
     assert {row["channel"] for row in texture_rows} == {"base", "material"}
@@ -552,6 +556,43 @@ def test_editable_package_export_waits_for_texture_ack_and_reports_coherent_arti
     assert {row["channel"] for row in bindings} == {"base", "material"}
     assert material_row["path"] not in (output_dir / "mesh.mtl").read_text(encoding="utf-8")
     assert material_row["path"] in (output_dir / "mesh.glb.meta.json").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("contract", "message"),
+    (
+        ("draw", "draw-section lineage"),
+        ("rig", "rig/skinning"),
+        ("reference", "reference metadata"),
+    ),
+)
+def test_editable_package_reparse_rejects_corrupted_metadata_contract(
+    tmp_path: Path,
+    contract: str,
+    message: str,
+) -> None:
+    service, session_id = _open_service(tmp_path, session_id=f"corrupt-{contract}")
+    output_dir = tmp_path / "editable"
+    errors: list[str] = []
+    worker = MeshEditablePackageExportWorker(1, service, session_id, output_dir)
+    worker.error.connect(lambda _request_id, error: errors.append(error))
+    worker.run()
+    assert errors == []
+
+    sidecar_path = output_dir / "mesh.glb.meta.json"
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    if contract == "draw":
+        sidecar["lods"][0]["submeshes"][0]["stable_id"] = "corrupt-draw-section"
+    elif contract == "rig":
+        sidecar["skeleton_info"]["skinned"] = not bool(sidecar["skeleton_info"]["skinned"])
+    else:
+        sidecar["material_slots"][0]["name"] = "corrupt-reference"
+    sidecar_path.write_text(json.dumps(sidecar), encoding="utf-8")
+
+    snapshot = service.capture_export_snapshot(session_id)
+    with pytest.raises(RuntimeError, match=message):
+        _package_reparse_report(output_dir, "mesh", source_mesh=snapshot.mesh)
+    service.close_edit_session(session_id)
 
 
 def test_rebuild_worker_publishes_reparse_and_snapshot_report_atomically(tmp_path: Path) -> None:

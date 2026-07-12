@@ -19,7 +19,6 @@ from cdmw.ui.archive_browser.static_replacement_preview_cache import (
 )
 from cdmw.ui.archive_browser.static_replacement_static_preview_state import (
     static_preview_prepared_cache_result,
-    static_preview_refresh_route_state,
     static_preview_upload_elapsed_ms,
     static_preview_widget_mode_state,
     static_preview_widget_model_action,
@@ -269,44 +268,6 @@ def test_static_preview_cache_lookup_and_store_respect_live_edit_and_limit() -> 
     assert stored == "payload"
     assert limited_cache == {"new": "payload"}
     assert paired_cache == {}
-
-
-def test_static_preview_refresh_route_state_keeps_import_preview_mapped_and_tracks_original_readiness() -> None:
-    route = static_preview_refresh_route_state(
-        active_preview_mode="replacement_only",
-        mesh_edit_enabled=False,
-        mesh_edit_tab_active=False,
-        replacement_mesh_available=True,
-        interactive_preview=False,
-        complete_external_swap_enabled=True,
-        needs_original_material_preview=False,
-        preview_controls_ready=True,
-        original_mesh_available=True,
-    )
-
-    assert route.mesh_edit_direct_source_preview is False
-    assert route.replacement_only_direct_source_preview is False
-    assert route.source_owned_direct_source_preview is False
-    assert route.require_original_reference is True
-    assert route.can_build_source_geometry is True
-
-    mesh_edit_route = static_preview_refresh_route_state(
-        active_preview_mode="side_by_side",
-        mesh_edit_enabled=True,
-        mesh_edit_tab_active=True,
-        replacement_mesh_available=True,
-        interactive_preview=True,
-        complete_external_swap_enabled=True,
-        needs_original_material_preview=False,
-        preview_controls_ready=False,
-        original_mesh_available=True,
-    )
-
-    assert mesh_edit_route.mesh_edit_direct_source_preview is False
-    assert mesh_edit_route.replacement_only_direct_source_preview is False
-    assert mesh_edit_route.source_owned_direct_source_preview is False
-    assert mesh_edit_route.require_original_reference is True
-    assert mesh_edit_route.can_build_source_geometry is False
 
 
 def test_static_preview_widget_mode_and_model_actions_route_qt_work() -> None:

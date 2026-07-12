@@ -104,14 +104,7 @@ class ArchiveRenderLifecycleMixin:
 
     def _startup_archive_core_ready(self) -> bool:
         return (
-            str(getattr(self, "archive_basic_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
-            and str(getattr(self, "archive_enhanced_index_state", "idle") or "idle") in {"ready", "idle", "failed"}
-            and self._startup_archive_browser_render_ready()
-            and self.archive_basic_index_thread is None
-            and self.archive_enhanced_index_thread is None
-            and self.archive_derived_cache_thread is None
-            and not self.archive_derived_cache_write_pending
-            and not self.archive_deferred_derived_cache_write_pending
+            self._startup_archive_browser_render_ready()
             and self.worker_thread is None
             and not self.archive_scan_finalize_pending
         )
@@ -128,18 +121,9 @@ class ArchiveRenderLifecycleMixin:
             return
         if getattr(self, "_startup_splash_window", None) is None:
             self.archive_startup_hold_until_ready = False
+            self.archive_startup_index_warmup_required = False
+            self._schedule_archive_post_ready_background_work()
             return
-        if (
-            (
-                self.archive_deferred_basic_index_start_pending
-                or self.archive_deferred_enhanced_index_start_pending
-                or self.archive_deferred_derived_cache_write_pending
-            )
-            and self.archive_basic_index_thread is None
-            and self.archive_enhanced_index_thread is None
-            and self.archive_derived_cache_thread is None
-        ):
-            QTimer.singleShot(0, self._start_archive_deferred_background_work)
         if self.archive_startup_saved_filter_apply_pending:
             self._try_apply_startup_saved_filters()
             if self.archive_startup_saved_filter_apply_pending or self.worker_thread is not None:
@@ -158,6 +142,7 @@ class ArchiveRenderLifecycleMixin:
         self._update_startup_splash("Archive ready.", 1, 1)
         self._write_heartbeat("running")
         self._release_startup_splash()
+        self._schedule_archive_post_ready_background_work()
 
     def _try_apply_startup_saved_filters(self) -> None:
         if self._shutting_down or not bool(getattr(self, "archive_startup_saved_filter_apply_pending", False)):
@@ -178,7 +163,7 @@ class ArchiveRenderLifecycleMixin:
                 self._set_archive_list_status("Archive list available")
             return
         if (
-            self._archive_saved_filter_needs_item_search(saved_state)
+            self._archive_filter_state_explicitly_requires_item_search(saved_state)
             and self._archive_enhanced_index_missing_for_search()
             and not self._startup_benchmark_enabled()
         ):
@@ -577,8 +562,6 @@ class ArchiveRenderLifecycleMixin:
             ):
                 self._schedule_startup_splash_finish_after_main_window_paint(80)
         self._schedule_archive_post_ready_background_work(550)
-        if self.archive_entries and self.archive_structure_filter_state in {"idle", "failed"}:
-            QTimer.singleShot(250, self._start_archive_structure_filter_worker)
         if self.archive_initial_sort_apply_pending:
             self._schedule_archive_initial_sort_after_first_paint(150)
         self._try_apply_startup_saved_filters()

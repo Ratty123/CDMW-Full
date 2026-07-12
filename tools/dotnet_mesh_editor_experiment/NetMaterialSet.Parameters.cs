@@ -36,6 +36,30 @@ internal sealed partial class NetMaterialSet
         ParameterStates = state;
     }
 
+    private void LoadInitialParameterStates(JsonElement root)
+    {
+        if (!root.TryGetProperty("submeshes", out var submeshes) || submeshes.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+        var states = new Dictionary<int, NetMaterialParameters>();
+        foreach (var item in submeshes.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object
+                || !item.TryGetProperty("parameters", out var parameters)
+                || parameters.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+            var state = NetMaterialParameters.Empty.Apply(ParseParameterDelta(parameters));
+            if (!state.IsEmpty)
+            {
+                states[JsonInt(item, "submesh_index", states.Count)] = state;
+            }
+        }
+        ParameterStates = states;
+    }
+
     public void ApplyParameterUpdate(NetMaterialParameterUpdate update)
     {
         var next = new Dictionary<int, NetMaterialParameters>(ParameterStates);

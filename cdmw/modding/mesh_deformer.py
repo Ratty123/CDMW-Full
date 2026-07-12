@@ -103,7 +103,7 @@ _EXTRA_SUBMESH_ATTRS = (
 )
 
 
-def _copy_extra_submesh_attrs(source: SubMesh, target: SubMesh) -> None:
+def copy_extra_submesh_attrs(source: SubMesh, target: SubMesh) -> None:
     for attr_name in _EXTRA_SUBMESH_ATTRS:
         if hasattr(source, attr_name):
             value = getattr(source, attr_name)
@@ -171,7 +171,7 @@ def clone_mesh_for_editing(mesh: ParsedMesh) -> ParsedMesh:
             source_bbox_extent=tuple(submesh.source_bbox_extent or (0.0, 0.0, 0.0)),
             source_lod_count=int(submesh.source_lod_count or 0),
         )
-        _copy_extra_submesh_attrs(submesh, cloned)
+        copy_extra_submesh_attrs(submesh, cloned)
         return cloned
 
     return ParsedMesh(
@@ -753,7 +753,7 @@ def split_faces_to_submesh(
     )
     new_submesh.vertex_count = len(new_submesh.vertices)
     new_submesh.face_count = len(new_submesh.faces)
-    _copy_extra_submesh_attrs(source, new_submesh)
+    copy_extra_submesh_attrs(source, new_submesh)
     new_submesh.cdmw_mesh_edit_material_source_submesh_index = source_submesh_index
     new_submesh.cdmw_mesh_edit_topology_source_submesh_index = source_submesh_index
     removed_vertices = _compact_submesh_faces(source, kept_faces)

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -36,8 +37,10 @@ internal sealed partial class ExperimentForm : Form
     private readonly ComboBox _falloff = new();
     private readonly Label _statusLabel = new();
     private readonly Label _fpsLabel = new();
+    private readonly Dictionary<string, Button> _toolButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly NetMaterialSet _materials;
     private readonly NetTextureSet _textureSet;
+    private readonly NetSceneState _scene;
     private readonly HashSet<int> _editedSubmeshes = new();
     private readonly System.Windows.Forms.Timer _timer = new();
     private bool _saved;
@@ -45,6 +48,10 @@ internal sealed partial class ExperimentForm : Form
     private bool _embeddedViewportActive = true;
     private bool _embeddedHostFailed;
     private bool _readyPublished;
+    private bool _readyPendingFirstFrame;
+    private string _pendingTextureState = string.Empty;
+    private string _pendingTextureError = string.Empty;
+    private bool _syncingSubmeshListSelection;
     private DateTime _lastMetricsProtocolUtc = DateTime.MinValue;
 
     public ExperimentForm(LaunchOptions options, ObjDocument document, long sourceParseCount)
@@ -53,7 +60,9 @@ internal sealed partial class ExperimentForm : Form
         _document = document;
         _sourceParseCount = Math.Max(0, sourceParseCount);
         _materials = NetMaterialSet.Load(options.MaterialsPath);
+        _scene = NetSceneState.Load(options.ScenePath, document.Submeshes.Count);
         _textureSet = NetTextureSet.Load(_materials);
+        _ = _textureSet.LoadAsync(_materials);
         Text = "CDMW .NET Mesh Editor Experiment";
         Width = 1180;
         Height = 760;
@@ -73,29 +82,34 @@ internal sealed partial class ExperimentForm : Form
         _ = Handle;
         StartProtocolReader();
 
-        _viewport = new MeshViewport(document, _materials, _textureSet, options) { Dock = DockStyle.Fill };
+        _viewport = new MeshViewport(document, _materials, _textureSet, _scene, options) { Dock = DockStyle.Fill };
         _viewport.ToolOptionsProvider = ToolOptionsPayload;
         _viewport.EditorEventRequested += WriteProtocolEvent;
         _viewport.StatusRequested += message => _statusLabel.Text = message;
         _viewport.MouseDown += (_, _) => _viewport.Focus();
-        _viewport.SubmeshSelectedRequested += index =>
-        {
-            if (index >= 0 && index < _submeshList.Items.Count && _submeshList.SelectedIndex != index)
-            {
-                _submeshList.SelectedIndex = index;
-            }
-        };
+        _viewport.SubmeshSelectedRequested += _ => SyncSubmeshListSelection();
         _submeshList.Dock = DockStyle.Fill;
         _submeshList.IntegralHeight = false;
-        for (var index = 0; index < document.Submeshes.Count; index++)
+        _submeshList.SelectionMode = SelectionMode.MultiExtended;
+        RefreshSubmeshList();
+        _submeshList.SelectedIndexChanged += (_, _) =>
         {
-            _submeshList.Items.Add($"{index}: {document.Submeshes[index].Name}");
-        }
-        if (_submeshList.Items.Count > 0)
+            if (!_syncingSubmeshListSelection)
+            {
+                if (_submeshList.SelectedIndex >= 0)
+                {
+                    _selectionTarget.SelectedItem = "Part";
+                }
+                _viewport.SelectPartsFromList(_submeshList.SelectedIndices.Cast<int>());
+            }
+        };
+        _submeshList.MouseDown += (_, eventArgs) =>
         {
-            _submeshList.SelectedIndex = 0;
-        }
-        _submeshList.SelectedIndexChanged += (_, _) => _viewport.SelectedSubmeshIndex = _submeshList.SelectedIndex;
+            if (eventArgs.Button == MouseButtons.Left && _submeshList.IndexFromPoint(eventArgs.Location) == ListBox.NoMatches)
+            {
+                _submeshList.SelectedIndex = -1;
+            }
+        };
 
         ConfigureNumeric(_translateStep, decimalPlaces: 4, minimum: -10, maximum: 10, value: 0.0100M, increment: 0.0100M);
         ConfigureCombo(_selectionTarget, new object[] { "Vertex", "Face", "Edge", "Part" }, selectedIndex: 0);
@@ -125,8 +139,25 @@ internal sealed partial class ExperimentForm : Form
         _statusLabel.Dock = DockStyle.Fill;
         _statusLabel.Text = $"Loaded package. materials={_materials.SlotCount} textureRefs={_materials.TextureReferenceCount} resolved={_materials.ExistingTextureFileCount}/{_materials.ResolvedTextureReferenceCount} decodable={_textureSet.DecodedCount}/{_materials.DecodableTextureFileCount}. Solid view is on; wire overlay is optional.";
 
-        Controls.Add(_viewport);
-        Controls.Add(BuildToolPanel());
+        var toolPanel = BuildToolPanel();
+        toolPanel.Dock = DockStyle.Fill;
+        toolPanel.Margin = new Padding(0);
+        _viewport.Margin = new Padding(0);
+        var editorLayout = new TableLayoutPanel
+        {
+            Name = "DotNetMeshEditorLayout",
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+        };
+        editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, toolPanel.Width));
+        editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        editorLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        editorLayout.Controls.Add(toolPanel, 0, 0);
+        editorLayout.Controls.Add(_viewport, 1, 0);
+        Controls.Add(editorLayout);
 
         _timer.Interval = 16;
         _timer.Tick += (_, _) =>
@@ -148,6 +179,11 @@ internal sealed partial class ExperimentForm : Form
             if (renderRequested)
             {
                 _viewport.Invalidate();
+            }
+            if (_readyPendingFirstFrame && _viewport.Metrics.HasRenderedFrame)
+            {
+                _readyPendingFirstFrame = false;
+                PublishReady(_pendingTextureState, _pendingTextureError);
             }
             _fpsLabel.Text = RendererMetricsText(_viewport.Metrics, RendererStatusWithLifecycle(), renderRequested);
             if ((DateTime.UtcNow - _lastMetricsProtocolUtc).TotalMilliseconds >= 500)
@@ -211,13 +247,22 @@ internal sealed partial class ExperimentForm : Form
                         ["renderer"] = RendererStatusWithLifecycle(),
                         ["lifecycle_counts"] = LifecycleCountsPayload(),
                     });
-                    PublishReady("ready", string.Empty);
+                    QueueReadyAfterFirstFrame("ready", string.Empty);
                 }));
             }
             catch (InvalidOperationException)
             {
             }
         }, TaskScheduler.Default);
+    }
+
+    private void QueueReadyAfterFirstFrame(string textureState, string textureError)
+    {
+        _pendingTextureState = textureState;
+        _pendingTextureError = textureError;
+        _readyPendingFirstFrame = true;
+        _statusLabel.Text = "Textures ready; drawing the first .NET/Vortice frame...";
+        _viewport.ApplySceneState();
     }
 
     protected override void OnShown(EventArgs e)
@@ -254,6 +299,10 @@ internal sealed partial class ExperimentForm : Form
             ["texture_error"] = textureError,
             ["renderer"] = rendererStatus,
             ["lifecycle_counts"] = LifecycleCountsPayload(),
+            ["local_selection"] = _viewport.SelectionSnapshotPayload(),
+            ["selected_part_index"] = _viewport.SelectedSubmeshIndex,
+            ["parts_list_selected_index"] = _submeshList.SelectedIndex,
+            ["parts_list_selected_indices"] = _submeshList.SelectedIndices.Cast<int>().ToArray(),
         });
     }
 
@@ -307,9 +356,20 @@ internal sealed partial class ExperimentForm : Form
         _submeshList.BorderStyle = BorderStyle.FixedSingle;
         _submeshList.Height = 104;
         _submeshList.Font = new Font(Font.FontFamily, 8.5f);
+        ApplyDarkScrollbars(_submeshList);
 
-        var save = StyledButton("Save Edited Package", height: 30);
-        save.Click += (_, _) => SaveAndReport();
+        var finish = StyledButton(_options.Embedded ? "Finish Edit Mesh" : "Save Edited Package", height: 30);
+        finish.Click += (_, _) =>
+        {
+            if (_options.Embedded)
+            {
+                WriteProtocolEvent("save_request");
+            }
+            else
+            {
+                SaveAndReport();
+            }
+        };
 
         var partPick = ToolCheckBox("Part Pick", false);
         partPick.CheckedChanged += (_, _) =>
@@ -342,11 +402,13 @@ internal sealed partial class ExperimentForm : Form
 
         var scroll = new Panel
         {
+            Name = "DotNetMeshEditorToolScroll",
             Dock = DockStyle.Fill,
             AutoScroll = true,
             Padding = new Padding(8),
             BackColor = ThemePanelBackground
         };
+        ApplyDarkScrollbars(scroll);
         var stack = new TableLayoutPanel
         {
             Name = "DotNetMeshEditorToolStack",
@@ -364,33 +426,44 @@ internal sealed partial class ExperimentForm : Form
         scroll.Resize += (_, _) => ResizeToolStack(scroll, stack);
 
         AddSection(stack, "Mesh Edit Session",
-            save,
+            finish,
             ButtonRow(CommandButton("Clear Selection", "clear_selection"), CommandButton("Select All", "select_all")),
             ButtonRow(CommandButton("Invert", "invert"), CommandButton("Undo", "undo"), CommandButton("Redo", "redo")));
         AddSection(stack, "Parts",
             _submeshList,
-            partPick);
+            partPick,
+            ButtonRow(
+                CommandButton("Show / Hide", "toggle_visibility"),
+                CommandButton("Duplicate", "duplicate"),
+                CommandButton("Delete", "delete")));
         AddSection(stack, "Selection",
             LabeledControl("Selection target", _selectionTarget),
             LabeledControl("Selection mode", _selectionOperation),
             _xray,
             ButtonRow(ToolButton("Select", "select"), CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink")));
+        AddSection(stack, "Placement",
+            SceneComparisonControl(),
+            ButtonRow(GizmoButton("Move", "move"), GizmoButton("Rotate", "rotate"), GizmoButton("Scale", "scale")));
         AddSection(stack, "Transform",
             LabeledControl("Translate step", _translateStep),
             ButtonRow(StyledActionButton("Move +X", () => RequestTransformMove((float)_translateStep.Value)), StyledActionButton("Move -X", () => RequestTransformMove(-(float)_translateStep.Value))),
             ButtonRow(ToolButton("Move", "move"), ToolButton("Grab", "grab")));
         AddSection(stack, "Brush Tools",
+            new Label
+            {
+                Text = "Choose a brush, then left-drag on the mesh. Right-drag pans; wheel zooms.",
+                AutoSize = true,
+                MaximumSize = new Size(248, 0),
+                ForeColor = ThemeMutedText,
+                BackColor = ThemeSectionBackground,
+                Margin = new Padding(0, 0, 0, 6)
+            },
             LabeledControl("Radius", _radius),
             LabeledControl("Strength", _strength),
             LabeledControl("Falloff", _falloff),
             ButtonRow(ToolButton("Smooth", "smooth"), ToolButton("Inflate", "inflate"), ToolButton("Pinch", "pinch")));
         AddSection(stack, "Topology",
-            ButtonRow(CommandButton("Delete", "delete"), CommandButton("Subdivide", "subdivide")),
-            ButtonRow(CommandButton("Refine Smooth", "refine_smooth"), CommandButton("Duplicate", "duplicate")));
-        AddSection(stack, "Clipboard",
-            ButtonRow(
-                DisabledButton("Copy", "Mesh clipboard is disabled until metadata-preserving paste is proved; use Duplicate for same-selection copies."),
-                DisabledButton("Paste", "Mesh clipboard is disabled until metadata-preserving paste is proved; use Duplicate for same-selection copies.")));
+            ButtonRow(CommandButton("Subdivide", "subdivide"), CommandButton("Refine Smooth", "refine_smooth")));
         AddSection(stack, "Viewport",
             PreviewModeControl(),
             MaterialDebugModeControl(),
@@ -398,6 +471,7 @@ internal sealed partial class ExperimentForm : Form
             ButtonRow(CameraButton("Back", "back"), CameraButton("Top", "top"), CameraButton("Bottom", "bottom")),
             ButtonRow(StyledActionButton("-15", () => _viewport.RotateYawDegrees(-15.0f)), StyledActionButton("+15", () => _viewport.RotateYawDegrees(15.0f)), StyledActionButton("Reset/Fit", _viewport.FrameMesh)),
             ToolButton("Orbit", "orbit"));
+        _toolButtons["orbit"].BackColor = ThemeAccent;
 
         left.Controls.Add(scroll);
         left.Controls.Add(statusFooter);
@@ -405,8 +479,99 @@ internal sealed partial class ExperimentForm : Form
         return left;
     }
 
+    private Control SceneComparisonControl()
+    {
+        var combo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+        combo.Items.AddRange(new object[] { "Side by side", "Overlay", "Replacement only", "Original only" });
+        combo.SelectedIndex = _scene.ComparisonMode switch
+        {
+            "side_by_side" => 0,
+            "overlay" => 1,
+            "original_only" => 3,
+            _ => 2,
+        };
+        combo.SelectedIndexChanged += (_, _) =>
+        {
+            var mode = combo.SelectedIndex switch { 0 => "side_by_side", 1 => "overlay", 3 => "original_only", _ => "replacement_only" };
+            _scene.SetComparisonMode(mode);
+            _viewport.ApplySceneState();
+            _statusLabel.Text = $"Comparison: {combo.SelectedItem}.";
+        };
+        return LabeledControl("Comparison", combo);
+    }
+
+    private Button GizmoButton(string text, string tool)
+    {
+        return StyledActionButton(text, () =>
+        {
+            _scene.SetGizmoTool(tool);
+            _viewport.ApplySceneState();
+            _statusLabel.Text = $"Placement gizmo: {text}. Left-drag the viewport or use the Builder placement values.";
+        });
+    }
+
+    private static void ApplyDarkScrollbars(Control control)
+    {
+        void Apply() => _ = SetWindowTheme(control.Handle, "DarkMode_Explorer", null);
+        control.HandleCreated += (_, _) => Apply();
+        if (control.IsHandleCreated)
+        {
+            Apply();
+        }
+    }
+
+    private void RefreshSubmeshList()
+    {
+        var selectedIndices = _viewport.SelectedSubmeshIndices.ToHashSet();
+        _syncingSubmeshListSelection = true;
+        _submeshList.BeginUpdate();
+        try
+        {
+            _submeshList.Items.Clear();
+            for (var index = 0; index < _scene.EditableSubmeshCount; index++)
+            {
+                var visibility = _materials.ParametersForSubmesh(index).Visible is false ? "hidden" : "shown";
+                _submeshList.Items.Add($"{index}: {_document.Submeshes[index].Name} [{visibility}]");
+            }
+            for (var index = 0; index < _submeshList.Items.Count; index++)
+            {
+                _submeshList.SetSelected(index, selectedIndices.Contains(index));
+            }
+        }
+        finally
+        {
+            _submeshList.EndUpdate();
+            _syncingSubmeshListSelection = false;
+        }
+    }
+
+    private void SyncSubmeshListSelection()
+    {
+        var selectedIndices = _viewport.SelectedSubmeshIndices.ToHashSet();
+        _syncingSubmeshListSelection = true;
+        try
+        {
+            for (var index = 0; index < _submeshList.Items.Count; index++)
+            {
+                _submeshList.SetSelected(index, selectedIndices.Contains(index));
+            }
+        }
+        finally
+        {
+            _syncingSubmeshListSelection = false;
+        }
+    }
+
+    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+    private static extern int SetWindowTheme(IntPtr hWnd, string? pszSubAppName, string? pszSubIdList);
+
     private void WriteCommandRequest(string command, Dictionary<string, object?>? extraPayload = null)
     {
+        if (!string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
+        {
+            _statusLabel.Text = "Placement mode: enable Edit Mesh to mutate geometry.";
+            return;
+        }
         var targetMode = SelectionTarget();
         var payload = new Dictionary<string, object?>
         {
@@ -476,6 +641,7 @@ internal sealed partial class MeshViewport : Control
     private readonly ObjDocument _document;
     private readonly NetMaterialSet _materials;
     private readonly NetTextureSet _textureSet;
+    private readonly NetSceneState _scene;
     private readonly LaunchOptions _options;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private Point _lastMouse;
@@ -490,6 +656,8 @@ internal sealed partial class MeshViewport : Control
     private Vec3 _center;
     private NetViewportCamera _camera;
     private Point _strokePrevious;
+    private Point _pointerLocation;
+    private bool _pointerInside;
     private int _strokeId;
     private bool _editorStrokeActive;
     private readonly Dictionary<int, HashSet<int>> _selectedVertices = new();
@@ -502,6 +670,11 @@ internal sealed partial class MeshViewport : Control
     private DateTime _dirtySinceUtc = DateTime.UtcNow;
     private int _hoverEdgeId = -1;
     private bool _edgeDragActive;
+    private bool _placementDragActive;
+    private Point _placementDragStart;
+    private Vector3 _placementStartTranslation;
+    private Vector3 _placementStartRotation;
+    private Vector3 _placementStartScale = Vector3.One;
     private string _selectionDragTargetMode = "edge";
     private Point _edgeDragStart;
     private Point _edgeDragCurrent;
@@ -516,7 +689,8 @@ internal sealed partial class MeshViewport : Control
     public bool RendererBlocked => _rendererBlocked;
     public string RendererBlockReason => _rendererBlockReason;
     public string RendererBackend => _rendererBlocked ? "blocked_renderer_unavailable" : (_d3d11Viewport is not null ? "d3d11_vortice_shader" : (_gpuViewport is not null ? "wpf_viewport3d_gpu" : "winforms_gdi_fallback"));
-    public int SelectedSubmeshIndex { get; set; }
+    public int SelectedSubmeshIndex => _selectedSources.Count > 0 ? _selectedSources.Min() : -1;
+    public int[] SelectedSubmeshIndices => _selectedSources.OrderBy(index => index).ToArray();
     public bool ShowSolid { get; private set; } = true;
     public bool ShowWire { get; private set; }
     public bool ShowVertices { get; private set; }
@@ -557,11 +731,12 @@ internal sealed partial class MeshViewport : Control
         _dirtySinceUtc = DateTime.UtcNow;
     }
 
-    public MeshViewport(ObjDocument document, NetMaterialSet materials, NetTextureSet textureSet, LaunchOptions options)
+    public MeshViewport(ObjDocument document, NetMaterialSet materials, NetTextureSet textureSet, NetSceneState scene, LaunchOptions options)
     {
         _document = document;
         _materials = materials;
         _textureSet = textureSet;
+        _scene = scene;
         _options = options;
         DoubleBuffered = true;
         BackColor = Color.FromArgb(23, 25, 29);

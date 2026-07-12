@@ -88,6 +88,7 @@ class ModelLibraryTab(
         self._inline_d3d11_retired_packages: list[Path] = []
         self._inline_d3d11_status_file: Optional[Path] = None
         self._inline_d3d11_status_mtime = 0.0
+        self._inline_d3d11_status_request_id = 0
         self._inline_preview_loaded_texture_count = 0
         self._inline_preview_loaded_renderer_backend = ""
         self._inline_preview_task_running = False

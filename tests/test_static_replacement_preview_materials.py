@@ -6,7 +6,11 @@ from cdmw.ui.archive_browser.static_replacement_preview_materials import (
     apply_original_material_preview,
     copy_exact_clone_original_preview_materials,
     copy_original_preview_material,
+    copy_preview_material_bindings_to_mesh,
     preview_mesh_surface_matches,
+)
+from cdmw.ui.archive_browser.static_replacement_mesh_edit_session import (
+    _mesh_editor_ensure_static_replacement_session,
 )
 
 
@@ -49,6 +53,73 @@ def test_copy_original_preview_material_clones_preview_attrs_and_surface_attrs()
     assert dst.preview_material_texture_inputs == {"base": ["diffuse.dds"]}
     assert dst.texture_coordinates == [(0.25, 0.5), (0.75, 0.5), (0.75, 1.0)]
     assert dst.normals == [(1.0, 0.0, 0.0)] * 3
+
+
+def test_copy_preview_material_bindings_to_mesh_keeps_paths_without_images() -> None:
+    bindings = {"base": ["body.dds"]}
+    preview_model = SimpleNamespace(
+        meshes=[
+            _mesh(
+                preview_texture_path="C:/cache/body.dds",
+                preview_texture_dds_path="C:/cache/body.dds",
+                preview_texture_image=object(),
+                preview_material_texture_inputs=bindings,
+            )
+        ]
+    )
+    submesh = SimpleNamespace()
+
+    assert copy_preview_material_bindings_to_mesh(
+        SimpleNamespace(submeshes=[submesh]),
+        preview_model,
+    ) == 1
+    bindings["base"].append("mutated.dds")
+
+    assert submesh.preview_texture_path == "C:/cache/body.dds"
+    assert submesh.preview_texture_dds_path == "C:/cache/body.dds"
+    assert submesh.preview_material_texture_inputs == {"base": ["body.dds"]}
+    assert not hasattr(submesh, "preview_texture_image")
+
+
+def test_modify_original_session_uses_live_resolved_preview_model() -> None:
+    stale_model = SimpleNamespace(meshes=[_mesh(preview_texture_path="")])
+    resolved_model = SimpleNamespace(
+        meshes=[_mesh(preview_texture_path="C:/cache/body.dds")]
+    )
+    source_mesh = SimpleNamespace(submeshes=[SimpleNamespace()])
+
+    class FakeSession:
+        def __init__(self, session_id: str) -> None:
+            self.session_id = session_id
+            self.controller = SimpleNamespace()
+
+        def open(self, mesh: object) -> None:
+            self.controller.working_mesh = lambda *, clone=False: mesh
+
+        def close(self) -> None:
+            pass
+
+    session_state: dict[str, object] = {}
+    state = SimpleNamespace(
+        _mesh_edit_state=SimpleNamespace(replacement_mesh_for_mapping=source_mesh),
+        mesh_editor_static_replacement_session_state=session_state,
+        original_reference_preview_model=stale_model,
+        modify_original_clone_mode=True,
+        context={"_get_original_reference_preview_model": lambda: resolved_model},
+        StaticReplacementMeshEditSession=FakeSession,
+        source_skeleton=None,
+        mesh_edit_native_result_submesh_counts={},
+    )
+    callbacks = SimpleNamespace(
+        _mesh_editor_current_edit_revision=lambda: 0,
+        _mesh_editor_clear_static_replacement_session=session_state.clear,
+    )
+
+    session = _mesh_editor_ensure_static_replacement_session(state, callbacks)
+
+    assert isinstance(session, FakeSession)
+    assert source_mesh.submeshes[0].preview_texture_path == "C:/cache/body.dds"
+    assert session_state["material_source"] is resolved_model
 
 
 def test_copy_exact_clone_original_preview_materials_requires_clone_preview_state() -> None:

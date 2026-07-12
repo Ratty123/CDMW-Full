@@ -194,17 +194,46 @@ def _setup_options_transform_step_016(_state):
     _state._finish_alignment_d3d11_rotation = _state.alignment_transform_drag_callbacks._finish_alignment_d3d11_rotation
     _state._commit_alignment_preview_translation = _state.alignment_transform_drag_callbacks._commit_alignment_preview_translation
     _state._commit_alignment_preview_rotation = _state.alignment_transform_drag_callbacks._commit_alignment_preview_rotation
+    def _mesh_editor_apply_dotnet_placement_state(payload: object) -> bool:
+        if not isinstance(payload, _state.Mapping):
+            return False
+        rows = (
+            ('translation', (_state.offset_x_spin, _state.offset_y_spin, _state.offset_z_spin)),
+            ('rotation_degrees', (_state.rotate_x_spin, _state.rotate_y_spin, _state.rotate_z_spin)),
+            ('scale', _state.scale_spins),
+        )
+        changed = False
+        for key, widgets in rows:
+            values = payload.get(key)
+            if not isinstance(values, _state.Sequence) or isinstance(values, (str, bytes, bytearray)):
+                continue
+            for widget, value in zip(widgets, tuple(values)[:3]):
+                try:
+                    parsed = float(value)
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                widget.blockSignals(True)
+                try:
+                    widget.setValue(parsed)
+                finally:
+                    widget.blockSignals(False)
+                changed = True
+        if changed:
+            _state._queue_global_transform_preview_update()
+        return changed
+    if _state.dialog is not None:
+        setattr(_state.dialog, '_mesh_editor_apply_dotnet_placement_state', _mesh_editor_apply_dotnet_placement_state)
     _state.reset_buttons_by_key['location'].clicked.connect(_state._reset_location_values)
     _state.reset_buttons_by_key['rotation'].clicked.connect(_state._reset_rotation_values)
     _state.reset_buttons_by_key['scale'].clicked.connect(_state._reset_scale_values)
     _state.reset_buttons_by_key['placement'].clicked.connect(_state._reset_placement_values)
     _state.tilt_spins_by_axis = {'x': _state.rotate_x_spin, 'y': _state.rotate_y_spin, 'z': _state.rotate_z_spin}
     for _state.spec in _state._alignment_global_transform_tilt_button_specs_helper():
-        _state.tilt_buttons_by_key[str(_state.spec['key'])].clicked.connect(lambda _checked=False, spec=spec: _state._nudge_rotation(_state.tilt_spins_by_axis[str(spec['axis'])], float(spec['direction'])))
+        _state.tilt_buttons_by_key[str(_state.spec['key'])].clicked.connect(lambda _checked=False, spec=_state.spec: _state._nudge_rotation(_state.tilt_spins_by_axis[str(spec['axis'])], float(spec['direction'])))
     for _state.preview_widget in (_state.static_dialog_preview, _state.overlay_dialog_preview, _state.replacement_only_preview):
         _state.preview_widget.set_alignment_translation_sensitivity(0.85)
         _state.preview_widget.set_alignment_rotation_degrees_per_pixel(0.18)
-        _state.preview_widget.alignment_drag_started.connect(lambda preview_widget=preview_widget: _state._prepare_alignment_preview_drag(preview_widget))
+        _state.preview_widget.alignment_drag_started.connect(lambda preview_widget=_state.preview_widget: _state._prepare_alignment_preview_drag(preview_widget))
         _state.preview_widget.alignment_drag_finished.connect(_state._commit_alignment_preview_translation)
         _state.preview_widget.alignment_rotation_finished.connect(_state._commit_alignment_preview_rotation)
         _state.preview_widget.mesh_edit_stroke_started.connect(lambda payload: _state._mesh_edit_begin_stroke(payload))

@@ -13,6 +13,14 @@ from unittest.mock import patch
 
 
 class RuntimeDependencySmokeTests(unittest.TestCase):
+    def test_mesh_editor_runtime_events_are_connected_to_shell_log(self) -> None:
+        source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "shell" / "tool_tabs.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("tab.runtime_event_requested.connect", source)
+        self.assertIn("sink(event, **dict(fields or {}))", source)
+
     def test_documented_runtime_dependencies_import(self) -> None:
         packages = {
             "PySide6": "PySide6",
@@ -102,6 +110,40 @@ class RuntimeDependencySmokeTests(unittest.TestCase):
         self.assertEqual("post_construction", payload.get("stage"))
         self.assertEqual("default", payload.get("target"))
         self.assertGreater(int(payload.get("pid", 0)), 0)
+
+    def test_gui_startup_smoke_publishes_clean_heartbeat_after_qt_shutdown(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            settings_path = root / "smoke.cfg"
+            result_path = root / "gui-startup-result.json"
+            heartbeat_path = root / "workspace" / "logs" / "app_heartbeat.json"
+            script = "\n".join(
+                (
+                    "import json, os, sys",
+                    "from pathlib import Path",
+                    "os.environ['QT_QPA_PLATFORM'] = 'offscreen'",
+                    "os.environ['CDMW_GUI_STARTUP_SMOKE'] = '1'",
+                    f"os.environ['CDMW_GUI_STARTUP_SMOKE_RESULT'] = {str(result_path)!r}",
+                    "import cdmw.ui.shell.app_window as app_window",
+                    f"app_window.resolve_settings_file_path = lambda: Path({str(settings_path)!r})",
+                    "exit_code = app_window.run_gui()",
+                    f"heartbeat = json.loads(Path({str(heartbeat_path)!r}).read_text(encoding='utf-8'))",
+                    "assert heartbeat['clean_shutdown'] is True",
+                    "assert heartbeat['phase'] == 'closed'",
+                    "raise SystemExit(exit_code)",
+                )
+            )
+            result = subprocess.run(
+                [sys.executable, "-c", script],
+                cwd=Path(__file__).resolve().parents[1],
+                env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=45,
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
 
     def test_gui_startup_smoke_lock_collision_is_not_success(self) -> None:
         from cdmw.app import bootstrap

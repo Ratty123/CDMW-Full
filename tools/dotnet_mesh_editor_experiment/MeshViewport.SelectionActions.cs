@@ -64,6 +64,33 @@ internal sealed partial class MeshViewport
         return SelectionVerticesForSubmesh(submeshIndex).OrderBy(index => index).ToArray();
     }
 
+    public void SelectPartFromList(int submeshIndex)
+    {
+        SelectPartsFromList(new[] { submeshIndex });
+    }
+
+    public void SelectPartsFromList(IEnumerable<int> submeshIndices)
+    {
+        _selectedSources.Clear();
+        foreach (var submeshIndex in submeshIndices.Distinct())
+        {
+            if (submeshIndex >= 0 && submeshIndex < _document.Submeshes.Count)
+            {
+                _selectedSources.Add(submeshIndex);
+            }
+        }
+        SyncSelectedPartFocus();
+        NotifyLocalSelectionChanged();
+        UpdateGpuViewport();
+        Invalidate();
+    }
+
+    private void SyncSelectedPartFocus()
+    {
+        _selectedSources.RemoveWhere(index => index < 0 || index >= _document.Submeshes.Count);
+        SubmeshSelectedRequested?.Invoke(SelectedSubmeshIndex);
+    }
+
     private void SelectVertexAt(Point point)
     {
         var hit = PickVertexAt(point);
@@ -80,8 +107,6 @@ internal sealed partial class MeshViewport
             return;
         }
         ApplySelectionMapOperation(_selectedVertices, hit.Value.SubmeshIndex, hit.Value.ItemIndex, CurrentSelectionOperation());
-        SelectedSubmeshIndex = hit.Value.SubmeshIndex;
-        SubmeshSelectedRequested?.Invoke(hit.Value.SubmeshIndex);
         StatusRequested?.Invoke($"Vertex mode: selected={_selectedVertices.Values.Sum(vertices => vertices.Count)} hit=1 xray={(ShowXRay ? "on" : "off")}");
         NotifyLocalSelectionChanged();
         UpdateGpuViewport();
@@ -104,8 +129,6 @@ internal sealed partial class MeshViewport
             return;
         }
         ApplySelectionMapOperation(_selectedFaces, hit.Value.SubmeshIndex, hit.Value.ItemIndex, CurrentSelectionOperation());
-        SelectedSubmeshIndex = hit.Value.SubmeshIndex;
-        SubmeshSelectedRequested?.Invoke(hit.Value.SubmeshIndex);
         StatusRequested?.Invoke($"Face mode: selected={_selectedFaces.Values.Sum(faces => faces.Count)} hit=1 xray={(ShowXRay ? "on" : "off")}");
         NotifyLocalSelectionChanged();
         UpdateGpuViewport();
@@ -120,6 +143,7 @@ internal sealed partial class MeshViewport
             if (string.Equals(CurrentSelectionOperation(), "replace", StringComparison.OrdinalIgnoreCase))
             {
                 _selectedSources.Clear();
+                SyncSelectedPartFocus();
             }
             StatusRequested?.Invoke($"Part mode: selected={_selectedSources.Count} hit=0 xray={(ShowXRay ? "on" : "off")}");
             NotifyLocalSelectionChanged();
@@ -128,8 +152,6 @@ internal sealed partial class MeshViewport
             return;
         }
         ApplyPartSelectionOperation(new[] { submeshIndex }, CurrentSelectionOperation());
-        SelectedSubmeshIndex = submeshIndex;
-        SubmeshSelectedRequested?.Invoke(submeshIndex);
         StatusRequested?.Invoke($"Part mode: selected={_selectedSources.Count} hit=1 xray={(ShowXRay ? "on" : "off")}");
         NotifyLocalSelectionChanged();
         UpdateGpuViewport();
@@ -168,12 +190,7 @@ internal sealed partial class MeshViewport
                 _selectedSources.Add(id);
             }
         }
-        if (_selectedSources.Count > 0)
-        {
-            var first = _selectedSources.OrderBy(index => index).First();
-            SelectedSubmeshIndex = first;
-            SubmeshSelectedRequested?.Invoke(first);
-        }
+        SyncSelectedPartFocus();
     }
 
     private void ApplySelectionMapOperation(Dictionary<int, HashSet<int>> target, int submeshIndex, int itemIndex, string operation)

@@ -19,6 +19,7 @@ class ShellWindowRuntimeStateMixin:
         self.archive_sidecar_worker: Optional[ArchiveSidecarIndexWorker] = None
         self.archive_derived_cache_thread: Optional[QThread] = None
         self.archive_derived_cache_worker: Optional[ArchiveDerivedIndexCacheWriteWorker] = None
+        self.archive_derived_cache_index_ui_receiver = self.archive_basic_index_ui_receiver = self.archive_enhanced_index_ui_receiver = self.archive_item_icon_priority_ui_receiver = self.archive_item_icon_warmup_ui_receiver = None
         self.archive_derived_cache_write_pending = False
         self.archive_filter_worker: Optional[ArchiveFilterWorker] = None
         self.build_worker: Optional[BuildWorker] = None
@@ -42,6 +43,7 @@ class ShellWindowRuntimeStateMixin:
         self._close_force_accept = False
         self._close_pending_started_at = 0.0
         self._close_force_stop_requested = False
+        self._close_pending_worker_threads: list[tuple[str, QThread]] = []
         self._close_worker_wait_timer = QTimer(self)
         self._close_worker_wait_timer.setInterval(100)
         self._close_worker_wait_timer.timeout.connect(self._finish_deferred_close_if_workers_stopped)

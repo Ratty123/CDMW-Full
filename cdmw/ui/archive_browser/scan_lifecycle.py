@@ -23,9 +23,10 @@ from cdmw.workers.archive_scan_workers import ArchiveScanWorker
 class _ArchiveScanUiReceiver(QObject):
     """Deliver archive worker results on the window's Qt thread."""
 
-    def __init__(self, window: object) -> None:
+    def __init__(self, window: object, owner_thread: QThread) -> None:
         super().__init__(window)  # type: ignore[arg-type]
         self._window = window
+        self._owner_thread: QThread | None = owner_thread
 
     @Slot(str)
     def handle_log(self, message: str) -> None:
@@ -46,9 +47,23 @@ class _ArchiveScanUiReceiver(QObject):
 
     @Slot()
     def handle_thread_finished(self) -> None:
-        self._window._cleanup_worker_refs()
+        owner_thread = self._owner_thread
+        if owner_thread is not None:
+            try:
+                if not owner_thread.wait(0):
+                    QTimer.singleShot(1, self.handle_thread_finished)
+                    return
+            except RuntimeError:
+                pass
+        self._owner_thread = None
+        self._window._cleanup_worker_refs(owner_thread)
         if getattr(self._window, "archive_scan_ui_receiver", None) is self:
             self._window.archive_scan_ui_receiver = None
+        if owner_thread is not None:
+            try:
+                owner_thread.deleteLater()
+            except RuntimeError:
+                pass
         self.deleteLater()
 
 
@@ -295,21 +310,22 @@ class ArchiveScanLifecycleMixin:
             result_filter_signature=result_filter_signature,
             load_basic_index_cache=bool(
                 startup_index_warmup
-                or
-                self.archive_startup_saved_filter_apply_pending
+                or self.archive_startup_saved_filter_apply_pending
                 and self._archive_filter_state_needs_basic_lookup(
                     getattr(self, "archive_startup_saved_filter_state", {}) or {}
                 )
             ),
             load_name_search_index_cache=startup_index_warmup,
+            defer_enhanced_index_build=bool(startup_deferred_archive_load and not startup_index_warmup),
             native_archive_acceleration=performance_settings.native_archive_acceleration,
             resource_profile=performance_settings.resource_profile,
             game_executable_fingerprints=self._load_game_executable_fingerprints(),
             crash_reports_dir=self.crash_reports_dir,
         )
         thread = QThread(self)
+        thread.setObjectName("archive_scan")
         worker.moveToThread(thread)
-        receiver = _ArchiveScanUiReceiver(self)
+        receiver = _ArchiveScanUiReceiver(self, thread)
         thread.started.connect(worker.run)
         worker.log_message.connect(receiver.handle_log, Qt.ConnectionType.QueuedConnection)
         worker.progress_changed.connect(receiver.handle_progress, Qt.ConnectionType.QueuedConnection)
@@ -317,7 +333,6 @@ class ArchiveScanLifecycleMixin:
         worker.error.connect(receiver.handle_error, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
         thread.finished.connect(receiver.handle_thread_finished, Qt.ConnectionType.QueuedConnection)
 
         self.archive_scan_ui_receiver = receiver
@@ -418,20 +433,16 @@ class ArchiveScanLifecycleMixin:
             self.archive_startup_saved_filter_apply_pending
             and self._archive_filter_state_needs_basic_lookup(saved_filter_state)
         )
-        saved_filter_needs_item_search = bool(
+        saved_filter_requires_item_search = bool(
             self.archive_startup_saved_filter_apply_pending
-            and self._archive_saved_filter_needs_item_search(saved_filter_state)
+            and self._archive_filter_state_explicitly_requires_item_search(saved_filter_state)
         )
         current_filter_state = self._capture_archive_filter_state()
         current_filter_needs_basic = self._archive_filter_state_needs_basic_lookup(current_filter_state)
-        current_filter_needs_item_search = self._archive_saved_filter_needs_item_search(current_filter_state)
+        current_filter_requires_item_search = self._archive_filter_state_explicitly_requires_item_search(current_filter_state)
         priority_prewarm_indexes = bool(
             performance_settings.maximum_indexing_priority
             or performance_settings.resource_profile == "maximum_throughput"
-        )
-        startup_index_warmup = bool(
-            getattr(self, "archive_startup_hold_until_ready", False)
-            and getattr(self, "archive_startup_index_warmup_required", False)
         )
         basic_indexes_ready = bool(
             self.archive_entries_by_normalized_path
@@ -443,8 +454,6 @@ class ArchiveScanLifecycleMixin:
         prewarm_basic_index = bool(
             basic_index_needs_build
             and (
-                startup_index_warmup
-                or
                 priority_prewarm_indexes
                 or saved_filter_needs_basic
                 or current_filter_needs_basic
@@ -498,24 +507,20 @@ class ArchiveScanLifecycleMixin:
         self.archive_asset_catalog_button.setEnabled(bool(self.archive_item_asset_catalog))
         self.archive_material_finder_button.setEnabled(bool(self._archive_material_catalog_rows()))
         self.archive_derived_cache_write_pending = bool(
-            payload.get("derived_cache_needs_write") and self.archive_entries
+            payload.get("derived_cache_needs_write")
+            and self.archive_entries
+            and self.archive_name_search_index is not None
         )
         enhanced_index_needs_build = bool(payload.get("enhanced_index_needs_build") and self.archive_entries)
         prewarm_enhanced_index = bool(
             enhanced_index_needs_build
             and (
-                startup_index_warmup
-                or
                 priority_prewarm_indexes
-                or saved_filter_needs_item_search
-                or current_filter_needs_item_search
+                or saved_filter_requires_item_search
+                or current_filter_requires_item_search
             )
         )
-        self.archive_enhanced_index_auto_prewarm_pending = bool(
-            enhanced_index_needs_build
-            and not prewarm_enhanced_index
-            and not self._startup_benchmark_enabled()
-        )
+        self.archive_enhanced_index_auto_prewarm_pending = False
         self.archive_deferred_basic_index_start_pending = bool(prewarm_basic_index)
         self.archive_enhanced_index_state = (
             "ready"
@@ -532,7 +537,7 @@ class ArchiveScanLifecycleMixin:
             )
         if enhanced_index_needs_build and not prewarm_enhanced_index:
             self.append_archive_log(
-                "Item-name search cache will warm after the archive list opens; item-name searches can start it sooner."
+                "Item-name search cache deferred; explicit name: searches, Item Finder, or priority indexing can start it."
             )
         self.archive_native_derived_cache_ready = bool(payload.get("archive_native_derived_cache_ready"))
         self.archive_sidecar_entries_by_texture_path = (
@@ -547,8 +552,18 @@ class ArchiveScanLifecycleMixin:
         )
         self.archive_sidecar_generation += 1
         self.archive_sidecar_pending_start = bool(
-            self.archive_entries and performance_settings.enable_sidecar_indexing
+            self.archive_entries
+            and performance_settings.enable_sidecar_indexing
+            and priority_prewarm_indexes
         )
+        if (
+            self.archive_entries
+            and performance_settings.enable_sidecar_indexing
+            and not priority_prewarm_indexes
+        ):
+            self.append_archive_log(
+                "Global texture-sidecar indexing deferred; direct model preview resolves its own material dependencies."
+            )
         if not performance_settings.enable_sidecar_indexing:
             self.archive_sidecar_entries_by_texture_path = {}
             self.archive_sidecar_entries_by_texture_basename = {}
@@ -765,8 +780,7 @@ class ArchiveScanLifecycleMixin:
                     self._release_startup_splash()
             elif bool(getattr(self, "archive_startup_hold_until_ready", False)):
                 self.archive_deferred_background_start_pending = False
-                QTimer.singleShot(0, self._start_archive_deferred_background_work)
-                QTimer.singleShot(50, self._maybe_release_startup_after_archive_ready)
+                QTimer.singleShot(0, self._maybe_release_startup_after_archive_ready)
             else:
                 self._schedule_archive_post_ready_background_work()
             if self.worker_thread is None:

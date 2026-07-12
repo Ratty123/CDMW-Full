@@ -184,25 +184,69 @@ class MeshEditorDotNetCommandMixin:
             )
             return False
         local_selection = self._dotnet_local_selection_payload_to_selection(payload)
-        action_selection = local_selection if not local_selection.is_empty() else None
+        selection_supplied = isinstance(payload.get("local_selection"), Mapping) or isinstance(
+            payload.get("selection"), Mapping
+        )
+        action_selection = local_selection if selection_supplied else None
+        target_mode = str(payload.get("target_mode", "") or "").strip().lower()
+        if (
+            self.standalone_dotnet_target_embedded
+            and target_mode in {"part", "source"}
+            and command in {"delete", "duplicate", "toggle_visibility"}
+        ):
+            runner = getattr(self.active_builder(), "_mesh_editor_embedded_run_part_action", None)
+            if not callable(runner):
+                self._send_dotnet_command_result(
+                    command,
+                    ok=False,
+                    status="unavailable",
+                    diagnostics=("Resident part action bridge is unavailable.",),
+                )
+                return False
+            try:
+                ok = bool(runner(command, tuple(local_selection.source_indices)))
+            except Exception as exc:
+                self._set_dotnet_status(f"Mesh .NET editor part action failed: {command}: {exc}", error=True)
+                self._send_dotnet_command_result(
+                    command,
+                    ok=False,
+                    status="error",
+                    diagnostics=(str(exc),),
+                )
+                return False
+            revision = None
+            current_controller = self._dotnet_target_controller()
+            if current_controller is not None:
+                try:
+                    revision = current_controller.session_view().revision
+                except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                    pass
+            self._refresh_embedded_workspace_from_builder()
+            self._send_dotnet_command_result(
+                command,
+                ok=ok,
+                status="applied" if ok else "no_change",
+                revision=revision,
+            )
+            return ok
         try:
             if command == "clear_selection":
                 result = controller.select(operation="replace")
             elif command == "select_all":
-                if isinstance(payload.get("local_selection"), Mapping):
-                    return self._start_dotnet_action_worker(
-                        controller,
-                        _tab.MeshEditCommand(
-                            "select",
-                            selection=local_selection,
-                            params={"operation": "replace"},
-                            label="Select All",
+                summary = controller.workspace_summary()
+                target_mode = str(payload.get("target_mode", "vertex") or "vertex").strip().lower()
+                return self._start_dotnet_action_worker(
+                    controller,
+                    _tab.MeshEditCommand(
+                        "select",
+                        selection=_tab.MeshEditSelection.from_maps(
+                            source_indices=tuple(part.index for part in summary.parts)
                         ),
-                        command_name=command,
-                    )
-                else:
-                    summary = controller.workspace_summary()
-                    result = controller.select(source_indices=tuple(part.index for part in summary.parts), operation="all")
+                        params={"operation": "all", "target_mode": target_mode},
+                        label="Select All",
+                    ),
+                    command_name=command,
+                )
             elif command in {"grow", "shrink", "invert"}:
                 return self._start_dotnet_action_worker(
                     controller,
@@ -266,7 +310,10 @@ class MeshEditorDotNetCommandMixin:
         return self._apply_dotnet_result_update(controller, result, command_name=command)
     def _dotnet_embedded_parent_hwnd(self) -> int:
         if not self.standalone_dotnet_target_embedded:
-            return 0
+            if str(_tab.QApplication.platformName() or "").strip().lower() == "offscreen":
+                return 0
+            hwnd = _tab._host_widget_hwnd(getattr(self, "standalone_native_host_frame", None))
+            return hwnd if hwnd > 0 else 0
         builder = self.active_builder()
         if isinstance(builder, QWidget):
             host = builder.findChild(QWidget, "AlignmentNativeD3D11PreviewHost")
@@ -353,7 +400,7 @@ class MeshEditorDotNetCommandMixin:
             "program": self.standalone_dotnet_last_program,
             "arguments": tuple(self.standalone_dotnet_last_arguments),
             "working_directory": self.standalone_dotnet_last_working_directory,
-            "embedded": bool(self.standalone_dotnet_target_embedded),
+            "embedded": bool(self.standalone_dotnet_target_embedded or self.standalone_dotnet_last_parent_hwnd > 0),
             "parent_hwnd": int(self.standalone_dotnet_last_parent_hwnd or 0),
             "process_state": process_state,
             "qprocess_error": str(error_value or ""),
@@ -430,7 +477,7 @@ class MeshEditorDotNetCommandMixin:
     ) -> tuple[str, ...]:
         return _tab.mesh_dotnet_renderer_blockers(
             status_payload,
-            embedded=bool(self.standalone_dotnet_target_embedded),
+            embedded=bool(self.standalone_dotnet_target_embedded or self.standalone_dotnet_last_parent_hwnd > 0),
             developer_override=self._dotnet_developer_renderer_fallback_allowed(),
             require_material_parity=bool(require_material_parity and self.standalone_dotnet_target_embedded),
         )

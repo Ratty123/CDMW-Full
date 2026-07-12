@@ -737,7 +737,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_deferred_basic_index_start_pending = bool(prewarm_basic_index)", source)
         self.assertIn("self.archive_deferred_enhanced_index_start_pending = bool(prewarm_enhanced_index)", source)
         self.assertIn("Path lookup cache deferred; it will build when filters", source)
-        self.assertIn("Item-name search cache will warm after the archive list opens", source)
+        self.assertIn("Item-name search cache warming after archive list opened.", source)
         self.assertIn("archive_enhanced_index_auto_prewarm_pending", source)
         self.assertIn("def _schedule_archive_enhanced_index_auto_prewarm", source)
         self.assertIn("self._start_archive_basic_index_worker()", source)

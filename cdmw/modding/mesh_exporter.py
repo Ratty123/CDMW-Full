@@ -24,6 +24,7 @@ from typing import Optional
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 
 from .mesh_asset import mesh_skinning_contract
+from .mesh_export_source_identity import mesh_export_original_data, mesh_export_source_identity
 from .mesh_parser import ParsedMesh, SubMesh
 from .logging import get_logger
 
@@ -55,28 +56,6 @@ def _coerce_submesh_source_vertex_map(submesh: SubMesh) -> list[int]:
             for value in raw_map
         ]
     return list(range(vertex_count))
-
-
-def _mesh_original_data(mesh: ParsedMesh) -> bytes:
-    original_data = bytes(getattr(mesh, "_cdmw_original_data", b"") or b"")
-    if not original_data:
-        source = Path(str(getattr(mesh, "path", "") or ""))
-        if source.is_file():
-            try:
-                original_data = source.read_bytes()
-            except OSError:
-                original_data = b""
-    return original_data
-
-
-def _source_identity_payload(mesh: ParsedMesh) -> dict[str, object]:
-    original_data = _mesh_original_data(mesh)
-    if not original_data:
-        return {}
-    return {
-        "source_asset_hash": hashlib.sha256(original_data).hexdigest(),
-        "source_asset_size": len(original_data),
-    }
 
 
 def _mesh_asset_id(mesh: ParsedMesh, source_identity: dict[str, object]) -> str:
@@ -352,8 +331,8 @@ def _sidecar_import_rules(mesh: ParsedMesh, source_identity: dict[str, object]) 
 
 
 def _roundtrip_contract_payload(mesh: ParsedMesh) -> dict[str, object]:
-    original_data = _mesh_original_data(mesh)
-    source_identity = _source_identity_payload(mesh)
+    original_data = mesh_export_original_data(mesh)
+    source_identity = mesh_export_source_identity(mesh)
     rules = _sidecar_import_rules(mesh, source_identity)
     return {
         "schema_version": _OBJ_ROUNDTRIP_SCHEMA_VERSION,
@@ -385,7 +364,7 @@ def _build_roundtrip_manifest_payload(
     companion_path: str = "",
     extra_payload: Optional[dict] = None,
 ) -> dict:
-    original_data = _mesh_original_data(mesh)
+    original_data = mesh_export_original_data(mesh)
     payload = {
         "format": _OBJ_ROUNDTRIP_SIDECAR_FORMAT,
         "schema_version": _OBJ_ROUNDTRIP_SCHEMA_VERSION,

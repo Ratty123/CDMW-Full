@@ -172,7 +172,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_item_icon_priority_queue: List[Dict[str, object]] = []", source)
         self.assertIn("def _queue_archive_asset_catalog_priority_icon_warmup_rows", source)
         self.assertIn("def _start_archive_item_icon_priority_warmup(self) -> None:", source)
-        self.assertIn("thread.finished.connect(lambda generation=generation: self._cleanup_archive_item_icon_priority_refs(generation))", source)
+        self.assertIn("thread.finished.connect(receiver.handle_thread_finished, Qt.QueuedConnection)", source)
         self.assertIn("self.archive_item_icon_visible_warmup_remaining = 0", source)
         self.assertIn("user_visible: bool = False", source)
         self.assertIn("user_visible=True", source)
@@ -538,35 +538,9 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("if not self._archive_browser_background_work_allowed():", icon_body)
         self.assertIn("self.archive_item_icon_preload_pending_after_ready = bool(self.archive_item_asset_catalog)", icon_body)
         self.assertIn("if self._archive_item_icon_lookup_index_missing():", icon_body)
-        self.assertIn("self._ensure_archive_basic_index_worker_started()", icon_body)
+        self.assertNotIn("self._ensure_archive_basic_index_worker_started()", icon_body)
         self.assertNotIn("archive_item_icon_preload_limit", source)
         self.assertNotIn("len(rows) >=", icon_body)
-
-    def test_startup_archive_autoload_warms_missing_indexes_before_splash_release(self) -> None:
-        scan_source = _read("cdmw/ui/archive_browser/scan_lifecycle.py")
-        render_source = _read("cdmw/ui/archive_browser/render_lifecycle.py")
-        startup_source = _read("cdmw/ui/shell/startup_controller.py")
-        source = _read("cdmw/ui/shell/app_window.py") + "\n" + startup_source + "\n" + scan_source + "\n" + render_source
-        autoload_start = source.index("    def _maybe_autoload_archive_on_startup(self) -> None:")
-        autoload_body = source[autoload_start: source.index("    def _load_game_executable_fingerprints", autoload_start)]
-        scan_start = scan_source.index("    def scan_archives(")
-        scan_body = scan_source[scan_start: scan_source.index("    def _ensure_archive_extension_index_ready", scan_start)]
-        complete_start = scan_source.index("    def _handle_archive_scan_complete(self, result: object) -> None:")
-        complete_body = scan_source[complete_start: scan_source.index("    def _finalize_archive_scan_complete", complete_start)]
-        ready_start = render_source.index("    def _startup_archive_core_ready(self) -> bool:")
-        ready_body = render_source[ready_start: render_source.index("    def _maybe_release_startup_after_archive_ready", ready_start)]
-        release_start = startup_source.index("    def _release_startup_splash(self) -> None:")
-        release_body = startup_source[release_start: startup_source.index("    def _show_first_run_guide_if_needed", release_start)]
-
-        self.assertIn("self.archive_startup_index_warmup_required = True", autoload_body)
-        self.assertIn("startup_index_warmup = bool(", scan_body)
-        self.assertIn("load_basic_index_cache=bool(\n                startup_index_warmup", scan_body)
-        self.assertIn("load_name_search_index_cache=startup_index_warmup", scan_body)
-        self.assertIn("startup_index_warmup = bool(", complete_body)
-        self.assertIn("startup_index_warmup\n                or\n                priority_prewarm_indexes", complete_body)
-        self.assertIn("and self._startup_archive_browser_render_ready()", ready_body)
-        self.assertIn("def _startup_archive_browser_render_ready(self) -> bool:", ready_body)
-        self.assertIn("self.archive_startup_index_warmup_required = False", release_body)
 
     def test_startup_splash_progress_uses_single_text_source(self) -> None:
         source = _read("cdmw/ui/startup_splash_host.py")

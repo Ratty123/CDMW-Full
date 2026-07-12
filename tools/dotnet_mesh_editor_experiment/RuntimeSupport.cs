@@ -129,6 +129,7 @@ internal sealed record LaunchOptions(
 {
     public string CloseRequestPath => Path.Combine(InputPackage, "dotnet_close_requested.txt");
     public string MaterialsPath => Path.Combine(InputPackage, "net_materials.json");
+    public string ScenePath => Path.Combine(InputPackage, "dotnet_scene.json");
 
     public static LaunchOptions Parse(string[] args)
     {

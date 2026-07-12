@@ -56,7 +56,7 @@ class MeshEditorDotNetProcessMixin:
             message = f"Mesh .NET editor experiment unavailable: {exc}"
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_process_start_failed",
-                embedded=bool(self.standalone_dotnet_target_embedded),
+                embedded=bool(embedded_parent_hwnd > 0),
                 program=str(executable),
                 qprocess_error="command_build_failed",
                 qprocess_error_string=str(exc),
@@ -205,9 +205,9 @@ class MeshEditorDotNetProcessMixin:
             if not intentional_exit:
                 detail = message or "Embedded .NET helper exited unexpectedly."
                 self._set_embedded_dotnet_state("failed", active=False)
-                self._notify_embedded_dotnet_launch_failed("mesh_edit_dotnet_fallback", diagnostics=detail)
+                self._notify_embedded_dotnet_launch_failed("mesh_edit_dotnet_failed", diagnostics=detail)
                 self._set_dotnet_status(
-                    "Mesh .NET editor exited; resident edits remain active in native fallback. " + detail,
+                    "Mesh .NET editor exited; resident edits remain saved but preview is unavailable. " + detail,
                     error=True,
                 )
                 return
@@ -272,7 +272,7 @@ class MeshEditorDotNetProcessMixin:
                     self._complete_pending_dotnet_exit()
             else:
                 self._set_embedded_dotnet_state("failed", active=False)
-                self._notify_embedded_dotnet_launch_failed("mesh_edit_dotnet_fallback", diagnostics=detail)
+                self._notify_embedded_dotnet_launch_failed("mesh_edit_dotnet_failed", diagnostics=detail)
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         self._set_dotnet_status(text, error=True)
     def _standalone_action_worker_active(self) -> bool:

@@ -99,6 +99,10 @@ std::string mesh_editor_select_session_report(
     }
     selection_operation = lower_ascii(selection_operation.empty() ? "replace" : selection_operation);
     const MeshEditorSelection incoming = mesh_editor_selection_from_json(raw_selection, &session);
+    const std::string target_mode = lower_ascii(string_or(
+        raw_selection != nullptr ? raw_selection->get("target_mode") : nullptr,
+        string_or(root.get("target_mode"), "vertex")
+    ));
     const bool context_operation = selection_operation == "context";
     const int source_pick_count = context_operation ? static_cast<int>(incoming.source_indices.size()) : -1;
     bool selection_changed = true;
@@ -108,7 +112,13 @@ std::string mesh_editor_select_session_report(
             0,
             int_or(root.get("iterations"), raw_selection != nullptr ? int_or(raw_selection->get("iterations"), 1) : 1)
         );
-        session.selection = mesh_editor_apply_selection_edit(session, incoming, selection_operation, iterations);
+        session.selection = mesh_editor_apply_selection_edit(
+            session,
+            incoming,
+            selection_operation,
+            target_mode,
+            iterations
+        );
     } else if (context_operation) {
         if (mesh_editor_selection_empty(incoming)) {
             selection_changed = false;

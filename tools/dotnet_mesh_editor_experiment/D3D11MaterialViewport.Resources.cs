@@ -115,9 +115,9 @@ internal sealed partial class D3D11MaterialViewport
     {
         var baseTexture = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "base", "albedo", "diffuse"));
         var normal = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "normal"));
-        var specular = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "specular", "material"));
-        var roughness = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "roughness", "material"));
-        var metallic = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "metallic", "material"));
+        var specular = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "specular"));
+        var roughness = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "roughness"));
+        var metallic = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "metallic"));
         var height = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "height"));
         var emissive = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "emissive"));
         var resources = new D3D11MaterialResources(

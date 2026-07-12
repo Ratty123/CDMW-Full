@@ -82,17 +82,17 @@ internal sealed partial class NetMaterialSet
 
     public string SpecularTexturePathForSubmesh(int submeshIndex)
     {
-        return TexturePathForSubmesh(submeshIndex, "specular", "material");
+        return TexturePathForSubmesh(submeshIndex, "specular");
     }
 
     public string RoughnessTexturePathForSubmesh(int submeshIndex)
     {
-        return TexturePathForSubmesh(submeshIndex, "roughness", "material");
+        return TexturePathForSubmesh(submeshIndex, "roughness");
     }
 
     public string MetallicTexturePathForSubmesh(int submeshIndex)
     {
-        return TexturePathForSubmesh(submeshIndex, "metallic", "material");
+        return TexturePathForSubmesh(submeshIndex, "metallic");
     }
 
     public string HeightTexturePathForSubmesh(int submeshIndex)
@@ -119,6 +119,7 @@ internal sealed partial class NetMaterialSet
                 ? resource
                 : resource with { Path = Path.GetFullPath(Path.Combine(manifestDirectory, resource.Path)) })
             .ToDictionary(resource => resource.ResourceId, StringComparer.Ordinal);
+        result.LoadInitialParameterStates(root);
         return result;
     }
 
@@ -164,7 +165,8 @@ internal sealed partial class NetMaterialSet
                 JsonString(item, "texture"),
                 JsonStringMap(item, "resolved_channels"),
                 JsonStringMap(item, "packaged_channels"),
-                JsonStringMap(item, "resource_channels")));
+                JsonStringMap(item, "resource_channels"),
+                JsonStringMap(item, "channel_components")));
         }
         return result;
     }
@@ -220,4 +222,5 @@ internal sealed record NetSubmeshMaterialBinding(
     string Texture,
     Dictionary<string, string> ResolvedChannels,
     Dictionary<string, string> PackageChannels,
-    Dictionary<string, string> ResourceChannels);
+    Dictionary<string, string> ResourceChannels,
+    Dictionary<string, string> ChannelComponents);

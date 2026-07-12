@@ -6,7 +6,7 @@ from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
 
-from PySide6.QtCore import QThread, QTimer
+from PySide6.QtCore import QObject, QThread, QTimer, Qt, Slot
 
 from cdmw.services.archive_workflow_service import ArchiveNameSearchIndex
 from cdmw.workers.archive_workers import (
@@ -14,6 +14,80 @@ from cdmw.workers.archive_workers import (
     ArchiveDerivedIndexCacheWriteWorker,
     ArchiveEnhancedIndexWorker,
 )
+
+
+class _ArchiveIndexUiReceiver(QObject):
+    """Marshal index-worker callbacks onto the owning window thread."""
+
+    def __init__(self, window: object, request_id: int, kind: str, owner_thread: QThread) -> None:
+        super().__init__(window)  # type: ignore[arg-type]
+        self._window = window
+        self._request_id = int(request_id)
+        self._kind = str(kind)
+        self._owner_thread: QThread | None = owner_thread
+
+    @Slot(str)
+    def handle_log(self, message: str) -> None:
+        self._window.append_log(message)
+        self._window.append_archive_log(message)
+
+    @Slot(int, int, str)
+    def handle_progress(self, current: int, total: int, detail: str) -> None:
+        if self._kind == "basic":
+            self._window._handle_archive_basic_index_progress(
+                current,
+                total,
+                detail,
+                request_id=self._request_id,
+            )
+        else:
+            self._window._handle_archive_enhanced_index_progress(
+                current,
+                total,
+                detail,
+                request_id=self._request_id,
+            )
+
+    @Slot(object)
+    def handle_completed(self, result: object) -> None:
+        if self._kind == "basic":
+            self._window._handle_archive_basic_index_complete(result)
+        else:
+            self._window._handle_archive_enhanced_index_complete(result)
+
+    @Slot(str)
+    def handle_error(self, message: str) -> None:
+        if self._kind == "basic":
+            self._window._handle_archive_basic_index_error(message, request_id=self._request_id)
+        else:
+            self._window._handle_archive_enhanced_index_error(message, request_id=self._request_id)
+
+    @Slot()
+    def handle_thread_finished(self) -> None:
+        owner_thread = self._owner_thread
+        if owner_thread is not None:
+            try:
+                if not owner_thread.wait(0):
+                    QTimer.singleShot(1, self.handle_thread_finished)
+                    return
+            except RuntimeError:
+                pass
+        self._owner_thread = None
+        receiver_attr = f"archive_{self._kind}_index_ui_receiver"
+        if self._kind == "basic":
+            self._window._cleanup_archive_basic_index_refs(self._request_id, owner_thread)
+        elif self._kind == "enhanced":
+            self._window._cleanup_archive_enhanced_index_refs(self._request_id, owner_thread)
+        else:
+            self._window._cleanup_archive_derived_cache_refs(owner_thread)
+        if getattr(self._window, receiver_attr, None) is self:
+            setattr(self._window, receiver_attr, None)
+        if owner_thread is not None:
+            try:
+                owner_thread.deleteLater()
+            except RuntimeError:
+                pass
+        self.deleteLater()
 
 
 class ArchiveIndexWorkerMixin:
@@ -51,27 +125,16 @@ class ArchiveIndexWorkerMixin:
         )
         thread = QThread(self)
         worker.moveToThread(thread)
+        receiver = _ArchiveIndexUiReceiver(self, request_id, "basic", thread)
         thread.started.connect(worker.run)
-        worker.log_message.connect(self.append_log)
-        worker.log_message.connect(self.append_archive_log)
-        worker.progress_changed.connect(
-            lambda current, total, detail, rid=request_id: self._handle_archive_basic_index_progress(
-                current,
-                total,
-                detail,
-                request_id=rid,
-            )
-        )
-        worker.completed.connect(self._handle_archive_basic_index_complete)
-        worker.error.connect(
-            lambda message, rid=request_id: self._handle_archive_basic_index_error(message, request_id=rid)
-        )
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(
-            lambda rid=request_id, owner_thread=thread: self._cleanup_archive_basic_index_refs(rid, owner_thread)
-        )
+        worker.log_message.connect(receiver.handle_log, Qt.ConnectionType.QueuedConnection)
+        worker.progress_changed.connect(receiver.handle_progress, Qt.ConnectionType.QueuedConnection)
+        worker.completed.connect(receiver.handle_completed, Qt.ConnectionType.QueuedConnection)
+        worker.error.connect(receiver.handle_error, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(worker.deleteLater, Qt.ConnectionType.DirectConnection)
+        worker.finished.connect(thread.quit, Qt.ConnectionType.DirectConnection)
+        thread.finished.connect(receiver.handle_thread_finished, Qt.ConnectionType.QueuedConnection)
+        self.archive_basic_index_ui_receiver = receiver
         self.archive_basic_index_worker = worker
         self.archive_basic_index_thread = thread
         try:
@@ -158,6 +221,14 @@ class ArchiveIndexWorkerMixin:
         self._set_archive_list_status("Archive list available")
         self._rebuild_archive_extension_filter_choices()
         self._refresh_archive_browser_if_pending(reason="basic_indexes_ready")
+        if self.scheduled_archive_preview_request is not None:
+            QTimer.singleShot(0, self._flush_scheduled_archive_preview_request)
+        pending_patch_results = tuple(
+            getattr(self, "_archive_patch_results_pending_index", ()) or ()
+        )
+        self._archive_patch_results_pending_index = []
+        for patch_result in pending_patch_results:
+            self._apply_archive_patch_result(patch_result)
         self._try_apply_startup_saved_filters()
         self._maybe_release_startup_after_archive_ready()
 
@@ -167,6 +238,9 @@ class ArchiveIndexWorkerMixin:
         self.archive_basic_index_state = "failed"
         self.append_archive_log(f"Warning: path lookup could not be built: {message}")
         self.set_status_message("Path lookup failed; direct archive browsing remains available.", error=True)
+        self._set_archive_list_status("Archive list available")
+        if self.scheduled_archive_preview_request is not None:
+            QTimer.singleShot(0, self._flush_scheduled_archive_preview_request)
         self._try_apply_startup_saved_filters()
         self._maybe_release_startup_after_archive_ready()
 
@@ -206,27 +280,16 @@ class ArchiveIndexWorkerMixin:
         )
         thread = QThread(self)
         worker.moveToThread(thread)
+        receiver = _ArchiveIndexUiReceiver(self, request_id, "enhanced", thread)
         thread.started.connect(worker.run)
-        worker.log_message.connect(self.append_log)
-        worker.log_message.connect(self.append_archive_log)
-        worker.progress_changed.connect(
-            lambda current, total, detail, rid=request_id: self._handle_archive_enhanced_index_progress(
-                current,
-                total,
-                detail,
-                request_id=rid,
-            )
-        )
-        worker.completed.connect(self._handle_archive_enhanced_index_complete)
-        worker.error.connect(
-            lambda message, rid=request_id: self._handle_archive_enhanced_index_error(message, request_id=rid)
-        )
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(
-            lambda rid=request_id, owner_thread=thread: self._cleanup_archive_enhanced_index_refs(rid, owner_thread)
-        )
+        worker.log_message.connect(receiver.handle_log, Qt.ConnectionType.QueuedConnection)
+        worker.progress_changed.connect(receiver.handle_progress, Qt.ConnectionType.QueuedConnection)
+        worker.completed.connect(receiver.handle_completed, Qt.ConnectionType.QueuedConnection)
+        worker.error.connect(receiver.handle_error, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(worker.deleteLater, Qt.ConnectionType.DirectConnection)
+        worker.finished.connect(thread.quit, Qt.ConnectionType.DirectConnection)
+        thread.finished.connect(receiver.handle_thread_finished, Qt.ConnectionType.QueuedConnection)
+        self.archive_enhanced_index_ui_receiver = receiver
         self.archive_enhanced_index_worker = worker
         self.archive_enhanced_index_thread = thread
         try:
@@ -309,6 +372,7 @@ class ArchiveIndexWorkerMixin:
         self.archive_enhanced_index_activity = "idle"
         self.append_archive_log(f"Warning: item-name search could not be built: {message}")
         self.set_status_message("Item-name search failed; path browsing remains available.", error=True)
+        self._set_archive_list_status("Archive list available")
         self._try_apply_startup_saved_filters()
         self._maybe_release_startup_after_archive_ready()
 
@@ -354,15 +418,15 @@ class ArchiveIndexWorkerMixin:
         )
         thread = QThread(self)
         worker.moveToThread(thread)
+        receiver = _ArchiveIndexUiReceiver(self, 0, "derived_cache", thread)
 
         thread.started.connect(worker.run)
-        worker.log_message.connect(self.append_log)
-        worker.log_message.connect(self.append_archive_log)
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_archive_derived_cache_refs)
+        worker.log_message.connect(receiver.handle_log, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(worker.deleteLater, Qt.ConnectionType.DirectConnection)
+        worker.finished.connect(thread.quit, Qt.ConnectionType.DirectConnection)
+        thread.finished.connect(receiver.handle_thread_finished, Qt.ConnectionType.QueuedConnection)
 
+        self.archive_derived_cache_index_ui_receiver = receiver
         self.archive_derived_cache_worker = worker
         self.archive_derived_cache_thread = thread
         try:
@@ -370,7 +434,9 @@ class ArchiveIndexWorkerMixin:
         except Exception:
             thread.start()
 
-    def _cleanup_archive_derived_cache_refs(self) -> None:
+    def _cleanup_archive_derived_cache_refs(self, owner_thread: object | None = None) -> None:
+        if owner_thread is not None and self.archive_derived_cache_thread is not owner_thread:
+            return
         self.archive_derived_cache_thread = None
         self.archive_derived_cache_worker = None
         if self.archive_derived_cache_write_pending and not self._shutting_down:

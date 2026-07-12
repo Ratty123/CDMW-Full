@@ -619,6 +619,7 @@ def alignment_d3d11_package_quality(
     enable_material_combiner = bool(use_textures)
     normalized_reason = str(reason or state.get("next_rebuild_reason", "") or "").strip().lower()
     dirty_flags = alignment_d3d11_dirty_flags_for_reason(normalized_reason)
+    loaded_material_frame = bool(state.get("material_complete_preview_seen"))
     if mesh_edit_raw_preview_active:
         return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "mesh_edit_raw"
     if (
@@ -631,6 +632,7 @@ def alignment_d3d11_package_quality(
         dirty_flags.affects_geometry()
         and not bool(state.get("fast_geometry_loaded"))
         and not bool(state.get("archive_parity_ready"))
+        and not loaded_material_frame
     ):
         fast_settings = dataclasses.replace(
             settings,

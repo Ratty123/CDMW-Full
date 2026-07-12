@@ -351,8 +351,22 @@ static std::uint64_t sidecar_parse_cache_misses() {
     return g_sidecar_parse_cache_misses;
 }
 
-static const ParsedMaterialSidecar& cached_parsed_material_sidecar(const ArchiveEntryRef& sidecar) {
+static std::map<std::string, ParsedMaterialSidecar>& resident_parsed_material_sidecar_cache() {
     static std::map<std::string, ParsedMaterialSidecar> cache;
+    return cache;
+}
+
+static size_t resident_parsed_material_sidecar_cache_count() {
+    return resident_parsed_material_sidecar_cache().size();
+}
+
+static void release_resident_parsed_material_sidecar_cache() {
+    std::map<std::string, ParsedMaterialSidecar> empty;
+    resident_parsed_material_sidecar_cache().swap(empty);
+}
+
+static const ParsedMaterialSidecar& cached_parsed_material_sidecar(const ArchiveEntryRef& sidecar) {
+    auto& cache = resident_parsed_material_sidecar_cache();
     const std::string key = archive_ref_identity(sidecar);
     auto found = cache.find(key);
     if (found != cache.end()) {

@@ -71,7 +71,19 @@ internal sealed partial class MeshViewport
 
     protected override void OnMouseDown(MouseEventArgs e)
     {
+        _pointerInside = true;
+        _pointerLocation = e.Location;
         _lastMouse = e.Location;
+        if (e.Button == MouseButtons.Left
+            && !string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
+        {
+            _placementDragActive = true;
+            _placementDragStart = e.Location;
+            _placementStartTranslation = _scene.Translation;
+            _placementStartRotation = _scene.RotationDegrees;
+            _placementStartScale = _scene.Scale;
+            return;
+        }
         if (e.Button == MouseButtons.Left && !string.Equals(ActiveTool, "orbit", StringComparison.OrdinalIgnoreCase))
         {
             if (string.Equals(ActiveTool, "select", StringComparison.OrdinalIgnoreCase))
@@ -122,14 +134,34 @@ internal sealed partial class MeshViewport
         }
         _rotating = false;
         _panning = false;
+        _placementDragActive = false;
         base.OnMouseUp(e);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
+        _pointerInside = true;
+        _pointerLocation = e.Location;
         var dx = e.X - _lastMouse.X;
         var dy = e.Y - _lastMouse.Y;
         _lastMouse = e.Location;
+        if (_placementDragActive && (e.Button & MouseButtons.Left) == MouseButtons.Left)
+        {
+            _scene.ApplyGizmoDrag(
+                _placementStartTranslation,
+                _placementStartRotation,
+                _placementStartScale,
+                e.X - _placementDragStart.X,
+                e.Y - _placementDragStart.Y);
+            EditorEventRequested?.Invoke("placement_transform_request", new Dictionary<string, object?>
+            {
+                ["placement"] = _scene.PlacementPayload(),
+                ["gizmo_tool"] = _scene.GizmoTool,
+            });
+            ApplySceneState();
+            base.OnMouseMove(e);
+            return;
+        }
         if (_edgeDragActive)
         {
             _edgeDragCurrent = e.Location;
@@ -170,10 +202,24 @@ internal sealed partial class MeshViewport
         base.OnMouseMove(e);
     }
 
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        _pointerInside = true;
+        base.OnMouseEnter(e);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        _pointerInside = false;
+        UpdateGpuViewport();
+        Invalidate();
+        base.OnMouseLeave(e);
+    }
+
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         _zoom *= e.Delta > 0 ? 1.1f : 0.9f;
-        _zoom = Math.Clamp(_zoom, 10.0f, 5000.0f);
+        _zoom = Math.Clamp(_zoom, 1.0f, 500000.0f);
         UpdateGpuViewport();
         Invalidate();
         base.OnMouseWheel(e);

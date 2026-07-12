@@ -21,14 +21,17 @@ void Renderer::draw_render_view(const PreviewRenderView& view) {
             if (!batch_visible_in_view(batch, view.role)) continue;
             context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : (render_tuning_.cull_back_faces && !batch.two_sided && cull_rasterizer_ ? cull_rasterizer_.Get() : rasterizer_.Get()));
             const bool reference = batch_is_reference(batch);
+            const float selection_tint_alpha = icon_capture_mode_
+                ? 0.0f
+                : std::clamp(batch.highlight_strength * 0.18f, 0.0f, 0.14f);
             DirectX::XMFLOAT4 tint(
                 1.0f,
                 0.72f,
                 0.18f,
-                icon_capture_mode_ ? 0.0f : std::clamp(batch.highlight_strength, 0.0f, 0.74f));
+                selection_tint_alpha);
             if (reference) {
                 const float reference_tint_alpha = reference_material_tint_allowed()
-                    ? std::max(view.reference_tint_alpha, std::clamp(batch.highlight_strength, 0.0f, 0.82f))
+                    ? std::max(view.reference_tint_alpha, selection_tint_alpha)
                     : 0.0f;
                 tint = DirectX::XMFLOAT4(
                     batch.highlight_strength > 0.0f ? 1.0f : 0.36f,

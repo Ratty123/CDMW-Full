@@ -16,7 +16,7 @@ from cdmw.modding.mesh_native_core import (
     native_mesh_core_fallback_counts,
     native_mesh_core_fallback_events,
 )
-from cdmw.modding.mesh_parser import parse_mesh
+from cdmw.services.mesh_service import MeshService
 from tools.mesh_harness.archive_provenance import (
     _archive_content_fingerprints,
     _archive_entry_provenance,
@@ -36,14 +36,7 @@ from tools.mesh_harness.native_projection import (
     _projected_face_cluster_for_drag,
     _timing_summary,
 )
-from tools.mesh_harness.native_protocol import (
-    _activate_window_for_input,
-    _host_window_rect,
-    _screen_cursor_position,
-    _send_left_button_input,
-    _send_mouse_message,
-    _set_screen_cursor_position,
-)
+from tools.mesh_harness.native_protocol import _send_mouse_message
 from tools.mesh_harness.png_evidence import _write_real_archive_visual_edit_proof
 from tools.mesh_harness.real_common import _archive_entry_indexes, _archive_key, _read_archive_payload
 from tools.mesh_harness.real_dotnet_capture import capture_dotnet_viewport as _capture_viewport
@@ -62,6 +55,7 @@ from tools.mesh_harness.real_dotnet_flow import (
     production_flow_gates,
     record_flow_step,
 )
+from tools.mesh_harness.real_dotnet_input import drive_viewport_stroke
 from tools.mesh_harness.real_dotnet_display import exercise_geometry_display_modes
 from tools.mesh_harness.service_summary import _command_summary
 
@@ -84,10 +78,14 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
             payload_unchanged = False
     pamt_path = getattr(state, "pamt_path", None)
     no_source_archives = bool(pamt_path is not None and not Path(pamt_path).is_file())
+    content_unchanged = bool(no_source_archives or (before and before == after))
     archives_unchanged = bool(
         no_source_archives
         or (before and before == after and metadata_before == metadata_after and payload_unchanged)
     )
+    resolved_textures = list(getattr(state, "resolved_textures", ()) or ())
+    real_texture_provenance_ok = bool(getattr(state, "real_texture_provenance_ok", False))
+    no_synthetic_fallback = bool(getattr(state, "no_synthetic_fallback", False))
     return {
         "ok": False,
         "read_only": archives_unchanged,
@@ -96,6 +94,15 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         "edit_backend": NATIVE_MESH_CORE_BACKEND_ID if native_mesh_core_available() else "",
         "game_root": str(state.game_root),
         "model_path": str(getattr(getattr(state, "model_entry", None), "path", "") or ""),
+        "archive_provenance": (
+            _archive_entry_provenance(model_entry) if model_entry is not None else {}
+        ),
+        "source_payload_sha256": source_hash,
+        "resolved_production_textures": resolved_textures,
+        "bound_texture_count": len(resolved_textures),
+        "texture_gate_ok": bool(real_texture_provenance_ok and no_synthetic_fallback),
+        "real_texture_provenance_ok": real_texture_provenance_ok,
+        "no_synthetic_fallback": no_synthetic_fallback,
         "error": str(message),
         "production_flow": list(getattr(state, "production_flow", ()) or ()),
         "geometry_display": dict(getattr(state, "geometry_display_evidence", {}) or {}),
@@ -117,6 +124,8 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         )[-4000:],
         "archive_content_fingerprints_before": before,
         "archive_content_fingerprints_after": after,
+        "archive_source_content_unchanged": content_unchanged,
+        "archive_sources_unchanged": archives_unchanged,
         "source_payload_unchanged": payload_unchanged,
         "source_archives_unchanged": archives_unchanged,
         "source_archive_check": "not_applicable_no_source_archives" if no_source_archives else "verified" if archives_unchanged else "unverified",
@@ -146,7 +155,7 @@ def _prepare_real_asset(game_root: Path, output_dir: Path, timeout_seconds: floa
         return _base_error(state, f"Model entry not found: {model_path}")
     state.pac_data = _read_archive_payload(state.model_entry)
     state.source_payload_sha256 = sha256(state.pac_data).hexdigest()
-    state.mesh = parse_mesh(state.pac_data, state.model_entry.path)
+    state.mesh = MeshService().load_mesh_bytes(state.pac_data, state.model_entry.path)
     editable = [
         (index, submesh)
         for index, submesh in enumerate(state.mesh.submeshes)
@@ -294,6 +303,8 @@ def _start_embedded_editor(state: SimpleNamespace) -> dict[str, object] | None:
     state.dotnet_ready_callback = False
     state.dotnet_failed = ""
     setattr(state.builder, "_mesh_editor_embedded_controller", lambda: state.controller)
+    setattr(state.builder, "_mesh_editor_embedded_comparison_mode", lambda: "replacement_only")
+    setattr(state.builder, "_mesh_editor_embedded_interaction_mode", lambda: "mesh_edit")
     setattr(state.builder, "_mesh_editor_embedded_dotnet_ready", lambda: setattr(state, "dotnet_ready_callback", True))
     setattr(
         state.builder,
@@ -327,14 +338,26 @@ def _start_embedded_editor(state: SimpleNamespace) -> dict[str, object] | None:
     if not state.protocol_ready or not state.ready_event or not state.textures_event or not state.dotnet_ready_callback:
         return _base_error(state, state.dotnet_failed or "Embedded .NET editor did not report protocol, renderer, and texture readiness.")
     state.renderer = dict(state.textures_event.get("renderer", state.ready_event.get("renderer", {})) or {})
+    initial_selection = state.ready_event.get("local_selection", {})
+    initial_selection = initial_selection if isinstance(initial_selection, Mapping) else {}
+    state.initial_part_selection_empty = bool(
+        not tuple(initial_selection.get("source_indices", ()) or ())
+        and int(state.ready_event.get("selected_part_index", -2)) == -1
+        and int(state.ready_event.get("parts_list_selected_index", -2)) == -1
+    )
     state.renderer_backend = str(state.renderer.get("backend", "") or "")
     state.viewport = dict(state.renderer.get("viewport", {}) or {})
     state.viewport_hwnd = int(state.viewport.get("hwnd", 0) or 0)
     state.form_hwnd = int(state.viewport.get("form_hwnd", 0) or 0)
     if not state.viewport_hwnd or not state.form_hwnd:
         return _base_error(state, ".NET renderer did not publish its real viewport/form HWNDs.")
-    state.before_capture_summary = _capture_viewport(state, state.before_capture_path)
     state.production_process_pid = int(state.tab.standalone_dotnet_editor_process.processId())
+    state.before_capture_summary = _capture_viewport(state, state.before_capture_path)
+    if not state.before_capture_summary.get("ok"):
+        return _base_error(
+            state,
+            str(state.before_capture_summary.get("error") or "Could not capture the real .NET viewport."),
+        )
     state.production_window_identity = {"form_hwnd": state.form_hwnd, "viewport_hwnd": state.viewport_hwnd}
     record_flow_step(
         state,
@@ -355,6 +378,13 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
         {"event": "tool_state", "tool": "move", "target_mode": "face"}
     )
     state.tool_state_event = _wait_protocol_event(state, "tool_state_applied", tool_cursor)
+    tool_selection = state.tool_state_event.get("local_selection", {})
+    tool_selection = tool_selection if isinstance(tool_selection, Mapping) else {}
+    state.face_selection_keeps_part_unselected = bool(
+        not tuple(tool_selection.get("source_indices", ()) or ())
+        and int(state.tool_state_event.get("selected_part_index", -2)) == -1
+        and int(state.tool_state_event.get("parts_list_selected_index", -2)) == -1
+    )
     width = int(state.viewport.get("width", 0) or 0)
     height = int(state.viewport.get("height", 0) or 0)
     probe = (max(1, width // 2), max(1, height // 2))
@@ -404,100 +434,14 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
 
 
 def _drive_viewport_stroke(state: SimpleNamespace) -> dict[str, object] | None:
-    width = int(state.viewport.get("width", 0) or 0)
-    height = int(state.viewport.get("height", 0) or 0)
-    start = (
-        int(round(min(max(state.projected_center[0], 1.0), max(1.0, width - 2.0)))),
-        int(round(min(max(state.projected_center[1], 1.0), max(1.0, height - 2.0)))),
-    )
-    state.mouse_drag_start = start
-    state.mouse_drag_points = tuple((start[0] + offset, start[1]) for offset in range(1, 41))
-    state.mouse_drag_end = state.mouse_drag_points[-1]
-    if state.mouse_drag_end[0] >= width:
-        return _base_error(state, "Projected drag would leave the .NET viewport.")
-    state.form_rect_before = _host_window_rect(state.form_hwnd)
-    state.viewport_rect_before = _host_window_rect(state.viewport_hwnd)
-    state.action_started = time.perf_counter()
-    heartbeat_index = len(state.heartbeat_ms)
-    heartbeat_origin = (time.perf_counter() - state.heartbeat_started) * 1000.0
-    state.measure_stroke_handlers = True
-    state.stroke_updates = []
-    state.mouse_move_sent = False
-    state.mouse_down_sent = False
-    state.mouse_up_sent = False
-    state.stroke_started = {}
-    state.stroke_finished = {}
-    input_error = ""
-    original_cursor = _screen_cursor_position()
-    viewport_rect = state.viewport_rect_before
-    screen_x = int(viewport_rect[0]) if viewport_rect else int(state.viewport.get("screen_x", 0) or 0)
-    screen_y = int(viewport_rect[1]) if viewport_rect else int(state.viewport.get("screen_y", 0) or 0)
-    button_down = False
-    try:
-        state.input_window_activated = _activate_window_for_input(state.viewport_hwnd)
-        _pump_for(state, 0.05)
-        state.mouse_move_sent = _set_screen_cursor_position(screen_x + start[0], screen_y + start[1])
-        _pump_for(state, 0.03)
-        cursor = len(state.tab.standalone_dotnet_protocol_events)
-        state.mouse_down_sent = _send_left_button_input(down=True)
-        button_down = state.mouse_down_sent
-        state.stroke_started = _wait_protocol_event(state, "stroke_begin", cursor, 2.0)
-        if not state.stroke_started:
-            input_error = "The .NET viewport did not begin the physical mouse stroke."
-        for index, (x, y) in enumerate(state.mouse_drag_points):
-            if input_error:
-                break
-            cursor = len(state.tab.standalone_dotnet_protocol_events)
-            state.mouse_move_sent = bool(
-                state.mouse_move_sent and _set_screen_cursor_position(screen_x + x, screen_y + y)
-            )
-            update = _wait_protocol_event(state, "stroke_update", cursor, 2.0)
-            if not update:
-                input_error = f"The .NET viewport missed physical drag update {index + 1}."
-                break
-            state.stroke_updates.append(update)
-        cursor = len(state.tab.standalone_dotnet_protocol_events)
-        state.mouse_up_sent = _send_left_button_input(down=False) if button_down else False
-        button_down = False
-        state.stroke_finished = _wait_protocol_event(state, "stroke_end", cursor, 2.0)
-    finally:
-        if button_down:
-            _send_left_button_input(down=False)
-        if original_cursor is not None:
-            _set_screen_cursor_position(*original_cursor)
-    state.measure_stroke_handlers = False
-    if state.stroke_started:
-        _pump_until(
-            state,
-            lambda: (
-                state.tab.standalone_live_stroke_dispatcher is not None
-                and not any(
-                    int(state.tab.standalone_live_stroke_dispatcher.metrics().get(key, 0) or 0)
-                    for key in ("queue_depth", "control_depth", "active")
-                )
-            ),
-            5.0,
-        )
-    _pump_for(state, 0.05)
-    _pump_until(
+    return drive_viewport_stroke(
         state,
-        lambda: int(state.tab.standalone_dotnet_update_queue.metrics().get("active_revision", 0) or 0) == 0,
-        5.0,
+        base_error=_base_error,
+        pump_for=_pump_for,
+        pump_until=_pump_until,
+        wait_protocol_event=_wait_protocol_event,
+        capture_viewport=_capture_viewport,
     )
-    state.action_elapsed_ms = (time.perf_counter() - state.action_started) * 1000.0
-    state.form_rect_after = _host_window_rect(state.form_hwnd)
-    state.viewport_rect_after = _host_window_rect(state.viewport_hwnd)
-    heartbeat_elapsed = (time.perf_counter() - state.action_started) * 1000.0
-    heartbeat_samples = [value - heartbeat_origin for value in state.heartbeat_ms[heartbeat_index:]]
-    heartbeat_points = [0.0, *heartbeat_samples, heartbeat_elapsed]
-    state.heartbeat_gaps = [heartbeat_points[index] - heartbeat_points[index - 1] for index in range(1, len(heartbeat_points))]
-    state.max_heartbeat_gap_ms = max(state.heartbeat_gaps, default=heartbeat_elapsed)
-    state.after_capture_summary = _capture_viewport(state, state.after_capture_path)
-    if input_error:
-        return _base_error(state, input_error)
-    if len(state.stroke_updates) != len(state.mouse_drag_points):
-        return _base_error(state, "The .NET viewport did not deliver every drag update through the production protocol.")
-    return None
 
 
 def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
@@ -519,6 +463,9 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
         "edit_backend_ok": native_mesh_core_available() and not state.fallback_counts,
         "protocol_ready": bool(state.protocol_ready),
         "tool_state_applied": bool(state.tool_state_event),
+        "part_selection_optional": bool(
+            state.initial_part_selection_empty and state.face_selection_keeps_part_unselected
+        ),
         "real_texture_provenance": bool(state.real_texture_provenance_ok),
         "real_textures_bound_and_decoded": renderer_texture_ok,
         "no_synthetic_fallback": bool(state.no_synthetic_fallback and renderer_texture_ok),
@@ -548,6 +495,13 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
             and state.archive_source_content_unchanged
             and state.source_payload_unchanged
         ),
+    }
+
+
+def _part_selection_evidence(state: SimpleNamespace) -> dict[str, bool]:
+    return {
+        "initially_empty": state.initial_part_selection_empty,
+        "face_selection_keeps_part_unselected": state.face_selection_keeps_part_unselected,
     }
 
 
@@ -651,6 +605,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
             "material_parameter_applied": state.material_parameter_applied,
             "tool_state_applied": state.tool_state_event,
         },
+        "part_selection": _part_selection_evidence(state),
         "submesh_index": state.submesh_index,
         "selected_faces": list(state.selected_faces),
         "selected_face_vertices": state.face_vertices,

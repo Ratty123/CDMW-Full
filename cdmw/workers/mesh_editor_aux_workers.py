@@ -20,6 +20,8 @@ from cdmw.services.mesh_dotnet_experiment import (
 )
 from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_texture_sources import resolve_mesh_texture_source
+from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+from cdmw.modding.mesh_parser import ParsedMesh
 
 
 class MeshFileSessionLoadWorker(QObject):
@@ -162,12 +164,18 @@ class MeshDotNetExperimentPackageWorker(QObject):
         session_id: str,
         *,
         output_root: Path | str | None = None,
+        reference_mesh: ParsedMesh | None = None,
+        comparison_mode: str = "side_by_side",
+        interaction_mode: str = "placement",
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
         self.service = service
         self.session_id = str(session_id or "")
         self.output_root = Path(output_root) if output_root is not None else None
+        self.reference_mesh = reference_mesh
+        self.comparison_mode = str(comparison_mode or "side_by_side")
+        self.interaction_mode = str(interaction_mode or "placement")
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -180,9 +188,16 @@ class MeshDotNetExperimentPackageWorker(QObject):
                 return
             started = time.perf_counter()
             mesh = self.service.working_mesh(self.session_id, clone=True)
+            reference_mesh = clone_mesh_for_editing(self.reference_mesh) if self.reference_mesh is not None else None
             if self.stop_event.is_set():
                 return
-            package = build_mesh_dotnet_experiment_package(mesh, output_root=self.output_root)
+            package = build_mesh_dotnet_experiment_package(
+                mesh,
+                output_root=self.output_root,
+                reference_mesh=reference_mesh,
+                comparison_mode=self.comparison_mode,
+                interaction_mode=self.interaction_mode,
+            )
             elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
             if self.stop_event.is_set():
                 shutil.rmtree(package.package_dir, ignore_errors=True)

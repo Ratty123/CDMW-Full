@@ -13,6 +13,13 @@ _DISPLAY_MODES = (
     ("vertices", "real_archive_dotnet_vertices.png"),
     ("textured", "real_archive_dotnet_textured_restored.png"),
 )
+_DISPLAY_MODE_LABELS = {
+    "textured": "Solid (Textured)",
+    "untextured_faces": "Faces (No Textures)",
+    "wire_vertices": "Wire + Vertices",
+    "vertices": "Vertices",
+}
+_REQUIRED_PRODUCTION_DISPLAY_MODES = frozenset({"textured", "untextured_faces", "vertices"})
 
 
 def _image_color_metrics(path: Path) -> dict[str, object]:
@@ -179,6 +186,7 @@ def exercise_geometry_display_modes(
         rows.append(
             {
                 "mode": mode,
+                "label": _DISPLAY_MODE_LABELS[mode],
                 "ok": row_ok,
                 "acknowledgement": acknowledgement,
                 "capture_path": str(capture_path),
@@ -196,6 +204,7 @@ def exercise_geometry_display_modes(
     final_decode = {
         key: int(current_renderer.get(key, 0) or 0) for key in initial_decode
     }
+    rendered_modes = {str(row["mode"]) for row in rows if row["ok"]}
     stable_resource_keys = (
         "texture_srv_creates",
         "texture_srv_disposals",
@@ -205,6 +214,7 @@ def exercise_geometry_display_modes(
     )
     gates = {
         "all_modes_rendered": len(rows) == len(_DISPLAY_MODES) and all(row["ok"] for row in rows),
+        "required_production_modes_rendered": _REQUIRED_PRODUCTION_DISPLAY_MODES <= rendered_modes,
         "textured_restored": bool(rows and rows[-1]["mode"] == "textured"),
         "texture_decode_unchanged": initial_decode == final_decode,
         "texture_resources_unchanged": all(

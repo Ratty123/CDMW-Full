@@ -29,6 +29,10 @@ def is_material_sidecar_extension(extension: str, basename: str = "") -> bool:
 
 def normalize_archive_extension_filter(extension_filter: str) -> str:
     normalized_extension = str(extension_filter or "").strip().lower()
+    if normalized_extension == "all files":
+        return "*"
+    if normalized_extension.startswith("all files."):
+        normalized_extension = normalized_extension.removeprefix("all files")
     if not normalized_extension or normalized_extension in {"*", "all", ".*"}:
         return normalized_extension
     return normalized_extension if normalized_extension.startswith(".") else f".{normalized_extension}"

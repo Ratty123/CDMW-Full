@@ -154,14 +154,30 @@ class CloseControllerMixin:
 
     def _running_worker_thread_entries(self) -> list[tuple[str, QThread]]:
         running: list[tuple[str, QThread]] = []
-        for name, thread, _worker in self._tracked_worker_threads():
-            if thread is None:
+        candidates = [
+            (name, thread)
+            for name, thread, _worker in self._tracked_worker_threads()
+            if thread is not None
+        ]
+        find_children = getattr(self, "findChildren", None)
+        if callable(find_children):
+            for thread in find_children(QThread):
+                name = str(thread.objectName() or "owned_qthread")
+                candidates.append((name, thread))
+        candidates.extend(getattr(self, "_close_pending_worker_threads", ()))
+        seen: set[int] = set()
+        for name, thread in candidates:
+            identity = id(thread)
+            if identity in seen:
                 continue
+            seen.add(identity)
             try:
-                if thread.isRunning():
+                if not thread.wait(0):
                     running.append((name, thread))
             except RuntimeError:
                 continue
+        if self._close_after_workers_requested:
+            self._close_pending_worker_threads = list(running)
         return running
 
     def _running_worker_threads(self) -> list[QThread]:
@@ -247,13 +263,18 @@ class CloseControllerMixin:
             return
         self._close_worker_wait_timer.stop()
         self._close_after_workers_requested = False
+        self._close_pending_worker_threads.clear()
         self._close_pending_started_at = 0.0
         self._close_force_stop_requested = False
         self._close_force_accept = True
         self._record_close_event("close_workers_stopped", close_phase="ready_to_accept")
         QTimer.singleShot(0, self.close)
 
-    def _begin_deferred_close_for_workers(self, event) -> None:
+    def _begin_deferred_close_for_workers(
+        self,
+        event,
+        initial_entries: Sequence[tuple[str, QThread]] = (),
+    ) -> None:
         try:
             event.ignore()
         except Exception:
@@ -263,13 +284,14 @@ class CloseControllerMixin:
             self._finish_deferred_close_if_workers_stopped()
             return
         self._close_after_workers_requested = True
+        self._close_pending_worker_threads = list(initial_entries)
         self._close_pending_started_at = time.monotonic()
         self._close_force_stop_requested = False
         self._shutting_down = True
         self._record_close_event(
             "close_begin_deferred",
             close_phase="begin_deferred",
-            worker_count=len(self._running_worker_thread_entries()),
+            worker_count=len(initial_entries),
         )
         self._release_startup_splash()
         self._save_detached_tool_geometries()
@@ -352,8 +374,9 @@ class CloseControllerMixin:
             write_heartbeat("closed", clean_shutdown=True)
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
-        if not self._close_force_accept and self._running_worker_threads():
-            self._begin_deferred_close_for_workers(event)
+        running_entries = [] if self._close_force_accept else self._running_worker_thread_entries()
+        if running_entries:
+            self._begin_deferred_close_for_workers(event, running_entries)
             return
         self._finalize_close()
         QMainWindow.closeEvent(self, event)  # type: ignore[arg-type]

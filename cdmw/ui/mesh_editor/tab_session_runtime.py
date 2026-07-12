@@ -170,6 +170,11 @@ class MeshEditorSessionMixin:
         self._refresh_standalone_preview()
         self.update_editor_session_state(view, active_selection_mode=self.standalone_controller.active_selection_mode)
         self.status_message_requested.emit(f"Mesh Editor loaded standalone mesh: {Path(self.standalone_mesh_label).name}", False)
+        if (
+            str(_tab.QApplication.platformName() or "").strip().lower() != "offscreen"
+            and self._dotnet_editor_executable_path(log=False) is not None
+        ):
+            self._start_dotnet_editor_requested(self.standalone_controller, embedded=False)
     def close_standalone_session(self) -> None:
         self.standalone_animation_timer.stop()
         self.standalone_animation_last_tick = 0.0

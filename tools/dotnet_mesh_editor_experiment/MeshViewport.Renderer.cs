@@ -37,11 +37,13 @@ internal sealed partial class MeshViewport
         D3D11MaterialViewport? viewport = null;
         try
         {
-            viewport = new D3D11MaterialViewport(_document, _materials, _textureSet) { Dock = DockStyle.Fill };
+            viewport = new D3D11MaterialViewport(_document, _materials, _textureSet, _scene) { Dock = DockStyle.Fill };
             viewport.MouseDown += (_, e) => OnMouseDown(e);
             viewport.MouseUp += (_, e) => OnMouseUp(e);
             viewport.MouseMove += (_, e) => OnMouseMove(e);
             viewport.MouseWheel += (_, e) => OnMouseWheel(e);
+            viewport.MouseEnter += (_, _) => OnMouseEnter(EventArgs.Empty);
+            viewport.MouseLeave += (_, _) => OnMouseLeave(EventArgs.Empty);
             viewport.BackendUnavailable += HandleD3D11BackendUnavailable;
             viewport.FrameRendered += RecordRenderedFrame;
             if (!viewport.TryInitialize(out var error))
@@ -89,6 +91,8 @@ internal sealed partial class MeshViewport
             _gpuHost.MouseUp += (_, e) => OnMouseUp(e);
             _gpuHost.MouseMove += (_, e) => OnMouseMove(e);
             _gpuHost.MouseWheel += (_, e) => OnMouseWheel(e);
+            _gpuHost.MouseEnter += (_, _) => OnMouseEnter(EventArgs.Empty);
+            _gpuHost.MouseLeave += (_, _) => OnMouseLeave(EventArgs.Empty);
             Controls.Add(_gpuHost);
             _gpuHost.BringToFront();
             StatusRequested?.Invoke("WPF GPU material viewport initialized.");
@@ -144,7 +148,9 @@ internal sealed partial class MeshViewport
             _d3d11Viewport.ShowSolid = ShowSolid;
             _d3d11Viewport.TexturesEnabled = TexturesEnabled;
             _d3d11Viewport.UpdateCamera(_camera);
-            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _selectedSources, SelectedSubmeshIndex, ShowWire, ShowVertices, ShowXRay);
+            var brushTool = ActiveTool is "grab" or "smooth" or "inflate" or "pinch";
+            var brushRadius = (float)NumberOption(ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>(), "radius", 24.0);
+            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _selectedSources, SelectedSubmeshIndex, ShowWire, ShowVertices, ShowXRay, brushTool && _pointerInside ? _pointerLocation : null, brushRadius);
             return;
         }
         var viewport = _gpuViewport;
@@ -165,6 +171,14 @@ internal sealed partial class MeshViewport
             ShowWire,
             ShowXRay,
             _camera.Project);
+    }
+
+    public void ApplySceneState()
+    {
+        _d3d11Viewport?.Invalidate();
+        RequestFrame();
+        UpdateGpuViewport();
+        Invalidate();
     }
 
     public void RefreshTextures()

@@ -101,6 +101,7 @@ class DotNetRevisionUpdateQueue:
         if not prepared:
             return True
         paths = _owned_payload_paths(prepared)
+        expected_acks = self._expected_acks(prepared)
         if not self._capable or revision <= 0:
             sent = all(self._send(packet) for packet in prepared)
             if paths and sent:
@@ -109,6 +110,23 @@ class DotNetRevisionUpdateQueue:
                 _remove_paths(paths)
             return sent
         if self._active_revision > 0:
+            if int(revision) == self._active_revision and not expected_acks:
+                sent = all(self._send(packet) for packet in prepared)
+                if paths and sent:
+                    self._retain_deferred_paths(paths)
+                elif paths:
+                    _remove_paths(paths)
+                return sent
+            if self._pending is not None and int(revision) == self._pending[0] and not expected_acks:
+                pending_revision, pending_packets, pending_paths = self._pending
+                event_names = {str(packet.get("event", "") or "") for packet in prepared}
+                retained = tuple(
+                    packet
+                    for packet in pending_packets
+                    if str(packet.get("event", "") or "") not in event_names
+                )
+                self._pending = (pending_revision, retained + prepared, pending_paths + paths)
+                return True
             newest_queued = self._pending[0] if self._pending is not None else self._active_revision
             if int(revision) <= newest_queued:
                 _remove_paths(paths)
@@ -121,6 +139,14 @@ class DotNetRevisionUpdateQueue:
             return True
         return self._send_batch(int(revision), prepared, paths)
 
+    @staticmethod
+    def _expected_acks(packets: Sequence[Mapping[str, object]]) -> set[str]:
+        return {
+            f"{str(packet.get('event', '') or '')}_ack"
+            for packet in packets
+            if f"{str(packet.get('event', '') or '')}_ack" in _ACK_EVENTS
+        }
+
     def _send_batch(
         self,
         revision: int,
@@ -128,11 +154,7 @@ class DotNetRevisionUpdateQueue:
         paths: tuple[Path, ...],
     ) -> bool:
         self._active_revision = revision
-        self._active_acks = {
-            f"{str(packet.get('event', '') or '')}_ack"
-            for packet in packets
-            if f"{str(packet.get('event', '') or '')}_ack" in _ACK_EVENTS
-        }
+        self._active_acks = self._expected_acks(packets)
         self._active_paths = paths
         for packet in packets:
             if not self._send(packet):

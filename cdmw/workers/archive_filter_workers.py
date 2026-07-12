@@ -83,10 +83,10 @@ class ArchiveFilterWorker(QObject):
         self.min_size_kb = min_size_kb
         self.previewable_only = previewable_only
         self.build_category_index = build_category_index
-        self.item_search_aliases = dict(item_search_aliases or {})
-        self.item_display_names = dict(item_display_names or {})
-        self.item_exact_display_names = dict(item_exact_display_names or {})
-        self.item_related_display_names = dict(item_related_display_names or {})
+        self.item_search_aliases = item_search_aliases if item_search_aliases is not None else {}
+        self.item_display_names = item_display_names if item_display_names is not None else {}
+        self.item_exact_display_names = item_exact_display_names if item_exact_display_names is not None else {}
+        self.item_related_display_names = item_related_display_names if item_related_display_names is not None else {}
         self.sort_column = normalize_archive_browser_sort_column(sort_column)
         self.sort_order = normalize_archive_browser_sort_order(sort_order)
         self.native_archive_acceleration = bool(native_archive_acceleration)

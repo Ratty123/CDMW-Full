@@ -293,6 +293,35 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
         self.assertIn("Rebuilding mesh preview for body.pac", str(patch_shell.utility_tasks[0]["status_message"]))
         self.assertEqual(rebuilt_path, patch_shell.opened[0]["source_path"])
 
+    def test_modify_original_preset_opens_mesh_editor_in_modify_original_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            clone_path = root / "modify-original.obj"
+            clone_path.write_text("o clone\n", encoding="utf-8")
+            entry = ArchiveEntry(
+                path="character/model/body.pac",
+                pamt_path=root / "0.pamt",
+                paz_file=root / "0.paz",
+                offset=0,
+                comp_size=1,
+                orig_size=1,
+                flags=0,
+                paz_index=0,
+            )
+            setup = MeshImportSetupSelection(
+                scene_path=clone_path,
+                import_mode="static_replacement",
+                source_label="Modify Original in-app clone: modify-original.obj",
+                placement_review_title="Modify Original Geometry",
+            )
+            shell = _ArchiveMeshPresetFlowShell(root / "settings.ini")
+
+            shell._start_archive_mesh_patch(entry, preset_setup=setup)
+
+        self.assertEqual("modify_original", shell.opened[0]["mode"])
+        self.assertEqual(clone_path, shell.opened[0]["source_path"])
+        self.assertTrue(shell.opened[0]["activate"])
+
 
 if __name__ == "__main__":
     unittest.main()

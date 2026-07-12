@@ -82,8 +82,9 @@ def _proof_artifact(path_value: object) -> dict[str, object]:
         return {"path": str(path), "bytes": 0, "sha256": ""}
 
 def _proof_gate(proof: Mapping[str, object], name: str, *aliases: str) -> bool:
-    if name in proof:
-        return bool(proof.get(name))
+    for key in (name, *aliases):
+        if key in proof:
+            return bool(proof.get(key))
     nested = proof.get("gates")
     if not isinstance(nested, Mapping):
         return False
@@ -191,6 +192,9 @@ def _real_game_mesh_evidence(proof: Mapping[str, object]) -> dict[str, object]:
         else {},
         "resident_mesh_edits": dict(proof.get("resident_mesh_edits", {}))
         if isinstance(proof.get("resident_mesh_edits"), Mapping)
+        else {},
+        "part_selection": dict(proof.get("part_selection", {}))
+        if isinstance(proof.get("part_selection"), Mapping)
         else {},
         "resident_export": dict(proof.get("resident_export", {}))
         if isinstance(proof.get("resident_export"), Mapping)

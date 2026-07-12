@@ -187,7 +187,9 @@ def _texture_material_step_022(_state):
         _state.texture_details_splitter.setStretchFactor(1, 3)
         _state.texture_details_splitter.setSizes([760, 320])
         _state.texture_workflow_layout.addWidget(_state.texture_details_splitter, 1)
-        _state.selected_texture_row: _state.Dict[_state.str, _state.Optional[_state.Dict[_state.str, _state.Any]]] = _state._selected_texture_row_initial_state_helper()
+        _state.selected_texture_row: _state.Dict[_state.str, _state.Optional[_state.Dict[_state.str, _state.Any]]] = _state.context.get('selected_texture_row')
+        if not isinstance(_state.selected_texture_row, dict):
+            _state.selected_texture_row = _state._selected_texture_row_initial_state_helper()
         _state.selected_texture_editor_loading = _state._selected_texture_editor_loading_initial_state_helper()
         _state.selected_texture_source_committing = _state._selected_texture_source_committing_initial_state_helper()
 
@@ -318,7 +320,7 @@ def _texture_material_step_030(_state):
 
 def _texture_material_step_031(_state):
     if _state._factory_advanced_material_branch:
-        _state.texture_folder_scan_controller = _state.StaticReplacementTextureFolderScanController(self, _state.dialog)
+        _state.texture_folder_scan_controller = _state.StaticReplacementTextureFolderScanController(_state.self, _state.dialog)
         setattr(_state.dialog, '_texture_folder_scan_controller', _state.texture_folder_scan_controller)
         _state.dialog.finished.connect(lambda _result=0: _state.texture_folder_scan_controller.request_shutdown())
 
@@ -331,16 +333,16 @@ def _texture_material_step_032(_state):
             truncated = _state.bool(_state.getattr(result, 'truncated', False))
             errors = _state.tuple(_state.getattr(result, 'errors', ()) or ())
             if truncated:
-                self.set_status_message(f'Texture folder scan added up to {_state.len(files):,} file(s) and stopped at the safety limit.', error=True)
+                _state.self.set_status_message(f'Texture folder scan added up to {_state.len(files):,} file(s) and stopped at the safety limit.', error=True)
             elif errors:
-                self.set_status_message(f'Texture folder scan completed with {_state.len(errors):,} unreadable path(s).', error=True)
+                _state.self.set_status_message(f'Texture folder scan completed with {_state.len(errors):,} unreadable path(s).', error=True)
         _state._texture_folder_scan_completed = _texture_folder_scan_completed
 
 def _texture_material_step_033(_state):
     if _state._factory_advanced_material_branch:
 
         def _texture_folder_scan_failed(message: str) -> None:
-            self.set_status_message(f'Texture folder scan failed: {message}', error=True)
+            _state.self.set_status_message(f'Texture folder scan failed: {message}', error=True)
         _state._texture_folder_scan_failed = _texture_folder_scan_failed
 
 def _texture_material_step_034(_state):
@@ -493,12 +495,14 @@ def _texture_material_step_037(_state):
                             state_color = '#94a3b8'
                         item.setText(4, state_text)
                         item.setForeground(4, _state.QBrush(_state.QColor(state_color)))
+                    _state._refresh_texture_status = _refresh_texture_status
 
                     def _texture_combo_changed(_index: int, *, checkbox: QCheckBox=_state.checkbox, combo: QComboBox=_state.combo, refresh_status: Callable[[], None]=_state._refresh_texture_status) -> None:
                         if _state.str(combo.currentData() or '').strip():
                             checkbox.setChecked(True)
                         refresh_status()
                         _state._queue_texture_preview_refresh()
+                    _state._texture_combo_changed = _texture_combo_changed
                     _state.combo.currentIndexChanged.connect(_state._texture_combo_changed)
                     _state.checkbox.toggled.connect(lambda _checked, refresh_status=_refresh_texture_status: (refresh_status(), _state._queue_texture_preview_refresh()))
                     _state._refresh_texture_status()
@@ -518,16 +522,18 @@ def _texture_material_step_037(_state):
                         current_source_indices = _state._source_indices_for_target_name(target_name) or _state.tuple(source_indices)
                         item.setData(0, _state.Qt.UserRole, _state.tuple(current_source_indices))
                         item.setHidden(_state.bool(enabled and selected_index >= 0 and (selected_index not in current_source_indices)))
+                _state._apply_legacy_texture_selected_part_filter = _apply_legacy_texture_selected_part_filter
                 _state.texture_filter_refresh['func'] = _state._apply_legacy_texture_selected_part_filter
                 _state.texture_filter_selected_checkbox.toggled.connect(_state._apply_legacy_texture_selected_part_filter)
                 _state._apply_legacy_texture_selected_part_filter()
                 _state.texture_layout.addWidget(_state.texture_tree, 0)
-                _state.QTimer.singleShot(0, lambda tree=texture_tree: _state._fit_alignment_tree_height_to_rows(tree, minimum=150, screen_margin=300))
+                _state.QTimer.singleShot(0, lambda tree=_state.texture_tree: _state._fit_alignment_tree_height_to_rows(tree, minimum=150, screen_margin=300))
 
             def _set_advanced_dds_overrides_expanded(checked: bool) -> None:
                 for child_widget in _state.texture_group.findChildren(_state.QWidget):
                     child_widget.setVisible(_state.bool(checked))
                 _state.texture_group.setMaximumHeight(16777215 if checked else _state.max(28, _state.texture_group.fontMetrics().height() + 12))
+            _state._set_advanced_dds_overrides_expanded = _set_advanced_dds_overrides_expanded
             _state.texture_group.toggled.connect(_state._set_advanced_dds_overrides_expanded)
             _state._set_advanced_dds_overrides_expanded(False)
             _state.textures_layout.addWidget(_state.texture_group, 0)
@@ -542,7 +548,7 @@ def _texture_material_step_038(_state):
         _state._queue_alignment_post_open_task(_state._queue_static_preview_refresh)
 
 def _texture_material_step_039(_state):
-    _state._factory_result_values.update({'_copied_source_texture_slot_overrides': vars(_state).get('_copied_source_texture_slot_overrides'), '_load_original_reference_texture_preview': vars(_state).get('_load_original_reference_texture_preview'), '_save_texture_transform_controls': vars(_state).get('_save_texture_transform_controls'), 'binding': vars(_state).get('binding'), 'rows': vars(_state).get('rows'), 'source_index': vars(_state).get('source_index'), 'target_name': vars(_state).get('target_name'), 'texture_transform_offset_u_spin': vars(_state).get('texture_transform_offset_u_spin'), 'texture_transform_offset_v_spin': vars(_state).get('texture_transform_offset_v_spin'), 'texture_transform_scale_u_spin': vars(_state).get('texture_transform_scale_u_spin'), 'texture_transform_scale_v_spin': vars(_state).get('texture_transform_scale_v_spin')})
+    _state._factory_result_values.update({'_copied_source_texture_slot_overrides': vars(_state).get('_copied_source_texture_slot_overrides'), '_load_original_reference_texture_preview': vars(_state).get('_load_original_reference_texture_preview'), '_stop_original_reference_texture_worker': vars(_state).get('_stop_original_reference_texture_worker'), '_save_texture_transform_controls': vars(_state).get('_save_texture_transform_controls'), 'binding': vars(_state).get('binding'), 'rows': vars(_state).get('rows'), 'source_index': vars(_state).get('source_index'), 'target_name': vars(_state).get('target_name'), 'texture_transform_offset_u_spin': vars(_state).get('texture_transform_offset_u_spin'), 'texture_transform_offset_v_spin': vars(_state).get('texture_transform_offset_v_spin'), 'texture_transform_scale_u_spin': vars(_state).get('texture_transform_scale_u_spin'), 'texture_transform_scale_v_spin': vars(_state).get('texture_transform_scale_v_spin')})
 
 STEPS = (
     _texture_material_step_012,

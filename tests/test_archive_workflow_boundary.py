@@ -110,6 +110,8 @@ def test_archive_contract_identity_is_import_order_independent() -> None:
 def test_archive_format_contract_keeps_extension_and_text_rules() -> None:
     contract = import_module("cdmw.domain.archives.format")
     assert contract.normalize_archive_extension_filter(" DDS ") == ".dds"
+    assert contract.normalize_archive_extension_filter("All files") == "*"
+    assert contract.normalize_archive_extension_filter("All files.pac") == ".pac"
     assert contract.is_material_sidecar_extension(".xml", "hero.pac.xml")
     assert contract.try_decode_text_like_archive_data(b"<root>ok</root>") == "<root>ok</root>"
     assert contract.try_decode_text_like_archive_data(b"\x00\x01\x02\x03") is None

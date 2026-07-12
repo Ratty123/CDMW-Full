@@ -38,6 +38,7 @@ internal sealed partial class MeshViewport
         else if (targetMode == "part")
         {
             _selectedSources.Clear();
+            SyncSelectedPartFocus();
         }
     }
 
@@ -71,6 +72,7 @@ internal sealed partial class MeshViewport
             {
                 _selectedSources.Add(index);
             }
+            SyncSelectedPartFocus();
         }
     }
 
@@ -131,6 +133,7 @@ internal sealed partial class MeshViewport
                     _selectedSources.Add(index);
                 }
             }
+            SyncSelectedPartFocus();
         }
     }
 
@@ -193,7 +196,7 @@ internal sealed partial class MeshViewport
         }
         else if (targetMode == "part")
         {
-            var selected = _selectedSources.Count > 0 ? _selectedSources.ToHashSet() : new HashSet<int> { SelectedSubmeshIndex };
+            var selected = _selectedSources.ToHashSet();
             foreach (var part in selected)
             {
                 if (part >= 0 && part < _document.Submeshes.Count)
@@ -205,6 +208,7 @@ internal sealed partial class MeshViewport
                     }
                 }
             }
+            SyncSelectedPartFocus();
         }
     }
 
@@ -285,6 +289,7 @@ internal sealed partial class MeshViewport
             {
                 _selectedSources.Add(part);
             }
+            SyncSelectedPartFocus();
         }
     }
 

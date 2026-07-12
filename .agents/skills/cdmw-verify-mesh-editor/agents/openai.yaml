@@ -1,0 +1,4 @@
+interface:
+  display_name: "CDMW Verify Mesh Editor"
+  short_description: "Choose trustworthy Mesh Editor proof"
+  default_prompt: "Use $cdmw-verify-mesh-editor to validate this Mesh Editor change safely."

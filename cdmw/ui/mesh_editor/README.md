@@ -33,13 +33,11 @@ session path for scripted callers. UI callers should use
 `MeshEditorTab.open_mesh_file_session_async()`, which runs file IO, parsing, and
 service session creation in `MeshFileSessionLoadWorker`, then attaches the
 controller and already-loaded mesh on the UI thread.
-`MeshEditorTab.start_standalone_native_preview()` starts the native D3D11 host
-for that standalone session without starting the full app workflow; the
-standalone workspace exposes that as its `D3D11` command button and polls the
-host status file for loading, loaded, error, and closed events. The visible
-button uses `MeshEditorTab.start_standalone_native_preview_async()`, which builds
-the Mesh Editor native payload and writes the native preview package in
-`MeshNativePreviewPackageWorker` before launching or reloading the host.
+The standalone and embedded Mesh Editor viewport is .NET/Vortice-only.
+`start_standalone_native_preview()` and its async counterpart are retained as
+compatibility seams but reject launch requests; their former D3D11 button is
+hidden and disabled. Native package/runtime helpers remain for explicit legacy
+harness coverage and are not a production Mesh Editor fallback.
 
 `native_preview_payloads.py` owns Mesh Editor payloads for the native D3D11
 preview bridge; callers should not duplicate mesh-to-preview JSON/blob packing.

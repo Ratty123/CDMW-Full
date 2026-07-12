@@ -13,6 +13,7 @@ internal sealed partial class ExperimentForm
     private const string ResidentMaterialUpdatesCapability = "resident_material_updates_v2";
     private const string ResidentMaterialParameterUpdatesCapability = "resident_material_parameter_updates_v1";
     private const string ViewportDisplayModesCapability = "viewport_display_modes_v1";
+    private const string ResidentSceneCapability = "resident_scene_state_v1";
     private long _lastAppliedEditRevision;
     private long _lastObservedSessionRevision;
     private readonly HashSet<string> _appliedPacketKindsForRevision = new(StringComparer.Ordinal);
@@ -71,6 +72,7 @@ internal sealed partial class ExperimentForm
                         ResidentMaterialParameterUpdatesCapability,
                         ResidentTextureRegionUpdatesCapability,
                         ViewportDisplayModesCapability,
+                        ResidentSceneCapability,
                     }
                 });
                 string? line;
@@ -157,6 +159,17 @@ internal sealed partial class ExperimentForm
                     break;
                 case "viewport_display_update":
                     HandleViewportDisplayUpdate(document.RootElement);
+                    break;
+                case "scene_state_update":
+                    _scene.Apply(document.RootElement, _document.Submeshes.Count);
+                    _viewport.ApplySceneState();
+                    RefreshSubmeshList();
+                    WriteProtocolEvent("scene_state_update_ack", new Dictionary<string, object?>
+                    {
+                        ["status"] = "applied",
+                        ["comparison_mode"] = _scene.ComparisonMode,
+                        ["interaction_mode"] = _scene.InteractionMode,
+                    });
                     break;
                 case "command_result":
                     _statusLabel.Text = $"Command result: {JsonString(document.RootElement, "status")}";
@@ -304,7 +317,12 @@ internal sealed partial class ExperimentForm
         {
             _externalTopologyDirty = true;
             _editedSubmeshes.UnionWith(affectedSubmeshes.Where(index => index < _document.Submeshes.Count));
-            _viewport.RefreshTopologyGeometry(affectedSubmeshes, materialSources, replaceAll);
+            var reboundMaterials = _materials.RemapTopologyState(materialSources, _document.Submeshes.Count);
+            var residentMaterialSources = materialSources.ToDictionary(
+                pair => pair.Key,
+                pair => reboundMaterials.Contains(pair.Key) ? pair.Key : pair.Value);
+            _viewport.RefreshTopologyGeometry(affectedSubmeshes, residentMaterialSources, replaceAll);
+            RefreshSubmeshList();
             _viewport.Invalidate();
             _statusLabel.Text = "Topology preview updated by MeshService; Python session remains authoritative.";
         }

@@ -289,6 +289,10 @@ class MeshEditorActionsMixin:
         self.standalone_compare_mode = normalized
         if not self.has_active_standalone_session():
             return
+        comparison_mode = {"source": "original_only", "ghost": "overlay"}.get(normalized, "replacement_only")
+        if self._send_dotnet_scene_state(comparison_mode=comparison_mode):
+            self.standalone_status_label.setText(f"Resident .NET compare view: {normalized}.")
+            return
         if normalized == "source":
             host = self.standalone_native_host
             setter = getattr(host, "set_display_mode", None)

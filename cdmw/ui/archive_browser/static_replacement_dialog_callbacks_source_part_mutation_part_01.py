@@ -433,7 +433,7 @@ def _source_part_mutation_step_013(_state):
                 new_index = index_map.get(int(old_index))
                 if new_index is not None and int(new_index) not in remapped_indices:
                     remapped_indices.append(int(new_index))
-            _state._set_mapping_indices(int(target_index), remapped_indices, push_undo=False, undo_label=source_part_delete_status_text['undo_label'], defer_preview=True)
+            _state._set_mapping_indices(int(target_index), remapped_indices, push_undo=False, undo_label=source_part_delete_status_text['undo_label'], defer_preview=True, confirmed_resident_sync=resident_state_only)
         if not resident_state_only:
             _state.clear_mesh_history_snapshot_stack(_state.mesh_edit_undo_stack)
             _state.clear_mesh_history_snapshot_stack(_state.mesh_edit_redo_stack)
@@ -442,28 +442,20 @@ def _source_part_mutation_step_013(_state):
         texture_sets = _state.group_replacement_texture_sets(_state.texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
         _state._set_texture_sets(texture_sets)
         _state._apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
-        try:
+        if isinstance(_state.selected_added_part_texture_row, dict):
             _state.selected_added_part_texture_row['source_index'] = _state._remap_selected_source_index(int(_state.selected_added_part_texture_row.get('source_index', -1)), index_map)
-        except NameError:
-            pass
-        try:
+        if isinstance(_state.selected_texture_plan_source, dict):
             _state.selected_texture_plan_source['source_indices'] = tuple(sorted(_state._remap_source_index_collection(_state.selected_texture_plan_source.get('source_indices', ()), index_map)))
-        except NameError:
-            pass
         _state._refresh_source_assignment_columns()
-        try:
+        if callable(_state._refresh_texture_row_guidance):
             _state._refresh_texture_row_guidance()
-            _state._refresh_texture_table(_state.selected_texture_row.get('row'))
-        except NameError:
-            pass
-        try:
+        if callable(_state._refresh_texture_table):
+            selected_texture_row = _state.selected_texture_row if isinstance(_state.selected_texture_row, dict) else {}
+            _state._refresh_texture_table(selected_texture_row.get('row'))
+        if callable(_state._refresh_added_part_texture_tree):
             _state._refresh_added_part_texture_tree(new_current_index if new_current_index >= 0 else None)
-        except NameError:
-            pass
-        try:
+        if callable(_state._refresh_source_material_plan):
             _state._refresh_source_material_plan(force=True)
-        except NameError:
-            pass
         _state._load_selected_part_controls()
         _state._sync_highlight_sets()
         if not resident_state_only:
@@ -493,13 +485,9 @@ def _source_part_mutation_step_015(_state):
         texture_sets = _state._get_texture_sets()
         if _state.original_mesh_for_mapping is None or replacement_mesh_for_mapping is None:
             return
-        try:
-            texture_sets = _state.group_replacement_texture_sets(_state.texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
-            _state._set_texture_sets(texture_sets)
-            _state._apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
-        except NameError:
-            texture_sets = {}
-            _state._set_texture_sets(texture_sets)
+        texture_sets = _state.group_replacement_texture_sets(_state.texture_files_for_mapping, obj_mesh=replacement_mesh_for_mapping)
+        _state._set_texture_sets(texture_sets)
+        _state._apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
         source_initial_targets = _state._source_part_group_initial_target_counts_helper(_state.suggested_mappings, lambda source_index: _state._source_material_group_label(int(source_index), texture_sets))
         source_groups, source_face_counts = _state._source_part_material_groups_helper(replacement_mesh_for_mapping, _state.source_part_adjustments, source_material_group_label=lambda source_index: _state._source_material_group_label(int(source_index), texture_sets), source_group_label_or_fallback=_state._source_group_label_or_fallback_helper, is_marker_source=_state._is_marker_source)
         if not source_groups:
@@ -517,22 +505,20 @@ def _source_part_mutation_step_015(_state):
             clear_response = _state.QMessageBox.question(_state.dialog, source_part_group_routing_text['clear_manual_title'], source_part_group_routing_text['clear_manual_message'], _state.QMessageBox.Yes | _state.QMessageBox.No, _state.QMessageBox.Yes)
             if clear_response == _state.QMessageBox.Yes:
                 _state.texture_override_assignments.clear()
-                try:
+                if callable(_state._refresh_texture_override_tree):
                     _state._refresh_texture_override_tree()
-                except NameError:
-                    pass
         target_sources, overflow_groups = _state._source_part_assign_material_groups_to_targets_helper(_state._source_part_group_items_helper(source_groups, source_face_counts), target_count=target_count, original_mesh=_state.original_mesh_for_mapping, replacement_mesh=replacement_mesh_for_mapping, target_display_name=_state._target_submesh_display_name_helper, source_initial_targets=source_initial_targets, semantic_tokens=_state._semantic_tokens)
         for target_index, source_indices in target_sources.items():
             _state._set_mapping_indices(target_index, source_indices, push_undo=False)
-        try:
-            if texture_sets and (not _state.rebuild_sidecar_checkbox.isChecked()):
-                _state.rebuild_sidecar_checkbox.setChecked(True)
-        except NameError:
-            pass
-        try:
+        rebuild_sidecar_checkbox = _state.rebuild_sidecar_checkbox
+        if callable(rebuild_sidecar_checkbox) and not callable(getattr(rebuild_sidecar_checkbox, 'setChecked', None)):
+            rebuild_sidecar_checkbox = rebuild_sidecar_checkbox()
+        is_checked = getattr(rebuild_sidecar_checkbox, 'isChecked', None)
+        set_checked = getattr(rebuild_sidecar_checkbox, 'setChecked', None)
+        if texture_sets and callable(is_checked) and callable(set_checked) and not is_checked():
+            set_checked(True)
+        if callable(_state._refresh_source_material_plan):
             _state._refresh_source_material_plan()
-        except NameError:
-            pass
         if overflow_groups:
             source_part_group_routing_text = _state._source_part_group_routing_text_helper()
             _state.QMessageBox.warning(_state.dialog, source_part_group_routing_text['overflow_title'], _state._source_part_group_routing_overflow_message_helper(overflow_groups))
@@ -607,19 +593,15 @@ def _source_part_mutation_step_016(_state):
         _state._fit_alignment_tree_height_to_rows(_state.source_tree, **_state.source_tree_layout_state.height_fit_kwargs)
         _state._refresh_source_tree_selection_state()
         _state._refresh_source_assignment_columns()
-        try:
+        if callable(_state._refresh_added_part_texture_tree):
             _state._refresh_added_part_texture_tree(new_index)
-        except NameError:
-            pass
-        try:
+        if callable(_state._refresh_source_material_plan):
             _state._refresh_source_material_plan()
-        except NameError:
-            pass
-        try:
+        if callable(_state._refresh_texture_row_guidance):
             _state._refresh_texture_row_guidance()
-            _state._refresh_texture_table(_state.selected_texture_row.get('row'))
-        except NameError:
-            pass
+        if callable(_state._refresh_texture_table):
+            selected_texture_row = _state.selected_texture_row if isinstance(_state.selected_texture_row, dict) else {}
+            _state._refresh_texture_table(selected_texture_row.get('row'))
         _state._load_selected_part_controls()
         _state._source_part_refresh_geometry_preview(duplicate_route.status_text, (new_index,))
         _state.self.set_status_message(duplicate_route.status_text)
@@ -675,15 +657,13 @@ def _source_part_mutation_step_017(_state):
         _state._set_texture_sets(texture_sets)
         _state._apply_source_material_texture_overrides_to_ui_texture_sets(texture_sets)
         _state._refresh_source_assignment_columns()
-        try:
+        if callable(_state._refresh_source_material_plan):
             _state._refresh_source_material_plan()
-        except NameError:
-            pass
-        try:
+        if callable(_state._refresh_texture_row_guidance):
             _state._refresh_texture_row_guidance()
-            _state._refresh_texture_table(_state.selected_texture_row.get('row'))
-        except NameError:
-            pass
+        if callable(_state._refresh_texture_table):
+            selected_texture_row = _state.selected_texture_row if isinstance(_state.selected_texture_row, dict) else {}
+            _state._refresh_texture_table(selected_texture_row.get('row'))
         _state._load_selected_part_controls()
         _state._source_part_refresh_geometry_preview('cancelled mesh part import', replace_all=True)
         return True

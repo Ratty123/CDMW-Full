@@ -172,12 +172,12 @@ class DashboardControllerMixin:
                 phase_text = self._archive_progress_phase_for_detail(detail_text)[0] if detail_text else "Working"
             if not detail_text:
                 detail_text = "Archive cache build running..."
-        progress_health_state = health_state if not active else "building"
+        cache_build_active = bool(active and health_state == "building")
         self._set_archive_cache_status_chip(
-            progress_health_state,
-            detail_text,
+            health_state,
+            health_reason or detail_text,
             percent=percent_value,
-            active=active,
+            active=cache_build_active,
         )
 
     def _refresh_dashboard(self) -> None:

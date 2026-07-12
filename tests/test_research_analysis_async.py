@@ -160,7 +160,7 @@ def test_report_export_handler_is_nonblocking_and_keeps_ui_heartbeat(
         assert _wait_until(operation_finished.is_set)
         assert output_path.is_file()
         assert json.loads(output_path.read_text(encoding="utf-8"))["mip_rows"][0]["relative_path"] == "latest.dds"
-        assert "Exported analysis report" in tab.analysis_status_label.text()
+        assert _wait_until(lambda: "Exported analysis report" in tab.analysis_status_label.text())
         assert _wait_until(lambda: not tab.analysis_task_controller.iter_shutdown_workers())
     finally:
         timer.stop()

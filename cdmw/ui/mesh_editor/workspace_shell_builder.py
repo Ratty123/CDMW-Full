@@ -110,13 +110,23 @@ class WorkspaceShellBuilderMixin:
         self.snap_combo = self._combo("MeshEditorSnapModeCombo", ("Off", "Grid", "Vertex", "Pixel"))
         self.pivot_combo = self._combo("MeshEditorPivotCombo", ("Median", "Center", "Cursor", "Individual"))
         self.orientation_combo = self._combo("MeshEditorOrientationCombo", ("Global", "Local", "Normal", "View"))
-        for index, (label_text, widget) in enumerate((
+        self.viewport_display_combo = self._combo(
+            "MeshEditorViewportDisplayCombo",
+            ("Textured", "Faces", "Wire", "Vertices", "Wire + Vertices", "X-Ray"),
+        )
+        self.viewport_display_combo.setToolTip(
+            "Change the resident .NET viewport without reloading geometry or textures."
+        )
+        controls = [
             ("Mode", self.mode_combo),
             ("Select", self.selection_combo),
             ("Snap", self.snap_combo),
             ("Pivot", self.pivot_combo),
             ("Orient", self.orientation_combo),
-        )):
+        ]
+        if self._embedded_controls_only:
+            controls.append(("View", self.viewport_display_combo))
+        for index, (label_text, widget) in enumerate(controls):
             label = QLabel(label_text, frame)
             label.setObjectName(f"{widget.objectName()}Label")
             self._ui_font_widgets.append(label)
@@ -136,6 +146,22 @@ class WorkspaceShellBuilderMixin:
             layout.addStretch(1)
         self.mode_combo.currentTextChanged.connect(self._mode_changed)
         self.selection_combo.currentTextChanged.connect(self._selection_changed)
+        if self._embedded_controls_only:
+            self.viewport_display_combo.currentTextChanged.connect(
+                lambda text: self.viewport_display_requested.emit(
+                    {
+                        "Textured": "textured",
+                        "Faces": "untextured_faces",
+                        "Wire": "wire",
+                        "Vertices": "vertices",
+                        "Wire + Vertices": "wire_vertices",
+                        "X-Ray": "xray",
+                    }.get(str(text), "textured")
+                )
+            )
+            self.viewport_display_combo.setEnabled(False)
+        else:
+            self.viewport_display_combo.setVisible(False)
         return frame
 
     def _build_body(self, theme_key: str) -> QWidget:
@@ -312,8 +338,9 @@ class WorkspaceShellBuilderMixin:
         self.native_preview_button.setObjectName("MeshEditorStandaloneNativePreviewButton")
         self.native_preview_button.setToolTip("Start native D3D11 preview.")
         self.native_preview_button.setMinimumHeight(28)
+        self.native_preview_button.setVisible(False)
+        self.native_preview_button.setEnabled(False)
         self.native_preview_button.clicked.connect(self.native_preview_requested.emit)
-        controls.addWidget(self.native_preview_button)
         self.export_editable_package_button = QPushButton("Export", frame)
         self.export_editable_package_button.setObjectName("MeshEditorExportEditablePackageButton")
         self.export_editable_package_button.setToolTip("Export the current mesh as an editable package with sidecar metadata.")

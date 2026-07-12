@@ -477,18 +477,17 @@ def _mesh_edit_triangle_groups_native(mesh: ParsedMesh, source_submesh_indices: 
 
 
 def _with_triangle_material_fields(group: Mapping[str, object], submesh: object, submesh_index: int) -> dict[str, object]:
-    result = dict(group)
-    result.update(
-        {
+    result = {
+            **group,
             "source_submesh_index": submesh_index,
             "material_source_submesh_index": _nonnegative_int(
                 getattr(submesh, "cdmw_mesh_edit_material_source_submesh_index", submesh_index),
                 submesh_index,
             ),
+            "part_name": str(getattr(submesh, "name", "") or submesh.material or f"part_{submesh_index}"),
             "material_name": str(submesh.material or submesh.name or f"part_{submesh_index}"),
             "texture_name": str(submesh.texture or ""),
-        }
-    )
+    }
     return result
 
 

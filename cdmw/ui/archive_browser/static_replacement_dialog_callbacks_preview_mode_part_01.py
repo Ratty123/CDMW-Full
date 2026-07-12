@@ -81,6 +81,7 @@ def _preview_mode_step_006(_state):
     _state._default_d3d11_editor_ids = _default_d3d11_editor_ids
 
 def _preview_mode_step_007(_state):
+    _state.dialog = _state.context.get('dialog')
     _state.highlighted_original_indices = _state.context.get('highlighted_original_indices')
     _state.highlighted_source_indices = _state.context.get('highlighted_source_indices')
     _state.original_dialog_preview = _state.context.get('original_dialog_preview')
@@ -184,6 +185,8 @@ def _preview_mode_step_010(_state):
             return (_state.replacement_only_preview,)
         if normalized_mode == 'overlay':
             return (_state.overlay_dialog_preview,)
+        if normalized_mode == 'original_only':
+            return (_state.original_dialog_preview,)
         return (_state.original_dialog_preview, _state.static_dialog_preview)
     _state._preview_mode_qt_widgets = _preview_mode_qt_widgets
 
@@ -209,6 +212,9 @@ def _preview_mode_step_012(_state):
         previous_mode, mode = _state._alignment_preview_mode_record_helper(_state.alignment_preview_mode_state, mode)
         if previous_mode != mode:
             _state._save_alignment_preview_mode_view_state(previous_mode)
+        set_scene_state = getattr(_state.dialog, '_mesh_editor_embedded_set_scene_state', None)
+        if callable(set_scene_state) and bool(set_scene_state(comparison_mode=mode)):
+            return
         needs_static_refresh = _state._preview_mode_needs_static_refresh(mode)
         mode_route = _state._alignment_preview_mode_route_helper(mode, d3d11_active=_state._d3d11_preview_active(), needs_static_refresh=needs_static_refresh)
         if mode_route.d3d11_active:

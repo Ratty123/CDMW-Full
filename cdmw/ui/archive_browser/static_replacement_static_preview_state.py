@@ -17,6 +17,9 @@ class StaticPreviewRefreshRouteState:
     require_original_reference: bool
     can_build_source_geometry: bool
 
+    def waits_for_original_reference(self, *, ready: bool) -> bool:
+        return bool(self.require_original_reference and not ready and not self.can_build_source_geometry)
+
 
 @dataclass(frozen=True, slots=True)
 class StaticPreviewWidgetModelAction:
@@ -56,7 +59,10 @@ def static_preview_refresh_route_state(
     mesh_edit_direct_source_preview = False
     replacement_available = bool(replacement_mesh_available)
     replacement_only_direct_source_preview = False
-    source_owned_direct_source_preview = False
+    source_owned_direct_source_preview = bool(
+        replacement_available
+        and not needs_original_material_preview
+    )
     require_original_reference = bool(not mesh_edit_direct_source_preview or needs_original_material_preview)
     can_build_source_geometry = bool(
         preview_controls_ready and original_mesh_available and replacement_available

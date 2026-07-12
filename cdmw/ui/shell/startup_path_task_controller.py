@@ -94,14 +94,27 @@ class StartupPathTaskControllerMixin:
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(self._handle_path_task_finished)
-        thread.finished.connect(thread.deleteLater)
         self._path_task_worker = worker
         self._path_task_thread = thread
         thread.start()
 
-    def _handle_path_task_finished(self) -> None:
+    def _handle_path_task_finished(self, thread: Optional[QThread] = None) -> None:
+        thread = thread or self._path_task_thread
+        if thread is not None:
+            try:
+                if not thread.wait(0):
+                    QTimer.singleShot(1, lambda target_thread=thread: self._handle_path_task_finished(target_thread))
+                    return
+            except RuntimeError:
+                pass
+        if self._path_task_thread is not thread:
+            if thread is not None:
+                thread.deleteLater()
+            return
         self._path_task_worker = None
         self._path_task_thread = None
+        if thread is not None:
+            thread.deleteLater()
         pending = self._pending_path_task
         self._pending_path_task = None
         if pending is not None and self.isVisible():

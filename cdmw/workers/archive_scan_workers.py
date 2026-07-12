@@ -157,6 +157,7 @@ class ArchiveScanWorker(QObject):
         result_filter_signature: Tuple[object, ...] = (),
         load_basic_index_cache: bool = False,
         load_name_search_index_cache: bool = False,
+        defer_enhanced_index_build: bool = False,
         native_archive_acceleration: bool = True,
         resource_profile: str = "balanced_60fps",
         game_executable_fingerprints: Optional[Mapping[str, Mapping[str, object]]] = None,
@@ -184,6 +185,7 @@ class ArchiveScanWorker(QObject):
         self.result_filter_signature = tuple(result_filter_signature or ())
         self.load_basic_index_cache = bool(load_basic_index_cache)
         self.load_name_search_index_cache = bool(load_name_search_index_cache)
+        self.defer_enhanced_index_build = bool(defer_enhanced_index_build)
         self.native_archive_acceleration = bool(native_archive_acceleration)
         self.resource_profile = str(resource_profile or "balanced_60fps")
         self.crash_reports_dir = crash_reports_dir
@@ -471,8 +473,8 @@ class ArchiveScanWorker(QObject):
                 enhanced_index_deferred_progress = "Item-name search deferred until needed..."
                 timings["item_search_index_s"] = 0.0
             build_enhanced_indexes_before_ready = bool(
-                entries
-                and name_search_index is None
+                entries and name_search_index is None
+                and not self.defer_enhanced_index_build
                 and (
                     self.force_refresh
                     or source != "cache"

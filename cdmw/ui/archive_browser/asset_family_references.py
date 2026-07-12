@@ -223,6 +223,11 @@ class ArchiveAssetFamilyReferenceMixin:
 
 
     def _scope_archive_asset_family_for_entry(self, entry: ArchiveEntry, *, include_hints: bool = False) -> None:
+        if self._archive_lookup_indexes_snapshot() is None:
+            self.set_status_message(
+                "Archive path lookup is warming; retry family filtering when indexing finishes."
+            )
+            return
         graph, _references = self._archive_asset_family_graph_for_entry(entry)
         entries = self._archive_entries_from_asset_family_graph(graph, include_hints=include_hints)
         if not entries:
@@ -232,6 +237,11 @@ class ArchiveAssetFamilyReferenceMixin:
         self._scope_archive_reference_entries(entries, scope_label=f"Asset family for {entry.basename}{suffix}")
 
     def _export_archive_asset_family_for_entry(self, entry: ArchiveEntry, *, include_hints: bool = False) -> None:
+        if self._archive_lookup_indexes_snapshot() is None:
+            self.set_status_message(
+                "Archive path lookup is warming; retry family export when indexing finishes."
+            )
+            return
         graph, _references = self._archive_asset_family_graph_for_entry(entry)
         entries = self._archive_entries_from_asset_family_graph(graph, include_hints=include_hints)
         if not entries:

@@ -163,7 +163,12 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                 self._emit_preview_payload(durable_native)
                 return
             native_attempt: Optional[NativePreviewCoreAttempt] = None
-            if self._native_preview_core_supported_for_entry():
+            native_supported = self._native_preview_core_supported_for_entry()
+            if native_supported and self.emit_quick_preview:
+                quick_payload = self._quick_archive_model_preview_payload()
+                if quick_payload is not None:
+                    self._emit_preview_payload(quick_payload)
+            if native_supported:
                 native_attempt = self._try_native_preview_core()
                 if self._emit_native_preview_core_attempt(native_attempt, timings):
                     return

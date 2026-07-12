@@ -59,15 +59,43 @@ def _protocol_result(
 
 def resident_material_gates(state: SimpleNamespace) -> dict[str, bool]:
     payload, applied = state.material_state_payload, state.material_state_applied
+    payloads = tuple(getattr(state, "material_state_payloads", (payload,)) or ())
+    applied_events = tuple(getattr(state, "material_state_applied_events", (applied,)) or ())
     before, after = state.material_lifecycle_before, state.material_lifecycle_after
     resources_before, resources_after = state.material_resource_metrics_before, state.material_resource_metrics_after
     same_srv_keys = ("texture_srv_creates", "texture_srv_disposals", "live_texture_srvs")
+    generations = [int(item.get("generation", 0) or 0) for item in payloads]
+    applied_generations = [int(item.get("generation", 0) or 0) for item in applied_events]
+    edit_revisions = [int(item.get("edit_revision", -1)) for item in payloads]
+    applied_edit_revisions = [int(item.get("edit_revision", -1)) for item in applied_events]
+    applied_renderer_generations = [
+        int(
+            (item.get("renderer") if isinstance(item.get("renderer"), Mapping) else {}).get(
+                "material_generation", 0
+            ) or 0
+        )
+        for item in applied_events
+    ]
+    latest_renderer = applied.get("renderer")
+    latest_renderer = latest_renderer if isinstance(latest_renderer, Mapping) else {}
     return {
         "resident_material_update_applied": bool(
             applied.get("event") == "material_state_applied"
             and int(applied.get("generation", 0) or 0) == int(payload.get("generation", 0) or 0)
         ),
         "resident_material_signature_applied": applied.get("material_signature") == payload.get("material_signature"),
+        "resident_material_generation_ordered": bool(
+            len(generations) == len(applied_generations) == 2
+            and generations[0] > 0
+            and generations[1] == generations[0] + 1
+            and applied_generations == generations
+            and applied_renderer_generations == generations
+            and applied_edit_revisions == edit_revisions
+            and len(set(edit_revisions)) == 1
+            and int(latest_renderer.get("last_requested_material_generation", 0) or 0) == generations[-1]
+            and int(latest_renderer.get("last_applied_material_generation", 0) or 0) == generations[-1]
+            and int(latest_renderer.get("material_generation", 0) or 0) == generations[-1]
+        ),
         "resident_material_process_unchanged": bool(
             state.material_process_pid_before > 0 and state.material_process_pid_before == state.material_process_pid_after
         ),
@@ -92,8 +120,9 @@ def resident_material_gates(state: SimpleNamespace) -> dict[str, bool]:
             and all(resources_before.get(key) == resources_after.get(key) for key in same_srv_keys)
         ),
         "resident_material_counters_ok": bool(
-            int(after.get("material_state_update_count", 0)) == int(after.get("material_state_applied_count", 0)) == 1
-            and int(after.get("material_state_failed_count", 0)) == 0
+            int(after.get("material_state_update_count", 0)) - int(before.get("material_state_update_count", 0)) == 2
+            and int(after.get("material_state_applied_count", 0)) - int(before.get("material_state_applied_count", 0)) == 2
+            and int(after.get("material_state_failed_count", 0)) == int(before.get("material_state_failed_count", 0))
         ),
     }
 
@@ -106,7 +135,7 @@ def exercise_resident_material_update(
     wait_protocol_event: Callable[..., dict[str, object]],
 ) -> dict[str, object] | None:
     view = state.controller.session_view()
-    state.material_state_payload = mesh_dotnet_material_state_payload(
+    first_payload = mesh_dotnet_material_state_payload(
         state.controller.working_mesh(clone=False), session_id=view.session_id, edit_revision=view.revision,
         generation=int(state.tab.standalone_dotnet_material_generation) + 1,
     )
@@ -117,12 +146,26 @@ def exercise_resident_material_update(
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     if not state.tab._send_dotnet_material_state(reason="real_archive_harness"):
         return base_error(state, "Production .NET material-state sender rejected the resident update.")
-    result = _protocol_result(state, pump_until, cursor, {"material_state_applied", "material_state_failed"})
-    state.material_state_applied = result
-    if result.get("event") != "material_state_applied":
-        return base_error(state, str(result.get("message") or "Resident .NET material update was not acknowledged."))
+    first_applied = _protocol_result(state, pump_until, cursor, {"material_state_applied", "material_state_failed"})
+    if first_applied.get("event") != "material_state_applied":
+        return base_error(state, str(first_applied.get("message") or "First resident .NET material update was not acknowledged."))
+    current = state.controller.session_view()
+    second_payload = mesh_dotnet_material_state_payload(
+        state.controller.working_mesh(clone=False), session_id=current.session_id, edit_revision=current.revision,
+        generation=int(state.tab.standalone_dotnet_material_generation) + 1,
+    )
+    cursor = len(state.tab.standalone_dotnet_protocol_events)
+    if not state.tab._send_dotnet_material_state(reason="real_archive_harness_same_revision"):
+        return base_error(state, "Production .NET material-state sender rejected the second resident update.")
+    second_applied = _protocol_result(state, pump_until, cursor, {"material_state_applied", "material_state_failed"})
+    if second_applied.get("event") != "material_state_applied":
+        return base_error(state, str(second_applied.get("message") or "Second resident .NET material update was not acknowledged."))
+    state.material_state_payloads = (first_payload, second_payload)
+    state.material_state_applied_events = (first_applied, second_applied)
+    state.material_state_payload = second_payload
+    state.material_state_applied = second_applied
     metrics_event = wait_protocol_event(state, "metrics", len(state.tab.standalone_dotnet_protocol_events), 2.0)
-    renderer_after = result.get("renderer")
+    renderer_after = second_applied.get("renderer")
     if not isinstance(renderer_after, Mapping):
         renderer_after = metrics_event.get("renderer")
     if not isinstance(renderer_after, Mapping):
@@ -301,6 +344,17 @@ def material_parameter_evidence(state: SimpleNamespace) -> dict[str, object]:
 
 def resident_material_evidence(state: SimpleNamespace) -> dict[str, object]:
     return {
+        "generation_sequence": [
+            {
+                "requested_generation": int(payload.get("generation", 0) or 0),
+                "applied_generation": int(applied.get("generation", 0) or 0),
+                "edit_revision": int(payload.get("edit_revision", -1)),
+            }
+            for payload, applied in zip(
+                tuple(getattr(state, "material_state_payloads", ()) or ()),
+                tuple(getattr(state, "material_state_applied_events", ()) or ()),
+            )
+        ],
         "payload": {
             "schema": state.material_state_payload.get("schema"),
             "version": state.material_state_payload.get("version"),

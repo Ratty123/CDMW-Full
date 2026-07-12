@@ -154,7 +154,6 @@ def _d3d11_package_lifecycle_step_002(_state):
     _state._set_alignment_d3d11_progress = _state.context.get('_set_alignment_d3d11_progress')
     _state._set_preview_performance_status = _state.context.get('_set_preview_performance_status')
     _state._source_index_is_enabled_renderable = _state.context.get('_source_index_is_enabled_renderable')
-    _state._stop_original_reference_texture_worker = _state.context.get('_stop_original_reference_texture_worker')
     _state._sync_highlight_sets = _state.context.get('_sync_highlight_sets')
     _state._sync_mesh_edit_preview_settings = _state.context.get('_sync_mesh_edit_preview_settings')
     _state._texture_uv_fast_preview_record_global_flip_v_helper = _state.context.get('_texture_uv_fast_preview_record_global_flip_v_helper')
@@ -533,10 +532,6 @@ def _d3d11_package_lifecycle_step_038(_state):
             pass
         _state._alignment_d3d11_reset_request_state_helper(_state.alignment_d3d11_state, clear_active_metadata=True, clear_mapping_ids=True)
         _state._alignment_d3d11_stop_worker()
-        try:
-            _state._stop_original_reference_texture_worker()
-        except NameError:
-            pass
         _state._alignment_d3d11_invalidate_package_cache('shutdown')
         _state._alignment_d3d11_stop_process()
         pending_package = _state.alignment_d3d11_state.get('active_package')
@@ -580,30 +575,8 @@ def _d3d11_package_lifecycle_step_041(_state):
 def _d3d11_package_lifecycle_step_042(_state):
 
     def _queue_alignment_d3d11_preview(model: object, *, label: str='Live alignment preview', reason: str='') -> None:
-        if not _state._alignment_d3d11_preview_active():
-            _state._record_runtime_event('mesh_alignment_d3d11_preview_queue_skipped', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason='inactive_renderer', requested_reason=str(reason or ''), modify_original_clone=_state.modify_original_clone_mode)
-            return
-        if not isinstance(model, _state.ModelPreviewData):
-            _state._set_alignment_d3d11_loading(False, 'Preview has no renderable model yet.')
-            _state._record_runtime_event('mesh_alignment_d3d11_preview_queue_skipped', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason='invalid_model', requested_reason=str(reason or ''), model_type=type(model).__name__, modify_original_clone=_state.modify_original_clone_mode)
-            return
-        transform_generation = _state._current_alignment_transform_generation_value()
-        display_mode = str(_state.preview_mode_combo.currentData() or 'side_by_side')
-        rebuild_reason = str(reason or _state.alignment_d3d11_state.get('next_rebuild_reason', '') or 'geometry').strip().lower()
-        if rebuild_reason not in {'geometry', 'texture_uv', 'material', 'mode_missing_original'}:
-            rebuild_reason = 'geometry'
-        if rebuild_reason != 'material':
-            _state._alignment_d3d11_reset_material_parity_state_helper(_state.alignment_d3d11_state)
-            _state._set_alignment_d3d11_pipeline_stage('material_loading', f'queued {rebuild_reason} rebuild')
-        _queued_settings, _queued_high_quality_textures, _queued_combiner, queued_package_quality = _state._alignment_d3d11_package_quality(label, model, reason=rebuild_reason)
-        _state._alignment_d3d11_queue_preview_request_helper(_state.alignment_d3d11_state, model=_state._clone_preview_model(model), label=label, display_mode=display_mode, reason=rebuild_reason, transform_generation=transform_generation, package_quality=queued_package_quality)
-        _state._record_runtime_event('mesh_alignment_d3d11_preview_queued', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, display_mode=display_mode, rebuild_reason=rebuild_reason, package_quality=queued_package_quality, transform_generation=int(transform_generation or 0), modify_original_clone=_state.modify_original_clone_mode, external_import=bool(_state.scene_import_result is not None and (not _state.modify_original_clone_mode)), source_skeleton_present=_state.source_skeleton is not None, original_physics_overlay_present=_state._preview_overlay_present(_state._current_original_reference_preview_model()), replacement_physics_overlay_present=False, combined_physics_overlay_present=_state._preview_overlay_present(model), preserve_overlays=False, show_physics_overlay=bool(getattr(_state.preview_render_settings, 'show_physics_overlay', False)))
-        live_frame_available = _state._alignment_d3d11_live_frame_available()
-        if not live_frame_available:
-            _state._alignment_d3d11_mark_preview_unloaded_helper(_state.alignment_d3d11_state)
-        _state._set_alignment_d3d11_progress(0, 'Preparing preview - queued.', stage='queued', detail=_state._alignment_d3d11_queued_preview_reload_detail_helper(rebuild_reason), active=not live_frame_available)
-        _state.alignment_d3d11_reload_timer.setInterval(_state.alignment_d3d11_fast_reload_interval_ms if rebuild_reason == 'material' else _state.alignment_d3d11_package_reload_interval_ms)
-        _state._safe_start_alignment_timer(_state.alignment_d3d11_reload_timer)
+        del model, label
+        _state._record_runtime_event('mesh_alignment_d3d11_preview_queue_skipped', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason='dotnet_authoritative', requested_reason=str(reason or ''), modify_original_clone=_state.modify_original_clone_mode)
     _state._queue_alignment_d3d11_preview = _queue_alignment_d3d11_preview
 
 def _d3d11_package_lifecycle_step_043(_state):

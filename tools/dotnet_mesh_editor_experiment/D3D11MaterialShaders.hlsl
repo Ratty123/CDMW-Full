@@ -29,6 +29,7 @@ cbuffer CameraConstants : register(b0)
     float4 MaterialSurfaceBlends;
     float4 MaterialEmissiveOverride;
     float4 MaterialEmissiveOverrideFlags;
+    float4 MaterialChannelSelectors;
 };
 
 Texture2D BaseTexture : register(t0);
@@ -131,7 +132,9 @@ float4 PSMain(VSOutput input) : SV_Target
         uv += viewDirection.xy * height * MaterialHeightScale;
     }
 
-    float4 baseColor = MaterialHasBase > 0.5f ? BaseTexture.Sample(MaterialSampler, uv) : float4(0.55f, 0.62f, 0.72f, 1.0f);
+    float4 baseColor = MaterialHasBase > 0.5f
+        ? BaseTexture.Sample(MaterialSampler, uv)
+        : (MaterialTint.w > 0.5f ? float4(1.0f, 1.0f, 1.0f, 1.0f) : float4(0.55f, 0.62f, 0.72f, 1.0f));
     baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x, 0.1f));
     baseColor.rgb *= max(MaterialTint.rgb, float3(0.0f, 0.0f, 0.0f));
     float materialGamma = max(MaterialBaseAdjustments.w, 0.01f);
@@ -162,7 +165,10 @@ float4 PSMain(VSOutput input) : SV_Target
     float3 viewDirection = normalize(CameraPosition - input.WorldPosition);
     float3 halfVector = normalize(lightDirection + viewDirection);
 
-    float roughness = MaterialHasRoughness > 0.5f ? RoughnessTexture.Sample(MaterialSampler, uv).r : MaterialRoughness;
+    float4 roughnessSample = MaterialHasRoughness > 0.5f
+        ? RoughnessTexture.Sample(MaterialSampler, uv)
+        : MaterialRoughness.xxxx;
+    float roughness = roughnessSample[(int)MaterialChannelSelectors.x];
     if (MaterialSurfaceTransforms.w > 0.5f)
     {
         roughness = 1.0f - roughness;
@@ -176,7 +182,10 @@ float4 PSMain(VSOutput input) : SV_Target
         roughness = MaterialSurfaceOverrides.x;
     }
     roughness = clamp(roughness, 0.04f, 1.0f);
-    float metallic = MaterialHasMetallic > 0.5f ? MetallicTexture.Sample(MaterialSampler, uv).r : MaterialMetallic;
+    float4 metallicSample = MaterialHasMetallic > 0.5f
+        ? MetallicTexture.Sample(MaterialSampler, uv)
+        : MaterialMetallic.xxxx;
+    float metallic = metallicSample[(int)MaterialChannelSelectors.y];
     if (MaterialSurfaceTransforms2.w > 0.5f)
     {
         metallic = 1.0f - metallic;

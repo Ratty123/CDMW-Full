@@ -55,6 +55,8 @@ def _native_editor_select_payload_for_params(
     raw_screen_payload = params.get("_native_screen_selection_payload")
     if isinstance(raw_screen_payload, Mapping):
         _add_native_editor_screen_selection_payload(payload, raw_screen_payload)
+    if "target_mode" in params:
+        payload["target_mode"] = str(params.get("target_mode") or "vertex")
     return payload
 
 

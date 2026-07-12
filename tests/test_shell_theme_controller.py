@@ -2,15 +2,37 @@ from __future__ import annotations
 
 import os
 import unittest
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QColor, QFont, QIcon, QImage
 from PySide6.QtWidgets import QApplication, QLabel, QListWidget, QPushButton, QVBoxLayout, QWidget
 
 from cdmw.ui.settings_tab import SettingsTab
+from cdmw.ui.app_icon import resolve_app_icon_path
 from cdmw.ui.shell.theme_controller import ThemeChangeBusyOverlay, ThemeControllerMixin, apply_app_fonts, apply_window_ui_fonts
-from cdmw.ui.themes import build_app_stylesheet
+from cdmw.ui.themes import UI_THEME_SCHEMES, build_app_stylesheet
+
+
+ROOT = Path(__file__).resolve().parents[1]
+ADDED_THEMES = {
+    "desert_dawn": "Desert Dawn",
+    "high_contrast": "High Contrast",
+    "oled_black": "OLED Black",
+}
+
+
+def _relative_luminance(color: str) -> float:
+    value = QColor(color)
+    channels = (value.redF(), value.greenF(), value.blueF())
+    linear = tuple(channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4 for channel in channels)
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _contrast_ratio(foreground: str, background: str) -> float:
+    lighter, darker = sorted((_relative_luminance(foreground), _relative_luminance(background)), reverse=True)
+    return (lighter + 0.05) / (darker + 0.05)
 
 
 class _Settings:
@@ -22,6 +44,68 @@ class _Settings:
 
 
 class ShellThemeControllerTests(unittest.TestCase):
+    def test_added_themes_keep_text_selections_and_controls_visible(self) -> None:
+        expected_roles = set(UI_THEME_SCHEMES["graphite"])
+        for key, label in ADDED_THEMES.items():
+            with self.subTest(theme=key):
+                theme = UI_THEME_SCHEMES[key]
+                self.assertEqual(label, theme["label"])
+                self.assertEqual(expected_roles, set(theme))
+                for role, value in theme.items():
+                    if role != "label":
+                        self.assertTrue(QColor(value).isValid(), f"{key}.{role}: {value}")
+
+                for foreground in ("text", "text_muted", "text_strong"):
+                    for background in ("window", "surface", "surface_alt", "field", "field_alt", "button"):
+                        self.assertGreaterEqual(
+                            _contrast_ratio(theme[foreground], theme[background]),
+                            4.5,
+                            f"{key}: {foreground} on {background}",
+                        )
+                for foreground, background in (
+                    ("button_disabled_text", "button_disabled"),
+                    ("text_strong", "accent_soft"),
+                    ("warning_text", "warning_bg"),
+                    ("error", "window"),
+                    ("accent", "window"),
+                ):
+                    self.assertGreaterEqual(
+                        _contrast_ratio(theme[foreground], theme[background]),
+                        4.5,
+                        f"{key}: {foreground} on {background}",
+                    )
+                self.assertGreaterEqual(_contrast_ratio("#ffffff", theme["accent"]), 4.5, f"{key}: selection text")
+                self.assertGreaterEqual(_contrast_ratio(theme["border_strong"], theme["field"]), 3.0, f"{key}: field border")
+                self.assertGreaterEqual(_contrast_ratio(theme["button_border"], theme["button"]), 3.0, f"{key}: button border")
+
+        desert_stylesheet = build_app_stylesheet("desert_dawn")
+        self.assertIn("color: #0369a1;", desert_stylesheet)
+        self.assertIn("color: #047857;", desert_stylesheet)
+
+    def test_added_theme_icons_are_complete_visible_and_loadable(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        icon_root = ROOT / "assets" / "theme_icons"
+        for key in ADDED_THEMES:
+            with self.subTest(theme=key):
+                paths = {suffix: icon_root / f"cdmw_{key}{suffix}" for suffix in (".svg", ".png", ".ico")}
+                for path in paths.values():
+                    self.assertTrue(path.is_file(), path)
+                    self.assertGreater(path.stat().st_size, 0, path)
+                self.assertEqual(paths[".ico"].resolve(), resolve_app_icon_path(key))
+
+                icon = QIcon(str(paths[".ico"]))
+                self.assertFalse(icon.isNull())
+                sizes = {(size.width(), size.height()) for size in icon.availableSizes()}
+                self.assertTrue({(16, 16), (32, 32), (256, 256)}.issubset(sizes), sizes)
+
+                image = QImage(str(paths[".png"]))
+                self.assertFalse(image.isNull())
+                self.assertEqual((1024, 1024), (image.width(), image.height()))
+                samples = [image.pixelColor(x, y) for x, y in ((399, 399), (625, 399), (399, 625), (625, 625))]
+                self.assertEqual(4, len({color.name() for color in samples}))
+                luminances = [_relative_luminance(color.name()) for color in samples]
+                self.assertGreaterEqual(max(luminances) - min(luminances), 0.30)
+
     def test_application_ui_font_change_refreshes_archive_controls_font(self) -> None:
         app = QApplication.instance() or QApplication([])
         previous_font = QFont(app.font())

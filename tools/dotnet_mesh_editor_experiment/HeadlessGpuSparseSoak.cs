@@ -70,7 +70,7 @@ internal static class HeadlessGpuSparseSoak
         var materials = NetMaterialSet.Empty;
         using var textures = NetTextureSet.Load(materials);
         using var host = CreateHiddenHost();
-        using var viewport = new D3D11MaterialViewport(document, materials, textures)
+        using var viewport = new D3D11MaterialViewport(document, materials, textures, NetSceneState.Load(string.Empty, document.Submeshes.Count))
         {
             Dock = DockStyle.Fill,
         };
@@ -211,6 +211,29 @@ internal static class HeadlessGpuSparseSoak
 
     private static Dictionary<string, object?> ResidentTopologyPacketProof()
     {
+        var topologyMaterials = NetMaterialSet.Empty;
+        using var parameterDocument = JsonDocument.Parse("""
+            {
+              "schema": "cdmw_mesh_material_parameters_v1",
+              "version": 1,
+              "session_id": "resident-topology-proof",
+              "edit_revision": 1,
+              "parameter_generation": 1,
+              "groups": [
+                {"source_submesh_indices":[0],"editor_role":"replacement_preview","tint_color":[1,1,1]},
+                {"source_submesh_indices":[1],"editor_role":"replacement_preview","tint_color":[1,0,0]},
+                {"source_submesh_indices":[2],"editor_role":"replacement_preview","tint_color":[0,1,0]}
+              ]
+            }
+            """);
+        topologyMaterials.ApplyParameterUpdate(NetMaterialSet.ParseParameterUpdate(parameterDocument.RootElement));
+        topologyMaterials.RemapTopologyState(new Dictionary<int, int> { [3] = 0 }, 4);
+        topologyMaterials.RemapTopologyState(new Dictionary<int, int> { [1] = 2, [2] = 3 }, 3);
+        var topologyMaterialLineageRemapped =
+            topologyMaterials.ParametersForSubmesh(1).TintColor == new System.Numerics.Vector3(0, 1, 0)
+            && topologyMaterials.ParametersForSubmesh(2).TintColor == System.Numerics.Vector3.One
+            && topologyMaterials.ParametersForSubmesh(3).IsEmpty;
+
         var document = new ObjDocument();
         document.Submeshes.Add(new ObjSubmesh("old_a", 0, 0, 0));
         document.Submeshes.Add(new ObjSubmesh("old_b", 0, 0, 0));
@@ -290,6 +313,7 @@ internal static class HeadlessGpuSparseSoak
             && added && !addReplaceAll && addChanges == 1
             && shrunk && !shrinkReplaceAll && shrinkChanges == 1 && shrinkAffected.SequenceEqual(new[] { 1 })
             && incompleteRejected && missingChannelsInitialized && equalCountChannelsRemapped && malformedVertexRejected
+            && topologyMaterialLineageRemapped
             && document.Submeshes.Count == 1
             && document.Submeshes[0].Material == "survivor"
             && replaceMaterials.GetValueOrDefault(0) == 1
@@ -304,6 +328,7 @@ internal static class HeadlessGpuSparseSoak
             ["missing_vertex_channels_initialized"] = missingChannelsInitialized,
             ["equal_count_channels_remapped"] = equalCountChannelsRemapped,
             ["malformed_vertex_channel_rejected"] = malformedVertexRejected,
+            ["material_parameter_lineage_remapped"] = topologyMaterialLineageRemapped,
             ["final_submesh_count"] = document.Submeshes.Count,
             ["survivor_material_source"] = replaceMaterials.GetValueOrDefault(0),
             ["added_material_source"] = addMaterials.GetValueOrDefault(1),
@@ -727,74 +752,4 @@ internal static class HeadlessGpuSparseSoak
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr hWnd);
-}
-
-internal sealed record HeadlessGpuSparseSoakOptions(
-    string ReportPath,
-    int VertexCount,
-    int UpdateCount,
-    int WarmupUpdates,
-    bool EnforceCadence,
-    bool Smoke,
-    double TargetUpdatesPerSecond)
-{
-    public static HeadlessGpuSparseSoakOptions Parse(string[] args)
-    {
-        var values = ParseArgs(args);
-        var smoke = values.ContainsKey("gpu-soak-smoke");
-        var vertices = Integer(values, "gpu-soak-vertices", 1_000_000, 3, 2_000_000);
-        var updates = Integer(values, "gpu-soak-updates", 1_000, 1, 10_000);
-        var warmup = Integer(values, "gpu-soak-warmup", 64, 0, 1_000);
-        var enforceCadence = !values.ContainsKey("gpu-soak-no-cadence");
-        if (!smoke && (vertices < 1_000_000 || updates < 1_000 || !enforceCadence))
-        {
-            throw new ArgumentException("Full GPU soak requires at least 1,000,000 vertices, 1,000 updates, and cadence; use --gpu-soak-smoke for a reduced diagnostic run.");
-        }
-        return new HeadlessGpuSparseSoakOptions(
-            ReportPathFrom(args),
-            vertices,
-            updates,
-            warmup,
-            enforceCadence,
-            smoke,
-            60.0);
-    }
-
-    public static string ReportPathFrom(string[] args)
-    {
-        var values = ParseArgs(args);
-        return values.TryGetValue("gpu-soak-report", out var path) && !string.IsNullOrWhiteSpace(path)
-            ? Path.GetFullPath(path)
-            : Path.Combine(Environment.CurrentDirectory, "dotnet-gpu-sparse-soak.json");
-    }
-
-    private static int Integer(IReadOnlyDictionary<string, string> values, string key, int fallback, int minimum, int maximum)
-    {
-        if (!values.TryGetValue(key, out var raw))
-        {
-            return fallback;
-        }
-        if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) || value < minimum || value > maximum)
-        {
-            throw new ArgumentOutOfRangeException(key, $"--{key} must be from {minimum:N0} through {maximum:N0}.");
-        }
-        return value;
-    }
-
-    private static Dictionary<string, string> ParseArgs(string[] args)
-    {
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        for (var index = 0; index < args.Length; index++)
-        {
-            if (!args[index].StartsWith("--", StringComparison.Ordinal))
-            {
-                continue;
-            }
-            var key = args[index][2..];
-            values[key] = index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal)
-                ? args[++index]
-                : "true";
-        }
-        return values;
-    }
 }

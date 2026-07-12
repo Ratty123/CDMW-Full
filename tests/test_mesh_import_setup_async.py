@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
+from PySide6.QtWidgets import QApplication, QDialog, QGroupBox, QPushButton, QWidget
 
 from cdmw.core.archive_mesh_import_preview import build_mesh_import_preview
 from cdmw.core.mesh_preflight import MeshImportPreflight
@@ -15,7 +19,11 @@ from cdmw.models import ArchiveEntry, RunCancelled
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.modding.scene_importer import SceneImportResult
 from cdmw.ui.archive_browser.mesh_import_export import ArchiveMeshImportExportMixin
-from cdmw.ui.archive_browser.mesh_import_preflight_controller import MeshImportSetupPreflightRequest
+from cdmw.ui.archive_browser.mesh_direct_patch import ArchiveMeshDirectPatchMixin
+from cdmw.ui.archive_browser.mesh_import_preflight_controller import (
+    MeshImportSetupPreflightRequest,
+    MeshImportSetupPreflightResult,
+)
 from cdmw.ui.archive_browser.mesh_launch_flow import ArchiveMeshLaunchFlowMixin
 from cdmw.ui.archive_browser.mesh_setup_helpers import ArchiveMeshSetupHelperMixin
 from cdmw.ui.archive_browser.mesh_swap_scope_preflight import (
@@ -27,6 +35,13 @@ from cdmw.ui.archive_browser.mesh_swap_scope_preflight import (
 
 def _entry(path: str, offset: int) -> ArchiveEntry:
     return ArchiveEntry(path, Path("0009/0.pamt"), Path("0009/0.paz"), offset, 1, 1, 0, 0)
+
+
+def test_direct_mesh_import_filter_includes_zip_archives() -> None:
+    file_filter = ArchiveMeshDirectPatchMixin._archive_mesh_import_file_filter()
+
+    assert "*.zip" in file_filter.split(";;", 1)[0]
+    assert "Model Archives (*.zip)" in file_filter
 
 
 def test_mesh_import_preview_honours_pre_cancel_before_io(tmp_path: Path) -> None:
@@ -93,9 +108,44 @@ class _ImportOwner(_AsyncTaskOwner, ArchiveMeshImportExportMixin):
     pass
 
 
+class _ImportDialogOwner(ArchiveMeshImportExportMixin, QWidget):
+    pass
+
+
 def _wait(thread: threading.Thread) -> None:
     thread.join(3.0)
     assert not thread.is_alive()
+
+
+def test_mesh_import_setup_dialog_constructs_with_shared_control_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    owner = _ImportDialogOwner()
+    captured: dict[str, object] = {}
+
+    def reject(dialog: QDialog) -> int:
+        captured["groups"] = [group.title() for group in dialog.findChildren(QGroupBox)]
+        captured["buttons"] = [button.text() for button in dialog.findChildren(QPushButton)]
+        return QDialog.Rejected
+
+    monkeypatch.setattr(QDialog, "exec", reject)
+    result = owner._prompt_archive_mesh_import_setup(
+        _entry("character/model/target.pac", 1),
+        Path("source.gltf"),
+        title="Mesh Import Setup",
+        prepared_preflight=MeshImportSetupPreflightResult(
+            request_id=1,
+            scene_import_result=SceneImportResult(mesh=ParsedMesh(path="source.gltf")),
+            original_mesh=None,
+            profile=None,
+            preflight=MeshImportPreflight("ready"),
+            has_roundtrip_sidecar=False,
+        ),
+    )
+
+    assert result is None
+    assert "Preflight & Files" in captured["groups"]
+    assert "Cancel" in captured["buttons"]
+    assert app is QApplication.instance()
 
 
 def test_mesh_import_preflight_dispatch_is_under_50ms_and_worker_owned() -> None:

@@ -212,7 +212,182 @@ struct PamtIndex {
     std::unordered_map<std::string, std::vector<ArchiveEntryRef>> by_basename;
     std::vector<ArchiveEntryRef> material_sidecars;
     size_t entry_count = 0;
+    bool persistent_cache_hit = false;
+    fs::path persistent_cache_path;
 };
+
+struct PamtIndexSourceStamp {
+    std::uint64_t size = 0;
+    std::int64_t mtime = 0;
+};
+
+static PamtIndexSourceStamp pamt_index_source_stamp(const fs::path& pamt_path) {
+    return PamtIndexSourceStamp{
+        static_cast<std::uint64_t>(fs::file_size(pamt_path)),
+        static_cast<std::int64_t>(fs::last_write_time(pamt_path).time_since_epoch().count()),
+    };
+}
+
+static std::pair<bool, bool> pamt_index_entry_traits(const ArchiveEntryRef& ref) {
+    const std::string path_lower = lower_copy(ref.path);
+    const bool pbd_xml_sidecar =
+        ref.extension == ".xml" &&
+        (
+            path_lower.find("/descriptors/pbd/") != std::string::npos ||
+            lower_copy(ref.basename) == "pbdconfig.xml"
+        );
+    const bool material_sidecar =
+        ref.extension == ".pami" ||
+        ref.extension == ".pac_xml" ||
+        ref.extension == ".pam_xml" ||
+        ref.extension == ".pamlod_xml" ||
+        ref.extension == ".material" ||
+        ref.extension == ".technique" ||
+        ref.extension == ".prefab" ||
+        ref.extension == ".prefabdata_xml" ||
+        ref.extension == ".meshinfo" ||
+        pbd_xml_sidecar;
+    const bool lookup_relevant =
+        ref.extension == ".dds" ||
+        ref.extension == ".pac" ||
+        ref.extension == ".pam" ||
+        ref.extension == ".pamlod" ||
+        ref.extension == ".hkx" ||
+        ref.extension == ".pab" ||
+        material_sidecar;
+    return {material_sidecar, lookup_relevant};
+}
+
+static fs::path pamt_index_cache_path(const fs::path& pamt_path, const fs::path& cache_root) {
+    if (cache_root.empty()) return {};
+    const std::string identity = lower_copy(fs::absolute(pamt_path).lexically_normal().string());
+    return cache_root / "pamt_index" / (hex64(fnv1a64(identity)) + ".bin");
+}
+
+template <typename Value>
+static void write_pamt_index_cache_value(std::ofstream& out, Value value) {
+    out.write(reinterpret_cast<const char*>(&value), static_cast<std::streamsize>(sizeof(Value)));
+    if (!out) throw std::runtime_error("could not write PAMT index cache");
+}
+
+template <typename Value>
+static Value read_pamt_index_cache_value(std::ifstream& in) {
+    Value value{};
+    in.read(reinterpret_cast<char*>(&value), static_cast<std::streamsize>(sizeof(Value)));
+    if (!in) throw std::runtime_error("PAMT index cache is truncated");
+    return value;
+}
+
+static void write_pamt_index_cache_string(std::ofstream& out, const std::string& value) {
+    write_pamt_index_cache_value(out, static_cast<std::uint32_t>(value.size()));
+    out.write(value.data(), static_cast<std::streamsize>(value.size()));
+    if (!out) throw std::runtime_error("could not write PAMT index cache string");
+}
+
+static std::string read_pamt_index_cache_string(std::ifstream& in) {
+    const std::uint32_t size = read_pamt_index_cache_value<std::uint32_t>(in);
+    if (size > 1024u * 1024u) throw std::runtime_error("PAMT index cache string is too large");
+    std::string value(size, '\0');
+    if (size > 0) in.read(value.data(), static_cast<std::streamsize>(size));
+    if (!in) throw std::runtime_error("PAMT index cache string is truncated");
+    return value;
+}
+
+static std::optional<PamtIndex> load_pamt_index_cache(
+    const fs::path& cache_path,
+    const fs::path& pamt_path,
+    PamtIndexSourceStamp expected_stamp
+) {
+    if (cache_path.empty() || !fs::is_regular_file(cache_path)) return std::nullopt;
+    std::ifstream in(cache_path, std::ios::binary);
+    if (!in) return std::nullopt;
+    std::array<char, 8> magic{};
+    in.read(magic.data(), static_cast<std::streamsize>(magic.size()));
+    if (!in || std::string(magic.data(), magic.size()) != "CDMWPIDX") return std::nullopt;
+    const std::uint32_t version = read_pamt_index_cache_value<std::uint32_t>(in);
+    const std::uint64_t source_size = read_pamt_index_cache_value<std::uint64_t>(in);
+    const std::int64_t source_mtime = read_pamt_index_cache_value<std::int64_t>(in);
+    const std::uint64_t entry_count = read_pamt_index_cache_value<std::uint64_t>(in);
+    const std::uint64_t relevant_count = read_pamt_index_cache_value<std::uint64_t>(in);
+    if (
+        version != 1 || source_size != expected_stamp.size || source_mtime != expected_stamp.mtime ||
+        entry_count > 10000000ull || relevant_count > entry_count
+    ) return std::nullopt;
+    PamtIndex index;
+    index.pamt_path = pamt_path;
+    index.entry_count = static_cast<size_t>(entry_count);
+    index.by_basename.reserve(static_cast<size_t>(relevant_count));
+    index.material_sidecars.reserve(static_cast<size_t>(std::min<std::uint64_t>(relevant_count, 100000ull)));
+    for (std::uint64_t row = 0; row < relevant_count; ++row) {
+        ArchiveEntryRef ref;
+        ref.path = read_pamt_index_cache_string(in);
+        ref.basename = basename_from_path(ref.path);
+        ref.extension = extension_from_path(ref.path);
+        ref.pamt_path = pamt_path;
+        ref.offset = read_pamt_index_cache_value<std::uint64_t>(in);
+        ref.comp_size = read_pamt_index_cache_value<std::uint64_t>(in);
+        ref.orig_size = read_pamt_index_cache_value<std::uint64_t>(in);
+        ref.flags = read_pamt_index_cache_value<std::uint32_t>(in);
+        ref.paz_index = read_pamt_index_cache_value<std::uint32_t>(in);
+        ref.paz_file = pamt_path.parent_path() / (std::to_string(ref.paz_index) + ".paz");
+        const auto [material_sidecar, lookup_relevant] = pamt_index_entry_traits(ref);
+        if (!lookup_relevant) throw std::runtime_error("PAMT index cache contains an unsupported row");
+        index.by_basename[lower_copy(ref.basename)].push_back(ref);
+        if (material_sidecar) index.material_sidecars.push_back(ref);
+    }
+    index.persistent_cache_hit = true;
+    index.persistent_cache_path = cache_path;
+    return index;
+}
+
+static void write_pamt_index_cache(
+    const fs::path& cache_path,
+    const PamtIndex& index,
+    PamtIndexSourceStamp source_stamp
+) {
+    if (cache_path.empty()) return;
+    fs::create_directories(cache_path.parent_path());
+    const std::string nonce = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const fs::path temp_path = cache_path.string() + ".tmp." + hex64(fnv1a64(nonce));
+    std::uint64_t relevant_count = 0;
+    for (const auto& [basename, refs] : index.by_basename) {
+        (void)basename;
+        relevant_count += static_cast<std::uint64_t>(refs.size());
+    }
+    try {
+        std::ofstream out(temp_path, std::ios::binary | std::ios::trunc);
+        if (!out) throw std::runtime_error("could not create PAMT index cache");
+        out.write("CDMWPIDX", 8);
+        write_pamt_index_cache_value(out, static_cast<std::uint32_t>(1));
+        write_pamt_index_cache_value(out, source_stamp.size);
+        write_pamt_index_cache_value(out, source_stamp.mtime);
+        write_pamt_index_cache_value(out, static_cast<std::uint64_t>(index.entry_count));
+        write_pamt_index_cache_value(out, relevant_count);
+        for (const auto& [basename, refs] : index.by_basename) {
+            (void)basename;
+            for (const ArchiveEntryRef& ref : refs) {
+                write_pamt_index_cache_string(out, ref.path);
+                write_pamt_index_cache_value(out, ref.offset);
+                write_pamt_index_cache_value(out, ref.comp_size);
+                write_pamt_index_cache_value(out, ref.orig_size);
+                write_pamt_index_cache_value(out, ref.flags);
+                write_pamt_index_cache_value(out, ref.paz_index);
+            }
+        }
+        out.close();
+        if (!out) throw std::runtime_error("could not finalize PAMT index cache");
+        if (!MoveFileExW(
+                temp_path.c_str(),
+                cache_path.c_str(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+            throw std::runtime_error("could not publish PAMT index cache");
+        }
+    } catch (...) {
+        std::error_code remove_error;
+        fs::remove(temp_path, remove_error);
+        throw;
+    }
+}
 
 static std::vector<char> read_pamt_bytes(const fs::path& pamt_path) {
     std::ifstream in(pamt_path, std::ios::binary);
@@ -333,32 +508,7 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
         ref.comp_size = comp_size;
         ref.orig_size = orig_size;
         ref.flags = flags;
-        const std::string ref_path_lower = lower_copy(ref.path);
-        const bool pbd_xml_sidecar =
-            ref.extension == ".xml" &&
-            (
-                ref_path_lower.find("/descriptors/pbd/") != std::string::npos ||
-                lower_copy(ref.basename) == "pbdconfig.xml"
-            );
-        const bool material_sidecar =
-            ref.extension == ".pami" ||
-            ref.extension == ".pac_xml" ||
-            ref.extension == ".pam_xml" ||
-            ref.extension == ".pamlod_xml" ||
-            ref.extension == ".material" ||
-            ref.extension == ".technique" ||
-            ref.extension == ".prefab" ||
-            ref.extension == ".prefabdata_xml" ||
-            ref.extension == ".meshinfo" ||
-            pbd_xml_sidecar;
-        const bool lookup_relevant =
-            ref.extension == ".dds" ||
-            ref.extension == ".pac" ||
-            ref.extension == ".pam" ||
-            ref.extension == ".pamlod" ||
-            ref.extension == ".hkx" ||
-            ref.extension == ".pab" ||
-            material_sidecar;
+        const auto [material_sidecar, lookup_relevant] = pamt_index_entry_traits(ref);
         if (lookup_relevant) {
             index.by_basename[lower_copy(ref.basename)].push_back(ref);
         }
@@ -367,16 +517,6 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
         }
     }
     return index;
-}
-
-static const PamtIndex& cached_pamt_index(const fs::path& pamt_path) {
-    static std::map<std::string, PamtIndex> cache;
-    const std::string key = fs::absolute(pamt_path).string();
-    auto it = cache.find(key);
-    if (it == cache.end()) {
-        it = cache.emplace(key, parse_pamt_index(pamt_path)).first;
-    }
-    return it->second;
 }
 
 std::string fourcc_from_bytes(const std::vector<char>& data) {

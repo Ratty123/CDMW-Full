@@ -282,6 +282,7 @@ def _remaining_static_preview_refresh_step_014(_state):
     _state.texture_overrides_dirty = _state.context.get('texture_overrides_dirty')
     _state.time = _state.context.get('time')
     _state.tone_contrast_spin = _state.context.get('tone_contrast_spin')
+    _state.prompt_shell_context = _state.context.get('prompt_shell_context')
     _state.updated_specs = _state.context.get('updated_specs')
     _state.upload_elapsed_ms = _state.context.get('upload_elapsed_ms')
     _state.use_direct_source_preview = _state.context.get('use_direct_source_preview')
@@ -290,6 +291,20 @@ def _remaining_static_preview_refresh_step_014(_state):
     _state.widget = _state.context.get('widget')
     _state.widget_action = _state.context.get('widget_action')
     _state.widget_mode_state = _state.context.get('widget_mode_state')
+
+    def _preview_control_value(name: str, method_name: str, default: object) -> object:
+        widget = getattr(_state, name, None)
+        if widget is None and isinstance(_state.prompt_shell_context, dict):
+            widget = _state.prompt_shell_context.get(name)
+        method = getattr(widget, method_name, None)
+        if not callable(method):
+            return default
+        try:
+            return method()
+        except RuntimeError:
+            return default
+
+    _state._preview_control_value = _preview_control_value
 
 def _remaining_static_preview_refresh_step_015(_state):
 
@@ -405,9 +420,14 @@ def _remaining_static_preview_refresh_step_019(_state):
         refresh_route = _state._static_preview_refresh_route_state_helper(active_preview_mode=active_preview_mode, mesh_edit_enabled=_state._mesh_edit_enabled_checked(), mesh_edit_tab_active=_state._mesh_edit_tab_active(), replacement_mesh_available=_state.state.replacement_mesh_for_mapping is not None, interactive_preview=_state._alignment_preview_is_interactive_value(), complete_external_swap_enabled=_state._complete_external_swap_enabled_value(), needs_original_material_preview=needs_original_material_preview, preview_controls_ready=bool(_state.preview_controls_ready.get('ready')), original_mesh_available=_state.original_mesh_for_mapping is not None)
         mesh_edit_direct_source_preview = refresh_route.mesh_edit_direct_source_preview
         force_direct_source_preview = _state._alignment_d3d11_record_direct_source_preview_flags_helper(_state.alignment_d3d11_state, replacement_only_direct_source_preview=refresh_route.replacement_only_direct_source_preview, source_owned_direct_source_preview=refresh_route.source_owned_direct_source_preview)
-        if refresh_route.require_original_reference and (not _state._ensure_original_reference_texture_preview_ready(active_preview_mode, reason='preview_refresh')):
-            _state._record_runtime_event('mesh_alignment_preview_refresh_waiting', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, active_preview_mode=active_preview_mode, reason='original_reference_texture_preview', modify_original_clone=_state.modify_original_clone_mode)
-            return
+        original_reference_ready = True
+        if refresh_route.require_original_reference:
+            original_reference_ready = _state._ensure_original_reference_texture_preview_ready(active_preview_mode, reason='preview_refresh')
+        if not original_reference_ready:
+            wait_for_reference = refresh_route.waits_for_original_reference(ready=False)
+            _state._record_runtime_event('mesh_alignment_preview_refresh_waiting', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, active_preview_mode=active_preview_mode, reason='original_reference_texture_preview', geometry_continues=not wait_for_reference, modify_original_clone=_state.modify_original_clone_mode)
+            if wait_for_reference:
+                return
         direct_source_preview_indices = _state._direct_source_preview_indices_helper(_state.selected_source_highlight_indices, force_direct_source_preview=force_direct_source_preview, replacement_submesh_count=len(getattr(_state.state.replacement_mesh_for_mapping, 'submeshes', ()) or ()), mesh_edit_direct_source_preview=mesh_edit_direct_source_preview, mesh_edit_source_indices=_state._mesh_edit_preview_source_indices_value() if mesh_edit_direct_source_preview else (), source_index_is_enabled_renderable=_state._source_index_is_enabled_renderable)
         mapped_preview_source_indices = _state._mapped_source_indices_value(current_mappings)
         use_direct_source_preview = _state._should_use_direct_source_preview_helper(direct_source_preview_indices, force_direct_source_preview=force_direct_source_preview, mesh_edit_direct_source_preview=mesh_edit_direct_source_preview, appended_source_indices=_state.appended_source_indices, mapped_source_indices=mapped_preview_source_indices, active_preview_mode=active_preview_mode, original_mesh_available=_state.original_mesh_for_mapping is not None, replacement_mesh_available=_state.state.replacement_mesh_for_mapping is not None)
@@ -440,7 +460,7 @@ def _remaining_static_preview_refresh_step_019(_state):
                         placement_snapshot = _state._current_static_placement_snapshot(current_mappings, include_preview_only_independent_parts=True)
                         independent_preview_parts = list(placement_snapshot.get('independent_output_parts', []) or [])
                         geometry_started = _state.time.perf_counter()
-                        preview_mesh = _state.build_static_replacement_preview_mesh(_state.original_mesh_for_mapping, preview_replacement_mesh, _state._static_options_from_placement_snapshot(placement_snapshot, complete_external_swap=False if _state.modify_original_clone_mode else _state._complete_external_swap_enabled_value(), complete_external_material_reset=modify_original_tuning_enabled if _state.modify_original_clone_mode else _state._complete_external_swap_enabled_value(), complete_swap_material_profile=_state._complete_swap_material_profile_token_value(), global_gloss_reduction=0.0 if _state.modify_original_clone_mode else float(_state.global_gloss_reduction_spin.value()), edge_relief_strength=0.0 if _state.modify_original_clone_mode else float(_state.edge_relief_spin.value()), edge_relief_source='hybrid' if _state.modify_original_clone_mode else str(_state.edge_relief_source_combo.currentData() or 'hybrid'), accent_glow_strength=0.0 if _state.modify_original_clone_mode else float(_state.accent_glow_spin.value()), auto_brightness_balance=0.0 if _state.modify_original_clone_mode else float(_state.auto_brightness_spin.value()), dark_detail_lift=0.0 if _state.modify_original_clone_mode else float(_state.source_brightness_spin.value()), tone_contrast=0.0 if _state.modify_original_clone_mode else float(_state.tone_contrast_spin.value())), max_source_faces_per_submesh=_state._alignment_preview_source_face_limit())
+                        preview_mesh = _state.build_static_replacement_preview_mesh(_state.original_mesh_for_mapping, preview_replacement_mesh, _state._static_options_from_placement_snapshot(placement_snapshot, complete_external_swap=False if _state.modify_original_clone_mode else _state._complete_external_swap_enabled_value(), complete_external_material_reset=modify_original_tuning_enabled if _state.modify_original_clone_mode else _state._complete_external_swap_enabled_value(), complete_swap_material_profile=_state._complete_swap_material_profile_token_value(), global_gloss_reduction=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('global_gloss_reduction_spin', 'value', 0.0)), edge_relief_strength=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('edge_relief_spin', 'value', 0.0)), edge_relief_source='hybrid' if _state.modify_original_clone_mode else str(_state._preview_control_value('edge_relief_source_combo', 'currentData', 'hybrid') or 'hybrid'), accent_glow_strength=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('accent_glow_spin', 'value', 0.0)), auto_brightness_balance=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('auto_brightness_spin', 'value', 0.0)), dark_detail_lift=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('source_brightness_spin', 'value', 0.0)), tone_contrast=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('tone_contrast_spin', 'value', 0.0))), max_source_faces_per_submesh=_state._alignment_preview_source_face_limit())
                         geometry_elapsed_ms += (_state.time.perf_counter() - geometry_started) * 1000.0
                         _state.source_overlay_preview_index_map.clear()
                         _state.preview_submesh_index_map.clear()
@@ -456,7 +476,7 @@ def _remaining_static_preview_refresh_step_019(_state):
                         _state._store_static_preview_cache_entry_helper(_state.static_preview_geometry_cache, cache_key, _state._static_preview_geometry_cache_payload_helper(source_model, mapped_preview=mapped_preview, direct_source_preview_index_map=_state.direct_source_preview_index_map, source_overlay_preview_index_map=_state.source_overlay_preview_index_map, preview_submesh_index_map=_state.preview_submesh_index_map), paired_cache_to_clear=_state.static_preview_prepared_cache)
                 except Exception:
                     _state.preview_submesh_index_map.clear()
-                    source_model = _state.state.replacement_preview_model
+                    raise
         else:
             _state._record_runtime_event('mesh_alignment_preview_refresh_waiting', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, active_preview_mode=active_preview_mode, reason='source_geometry_not_ready', modify_original_clone=_state.modify_original_clone_mode)
             return

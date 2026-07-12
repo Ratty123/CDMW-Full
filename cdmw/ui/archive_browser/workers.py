@@ -15,6 +15,11 @@ from cdmw.workers.archive_preview_native import NATIVE_PREVIEW_CORE_MODEL_EXTENS
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker, _ArchivePreviewWorkerPayload
 
 
+def _archive_preview_debounce_ms(entry: Optional[ArchiveEntry]) -> int:
+    extension = str(getattr(entry, "extension", "") or "").strip().lower()
+    return 450 if extension in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS else 90
+
+
 def _record_archive_worker_lifecycle(target: object, event: str, **fields: object) -> None:
     recorder = getattr(target, "_record_runtime_event", None)
     if callable(recorder):
@@ -143,12 +148,25 @@ class ArchivePreviewWorkerMixin:
         self.pending_archive_preview_request = None
         self.scheduled_archive_preview_request = (request_id, entry, include_loose_preview_assets, bool(force))
         self._show_archive_preview_loading_state(entry)
-        self.archive_preview_debounce_timer.start()
+        self.archive_preview_debounce_timer.start(_archive_preview_debounce_ms(entry))
 
     def _flush_scheduled_archive_preview_request(self) -> None:
         if self.scheduled_archive_preview_request is None:
             return
         request_id, entry, include_loose_preview_assets, force = self.scheduled_archive_preview_request
+        if (
+            entry is not None
+            and str(getattr(entry, "extension", "") or "").strip().lower()
+            in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
+            and self._archive_basic_index_missing_for_lookup()
+        ):
+            self._ensure_archive_basic_index_worker_started()
+            self._set_archive_preview_base_detail_text(
+                "Preparing archive material and texture lookup...",
+                include_current_model_debug=False,
+            )
+            self.set_status_message("Preparing archive material and texture lookup...")
+            return
         self.scheduled_archive_preview_request = None
         if not force and self._mesh_replacement_builder_active():
             self._defer_archive_preview_refresh_for_builder(entry)
@@ -334,7 +352,6 @@ class ArchivePreviewWorkerMixin:
         worker.error.connect(self._handle_archive_preview_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self._cleanup_archive_preview_refs)
 
         self.archive_preview_worker = worker
@@ -481,9 +498,42 @@ class ArchivePreviewWorkerMixin:
             return
         self._clear_archive_preview(f"Preview failed: {message}")
 
-    def _cleanup_archive_preview_refs(self) -> None:
+    def _cleanup_archive_preview_refs(
+        self,
+        thread: Optional[QThread] = None,
+        worker: Optional[ArchivePreviewWorker] = None,
+    ) -> None:
+        if thread is None:
+            sender = self.sender()
+            thread = sender if isinstance(sender, QThread) else self.archive_preview_thread
+        worker = self.archive_preview_worker if worker is None else worker
+        if thread is not None:
+            try:
+                if not thread.wait(0):
+                    QTimer.singleShot(
+                        1,
+                        lambda target_thread=thread, target_worker=worker: self._cleanup_archive_preview_refs(
+                            target_thread,
+                            target_worker,
+                        ),
+                    )
+                    return
+            except RuntimeError:
+                pass
+        if self.archive_preview_thread is not thread or self.archive_preview_worker is not worker:
+            if thread is not None:
+                try:
+                    thread.deleteLater()
+                except RuntimeError:
+                    pass
+            return
         self.archive_preview_thread = None
         self.archive_preview_worker = None
+        if thread is not None:
+            try:
+                thread.deleteLater()
+            except RuntimeError:
+                pass
         if self._shutting_down:
             _record_archive_worker_lifecycle(
                 self,

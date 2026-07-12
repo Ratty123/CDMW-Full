@@ -244,7 +244,7 @@ class MeshEditorStateMixin:
             self.in_game_swap_button,
         ):
             button.setEnabled(has_workflow_target)
-        self.standalone_native_preview_button.setEnabled(has_standalone)
+        self.standalone_native_preview_button.setEnabled(False)
         self.action_bar.setVisible(False)
         task_active = (
             self._standalone_action_worker_active()
@@ -282,10 +282,14 @@ class MeshEditorStateMixin:
             )
         dotnet_button = getattr(self, "standalone_dotnet_editor_button", None)
         if dotnet_button is not None:
-            dotnet_button.setEnabled(has_standalone and not task_active)
+            dotnet_button.setEnabled(has_standalone and not task_active and not self._standalone_dotnet_editor_process_running())
         embedded_dotnet_button = getattr(self, "embedded_dotnet_editor_button", None)
         if embedded_dotnet_button is not None:
-            embedded_dotnet_button.setEnabled(self.workspace_stack.currentWidget() is self.embedded_builder_host and not task_active)
+            embedded_dotnet_button.setEnabled(
+                self.workspace_stack.currentWidget() is self.embedded_builder_host
+                and not task_active
+                and not self._standalone_dotnet_editor_process_running()
+            )
         for button_name in (
             "standalone_run_validation_report_button",
             "standalone_rebuild_asset_button",
@@ -505,7 +509,57 @@ class MeshEditorStateMixin:
             return False
         return self._open_selected_texture_in_editor_for_controller(controller)
     def _handle_embedded_compare_mode(self, mode: str) -> None:
-        self.status_message_requested.emit(f"Embedded Mesh Editor compare mode selected: {str(mode or 'edited')}.", False)
+        normalized = str(mode or "edited").strip().lower()
+        comparison_mode = {"source": "original_only", "ghost": "overlay"}.get(normalized, "replacement_only")
+        if self._send_dotnet_scene_state(comparison_mode=comparison_mode):
+            self.status_message_requested.emit(f"Embedded .NET compare view: {normalized}.", False)
+            return
+        self.status_message_requested.emit(f"Embedded Mesh Editor compare mode selected: {normalized}.", False)
+
+    def _send_dotnet_scene_state(
+        self,
+        *,
+        comparison_mode: str | None = None,
+        interaction_mode: str | None = None,
+        gizmo_tool: str | None = None,
+        placement: Mapping[str, object] | None = None,
+    ) -> bool:
+        if not self._standalone_dotnet_editor_process_running():
+            return False
+        payload: dict[str, object] = {
+            "event": "scene_state_update",
+            "session_id": self.standalone_dotnet_lifecycle_session_id,
+        }
+        if comparison_mode is not None:
+            payload["comparison_mode"] = str(comparison_mode)
+        if interaction_mode is not None:
+            payload["interaction_mode"] = str(interaction_mode)
+        if gizmo_tool is not None:
+            payload["gizmo"] = {"visible": True, "tool": str(gizmo_tool), "space": "world"}
+        if placement is not None:
+            payload["placement"] = dict(placement)
+        sent = self._send_dotnet_protocol_message(payload)
+        if sent:
+            self._flush_dotnet_protocol_messages()
+        return bool(sent)
+    def _handle_embedded_viewport_display_mode(self, mode: str) -> bool:
+        normalized = str(mode or "textured").strip().lower() or "textured"
+        if not bool(getattr(self.active_builder(), "_mesh_editor_embedded_dotnet_active", False)):
+            self.status_message_requested.emit("Embedded .NET viewport is not ready yet.", True)
+            return False
+        if "viewport_display_modes_v1" not in self.standalone_dotnet_capabilities:
+            self.status_message_requested.emit("Embedded .NET viewport does not support display-mode updates.", True)
+            return False
+        sent = self._send_dotnet_protocol_message(
+            {
+                "event": "viewport_display_update",
+                "session_id": self.standalone_dotnet_lifecycle_session_id,
+                "mode": normalized,
+            }
+        )
+        if not sent:
+            self.status_message_requested.emit("Could not update embedded .NET viewport display mode.", True)
+        return sent
     def _handle_embedded_skeleton_pose_request(self, command: str, payload: object) -> bool:
         normalized = str(command or "").strip().lower()
         if normalized != "select_bone":

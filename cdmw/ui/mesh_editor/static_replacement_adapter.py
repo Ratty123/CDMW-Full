@@ -48,7 +48,11 @@ class StaticReplacementMeshEditSession:
         self.controller.close_active_session()
 
     def sync_working_mesh(self) -> ParsedMesh:
-        mesh = self.controller.working_mesh(clone=True)
+        # The service-owned working mesh is already the independent compatibility
+        # copy created when this edit session opened. Reading it is the explicit
+        # resident-to-Python hydration boundary; cloning it again can fail after
+        # valid topology edits and incorrectly force the UI into legacy fallback.
+        mesh = self.controller.working_mesh(clone=False)
         self.mesh = mesh
         self.submesh_counts = _mesh_counts(mesh)
         return mesh

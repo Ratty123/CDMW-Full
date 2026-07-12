@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 from cdmw.core.atomic_file import atomic_publish_directory, atomic_write_text
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.model_catalogue_zip import (
+    reusable_extract_matches as _reusable_extract_matches,
     safe_zip_member_name,
     split_nested_zip_member_ref,
     zip_contains_importable_model,
@@ -538,6 +539,14 @@ def safe_extract_zip(
                 raise ValueError(f"Model archive member compression ratio is unsafe: {member.filename}")
             validated.append((member, member_name))
 
+        if _reusable_extract_matches(
+            target_root,
+            fingerprint=fingerprint,
+            validated=validated,
+            stop_event=stop_event,
+        ):
+            return
+
         free_bytes = shutil.disk_usage(target_parent).free
         if total_bytes > free_bytes:
             raise ValueError("Model archive needs more free disk space than is available.")
@@ -545,13 +554,16 @@ def safe_extract_zip(
         temp_root = Path(tempfile.mkdtemp(prefix=f".{target_root.name}.extract-", dir=target_parent))
         try:
             copied_bytes = 0
+            extracted_members: list[dict[str, object]] = []
             for member, member_name in validated:
                 raise_if_cancelled(stop_event, "Model archive extraction cancelled.")
                 output_path = temp_root.joinpath(*PurePosixPath(member_name).parts)
                 if member.is_dir():
                     output_path.mkdir(parents=True, exist_ok=True)
+                    extracted_members.append({"path": member_name, "directory": True, "size": 0})
                     continue
                 output_path.parent.mkdir(parents=True, exist_ok=True)
+                digest = hashlib.sha256()
                 with zip_file.open(member, "r") as source, output_path.open("xb") as target:
                     while True:
                         raise_if_cancelled(stop_event, "Model archive extraction cancelled.")
@@ -562,8 +574,24 @@ def safe_extract_zip(
                         if copied_bytes > max(1, int(max_total_bytes)):
                             raise ValueError("Model archive expanded size exceeds the extraction limit.")
                         target.write(chunk)
+                        digest.update(chunk)
+                extracted_members.append(
+                    {
+                        "path": member_name,
+                        "directory": False,
+                        "size": int(member.file_size),
+                        "sha256": digest.hexdigest(),
+                    }
+                )
             (temp_root / ".cdmw-extract.json").write_text(
-                json.dumps({"fingerprint": fingerprint, "member_count": len(validated)}),
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "fingerprint": fingerprint,
+                        "member_count": len(validated),
+                        "members": extracted_members,
+                    }
+                ),
                 encoding="utf-8",
             )
             atomic_publish_directory(temp_root, target_root)

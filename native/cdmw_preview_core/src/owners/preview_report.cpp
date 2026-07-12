@@ -1,8 +1,56 @@
 
+static size_t resident_preview_metadata_cache_count() {
+    return resident_pathc_cache_count()
+        + resident_material_graph_metadata_count()
+        + resident_parsed_material_sidecar_cache_count();
+}
+
+static void release_resident_preview_metadata_caches() {
+    release_resident_pathc_cache();
+    release_resident_material_graph_metadata();
+    release_resident_parsed_material_sidecar_cache();
+}
+
+struct PreviewCacheReleaseStats {
+    size_t pamt_before = 0;
+    size_t pamt_after = 0;
+    size_t metadata_before = 0;
+    size_t metadata_after = 0;
+};
+
+static PreviewCacheReleaseStats release_preview_job_caches() {
+    PreviewCacheReleaseStats stats;
+    stats.pamt_before = resident_pamt_index_count();
+    stats.metadata_before = resident_preview_metadata_cache_count();
+    release_resident_pamt_indexes();
+    release_resident_preview_metadata_caches();
+    stats.pamt_after = resident_pamt_index_count();
+    stats.metadata_after = resident_preview_metadata_cache_count();
+    return stats;
+}
+
+static void append_preview_cache_release_report(
+    std::ostringstream& out,
+    const PreviewCacheReleaseStats& stats
+) {
+    out << "\"native_pamt_index_resident_before_release\":" << stats.pamt_before << ","
+        << "\"native_pamt_index_resident_after_release\":" << stats.pamt_after << ","
+        << "\"native_pamt_index_cache_released\":" << (stats.pamt_after == 0 ? "true" : "false") << ","
+        << "\"native_metadata_cache_resident_before_release\":" << stats.metadata_before << ","
+        << "\"native_metadata_cache_resident_after_release\":" << stats.metadata_after << ","
+        << "\"native_metadata_cache_released\":" << (stats.metadata_after == 0 ? "true" : "false") << ",";
+}
+
 static NativePackage try_generate_native_package(const EntryJob& job, const std::vector<char>& data) {
     NativePackage package;
     NativeMeshParseResult parsed;
-    const PamtIndex& index = cached_pamt_index(job.entry.pamt_path);
+    const auto pamt_index_started = std::chrono::steady_clock::now();
+    const PamtIndex& index = cached_pamt_index(job.entry.pamt_path, job.cache_root);
+    package.pamt_index_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - pamt_index_started).count();
+    package.pamt_index_entries = index.entry_count;
+    package.pamt_index_cache_hit = index.persistent_cache_hit;
+    package.pamt_index_cache_path = index.persistent_cache_path.string();
     if (job.extension == ".pac") {
         parsed.meshes = parse_pac_submeshes(data);
         parsed.parser = "native_pac_par_sections";
@@ -172,10 +220,11 @@ std::string preview_report_for_job(const fs::path& job_path) {
         fallback_reason = exc.what();
         message = "native archive IO preflight failed";
     }
-    const double elapsed_ms = std::chrono::duration<double, std::milli>(
-        std::chrono::steady_clock::now() - started).count();
+    const PreviewCacheReleaseStats cache_release = release_preview_job_caches();
     const cdmw_native_diag::ProcessMemorySnapshot memory = cdmw_native_diag::current_process_memory();
     const std::string recycle_reason = service_recycle_reason(memory);
+    const double elapsed_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - started).count();
     std::ostringstream out;
     out << "{"
         << "\"status\":\"" << json_escape(status) << "\","
@@ -212,7 +261,12 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"lod_count\":" << package.lod_count << ","
         << "\"dds_candidates\":" << package.dds_candidates << ","
         << "\"dds_extracted\":" << package.dds_extracted << ","
-        << "\"asset_family_reference_count\":" << package.asset_family_reference_count << ","
+        << "\"native_pamt_index_ms\":" << package.pamt_index_ms << ","
+        << "\"native_pamt_index_entries\":" << package.pamt_index_entries << ","
+        << "\"native_pamt_index_cache_hit\":" << (package.pamt_index_cache_hit ? "true" : "false") << ","
+        << "\"native_pamt_index_cache_path\":\"" << json_escape(package.pamt_index_cache_path) << "\",";
+    append_preview_cache_release_report(out, cache_release);
+    out << "\"asset_family_reference_count\":" << package.asset_family_reference_count << ","
         << "\"decoded_cache_entries\":" << decoded_entry_cache_entries() << ","
         << "\"decoded_cache_bytes\":" << decoded_entry_cache_bytes() << ","
         << "\"decoded_cache_hits\":" << decoded_entry_cache_hits() << ","
@@ -306,6 +360,8 @@ int run_preview_job(const fs::path& job_path, const fs::path& report_path) {
             });
         return 0;
     } catch (const std::exception& exc) {
+        release_resident_pamt_indexes();
+        release_resident_preview_metadata_caches();
         std::ostringstream out;
         out << "{\"status\":\"error\",\"backend\":\"cdmw_preview_core_0.1\",\"message\":\""
             << json_escape(exc.what()) << "\",\"fallback_reason\":\"" << json_escape(exc.what()) << "\"}";

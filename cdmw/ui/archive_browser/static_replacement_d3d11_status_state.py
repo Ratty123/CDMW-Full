@@ -134,7 +134,10 @@ def alignment_d3d11_mark_active_cached_package_reused(
     elif cached_quality == "archive_parity":
         state["fast_geometry_loaded"] = True
         state["archive_parity_ready"] = True
+        state["material_complete_preview_seen"] = True
         state["archive_parity_upgrade_queued"] = False
+    elif cached_quality == "material_refresh":
+        state["material_complete_preview_seen"] = True
     return cached_quality
 
 
@@ -158,10 +161,12 @@ def alignment_d3d11_mark_loaded_package(
     elif loaded_quality == "archive_parity":
         state["fast_geometry_loaded"] = True
         state["archive_parity_ready"] = True
+        state["material_complete_preview_seen"] = True
         state["archive_parity_upgrade_queued"] = False
     elif loaded_quality == "material_refresh":
         state["fast_geometry_loaded"] = True
         state["archive_parity_ready"] = True
+        state["material_complete_preview_seen"] = True
     return loaded_quality
 
 

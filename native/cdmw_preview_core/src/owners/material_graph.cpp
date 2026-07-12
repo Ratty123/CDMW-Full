@@ -281,8 +281,18 @@ static void merge_technique_index(TechniqueIndex& destination, const TechniqueIn
     }
 }
 
-static const TechniqueIndex& cached_technique_index(const PamtIndex& pamt_index) {
+static std::map<std::string, TechniqueIndex>& resident_technique_index_cache() {
     static std::map<std::string, TechniqueIndex> cache;
+    return cache;
+}
+
+static std::map<std::string, TechniqueIndex>& resident_package_technique_index_cache() {
+    static std::map<std::string, TechniqueIndex> cache;
+    return cache;
+}
+
+static const TechniqueIndex& cached_technique_index(const PamtIndex& pamt_index) {
+    auto& cache = resident_technique_index_cache();
     const std::string key = fs::absolute(pamt_index.pamt_path).string();
     auto it = cache.find(key);
     if (it == cache.end()) {
@@ -327,7 +337,7 @@ static const TechniqueIndex& cached_package_technique_index(
     if (job.package_root.empty()) {
         return cached_technique_index(primary_index);
     }
-    static std::map<std::string, TechniqueIndex> cache;
+    auto& cache = resident_package_technique_index_cache();
     const std::string key = fs::absolute(job.package_root).string();
     auto found = cache.find(key);
     if (found != cache.end()) return found->second;
@@ -382,11 +392,16 @@ static size_t count_dds_basenames(const PamtIndex& index) {
     return count;
 }
 
+static std::map<std::string, NativeMaterialGraph>& resident_native_material_graph_cache() {
+    static std::map<std::string, NativeMaterialGraph> cache;
+    return cache;
+}
+
 static const NativeMaterialGraph& cached_native_material_graph(
     const EntryJob& job,
     const PamtIndex& primary_index
 ) {
-    static std::map<std::string, NativeMaterialGraph> cache;
+    auto& cache = resident_native_material_graph_cache();
     const std::string root_key = job.package_root.empty()
         ? fs::absolute(primary_index.pamt_path).string()
         : fs::absolute(job.package_root).string();
@@ -449,6 +464,21 @@ static const NativeMaterialGraph& cached_native_material_graph(
         }
     }
     return cache.emplace(key, std::move(graph)).first->second;
+}
+
+static size_t resident_material_graph_metadata_count() {
+    return resident_technique_index_cache().size()
+        + resident_package_technique_index_cache().size()
+        + resident_native_material_graph_cache().size();
+}
+
+static void release_resident_material_graph_metadata() {
+    std::map<std::string, TechniqueIndex> technique_indexes;
+    std::map<std::string, TechniqueIndex> package_technique_indexes;
+    std::map<std::string, NativeMaterialGraph> material_graphs;
+    resident_technique_index_cache().swap(technique_indexes);
+    resident_package_technique_index_cache().swap(package_technique_indexes);
+    resident_native_material_graph_cache().swap(material_graphs);
 }
 
 static const TechniqueParameterInfo* technique_parameter_for_name(

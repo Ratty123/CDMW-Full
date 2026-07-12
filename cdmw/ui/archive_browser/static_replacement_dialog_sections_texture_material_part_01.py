@@ -34,6 +34,7 @@ def _texture_material_step_001(_state):
     _state.Qt = _state.context.get('Qt')
     _state.SCENE_TEXTURE_SOURCE_EXTENSIONS = _state.context.get('SCENE_TEXTURE_SOURCE_EXTENSIONS')
     _state.Sequence = _state.context.get('Sequence')
+    _state.self = _state.context.get('self')
     _state.StaticSubmeshMapping = _state.context.get('StaticSubmeshMapping')
     _state.StaticTextureSlotOverride = _state.context.get('StaticTextureSlotOverride')
     _state.TEXTURE_UV_ROTATION_OPTIONS = _state.context.get('TEXTURE_UV_ROTATION_OPTIONS')
@@ -219,7 +220,9 @@ def _texture_material_step_003(_state):
 def _texture_material_step_004(_state):
     _state.texture_sets = _state.group_replacement_texture_sets(_state.texture_files_for_mapping, obj_mesh=_state.replacement_mesh_for_mapping)
     _state._apply_source_material_texture_overrides_to_ui_texture_sets(_state.texture_sets)
-    _state.selected_texture_plan_source: _state.Dict[_state.str, _state.object] = _state._selected_texture_plan_source_initial_state_helper()
+    _state.selected_texture_plan_source: _state.Dict[_state.str, _state.object] = _state.context.get('selected_texture_plan_source')
+    if not isinstance(_state.selected_texture_plan_source, dict):
+        _state.selected_texture_plan_source = _state._selected_texture_plan_source_initial_state_helper()
     _state.sidecar_bindings_for_advanced = _state.tuple(_state.sidecar_bindings or ())
     _state.donor_control_text = _state._material_authority_donor_control_text_helper()
     _state.donor_material_group = _state.QGroupBox(_state.str(_state.donor_control_text['group_title']))
@@ -352,7 +355,9 @@ def _texture_material_step_005(_state):
     _state.added_texture_editor_layout.setColumnStretch(3, 1)
     _state.added_texture_layout.addWidget(_state.added_texture_editor)
     _state.textures_layout.addWidget(_state.added_texture_group, 0)
-    _state.selected_added_part_texture_row: _state.Dict[_state.str, _state.int] = _state._selected_added_part_texture_row_initial_state_helper()
+    _state.selected_added_part_texture_row: _state.Dict[_state.str, _state.int] = _state.context.get('selected_added_part_texture_row')
+    if not isinstance(_state.selected_added_part_texture_row, dict):
+        _state.selected_added_part_texture_row = _state._selected_added_part_texture_row_initial_state_helper()
     _state.added_texture_editor_loading = _state._added_texture_editor_loading_initial_state_helper()
     _state.alignment_added_part_texture_override_callbacks = _state.create_alignment_added_part_texture_override_callbacks({**_state.context, **_state._factory_globals, **vars(_state), '_refresh_added_part_texture_tree': lambda *args, **kwargs: _state._refresh_added_part_texture_tree(*args, **kwargs), '_refresh_source_material_plan': lambda *args, **kwargs: _state._refresh_source_material_plan(*args, **kwargs)})
     _state._set_added_part_texture_override = _state.alignment_added_part_texture_override_callbacks._set_added_part_texture_override
@@ -551,7 +556,7 @@ def _texture_material_step_007(_state):
     _state.texture_transform_scale_u_spin.valueChanged.connect(_state._save_texture_transform_controls)
     _state.texture_transform_scale_v_spin.valueChanged.connect(_state._save_texture_transform_controls)
     for _state.texture_spin in (_state.texture_transform_offset_u_spin, _state.texture_transform_offset_v_spin, _state.texture_transform_scale_u_spin, _state.texture_transform_scale_v_spin):
-        _state.texture_spin.editingFinished.connect(lambda spin=texture_spin: (_state._commit_spinbox_text(spin), _state._save_texture_transform_controls()))
+        _state.texture_spin.editingFinished.connect(lambda spin=_state.texture_spin: (_state._commit_spinbox_text(spin), _state._save_texture_transform_controls()))
     _state.texture_transform_reset_button.clicked.connect(_state._reset_selected_texture_transform)
     _state.material_plan_layout.addWidget(_state.texture_transform_group)
     _state.texture_transform_group.setVisible(False)
@@ -658,7 +663,7 @@ def _texture_material_step_008(_state):
         _state.texture_target_source_indices: _state.Dict[_state.str, _state.Tuple[_state.int, ...]] = {}
         _state.seen_texture_rows: _state.set[_state.tuple[_state.str, _state.str, _state.str, _state.str]] = _state.set()
         _state.advanced_dds_overrides_state = _state._advanced_dds_overrides_initial_state_helper()
-        _state.advanced_dds_controller = _state.StaticReplacementAdvancedDdsController(self, _state.dialog)
+        _state.advanced_dds_controller = _state.StaticReplacementAdvancedDdsController(_state.self, _state.dialog)
         setattr(_state.dialog, '_advanced_dds_controller', _state.advanced_dds_controller)
         _state.dialog.finished.connect(lambda _result=0: _state.advanced_dds_controller.request_shutdown())
 
@@ -683,7 +688,7 @@ def _texture_material_step_010(_state):
     if _state._factory_advanced_material_branch:
 
         def _advanced_dds_rows_failed(message: str) -> None:
-            self.set_status_message(f'Advanced DDS row loading failed: {message}', error=True)
+            _state.self.set_status_message(f'Advanced DDS row loading failed: {message}', error=True)
         _state._advanced_dds_rows_failed = _advanced_dds_rows_failed
 
 def _texture_material_step_011(_state):

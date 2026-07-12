@@ -26,6 +26,11 @@ CLI mode runs startup maintenance synchronously and then calls the pipeline CLI.
   created once on first display or explicit feature-method use.
 - Collapsed Texture Workflow sections create their bodies on first expansion,
   and Settings helper/service discovery waits until the owning control is used.
+- Archive startup completes the path/basename and item-name search caches in
+  the archive scan worker before releasing the splash. Manual Archive Browser
+  loads may keep those indexes on-demand. Global sidecar and folder-filter
+  indexes still start only from their owning control or a maximum-throughput
+  profile.
 - The .NET Mesh Editor helper emits `protocol_ready` before D3D device setup so
   launcher readiness does not wait for renderer initialization.
 
@@ -83,3 +88,5 @@ The configured-archive release gate uses `CDMW_STARTUP_BENCHMARK=1` and
 `archive_scan_complete`, `main_window_shown`, `first_paint`,
 `startup_benchmark_search_complete`, and a heartbeat with
 `clean_shutdown: true`.
+Archive extension input is canonicalized before filtering: `All files` becomes
+`*`, and malformed `All files.pac` becomes `.pac` rather than a literal suffix.

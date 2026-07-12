@@ -392,6 +392,7 @@ MeshEditorSelection mesh_editor_apply_selection_edit(
     const MeshEditorSession& session,
     const MeshEditorSelection& incoming,
     const std::string& operation,
+    const std::string& target_mode,
     int iterations
 ) {
     MeshEditorSelection result;
@@ -414,6 +415,21 @@ MeshEditorSelection mesh_editor_apply_selection_edit(
         }
         std::set<int> selected = mesh_editor_vertices_from_selection_domains(incoming, submesh_index, submesh);
         if (all_operation) {
+            if (target_mode == "source" || target_mode == "part") {
+                result.source_indices.insert(submesh_index);
+                continue;
+            }
+            if (target_mode == "face") {
+                std::set<int>& faces = result.faces[submesh_index];
+                for (std::size_t face_index = 0; face_index < submesh.faces.size(); ++face_index) {
+                    faces.insert(static_cast<int>(face_index));
+                }
+                continue;
+            }
+            if (target_mode == "edge") {
+                result.edges[submesh_index] = face_edge_set(submesh.faces);
+                continue;
+            }
             selected.clear();
             for (std::size_t vertex_index = 0; vertex_index < submesh.vertices.size(); ++vertex_index) {
                 selected.insert(static_cast<int>(vertex_index));

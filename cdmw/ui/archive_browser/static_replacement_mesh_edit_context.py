@@ -43,7 +43,7 @@ _CONTEXT_NAMES = (
     '_queue_texture_preview_refresh', '_record_runtime_event', '_refresh_source_assignment_columns', '_refresh_source_tree_selection_state', '_safe_refresh_static_dialog_preview',
     '_delete_selected_source_parts', '_source_display_name', '_source_index_is_enabled_renderable', '_transformed_replacement_sources', '_current_complete_swap_material_profile_token',
     'alignment_d3d11_preview_host', 'alignment_d3d11_state', 'appended_source_indices', 'mesh_editor_static_replacement_session_state', 'apply_morph_slider_values',
-    'assert_mesh_topology_unchanged', 'control_tabs', 'copy', 'create_region_volume_slider_profile', 'dialog',
+    'assert_mesh_topology_unchanged', 'control_tabs', 'controls_panel', 'copy', 'create_region_volume_slider_profile', 'dialog',
     'entry', 'import_body_slider_profile', 'import_single_morph_slider_profile', 'load_morph_slider_delta', 'load_morph_slider_profiles',
     'mesh_edit_action_control_text', 'mesh_edit_active_stroke', 'mesh_edit_button_row', 'mesh_edit_clear_selection_button', 'mesh_edit_delete_faces_button',
     'mesh_edit_delete_mode_combo', 'mesh_edit_enabled_checkbox', 'mesh_edit_falloff_combo', 'mesh_edit_field_rows', 'mesh_edit_full_reset_button',

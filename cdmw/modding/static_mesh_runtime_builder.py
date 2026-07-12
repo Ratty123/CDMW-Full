@@ -22,6 +22,7 @@ from .static_mesh_geometry import (
     _rotate_xyz,
 )
 from .static_mesh_output_plan import _STATIC_REPLACEMENT_VERTEX_LIMIT, _atlas_uv_transform, plan_static_output_draw_sections
+from .static_mesh_preview_decimation import decimate_submesh_for_preview
 from .static_mesh_source_parts import (
     _apply_source_part_adjustment,
     _apply_texture_uv_transform,
@@ -120,6 +121,21 @@ def _replacement_mesh_with_original_part_copies(
     effective_mesh.total_faces = total_faces
     effective_mesh.has_uvs = has_uvs
     return effective_mesh, preserve_source_indices
+
+
+def _mapped_alignment_source_indices(
+    mappings: Sequence[StaticSubmeshMapping], replacement_mesh: ParsedMesh, exempt_indices: set[int]
+) -> set[int]:
+    return {
+        int(source_index)
+        for mapping in mappings
+        for source_index in mapping.source_submesh_indices
+        if 0 <= int(source_index) < len(replacement_mesh.submeshes)
+        and int(source_index) not in exempt_indices
+        and not _is_marker_submesh(replacement_mesh.submeshes[int(source_index)])
+    }
+
+
 def _build_mapped_replacement_mesh(
     original_mesh: ParsedMesh,
     replacement_mesh: ParsedMesh,
@@ -166,7 +182,7 @@ def _build_mapped_replacement_mesh(
         options.source_part_adjustments,
         options.texture_uv_transforms,
         global_transform_exempt_indices=preserve_source_indices | independent_source_indices,
-        global_transform_source_indices=mapped_enabled_source_indices,
+        global_transform_source_indices=mapped_enabled_source_indices, alignment_source_indices=_mapped_alignment_source_indices(mappings, effective_replacement_mesh, preserve_source_indices | independent_source_indices),
         max_source_faces_per_submesh=max_source_faces_per_submesh,
         output_source_indices=mapped_enabled_source_indices | independent_source_indices,
     )
@@ -313,8 +329,14 @@ def _transformed_replacement_sources(
     max_source_faces_per_submesh: int | None = None,
     output_source_indices: set[int] | None = None,
     alignment_basis_mesh: ParsedMesh | None = None,
+    alignment_source_indices: set[int] | None = None,
 ) -> list[SubMesh]:
     bound_indices = None if global_transform_source_indices is None else {int(index) for index in global_transform_source_indices}
+    alignment_bound_indices = (
+        bound_indices
+        if alignment_source_indices is None
+        else {int(index) for index in alignment_source_indices}
+    )
     requested_output_indices = None if output_source_indices is None else {int(index) for index in output_source_indices}
     if requested_output_indices is None:
         indices_to_copy = set(range(len(replacement_mesh.submeshes)))
@@ -370,7 +392,7 @@ def _transformed_replacement_sources(
             basis_sources,
             transform,
             exempt_indices,
-            bound_indices,
+            alignment_bound_indices,
         )
         return fallback_state
 
@@ -415,6 +437,7 @@ def _transformed_replacement_sources(
         transform=transform,
         exempt_indices=exempt_indices,
         global_transform_source_indices=global_transform_source_indices,
+        alignment_source_indices=alignment_bound_indices,
         alignment_basis_mesh=basis_mesh,
     )
     for source_index, submesh in enumerate(sources):
@@ -521,6 +544,7 @@ def _apply_native_global_source_transforms(
     transform: StaticReplacementTransform,
     exempt_indices: set[int],
     global_transform_source_indices: set[int] | None,
+    alignment_source_indices: set[int] | None,
     alignment_basis_mesh: ParsedMesh | None,
 ) -> set[int]:
     position_matrices: dict[int, tuple[float, ...]] = {}
@@ -536,6 +560,7 @@ def _apply_native_global_source_transforms(
             source_part_adjustments=None,
             global_transform_exempt_indices=exempt_indices,
             global_transform_source_indices=global_transform_source_indices,
+            alignment_source_indices=alignment_source_indices,
             alignment_basis_mesh=alignment_basis_mesh,
         )
         if position_matrix is None:
@@ -550,6 +575,7 @@ def _apply_native_global_source_transforms(
                 source_part_adjustments=None,
                 global_transform_exempt_indices=exempt_indices,
                 global_transform_source_indices=global_transform_source_indices,
+                alignment_source_indices=alignment_source_indices,
                 alignment_basis_mesh=alignment_basis_mesh,
             )
             if normal_matrix is None:
@@ -862,6 +888,7 @@ def source_delta_for_transformed_delta(
     global_transform_exempt_indices: set[int] | None = None,
     global_transform_source_indices: set[int] | None = None,
     alignment_basis_mesh: ParsedMesh | None = None,
+    alignment_source_indices: set[int] | None = None,
 ) -> tuple[float, float, float]:
     """Map a displayed preview-space movement back into editable source mesh space."""
     try:
@@ -878,7 +905,7 @@ def source_delta_for_transformed_delta(
         "transform": transform,
         "source_part_adjustments": source_part_adjustments,
         "global_transform_exempt_indices": global_transform_exempt_indices,
-        "global_transform_source_indices": global_transform_source_indices,
+        "global_transform_source_indices": global_transform_source_indices if alignment_source_indices is None else alignment_source_indices,
         "alignment_basis_mesh": alignment_basis_mesh,
     }
     columns = (
@@ -900,6 +927,7 @@ def source_point_for_transformed_point(
     global_transform_exempt_indices: set[int] | None = None,
     global_transform_source_indices: set[int] | None = None,
     alignment_basis_mesh: ParsedMesh | None = None,
+    alignment_source_indices: set[int] | None = None,
 ) -> tuple[float, float, float]:
     """Map a displayed preview-space point back into editable source mesh space."""
     try:
@@ -916,7 +944,7 @@ def source_point_for_transformed_point(
         "transform": transform,
         "source_part_adjustments": source_part_adjustments,
         "global_transform_exempt_indices": global_transform_exempt_indices,
-        "global_transform_source_indices": global_transform_source_indices,
+        "global_transform_source_indices": global_transform_source_indices if alignment_source_indices is None else alignment_source_indices,
         "alignment_basis_mesh": alignment_basis_mesh,
     }
     origin = _mesh_edit_forward_transformed_point((0.0, 0.0, 0.0), **common)
@@ -941,6 +969,7 @@ def source_affine_for_transformed_preview(
     global_transform_exempt_indices: set[int] | None = None,
     global_transform_source_indices: set[int] | None = None,
     alignment_basis_mesh: ParsedMesh | None = None,
+    alignment_source_indices: set[int] | None = None,
 ) -> tuple[float, ...] | None:
     try:
         source_index = int(source_submesh_index)
@@ -963,7 +992,7 @@ def source_affine_for_transformed_preview(
         "transform": transform,
         "source_part_adjustments": source_part_adjustments,
         "global_transform_exempt_indices": global_transform_exempt_indices,
-        "global_transform_source_indices": global_transform_source_indices,
+        "global_transform_source_indices": global_transform_source_indices if alignment_source_indices is None else alignment_source_indices,
         "alignment_basis_mesh": alignment_basis_mesh,
     }
     origin = _mesh_edit_forward_transformed_point((0.0, 0.0, 0.0), **common)
@@ -996,6 +1025,7 @@ def source_normal_transform_for_transformed_preview(
     global_transform_exempt_indices: set[int] | None = None,
     global_transform_source_indices: set[int] | None = None,
     alignment_basis_mesh: ParsedMesh | None = None,
+    alignment_source_indices: set[int] | None = None,
 ) -> tuple[float, ...] | None:
     try:
         source_index = int(source_submesh_index)
@@ -1010,7 +1040,7 @@ def source_normal_transform_for_transformed_preview(
         "transform": transform,
         "source_part_adjustments": source_part_adjustments,
         "global_transform_exempt_indices": global_transform_exempt_indices,
-        "global_transform_source_indices": global_transform_source_indices,
+        "global_transform_source_indices": global_transform_source_indices if alignment_source_indices is None else alignment_source_indices,
         "alignment_basis_mesh": alignment_basis_mesh,
     }
     columns = (
@@ -1038,6 +1068,7 @@ def source_distance_for_transformed_distance(
     global_transform_exempt_indices: set[int] | None = None,
     global_transform_source_indices: set[int] | None = None,
     alignment_basis_mesh: ParsedMesh | None = None,
+    alignment_source_indices: set[int] | None = None,
 ) -> float:
     """Approximate a displayed preview-space brush length in editable source mesh space."""
     try:
@@ -1054,7 +1085,7 @@ def source_distance_for_transformed_distance(
         "transform": transform,
         "source_part_adjustments": source_part_adjustments,
         "global_transform_exempt_indices": global_transform_exempt_indices,
-        "global_transform_source_indices": global_transform_source_indices,
+        "global_transform_source_indices": global_transform_source_indices if alignment_source_indices is None else alignment_source_indices,
         "alignment_basis_mesh": alignment_basis_mesh,
     }
     scales = []
@@ -1232,76 +1263,4 @@ def _normalized_preview_face_limit(value: int | None) -> int:
 
 
 def _decimate_submesh_for_preview(submesh: SubMesh, max_faces: int) -> SubMesh:
-    faces = list(submesh.faces or [])
-    if max_faces <= 0 or len(faces) <= max_faces:
-        return submesh
-    if not submesh.vertices:
-        return submesh
-
-    step = max(1, math.ceil(len(faces) / float(max_faces)))
-    sampled_faces = faces[::step][:max_faces]
-    source_to_preview: dict[int, int] = {}
-    preview_vertices: list[tuple[float, float, float]] = []
-    preview_faces: list[tuple[int, int, int]] = []
-
-    for face in sampled_faces:
-        remapped_face: list[int] = []
-        for raw_index in face[:3]:
-            try:
-                source_index = int(raw_index)
-            except (TypeError, ValueError):
-                remapped_face = []
-                break
-            if source_index < 0 or source_index >= len(submesh.vertices):
-                remapped_face = []
-                break
-            preview_index = source_to_preview.get(source_index)
-            if preview_index is None:
-                preview_index = len(preview_vertices)
-                source_to_preview[source_index] = preview_index
-                preview_vertices.append(submesh.vertices[source_index])
-            remapped_face.append(preview_index)
-        if len(remapped_face) == 3:
-            preview_faces.append((remapped_face[0], remapped_face[1], remapped_face[2]))
-
-    if not preview_faces:
-        return submesh
-
-    ordered_source_indices = [
-        source_index
-        for source_index, _preview_index in sorted(source_to_preview.items(), key=lambda item: item[1])
-    ]
-    preview = _clone_submesh_fast(submesh)
-    preview.vertices = preview_vertices
-    preview.faces = preview_faces
-    preview.uvs = (
-        [submesh.uvs[source_index] for source_index in ordered_source_indices]
-        if len(submesh.uvs) == len(submesh.vertices)
-        else []
-    )
-    preview.normals = (
-        [submesh.normals[source_index] for source_index in ordered_source_indices]
-        if len(submesh.normals) == len(submesh.vertices)
-        else []
-    )
-    preview.bone_indices = (
-        [submesh.bone_indices[source_index] for source_index in ordered_source_indices]
-        if len(submesh.bone_indices) == len(submesh.vertices)
-        else []
-    )
-    preview.bone_weights = (
-        [submesh.bone_weights[source_index] for source_index in ordered_source_indices]
-        if len(submesh.bone_weights) == len(submesh.vertices)
-        else []
-    )
-    preview.source_vertex_map = (
-        [submesh.source_vertex_map[source_index] for source_index in ordered_source_indices]
-        if len(submesh.source_vertex_map) == len(submesh.vertices)
-        else []
-    )
-    preview.vertex_count = len(preview.vertices)
-    preview.face_count = len(preview.faces)
-    preview.source_vertex_offsets = []
-    preview.source_index_offset = -1
-    preview.source_index_count = len(preview.faces) * 3
-    return preview
+    return decimate_submesh_for_preview(submesh, max_faces)

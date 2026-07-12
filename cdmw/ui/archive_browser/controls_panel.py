@@ -29,6 +29,13 @@ from cdmw.constants import ARCHIVE_EXTENSION_FILTER
 from cdmw.ui.widgets import CollapsibleSection, FlatSectionPanel, LogHighlighter
 
 
+def _configure_archive_extension_filter_line_edit(combo: QComboBox, callback: Callable[[], None]) -> None:
+    extension_line_edit = combo.lineEdit()
+    if extension_line_edit is not None:
+        extension_line_edit.setPlaceholderText("Select or type extension")
+        extension_line_edit.editingFinished.connect(callback)
+
+
 class ArchiveControlsPanelMixin:
     """Build archive browser sidebar controls."""
 
@@ -140,9 +147,9 @@ class ArchiveControlsPanelMixin:
             }
             """
         )
-        extension_line_edit = self.archive_extension_filter_combo.lineEdit()
-        if extension_line_edit is not None:
-            extension_line_edit.setPlaceholderText("Select or type extension")
+        _configure_archive_extension_filter_line_edit(
+            self.archive_extension_filter_combo, self._canonicalize_archive_extension_filter_control
+        )
         self.archive_extension_filter_combo.setToolTip(
             "Filter by extension. Pick one from the loaded archive index or type a specific extension directly."
         )

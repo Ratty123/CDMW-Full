@@ -342,6 +342,10 @@ def _transform_drag_step_018(_state):
 
     def _queue_global_transform_preview_update(*_args: object) -> None:
         _state._mark_alignment_transform_changed()
+        set_scene_state = getattr(_state.dialog, '_mesh_editor_embedded_set_scene_state', None)
+        placement_getter = getattr(_state.dialog, '_mesh_editor_embedded_placement_state', None)
+        if callable(set_scene_state) and callable(placement_getter):
+            set_scene_state(placement=placement_getter())
         queue_time = _state.time.monotonic()
         applied = _state._apply_global_transform_fast_preview()
         preview_queue_state = _state._alignment_transform_preview_queue_state_helper(now=queue_time, applied=applied)
@@ -368,7 +372,7 @@ def _transform_drag_step_019(_state):
 def _transform_drag_step_020(_state):
     for _state.spin in (_state.offset_x_spin, _state.offset_y_spin, _state.offset_z_spin, _state.rotate_x_spin, _state.rotate_y_spin, _state.rotate_z_spin, _state.scale_x_spin, _state.scale_y_spin, _state.scale_z_spin):
         _state.spin.valueChanged.connect(_state._queue_global_transform_preview_update)
-        _state.spin.editingFinished.connect(lambda spin=spin: _state._commit_global_transform_spin(spin))
+        _state.spin.editingFinished.connect(lambda spin=_state.spin: _state._commit_global_transform_spin(spin))
     for _state.spin in (_state.scale_x_spin, _state.scale_y_spin, _state.scale_z_spin):
         _state.spin.valueChanged.connect(_state._sync_linked_scale)
     _state.alignment_mode_combo.currentIndexChanged.connect(_state._queue_static_preview_rebuild)

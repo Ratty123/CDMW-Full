@@ -123,6 +123,7 @@ class MeshEditorWorkspace(
     validation_report_requested = Signal()
     copy_validation_report_requested = Signal()
     compare_view_requested = Signal(str)
+    viewport_display_requested = Signal(str)
     skeleton_pose_requested = Signal(str, object)
     part_selection_requested = Signal(int, str)
     part_context_action_requested = Signal(str, int)

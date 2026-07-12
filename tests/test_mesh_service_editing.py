@@ -508,7 +508,7 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertEqual("cdmw_mesh_core", groups[0]["preview_backend"])
         self.assertEqual(1, groups[0]["source_submesh_index"])
         self.assertEqual(0, groups[0]["material_source_submesh_index"])
-        self.assertEqual("routed", groups[0]["material_name"])
+        self.assertEqual(("quad duplicate", "routed"), (groups[0]["part_name"], groups[0]["material_name"]))
         self.assertEqual("routed.dds", groups[0]["texture_name"])
         self.assertEqual(0.45, groups[0]["roughness"])
         self.assertEqual(0.1, groups[0]["metalness"])

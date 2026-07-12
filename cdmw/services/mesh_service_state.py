@@ -102,6 +102,7 @@ class MeshExportSnapshot:
     original_data: bytes
     mesh_asset_parse_confidence: str = ""
     mesh_asset_source_hash: str = ""
+    mesh_asset_source_size: int = 0
     mesh_asset_inferred_bone_count: int = 0
     skeleton_bone_count: int = 0
     no_op_roundtrip_report: Mapping[str, object] | None = None
@@ -120,6 +121,7 @@ class _MeshEditSession:
     original_data: bytes = b""
     mesh_asset_parse_confidence: str = ""
     mesh_asset_source_hash: str = ""
+    mesh_asset_source_size: int = 0
     mesh_asset_inferred_bone_count: int = 0
     no_op_roundtrip_report: Mapping[str, object] | None = None
     sidecar_warnings: tuple[object, ...] = ()

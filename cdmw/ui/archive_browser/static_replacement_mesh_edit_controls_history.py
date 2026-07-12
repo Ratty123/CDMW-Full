@@ -59,11 +59,40 @@ def _mesh_edit_control_runtime_state(_state, _callbacks):
     )
     if callable(set_toolbar_visible):
         set_toolbar_visible(classic_toolbar_visible)
+    classic_toolbar_enabled = bool(
+        classic_toolbar_visible and dotnet_state not in {"launching", "closing"}
+    )
+    set_toolbar_enabled = getattr(_state.classic_mesh_edit_toolbar, "setEnabled", None)
+    if callable(set_toolbar_enabled):
+        set_toolbar_enabled(classic_toolbar_enabled)
+    set_embedded_controls_visible = getattr(
+        _state.dialog, "_mesh_editor_embedded_set_controls_visible", None
+    )
+    if callable(set_embedded_controls_visible):
+        set_embedded_controls_visible(
+            bool(
+                _state.mesh_edit_supported
+                and _state.mesh_edit_enabled_checkbox.isChecked()
+                and not dotnet_owns_or_is_starting
+            )
+        )
+    dotnet_owns_preview_rows = bool(
+        _state.mesh_edit_enabled_checkbox.isChecked()
+        and dotnet_state not in {"closing", "closed", "failed", "suspended"}
+        and (dotnet_state in {"launching", "ready"} or dotnet_active)
+    )
+    legacy_preview_rows_visible = not dotnet_owns_preview_rows
+    for row in getattr(_state.dialog, "_mesh_editor_legacy_preview_rows", ()):
+        set_row_visible = getattr(row, "setVisible", None)
+        if callable(set_row_visible):
+            set_row_visible(legacy_preview_rows_visible)
     toolbar_signature = (
         dotnet_state,
         dotnet_active,
         bool(_state.mesh_edit_enabled_checkbox.isChecked()),
         classic_toolbar_visible,
+        classic_toolbar_enabled,
+        legacy_preview_rows_visible,
         _callbacks._alignment_d3d11_process_active(),
     )
     if _state.dialog is not None and getattr(
@@ -80,6 +109,8 @@ def _mesh_edit_control_runtime_state(_state, _callbacks):
             dotnet_available=bool(getattr(_state.dialog, "_mesh_editor_dotnet_available", False)),
             parent_hwnd=_callbacks._embedded_dotnet_parent_hwnd(),
             classic_toolbar_visible=classic_toolbar_visible,
+            classic_toolbar_enabled=classic_toolbar_enabled,
+            legacy_preview_rows_visible=legacy_preview_rows_visible,
             native_d3d11_process_active=_callbacks._alignment_d3d11_process_active(),
         )
     _state.mesh_edit_enabled_checkbox.setEnabled(_state.mesh_edit_supported and not topology_busy)

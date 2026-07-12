@@ -9,7 +9,6 @@ internal static class NativeWindowHost
     private const long WsChild = 0x40000000L;
     private const long WsPopup = 0x80000000L;
     private const long WsCaption = 0x00C00000L;
-    private const uint SwpNoZOrder = 0x0004;
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpFrameChanged = 0x0020;
     private const uint SwpShowWindow = 0x0040;
@@ -45,7 +44,7 @@ internal static class NativeWindowHost
         }
         var width = Math.Max(1, rect.Right - rect.Left);
         var height = Math.Max(1, rect.Bottom - rect.Top);
-        SetWindowPos(form.Handle, IntPtr.Zero, 0, 0, width, height, SwpNoZOrder | SwpNoActivate | SwpFrameChanged | SwpShowWindow);
+        SetWindowPos(form.Handle, HwndTop, 0, 0, width, height, SwpNoActivate | SwpFrameChanged | SwpShowWindow);
     }
 
     private static void BringEmbeddedChildToFront(Form form, IntPtr parent)

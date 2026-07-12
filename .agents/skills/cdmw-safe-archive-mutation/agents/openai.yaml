@@ -1,0 +1,4 @@
+interface:
+  display_name: "CDMW Safe Archive Mutation"
+  short_description: "Guard archive writes and recovery"
+  default_prompt: "Use $cdmw-safe-archive-mutation to plan and validate this archive mutation."

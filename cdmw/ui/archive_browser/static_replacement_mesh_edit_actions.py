@@ -216,7 +216,13 @@ def _mesh_editor_sync_new_source_part(_state, _callbacks, result: object) -> Non
             indices = list(parse_mapping(edit))
             additions = [new_index for new_index, source_index in pairs if source_index in indices]
             if additions:
-                set_mapping(target_index, indices + additions, push_undo=False, defer_preview=True)
+                set_mapping(
+                    target_index,
+                    indices + additions,
+                    push_undo=False,
+                    defer_preview=True,
+                    confirmed_resident_sync=True,
+                )
     new_indices = tuple(new_index for new_index, _source_index in pairs)
     mesh = getattr(getattr(_state, '_mesh_edit_state', None), 'replacement_mesh_for_mapping', None)
     if mesh is not None:
@@ -235,6 +241,13 @@ def _mesh_editor_sync_new_source_part(_state, _callbacks, result: object) -> Non
         invalidate()
     if callable(_state._rebuild_source_part_widgets):
         _state._rebuild_source_part_widgets(new_indices, current_index=new_indices[0])
+    set_embedded_selection = getattr(
+        getattr(_state, "dialog", None),
+        "_mesh_editor_embedded_set_part_selection",
+        None,
+    )
+    if callable(set_embedded_selection):
+        set_embedded_selection(new_indices)
 
 def _mesh_editor_send_embedded_dotnet_update(_state, _callbacks, update: object) -> bool:
     sender = getattr(_state.dialog, "_mesh_editor_embedded_send_native_update", None)
@@ -270,10 +283,11 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
             _state._mesh_edit_topology_changed_status_helper(action_key) or _state._morph_slider_topology_changed_reason_text_helper()
         )
         _callbacks._mesh_edit_clear_topology_selection()
-    native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)
     native_update_applied = _callbacks._mesh_editor_send_embedded_dotnet_update(
         getattr(result, "native_update", None)
-    ) or native_update_applied
+    )
+    if not native_update_applied:
+        native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)
     _callbacks._mesh_edit_update_mesh_totals()
     if not native_update_applied:
         _callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)
@@ -307,6 +321,26 @@ def _mesh_editor_embedded_controller(_state, _callbacks, ):
     session = _callbacks._mesh_editor_ensure_static_replacement_session()
     return session.controller if isinstance(session, _state.StaticReplacementMeshEditSession) else None
 
+
+def _mesh_editor_embedded_placement_state(_state, _callbacks, ) -> dict[str, object]:
+    getter = getattr(_state, "_current_static_alignment_transform", None)
+    transform = getter() if callable(getter) else None
+    if transform is None:
+        return {
+            "translation": [0.0, 0.0, 0.0],
+            "rotation_degrees": [0.0, 0.0, 0.0],
+            "scale": [1.0, 1.0, 1.0],
+        }
+    scale_xyz = tuple(getattr(transform, "scale_xyz", ()) or ())
+    if len(scale_xyz) < 3:
+        uniform = float(getattr(transform, "scale", 1.0) or 1.0)
+        scale_xyz = (uniform, uniform, uniform)
+    return {
+        "translation": [float(value) for value in tuple(getattr(transform, "offset_xyz", (0.0, 0.0, 0.0)))[:3]],
+        "rotation_degrees": [float(value) for value in tuple(getattr(transform, "rotate_xyz_degrees", (0.0, 0.0, 0.0)))[:3]],
+        "scale": [float(value) for value in scale_xyz[:3]],
+    }
+
 def _mesh_editor_embedded_apply_native_update(_state, _callbacks, native_update: object) -> bool:
     return _callbacks._mesh_editor_apply_native_update(native_update)
 
@@ -334,6 +368,22 @@ def _mesh_editor_embedded_run_part_action(_state, _callbacks, action_key: str, s
     if not selected_sources:
         _state.self.set_status_message("Select one or more mesh parts first.", error=True)
         return False
+    if normalized == "toggle_visibility":
+        items = tuple(
+            _state.source_items_by_index.get(index)
+            for index in selected_sources
+            if _state.source_items_by_index.get(index) is not None
+        )
+        if not items:
+            return False
+        all_visible = all(item.checkState(0) == _state.Qt.Checked for item in items)
+        next_state = _state.Qt.Unchecked if all_visible else _state.Qt.Checked
+        changed = False
+        for item in items:
+            if item.checkState(0) != next_state:
+                item.setCheckState(0, next_state)
+                changed = True
+        return changed
     if normalized not in {"delete", "duplicate", "recalculate_normals", "weighted_normals", "flip_normals"}:
         return False
     if _state._mesh_edit_state.replacement_mesh_for_mapping is None:
@@ -377,6 +427,7 @@ _CALLBACKS = (
     _mesh_editor_send_embedded_dotnet_update,
     _mesh_editor_commit_action_bar_service_result,
     _mesh_editor_embedded_controller,
+    _mesh_editor_embedded_placement_state,
     _mesh_editor_embedded_apply_native_update,
     _mesh_editor_embedded_set_skeleton_bone,
     _mesh_editor_embedded_run_part_action,

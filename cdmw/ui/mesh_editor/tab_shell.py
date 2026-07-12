@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Mapping, Optional
 
 from PySide6.QtCore import Qt, QTimer
@@ -13,6 +14,7 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QVBoxLayout,
     QWidget,
+    QApplication,
 )
 
 from cdmw.ui.shell.settings_bridge import read_bool_setting
@@ -171,6 +173,7 @@ class MeshEditorTabShellMixin:
         self.embedded_workspace: MeshEditorWorkspace | None = None
         self._embedded_control_tabs: QTabWidget | None = None
         self._embedded_classic_builder: QWidget | None = None
+        self._embedded_restore_control_widget: QWidget | None = None
         self.standalone_native_status_timer = QTimer(self)
         self.standalone_native_status_timer.setInterval(250)
         self.standalone_native_status_timer.timeout.connect(self._poll_standalone_native_preview_status)
@@ -377,6 +380,22 @@ class MeshEditorTabShellMixin:
         return "resident_material_parameter_updates_v1" in self.standalone_dotnet_capabilities
     def _dotnet_texture_updates_idle(self) -> bool:
         return self.standalone_texture_region_queue.idle()
+    def _wait_for_dotnet_export_updates(self, timeout_seconds: float) -> bool:
+        timeout = max(0.0, float(timeout_seconds))
+        started = time.monotonic()
+        if not self.standalone_texture_region_queue.wait_idle(timeout):
+            return False
+        deadline = started + timeout
+        while (
+            self.standalone_dotnet_sent_material_resource_payload is not None
+            or self.standalone_dotnet_sent_material_parameter_payload is not None
+        ) and time.monotonic() < deadline:
+            time.sleep(min(0.005, max(0.0, deadline - time.monotonic())))
+        return bool(
+            self.standalone_texture_region_queue.idle()
+            and self.standalone_dotnet_sent_material_resource_payload is None
+            and self.standalone_dotnet_sent_material_parameter_payload is None
+        )
     def _handle_texture_region_queue_applied(self, payload: Mapping[str, object]) -> None:
         self.standalone_dotnet_lifecycle_counts["texture_region_applied_count"] = (
             int(self.standalone_dotnet_lifecycle_counts.get("texture_region_applied_count", 0)) + 1
@@ -429,11 +448,13 @@ class MeshEditorTabShellMixin:
         self._install_embedded_merged_mesh_editing(builder)
         self._wire_embedded_dotnet_button(builder)
         self._sync_state()
+        QTimer.singleShot(0, self._start_embedded_dotnet_preview_if_available)
     def show_empty_state(self, message: str = "") -> None:
         self.close_standalone_session()
         self.embedded_workspace = None
         self._embedded_control_tabs = None
         self._embedded_classic_builder = None
+        self._embedded_restore_control_widget = None
         self.embedded_dotnet_editor_button = None
         self._set_embedded_dotnet_state("closed", active=False)
         while self.embedded_builder_host_layout.count():
@@ -461,12 +482,13 @@ class MeshEditorTabShellMixin:
         workspace.action_requested.connect(self._handle_action_requested)
         workspace.texture_edit_requested.connect(self._handle_embedded_open_texture)
         workspace.compare_view_requested.connect(self._handle_embedded_compare_mode)
+        workspace.viewport_display_requested.connect(self._handle_embedded_viewport_display_mode)
         workspace.skeleton_pose_requested.connect(self._handle_embedded_skeleton_pose_request)
         workspace.part_selection_requested.connect(self._handle_embedded_part_selection)
         workspace.part_context_action_requested.connect(self._handle_embedded_part_context_action)
         workspace.uv_region_selected.connect(self._handle_embedded_uv_region_selection)
         workspace.uv_lasso_selected.connect(self._handle_embedded_uv_lasso_selection)
-        advanced_index = control_tabs.addTab(workspace, "Advanced Mesh Data")
+        advanced_index = control_tabs.addTab(workspace, "Edit Mesh")
         if hasattr(control_tabs, "setTabVisible"):
             control_tabs.setTabVisible(classic_index, False)
             control_tabs.setTabVisible(advanced_index, False)
@@ -478,6 +500,7 @@ class MeshEditorTabShellMixin:
         setattr(builder, "_mesh_editor_embedded_native_part_selected", self._handle_embedded_native_part_selected)
         setattr(builder, "_mesh_editor_embedded_set_part_selection", self._set_embedded_part_selection)
         setattr(builder, "_mesh_editor_embedded_show_part_context_menu", self._show_embedded_part_context_menu)
+        setattr(builder, "_mesh_editor_embedded_set_controls_visible", self._set_embedded_edit_controls_visible)
         control_tabs.currentChanged.connect(lambda _index: self._refresh_embedded_workspace_from_builder())
         if control_tabs.currentIndex() == classic_index:
             for index in range(control_tabs.count()):
@@ -486,6 +509,39 @@ class MeshEditorTabShellMixin:
                     control_tabs.setCurrentIndex(index)
                     break
         self._refresh_embedded_workspace_from_builder()
+    def _set_embedded_edit_controls_visible(self, visible: bool) -> None:
+        tabs = self._embedded_control_tabs
+        workspace = self.embedded_workspace
+        if tabs is None or workspace is None:
+            return
+        workspace_index = tabs.indexOf(workspace)
+        if workspace_index < 0:
+            return
+        if visible:
+            if tabs.currentWidget() is not workspace:
+                self._embedded_restore_control_widget = tabs.currentWidget()
+            if hasattr(tabs, "setTabVisible"):
+                tabs.setTabVisible(workspace_index, True)
+            tabs.setCurrentWidget(workspace)
+            return
+        if tabs.currentWidget() is workspace:
+            restore = self._embedded_restore_control_widget
+            restore_index = tabs.indexOf(restore) if restore is not None else -1
+            is_visible = getattr(tabs, "isTabVisible", lambda _index: True)
+            if restore_index < 0 or not bool(is_visible(restore_index)):
+                restore_index = next(
+                    (
+                        index
+                        for index in range(tabs.count())
+                        if index != workspace_index and bool(is_visible(index))
+                    ),
+                    -1,
+                )
+            if restore_index >= 0:
+                tabs.setCurrentIndex(restore_index)
+        if hasattr(tabs, "setTabVisible"):
+            tabs.setTabVisible(workspace_index, False)
+        self._embedded_restore_control_widget = None
     def _set_embedded_dotnet_state(self, state: str, *, active: bool = False) -> None:
         normalized_state = str(state or "closed").strip().lower() or "closed"
         self.standalone_dotnet_embedded_state = normalized_state
@@ -494,6 +550,12 @@ class MeshEditorTabShellMixin:
             was_active = bool(getattr(builder, "_mesh_editor_embedded_dotnet_active", False))
             setattr(builder, "_mesh_editor_embedded_dotnet_state", normalized_state)
             setattr(builder, "_mesh_editor_embedded_dotnet_active", bool(active))
+            if getattr(self, "embedded_workspace", None) is not None:
+                self.embedded_workspace.viewport_display_combo.setEnabled(
+                    normalized_state == "ready"
+                    and bool(active)
+                    and "viewport_display_modes_v1" in self.standalone_dotnet_capabilities
+                )
             refresh_controls = getattr(builder, "_refresh_material_authority_live_control_states", None)
             if callable(refresh_controls):
                 refresh_controls()
@@ -512,6 +574,7 @@ class MeshEditorTabShellMixin:
         )
         setattr(builder, "_mesh_editor_embedded_start_dotnet", self._start_embedded_dotnet_editor_requested)
         setattr(builder, "_mesh_editor_embedded_stop_dotnet", self._request_embedded_dotnet_editor_close)
+        setattr(builder, "_mesh_editor_embedded_set_scene_state", self._send_dotnet_scene_state)
         setattr(builder, "_mesh_editor_embedded_send_native_update", self._send_embedded_dotnet_native_update)
         setattr(builder, "_mesh_editor_embedded_apply_material_parameters", self.apply_resident_material_parameters)
         setattr(builder, "_mesh_editor_embedded_apply_material_resources", self.apply_resident_material_resources)
@@ -532,7 +595,23 @@ class MeshEditorTabShellMixin:
             button.setToolTip("Diagnostics-only .NET viewport restart; Edit Mesh starts .NET automatically when available.")
         else:
             button.setToolTip("Diagnostics-only .NET viewport launch; embedded .NET is unavailable or disabled by developer setting.")
-        button.setEnabled(dotnet_available and not self._dotnet_task_active())
+        button.setEnabled(dotnet_available and not self._dotnet_task_active() and not self._standalone_dotnet_editor_process_running())
+
+    def _start_embedded_dotnet_preview_if_available(self) -> None:
+        if str(QApplication.platformName() or "").strip().lower() == "offscreen":
+            return
+        builder = self.active_builder()
+        if builder is None:
+            return
+        if not bool(getattr(builder, "_mesh_editor_auto_dotnet_preview", False)):
+            return
+        if not bool(getattr(builder, "_mesh_editor_use_embedded_dotnet_viewport", False)):
+            return
+        if not bool(getattr(builder, "_mesh_editor_dotnet_available", False)):
+            return
+        if self._dotnet_task_active():
+            return
+        self._start_embedded_dotnet_editor_requested()
     def set_native_preview_host(self, host: object | None) -> None:
         self.standalone_native_host = host if host is not None else getattr(self, "standalone_native_host_frame", None)
         self._wire_standalone_native_part_events(self.standalone_native_host)

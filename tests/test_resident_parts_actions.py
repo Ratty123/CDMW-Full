@@ -1,8 +1,30 @@
 import copy
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import pytest
+from PySide6.QtCore import QPoint, QTimer, Qt
+from PySide6.QtWidgets import QApplication
+
 from cdmw.modding.static_mesh_types import StaticSourcePartAdjustment
+from cdmw.ui.archive_browser.static_replacement_dialog_callbacks_parts_outliner_mapping_part_01 import (
+    _parts_outliner_mapping_step_018,
+)
+from cdmw.ui.archive_browser.static_replacement_dialog_callbacks_parts_outliner_mapping_part_02 import (
+    _parts_outliner_mapping_step_036,
+)
+from cdmw.ui.archive_browser.static_replacement_dialog_callbacks_source_tree_selection_part_01 import (
+    _source_tree_selection_step_011,
+)
+from cdmw.ui.archive_browser.static_replacement_dialog_sections_source_parts_outliner_part_01 import (
+    _source_parts_outliner_step_008,
+)
+from cdmw.ui.archive_browser.static_replacement_dialog_sections_source_parts_outliner_part_02 import (
+    _source_parts_outliner_step_024,
+)
 from cdmw.ui.archive_browser.static_replacement_mesh_edit_actions import create_actions_callbacks
 from cdmw.ui.archive_browser.static_replacement_mesh_edit_controls_history import create_controls_history_callbacks
 from cdmw.ui.archive_browser.static_replacement_dialog_remaining_callbacks import (
@@ -87,6 +109,126 @@ def test_embedded_delete_action_uses_resident_service_instead_of_legacy_delete()
         assert session.view().session_id == "embedded-delete-action"
     finally:
         session.close()
+
+
+def test_resident_delete_commit_remaps_source_state_through_prompt_bridge() -> None:
+    deleted: list[tuple[tuple[int, ...], bool, int]] = []
+    state = SimpleNamespace(
+        context={
+            "_delete_selected_source_parts": lambda indices, **kwargs: deleted.append(
+                (
+                    tuple(indices),
+                    bool(kwargs.get("resident_state_only")),
+                    int(kwargs.get("previous_source_count", 0)),
+                )
+            )
+        },
+        self=SimpleNamespace(set_status_message=lambda *_args, **_kwargs: None),
+        mesh_edit_revision={"value": 0},
+        _mesh_edit_topology_changed_status_helper=lambda action: f"{action} changed topology",
+        _morph_slider_topology_changed_reason_text_helper=lambda: "topology changed",
+        _refresh_source_tree_selection_state=lambda: None,
+        _refresh_source_assignment_columns=lambda: None,
+    )
+    callbacks = SimpleNamespace(
+        _mesh_editor_action_result_changed=lambda _result: True,
+        _mesh_editor_action_result_within_allowed_scope=lambda _result: True,
+        _mesh_editor_store_result_mesh=lambda _result: None,
+        _morph_slider_mark_topology_changed=lambda _reason: None,
+        _mesh_edit_clear_topology_selection=lambda: None,
+        _mesh_editor_send_embedded_dotnet_update=lambda _update: True,
+        _mesh_editor_apply_result_native_update=lambda _result: False,
+        _mesh_edit_update_mesh_totals=lambda: None,
+        _mesh_editor_sync_static_replacement_session_to_working_mesh=lambda _reason: True,
+        _mesh_edit_commit_geometry_preview_state=lambda: None,
+        _refresh_mesh_edit_controls=lambda: None,
+        _mesh_edit_replace_live_triangles_or_queue_rebuild=lambda _indices: None,
+    )
+    actions = create_actions_callbacks(state, callbacks)
+
+    assert actions._mesh_editor_commit_action_bar_service_result(
+        SimpleNamespace(
+            edit_result=SimpleNamespace(topology_changed=True, submesh_count_delta=-1),
+            native_update=object(),
+            affected_submesh_indices=(1,),
+            selected_source_indices=(1,),
+            previous_submesh_count=4,
+        ),
+        action_key="delete",
+        action_text="Delete Part",
+        topology_action=True,
+    )
+    assert deleted == [((1,), True, 4)]
+
+
+def test_prompt_setup_hands_resident_delete_bridge_to_mesh_geometry() -> None:
+    deleted: list[tuple[tuple[int, ...], bool, int]] = []
+    state = SimpleNamespace(
+        alignment_source_part_mutation_callbacks=SimpleNamespace(
+            _delete_selected_source_parts=lambda indices, **kwargs: deleted.append(
+                (
+                    tuple(indices),
+                    bool(kwargs.get("resident_state_only")),
+                    int(kwargs.get("previous_source_count", 0)),
+                )
+            )
+        ),
+        _factory_result_values={},
+    )
+    _source_parts_outliner_step_008(state)
+    _source_parts_outliner_step_024(state)
+
+    exported_delete = state._factory_result_values["_delete_selected_source_parts"]
+    exported_delete((1, 2), resident_state_only=True, previous_source_count=4)
+    assert deleted == [((1, 2), True, 4)]
+
+    root = Path(__file__).resolve().parents[1]
+    setup = (root / "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py").read_text(encoding="utf-8")
+    source_parts = (
+        root / "cdmw/ui/archive_browser/static_replacement_dialog_sections_source_parts_outliner_part_01.py"
+    ).read_text(encoding="utf-8")
+
+    assert "_delete_selected_source_parts = alignment_source_parts_outliner_section._delete_selected_source_parts" in setup
+    assert "resident_state_only: bool=False" in source_parts
+    assert "resident_state_only=resident_state_only" in source_parts
+    assert "previous_source_count=previous_source_count" in source_parts
+
+
+def test_embedded_part_visibility_uses_existing_checked_part_authority() -> None:
+    class _Item:
+        def __init__(self) -> None:
+            self.state = 1
+
+        def checkState(self, _column: int) -> int:
+            return self.state
+
+        def setCheckState(self, _column: int, state: int) -> None:
+            self.state = int(state)
+
+    items = {0: _Item(), 1: _Item()}
+    actions = create_actions_callbacks(
+        SimpleNamespace(
+            source_items_by_index=items,
+            Qt=SimpleNamespace(Checked=1, Unchecked=0),
+            self=SimpleNamespace(set_status_message=lambda *_args, **_kwargs: None),
+        ),
+        SimpleNamespace(),
+    )
+
+    assert actions._mesh_editor_embedded_run_part_action("toggle_visibility", (0, 1))
+    assert [item.state for item in items.values()] == [0, 0]
+    assert actions._mesh_editor_embedded_run_part_action("toggle_visibility", (0, 1))
+    assert [item.state for item in items.values()] == [1, 1]
+
+
+def test_dotnet_part_commands_route_through_embedded_builder_owner() -> None:
+    source = (Path(__file__).resolve().parents[1] / "cdmw/ui/mesh_editor/tab_dotnet_commands.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'target_mode in {"part", "source"}' in source
+    assert 'command in {"delete", "duplicate", "toggle_visibility"}' in source
+    assert '"_mesh_editor_embedded_run_part_action"' in source
 
 
 def test_canonical_parts_dispatcher_uses_resident_actions_and_shared_metadata_handlers() -> None:
@@ -271,14 +413,16 @@ def test_multi_duplicate_sync_preserves_part_metadata_routes_and_selection() -> 
     independent = {0}
     preview_only = {1}
     mapping_edits = [(5, [0, 1])]
-    mapping_updates: list[tuple[int, list[int]]] = []
+    mapping_updates: list[tuple[int, list[int], bool]] = []
     rebuilt: list[tuple[tuple[int, ...], int]] = []
     highlights: set[int] = set()
     transforms: set[int] = set()
     resident_groups: list[tuple[dict[str, object], ...]] = []
+    embedded_selections: list[tuple[int, ...]] = []
     dialog = SimpleNamespace(
         _mesh_editor_embedded_dotnet_active=True,
         _mesh_editor_embedded_apply_material_parameters=lambda groups: resident_groups.append(tuple(groups)) or True,
+        _mesh_editor_embedded_set_part_selection=lambda indices: embedded_selections.append(tuple(indices)) or True,
     )
     state = SimpleNamespace(
         context={
@@ -289,7 +433,9 @@ def test_multi_duplicate_sync_preserves_part_metadata_routes_and_selection() -> 
             "preview_only_source_indices": preview_only,
             "mapping_edits": mapping_edits,
             "_parse_mapping_edit": lambda edit: list(edit),
-            "_set_mapping_indices": lambda target, values, **_kwargs: mapping_updates.append((target, list(values))),
+            "_set_mapping_indices": lambda target, values, **kwargs: mapping_updates.append(
+                (target, list(values), bool(kwargs.get("confirmed_resident_sync")))
+            ),
             "selected_source_highlight_indices": highlights,
             "transform_source_indices": transforms,
             "_invalidate_source_display_cache": lambda: None,
@@ -317,9 +463,10 @@ def test_multi_duplicate_sync_preserves_part_metadata_routes_and_selection() -> 
     assert display_overrides[3] == "Cape Copy"
     assert independent == {0, 2}
     assert preview_only == {1, 3}
-    assert mapping_updates == [(5, [0, 1, 2, 3])]
+    assert mapping_updates == [(5, [0, 1, 2, 3], True)]
     assert highlights == transforms == {2, 3}
     assert rebuilt == [((2, 3), 2)]
+    assert embedded_selections == [(2, 3)]
     assert len(resident_groups) == 1
     assert [group["source_submesh_indices"] for group in resident_groups[0]] == [[2], [3]]
     assert resident_groups[0][0]["material_role"] == "glow"
@@ -327,6 +474,39 @@ def test_multi_duplicate_sync_preserves_part_metadata_routes_and_selection() -> 
     assert resident_groups[0][1]["material_role"] == "cloth"
     assert resident_groups[0][1]["emissive_intensity"] is None
     assert resident_groups[0][1]["visible"] is True
+
+
+def test_resident_part_commit_does_not_touch_hidden_legacy_preview() -> None:
+    calls: list[str] = []
+    state = SimpleNamespace(
+        mesh_edit_revision={"value": 0},
+        self=SimpleNamespace(set_status_message=lambda *_args, **_kwargs: None),
+        _refresh_source_tree_selection_state=lambda: None,
+        _refresh_source_assignment_columns=lambda: None,
+    )
+    callbacks = SimpleNamespace(
+        _mesh_editor_action_result_changed=lambda _result: True,
+        _mesh_editor_action_result_within_allowed_scope=lambda _result: True,
+        _mesh_editor_store_result_mesh=lambda _result: None,
+        _mesh_editor_send_embedded_dotnet_update=lambda _update: calls.append("resident") or True,
+        _mesh_editor_apply_result_native_update=lambda _result: calls.append("legacy") or True,
+        _mesh_edit_update_mesh_totals=lambda: None,
+        _mesh_edit_commit_geometry_preview_state=lambda: None,
+        _refresh_mesh_edit_controls=lambda: None,
+    )
+    actions = create_actions_callbacks(state, callbacks)
+
+    assert actions._mesh_editor_commit_action_bar_service_result(
+        SimpleNamespace(
+            native_update=object(),
+            edit_result=SimpleNamespace(topology_changed=False),
+            affected_submesh_indices=(0,),
+        ),
+        action_key="duplicate",
+        action_text="Clone Part",
+        topology_action=False,
+    )
+    assert calls == ["resident"]
 
 
 def test_embedded_list_selection_replaces_resident_viewport_selection_exactly() -> None:
@@ -391,20 +571,158 @@ def test_resident_part_paths_keep_metadata_snapshots_and_exact_selection_bridge(
     assert "_mesh_editor_embedded_apply_part_selection_from_viewport" in selection_source
 
 
-def test_all_parts_surfaces_share_menu_and_routing_waits_for_confirmation() -> None:
+@pytest.mark.parametrize("surface", ("tree", "outliner", "viewport", "part_pick"))
+def test_all_part_surfaces_dispatch_the_same_resident_action(surface: str) -> None:
+    app = QApplication.instance() or QApplication([])
+    calls: list[tuple[str, tuple[int, ...]]] = []
+    results: list[bool] = []
+    point = QPoint(7, 11)
+    dispatcher = _SourcePartMenuDispatcher(
+        {
+            "_alignment_mesh_edit_tab_active": lambda: True,
+            "dialog": SimpleNamespace(
+                _mesh_editor_embedded_run_part_action=lambda action, indices: calls.append(
+                    (str(action), tuple(indices))
+                )
+                or True
+            ),
+        }
+    )
+
+    def canonical_menu(part_index: int, _global_pos: object) -> None:
+        results.append(
+            dispatcher.dispatch(
+                "duplicate",
+                clicked_source_index=int(part_index),
+                source_indices=[int(part_index)],
+                all_visible=True,
+                apply_role=None,
+            )
+        )
+
+    if surface == "tree":
+        canonical_menu(1, point)
+    elif surface == "outliner":
+        item = object()
+        viewport = SimpleNamespace(mapToGlobal=lambda position: position)
+        state = SimpleNamespace(
+            parts_outliner_tree=SimpleNamespace(
+                itemAt=lambda _position: item,
+                setCurrentItem=lambda _item: None,
+                viewport=lambda: viewport,
+            ),
+            _parts_outliner_selection_row_state_helper=lambda _item, **_kwargs: {
+                "row_kind": "source",
+                "source_indices": (1,),
+            },
+            _parts_outliner_set_source_selection=lambda *_args, **_kwargs: None,
+            _show_replacement_sources_context_menu_for_viewport=canonical_menu,
+            Qt=Qt,
+            QMenu=None,
+            original_part_clipboard_action_text={},
+        )
+        _parts_outliner_mapping_step_018(state)
+        state._show_parts_outliner_context_menu(point)
+    elif surface == "viewport":
+        state = SimpleNamespace(
+            _alignment_d3d11_preview_active=lambda: True,
+            _part_pick_checked=lambda: True,
+            _alignment_d3d11_source_indices_for_editor_id=lambda _editor_id: (1,),
+            _select_source_part_from_viewport=lambda *_args, **_kwargs: True,
+            _show_replacement_sources_context_menu_for_viewport=canonical_menu,
+            alignment_d3d11_preview_host=SimpleNamespace(
+                cursor=lambda: SimpleNamespace(pos=lambda: point),
+                mapToGlobal=lambda position: position,
+            ),
+            QPoint=QPoint,
+            QTimer=QTimer,
+        )
+        _source_tree_selection_step_011(state)
+        state._d3d11_source_part_context_requested(1, point.x(), point.y())
+    else:
+        builder = SimpleNamespace(_show_replacement_sources_context_menu_for_viewport=canonical_menu)
+        state = SimpleNamespace(
+            _embedded_builder_controller=lambda: object(),
+            embedded_workspace=object(),
+            _embedded_selection_for_part_context=lambda _controller, _part_index: object(),
+            active_builder=lambda: builder,
+        )
+        assert MeshEditorStateMixin._show_embedded_part_context_menu(state, 1, point)
+
+    app.processEvents()
+    assert results == [True]
+    assert calls == [("duplicate", (1,))]
+
+
+def test_resident_routing_waits_for_confirmation() -> None:
     root = Path(__file__).resolve().parents[1]
     outliner = (root / "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_parts_outliner_mapping_part_01.py").read_text(encoding="utf-8")
     mapping = (root / "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_parts_outliner_mapping_part_02.py").read_text(encoding="utf-8")
-    viewport = (root / "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_source_tree_selection_part_01.py").read_text(encoding="utf-8")
-    part_pick = (root / "cdmw/ui/mesh_editor/tab_state.py").read_text(encoding="utf-8")
     controls = (root / "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_selected_part_control_part_01.py").read_text(encoding="utf-8")
 
-    assert "_show_replacement_sources_context_menu_for_viewport" in outliner
-    assert "_show_replacement_sources_context_menu_for_viewport(source_index, global_pos)" in viewport
-    assert 'getattr(self.active_builder(), "_show_replacement_sources_context_menu_for_viewport", None)' in part_pick
     assert "resident source routing change awaits renderer/service confirmation" in outliner
     assert "resident source routing change awaits renderer/service confirmation" in mapping
     assert "if _state._resident_parts_session_active():\n            _state._clear_source_parts_apply_pending()" not in outliner
     assert "if _state._resident_parts_session_active():\n            _state._clear_source_parts_apply_pending()" not in mapping
     assert "control_state.has_source and not mesh_edit_active" in controls
     assert "Resident part reset is disabled until a native reset command is supported." in controls
+
+
+def test_confirmed_resident_delete_sync_does_not_create_false_apply_pending() -> None:
+    class _Edit:
+        def __init__(self) -> None:
+            self.value = "0, 1"
+
+        def setText(self, value: str) -> None:
+            self.value = value
+
+        def text(self) -> str:
+            return self.value
+
+        def setProperty(self, _name: str, _value: object) -> None:
+            pass
+
+    pending: list[str] = []
+    cleared: list[bool] = []
+    state = SimpleNamespace(
+        mapping_edits_by_target={2: _Edit()},
+        _active_mesh_edit_source_routing_mutation_blocked=lambda _action: False,
+        _push_geometry_undo_snapshot=lambda *_args, **_kwargs: None,
+        independent_output_source_indices={0, 1},
+        preview_only_source_indices=set(),
+        _mapping_source_indices_text_helper=lambda values: ", ".join(map(str, values)),
+        _sync_target_mapping_tree_item=lambda _target: None,
+        texture_overrides_dirty={"dirty": False},
+        mapping_edit_refresh_timer=SimpleNamespace(stop=lambda: None),
+        _refresh_source_assignment_columns=lambda: None,
+        _update_mapping_status=lambda: None,
+        selected_target_slot={"index": -1},
+        _target_mapping_selection_view_payload_helper=lambda **_kwargs: None,
+        _selection_view_update_kwargs_helper=lambda payload: payload,
+        _set_mesh_replacement_selection_view=lambda **_kwargs: None,
+        _update_selection_context=lambda: None,
+        _source_part_routing_preview_action_helper=lambda **_kwargs: {
+            "apply_pending": True,
+            "pending_reason": "routing removal changed",
+            "queue_preview": False,
+        },
+        _resident_parts_session_active=lambda: True,
+        _set_source_parts_apply_pending=pending.append,
+        _clear_source_parts_apply_pending=lambda: cleared.append(True),
+        _queue_static_preview_rebuild=lambda: None,
+    )
+    _parts_outliner_mapping_step_036(state)
+
+    state._set_mapping_indices(2, (0,), confirmed_resident_sync=True)
+    assert state.mapping_edits_by_target[2].text() == "0"
+    assert pending == []
+    assert cleared == [True]
+
+    state._set_mapping_indices(2, (0, 1))
+    assert pending == ["resident source routing change awaits renderer/service confirmation"]
+
+    delete_source = (
+        Path(__file__).resolve().parents[1]
+        / "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_source_part_mutation_part_01.py"
+    ).read_text(encoding="utf-8")
+    assert "confirmed_resident_sync=resident_state_only" in delete_source

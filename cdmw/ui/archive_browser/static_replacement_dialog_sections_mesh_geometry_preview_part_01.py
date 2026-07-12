@@ -3,6 +3,8 @@ from __future__ import annotations
 def _mesh_geometry_preview_step_001(_state):
     _state.CollapsibleSection = _state.context.get('CollapsibleSection')
     _state.Dict = _state.context.get('Dict')
+    _state.original_mesh_for_mapping = _state.context.get('original_mesh_for_mapping')
+    _state.preview_mode_combo = _state.context.get('preview_mode_combo')
     _state.MESH_EDIT_DELETE_MODE_OPTIONS = _state.context.get('MESH_EDIT_DELETE_MODE_OPTIONS')
     _state.MESH_EDIT_FALLOFF_OPTIONS = _state.context.get('MESH_EDIT_FALLOFF_OPTIONS')
     _state.MESH_EDIT_SCOPE_OPTIONS = _state.context.get('MESH_EDIT_SCOPE_OPTIONS')
@@ -33,6 +35,7 @@ def _mesh_geometry_preview_step_001(_state):
     _state._clear_part_selections_when_leaving_geometry = _state.context.get('_clear_part_selections_when_leaving_geometry')
     _state._current_complete_swap_material_profile_token = _state.context.get('_current_complete_swap_material_profile_token')
     _state._current_material_authority_preview_profile = _state.context.get('_current_material_authority_preview_profile')
+    _state._delete_selected_source_parts = _state.context.get('_delete_selected_source_parts')
     _state._enabled_renderable_source_indices = _state.context.get('_enabled_renderable_source_indices')
     _state._geometry_mapping_summary_html_helper = _state.context.get('_geometry_mapping_summary_html_helper')
     _state._handle_original_reference_texture_preview_error = _state.context.get('_handle_original_reference_texture_preview_error')
@@ -171,7 +174,7 @@ def _mesh_geometry_preview_step_004(_state):
         _state.button.setMinimumHeight(24)
         _state.button.setSizePolicy(_state.QSizePolicy.Expanding, _state.QSizePolicy.Fixed)
         _state.button.setToolTip(_state.tooltip)
-        _state.button.clicked.connect(lambda _checked=False, selected_tool=tool: _state.mesh_edit_tool_combo.setCurrentIndex(_state.max(0, _state.mesh_edit_tool_combo.findData(selected_tool))))
+        _state.button.clicked.connect(lambda _checked=False, selected_tool=_state.tool: _state.mesh_edit_tool_combo.setCurrentIndex(_state.max(0, _state.mesh_edit_tool_combo.findData(selected_tool))))
         _state.mesh_edit_tool_buttons[_state.tool] = _state.button
         _state.mesh_edit_tool_palette_layout.addWidget(_state.button)
     _state.mesh_edit_delete_mode_combo = _state.QComboBox()
@@ -414,12 +417,17 @@ def _mesh_geometry_preview_step_008(_state):
         _state.compact_mesh_edit_reset_scope_button.clicked.connect(lambda _checked=False: _state.mesh_edit_reset_part_button.click())
         _state.classic_mesh_edit_toolbar_layout.addWidget(_state.compact_mesh_edit_options_widget)
         _state.classic_mesh_edit_toolbar.setVisible(False)
-    _state.alignment_mesh_edit_callbacks = _state.create_alignment_mesh_edit_callbacks({**_state.context, **_state._factory_globals, **vars(_state), '_delete_selected_source_parts': lambda *args, **kwargs: _delete_selected_source_parts(*args, **kwargs)})
+    _state.alignment_mesh_edit_callbacks = _state.create_alignment_mesh_edit_callbacks({**_state.context, **_state._factory_globals, **vars(_state), '_delete_selected_source_parts': lambda *args, **kwargs: _state._delete_selected_source_parts(*args, **kwargs)})
     if _state.classic_mesh_edit_action_bar is not None:
         _state.classic_mesh_edit_action_bar.action_requested.connect(_state.alignment_mesh_edit_callbacks._mesh_editor_action_bar_action_requested)
     if _state.dialog is not None:
+        setattr(_state.dialog, '_mesh_editor_auto_dotnet_preview', True)
         setattr(_state.dialog, '_mesh_editor_action_bar_action_requested', _state.alignment_mesh_edit_callbacks._mesh_editor_action_bar_action_requested)
         setattr(_state.dialog, '_mesh_editor_embedded_controller', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_controller)
+        setattr(_state.dialog, '_mesh_editor_embedded_placement_state', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_placement_state)
+        setattr(_state.dialog, '_mesh_editor_embedded_reference_mesh', lambda: _state.original_mesh_for_mapping)
+        setattr(_state.dialog, '_mesh_editor_embedded_comparison_mode', lambda: str(_state.preview_mode_combo.currentData() or 'side_by_side'))
+        setattr(_state.dialog, '_mesh_editor_embedded_interaction_mode', lambda: 'mesh_edit' if _state.mesh_edit_enabled_checkbox.isChecked() else 'placement')
         setattr(_state.dialog, '_mesh_editor_embedded_apply_native_update', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_apply_native_update)
         setattr(_state.dialog, '_mesh_editor_embedded_finalize_dotnet_import', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_finalize_dotnet_import)
         setattr(_state.dialog, '_mesh_editor_embedded_run_part_action', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_run_part_action)
@@ -598,6 +606,9 @@ def _mesh_geometry_preview_step_012(_state):
     _state._refresh_geometry_summary = _state.alignment_preview_model_callbacks._refresh_geometry_summary
     _state._current_dialog_mappings_for_preview = _state.alignment_preview_model_callbacks._current_dialog_mappings_for_preview
     _state._preview_target_mesh_indices = _state.alignment_preview_model_callbacks._preview_target_mesh_indices
+    _state._preview_model_in_original_frame = _state.alignment_preview_model_callbacks._preview_model_in_original_frame
+    _state._source_preview_geometry_key = _state.alignment_preview_model_callbacks._source_preview_geometry_key
+    _state._mapped_source_indices = _state.alignment_preview_model_callbacks._mapped_source_indices
     _state._current_independent_parts = _state.alignment_preview_model_callbacks._current_independent_parts
     _state._current_static_alignment_transform = _state.alignment_preview_model_callbacks._current_static_alignment_transform
     _state._current_static_placement_snapshot = _state.alignment_preview_model_callbacks._current_static_placement_snapshot

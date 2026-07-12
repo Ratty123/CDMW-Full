@@ -35,7 +35,8 @@ def test_sparse_vertex_refresh_retains_topology_and_uploads_only_incident_ranges
     assert "ExpandModelBounds(changed)" in sparse_refresh
     expand_bounds = _method(topology, "private void ExpandModelBounds(", "private void RefreshModelBounds()")
     assert "_document.Bounds()" not in expand_bounds
-    assert "_center =" not in expand_bounds
+    assert "var viewCenter = _center;" in expand_bounds
+    assert "_center = viewCenter;" in expand_bounds
 
 
 def test_topology_refresh_rebuilds_buffers_but_camera_frame_does_not() -> None:
@@ -76,15 +77,16 @@ def test_draw_resources_and_renderer_metrics_are_cached_and_exposed() -> None:
 def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence() -> None:
     entry = _source("ProgramEntry.cs")
     soak = _source("HeadlessGpuSparseSoak.cs")
+    options = _source("HeadlessGpuSparseSoakOptions.cs")
     headless = _source("D3D11MaterialViewport.Headless.cs")
     metrics = _source("D3D11MaterialViewport.Metrics.cs")
 
     assert entry.index("HeadlessGpuSparseSoak.IsRequested(args)") < entry.index("LaunchOptions.Parse(args)")
     assert '"--headless-gpu-sparse-soak"' in entry
     assert '"cdmw_dotnet_gpu_sparse_soak_v1"' in soak
-    assert 'Integer(values, "gpu-soak-vertices", 1_000_000' in soak
-    assert 'Integer(values, "gpu-soak-updates", 1_000' in soak
-    assert 'TargetUpdatesPerSecond)\n' in soak
+    assert 'Integer(values, "gpu-soak-vertices", 1_000_000' in options
+    assert 'Integer(values, "gpu-soak-updates", 1_000' in options
+    assert 'TargetUpdatesPerSecond)\n' in options
     assert "BuildSyntheticDocument(options.VertexCount)" in soak
     assert "durations[update] = ApplySparseUpdate(" in soak
     assert "Hidden D3D11 final sparse frame failed" in soak

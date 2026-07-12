@@ -42,7 +42,6 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
     _set_replacement_preview_model = context['_set_replacement_preview_model']
     _set_texture_sets = context['_set_texture_sets']
     texture_uv_global_transform_state = context.get('texture_uv_global_transform_state')
-
     alignment_setup_failed = False
     alignment_setup_error = ""
     alignment_setup_traceback = ""
@@ -158,7 +157,6 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
                 modify_original_clone=modify_original_clone_mode,
                 defer_original_texture_preview=defer_original_texture_preview,
             )
-
         mapping_group = QWidget()
         mapping_table_action_control_text = _mapping_table_action_control_text_helper()
         mapping_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
@@ -171,7 +169,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         mapping_hint.setObjectName("HintLabel")
         mapping_hint.setToolTip(mapping_table_action_control_text["routing_hint_tooltip"])
 
-        alignment_source_parts_outliner_section = create_alignment_source_parts_outliner_section({**context, **globals(), **locals(), '_queue_part_transform_preview_update': (lambda *args, **kwargs: context['_queue_part_transform_preview_update'](*args, **kwargs))})
+        alignment_source_parts_outliner_section = create_alignment_source_parts_outliner_section({**context, **globals(), **locals(), 'selected_added_part_texture_row': (selected_added_part_texture_row := _selected_added_part_texture_row_initial_state_helper()), 'selected_texture_plan_source': (selected_texture_plan_source := _selected_texture_plan_source_initial_state_helper()), 'selected_texture_row': (selected_texture_row := _selected_texture_row_initial_state_helper()), '_queue_part_transform_preview_update': (lambda *args, **kwargs: context['_queue_part_transform_preview_update'](*args, **kwargs))})
         _add_dialog_supplemental_file = alignment_source_parts_outliner_section._add_dialog_supplemental_file
         _add_source_tree_item = alignment_source_parts_outliner_section._add_source_tree_item
         _alignment_part_clipboard_can_paste = alignment_source_parts_outliner_section._alignment_part_clipboard_can_paste
@@ -187,6 +185,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         _copy_original_part_payload = alignment_source_parts_outliner_section._copy_original_part_payload
         _copy_source_part_with_adjustment = alignment_source_parts_outliner_section._copy_source_part_with_adjustment
         _d3d11_source_part_selected = alignment_source_parts_outliner_section._d3d11_source_part_selected
+        _delete_selected_source_parts = alignment_source_parts_outliner_section._delete_selected_source_parts
         _finish_source_tree_population = alignment_source_parts_outliner_section._finish_source_tree_population
         _flush_source_role_overrides_for_export = alignment_source_parts_outliner_section._flush_source_role_overrides_for_export
         _load_part_glow_color_controls = alignment_source_parts_outliner_section._load_part_glow_color_controls
@@ -465,6 +464,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         })
         _copied_source_texture_slot_overrides = alignment_texture_material_section._copied_source_texture_slot_overrides
         _load_original_reference_texture_preview = alignment_texture_material_section._load_original_reference_texture_preview
+        _stop_original_reference_texture_worker = alignment_texture_material_section._stop_original_reference_texture_worker
         _save_texture_transform_controls = alignment_texture_material_section._save_texture_transform_controls
         binding = alignment_texture_material_section.binding
         rows = alignment_texture_material_section.rows

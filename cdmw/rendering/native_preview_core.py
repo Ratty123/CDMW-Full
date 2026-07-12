@@ -28,7 +28,7 @@ NATIVE_PREVIEW_CORE_BINARY_NAME = "cdmw-preview-core.exe" if os.name == "nt" els
 NATIVE_PREVIEW_CORE_BACKEND_ID = "cdmw_preview_core_0.1"
 NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS = 32
 NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES = 192 * 1024 * 1024
-NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES = 768 * 1024 * 1024
+NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES = 512 * 1024 * 1024
 NATIVE_PREVIEW_CORE_DDS_CACHE_MAX_BYTES = 96 * 1024 * 1024
 NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES = 64 * 1024 * 1024
 NATIVE_PREVIEW_CORE_MATERIAL_CONTRACT_SCHEMA_VERSION = 2
@@ -778,9 +778,8 @@ def run_native_preview_core_preview_job(
             status="missing",
             fallback_reason="cdmw-preview-core binary was not found",
         )
-
     job_root = Path(tempfile.mkdtemp(prefix="cdmw_preview_core_"))
-    output_root = Path(output_root) if output_root is not None else job_root / "package"
+    output_root = Path(output_root) if (external_output_root := output_root is not None) else job_root / "package"
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
     cache_prune_report = prune_native_preview_core_cache(
@@ -799,7 +798,6 @@ def run_native_preview_core_preview_job(
     job_path.write_text(json.dumps(job, separators=(",", ":")), encoding="utf-8")
     started = time.perf_counter()
     job_dispatched_to_service = False
-
     def mark_job_dispatched() -> None:
         nonlocal job_dispatched_to_service
         job_dispatched_to_service = True
@@ -895,14 +893,16 @@ def run_native_preview_core_preview_job(
     if status == "ok" and package_path:
         report.update(_repair_native_preview_core_manifest(package_path, render_settings))
     fallback_reason = str(report.get("fallback_reason") or report.get("message") or "").strip()
+    if external_output_root:  # The caller owns output_root; only this transient protocol root is disposable.
+        shutil.rmtree(job_root, ignore_errors=True)
     return NativePreviewCoreAttempt(
         status=status,
         package_path=package_path,
         fallback_reason=fallback_reason,
         diagnostics=dict(report),
         elapsed_ms=elapsed_ms,
-        report_path=str(report_path),
-        job_root_path=str(job_root),
+        report_path="" if external_output_root else str(report_path),
+        job_root_path="" if external_output_root else str(job_root),
     )
 
 

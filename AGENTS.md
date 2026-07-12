@@ -79,19 +79,16 @@ Before broad exploration, read:
 
 Use `docs/test-matrix.md`.
 
-## Mesh Editor validation
+## Workflow skills
 
-- For user-facing Mesh Editor edit proof, use the read-only real game archive
-  PAC smoke:
-  `.\scripts\codex_check.ps1 -Area mesh -GameRoot <Crimson-Desert-root>`.
-- That gate must use the embedded .NET/Vortice renderer
-  `d3d11_vortice_shader` with edit backend `cdmw_mesh_core_0.1`. Legacy
-  `real-archive-mesh-editor-d3d11-*` scenarios are compatibility-only.
-- `mesh-unit` must stay non-visual; do not add the D3D11 dev harness file to it.
-- `build_synthetic_mesh`, `harness_quad`, `full-suite-smoke`,
-  `native-mesh-editor-d3d11-delta`, `native-mesh-editor-d3d11-payloads`, and
-  `scripts/codex_check.ps1 -Area mesh-unit` are unit/protocol regression
-  coverage only, not game-mesh visual proof.
+- Use `$cdmw-validate-change` to select the smallest sufficient validation for
+  code changes.
+- Use `$cdmw-async-ui-work` when changing long-running UI, worker, thread,
+  subprocess, cancellation, stale-result, or shutdown behavior.
+- Use `$cdmw-safe-archive-mutation` for archive write, patch, backup, rollback,
+  or restore paths.
+- Use `$cdmw-verify-mesh-editor` for Mesh Editor validation. Visible and
+  real-game gates require explicit user authorization.
 
 ## Final response format
 

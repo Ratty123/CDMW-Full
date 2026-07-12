@@ -47,6 +47,7 @@ from cdmw.domain.mesh import (
     MeshExportValidationReport,
 )
 from cdmw.modding.mesh_importer import MeshRebuildReport
+from cdmw.modding.mesh_exporter import _build_roundtrip_manifest_payload
 from cdmw.modding.skeleton_parser import Bone, Skeleton
 from cdmw.models import (
     ArchiveEntry,
@@ -544,7 +545,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.mount_embedded_builder(builder)
 
         self.assertEqual(
-            ["Setup", "Parts & Routing", "Mesh Editing", "Diagnostics", "Advanced Mesh Data"],
+            ["Setup", "Parts & Routing", "Mesh Editing", "Diagnostics", "Edit Mesh"],
             [builder.tabs.tabText(index) for index in range(builder.tabs.count())],
         )
         self.assertEqual("Setup", builder.tabs.tabText(builder.tabs.currentIndex()))
@@ -3080,7 +3081,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertEqual(("Mesh Editor loaded standalone mesh: direct.pam", False), messages[-1])
             self.assertTrue(tab.action_bar.isEnabled())
             self.assertFalse(tab.modify_original_button.isEnabled())
-            self.assertTrue(tab.standalone_native_preview_button.isEnabled())
+            self.assertFalse(tab.standalone_native_preview_button.isEnabled())
+            self.assertTrue(tab.standalone_native_preview_button.isHidden())
         app.processEvents()
         tab.deleteLater()
 
@@ -3437,7 +3439,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 self.assertIn("async.pam", tab.target_label.text())
                 self.assertEqual(("Mesh Editor loaded standalone mesh: async.pam", False), messages[-1])
                 self.assertTrue(tab.action_bar.isEnabled())
-                self.assertTrue(tab.standalone_native_preview_button.isEnabled())
+                self.assertFalse(tab.standalone_native_preview_button.isEnabled())
+                self.assertTrue(tab.standalone_native_preview_button.isHidden())
         finally:
             tab.request_shutdown()
             app.processEvents()
@@ -3467,7 +3470,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_starts_and_stops_standalone_native_process(self) -> None:
+    def test_mesh_editor_tab_rejects_legacy_standalone_native_process(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorStandaloneNativeProcess"))
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-native-process", mode="edit")
@@ -3485,82 +3488,33 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             output_root = Path(temp_dir)
-            package_dir = output_root / "preview_package"
-            package_dir.mkdir()
-            status_file = package_dir / "host_status.json"
-            status_file.write_text("stale", encoding="utf-8")
             _FakeProcess.instances.clear()
             with (
-                patch("cdmw.ui.mesh_editor.tab.mesh_editor_write_native_preview_package", return_value=package_dir) as writer,
-                patch(
-                    "cdmw.ui.mesh_editor.tab.mesh_editor_native_preview_command",
-                    return_value=(
-                        "C:/native/cdmw-d3d11-preview.exe",
-                        ["--preview-package", str(package_dir), "--status-file", str(status_file)],
-                    ),
-                ) as command,
+                patch("cdmw.ui.mesh_editor.tab.mesh_editor_write_native_preview_package") as writer,
+                patch("cdmw.ui.mesh_editor.tab.mesh_editor_native_preview_command") as command,
                 patch("cdmw.ui.mesh_editor.tab.QProcess", _FakeProcess),
             ):
                 ok = tab.start_standalone_native_preview(output_root=output_root)
 
-                self.assertTrue(ok)
-                self.assertFalse(status_file.exists())
-                self.assertEqual(output_root, writer.call_args.kwargs["output_root"])
-                self.assertEqual(2, len(writer.call_args.kwargs["skeleton_overlay"].bones))
-                self.assertIs(tab.standalone_native_host_frame, command.call_args.kwargs["host_widget"])
-                process = _FakeProcess.instances[-1]
-                self.assertIs(process, tab.standalone_native_process)
-                self.assertEqual("C:/native/cdmw-d3d11-preview.exe", process.program)
-                self.assertIn("--preview-package", process.arguments)
-                self.assertEqual(str(Path(__file__).resolve().parents[1]), process.working_directory)
-                self.assertIs(tab.standalone_native_host_frame, tab.standalone_preview_stack.currentWidget())
-
-                tab.close_standalone_session()
-
-                self.assertTrue(process.terminated)
-                self.assertTrue(process.deleted)
+                self.assertFalse(ok)
+                writer.assert_not_called()
+                command.assert_not_called()
+                self.assertEqual([], _FakeProcess.instances)
                 self.assertIsNone(tab.standalone_native_process)
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_native_preview_button_starts_standalone_process(self) -> None:
+    def test_mesh_editor_tab_native_preview_button_stays_hidden_and_disabled(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorStandaloneNativeButton"))
         messages: list[tuple[str, bool]] = []
         tab.status_message_requested.connect(lambda message, error=False: messages.append((message, bool(error))))
         self.assertFalse(tab.standalone_native_preview_button.isEnabled())
+        self.assertTrue(tab.standalone_native_preview_button.isHidden())
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-native-button", mode="edit")
-        self.assertTrue(tab.standalone_native_preview_button.isEnabled())
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            package_dir = Path(temp_dir) / "preview_package"
-            package_dir.mkdir()
-            status_file = package_dir / "host_status.json"
-            status_file.write_text("stale", encoding="utf-8")
-            _FakeProcess.instances.clear()
-            with (
-                patch("cdmw.workers.mesh_editor_workers.write_isolated_d3d11_preview_package", return_value=package_dir) as writer,
-                patch(
-                    "cdmw.ui.mesh_editor.tab.mesh_editor_native_preview_command",
-                    return_value=(
-                        "C:/native/cdmw-d3d11-preview.exe",
-                        ["--preview-package", str(package_dir), "--status-file", str(status_file)],
-                    ),
-                ),
-                patch("cdmw.ui.mesh_editor.tab.QProcess", _FakeProcess),
-            ):
-                with patch(
-                    "cdmw.ui.mesh_editor.controller.MeshEditorController.native_preview_data",
-                    side_effect=AssertionError("native_preview_data stayed off UI button path"),
-                ):
-                    tab.standalone_native_preview_button.click()
-
-                self.assertTrue(_wait_for(app, lambda: bool(_FakeProcess.instances)))
-                self.assertIsNone(writer.call_args.kwargs["output_root"])
-                self.assertEqual("C:/native/cdmw-d3d11-preview.exe", _FakeProcess.instances[-1].program)
-                self.assertFalse(status_file.exists())
-                self.assertTrue(any(message.startswith("Native D3D11 preview started after package build") for message, error in messages if not error))
-                self.assertIs(tab.standalone_native_host_frame, tab.standalone_preview_stack.currentWidget())
+        self.assertFalse(tab.standalone_native_preview_button.isEnabled())
+        self.assertTrue(tab.standalone_native_preview_button.isHidden())
+        self.assertEqual([("Mesh Editor loaded standalone mesh: harness_quad.pac", False)], messages)
         tab.close_standalone_session()
         app.processEvents()
         tab.deleteLater()
@@ -3769,32 +3723,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 )
                 mtl_path.write_text("newmtl harness_material\nmap_Kd harness.dds\n", encoding="utf-8")
                 sidecar_path.write_text(
-                    json.dumps(
-                        {
-                            "format": "mesh_roundtrip_manifest_v2",
-                            "schema_version": 1,
-                            "source_path": "tools/harness_quad.pac",
-                            "source_format": "pac",
-                            "source_asset_hash": source_hash,
-                            "source_asset_size": len(source_data),
-                            "allowed_edit_operations": [
-                                "replace_positions_same_count",
-                                "replace_normals_same_count",
-                                "replace_uv0_same_count",
-                            ],
-                            "submeshes": [
-                                {
-                                    "name": "harness_quad",
-                                    "stable_id": "lod0_submesh0",
-                                    "material": "harness_material",
-                                    "texture": "harness.dds",
-                                    "original_vertex_count": 4,
-                                    "original_index_count": 6,
-                                    "source_vertex_map": [0, 1, 2, 3],
-                                }
-                            ],
-                        }
-                    ),
+                    json.dumps(_build_roundtrip_manifest_payload(_mesh, str(obj_path), companion_path=str(mtl_path))),
                     encoding="utf-8",
                 )
                 return [str(obj_path), str(mtl_path), str(sidecar_path)]
@@ -4005,7 +3934,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertGreater(resident_revision, 0)
         self.assertEqual([], builder.finalized_dotnet_imports)
         self.assertEqual("failed", tab.standalone_dotnet_embedded_state)
-        self.assertEqual("mesh_edit_dotnet_fallback", fallbacks[0][0])
+        self.assertEqual("mesh_edit_dotnet_failed", fallbacks[0][0])
         self.assertIn("exited unexpectedly", fallbacks[0][1])
         self.assertFalse(getattr(builder, "_mesh_editor_embedded_dotnet_active", True))
         app.processEvents()

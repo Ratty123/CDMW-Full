@@ -158,6 +158,12 @@ def _validate_scenario(row: ScenarioMetadata) -> None:
         raise ValueError(f"Legacy/checker Mesh Editor harness must be compatibility-only: {row.name}")
     if row.compatibility_only and (row.headless or not row.visual or row.normal_qa):
         raise ValueError(f"Compatibility-only Mesh Editor harness must be opt-in visual: {row.name}")
+    production_visual = row.visual and not row.compatibility_only
+    if production_visual and row.scenario_role != "production_visual_proof":
+        raise ValueError(
+            "Every non-compatibility Mesh Editor visual harness must use the canonical "
+            f"production .NET/Vortice proof role: {row.name}"
+        )
     if row.scenario_role == "production_visual_proof":
         if row.name != _PRODUCTION_VISUAL_SCENARIO:
             raise ValueError(f"Unexpected production Mesh Editor visual proof: {row.name}")

@@ -221,10 +221,11 @@ _TEXTURE_SUFFIXES: tuple[tuple[str, str, str], ...] = (
 
 
 def group_replacement_texture_sets(
-    texture_files: Sequence[Path],
+    texture_files: Sequence[Path] | None,
     *,
     obj_mesh: Optional[ParsedMesh] = None,
 ) -> dict[str, ReplacementTextureSet]:
+    source_texture_files = tuple(texture_files or ())
     source_submeshes = list(obj_mesh.submeshes if obj_mesh is not None else [])
     known_materials = {
         name
@@ -237,7 +238,7 @@ def group_replacement_texture_sets(
     }
     default_material = _default_texture_material_name(source_submeshes, known_materials)
     grouped: dict[str, ReplacementTextureSet] = {}
-    for raw_path in texture_files:
+    for raw_path in source_texture_files:
         path = raw_path.expanduser()
         if not path.is_absolute():
             path = Path.cwd() / path
@@ -257,7 +258,7 @@ def group_replacement_texture_sets(
                 normal_space=normal_space,
                 source_authority="filename",
             )
-    _attach_source_texture_reference_base_slots(grouped, texture_files, source_submeshes)
+    _attach_source_texture_reference_base_slots(grouped, source_texture_files, source_submeshes)
     _attach_source_material_factor_slots(grouped, source_submeshes)
     return grouped
 

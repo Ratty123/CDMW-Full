@@ -123,6 +123,7 @@ def _selected_part_control_step_002(_state):
     _state.source_items_by_index = _state.context.get('source_items_by_index')
     _state.source_part_adjustments = _state.context.get('source_part_adjustments')
     _state.source_part_inspector_control_text = _state.context.get('source_part_inspector_control_text')
+    _state.source_part_transform_control_text = _state.context.get('source_part_transform_control_text')
     _state.source_role_overrides = _state.context.get('source_role_overrides')
     _state.source_tree = _state.context.get('source_tree')
     _state.source_tree_item_update_guard = _state.context.get('source_tree_item_update_guard')
@@ -385,7 +386,7 @@ def _selected_part_control_step_016(_state):
                     'Resident part reset is disabled until a native reset command is supported.'
                 )
             else:
-                _state.reset_part_button.setToolTip(_state.source_part_inspector_control_text['reset_part_tooltip'])
+                _state.reset_part_button.setToolTip(_state.source_part_transform_control_text['reset_part_tooltip'])
             _state.fit_part_button.setEnabled(control_state.fit_part_enabled)
             _state.duplicate_part_button.setEnabled(control_state.has_source)
             _state.mirror_duplicate_part_button.setEnabled(control_state.has_source)

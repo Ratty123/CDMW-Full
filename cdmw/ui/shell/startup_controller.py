@@ -312,8 +312,6 @@ class StartupPromptMixin:
             force_refresh=not self._preference_bool("prefer_archive_cache_on_startup", True),
             activate_archive_tab=False,
         )
-        if bool(getattr(self, "_startup_archive_path_prompt_accepted", False)):
-            self._release_startup_splash()
 
     def _load_game_executable_fingerprints(self) -> Dict[str, Dict[str, object]]:
         raw_value = self.settings.value("archive/game_executable_fingerprints", "{}")

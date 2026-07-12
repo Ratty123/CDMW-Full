@@ -543,6 +543,22 @@ class ModelCatalogueTests(unittest.TestCase):
 
             self.assertEqual("clean", (destination / "scene" / "model.gltf").read_text(encoding="utf-8"))
 
+    def test_safe_extract_zip_reuses_verified_complete_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive = root / "model.zip"
+            destination = root / "out"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("scene/model.gltf", "clean")
+                zip_file.writestr("scene/model.bin", b"mesh data")
+
+            safe_extract_zip(archive, destination)
+            with mock.patch("cdmw.core.model_catalogue.atomic_publish_directory") as publish:
+                safe_extract_zip(archive, destination)
+
+            publish.assert_not_called()
+            self.assertEqual("clean", (destination / "scene" / "model.gltf").read_text(encoding="utf-8"))
+
     def test_safe_extract_zip_enforces_member_and_expanded_size_limits(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from PySide6.QtCore import QRectF, Qt, QThread, QTimer
+from PySide6.QtCore import QObject, QRectF, Qt, QThread, QTimer, Slot
 from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 
 from cdmw.domain.archives.format import normalize_archive_extension_filter
@@ -18,6 +18,42 @@ from cdmw.workers.archive_workers import ArchiveItemIconWarmupWorker
 class VisibleIconWarmupRequest:
     first_row: int
     last_row: int
+
+
+class _ArchiveIconWarmupUiReceiver(QObject):
+    """Keep icon-worker completion and QThread ownership on the UI thread."""
+
+    def __init__(self, window: object, generation: int, kind: str, owner_thread: QThread) -> None:
+        super().__init__(window)  # type: ignore[arg-type]
+        self._window = window
+        self._generation = int(generation)
+        self._kind = str(kind)
+        self._owner_thread: QThread | None = owner_thread
+
+    @Slot()
+    def handle_thread_finished(self) -> None:
+        owner_thread = self._owner_thread
+        if owner_thread is not None:
+            try:
+                if not owner_thread.wait(0):
+                    QTimer.singleShot(1, self.handle_thread_finished)
+                    return
+            except RuntimeError:
+                pass
+        self._owner_thread = None
+        if self._kind == "priority":
+            self._window._cleanup_archive_item_icon_priority_refs(self._generation, owner_thread)
+        else:
+            self._window._cleanup_archive_item_icon_warmup_refs(self._generation, owner_thread)
+        receiver_attr = f"archive_item_icon_{self._kind}_ui_receiver"
+        if getattr(self._window, receiver_attr, None) is self:
+            setattr(self._window, receiver_attr, None)
+        if owner_thread is not None:
+            try:
+                owner_thread.deleteLater()
+            except RuntimeError:
+                pass
+        self.deleteLater()
 
 
 class ArchiveIconPipelineMixin:
@@ -307,7 +343,8 @@ class ArchiveIconPipelineMixin:
             return
         if self._archive_item_icon_lookup_index_missing():
             self.archive_item_icon_preload_pending_after_ready = bool(self.archive_item_asset_catalog)
-            self._ensure_archive_basic_index_worker_started()
+            # Background icon warming must not allocate the full archive path
+            # index. User-visible icon requests already start it on demand.
             return
         self.archive_item_icon_preload_pending_after_ready = False
         self.archive_item_icon_preload_timer.stop()
@@ -493,15 +530,17 @@ class ArchiveIconPipelineMixin:
             max_dimension=120,
         )
         thread = QThread(self)
+        thread.setObjectName("archive_item_icon_priority")
+        receiver = _ArchiveIconWarmupUiReceiver(self, generation, "priority", thread)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.icon_prepared.connect(self._handle_archive_item_icon_prepared)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(lambda generation=generation: self._cleanup_archive_item_icon_priority_refs(generation))
+        thread.finished.connect(receiver.handle_thread_finished, Qt.QueuedConnection)
         self.archive_item_icon_priority_thread = thread
         self.archive_item_icon_priority_worker = worker
+        self.archive_item_icon_priority_ui_receiver = receiver
         try:
             thread.start(QThread.LowPriority)
         except Exception:
@@ -547,15 +586,17 @@ class ArchiveIconPipelineMixin:
             max_dimension=120,
         )
         thread = QThread(self)
+        thread.setObjectName("archive_item_icon_warmup")
+        receiver = _ArchiveIconWarmupUiReceiver(self, generation, "warmup", thread)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.icon_prepared.connect(self._handle_archive_item_icon_prepared)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(lambda generation=generation: self._cleanup_archive_item_icon_warmup_refs(generation))
+        thread.finished.connect(receiver.handle_thread_finished, Qt.QueuedConnection)
         self.archive_item_icon_warmup_thread = thread
         self.archive_item_icon_warmup_worker = worker
+        self.archive_item_icon_warmup_ui_receiver = receiver
         try:
             thread.start(QThread.LowPriority)
         except Exception:
@@ -610,7 +651,13 @@ class ArchiveIconPipelineMixin:
             except Exception:
                 pass
 
-    def _cleanup_archive_item_icon_warmup_refs(self, generation: int) -> None:
+    def _cleanup_archive_item_icon_warmup_refs(
+        self,
+        generation: int,
+        owner_thread: object | None = None,
+    ) -> None:
+        if owner_thread is not None and self.archive_item_icon_warmup_thread is not owner_thread:
+            return
         self.archive_item_icon_warmup_thread = None
         self.archive_item_icon_warmup_worker = None
         self.archive_item_icon_warmup_user_visible = False
@@ -618,7 +665,13 @@ class ArchiveIconPipelineMixin:
             if self.archive_item_icon_preload_queue and not self._shutting_down:
                 self.archive_item_icon_preload_timer.start(40)
 
-    def _cleanup_archive_item_icon_priority_refs(self, generation: int) -> None:
+    def _cleanup_archive_item_icon_priority_refs(
+        self,
+        generation: int,
+        owner_thread: object | None = None,
+    ) -> None:
+        if owner_thread is not None and self.archive_item_icon_priority_thread is not owner_thread:
+            return
         self.archive_item_icon_priority_thread = None
         self.archive_item_icon_priority_worker = None
         if int(generation) == int(getattr(self, "archive_item_icon_warmup_generation", -1)):

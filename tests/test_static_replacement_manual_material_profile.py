@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from unittest.mock import patch
+
+from cdmw.ui.archive_browser.static_replacement_dialog_manual_profile_callbacks import (
+    _changed_profile_keys,
+    _refresh_preview_for_session,
+)
 
 from cdmw.ui.archive_browser.static_replacement_manual_material_profile import (
     MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_KEYS,
@@ -269,6 +275,33 @@ def test_resident_resource_controls_enable_only_with_live_resource_channels() ->
     )
     assert unavailable["emissive_mode"]["enabled"] is False
     assert "material-resource channel" in unavailable["emissive_mode"]["tooltip"]
+
+
+def test_manual_profile_live_refresh_routes_only_changed_resource_controls() -> None:
+    assert _changed_profile_keys(
+        {"roughness_scale": 1.0, "ao_default": 255, "emissive_mode": "disabled"},
+        {"roughness_scale": 0.8, "ao_default": 128, "emissive_mode": "intensity"},
+    ) == ("roughness_scale", "ao_default", "emissive_mode")
+    assert material_authority_resource_channels(("roughness_scale",)) == ()
+    assert material_authority_resource_channels(("ao_default",)) == ("material_mask",)
+    assert material_authority_resource_channels(("emissive_mode",)) == ("emissive",)
+
+    resident_calls: list[tuple[object, ...]] = []
+    package_calls: list[bool] = []
+    with patch(
+        "cdmw.ui.archive_browser.static_replacement_dialog_manual_profile_callbacks.resident_material_parameters_available",
+        return_value=True,
+    ):
+        _refresh_preview_for_session(
+            object(),
+            True,
+            lambda *, resource_keys: resident_calls.append(tuple(resource_keys)),
+            lambda: package_calls.append(True),
+            ("ao_default",),
+        )
+
+    assert resident_calls == [("ao_default",)]
+    assert package_calls == []
 
 
 def test_manual_material_profile_panel_dirty_and_token_state() -> None:

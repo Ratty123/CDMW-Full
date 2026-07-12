@@ -1,0 +1,4 @@
+interface:
+  display_name: "CDMW Async UI Work"
+  short_description: "Build safe cancellable Qt work"
+  default_prompt: "Use $cdmw-async-ui-work to implement this long-running UI workflow safely."

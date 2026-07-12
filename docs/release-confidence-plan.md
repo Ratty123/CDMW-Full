@@ -1,6 +1,6 @@
 # Release Confidence Plan
 
-Last reviewed: 2026-07-11
+Last reviewed: 2026-07-12
 
 ## Goal
 
@@ -47,6 +47,52 @@ keeps core user workflows working behind stable facades.
 - Remaining failures, if any, are classified with owner, command, and reason.
 
 ## Latest Validation
+
+2026-07-12:
+
+- Mesh selection and harness-truth fixes passed the final canonical sequence.
+  `mesh-unit` reported 680 passed; full headless QA reported 5,169 passed,
+  5 skipped, and 2 intentional visual/real-game deselections. The .NET Release
+  build completed with zero warnings/errors, and size ratchets pass with
+  `real_dotnet.py` reduced to 716 lines behind the 143-line physical-input owner.
+- The explicit nude-PAC proof passed all 70 gates through renderer
+  `d3d11_vortice_shader` and edit backend `cdmw_mesh_core_0.1`. It bound three
+  real archive textures, proved foreground-visible renderer PID ownership for
+  every capture/input, exercised textured/untextured-face/vertex views, delivered
+  40 physical drag updates, completed paint/assignment/UV/topology/undo/export/
+  readback, proved initial/no-part and face-without-part selection, recorded
+  0.6332 ms handler p95 and 50.06 ms maximum heartbeat gap, and preserved every
+  PAMT/PAZ hash. Evidence:
+  `%TEMP%\cdmw-real-archive-mesh-editor-dotnet-fe7c05b56b0c41949d6d011561ec0140\evidence_report.json`.
+- Release onedir packaging passed with 471 files/447,385,055 bytes. The EXE
+  SHA-256 is `D1F426BF80AE74EFA28A521E13FE19E09BC13E5DE226CD0DED5CBB585641F643`;
+  the bundled .NET helper SHA-256 is
+  `203D9822D54861910D1134C4D5F629D0738ADC5F2446C82AC3C3C4B2E6D3C542`.
+  Packaged and installed startup reached `post_construction`; installed hidden
+  Mesh Editor lazy-target smoke passed. Against the installed build and actual
+  1,674,731-entry archive cache, Archive Browser reached ready in 2.529 s, then
+  canonicalized `All files.pac`, searched `Nude`, returned 75 results in 1.157 s,
+  and closed cleanly. Installed real-PAC UI verification proved no initial part
+  selection, vertex/face selection without a Parts-row selection, Clear
+  Selection, and blank-list clearing of part highlight; shutdown was clean and
+  all source archive hashes remained unchanged.
+- Full resumable corpora completed. The external catalogue classified all 800
+  models and all 418 ZIP members (`corpus_ok=true`, zero unclassified). The
+  archive-backed PAC_XML audit classified all 12,886 entries, reported zero
+  read/parse errors or crashes, preserved every source archive fingerprint, and
+  finished with `ok=true`. Evidence remains under `%TEMP%` as
+  `cdmw-external-model-audit-resident-goal.json` and
+  `cdmw-pac-xml-audit-resident-goal.{json,csv}`.
+- The latest recorded hidden .NET soak covered one million vertices and 1,000
+  sparse updates at 59.96 Hz, 0.2024 ms handler p95, and 0.16% post-warmup RSS
+  growth, with one initial full build and passing tail-shrink/material-lineage
+  proof.
+- The Phase 6 startup benchmark passed against
+  `docs/reference/app-startup-benchmark-phase5.json`: public import p95 was
+  197.077 ms with no forbidden heavy modules, first-window p95 was 1746.569 ms
+  (31.258% better than baseline), first-tab p95 was 233.923 ms, and helper-ready
+  p95 was 517.075 ms. Result:
+  `docs/reference/app-startup-benchmark-phase6.json`.
 
 2026-07-11:
 

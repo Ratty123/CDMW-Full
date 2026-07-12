@@ -47,6 +47,19 @@ from cdmw.services.workspace_layout import workspace_paths
 from cdmw.workers.directory_scan_workers import DirectoryScanRequest, scan_directory_files
 
 
+def _modify_original_workspace_mode(
+    owner,
+    selection: ModifyOriginalWorkflowSelection,
+) -> Optional[tuple[bool, bool, bool]]:
+    create_workspace = bool(selection.create_workspace)
+    include_family = bool(selection.include_family_files)
+    open_after = bool(create_workspace and selection.open_workspace_after_create)
+    if include_family and create_workspace and owner._archive_lookup_indexes_snapshot() is None:
+        owner.set_status_message("Archive path lookup is warming; retry Modify Original when indexing finishes.")
+        return None
+    return create_workspace, include_family, open_after
+
+
 class ArchiveMeshModifyOriginalMixin:
     """Modify Original workspace and in-app clone workflow."""
     def _prompt_archive_modify_original_workspace_options(
@@ -392,9 +405,10 @@ class ArchiveMeshModifyOriginalMixin:
         selection = self._prompt_archive_modify_original_workspace_options(entry)
         if selection is None:
             return
-        create_workspace = bool(selection.create_workspace)
-        include_family = bool(selection.include_family_files)
-        open_after = bool(create_workspace and selection.open_workspace_after_create)
+        workspace_mode = _modify_original_workspace_mode(self, selection)
+        if workspace_mode is None:
+            return
+        create_workspace, include_family, open_after = workspace_mode
         workspace_name = self._archive_modify_original_workspace_name(entry)
         cleanup_stale_sessions = False
         if create_workspace:
@@ -422,9 +436,7 @@ class ArchiveMeshModifyOriginalMixin:
             entry,
         )
         current_preview_result = getattr(self, "current_archive_preview_result", None) if preview_matches_entry else None
-        cached_texture_references = tuple(
-            getattr(current_preview_result, "model_texture_references", ()) or ()
-        )
+        cached_texture_references = tuple(getattr(current_preview_result, "model_texture_references", ()) or ())
         if not cached_texture_references and preview_matches_entry:
             cached_texture_references = tuple(getattr(self, "current_archive_model_texture_references", ()) or ())
         cached_family_graph = getattr(current_preview_result, "asset_family_graph", None) if preview_matches_entry else None

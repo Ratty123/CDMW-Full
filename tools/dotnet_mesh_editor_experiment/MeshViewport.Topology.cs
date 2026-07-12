@@ -20,7 +20,9 @@ internal sealed partial class MeshViewport
         IReadOnlyDictionary<int, int> materialSources,
         bool replaceAll)
     {
+        var viewCenter = _center;
         RefreshModelBounds();
+        _center = viewCenter;
         RebuildEdgeTopology();
         RebuildPartAdjacency();
         _d3d11Viewport?.RefreshTopologyGeometry(affectedSubmeshes, materialSources, replaceAll);
@@ -107,8 +109,10 @@ internal sealed partial class MeshViewport
 
     private void ExpandModelBounds(IReadOnlyDictionary<int, IReadOnlyCollection<int>> changedVertices)
     {
+        var viewCenter = _center;
         SparseBounds.Update(changedVertices);
         ApplySparseBounds();
+        _center = viewCenter;
     }
 
     private void RefreshModelBounds()
@@ -154,15 +158,15 @@ internal sealed partial class MeshViewport
     private void RebuildPartAdjacency()
     {
         _partAdjacency.Clear();
-        for (var index = 0; index < _document.Submeshes.Count; index++)
+        for (var index = 0; index < _scene.EditableSubmeshCount; index++)
         {
             _partAdjacency[index] = new HashSet<int>();
         }
         var size = Math.Max(_bounds.Max.X - _bounds.Min.X, Math.Max(_bounds.Max.Y - _bounds.Min.Y, _bounds.Max.Z - _bounds.Min.Z));
         var tolerance = Math.Max(0.0001f, size * 0.001f);
-        for (var left = 0; left < _document.Submeshes.Count; left++)
+        for (var left = 0; left < _scene.EditableSubmeshCount; left++)
         {
-            for (var right = left + 1; right < _document.Submeshes.Count; right++)
+            for (var right = left + 1; right < _scene.EditableSubmeshCount; right++)
             {
                 if (SubmeshesAdjacent(left, right, tolerance))
                 {
@@ -252,6 +256,7 @@ internal sealed partial class MeshViewport
         {
             _selectedSources.Add(source);
         }
+        SyncSelectedPartFocus();
         UpdateGpuViewport();
     }
 }

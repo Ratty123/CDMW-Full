@@ -227,6 +227,11 @@ class ArchiveAssetFamilyDialogMixin:
         if not isinstance(source_entry, ArchiveEntry):
             self.set_status_message("Select an archive file first.", error=True)
             return
+        if self._archive_lookup_indexes_snapshot() is None:
+            self.set_status_message(
+                "Archive path lookup is warming; retry Asset Family when indexing finishes."
+            )
+            return
         graph, _references = self._archive_asset_family_graph_for_entry(source_entry)
         if not tuple(getattr(graph, "member_rows", ()) or ()):
             self.set_status_message("No asset family evidence is available for this file yet.", error=True)

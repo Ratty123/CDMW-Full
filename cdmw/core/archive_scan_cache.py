@@ -11,7 +11,7 @@ import time
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 try:
     import lz4.block as lz4_block
@@ -35,10 +35,10 @@ def parse_archive_pamt(path: Path) -> List[ArchiveEntry]:
     return owner(path)
 
 
-def scan_archive_entries(package_root: Path) -> List[ArchiveEntry]:
+def scan_archive_entries(package_root: Path, **options: Any) -> List[ArchiveEntry]:
     from cdmw.core.archive_format import scan_archive_entries as owner
 
-    return owner(package_root)
+    return owner(package_root, **options)
 
 
 _ARCHIVE_SCAN_CACHE_MAGIC = b"CTFARCH1"

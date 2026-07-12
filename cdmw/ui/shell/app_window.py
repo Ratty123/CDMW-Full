@@ -7,7 +7,7 @@ import sys
 import threading
 import time
 import traceback
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -54,6 +54,76 @@ from cdmw.ui.app_icon import load_app_icon
 
 
 from cdmw.constants import APP_TITLE, APP_VERSION
+
+
+def _dispatch_shell_virtual(window: object, name: str, event: object) -> None:
+    controller = window.__dict__.get("_shell_feature_controller")
+    if controller is None:
+        from PySide6.QtWidgets import QMainWindow
+
+        getattr(QMainWindow, name)(window, event)
+        return
+    controller.resolve(name)(event)
+
+
+def _shell_close_event(window: object, event: object) -> None:
+    _dispatch_shell_virtual(window, "closeEvent", event)
+
+
+def _shell_resize_event(window: object, event: object) -> None:
+    _dispatch_shell_virtual(window, "resizeEvent", event)
+
+
+def _shell_change_event(window: object, event: object) -> None:
+    _dispatch_shell_virtual(window, "changeEvent", event)
+
+
+def _shutdown_qt(window: object, app: object) -> bool:
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtWidgets import QApplication
+    from shiboken6 import isValid as qt_object_is_valid
+
+    try:
+        if qt_object_is_valid(window):
+            window.deleteLater()
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        if qt_object_is_valid(window):
+            return False
+        if QApplication.instance() is not None:
+            app.shutdown()
+    except RuntimeError:
+        return False
+    return QApplication.instance() is None and not qt_object_is_valid(app)
+
+
+def _install_exception_hooks(
+    write_crash_report: Callable[..., None],
+    default_sys_hook: Callable[..., object],
+    default_thread_hook: Callable[..., object] | None,
+    default_unraisable_hook: Callable[..., object] | None,
+) -> None:
+    def _handle_uncaught_exception(exc_type, exc_value, exc_traceback) -> None:
+        kind, title, formatted = _uncaught_exception_report(exc_type, exc_value, exc_traceback)
+        write_crash_report(kind, title, formatted, force=True)
+        default_sys_hook(exc_type, exc_value, exc_traceback)
+
+    def _handle_thread_exception(args) -> None:
+        kind, title, formatted = _thread_exception_report(args)
+        write_crash_report(kind, title, formatted, force=True)
+        if default_thread_hook is not None:
+            default_thread_hook(args)
+
+    def _handle_unraisable_exception(args) -> None:
+        kind, title, formatted = _unraisable_exception_report(args)
+        write_crash_report(kind, title, formatted, force=True)
+        if default_unraisable_hook is not None:
+            default_unraisable_hook(args)
+
+    sys.excepthook = _handle_uncaught_exception
+    if default_thread_hook is not None:
+        threading.excepthook = _handle_thread_exception
+    if default_unraisable_hook is not None:
+        sys.unraisablehook = _handle_unraisable_exception
 
 
 
@@ -324,28 +394,12 @@ def run_gui() -> int:
             )
             _fault_log_handle = None
 
-    def _handle_uncaught_exception(exc_type, exc_value, exc_traceback) -> None:
-        kind, title, formatted = _uncaught_exception_report(exc_type, exc_value, exc_traceback)
-        _write_crash_report(kind, title, formatted, force=True)
-        _default_sys_excepthook(exc_type, exc_value, exc_traceback)
-
-    def _handle_thread_exception(args) -> None:
-        kind, title, formatted = _thread_exception_report(args)
-        _write_crash_report(kind, title, formatted, force=True)
-        if _default_threading_excepthook is not None:
-            _default_threading_excepthook(args)
-
-    def _handle_unraisable_exception(args) -> None:
-        kind, title, formatted = _unraisable_exception_report(args)
-        _write_crash_report(kind, title, formatted, force=True)
-        if _default_unraisablehook is not None:
-            _default_unraisablehook(args)
-
-    sys.excepthook = _handle_uncaught_exception
-    if _default_threading_excepthook is not None:
-        threading.excepthook = _handle_thread_exception
-    if _default_unraisablehook is not None:
-        sys.unraisablehook = _handle_unraisable_exception
+    _install_exception_hooks(
+        _write_crash_report,
+        _default_sys_excepthook,
+        _default_threading_excepthook,
+        _default_unraisablehook,
+    )
     _enable_native_fault_log()
     _previous_session_unclean = _check_previous_unclean_exit()
     _record_runtime_event(
@@ -409,6 +463,10 @@ def run_gui() -> int:
                 previous_session_unclean=bool(_previous_session_unclean),
             )
 
+        closeEvent = _shell_close_event
+        resizeEvent = _shell_resize_event
+        changeEvent = _shell_change_event
+
         def _initialize_existing_instance_activation_polling(self) -> None:
             self._activation_controller.initialize_polling()
 
@@ -428,6 +486,7 @@ def run_gui() -> int:
         MainWindow,
         controller_attribute="_shell_feature_controller",
         providers=SHELL_FEATURE_PROVIDERS,
+        bridged_members=("changeEvent", "closeEvent", "resizeEvent"),
     )
     install_window_feature_controller(
         MainWindow,
@@ -490,12 +549,21 @@ def run_gui() -> int:
             _record_runtime_event,
         )
         if finish_gui_startup_smoke_if_requested(window, app):
-            normal_exit = True
-            exit_code = 0
-            return 0
+            normal_exit = _shutdown_qt(window, app)
+            exit_code = 0 if normal_exit else 1
+            return exit_code
         queue_startup_archive_autoload(window, startup_splash, _write_heartbeat)
         exit_code = run_shell_event_loop(app, _write_crash_report)
-        normal_exit = True
+        teardown_ok = _shutdown_qt(window, app)
+        normal_exit = exit_code == 0 and teardown_ok
+        if not teardown_ok:
+            _write_crash_report(
+                "gui_teardown_failure",
+                "Qt application teardown did not complete",
+                "MainWindow or QApplication remained valid after deferred deletion and shutdown.",
+                force=True,
+            )
+            exit_code = exit_code or 1
         return exit_code
     except Exception:
         formatted = traceback.format_exc()

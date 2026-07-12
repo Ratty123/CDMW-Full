@@ -98,6 +98,20 @@ from cdmw.ui.mesh_editor.workspace_views import (
     _constraint_solver_readiness_text,
 )
 
+class _PartTreeWidget(QTreeWidget):
+    blank_area_clicked = Signal()
+
+    def mousePressEvent(self, event: object) -> None:  # type: ignore[override]
+        position = event.position().toPoint()  # type: ignore[attr-defined]
+        if event.button() == Qt.MouseButton.LeftButton and self.itemAt(position) is None:  # type: ignore[attr-defined]
+            self.clearSelection()
+            self.setCurrentItem(None)
+            self.blank_area_clicked.emit()
+            event.accept()  # type: ignore[attr-defined]
+            return
+        super().mousePressEvent(event)  # type: ignore[arg-type]
+
+
 class WorkspaceInteractionMixin:
     def _build_status_strip(self) -> QWidget:
         frame = QFrame(self)
@@ -131,6 +145,14 @@ class WorkspaceInteractionMixin:
         tree.setObjectName(object_name)
         tree.setHeaderLabels(tuple(headers))
         tree.setRootIsDecorated(False)
+        return tree
+
+    def _part_tree(self, headers: Sequence[str], object_name: str) -> QTreeWidget:
+        tree = _PartTreeWidget(self)
+        tree.setObjectName(object_name)
+        tree.setHeaderLabels(tuple(headers))
+        tree.setRootIsDecorated(False)
+        tree.blank_area_clicked.connect(lambda: self.part_selection_requested.emit(-1, "clear"))
         return tree
 
     def _configure_part_tree(self, tree: QTreeWidget) -> None:

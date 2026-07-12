@@ -13,8 +13,10 @@ from PIL import Image
 from PySide6.QtWidgets import QApplication
 
 from cdmw.core.recolor_variants import analyze_recolor_variant_package
+from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.models import RunCancelled
-from cdmw.modding.scene_importer import import_scene_mesh_with_report
+from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.modding.scene_importer import SceneImportResult, import_scene_mesh_with_report
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.model_library.tab import ModelLibraryTab
 from cdmw.ui.recolor_variants_tab import RecolorVariantsTab
@@ -261,6 +263,65 @@ def test_shell_model_import_handler_defers_file_io_and_scene_import() -> None:
     assert elapsed_ms < 50.0
     assert captured["task_accepts_cancel"] is True
     assert callable(captured["task"])
+
+
+def test_shell_model_import_completion_dispatches_async_setup_before_opening_editor() -> None:
+    utility_task: dict[str, object] = {}
+    preflight: dict[str, object] = {}
+    patch_calls: list[tuple[object, MeshImportSetupSelection]] = []
+    entry = object()
+
+    class Owner:
+        _import_local_model_to_current_archive = ModelLibraryShellBridgeMixin._import_local_model_to_current_archive
+
+        def _current_archive_mesh_entry(self) -> object:
+            return entry
+
+        def _background_task_active(self) -> bool:
+            return False
+
+        @staticmethod
+        def _archive_entry_identity_key(value: object) -> int:
+            return id(value)
+
+        def set_status_message(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def _run_utility_task(self, **kwargs: object) -> None:
+            utility_task.update(kwargs)
+
+        def _prepare_archive_mesh_import_setup_async(self, *args: object, **kwargs: object) -> int:
+            preflight["args"] = args
+            preflight.update(kwargs)
+            return 1
+
+        def _start_archive_mesh_patch(
+            self,
+            selected_entry: object,
+            *,
+            preset_setup: MeshImportSetupSelection,
+        ) -> None:
+            patch_calls.append((selected_entry, preset_setup))
+
+        def _open_mesh_editor_for_entry(self, *_args: object, **_kwargs: object) -> None:
+            raise AssertionError("preflight must complete before the Mesh Editor opens")
+
+    owner = Owner()
+    scene = SceneImportResult(mesh=ParsedMesh(path="slow-scene.gltf"))
+    owner._import_local_model_to_current_archive("slow-scene.gltf", {"name": "Slow Scene"})
+
+    utility_task["on_complete"](scene)  # type: ignore[operator]
+
+    assert preflight["args"] == (entry, Path("slow-scene.gltf"))
+    assert preflight["scene_import_result"] is scene
+    assert callable(preflight["on_complete"])
+    assert patch_calls == []
+
+    setup = MeshImportSetupSelection(Path("slow-scene.gltf"), "static")
+    preflight["on_complete"](setup)  # type: ignore[operator]
+
+    assert setup.source_label == preflight["source_label"]
+    assert patch_calls == [(entry, setup)]
 
 
 def test_scene_import_honors_pre_cancelled_request() -> None:

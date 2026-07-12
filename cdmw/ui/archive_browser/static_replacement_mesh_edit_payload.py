@@ -1028,8 +1028,7 @@ def mesh_edit_triangle_replace_groups(
                 indices.extend(face_indices)
                 source_face_indices.append(int(source_face_index))
         if not indices:
-            positions = []
-            normal_values = []
+            positions = normal_values = []
             source_vertex_indices = []
             source_face_indices = []
         else:
@@ -1044,6 +1043,7 @@ def mesh_edit_triangle_replace_groups(
         group: dict[str, object] = {
             "source_submesh_index": source_index,
             "material_source_submesh_index": int(getattr(source_submesh, "cdmw_mesh_edit_material_source_submesh_index", source_index) or source_index),
+            "part_name": str(getattr(source_submesh, "name", "") or f"part_{source_index}"),
             "material_name": str(getattr(source_submesh, "material", "") or getattr(source_submesh, "name", "") or f"part_{source_index}"),
             "texture_name": str(getattr(source_submesh, "texture", "") or ""),
             "positions": positions,
@@ -1247,15 +1247,14 @@ def _consume_native_triangle_group(submesh: object, source_index: int) -> dict[s
 
 
 def _triangle_group_with_material_fields(group: Mapping[str, object], submesh: object, source_index: int) -> dict[str, object]:
-    result = dict(group)
-    result.update(
-        {
+    result = {
+            **group,
             "source_submesh_index": source_index,
             "material_source_submesh_index": int(getattr(submesh, "cdmw_mesh_edit_material_source_submesh_index", source_index) or source_index),
+            "part_name": str(getattr(submesh, "name", "") or f"part_{source_index}"),
             "material_name": str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or f"part_{source_index}"),
             "texture_name": str(getattr(submesh, "texture", "") or ""),
-        }
-    )
+    }
     for attr_name in (
         "preview_texture_path",
         "preview_texture_dds_path",

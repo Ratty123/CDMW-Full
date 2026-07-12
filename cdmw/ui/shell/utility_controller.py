@@ -200,7 +200,9 @@ class UtilityControllerMixin:
             self._write_heartbeat("running")
             self._release_startup_splash()
 
-    def _cleanup_worker_refs(self) -> None:
+    def _cleanup_worker_refs(self, owner_thread: object | None = None) -> None:
+        if owner_thread is not None and self.worker_thread is not owner_thread:
+            return
         rerun_archive_filter = bool(self.archive_filter_apply_pending and not self._shutting_down and self.archive_entries)
         archive_finalize_pending = bool(self.archive_scan_finalize_pending)
         utility_updates_archive_progress = bool(self._utility_updates_archive_progress)

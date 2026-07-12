@@ -9,8 +9,12 @@ internal sealed partial class MeshViewport
         var camera = CurrentCamera();
         var bestDistance = 8.0;
         (int SubmeshIndex, int ItemIndex)? best = null;
-        for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount; submeshIndex++)
         {
+            if (!IsSubmeshVisibleForViewportSelection(submeshIndex))
+            {
+                continue;
+            }
             var submesh = _document.Submeshes[submeshIndex];
             for (var vertexIndex = 0; vertexIndex < submesh.Vertices.Count; vertexIndex++)
             {
@@ -18,7 +22,7 @@ internal sealed partial class MeshViewport
                 {
                     continue;
                 }
-                var projected = camera.Project(submesh.Vertices[vertexIndex]);
+                var projected = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
                 var dx = point.X - projected.X;
                 var dy = point.Y - projected.Y;
                 var distance = Math.Sqrt((dx * dx) + (dy * dy));
@@ -37,8 +41,12 @@ internal sealed partial class MeshViewport
         var camera = CurrentCamera();
         var bestScore = double.MaxValue;
         (int SubmeshIndex, int ItemIndex)? best = null;
-        for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount; submeshIndex++)
         {
+            if (!IsSubmeshVisibleForViewportSelection(submeshIndex))
+            {
+                continue;
+            }
             var submesh = _document.Submeshes[submeshIndex];
             for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
             {
@@ -61,7 +69,7 @@ internal sealed partial class MeshViewport
                         valid = false;
                         break;
                     }
-                    points[cornerIndex] = camera.Project(submesh.Vertices[vertexIndex]);
+                    points[cornerIndex] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
                 }
                 if (!valid || !PointInTriangle(point, points[0], points[1], points[2]))
                 {
@@ -138,22 +146,12 @@ internal sealed partial class MeshViewport
         {
             var hits = VertexIdsInRectangle(rectangle);
             ApplySelectionMapOperation(_selectedVertices, hits, CurrentSelectionOperation());
-            if (hits.Length > 0)
-            {
-                SelectedSubmeshIndex = hits[0].SubmeshIndex;
-                SubmeshSelectedRequested?.Invoke(hits[0].SubmeshIndex);
-            }
             StatusRequested?.Invoke($"Vertex mode: selected={_selectedVertices.Values.Sum(vertices => vertices.Count)} drag={hits.Length} xray={(ShowXRay ? "on" : "off")}");
         }
         else if (targetMode == "face")
         {
             var hits = FaceIdsInRectangle(rectangle);
             ApplySelectionMapOperation(_selectedFaces, hits, CurrentSelectionOperation());
-            if (hits.Length > 0)
-            {
-                SelectedSubmeshIndex = hits[0].SubmeshIndex;
-                SubmeshSelectedRequested?.Invoke(hits[0].SubmeshIndex);
-            }
             StatusRequested?.Invoke($"Face mode: selected={_selectedFaces.Values.Sum(faces => faces.Count)} drag={hits.Length} xray={(ShowXRay ? "on" : "off")}");
         }
         else if (targetMode == "part" || targetMode == "source")
@@ -188,8 +186,12 @@ internal sealed partial class MeshViewport
         var camera = CurrentCamera();
         var expanded = Rectangle.Inflate(rectangle, 3, 3);
         var result = new List<(int SubmeshIndex, int ItemIndex)>();
-        for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount; submeshIndex++)
         {
+            if (!IsSubmeshVisibleForViewportSelection(submeshIndex))
+            {
+                continue;
+            }
             var submesh = _document.Submeshes[submeshIndex];
             for (var vertexIndex = 0; vertexIndex < submesh.Vertices.Count; vertexIndex++)
             {
@@ -197,7 +199,7 @@ internal sealed partial class MeshViewport
                 {
                     continue;
                 }
-                var point = camera.Project(submesh.Vertices[vertexIndex]);
+                var point = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
                 if (expanded.Contains(Point.Round(point)))
                 {
                     result.Add((submeshIndex, vertexIndex));
@@ -212,8 +214,12 @@ internal sealed partial class MeshViewport
         var camera = CurrentCamera();
         var expanded = Rectangle.Inflate(rectangle, 3, 3);
         var result = new List<(int SubmeshIndex, int ItemIndex)>();
-        for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount; submeshIndex++)
         {
+            if (!IsSubmeshVisibleForViewportSelection(submeshIndex))
+            {
+                continue;
+            }
             var submesh = _document.Submeshes[submeshIndex];
             for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
             {
@@ -221,7 +227,7 @@ internal sealed partial class MeshViewport
                 {
                     continue;
                 }
-                if (FaceIntersectsRectangle(submesh, submesh.Faces[faceIndex], expanded, camera))
+                if (FaceIntersectsRectangle(submeshIndex, submesh, submesh.Faces[faceIndex], expanded, camera))
                 {
                     result.Add((submeshIndex, faceIndex));
                 }
@@ -239,7 +245,7 @@ internal sealed partial class MeshViewport
             .ToArray();
     }
 
-    private bool FaceIntersectsRectangle(ObjSubmesh submesh, ObjFace face, Rectangle rectangle, NetViewportCamera camera)
+    private bool FaceIntersectsRectangle(int submeshIndex, ObjSubmesh submesh, ObjFace face, Rectangle rectangle, NetViewportCamera camera)
     {
         if (face.Corners.Length != 3)
         {
@@ -253,7 +259,7 @@ internal sealed partial class MeshViewport
             {
                 return false;
             }
-            points[i] = camera.Project(submesh.Vertices[vertexIndex]);
+            points[i] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
         }
         var center = new PointF((points[0].X + points[1].X + points[2].X) / 3.0f, (points[0].Y + points[1].Y + points[2].Y) / 3.0f);
         return rectangle.Contains(Point.Round(points[0]))
@@ -272,6 +278,10 @@ internal sealed partial class MeshViewport
         var result = new List<int>();
         foreach (var edge in _edgeTopology.Edges)
         {
+            if (!IsSubmeshVisibleForViewportSelection(edge.SubmeshIndex))
+            {
+                continue;
+            }
             if (!ShowXRay && !IsEdgeFrontFacing(edge, camera))
             {
                 continue;
@@ -285,8 +295,8 @@ internal sealed partial class MeshViewport
             {
                 continue;
             }
-            var a = camera.Project(submesh.Vertices[edge.VertexA]);
-            var b = camera.Project(submesh.Vertices[edge.VertexB]);
+            var a = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexA]);
+            var b = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexB]);
             var midpoint = new PointF((a.X + b.X) * 0.5f, (a.Y + b.Y) * 0.5f);
             if (expanded.Contains(Point.Round(a)) || expanded.Contains(Point.Round(b)) || expanded.Contains(Point.Round(midpoint)) || SegmentIntersectsRectangle(a, b, expanded))
             {
@@ -403,6 +413,10 @@ internal sealed partial class MeshViewport
         var bestDistance = 9.0;
         foreach (var edge in _edgeTopology.Edges)
         {
+            if (!IsSubmeshVisibleForViewportSelection(edge.SubmeshIndex))
+            {
+                continue;
+            }
             if (!ShowXRay && !IsEdgeFrontFacing(edge, camera))
             {
                 continue;
@@ -416,8 +430,8 @@ internal sealed partial class MeshViewport
             {
                 continue;
             }
-            var a = camera.Project(submesh.Vertices[edge.VertexA]);
-            var b = camera.Project(submesh.Vertices[edge.VertexB]);
+            var a = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexA]);
+            var b = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexB]);
             var distance = DistanceToSegment(point, a, b);
             if (distance < bestDistance)
             {
@@ -426,6 +440,13 @@ internal sealed partial class MeshViewport
             }
         }
         return bestEdgeId;
+    }
+
+    private bool IsSubmeshVisibleForViewportSelection(int submeshIndex)
+    {
+        return submeshIndex >= 0
+            && submeshIndex < _document.Submeshes.Count
+            && _materials.ParametersForSubmesh(submeshIndex).Visible is not false;
     }
 
     private bool IsEdgeFrontFacing(NetEdge edge, NetViewportCamera camera)
@@ -468,7 +489,7 @@ internal sealed partial class MeshViewport
             {
                 return false;
             }
-            points[i] = camera.Project(submesh.Vertices[vertexIndex]);
+            points[i] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
         }
         var area = ((points[1].X - points[0].X) * (points[2].Y - points[0].Y)) - ((points[1].Y - points[0].Y) * (points[2].X - points[0].X));
         return area < -0.01f;

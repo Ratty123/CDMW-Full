@@ -110,6 +110,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             self._inline_d3d11_active_package = None
             self._inline_d3d11_status_file = None
             self._inline_d3d11_status_mtime = 0.0
+            self._inline_d3d11_status_request_id = 0
         for package_dir in packages:
             self._remove_inline_d3d11_package_dir(package_dir)
 
@@ -133,6 +134,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         self._inline_d3d11_active_package = package_dir
         self._inline_d3d11_status_file = status_file
         self._inline_d3d11_status_mtime = 0.0
+        self._inline_d3d11_status_request_id = int(self._inline_preview_request_id)
         if reuse_process:
             if self.inline_d3d11_preview_host.load_package(package_dir, status_file, reset_view=True):
                 self.inline_d3d11_preview_host.set_render_tuning(render_settings)
@@ -230,6 +232,8 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         status_file = self._inline_d3d11_status_file
         if status_file is None:
             return
+        if int(self._inline_d3d11_status_request_id) != int(self._inline_preview_request_id):
+            return
         try:
             stat = status_file.stat()
         except OSError:
@@ -245,6 +249,14 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         if not isinstance(payload, dict):
             return
         event = str(payload.get("event", "") or "").strip().lower()
+        if event == "resources_loaded":
+            # A reused renderer cannot draw its first frame while this host is
+            # hidden behind the preparation page. Reveal it once GPU resources
+            # are resident; the subsequent first frame publishes ``loaded``.
+            self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
+            self._set_inline_preview_status("Native D3D11 resources loaded; drawing first frame...")
+            self._record_model_library_preview_event("model_library_d3d11_resources_loaded")
+            return
         if event == "loaded":
             batch_count = int(payload.get("batch_count", 0) or 0)
             vertex_count = int(payload.get("vertex_count", 0) or 0)

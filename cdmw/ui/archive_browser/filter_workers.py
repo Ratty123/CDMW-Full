@@ -42,7 +42,6 @@ class ArchiveFilterWorkerMixin:
         worker.error.connect(self._handle_archive_structure_filter_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self._cleanup_archive_structure_filter_refs)
         self.archive_structure_filter_worker = worker
         self.archive_structure_filter_thread = thread
@@ -73,9 +72,36 @@ class ArchiveFilterWorkerMixin:
         self.archive_structure_filter_state = "failed"
         self.append_archive_log(f"Warning: archive folder filters could not be built: {message}")
 
-    def _cleanup_archive_structure_filter_refs(self) -> None:
-        self.archive_structure_filter_thread = None
-        self.archive_structure_filter_worker = None
+    def _cleanup_archive_structure_filter_refs(
+        self,
+        thread: Optional[QThread] = None,
+        worker: Optional[ArchiveStructureFilterWorker] = None,
+    ) -> None:
+        if thread is None:
+            sender = self.sender()
+            thread = sender if isinstance(sender, QThread) else self.archive_structure_filter_thread
+        worker = self.archive_structure_filter_worker if worker is None else worker
+        if thread is not None:
+            try:
+                if not thread.wait(0):
+                    QTimer.singleShot(
+                        1,
+                        lambda target_thread=thread, target_worker=worker: self._cleanup_archive_structure_filter_refs(
+                            target_thread,
+                            target_worker,
+                        ),
+                    )
+                    return
+            except RuntimeError:
+                pass
+        if self.archive_structure_filter_thread is thread and self.archive_structure_filter_worker is worker:
+            self.archive_structure_filter_thread = None
+            self.archive_structure_filter_worker = None
+        if thread is not None:
+            try:
+                thread.deleteLater()
+            except RuntimeError:
+                pass
 
     def _apply_archive_filter(self) -> None:
         self._capture_archive_controls_scroll_for_filter()
@@ -143,13 +169,6 @@ class ArchiveFilterWorkerMixin:
             self._schedule_archive_pending_enhanced_filter_refresh(500)
             return
         current_filter_state = self._capture_archive_filter_state()
-        if (
-            self._archive_saved_filter_needs_item_search(current_filter_state)
-            and self._archive_enhanced_index_missing_for_search()
-            and not self._startup_benchmark_enabled()
-        ):
-            self.archive_enhanced_filter_refresh_pending = True
-            self._ensure_archive_enhanced_index_worker_started()
         if self._current_archive_filter_needs_basic_lookup() and self._archive_basic_index_missing_for_lookup():
             self._ensure_archive_basic_index_worker_started()
             wait_text = "Archive lookup indexes are loading. This search will run automatically when lookup is ready."
@@ -235,14 +254,43 @@ class ArchiveFilterWorkerMixin:
         worker.error.connect(self._handle_worker_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_worker_refs)
+        thread.finished.connect(self._cleanup_archive_filter_worker_refs)
 
         self.archive_filter_worker = worker
         self.worker_thread = thread
         self.set_busy(True, build_mode=False)
         self._restore_archive_controls_scroll_after_filter()
         thread.start()
+
+    def _cleanup_archive_filter_worker_refs(
+        self,
+        thread: Optional[QThread] = None,
+        worker: Optional[ArchiveFilterWorker] = None,
+    ) -> None:
+        if thread is None:
+            sender = self.sender()
+            thread = sender if isinstance(sender, QThread) else self.worker_thread
+        worker = self.archive_filter_worker if worker is None else worker
+        if thread is not None:
+            try:
+                if not thread.wait(0):
+                    QTimer.singleShot(
+                        1,
+                        lambda target_thread=thread, target_worker=worker: self._cleanup_archive_filter_worker_refs(
+                            target_thread,
+                            target_worker,
+                        ),
+                    )
+                    return
+            except RuntimeError:
+                pass
+        if self.worker_thread is thread and self.archive_filter_worker is worker:
+            self._cleanup_worker_refs(thread)
+        if thread is not None:
+            try:
+                thread.deleteLater()
+            except RuntimeError:
+                pass
 
     def _handle_archive_filter_complete(self, result: object) -> None:
         self._flush_archive_scan_progress()

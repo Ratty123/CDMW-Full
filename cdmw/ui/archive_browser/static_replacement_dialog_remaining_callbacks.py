@@ -383,8 +383,10 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
         _set_preview_performance_status(ready_state.loaded_performance.summary, details=ready_state.loaded_performance.details)
         _mark_alignment_d3d11_rebuild_reason('material')
         _queue_static_preview_refresh()
-
     class _OriginalTexturePreviewWorkerReceiver(QObject):
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            super().__init__(*args, **kwargs)
+            self._thread_finished_callbacks: dict[object, tuple[object, object]] = {}
 
         @Slot(int, object, int, float)
         def handle_completed(self, request_id: int, preview_model: object, native_material_batches: int, elapsed_ms: float) -> None:
@@ -393,6 +395,15 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
         @Slot(int, str)
         def handle_error(self, request_id: int, message: str) -> None:
             _handle_original_reference_texture_preview_error(request_id, message)
+        def watch_thread(self, thread: object, worker: object, callback: object, connection_type: object) -> None:
+            self._thread_finished_callbacks[thread] = (worker, callback)
+            thread.finished.connect(self.handle_thread_finished, connection_type)
+        @Slot()
+        def handle_thread_finished(self) -> None:
+            thread = self.sender()
+            worker, callback = self._thread_finished_callbacks.pop(thread, (None, None))
+            if callable(callback):
+                callback(thread, worker)
 
     return SimpleNamespace(_handle_original_reference_texture_preview_ready=_handle_original_reference_texture_preview_ready, _OriginalTexturePreviewWorkerReceiver=_OriginalTexturePreviewWorkerReceiver)
 
@@ -713,7 +724,6 @@ def create_alignment_transform_row_callbacks(context: dict[str, object]) -> Simp
 
 
 def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     QDialog = context.get('QDialog')
     QTimer = context.get('QTimer')
     _alignment_builder_closed_empty_state_message_helper = context.get('_alignment_builder_closed_empty_state_message_helper')
@@ -724,16 +734,15 @@ def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> Si
     _finish_alignment_startup_progress = context.get('_finish_alignment_startup_progress')
     _safe_shutdown_alignment_d3d11_preview = context.get('_safe_shutdown_alignment_d3d11_preview')
     _safe_stop_alignment_timer = context.get('_safe_stop_alignment_timer')
+    _stop_original_reference_texture_worker = context.get('_stop_original_reference_texture_worker')
     alignment_dialog_closing = context.get('alignment_dialog_closing')
     alignment_dialog_key = context.get('alignment_dialog_key')
     dialog = context.get('dialog')
     dialog_accepted_state = context.get('dialog_accepted_state')
     embedded_alignment_builder = context.get('embedded_alignment_builder')
-    exc = context.get('exc')
     finished_route = context.get('finished_route')
     material_edit_refresh_timer = context.get('material_edit_refresh_timer')
     on_cancel = context.get('on_cancel')
-    result = context.get('result')
     self = context.get('self')
     source_material_plan_refresh_timer = context.get('source_material_plan_refresh_timer')
 
@@ -741,6 +750,8 @@ def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> Si
         _alignment_dialog_mark_closing_helper(alignment_dialog_closing)
         _safe_stop_alignment_timer(material_edit_refresh_timer)
         _safe_stop_alignment_timer(source_material_plan_refresh_timer)
+        if callable(_stop_original_reference_texture_worker):
+            _stop_original_reference_texture_worker()
         _safe_shutdown_alignment_d3d11_preview()
         _finish_alignment_startup_progress()
         self._unregister_modeless_alignment_dialog(alignment_dialog_key, dialog)

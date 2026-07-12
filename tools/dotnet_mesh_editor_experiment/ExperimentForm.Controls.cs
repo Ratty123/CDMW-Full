@@ -73,15 +73,6 @@ internal sealed partial class ExperimentForm
         return button;
     }
 
-    private static Button DisabledButton(string text, string reason)
-    {
-        var button = StyledButton(text);
-        button.Enabled = false;
-        button.Text = text;
-        button.Tag = reason;
-        return button;
-    }
-
     private static Button StyledActionButton(string text, Action action)
     {
         var button = StyledButton(text);
@@ -278,12 +269,23 @@ internal sealed partial class ExperimentForm
     private Button ToolButton(string text, string tool)
     {
         var button = StyledButton(text);
-        button.Click += (_, _) =>
-        {
-            _viewport.ActiveTool = tool;
-            _statusLabel.Text = $"Tool: {text}";
-        };
+        _toolButtons[tool] = button;
+        button.Click += (_, _) => ActivateTool(tool, text);
         return button;
+    }
+
+    private void ActivateTool(string tool, string text)
+    {
+        _viewport.ActiveTool = tool;
+        foreach (var pair in _toolButtons)
+        {
+            pair.Value.BackColor = string.Equals(pair.Key, tool, StringComparison.OrdinalIgnoreCase)
+                ? ThemeAccent
+                : ThemeButtonBackground;
+        }
+        _statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"
+            ? $"{text} active: left-drag inside the brush circle."
+            : $"Tool: {text}";
     }
 
     private Button CommandButton(string text, string command)

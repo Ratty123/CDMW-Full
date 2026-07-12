@@ -1,6 +1,6 @@
 # Mesh Editing Pipeline
 
-Status: resident .NET/Vortice editor and safe-import contract, 2026-07-11.
+Status: resident .NET/Vortice editor and safe-import contract, 2026-07-12.
 
 ## Current Implementation Map
 
@@ -93,11 +93,17 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-11.
   - Durable archive preview packages are pinned from renderer launch through
     reload, process failure, cancellation, or close. A loaded reload retires the
     old pin; pruning and manual cache clearing skip every active package lease.
+  - Fast untextured geometry is first-load-only. Once a material-complete frame
+    is loaded, geometry rebuilds keep it visible until the next coherent
+    archive-parity package is ready.
 - .NET experiment handoff:
   - `cdmw.services.mesh_dotnet_experiment` exports the active Mesh Editor
     session as an OBJ package plus `mesh_roundtrip_manifest_v2` sidecar,
     `mesh.cdmeta.json`, `original_asset_hash.txt`, status JSON, output folder,
-    and launch manifest. The .NET process receives that package only; Python/C++
+    launch manifest, combined render-only `scene.obj`, and `dotnet_scene.json`.
+    Editable submeshes remain first in the scene and the original reference is
+    appended with a non-editable role; save/output paths filter back to the
+    editable count. The .NET process receives that package only; Python/C++
     remain the parser, validator, rebuilder, and packaging authority. When the
     process exits with an edited OBJ under the declared output package, the
     standalone UI imports it on a worker through the same OBJ sidecar contract,
@@ -311,13 +317,28 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-11.
   malformed non-finite vertex, normal, UV, tangent, or bitangent data is present.
   Explicit fallback-only test helpers still sanitize those values for diagnostic
   payload checks.
-- `Edit Mesh` is the embedded .NET entry point when the helper is available;
-  the normal preview controls no longer expose a dedicated `.NET` button. The
-  classic Qt edit toolbar is hidden during embedded .NET `launching`, `ready`,
-  and `closing`. Native D3D11 stays alive below the .NET child so renderer
-  fallback and texture SRVs remain resident.
-  Renderer-blocked embedded `ready` fails closed by stopping the .NET child and
-  restoring the native/classic path. The helper uses
+- The .NET/Vortice child starts automatically when an embedded replacement
+  builder or standalone original/imported mesh session is ready. `Edit Mesh`
+  now changes the resident scene from placement-only interaction to geometry
+  mutation; turning it off keeps the same process, decoded textures, camera,
+  scene buffers, grid, and comparison state resident. Placement mode keeps the
+  setup controls visible and rejects geometry commands.
+  The embedded child exposes its dark scrollable WinForms controls on the left;
+  its scene toolbar provides side-by-side, overlay, replacement-only, and
+  original-only modes plus move/rotate/scale gizmo selection. Left-dragging the
+  viewport in placement mode updates the authoritative Builder TRS controls.
+  The Y-up grid and
+  placement transform are carried by `resident_scene_state_v1`; replacement
+  control changes update translation, rotation, and scale without rebuilding
+  the package. Overlay renders the original as a reference wire layer.
+  brush tools show their active button, gesture hint, and radius circle in the
+  viewport. OBJ/glTF/GLB/DAE sources automatically apply the existing Flip V
+  normalization, including imports prepared inside the preflight worker.
+  a ready acknowledgement stops any covered native D3D11 sibling once so it
+  cannot paint over the child. Production readiness is emitted only after
+  textures/material bindings are applied and the Vortice viewport has presented
+  its first frame. Renderer-blocked or failed embedded startup leaves preview
+  unavailable; it never restores a native/classic Mesh Editor renderer. The helper uses
   `mesh_editor/dotnet_experiment_executable`,
   `CDMW_MESH_DOTNET_EXPERIMENT_EXE`, or the bundled
   `cdmw-mesh-dotnet-editor.exe`; stale configured paths fall through to
@@ -330,19 +351,20 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-11.
   metadata, status, output, and edit-operation paths. Embedded interaction
   mirrors local selection to the resident C++ session, sends incremental
   strokes, rejects new mutations while a topology worker owns the session, and
-  runs topology commands in `MeshEditCommandWorker`. Turning Edit Mesh off
-  waits for the ordered `deactivated` acknowledgement and active work, hides
-  the helper as `suspended`, syncs the resident session once, and restores the
-  textured preview. Re-entry reactivates the same helper and decoded texture
-  cache only when its material-input signature still matches; changed material
+  runs topology commands in `MeshEditCommandWorker`. Closing the builder still
+  uses ordered deactivation and sync; toggling Edit Mesh does not. Changed material
   inputs synchronize through resident material protocol v2. Material generation
   is ordered independently, so multiple newer material generations may target
   the same resident mesh revision; stale or future mesh revisions fail instead
   of poisoning the geometry revision stream. Helper lifecycle evidence owns the
   actual source-parse, geometry-upload, and device-reset counters, while package,
   process, and full-reload counters remain host-owned. Only a source or session
-  replacement, explicit legacy-v1 recovery, device loss, or process failure
-  creates another package/process. Embedded geometry is never replaced from OBJ.
+  replacement, device loss, or explicit process restart creates another
+  package/process. Embedded geometry is never replaced from OBJ.
+  The .NET material manifest preserves source tint, surface, and emissive factors
+  plus packed-channel selectors; glTF metallic-roughness reuses one decoded image
+  while sampling roughness from G and metallic from B. PNG-only sessions do not
+  report DDS-upload parity warnings.
   For standalone/headless process exits, `MeshDotNetExperimentOutputImportWorker` detects `edited_mesh`,
   `edited_obj`, `output_mesh`, `edited_package`, or `output/mesh.obj`, restores
   the package sidecar if the editor wrote only OBJ geometry, imports through
@@ -396,11 +418,14 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-11.
   events and the handoff package. Failed launches record executable resolution,
   package paths, parent HWND, process state, QProcess error details, exit
   status, stdout/stderr tails, status JSON summary, toolbar ownership,
-  renderer blockers, and
-  `dotnet_launch_diagnostics.json` before native/classic fallback starts.
+  renderer blockers, and `dotnet_launch_diagnostics.json`. The legacy native
+  preview button and automatic fallback entry points are disabled; native
+  renderer scenarios remain compatibility-only and opt-in.
 - External static replacement/import previews clear inherited reference
   skeleton and physics overlay metadata by default. Overlays are preserved only
-  through explicit diagnostic/overlay paths.
+  through explicit diagnostic/overlay paths. Native original-reference splicing
+  recognizes both top-level and `editor_identity.role` ownership, and its v3
+  cache key prevents stale packages with duplicate reference geometry.
 - External OBJ/DAE/glTF/GLB imports with missing or incomplete UVs run the
   bundled native xatlas unwrap before the mesh is exposed, forward
   cancellation, validate every previously aligned vertex channel, refresh
@@ -427,6 +452,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-11.
   a precise reason instead of becoming enabled no-ops. Parts selection,
   routing, roles, visibility, duplicate/delete, and metadata-aware undo/redo
   share the resident session and atomic all-part material packets.
+- Hiding a part never recomputes the alignment basis or camera center; surviving
+  parts retain exact placement. Duplicate/Delete are visible beside the compact
+  Parts list and route through the same resident mutations as context actions.
+- Production viewport modes include textured solid plus untextured faces, wire,
+  vertices, and combinations without texture/SRV churn. Wheel zoom accepts the
+  resident range `1.0` through `500000.0`.
 - Initial external imports and appended parts share the same work-area fit
   helper. External imports are centered against the reference/work area and
   bottom-aligned to the Y-up D3D11 preview grid, while Modify Original clones
@@ -435,6 +466,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-11.
 - Model Library D3D11 preview derives high-quality texture packaging from the
   active render setting and logs the actual value instead of forcing low-quality
   packages.
+- Exact import proof uses
+  `character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0016.pac`
+  with `wolf_gravestone_sword_free (1).zip`: original batches use archive-resolved
+  bindings, imported batches use ZIP textures, and both retain one grid/alignment.
 
 ## Current Test Coverage
 

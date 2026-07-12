@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
+import json
 import threading
 import zipfile
 from pathlib import Path, PurePosixPath
-from typing import Optional
+from typing import Mapping, Optional, Sequence
 
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.library.models import (
@@ -14,6 +16,83 @@ from cdmw.domain.library.models import (
     ZIP_NESTED_IMPORTABLE_ARCHIVE_EXTENSIONS,
     ZIP_NESTED_IMPORTABLE_ARCHIVE_MAX_BYTES,
 )
+
+
+def _file_sha256(path: Path, *, stop_event: Optional[threading.Event] = None) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            raise_if_cancelled(stop_event, "Model archive extraction cancelled.")
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def reusable_extract_matches(
+    target_root: Path,
+    *,
+    fingerprint: str,
+    validated: Sequence[tuple[zipfile.ZipInfo, str]],
+    stop_event: Optional[threading.Event],
+) -> bool:
+    manifest_path = target_root / ".cdmw-extract.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    if (
+        not isinstance(manifest, Mapping)
+        or manifest.get("schema_version") != 2
+        or manifest.get("fingerprint") != fingerprint
+        or manifest.get("member_count") != len(validated)
+    ):
+        return False
+    member_rows = manifest.get("members")
+    if not isinstance(member_rows, list) or len(member_rows) != len(validated):
+        return False
+    expected_paths: set[str] = set()
+    allowed_directories: set[str] = set()
+    for (member, member_name), row in zip(validated, member_rows):
+        raise_if_cancelled(stop_event, "Model archive extraction cancelled.")
+        if not isinstance(row, Mapping) or row.get("path") != member_name:
+            return False
+        relative = PurePosixPath(member_name)
+        expected_paths.add(relative.as_posix())
+        allowed_directories.update(parent.as_posix() for parent in relative.parents if parent.as_posix() != ".")
+        output_path = target_root.joinpath(*relative.parts)
+        is_directory = member.is_dir()
+        if bool(row.get("directory")) != is_directory or output_path.is_symlink():
+            return False
+        if is_directory:
+            if not output_path.is_dir():
+                return False
+            allowed_directories.add(relative.as_posix())
+            continue
+        if not output_path.is_file() or row.get("size") != int(member.file_size):
+            return False
+        try:
+            if output_path.stat().st_size != int(member.file_size):
+                return False
+        except OSError:
+            return False
+        expected_digest = row.get("sha256")
+        if not isinstance(expected_digest, str) or _file_sha256(output_path, stop_event=stop_event) != expected_digest:
+            return False
+    try:
+        for path in target_root.rglob("*"):
+            raise_if_cancelled(stop_event, "Model archive extraction cancelled.")
+            relative_name = path.relative_to(target_root).as_posix()
+            if relative_name == ".cdmw-extract.json":
+                continue
+            if path.is_symlink():
+                return False
+            if path.is_dir():
+                if relative_name not in allowed_directories:
+                    return False
+            elif relative_name not in expected_paths:
+                return False
+    except OSError:
+        return False
+    return True
 
 
 def zip_importable_members(

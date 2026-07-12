@@ -7,6 +7,8 @@ from unittest.mock import patch
 from cdmw.core import archive
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
 from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
+from cdmw.ui.archive_browser.workers import _archive_preview_debounce_ms
+from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
 
 
 def _entry(path: str, extension: str) -> ArchiveEntry:
@@ -48,6 +50,69 @@ def _preview_model(face_count: int, *, fmt: str = "pac", lod_index: int = -1, lo
 
 
 class ProgressiveArchivePreviewTests(unittest.TestCase):
+    def test_native_model_preview_uses_longer_selection_dwell(self) -> None:
+        self.assertEqual(450, _archive_preview_debounce_ms(_entry("character/model/body.pac", ".pac")))
+        self.assertEqual(450, _archive_preview_debounce_ms(_entry("character/model/body.pam", ".pam")))
+        self.assertEqual(450, _archive_preview_debounce_ms(_entry("character/model/body.pamlod", ".pamlod")))
+        self.assertEqual(90, _archive_preview_debounce_ms(_entry("ui/texture/icon.dds", ".dds")))
+        self.assertEqual(90, _archive_preview_debounce_ms(None))
+
+    def test_native_preview_emits_quick_metadata_before_full_generation(self) -> None:
+        worker = ArchivePreviewWorker(
+            request_id=1,
+            texconv_path=None,
+            entry=_entry("character/model/body.pac", ".pac"),
+            companion_entry=None,
+            texture_entries_by_normalized_path={},
+            texture_entries_by_basename={},
+            sidecar_entries_by_texture_path=None,
+            sidecar_entries_by_texture_basename=None,
+            loose_search_roots=(),
+            native_preview_core_enabled=True,
+            emit_quick_preview=True,
+        )
+        order: list[str] = []
+        quick_payload = object()
+        native_attempt = object()
+
+        with (
+            patch.object(worker, "_cached_preview_payload", return_value=None),
+            patch.object(worker, "_durable_native_preview_cache_payload", return_value=None),
+            patch.object(worker, "_native_preview_core_supported_for_entry", return_value=True),
+            patch.object(
+                worker,
+                "_quick_archive_model_preview_payload",
+                side_effect=lambda: order.append("quick_build") or quick_payload,
+            ),
+            patch.object(
+                worker,
+                "_emit_preview_payload",
+                side_effect=lambda _payload: order.append("quick_emit"),
+            ),
+            patch.object(
+                worker,
+                "_try_native_preview_core",
+                side_effect=lambda: order.append("native_build") or native_attempt,
+            ),
+            patch.object(
+                worker,
+                "_emit_native_preview_core_attempt",
+                side_effect=lambda _attempt, _timings: order.append("full_emit") or True,
+            ),
+        ):
+            worker.run()
+
+        self.assertEqual(["quick_build", "quick_emit", "native_build", "full_emit"], order)
+
+    def test_quick_metadata_keeps_running_native_renderer_source_guard(self) -> None:
+        source = Path("cdmw/ui/archive_browser/preview_result.py").read_text(encoding="utf-8")
+        quick_guard = source[source.index('and preferred_view == "info"'):source.index('if preferred_view == "image"')]
+
+        self.assertIn('getattr(result, "quality_tier", "")', quick_guard)
+        self.assertIn('== "quick"', quick_guard)
+        self.assertIn("self._archive_isolated_renderer_process_running()", quick_guard)
+        self.assertIn("return 0.0", quick_guard)
+
     def test_loose_preview_bypasses_cache_so_dependency_changes_refresh(self) -> None:
         class CacheKeyHarness(ArchivePreviewCacheMixin):
             archive_sidecar_generation = 0

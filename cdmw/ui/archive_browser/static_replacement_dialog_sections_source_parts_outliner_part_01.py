@@ -313,14 +313,17 @@ def _source_parts_outliner_step_005(_state):
     _state.source_parts_button_row.setContentsMargins(0, 0, 0, 0)
     _state.source_parts_button_row.setSpacing(4)
     _state.source_parts_action_control_text = _state._source_parts_action_control_text_helper()
+    _state.duplicate_source_parts_button = _state.QPushButton(_state.source_parts_action_control_text['duplicate_button'])
     _state.delete_source_parts_button = _state.QPushButton(_state.source_parts_action_control_text['delete_button'])
     _state.apply_source_parts_button = _state.QPushButton(_state.source_parts_action_control_text['apply_button'])
+    _state.duplicate_source_parts_button.setObjectName(_state.source_parts_action_control_text['duplicate_object'])
     _state.delete_source_parts_button.setObjectName(_state.source_parts_action_control_text['delete_object'])
     _state.apply_source_parts_button.setObjectName(_state.source_parts_action_control_text['apply_object'])
+    _state.duplicate_source_parts_button.setToolTip(_state.source_parts_action_control_text['duplicate_tooltip'])
     _state.delete_source_parts_button.setToolTip(_state.source_parts_action_control_text['delete_tooltip'])
     _state.apply_source_parts_button.setToolTip(_state.source_parts_action_control_text['apply_tooltip'])
     _state.apply_source_parts_button.setEnabled(bool(_state.source_parts_apply_state.get('pending')))
-    for _state.source_parts_button in (_state.delete_source_parts_button, _state.apply_source_parts_button):
+    for _state.source_parts_button in (_state.duplicate_source_parts_button, _state.delete_source_parts_button, _state.apply_source_parts_button):
         _state.source_parts_button.setMinimumWidth(0)
         _state.source_parts_button_row.addWidget(_state.source_parts_button)
     _state.source_parts_button_row.addStretch(1)
@@ -546,10 +549,19 @@ def _source_parts_outliner_step_007(_state):
 
 def _source_parts_outliner_step_008(_state):
 
-    def _delete_selected_source_parts(source_indices: Optional[Sequence[int]]=None) -> None:
+    def _delete_selected_source_parts(
+        source_indices: Optional[Sequence[int]]=None,
+        *,
+        resident_state_only: bool=False,
+        previous_source_count: int=0,
+    ) -> None:
         if _state.alignment_source_part_mutation_callbacks is None:
             return
-        _state.alignment_source_part_mutation_callbacks._delete_selected_source_parts(source_indices)
+        _state.alignment_source_part_mutation_callbacks._delete_selected_source_parts(
+            source_indices,
+            resident_state_only=resident_state_only,
+            previous_source_count=previous_source_count,
+        )
     _state._delete_selected_source_parts = _delete_selected_source_parts
 
 def _source_parts_outliner_step_009(_state):

@@ -1697,9 +1697,9 @@ def test_alignment_d3d11_process_request_metadata_and_native_ref_cache_key() -> 
     assert alignment_d3d11_cache_key_with_native_reference(
         "cache",
         native_reference_signature_hash="abc123",
-    ) == "cache|native_ref=abc123|original_reference_native_splice=disabled_v2"
+    ) == "cache|native_ref=abc123|original_reference_native_splice=role_aware_v3"
     assert alignment_d3d11_cache_key_with_native_reference("cache") == (
-        "cache|original_reference_native_splice=disabled_v2"
+        "cache|original_reference_native_splice=role_aware_v3"
     )
 
 

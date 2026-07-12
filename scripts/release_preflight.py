@@ -33,6 +33,7 @@ SOURCE_SUFFIXES = {
     ".xml",
 }
 UNTRACKED_PROJECT_SOURCE_PREFIXES = (
+    ".agents/",
     "cdmw/",
     "docs/",
     "native/",

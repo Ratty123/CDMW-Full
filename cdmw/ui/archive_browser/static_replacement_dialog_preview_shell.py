@@ -5,6 +5,20 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 
+def _legacy_preview_rows(QWidget, QHBoxLayout, parent):
+    legacy_preview_controls_widget = QWidget(parent)
+    legacy_preview_controls_widget.setObjectName("MeshAlignmentLegacyPreviewControls")
+    preview_controls_row = QHBoxLayout(legacy_preview_controls_widget)
+    preview_controls_row.setContentsMargins(0, 0, 0, 0)
+    preview_controls_row.setSpacing(6)
+    legacy_preview_camera_widget = QWidget(parent)
+    legacy_preview_camera_widget.setObjectName("MeshAlignmentLegacyPreviewCameraControls")
+    preview_camera_row = QHBoxLayout(legacy_preview_camera_widget)
+    preview_camera_row.setContentsMargins(0, 0, 0, 0)
+    preview_camera_row.setSpacing(4)
+    return legacy_preview_controls_widget, preview_controls_row, legacy_preview_camera_widget, preview_camera_row
+
+
 def create_alignment_preview_shell_section(context: dict[str, object]) -> SimpleNamespace:
     D3D11_PREVIEW_VIEW_MODES = context.get('D3D11_PREVIEW_VIEW_MODES')
     D3D11_PREVIEW_VIEW_MODE_LABELS = context.get('D3D11_PREVIEW_VIEW_MODE_LABELS')
@@ -102,12 +116,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_action_row = QHBoxLayout()
     preview_action_row.setContentsMargins(0, 0, 0, 0)
     preview_action_row.setSpacing(5)
-    preview_controls_row = QHBoxLayout()
-    preview_controls_row.setContentsMargins(0, 0, 0, 0)
-    preview_controls_row.setSpacing(6)
-    preview_camera_row = QHBoxLayout()
-    preview_camera_row.setContentsMargins(0, 0, 0, 0)
-    preview_camera_row.setSpacing(4)
+    legacy_preview_controls_widget, preview_controls_row, legacy_preview_camera_widget, preview_camera_row = _legacy_preview_rows(QWidget, QHBoxLayout, preview_panel)
     alignment_preview_control_text = _alignment_preview_control_text_helper()
     alignment_preview_render_control_text = _alignment_preview_render_control_text_helper()
     alignment_preview_default_help = _alignment_preview_help_presentation_helper(d3d11_active=False)
@@ -202,7 +211,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_preview_settings_button.setMaximumWidth(190)
     preview_controls_row.addWidget(alignment_preview_settings_button)
     preview_controls_row.addWidget(alignment_use_global_preview_button)
-    preview_header.addLayout(preview_controls_row)
+    preview_header.addWidget(legacy_preview_controls_widget)
     texture_uv_control_text = _texture_uv_control_text_helper()
     setup_texture_flip_u_checkbox = QCheckBox(texture_uv_control_text["flip_u_label"])
     setup_texture_flip_u_checkbox.setObjectName("MeshAlignmentSetupTextureFlipUCheckbox")
@@ -243,7 +252,12 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         camera_reset_button,
     ):
         preview_camera_row.addWidget(camera_button)
-    preview_header.addLayout(preview_camera_row)
+    preview_header.addWidget(legacy_preview_camera_widget)
+    setattr(
+        dialog,
+        "_mesh_editor_legacy_preview_rows",
+        (legacy_preview_controls_widget, legacy_preview_camera_widget),
+    )
     preview_panel_layout.addLayout(preview_header)
 
     alignment_renderer_scope_label = QLabel(alignment_preview_control_text["renderer_scope"])
@@ -518,7 +532,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         "preview_loaded": False,
         "preview_pipeline_stage": "idle",
         "fast_geometry_loaded": False,
-        "archive_parity_ready": False,
+        "archive_parity_ready": False, "material_complete_preview_seen": False,
         "archive_parity_upgrade_queued": False,
         "resources_loaded": False,
         "stale_reload_restart_count": 0,

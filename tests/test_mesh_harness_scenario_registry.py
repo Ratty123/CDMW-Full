@@ -48,6 +48,14 @@ def test_registry_validation_rejects_non_vortice_production_or_default_legacy() 
     with pytest.raises(ValueError, match="compatibility-only"):
         validate_scenario_registry(scheduled_legacy)
 
+    unclassified_visual = list(rows)
+    unclassified_visual[production_index] = replace(
+        unclassified_visual[production_index],
+        scenario_role="real_game_visual_probe",
+    )
+    with pytest.raises(ValueError, match="canonical production .NET/Vortice proof role"):
+        validate_scenario_registry(unclassified_visual)
+
 
 def test_nonvisual_harness_metadata_names_optional_backends_truthfully() -> None:
     assert scenario_metadata("service-smoke").expected_backend == "native-mesh-core-or-python-fallback"

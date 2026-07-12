@@ -71,6 +71,51 @@ internal sealed partial class NetMaterialSet
         Generation = state.Generation;
     }
 
+    public IReadOnlySet<int> RemapTopologyState(
+        IReadOnlyDictionary<int, int> materialSources,
+        int submeshCount)
+    {
+        var count = Math.Max(0, submeshCount);
+        var previousBindings = Submeshes.ToDictionary(binding => binding.SubmeshIndex);
+        var previousParameters = ParameterStates;
+        var nextBindings = previousBindings
+            .Where(pair => pair.Key >= 0 && pair.Key < count)
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+        var nextParameters = previousParameters
+            .Where(pair => pair.Key >= 0 && pair.Key < count)
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+        var reboundTargets = new HashSet<int>();
+
+        foreach (var (targetIndex, sourceIndex) in materialSources)
+        {
+            if (targetIndex < 0 || targetIndex >= count || sourceIndex < 0)
+            {
+                continue;
+            }
+            if (previousBindings.TryGetValue(sourceIndex, out var binding))
+            {
+                nextBindings[targetIndex] = binding with { SubmeshIndex = targetIndex };
+                reboundTargets.Add(targetIndex);
+            }
+            else
+            {
+                nextBindings.Remove(targetIndex);
+            }
+            if (previousParameters.TryGetValue(sourceIndex, out var parameters))
+            {
+                nextParameters[targetIndex] = parameters;
+            }
+            else
+            {
+                nextParameters.Remove(targetIndex);
+            }
+        }
+
+        Submeshes = nextBindings.Values.OrderBy(binding => binding.SubmeshIndex).ToArray();
+        ParameterStates = nextParameters;
+        return reboundTargets;
+    }
+
     public NetMaterialTextureReference TextureReferenceForSubmesh(int submeshIndex, params string[] keys)
     {
         var binding = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex);
@@ -99,6 +144,22 @@ internal sealed partial class NetMaterialSet
             }
         }
         return NetMaterialTextureReference.Empty;
+    }
+
+    public int ChannelComponentIndexForSubmesh(int submeshIndex, string channel)
+    {
+        var binding = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex);
+        if (binding is null || !binding.ChannelComponents.TryGetValue(channel, out var component))
+        {
+            return 0;
+        }
+        return component.Trim().ToLowerInvariant() switch
+        {
+            "g" => 1,
+            "b" => 2,
+            "a" => 3,
+            _ => 0,
+        };
     }
 
     public IEnumerable<NetMaterialTextureReference> TextureReferencesForSubmesh(int submeshIndex)
@@ -213,7 +274,8 @@ internal sealed partial class NetMaterialSet
                 JsonText(item, "texture"),
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-                channels));
+                channels,
+                JsonMap(item, "channel_components")));
         }
         return result;
     }

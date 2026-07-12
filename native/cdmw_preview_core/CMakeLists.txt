@@ -8,6 +8,7 @@ set(PREVIEW_CORE_OWNER_SOURCES
     src/owners/protocol_json.cpp
     src/owners/archive_decode.cpp
     src/owners/archive_index.cpp
+    src/owners/pamt_index_cache.cpp
     src/owners/geometry_pac.cpp
     src/owners/geometry_static.cpp
     src/owners/material_semantics.cpp

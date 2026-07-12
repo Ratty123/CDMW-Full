@@ -112,3 +112,72 @@ def test_initial_manifest_and_resident_update_share_resource_fingerprint(tmp_pat
     assert initial_resource["fingerprint"] == resident_resource["fingerprint"]
     assert (package.package_dir / initial_resource["path"]).is_file()
     assert manifest["submeshes"][0]["resource_channels"]["base"] == initial_resource["resource_id"]
+
+
+def test_gltf_packed_channels_and_source_factors_survive_resident_snapshot(tmp_path: Path) -> None:
+    base = tmp_path / "blade_base.png"
+    material = tmp_path / "blade_metallicRoughness.png"
+    base.write_bytes(b"base")
+    material.write_bytes(b"packed")
+    mesh = _mesh()
+    blade = mesh.submeshes[0]
+    blade.preview_texture_path = str(base)
+    blade.preview_material_texture_path = str(material)
+    blade.preview_material_texture_subtype = "metallic_roughness"
+    blade.preview_material_texture_packed_channels = ("roughness", "metallic")
+    blade.preview_color = (0.75, 0.5, 0.25)
+    blade.preview_native_material_overrides = {
+        "roughness": 0.8,
+        "metalness": 0.6,
+        "emissive_color": "#ff4000",
+        "emissive_intensity": 2.0,
+    }
+
+    payload = mesh_dotnet_material_state_payload(
+        mesh,
+        session_id="gltf",
+        edit_revision=1,
+        generation=1,
+    )
+    binding = payload["submeshes"][0]
+
+    assert binding["channels"]["roughness"] == binding["channels"]["metallic"]
+    assert "specular" not in binding["channels"]
+    assert binding["channel_components"] == {"roughness": "g", "metallic": "b"}
+    assert binding["parameters"] == {
+        "tint_color": [0.75, 0.5, 0.25],
+        "roughness_scale": 0.8,
+        "metalness_scale": 0.6,
+        "emissive_color": [1.0, 64 / 255.0, 0.0],
+        "emissive_intensity": 2.0,
+    }
+
+    signature = mesh_dotnet_material_input_signature(mesh)
+    blade.preview_color = (0.5, 0.5, 0.5)
+    assert mesh_dotnet_material_input_signature(mesh) != signature
+
+
+def test_color_only_gltf_material_preserves_surface_and_emissive_factors(tmp_path: Path) -> None:
+    mesh = _mesh()
+    gem = mesh.submeshes[0]
+    gem.texture = ""
+    gem.preview_color = (0.0, 1.0, 0.7911)
+    gem.preview_native_material_overrides = {
+        "roughness": 0.920748,
+        "emissive_color": "#ff0000",
+        "emissive_intensity": 10.0,
+    }
+
+    payload = mesh_dotnet_material_state_payload(
+        mesh,
+        session_id="gem",
+        edit_revision=1,
+        generation=1,
+    )
+
+    assert payload["submeshes"][0]["parameters"] == {
+        "tint_color": [0.0, 1.0, 0.7911],
+        "roughness": 0.920748,
+        "emissive_color": [1.0, 0.0, 0.0],
+        "emissive_intensity": 10.0,
+    }

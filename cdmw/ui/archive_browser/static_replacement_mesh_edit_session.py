@@ -5,6 +5,10 @@ from __future__ import annotations
 from functools import partial
 from types import SimpleNamespace
 
+from cdmw.ui.archive_browser.static_replacement_preview_materials import (
+    copy_preview_material_bindings_to_mesh,
+)
+
 
 def create_session_callbacks(state: SimpleNamespace, callbacks: SimpleNamespace) -> SimpleNamespace:
     result = SimpleNamespace()
@@ -88,6 +92,20 @@ def _mesh_editor_ensure_static_replacement_session(_state, _callbacks, mesh=None
     if source_mesh is None or current_revision < 0:
         return None
     session = _state.mesh_editor_static_replacement_session_state.get("session")
+    material_source = None
+    if bool(_state.modify_original_clone_mode):
+        material_source_getter = _state.context.get("_get_original_reference_preview_model")
+        material_source = (
+            material_source_getter()
+            if callable(material_source_getter)
+            else _state.original_reference_preview_model
+        )
+    material_source_changed = (
+        material_source is not None
+        and _state.mesh_editor_static_replacement_session_state.get("material_source") is not material_source
+    )
+    if material_source_changed:
+        copy_preview_material_bindings_to_mesh(source_mesh, material_source)
     if (
         not isinstance(session, _state.StaticReplacementMeshEditSession)
         or _state.mesh_editor_static_replacement_session_state.get("mesh") is not source_mesh
@@ -111,6 +129,13 @@ def _mesh_editor_ensure_static_replacement_session(_state, _callbacks, mesh=None
         _state.mesh_editor_static_replacement_session_state["mesh"] = source_mesh
         _state.mesh_editor_static_replacement_session_state["revision"] = current_revision
         _state.mesh_edit_native_result_submesh_counts["value"] = ()
+    elif material_source_changed:
+        copy_preview_material_bindings_to_mesh(
+            session.controller.working_mesh(clone=False),
+            material_source,
+        )
+    if material_source is not None:
+        _state.mesh_editor_static_replacement_session_state["material_source"] = material_source
     return session
 
 def _mesh_editor_result_has_deferred_native_python_apply(_state, _callbacks, result: object) -> bool:
@@ -276,6 +301,7 @@ def _mesh_editor_queue_post_edit_textured_preview_rebuild(_state, _callbacks, re
             )
             _state.mesh_edit_preview_model_dirty["value"] = True
     _state._mesh_edit_apply_preview_mode_transition(str(reason or "mesh_edit.finalize"))
+    _state._queue_texture_preview_refresh()
 
 def _mesh_editor_finalize_edit_mode_exit(_state, _callbacks, reason: str, mesh_changed: bool = True) -> bool:
     was_checked = bool(_state.mesh_edit_enabled_checkbox.isChecked())
@@ -293,6 +319,8 @@ def _mesh_editor_finalize_edit_mode_exit(_state, _callbacks, reason: str, mesh_c
             _state.mesh_edit_enabled_checkbox.setChecked(False)
         finally:
             _state.mesh_edit_enabled_checkbox.blockSignals(was_blocked)
+    if getattr(_state, "controls_panel", None) is not None:
+        _state.controls_panel.setVisible(True)
     if bool(mesh_changed):
         _state.mesh_edit_preview_model_dirty["value"] = True
     _callbacks._mesh_editor_queue_post_edit_textured_preview_rebuild(str(reason or "mesh_edit.finalize"))

@@ -1,4 +1,5 @@
 from pathlib import Path
+from collections.abc import Iterator, Mapping
 import os
 import sys
 import tempfile
@@ -61,6 +62,32 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
 
         self.assertEqual(list(candidates), [dds_texture])
         self.assertEqual(label, "extension:.dds+role:texture")
+
+    def test_archive_filter_worker_retains_item_name_mappings_without_iterating(self) -> None:
+        class NonIterableMapping(Mapping[str, str]):
+            def __getitem__(self, key: str) -> str:
+                return "value"
+
+            def __iter__(self) -> Iterator[str]:
+                raise AssertionError("mapping was copied on the caller thread")
+
+            def __len__(self) -> int:
+                return 1
+
+        mapping = NonIterableMapping()
+
+        worker = ArchiveFilterWorker(
+            [],
+            item_search_aliases=mapping,
+            item_display_names=mapping,
+            item_exact_display_names=mapping,
+            item_related_display_names=mapping,
+        )
+
+        self.assertIs(worker.item_search_aliases, mapping)
+        self.assertIs(worker.item_display_names, mapping)
+        self.assertIs(worker.item_exact_display_names, mapping)
+        self.assertIs(worker.item_related_display_names, mapping)
 
     def test_flat_model_is_virtual_and_maps_selection_to_entry_index(self) -> None:
         entries = [_entry(f"ui/texture/file_{index}.dds", index) for index in range(10_000)]

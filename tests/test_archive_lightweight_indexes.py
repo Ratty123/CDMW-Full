@@ -1,18 +1,28 @@
 from __future__ import annotations
 
+import os
 import threading
 import time
+import inspect
 from pathlib import Path
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
+from PySide6.QtCore import QEventLoop, QObject, QThread, QTimer, Qt, Signal, Slot
+from PySide6.QtWidgets import QApplication
+from shiboken6 import isValid as qt_wrapper_is_valid
 
 from cdmw.models import ArchiveEntry, ArchiveEntryIdentity, RunCancelled
 from cdmw.ui.archive_browser.controller import ArchiveBrowserRowPayloadMixin
-from cdmw.ui.archive_browser.index_workers import ArchiveIndexWorkerMixin
+from cdmw.ui.archive_browser.index_workers import ArchiveIndexWorkerMixin, _ArchiveIndexUiReceiver
 from cdmw.ui.archive_browser.mesh_modify_original import ArchiveMeshModifyOriginalMixin
 from cdmw.ui.archive_browser.scan_lifecycle import ArchiveScanLifecycleMixin
 from cdmw.ui.archive_browser.virtual_path_lookup import ArchiveVirtualPathLookupMixin
 from cdmw.workers.archive_scan_workers import build_archive_lightweight_lookup_indexes
+
+
+_APP = QApplication.instance() or QApplication([])
 
 
 class _IndexEntry:
@@ -109,6 +119,119 @@ def test_stale_basic_index_result_is_rejected() -> None:
 
     assert owner.archive_entries_by_normalized_path == {"current": ()}
     assert owner.events[0][0] == "archive_basic_index_result_ignored"
+
+
+def test_archive_index_workers_queue_ui_callbacks_through_qobject_receiver() -> None:
+    basic = inspect.getsource(ArchiveIndexWorkerMixin._start_archive_basic_index_worker)
+    enhanced = inspect.getsource(ArchiveIndexWorkerMixin._start_archive_enhanced_index_worker)
+    derived = inspect.getsource(ArchiveIndexWorkerMixin._start_archive_derived_index_cache_writer)
+
+    for source in (basic, enhanced):
+        assert "_ArchiveIndexUiReceiver" in source
+        assert "Qt.ConnectionType.QueuedConnection" in source
+        assert "worker.progress_changed.connect(receiver.handle_progress" in source
+        assert "worker.error.connect(receiver.handle_error" in source
+        assert "lambda" not in source
+    assert "_ArchiveIndexUiReceiver" in derived
+    assert "worker.log_message.connect(receiver.handle_log, Qt.ConnectionType.QueuedConnection)" in derived
+    assert "thread.finished.connect(receiver.handle_thread_finished, Qt.ConnectionType.QueuedConnection)" in derived
+
+
+@pytest.mark.parametrize("kind", ("basic", "enhanced"))
+def test_archive_index_receiver_delivers_worker_lifecycle_on_ui_thread(kind: str) -> None:
+    app = _APP
+    loop = QEventLoop()
+    events: list[tuple[str, QThread, object | None]] = []
+
+    class Owner(QObject):
+        def record(self, event: str, detail: object | None = None) -> None:
+            events.append((event, QThread.currentThread(), detail))
+
+        def _handle_archive_basic_index_progress(
+            self,
+            _current: int,
+            _total: int,
+            _detail: str,
+            *,
+            request_id: int,
+        ) -> None:
+            self.record("progress", request_id)
+
+        def _handle_archive_enhanced_index_progress(
+            self,
+            _current: int,
+            _total: int,
+            _detail: str,
+            *,
+            request_id: int,
+        ) -> None:
+            self.record("progress", request_id)
+
+        def _handle_archive_basic_index_complete(self, result: object) -> None:
+            self.record("completed", result)
+
+        def _handle_archive_enhanced_index_complete(self, result: object) -> None:
+            self.record("completed", result)
+
+        def _handle_archive_basic_index_error(self, message: str, *, request_id: int) -> None:
+            self.record("error", (message, request_id))
+
+        def _handle_archive_enhanced_index_error(self, message: str, *, request_id: int) -> None:
+            self.record("error", (message, request_id))
+
+        def _cleanup_archive_basic_index_refs(self, request_id: int, owner_thread: object) -> None:
+            self.record("cleanup", (request_id, id(owner_thread), owner_thread.wait(0)))
+
+        def _cleanup_archive_enhanced_index_refs(self, request_id: int, owner_thread: object) -> None:
+            self.record("cleanup", (request_id, id(owner_thread), owner_thread.wait(0)))
+
+    class Worker(QObject):
+        progress = Signal(int, int, str)
+        completed = Signal(object)
+        error = Signal(str)
+        finished = Signal()
+
+        @Slot()
+        def run(self) -> None:
+            self.progress.emit(1, 2, "working")
+            self.completed.emit({"request_id": 7})
+            self.error.emit("expected test error")
+            self.finished.emit()
+
+    owner = Owner()
+    thread = QThread()
+    worker = Worker()
+    worker.moveToThread(thread)
+    receiver = _ArchiveIndexUiReceiver(owner, 7, kind, thread)
+    setattr(owner, f"archive_{kind}_index_ui_receiver", receiver)
+
+    thread.started.connect(worker.run)
+    worker.progress.connect(receiver.handle_progress, Qt.ConnectionType.QueuedConnection)
+    worker.completed.connect(receiver.handle_completed, Qt.ConnectionType.QueuedConnection)
+    worker.error.connect(receiver.handle_error, Qt.ConnectionType.QueuedConnection)
+    worker.finished.connect(worker.deleteLater, Qt.ConnectionType.DirectConnection)
+    worker.finished.connect(thread.quit, Qt.ConnectionType.DirectConnection)
+    thread.finished.connect(receiver.handle_thread_finished, Qt.ConnectionType.QueuedConnection)
+    receiver.destroyed.connect(loop.quit)
+
+    timeout = QTimer()
+    timeout.setSingleShot(True)
+    timeout.timeout.connect(loop.quit)
+    timeout.start(2_000)
+    thread.start()
+    loop.exec()
+    timeout.stop()
+
+    if qt_wrapper_is_valid(thread) and not thread.wait(0):
+        thread.requestInterruption()
+        thread.quit()
+        assert thread.wait(2_000)
+
+    assert [event for event, _thread, _detail in events] == ["progress", "completed", "error", "cleanup"]
+    assert all(callback_thread is app.thread() for _event, callback_thread, _detail in events)
+    assert events[0][2] == 7
+    assert events[-1][2] == (7, id(thread), True)
+    assert getattr(owner, f"archive_{kind}_index_ui_receiver") is None
 
 
 def test_scan_complete_extension_fallback_only_schedules_worker() -> None:

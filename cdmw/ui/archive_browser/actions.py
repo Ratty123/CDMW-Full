@@ -17,7 +17,7 @@ from cdmw.domain.archives.constants import (
     ARCHIVE_MESH_EXTENSIONS,
 )
 from cdmw.services.material_sidecar_service import is_material_sidecar_entry
-from cdmw.models import ArchiveEntry, AssetFamilyGraph, AssetFamilyMember
+from cdmw.models import ArchiveEntry
 
 
 ARCHIVE_CONTEXT_MENU_ICON_COLORS = {
@@ -221,18 +221,6 @@ class ArchiveBrowserActionMixin:
                 return
             seen.add(key)
             candidates.append(candidate)
-
-        try:
-            graph, _references = self._archive_asset_family_graph_for_entry(entry)
-        except Exception:
-            graph = None
-        if isinstance(graph, AssetFamilyGraph):
-            for member in tuple(getattr(graph, "member_rows", ()) or ()):
-                if not isinstance(member, AssetFamilyMember):
-                    continue
-                if str(member.group or "") != "Physics / HKX":
-                    continue
-                add(getattr(member, "resolved_entry", None))
 
         for reference in self._current_archive_related_references_for_entry(entry):
             add(getattr(reference, "resolved_entry", None))

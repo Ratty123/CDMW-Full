@@ -12,7 +12,12 @@ from tools.mesh_harness.real_dotnet_flow import (
     record_flow_step,
 )
 from tools.mesh_harness.real_dotnet_material import resident_material_gates
-from tools.mesh_harness.real_dotnet_display import _image_color_metrics
+from tools.mesh_harness.real_dotnet_display import (
+    _DISPLAY_MODE_LABELS,
+    _DISPLAY_MODES,
+    _REQUIRED_PRODUCTION_DISPLAY_MODES,
+    _image_color_metrics,
+)
 
 
 def test_dotnet_real_game_evidence_keeps_drag_and_heartbeat_samples() -> None:
@@ -28,6 +33,10 @@ def test_dotnet_real_game_evidence_keeps_drag_and_heartbeat_samples() -> None:
         "heartbeat_sample_count": 4,
         "max_heartbeat_gap_ms": 25.0,
         "changed_vertex_count": 1,
+        "part_selection": {
+            "initially_empty": True,
+            "face_selection_keeps_part_unselected": True,
+        },
         "resident_material_update": {
             "process_pid_before": 101,
             "process_pid_after": 101,
@@ -53,7 +62,80 @@ def test_dotnet_real_game_evidence_keeps_drag_and_heartbeat_samples() -> None:
     assert evidence["heartbeat"] == {"count": 4, "max_gap_ms": 25.0}
     assert evidence["resident_material_update"] == proof["resident_material_update"]
     assert evidence["resident_material_parameter_update"] == proof["resident_material_parameter_update"]
+    assert evidence["part_selection"] == proof["part_selection"]
     assert evidence["gates"]["resident_material_srv_reused"] is True
+
+
+def test_real_game_evidence_reads_top_level_gate_aliases() -> None:
+    evidence = _real_game_mesh_evidence(
+        {
+            "ok": False,
+            "source_archives_unchanged": True,
+            "archive_source_content_unchanged": True,
+        }
+    )
+
+    assert evidence["gates"]["archive_sources_unchanged"] is True
+    assert evidence["gates"]["archive_source_content_unchanged"] is True
+
+
+def test_real_dotnet_capture_rejects_an_unowned_visible_window(tmp_path: Path) -> None:
+    from tools.mesh_harness.real_dotnet_capture import capture_dotnet_viewport
+
+    state = SimpleNamespace(
+        viewport_hwnd=10,
+        form_hwnd=11,
+        production_process_pid=42,
+        tab=SimpleNamespace(raise_=lambda: None, activateWindow=lambda: None, winId=lambda: 12),
+        app=SimpleNamespace(processEvents=lambda: None),
+    )
+    output = tmp_path / "capture.png"
+    with (
+        patch("tools.mesh_harness.real_dotnet_capture._host_window_rect", return_value=(0, 0, 128, 128)),
+        patch("tools.mesh_harness.real_dotnet_capture._activate_window_for_input", return_value=False),
+        patch("tools.mesh_harness.real_dotnet_capture._window_at_screen_point", return_value=99),
+        patch("tools.mesh_harness.real_dotnet_capture._window_process_id", return_value=100),
+    ):
+        result = capture_dotnet_viewport(state, output)
+
+    assert result["ok"] is False
+    assert "foreground visible capture target" in str(result["error"])
+    assert not output.exists()
+
+
+def test_real_dotnet_stroke_never_sends_global_input_without_foreground_ownership(tmp_path: Path) -> None:
+    from tools.mesh_harness.real_dotnet import _drive_viewport_stroke
+
+    state = SimpleNamespace(
+        viewport={"width": 100, "height": 100},
+        projected_center=(20.0, 20.0),
+        viewport_hwnd=10,
+        form_hwnd=11,
+        production_process_pid=42,
+        heartbeat_ms=[],
+        heartbeat_started=0.0,
+        tab=SimpleNamespace(
+            standalone_dotnet_protocol_events=[],
+            standalone_dotnet_update_queue=SimpleNamespace(metrics=lambda: {"active_revision": 0}),
+        ),
+        after_capture_path=tmp_path / "after.png",
+    )
+    with (
+        patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(0, 0, 100, 100)),
+        patch("tools.mesh_harness.real_dotnet_input._activate_window_for_input", return_value=False),
+        patch("tools.mesh_harness.real_dotnet_input._screen_cursor_position", return_value=None),
+        patch("tools.mesh_harness.real_dotnet_input._set_screen_cursor_position") as set_cursor,
+        patch("tools.mesh_harness.real_dotnet_input._send_left_button_input") as send_button,
+        patch("tools.mesh_harness.real_dotnet._pump_for"),
+        patch("tools.mesh_harness.real_dotnet._pump_until", return_value=True),
+        patch("tools.mesh_harness.real_dotnet._capture_viewport", return_value={"ok": False}),
+        patch("tools.mesh_harness.real_dotnet._base_error", side_effect=lambda _state, message: {"error": message}),
+    ):
+        result = _drive_viewport_stroke(state)
+
+    assert result == {"error": "The .NET viewport could not be made the foreground input target."}
+    set_cursor.assert_not_called()
+    send_button.assert_not_called()
 
 
 def test_topology_evidence_waits_for_final_gpu_shrink_frame() -> None:
@@ -82,19 +164,40 @@ def test_dotnet_real_game_resident_material_gates_require_reuse_and_one_process(
     }
     after_counts = dict(
         before_counts,
-        material_state_update_count=1,
-        material_state_applied_count=1,
+        material_state_update_count=2,
+        material_state_applied_count=2,
     )
     resources = {"texture_srv_creates": 3, "texture_srv_disposals": 0, "texture_srv_reuses": 0, "live_texture_srvs": 3}
-    state = SimpleNamespace(
-        material_state_payload={"generation": 1, "material_signature": "sig", "resources": [{"resource_id": "r"}]},
-        material_state_applied={
+    payloads = (
+        {"generation": 1, "edit_revision": 7, "material_signature": "sig", "resources": [{"resource_id": "r"}]},
+        {"generation": 2, "edit_revision": 7, "material_signature": "sig", "resources": [{"resource_id": "r"}]},
+    )
+    applied_events = (
+        {
             "event": "material_state_applied",
             "generation": 1,
+            "edit_revision": 7,
+            "renderer": {"material_generation": 1},
+        },
+        {
+            "event": "material_state_applied",
+            "generation": 2,
+            "edit_revision": 7,
             "material_signature": "sig",
             "decoded_resources": 0,
             "reused_resources": 1,
+            "renderer": {
+                "material_generation": 2,
+                "last_requested_material_generation": 2,
+                "last_applied_material_generation": 2,
+            },
         },
+    )
+    state = SimpleNamespace(
+        material_state_payloads=payloads,
+        material_state_applied_events=applied_events,
+        material_state_payload=payloads[-1],
+        material_state_applied=applied_events[-1],
         material_lifecycle_before=before_counts,
         material_lifecycle_after=after_counts,
         material_resource_metrics_before=resources,
@@ -115,6 +218,9 @@ def test_dotnet_real_game_resident_material_gates_require_reuse_and_one_process(
     assert failed["resident_material_no_package_rebuild"] is False
     assert failed["resident_material_srv_reused"] is False
 
+    state.material_state_applied_events = (applied_events[0], dict(applied_events[-1], generation=1))
+    assert resident_material_gates(state)["resident_material_generation_ordered"] is False
+
 
 def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> None:
     source = (Path(__file__).resolve().parents[1] / "tools" / "mesh_harness" / "real_dotnet.py").read_text(
@@ -126,6 +232,9 @@ def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> 
 
     assert "mesh_dotnet_material_state_payload(" in material_source
     assert 'state.tab._send_dotnet_material_state(reason="real_archive_harness")' in material_source
+    assert 'state.tab._send_dotnet_material_state(reason="real_archive_harness_same_revision")' in material_source
+    assert '"part_selection_optional": bool(' in source
+    assert "state.initial_part_selection_empty and state.face_selection_keeps_part_unselected" in source
     run = source[source.index("def run_real_archive_mesh_editor_dotnet_edit_smoke(") :]
     state_update = run.index("exercise_resident_material_update(")
     geometry_display = run.index("exercise_geometry_display_modes(")
@@ -164,6 +273,18 @@ def test_real_dotnet_geometry_color_guard_rejects_black_and_accepts_lit_faces(tm
 
     assert _image_color_metrics(black)["non_black_geometry"] is False
     assert _image_color_metrics(lit)["non_black_geometry"] is True
+
+
+def test_real_dotnet_proof_requires_textured_faces_without_textures_and_vertices() -> None:
+    exercised = {mode for mode, _capture_name in _DISPLAY_MODES}
+
+    assert _REQUIRED_PRODUCTION_DISPLAY_MODES <= exercised
+    assert {_DISPLAY_MODE_LABELS[mode] for mode in _REQUIRED_PRODUCTION_DISPLAY_MODES} == {
+        "Solid (Textured)",
+        "Faces (No Textures)",
+        "Vertices",
+    }
+    assert _DISPLAY_MODES[-1][0] == "textured"
 
 
 def test_real_assignment_preserves_source_dds_format_and_mips(tmp_path: Path) -> None:
@@ -236,6 +357,7 @@ def test_production_flow_is_ordered_and_gated_by_real_lifecycle_evidence() -> No
         },
         export_flow_evidence={
             "coherent_snapshot": True,
+            "source_asset_hash_matches": True,
             "output_reparse_status": "passed",
             "artifact_hashes_present": True,
         },

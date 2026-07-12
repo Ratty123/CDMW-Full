@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import os
 import threading
 import unittest
 from pathlib import Path
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtWidgets import QApplication, QComboBox
 
 from cdmw.domain.archives.filters import (
     archive_browser_entry_category,
@@ -12,11 +17,13 @@ from cdmw.domain.archives.filters import (
 )
 from cdmw.models import ArchiveEntry, RunCancelled
 from cdmw.ui.archive_browser.filters import (
+    ArchiveFilterStateMixin,
     archive_browser_entry_category as ui_archive_browser_entry_category,
     build_archive_category_entry_index as ui_build_archive_category_entry_index,
 )
 from cdmw.ui.archive_browser.filter_workers import _record_archive_filter_worker_lifecycle
 from cdmw.ui.archive_browser.workers import _record_archive_worker_lifecycle
+from cdmw.ui.texture_workflow.workflow_profiles_panel import TextureWorkflowProfilesPanelMixin
 
 
 def _entry(path: str) -> ArchiveEntry:
@@ -33,6 +40,24 @@ def _entry(path: str) -> ArchiveEntry:
 
 
 class ArchiveBrowserFilterTests(unittest.TestCase):
+    def test_editable_extension_filter_removes_all_files_prefix(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        host_type = type("ArchiveFilterHost", (ArchiveFilterStateMixin, TextureWorkflowProfilesPanelMixin), {})
+        host = host_type()
+        host.archive_extension_filter_combo = QComboBox()
+        host.archive_extension_filter_combo.setEditable(True)
+        host._add_combo_choice(host.archive_extension_filter_combo, "All files", "*")
+        host._add_combo_choice(host.archive_extension_filter_combo, ".pac (12,962)", ".pac")
+        line_edit = host.archive_extension_filter_combo.lineEdit()
+        line_edit.editingFinished.connect(host._canonicalize_archive_extension_filter_control)
+
+        host.archive_extension_filter_combo.setEditText("All files.pac")
+        line_edit.editingFinished.emit()
+
+        self.assertEqual(".pac", host._combo_value(host.archive_extension_filter_combo))
+        self.assertEqual(".pac (12,962)", host.archive_extension_filter_combo.currentText())
+        self.assertIs(app, QApplication.instance())
+
     def test_archive_browser_entry_category_uses_asset_extension_and_path(self) -> None:
         self.assertEqual("Texture", archive_browser_entry_category(_entry("texture/foo.dds")))
         self.assertEqual("Physics", archive_browser_entry_category(_entry("meshphysics/foo.hkx")))

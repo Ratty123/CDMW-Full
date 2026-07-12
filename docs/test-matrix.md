@@ -1,6 +1,6 @@
 # Test Matrix
 
-Last reviewed: 2026-07-11
+Last reviewed: 2026-07-12
 
 Use the project virtualenv:
 
@@ -99,8 +99,13 @@ opens the actual body mesh in the embedded .NET/Vortice D3D11 viewport, routes
 edits through `cdmw_mesh_core`, then proves selection/transform, scalar state,
 two linked texture strokes, committed DDS assignment, UV/topology edits,
 undo/redo, coherent export, and GLB/OBJ/DDS/sidecar readback. Evidence stays
-under the temp directory. `mesh-unit` excludes visual
-scenarios, so it never opens the synthetic legacy checker-square window.
+under the temp directory. It also requires an initially empty Parts selection
+and proves face/vertex selection does not select or highlight a part.
+`mesh-unit` excludes visual scenarios, so it never opens the synthetic legacy
+checker-square window.
+Before capture or physical mouse-down, the proof requires the exact .NET form
+to own the foreground and the sampled screen point to resolve to a viewport
+descendant with the renderer PID; otherwise it aborts without injecting input.
 The direct harness CLI resolves the game root from `--game-root`, then
 `CDMW_GAME_ROOT`, then the standard Steam installation path.
 
@@ -150,6 +155,20 @@ zero package/decode/SRV churn, non-black geometry, and captured draw counters
 for every mode. `mesh-dotnet-native-parity-report` is an explicit blocked
 report scaffold, not a passing gate, until same-camera automated comparison is
 implemented.
+
+Exact external-model import regression (local licensed/source assets, opt-in):
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q -m real_game tests/test_real_external_sword_import.py
+```
+
+This resolves `wolf_gravestone_sword_free (1).zip` through production catalogue
+ingestion and reads
+`character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0016.pac`
+through archive identity. It verifies centered/Y-grounded placement, one shared
+side-by-side/overlay grid, discovered non-checker texture inputs, and unchanged
+source PAMT/PAZ fingerprints. Packaged texture presentation is separately
+confirmed by the explicit local Computer Use replay.
 
 Protocol-only local smoke, when a real game archive is not available:
 

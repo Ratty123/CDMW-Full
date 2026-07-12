@@ -339,7 +339,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("kDecodedEntryCacheMaxSingleBytes = 64ull * 1024ull * 1024ull", source_text)
         self.assertIn("kDecodedEntryCacheRecycleBytes = 192ull * 1024ull * 1024ull", source_text)
         self.assertIn("kServiceMaxJobs = 32", source_text)
-        self.assertIn("kServicePrivateRecycleBytes = 768ull * 1024ull * 1024ull", source_text)
+        self.assertIn("kServicePrivateRecycleBytes = 512ull * 1024ull * 1024ull", source_text)
         self.assertIn("process_private_bytes", source_text)
         self.assertIn("service_recycle_reason", source_text)
         python_source = Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8")

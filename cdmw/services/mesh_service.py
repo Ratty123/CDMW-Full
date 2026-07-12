@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import math
 import os
 import time
@@ -38,7 +39,7 @@ from cdmw.domain.mesh import (
     validate_mesh_export,
 )
 from cdmw.domain.textures.material_authority import complete_swap_material_authority_contract, sanitize_texture_component
-from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+from cdmw.modding.mesh_deformer import clone_mesh_for_editing, copy_extra_submesh_attrs
 from cdmw.modding.mesh_deformer import recompute_mesh_normals
 from cdmw.modding.mesh_edit_ops import (
     MESH_GEOMETRY_ACTIONS,
@@ -237,12 +238,13 @@ def _with_mesh_session_export_lock(method):
 
 
 def _attach_mesh_asset_status(mesh: ParsedMesh, original_data: bytes, *, run_roundtrip: bool) -> None:
-    setattr(mesh, "_cdmw_original_data", bytes(original_data or b""))
+    source_data = bytes(original_data or b"")
+    setattr(mesh, "_cdmw_original_data", source_data)
+    setattr(mesh, "_cdmw_mesh_asset_source_hash", hashlib.sha256(source_data).hexdigest() if source_data else "")
     try:
-        asset = mesh_asset_from_parsed_mesh(mesh, original_data, source_path=str(mesh.path or ""))
+        asset = mesh_asset_from_parsed_mesh(mesh, source_data, source_path=str(mesh.path or ""))
     except Exception:
         setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "failed")
-        setattr(mesh, "_cdmw_mesh_asset_source_hash", "")
         setattr(mesh, "_cdmw_mesh_asset_inferred_bone_count", 0)
         setattr(mesh, "_cdmw_mesh_asset_lods", ())
         setattr(mesh, "_cdmw_mesh_asset_material_slots", ())
@@ -262,7 +264,7 @@ def _attach_mesh_asset_status(mesh: ParsedMesh, original_data: bytes, *, run_rou
         return
     try:
         result = roundtrip_mesh_bytes(
-            original_data,
+            source_data,
             str(mesh.path or ""),
             parser=lambda _data, _filename: mesh,
         )
@@ -319,14 +321,15 @@ def _copy_mesh_validation_metadata(source: ParsedMesh, target: ParsedMesh) -> No
         "_cdmw_mesh_asset_lods",
         "_cdmw_mesh_asset_material_slots",
         "_cdmw_mesh_asset_unknown_sections",
+        "_cdmw_sidecar_source_asset_hash",
+        "_cdmw_sidecar_source_asset_size",
         "material_slots",
         "unknown_sections",
     ):
         if hasattr(source, name):
             setattr(target, name, copy.deepcopy(getattr(source, name)))
     for source_submesh, target_submesh in zip(tuple(source.submeshes or ()), tuple(target.submeshes or ())):
-        if hasattr(source_submesh, "unknown_fields"):
-            setattr(target_submesh, "unknown_fields", copy.deepcopy(getattr(source_submesh, "unknown_fields")))
+        copy_extra_submesh_attrs(source_submesh, target_submesh)
 
 
 def _session_validation_skeleton_bone_count(session: _MeshEditSession) -> int | None:
@@ -360,6 +363,28 @@ def _developer_override_report_entries(reason: str, codes: Sequence[str]) -> tup
     )
 
 
+def _load_mesh_bytes(data: bytes, source_path: Path | str, *, run_roundtrip: bool) -> ParsedMesh:
+    source_name = str(source_path)
+    if not is_mesh_file(source_name):
+        raise ValueError(f"Unsupported mesh file type: {Path(source_name).suffix or source_name}")
+    source_data = bytes(data)
+    mesh = parse_mesh(source_data, source_name)
+    if not isinstance(mesh, ParsedMesh):
+        raise TypeError("mesh parser did not return ParsedMesh")
+    if not str(mesh.path or "").strip():
+        mesh.path = source_name
+    refresh_mesh_totals(mesh)
+    _attach_mesh_asset_status(mesh, source_data, run_roundtrip=run_roundtrip)
+    return mesh
+
+
+def _load_mesh_file(path: Path | str, *, run_roundtrip: bool) -> ParsedMesh:
+    source_path = Path(path).expanduser()
+    if not is_mesh_file(str(source_path)):
+        raise ValueError(f"Unsupported mesh file type: {source_path.suffix or source_path}")
+    return _load_mesh_bytes(source_path.read_bytes(), source_path, run_roundtrip=run_roundtrip)
+
+
 @dataclass(slots=True)
 class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, MeshRebuildServiceMixin, MeshHistoryServiceMixin):
     settings: object | None = None
@@ -367,19 +392,11 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
     max_history_bytes: int = _DEFAULT_MESH_HISTORY_BYTES
     _sessions: dict[str, _MeshEditSession] = field(default_factory=dict)
 
+    def load_mesh_bytes(self, data: bytes, source_path: Path | str, *, run_roundtrip: bool = False) -> ParsedMesh:
+        return _load_mesh_bytes(data, source_path, run_roundtrip=run_roundtrip)
+
     def load_mesh_file(self, path: Path | str, *, run_roundtrip: bool = False) -> ParsedMesh:
-        source_path = Path(path).expanduser()
-        if not is_mesh_file(str(source_path)):
-            raise ValueError(f"Unsupported mesh file type: {source_path.suffix or source_path}")
-        data = source_path.read_bytes()
-        mesh = parse_mesh(data, str(source_path))
-        if not isinstance(mesh, ParsedMesh):
-            raise TypeError("mesh parser did not return ParsedMesh")
-        if not str(mesh.path or "").strip():
-            mesh.path = str(source_path)
-        refresh_mesh_totals(mesh)
-        _attach_mesh_asset_status(mesh, data, run_roundtrip=run_roundtrip)
-        return mesh
+        return _load_mesh_file(path, run_roundtrip=run_roundtrip)
 
     def open_edit_session(
         self,
@@ -403,7 +420,14 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
             working_mesh=working_mesh,
             original_data=original_data,
             mesh_asset_parse_confidence=str(getattr(mesh, "_cdmw_mesh_asset_parse_confidence", "") or ""),
-            mesh_asset_source_hash=str(getattr(mesh, "_cdmw_mesh_asset_source_hash", "") or ""),
+            mesh_asset_source_hash=str(
+                getattr(mesh, "_cdmw_mesh_asset_source_hash", "")
+                or getattr(mesh, "_cdmw_sidecar_source_asset_hash", "")
+                or (hashlib.sha256(original_data).hexdigest() if original_data else "")
+            ),
+            mesh_asset_source_size=(
+                _positive_int(getattr(mesh, "_cdmw_sidecar_source_asset_size", 0)) or len(original_data)
+            ),
             mesh_asset_inferred_bone_count=_positive_int(getattr(mesh, "_cdmw_mesh_asset_inferred_bone_count", 0)),
             no_op_roundtrip_report=getattr(mesh, "_cdmw_no_op_roundtrip_report", None),
             sidecar_warnings=tuple(getattr(mesh, "_cdmw_sidecar_warnings", ()) or ()),

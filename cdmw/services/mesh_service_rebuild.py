@@ -389,6 +389,7 @@ class MeshRebuildServiceMixin:
                 original_data=bytes(session.original_data),
                 mesh_asset_parse_confidence=session.mesh_asset_parse_confidence,
                 mesh_asset_source_hash=session.mesh_asset_source_hash,
+                mesh_asset_source_size=session.mesh_asset_source_size,
                 mesh_asset_inferred_bone_count=session.mesh_asset_inferred_bone_count,
                 skeleton_bone_count=int(_service_call("_session_validation_skeleton_bone_count", session) or 0),
                 no_op_roundtrip_report=(
@@ -577,6 +578,8 @@ class MeshRebuildServiceMixin:
             "session_id": snapshot.session_id,
             "mesh_revision": int(snapshot.mesh_revision),
             "native_edit_revision": int(snapshot.native_edit_revision),
+            "source_asset_hash": snapshot.mesh_asset_source_hash,
+            "source_asset_size": int(snapshot.mesh_asset_source_size),
             "material_generation": int(snapshot.material_generation),
             "texture_revisions": [
                 {"resource_id": resource_id, "channel": channel, "revision": int(revision)}

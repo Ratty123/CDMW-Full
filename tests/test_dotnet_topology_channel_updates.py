@@ -67,6 +67,12 @@ def test_ordinary_topology_update_rebuilds_only_affected_d3d_batch() -> None:
     assert '"missing_vertex_channels_initialized"' in soak
     assert '"equal_count_channels_remapped"' in soak
     assert '"malformed_vertex_channel_rejected"' in soak
+    assert '"material_parameter_lineage_remapped"' in soak
+    assert "RemapTopologyState(materialSources, _document.Submeshes.Count)" in protocol
+    resident_materials = _source("NetMaterialSet.Resident.cs")
+    assert "public IReadOnlySet<int> RemapTopologyState(" in resident_materials
+    assert "binding with { SubmeshIndex = targetIndex }" in resident_materials
+    assert "ParameterStates = nextParameters;" in resident_materials
 
 
 def test_whole_part_delete_sends_affected_only_shrink() -> None:

@@ -1740,7 +1740,7 @@ def test_mesh_edit_triangle_replace_groups_builds_full_triangle_payload(monkeypa
     assert len(groups) == 1
     assert groups[0]["source_submesh_index"] == 1
     assert groups[0]["material_source_submesh_index"] == 1
-    assert groups[0]["material_name"] == "part_1"
+    assert (groups[0]["part_name"], groups[0]["material_name"]) == ("part_1", "part_1")
     assert groups[0]["texture_name"] == ""
     assert _source_values(groups[0], "source_vertex_indices") == [0, 1, 2]
     assert _source_values(groups[0], "source_face_indices") == [0]
@@ -2029,12 +2029,12 @@ def test_mesh_edit_triangle_replace_groups_clears_vertex_payload_without_valid_f
         {
             "source_submesh_index": 0,
             "material_source_submesh_index": 0,
+            "part_name": "part_0",
             "material_name": "part_0",
             "texture_name": "",
             "source_vertex_indices": [],
             "source_face_indices": [],
-            "positions": [],
-            "indices": [],
+            "positions": [], "indices": [],
         }
     ]
 

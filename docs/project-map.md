@@ -46,6 +46,8 @@ user explicitly names them.
   handling, PyInstaller cleanup, bootstrap reports, CLI/GUI dispatch.
 - `cdmw/ui/main_window.py`: public compatibility facade for `MainWindow`,
   `run_gui`, and legacy imports.
+- `cdmw/ui/theme_schemes.py`: app-theme palette data; `cdmw/ui/themes.py`
+  keeps public theme lookup plus Qt palette and stylesheet generation.
 - `cdmw/ui/shell/`: one-base shell window, composed controller/provider
   registry, tab wiring, actions, settings, theme, startup, close, diagnostics,
   and app context.

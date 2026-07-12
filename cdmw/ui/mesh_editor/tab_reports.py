@@ -137,7 +137,7 @@ class MeshEditorReportsMixin:
             developer_override=bool(developer_override and output_path_text),
             developer_override_reason=developer_override_reason,
             expected_mesh_revision=controller.session_view().revision,
-            texture_updates_waiter=self.standalone_texture_region_queue.wait_idle,
+            texture_updates_waiter=self._wait_for_dotnet_export_updates,
         )
         thread = QThread(self)
         progress = QProgressDialog(f"Running {action_text}...", "Cancel", 0, 100, self)

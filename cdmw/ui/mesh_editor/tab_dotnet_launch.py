@@ -65,7 +65,6 @@ class MeshEditorDotNetLaunchMixin:
         return (
             self._standalone_dotnet_package_worker_active()
             or self._standalone_dotnet_import_worker_active()
-            or self._standalone_dotnet_editor_process_running()
         )
     def _set_dotnet_status(self, message: str, *, error: bool = False) -> None:
         label = (
@@ -191,7 +190,16 @@ class MeshEditorDotNetLaunchMixin:
             embedded=bool(embedded),
             executable=str(executable),
         )
-        worker = _tab.MeshDotNetExperimentPackageWorker(request_id, controller.mesh_service, session_id)
+        reference_mesh = self._dotnet_reference_mesh_for_package(controller, embedded=embedded)
+        comparison_mode, interaction_mode = self._dotnet_initial_scene_modes(embedded=embedded)
+        worker = _tab.MeshDotNetExperimentPackageWorker(
+            request_id,
+            controller.mesh_service,
+            session_id,
+            reference_mesh=reference_mesh,
+            comparison_mode=comparison_mode,
+            interaction_mode=interaction_mode,
+        )
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
@@ -206,6 +214,58 @@ class MeshEditorDotNetLaunchMixin:
         self._set_dotnet_status("Preparing Mesh .NET editor experiment package...")
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         thread.start(QThread.LowPriority)
+
+    def _dotnet_reference_mesh_for_package(
+        self,
+        controller: _tab.MeshEditorController,
+        *,
+        embedded: bool,
+    ) -> _tab.ParsedMesh | None:
+        if embedded:
+            getter = getattr(self.active_builder(), "_mesh_editor_embedded_reference_mesh", None)
+            if callable(getter):
+                try:
+                    reference = getter()
+                    return reference if isinstance(reference, _tab.ParsedMesh) else None
+                except Exception:
+                    return None
+            return None
+        try:
+            return controller.base_mesh(clone=False)
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            return None
+
+    def _dotnet_initial_scene_modes(self, *, embedded: bool) -> tuple[str, str]:
+        if not embedded:
+            comparison = {"source": "original_only", "ghost": "overlay"}.get(
+                str(self.standalone_compare_mode or "edited"),
+                "replacement_only",
+            )
+            return comparison, "mesh_edit"
+        builder = self.active_builder()
+        comparison_getter = getattr(builder, "_mesh_editor_embedded_comparison_mode", None)
+        interaction_getter = getattr(builder, "_mesh_editor_embedded_interaction_mode", None)
+        try:
+            comparison = str(comparison_getter() if callable(comparison_getter) else "side_by_side")
+        except Exception:
+            comparison = "side_by_side"
+        try:
+            interaction = str(interaction_getter() if callable(interaction_getter) else "placement")
+        except Exception:
+            interaction = "placement"
+        return comparison, interaction
+
+    def _dotnet_current_placement_state(self, *, embedded: bool) -> Mapping[str, object] | None:
+        if not embedded:
+            return None
+        getter = getattr(self.active_builder(), "_mesh_editor_embedded_placement_state", None)
+        if not callable(getter):
+            return None
+        try:
+            value = getter()
+        except Exception:
+            return None
+        return value if isinstance(value, Mapping) else None
     def _handle_standalone_dotnet_package_ready(self, request_id: int, package_object: object, elapsed_ms: float) -> None:
         if int(request_id) != int(self.standalone_dotnet_package_request_id):
             return
@@ -443,7 +503,7 @@ class MeshEditorDotNetLaunchMixin:
         callback = getattr(builder, "_mesh_editor_embedded_dotnet_failed", None) if builder is not None else None
         if callable(callback):
             try:
-                callback(str(reason or "mesh_edit_dotnet_fallback"), str(diagnostics or ""))
+                callback(str(reason or "mesh_edit_dotnet_failed"), str(diagnostics or ""))
                 return
             except Exception as exc:
                 self._record_mesh_dotnet_event("mesh_dotnet_failed_callback_error", reason=reason, error=str(exc))

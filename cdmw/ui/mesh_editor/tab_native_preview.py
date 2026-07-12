@@ -137,73 +137,20 @@ class MeshEditorNativePreviewMixin:
         self._sync_standalone_native_mesh_edit_state(force=True)
         return True
     def start_standalone_native_preview(self, output_root: Path | None = None, *, reset_view: bool = True) -> bool:
-        package_dir = self.write_standalone_native_preview_package(output_root=output_root)
-        return self._launch_standalone_native_preview_package(package_dir, reset_view=reset_view)
-    def start_standalone_native_preview_async(self, output_root: Path | None = None, *, reset_view: bool = True) -> bool:
-        if self.standalone_native_package_thread is not None:
-            self.status_message_requested.emit("Native D3D11 preview package is already preparing.", False)
-            return False
-        controller = self.standalone_controller
-        if controller is None:
-            self.standalone_status_label.setText("Native D3D11 preview unavailable: no active session.")
-            self.status_message_requested.emit("Native D3D11 preview unavailable: no active session.", True)
-            return False
-        try:
-            pose_native_context = self._standalone_pose_native_preview_context()
-            if pose_native_context is not None:
-                mesh_snapshot, pose_skeleton, pose_rotations = pose_native_context
-                reference_snapshot = None
-
-                def prepare_native_preview(mesh: _tab.ParsedMesh) -> object:
-                    prepared = _tab.mesh_pose_to_native_preview(
-                        mesh,
-                        skeleton=pose_skeleton,
-                        pose_rotations=pose_rotations,
-                    )
-                    return prepared
-
-            else:
-                # Snapshot safety still covers source/ghost/no-pose paths.
-                mesh_snapshot = self._standalone_preview_mesh_snapshot()
-                reference_snapshot = self._standalone_reference_mesh_snapshot()
-                prepare_native_preview = lambda mesh, reference=reference_snapshot: _tab.mesh_editor_native_preview_data(mesh, reference_mesh=reference)
-            skeleton_overlay = controller.skeleton_overlay_data()
-        except Exception as exc:
-            self.standalone_status_label.setText(f"Native D3D11 preview unavailable: {exc}")
-            self.status_message_requested.emit(f"Native D3D11 preview unavailable: {exc}", True)
-            return False
-        self.standalone_native_package_request_id += 1
-        request_id = self.standalone_native_package_request_id
-        display_mode = "original_only" if self.standalone_compare_mode == "source" else ("overlay" if self.standalone_compare_mode == "ghost" else "replacement_only")
-        worker = _tab.MeshNativePreviewPackageWorker(
-            request_id,
-            mesh_snapshot,
-            _tab.ModelPreviewRenderSettings(use_textures_by_default=True, high_quality_by_default=True),
-            prepare_native_preview=prepare_native_preview,
-            output_root=output_root,
-            model_preview_data=_tab.ModelPreviewData(path=str(mesh_snapshot.path or "mesh_editor.pac"), physics_overlay=skeleton_overlay),
-            use_textures=True,
-            high_quality_textures=True,
-            backend="d3d11",
-            display_mode=display_mode,
+        del output_root, reset_view
+        self.status_message_requested.emit(
+            "Legacy native Mesh Editor preview is disabled; the .NET/Vortice viewport is authoritative.",
+            True,
         )
-        thread = QThread(self)
-        worker.moveToThread(thread)
-        thread.started.connect(worker.run)
-        worker.completed.connect(self._handle_standalone_native_package_ready)
-        worker.error.connect(self._handle_standalone_native_package_error)
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_native_package_worker(target_thread, target_worker))
-        self.standalone_native_package_thread = thread
-        self.standalone_native_package_worker = worker
-        self.standalone_native_package_reset_view = bool(reset_view)
-        self.standalone_native_package_pending_has_reference = reference_snapshot is not None
-        self.standalone_native_package_pending_compare_mode = self.standalone_compare_mode
-        self.standalone_status_label.setText("Preparing native D3D11 preview package...")
-        thread.start(QThread.LowPriority)
-        return True
+        return False
+    def start_standalone_native_preview_async(self, output_root: Path | None = None, *, reset_view: bool = True) -> bool:
+        del output_root, reset_view
+        self.status_message_requested.emit(
+            "Legacy native Mesh Editor preview is disabled; the .NET/Vortice viewport is authoritative.",
+            True,
+        )
+        return False
+
     def _handle_standalone_native_package_ready(self, request_id: int, package_dir_object: object, elapsed_ms: float) -> None:
         try:
             package_dir = Path(package_dir_object)

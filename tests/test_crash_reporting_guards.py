@@ -107,6 +107,7 @@ ARCHIVE = ROOT / "cdmw" / "core" / "archive.py"
 ARCHIVE_FORMAT = ROOT / "cdmw" / "core" / "archive_format.py"
 CONSTANTS = ROOT / "cdmw" / "constants.py"
 THEMES = ROOT / "cdmw" / "ui" / "themes.py"
+THEME_SCHEMES = ROOT / "cdmw" / "ui" / "theme_schemes.py"
 WIDGETS = ROOT / "cdmw" / "ui" / "widgets.py"
 RESEARCH_TAB = ROOT / "cdmw" / "ui" / "research" / "tab.py"
 RESEARCH_LAYOUT = ROOT / "cdmw" / "ui" / "research" / "layout_state.py"
@@ -728,7 +729,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertNotIn('QLabel("CDMW")', splash_source)
 
     def test_crimson_desert_theme_is_available(self) -> None:
-        source = THEMES.read_text(encoding="utf-8")
+        source = THEMES.read_text(encoding="utf-8") + THEME_SCHEMES.read_text(encoding="utf-8")
         self.assertIn('"crimson_desert"', source)
         self.assertIn('"label": "Crimson Desert"', source)
         self.assertIn('"accent": "#c56d43"', source)
@@ -972,7 +973,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self._warn_if_archive_cache_stale(health_report, package_root_text)", autoload_body)
         self.assertIn("Keep CDMW open until the cache status reaches ready.", autoload_body)
         self.assertIn("self.scan_archives(\n            force_refresh=", autoload_body)
-        self.assertIn("if bool(getattr(self, \"_startup_archive_path_prompt_accepted\", False)):\n            self._release_startup_splash()", autoload_body)
+        self.assertNotIn("self._release_startup_splash()", autoload_body[autoload_body.index("        self.scan_archives(") :])
         self.assertIn("window._show_startup_archive_path_prompt_if_needed(startup_splash)", source)
         self.assertIn("QTimer.singleShot(0, window._maybe_autoload_archive_on_startup)", source)
         self.assertLess(
@@ -1216,7 +1217,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertNotIn("archive_status_group_layout.addWidget(self.archive_preview_settings_status_label)", source)
 
     def test_additional_qa_themes_are_available(self) -> None:
-        source = THEMES.read_text(encoding="utf-8")
+        source = THEME_SCHEMES.read_text(encoding="utf-8")
         for key, label in (
             ("midnight_ember", "Midnight Ember"),
             ("glacier", "Glacier"),

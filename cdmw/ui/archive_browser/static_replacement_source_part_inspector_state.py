@@ -9,10 +9,13 @@ def part_inspector_loading_initial_state() -> dict[str, bool]:
 
 def source_parts_action_control_text() -> dict[str, str]:
     return {
+        "duplicate_button": "Duplicate Selected",
         "delete_button": "Delete Selected",
         "apply_button": "Apply",
+        "duplicate_object": "MeshRoutingDuplicateSourcePartsButton",
         "delete_object": "MeshRoutingDeleteSourcePartsButton",
         "apply_object": "MeshRoutingApplySourcePartsButton",
+        "duplicate_tooltip": "Duplicate the selected replacement source part and copy its current target mapping.",
         "delete_tooltip": (
             "Delete selected replacement source part(s) from this alignment session, remove their target assignments, "
             "and re-number later source indices. Original archive files are not modified."

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import ast
+import builtins
 import importlib
 import inspect
 from pathlib import Path
+import symtable
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from cdmw.ui.archive_browser import static_replacement_dialog_callback_factories as callbacks
+from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_preview_model_part_01 as preview_model_owner
 from cdmw.ui.archive_browser import static_replacement_dialog_remaining_callbacks as remaining_callbacks
 from cdmw.ui.archive_browser import static_replacement_dialog_routing_callbacks as routing_callbacks
 from cdmw.ui.archive_browser import static_replacement_dialog_source_part_mutation_callbacks as source_part_mutation_callbacks
@@ -239,6 +242,167 @@ def test_static_replacement_factory_owners_are_bounded() -> None:
                 assert node.end_lineno - node.lineno + 1 <= 150, f"{path.name}:{node.name}"
 
 
+def test_static_replacement_factory_owners_have_no_unbound_global_references() -> None:
+    builtin_names = set(dir(builtins))
+    failures: list[str] = []
+    for path in _owner_paths():
+        table = symtable.symtable(path.read_text(encoding="utf-8"), str(path), "exec")
+        module_names = {
+            symbol.get_name()
+            for symbol in table.get_symbols()
+            if symbol.is_assigned() or symbol.is_imported() or symbol.is_namespace()
+        }
+
+        def inspect_table(current: symtable.SymbolTable) -> None:
+            for symbol in current.get_symbols():
+                name = symbol.get_name()
+                if (
+                    symbol.is_referenced()
+                    and symbol.is_global()
+                    and name not in module_names
+                    and name not in builtin_names
+                ):
+                    failures.append(f"{path.name}:{current.get_name()} references unbound {name!r}")
+            for child in current.get_children():
+                inspect_table(child)
+
+        inspect_table(table)
+
+    assert not failures, "\n".join(failures)
+
+
+def test_static_replacement_section_factories_initialize_every_state_attribute() -> None:
+    factory_tree = ast.parse(
+        (OWNER_ROOT / "static_replacement_dialog_factory_owners.py").read_text(encoding="utf-8")
+    )
+    initial_names = {"context", "_factory_globals", "_factory_result_values"}
+    failures: list[str] = []
+    for owner_name in (
+        "setup_options_transform",
+        "mesh_geometry_preview",
+        "texture_material",
+        "source_parts_outliner",
+    ):
+        factory_name = f"create_alignment_{owner_name}_section"
+        factory_node = next(
+            node
+            for node in factory_tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == factory_name
+        )
+        factory_call = next(
+            node
+            for node in ast.walk(factory_node)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "run_static_replacement_factory"
+        )
+        global_names = {
+            element.value
+            for element in factory_call.args[2].elts
+            if isinstance(element, ast.Constant) and isinstance(element.value, str)
+        }
+        assigned = set(initial_names) | global_names
+        referenced: set[str] = set()
+        for path in sorted(OWNER_ROOT.glob(f"static_replacement_dialog_sections_{owner_name}_part_*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if (
+                    isinstance(node, ast.Attribute)
+                    and isinstance(node.value, ast.Name)
+                    and node.value.id == "_state"
+                ):
+                    if isinstance(node.ctx, ast.Store):
+                        assigned.add(node.attr)
+                    else:
+                        referenced.add(node.attr)
+                elif (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id == "setattr"
+                    and len(node.args) >= 2
+                    and isinstance(node.args[0], ast.Name)
+                    and node.args[0].id == "_state"
+                    and isinstance(node.args[1], ast.Constant)
+                    and isinstance(node.args[1].value, str)
+                ):
+                    assigned.add(node.args[1].value)
+        for name in sorted(referenced - assigned):
+            failures.append(f"{factory_name} reads uninitialized _state.{name}")
+
+    assert not failures, "\n".join(failures)
+
+
+def test_prompt_section_factories_export_every_member_consumed_by_prompt_setup() -> None:
+    prompt_tree = ast.parse(
+        (OWNER_ROOT / "static_replacement_dialog_prompt_setup.py").read_text(encoding="utf-8")
+    )
+    section_owners = {
+        "alignment_setup_options_transform_section": "setup_options_transform",
+        "alignment_mesh_geometry_preview_section": "mesh_geometry_preview",
+        "alignment_texture_material_section": "texture_material",
+        "alignment_source_parts_outliner_section": "source_parts_outliner",
+    }
+    for section_name, owner_name in section_owners.items():
+        consumed = {
+            node.attr for node in ast.walk(prompt_tree)
+            if isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == section_name
+        }
+        exported: set[str] = set()
+        for path in OWNER_ROOT.glob(f"static_replacement_dialog_sections_{owner_name}_part_*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                        and node.func.attr == "update" and node.args \
+                        and isinstance(node.args[0], ast.Dict):
+                    exported.update(
+                        key.value for key in node.args[0].keys
+                        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+                    )
+        assert consumed <= exported, f"{section_name}: {sorted(consumed - exported)}"
+
+
+def test_modeless_dialog_close_stops_texture_worker_before_d3d_preview() -> None:
+    calls: list[str] = []
+    dialog = SimpleNamespace(deleteLater=lambda: calls.append("delete_dialog"))
+    owner = SimpleNamespace(
+        _unregister_modeless_alignment_dialog=lambda *_args: calls.append("unregister")
+    )
+    callbacks = remaining_callbacks.create_alignment_modeless_dialog_callbacks(
+        {
+            "QDialog": SimpleNamespace(Accepted=1),
+            "QTimer": SimpleNamespace(singleShot=lambda *_args: None),
+            "_alignment_builder_closed_empty_state_message_helper": lambda: "closed",
+            "_alignment_cancel_handler_failed_status_helper": str,
+            "_alignment_dialog_accepted_helper": lambda _state: False,
+            "_alignment_dialog_finished_route_helper": lambda **_kwargs: SimpleNamespace(
+                should_call_cancel_handler=False,
+                should_show_embedded_empty_state=False,
+            ),
+            "_alignment_dialog_mark_closing_helper": lambda _state: calls.append("closing"),
+            "_finish_alignment_startup_progress": lambda: calls.append("finish_progress"),
+            "_safe_shutdown_alignment_d3d11_preview": lambda: calls.append("stop_d3d"),
+            "_safe_stop_alignment_timer": lambda timer: calls.append(f"stop_{timer}"),
+            "_stop_original_reference_texture_worker": lambda: calls.append("stop_texture"),
+            "alignment_dialog_closing": {},
+            "alignment_dialog_key": "builder",
+            "dialog": dialog,
+            "dialog_accepted_state": {},
+            "embedded_alignment_builder": False,
+            "material_edit_refresh_timer": "material_timer",
+            "on_cancel": None,
+            "self": owner,
+            "source_material_plan_refresh_timer": "source_timer",
+        }
+    )
+
+    callbacks._modeless_alignment_dialog_finished(0)
+
+    assert calls.index("stop_texture") < calls.index("stop_d3d")
+    assert calls[-2:] == ["unregister", "delete_dialog"]
+
+
 def test_callback_facade_preserves_public_factory_names() -> None:
     expected = {
         "create_alignment_selected_part_control_callbacks",
@@ -254,6 +418,38 @@ def test_callback_facade_preserves_public_factory_names() -> None:
         "create_alignment_preview_model_callbacks",
     }
     assert expected <= set(vars(callbacks))
+
+
+def test_preview_model_factory_exports_original_frame_and_cache_helpers() -> None:
+    state = MagicMock()
+    state._factory_result_values = {}
+    original_frame = MagicMock()
+    geometry_key = MagicMock()
+    mapped_indices = MagicMock()
+    state._preview_model_in_original_frame = original_frame
+    state._source_preview_geometry_key = geometry_key
+    state._mapped_source_indices = mapped_indices
+
+    preview_model_owner._preview_model_step_038(state)
+
+    assert state._factory_result_values["_preview_model_in_original_frame"] is original_frame
+    assert state._factory_result_values["_source_preview_geometry_key"] is geometry_key
+    assert state._factory_result_values["_mapped_source_indices"] is mapped_indices
+
+
+def test_preview_target_mesh_indices_accepts_existing_positional_callback_contract() -> None:
+    state = MagicMock()
+    state.preview_submesh_index_map = {2: 4}
+    state._preview_target_mesh_indices_helper.return_value = (7, 8)
+    preview_model_owner._preview_model_step_016(state)
+
+    assert state._preview_target_mesh_indices(object(), "blade", (1, 2), True, ("mapping",)) == [7, 8]
+    state._preview_target_mesh_indices_helper.assert_called_once()
+    assert state._preview_target_mesh_indices_helper.call_args.kwargs == {
+        "mapped_preview": True,
+        "current_mappings": ("mapping",),
+        "preview_submesh_index_map": {2: 4},
+    }
 
 
 def test_context_only_callback_factories_still_return_namespaces() -> None:

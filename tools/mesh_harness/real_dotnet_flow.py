@@ -77,6 +77,7 @@ def production_flow_gates(state: SimpleNamespace) -> dict[str, bool]:
         "uv_topology_undo_redo_applied": bool(getattr(state, "edit_flow_ok", False)),
         "affected_only_geometry_updates": bool(edits.get("affected_only_updates")),
         "coherent_export_snapshot": bool(export.get("coherent_snapshot")),
+        "export_source_asset_hash_matches": bool(export.get("source_asset_hash_matches")),
         "complete_output_reparse": export.get("output_reparse_status") == "passed",
         "export_artifact_hashes_present": bool(export.get("artifact_hashes_present")),
     }
@@ -512,12 +513,32 @@ def exercise_coherent_export(
         and assignment_artifacts[-1].get("sha256") == state.assigned_dds_sha256
         and any(str(row.get("resource_id", "")) == str(state.assigned_resource_id) for row in bindings)
     )
+    source_asset_hash = str(report.get("source_asset_hash", "") or "").strip().lower()
+    original_hash_path = export_dir / "original_asset_hash.txt"
+    sidecar_path = export_dir / "mesh.cdmeta.json"
+    try:
+        original_asset_hash = original_hash_path.read_text(encoding="utf-8").strip().lower()
+        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        sidecar_source_asset_hash = str(sidecar.get("source_asset_hash", "") or "").strip().lower()
+    except (OSError, ValueError):
+        original_asset_hash = ""
+        sidecar_source_asset_hash = ""
+    expected_source_asset_hash = str(state.source_payload_sha256 or "").strip().lower()
+    source_asset_hash_matches = bool(
+        expected_source_asset_hash
+        and source_asset_hash == expected_source_asset_hash
+        and original_asset_hash == expected_source_asset_hash
+        and sidecar_source_asset_hash == expected_source_asset_hash
+    )
     state.texture_flow_evidence["assignment_exported"] = assignment_exported
     state.texture_flow_evidence["painted_derivative_exported"] = bool(
         assignment_exported and state.texture_flow_evidence.get("assignment_is_painted_derivative")
     )
     complete_reparse = bool(
         reparse.get("status") == "passed"
+        and reparse.get("draw_section_lineage_readback") == "passed"
+        and reparse.get("rig_skinning_readback") == "passed"
+        and reparse.get("reference_metadata_readback") == "passed"
         and int(reparse.get("glb_submesh_count", 0) or 0) > 0
         and int(reparse.get("obj_submesh_count", 0) or 0) > 0
         and dds_readback
@@ -538,6 +559,11 @@ def exercise_coherent_export(
         "output_reparse_status": "passed" if complete_reparse else "incomplete",
         "coherent_snapshot": coherent,
         "artifact_hashes_present": hashes_present,
+        "source_asset_hash": source_asset_hash,
+        "original_asset_hash": original_asset_hash,
+        "sidecar_source_asset_hash": sidecar_source_asset_hash,
+        "expected_source_asset_hash": expected_source_asset_hash,
+        "source_asset_hash_matches": source_asset_hash_matches,
         "assignment_artifact": assignment_artifacts[-1] if assignment_artifacts else {},
         "painted_derivative_exported": state.texture_flow_evidence["painted_derivative_exported"],
     }

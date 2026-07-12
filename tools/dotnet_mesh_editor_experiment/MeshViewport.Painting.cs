@@ -26,7 +26,7 @@ internal sealed partial class MeshViewport
         var points = new PointF[3];
         var camera = CurrentCamera();
 
-        for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount; submeshIndex++)
         {
             var submesh = _document.Submeshes[submeshIndex];
             var partSelected = IsPartSelected(submeshIndex);
@@ -48,7 +48,7 @@ internal sealed partial class MeshViewport
                         valid = false;
                         break;
                     }
-                    points[i] = camera.Project(submesh.Vertices[vertexIndex]);
+                    points[i] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
                 }
                 if (valid)
                 {
@@ -71,6 +71,13 @@ internal sealed partial class MeshViewport
         DrawSelectedEdges(e.Graphics, camera);
         DrawSelectedVertices(e.Graphics, camera);
         DrawEdgeSelectionRectangle(e.Graphics);
+        if (_pointerInside && ActiveTool is "grab" or "smooth" or "inflate" or "pinch")
+        {
+            var radius = (float)NumberOption(ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>(), "radius", 24.0);
+            using var brushPen = new Pen(Color.FromArgb(245, 255, 224, 92), 1.5f);
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            e.Graphics.DrawEllipse(brushPen, _pointerLocation.X - radius, _pointerLocation.Y - radius, radius * 2, radius * 2);
+        }
 
         var frameTicks = _clock.ElapsedTicks - started;
         Metrics.Record(frameTicks * 1000.0 / Stopwatch.Frequency, 0.0, Math.Max(0.0, (DateTime.UtcNow - _dirtySinceUtc).TotalMilliseconds), string.Empty);
@@ -187,8 +194,8 @@ internal sealed partial class MeshViewport
             {
                 continue;
             }
-            var a = camera.Project(submesh.Vertices[edge.VertexA]);
-            var b = camera.Project(submesh.Vertices[edge.VertexB]);
+            var a = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexA]);
+            var b = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexB]);
             graphics.DrawLine(hovered ? hoverPen : selectedPen, a, b);
         }
     }
@@ -197,7 +204,7 @@ internal sealed partial class MeshViewport
     {
         using var brush = new SolidBrush(Color.FromArgb(235, 255, 224, 92));
         using var pen = new Pen(Color.FromArgb(255, 44, 25, 10), 1.0f);
-        for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount; submeshIndex++)
         {
             var submesh = _document.Submeshes[submeshIndex];
             foreach (var vertexIndex in SelectionVerticesForSubmesh(submeshIndex))
@@ -206,7 +213,7 @@ internal sealed partial class MeshViewport
                 {
                     continue;
                 }
-                var point = camera.Project(submesh.Vertices[vertexIndex]);
+                var point = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
                 var rect = new RectangleF(point.X - 3.0f, point.Y - 3.0f, 6.0f, 6.0f);
                 graphics.FillEllipse(brush, rect);
                 graphics.DrawEllipse(pen, rect);

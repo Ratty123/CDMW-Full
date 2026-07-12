@@ -649,6 +649,7 @@ class ArchiveAssetFamilyPanelMixin:
             asset_family_graph,
             enrich=False,
         )
+        self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
 
 
 __all__ = ["ArchiveAssetFamilyPanelMixin"]

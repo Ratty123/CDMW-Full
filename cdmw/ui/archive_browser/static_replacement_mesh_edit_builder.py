@@ -45,6 +45,7 @@ PUBLIC_CALLBACK_NAMES = (
     '_mesh_editor_action_bar_action_requested',
     '_mesh_editor_embedded_apply_native_update',
     '_mesh_editor_embedded_controller',
+    '_mesh_editor_embedded_placement_state',
     '_mesh_editor_embedded_dotnet_failed',
     '_mesh_editor_embedded_dotnet_ready',
     '_mesh_editor_embedded_finalize_dotnet_import',

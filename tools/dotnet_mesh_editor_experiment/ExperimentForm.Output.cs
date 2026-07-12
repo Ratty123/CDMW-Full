@@ -32,7 +32,8 @@ internal sealed partial class ExperimentForm
     {
         Directory.CreateDirectory(options.OutputDir);
         var outputObj = Path.Combine(options.OutputDir, "mesh.obj");
-        document.Save(outputObj, options.MeshPath);
+        var scene = NetSceneState.Load(options.ScenePath, document.Submeshes.Count);
+        document.Save(outputObj, options.MeshPath, scene.EditableSubmeshCount);
         var outputSidecar = outputObj + ".meta.json";
         if (File.Exists(options.MetadataPath))
         {
@@ -111,8 +112,9 @@ internal sealed partial class ExperimentForm
         ObjDocument document,
         IEnumerable<int> editedSubmeshIndices)
     {
+        var editableSubmeshCount = NetSceneState.Load(options.ScenePath, document.Submeshes.Count).EditableSubmeshCount;
         var operations = editedSubmeshIndices
-            .Where(index => index >= 0 && index < document.Submeshes.Count)
+            .Where(index => index >= 0 && index < editableSubmeshCount)
             .OrderBy(index => index)
             .Select(index => new Dictionary<string, object?>
             {

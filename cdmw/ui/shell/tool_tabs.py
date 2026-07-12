@@ -80,6 +80,11 @@ class ShellToolTabsMixin:
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
         )
+        runtime_recorder = getattr(self, "_record_runtime_event", None)
+        if callable(runtime_recorder):
+            tab.runtime_event_requested.connect(
+                lambda event, fields, sink=runtime_recorder: sink(event, **dict(fields or {}))
+            )
         tab.modify_original_requested.connect(self._mesh_editor_modify_original_requested)
         tab.import_replacement_requested.connect(self._mesh_editor_import_replacement_requested)
         tab.import_preview_requested.connect(self._mesh_editor_import_preview_requested)

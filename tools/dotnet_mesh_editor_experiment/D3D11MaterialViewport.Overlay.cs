@@ -23,6 +23,7 @@ internal sealed partial class D3D11MaterialViewport
         _context.IASetInputLayout(_overlayInputLayout);
         _context.VSSetShader(_overlayVertexShader);
         _context.PSSetShader(_overlayPixelShader);
+        DrawSceneGridAndGizmo();
         if (_overlayShowWire || _overlayShowXRay)
         {
             DrawD3D11WireOverlay();
@@ -36,6 +37,7 @@ internal sealed partial class D3D11MaterialViewport
         DrawSelectedEdgesOverlay();
         DrawSelectedVerticesOverlay();
         DrawSelectionRectangleOverlay();
+        DrawBrushCursorOverlay();
         if (_overlayShowXRay)
         {
             DrawXRayOverlayMarker();
@@ -44,11 +46,97 @@ internal sealed partial class D3D11MaterialViewport
         _context.OMSetDepthStencilState(_depthState);
     }
 
+    private void DrawSceneGridAndGizmo()
+    {
+        if (_scene.GridVisible)
+        {
+            var minor = new List<Vector3>();
+            var major = new List<Vector3>();
+            var spacing = Math.Max(0.0001f, _scene.GridSpacing);
+            const int halfLines = 10;
+            for (var line = -halfLines; line <= halfLines; line++)
+            {
+                var target = line % 5 == 0 ? major : minor;
+                var offset = line * spacing;
+                target.Add(_scene.GridOrigin + new Vector3(-halfLines * spacing, 0, offset));
+                target.Add(_scene.GridOrigin + new Vector3(halfLines * spacing, 0, offset));
+                target.Add(_scene.GridOrigin + new Vector3(offset, 0, -halfLines * spacing));
+                target.Add(_scene.GridOrigin + new Vector3(offset, 0, halfLines * spacing));
+            }
+            DrawOverlayPrimitive(PrimitiveTopology.LineList, minor, OverlayColor(90, 105, 120, 75), _camera.WorldViewProjection);
+            DrawOverlayPrimitive(PrimitiveTopology.LineList, major, OverlayColor(125, 140, 155, 115), _camera.WorldViewProjection);
+        }
+        if (_scene.ComparisonMode == "overlay")
+        {
+            var referenceLines = new List<Vector3>();
+            for (var submeshIndex = _scene.EditableSubmeshCount; submeshIndex < _scene.EditableSubmeshCount + _scene.ReferenceSubmeshCount; submeshIndex++)
+            {
+                if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count) continue;
+                var ignoredTriangles = new List<Vector3>();
+                AddSubmeshFaceVertices(submeshIndex, ignoredTriangles, referenceLines);
+            }
+            DrawOverlayPrimitive(PrimitiveTopology.LineList, referenceLines, OverlayColor(90, 205, 255, 190), _camera.WorldViewProjection);
+        }
+        if (!_scene.GizmoVisible || _scene.EditableSubmeshCount <= 0) return;
+        var origin = Vector3.Transform(Vector3.Zero, _scene.ModelMatrix(0));
+        var length = Math.Max(_scene.SceneExtent * 0.18f, _scene.GridSpacing * 2.0f);
+        if (_scene.GizmoTool == "rotate")
+        {
+            DrawGizmoCircle(origin, length, 0, OverlayColor(235, 75, 75, 245));
+            DrawGizmoCircle(origin, length, 1, OverlayColor(80, 220, 105, 245));
+            DrawGizmoCircle(origin, length, 2, OverlayColor(75, 145, 255, 245));
+            return;
+        }
+        DrawGizmoAxis(origin, new Vector3(length, 0, 0), OverlayColor(235, 75, 75, 255));
+        DrawGizmoAxis(origin, new Vector3(0, length, 0), OverlayColor(80, 220, 105, 255));
+        DrawGizmoAxis(origin, new Vector3(0, 0, length), OverlayColor(75, 145, 255, 255));
+    }
+
+    private void DrawGizmoAxis(Vector3 origin, Vector3 axis, Vector4 color)
+    {
+        var lines = new List<Vector3> { origin, origin + axis };
+        if (_scene.GizmoTool == "scale")
+        {
+            var tip = origin + axis;
+            var size = Math.Max(axis.Length() * 0.08f, 0.001f);
+            lines.Add(tip - new Vector3(size, 0, 0)); lines.Add(tip + new Vector3(size, 0, 0));
+            lines.Add(tip - new Vector3(0, size, 0)); lines.Add(tip + new Vector3(0, size, 0));
+            lines.Add(tip - new Vector3(0, 0, size)); lines.Add(tip + new Vector3(0, 0, size));
+        }
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, color, _camera.WorldViewProjection);
+    }
+
+    private void DrawGizmoCircle(Vector3 origin, float radius, int normalAxis, Vector4 color)
+    {
+        const int segments = 48;
+        var lines = new List<Vector3>(segments * 2);
+        for (var index = 0; index < segments; index++)
+        {
+            var a = index * MathF.Tau / segments;
+            var b = (index + 1) * MathF.Tau / segments;
+            Vector3 Point(float angle) => normalAxis switch
+            {
+                0 => origin + new Vector3(0, MathF.Cos(angle) * radius, MathF.Sin(angle) * radius),
+                1 => origin + new Vector3(MathF.Cos(angle) * radius, 0, MathF.Sin(angle) * radius),
+                _ => origin + new Vector3(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0),
+            };
+            lines.Add(Point(a)); lines.Add(Point(b));
+        }
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, color, _camera.WorldViewProjection);
+    }
+
     private void DrawD3D11WireOverlay()
     {
         var lines = new List<Vector3>();
         foreach (var edge in _overlayTopology.Edges)
         {
+            if (edge.SubmeshIndex < 0
+                || edge.SubmeshIndex >= _document.Submeshes.Count
+                || !_scene.IsVisible(edge.SubmeshIndex)
+                || _materials.ParametersForSubmesh(edge.SubmeshIndex).Visible is false)
+            {
+                continue;
+            }
             AddEdgeLineVertices(edge, lines);
         }
         DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(120, 170, 220, _overlayShowXRay ? 125 : 95), _camera.WorldViewProjection);
@@ -75,10 +163,12 @@ internal sealed partial class D3D11MaterialViewport
         _context.IASetPrimitiveTopology(PrimitiveTopology.PointList);
         foreach (var batch in _batches)
         {
-            if (_materials.ParametersForSubmesh(batch.SubmeshIndex).Visible is false)
+            if (!_scene.IsVisible(batch.SubmeshIndex) || _materials.ParametersForSubmesh(batch.SubmeshIndex).Visible is false)
             {
                 continue;
             }
+            constants.WorldViewProjection = _scene.ModelMatrix(batch.SubmeshIndex) * _camera.WorldViewProjection;
+            _context.UpdateSubresource(in constants, _overlayCameraBuffer);
             _context.IASetVertexBuffer(0u, batch.VertexBuffer, D3D11SubmeshBatch.VertexStride);
             _context.IASetIndexBuffer(batch.IndexBuffer, Vortice.DXGI.Format.R32_UInt, 0);
             _context.DrawIndexed((uint)batch.IndexCount, 0, 0);
@@ -93,6 +183,10 @@ internal sealed partial class D3D11MaterialViewport
         for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
         {
             if (!_overlaySelectedSources.Contains(submeshIndex) && submeshIndex != _overlaySelectedSubmeshIndex)
+            {
+                continue;
+            }
+            if (_materials.ParametersForSubmesh(submeshIndex).Visible is false)
             {
                 continue;
             }
@@ -112,6 +206,10 @@ internal sealed partial class D3D11MaterialViewport
             {
                 continue;
             }
+            if (_materials.ParametersForSubmesh(pair.Key).Visible is false)
+            {
+                continue;
+            }
             var submesh = _document.Submeshes[pair.Key];
             foreach (var faceIndex in pair.Value)
             {
@@ -119,7 +217,7 @@ internal sealed partial class D3D11MaterialViewport
                 {
                     continue;
                 }
-                AddFaceVertices(submesh, submesh.Faces[faceIndex], triangles, lines);
+                AddFaceVertices(pair.Key, submesh, submesh.Faces[faceIndex], triangles, lines);
             }
         }
         DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(255, 224, 92, _overlayShowXRay ? 88 : 58), _camera.WorldViewProjection);
@@ -132,6 +230,12 @@ internal sealed partial class D3D11MaterialViewport
         var hovered = new List<Vector3>();
         foreach (var edge in _overlayTopology.Edges)
         {
+            if (edge.SubmeshIndex < 0
+                || edge.SubmeshIndex >= _document.Submeshes.Count
+                || _materials.ParametersForSubmesh(edge.SubmeshIndex).Visible is false)
+            {
+                continue;
+            }
             if (edge.Id == _overlayHoverEdgeId)
             {
                 AddEdgeLineVertices(edge, hovered);
@@ -154,6 +258,10 @@ internal sealed partial class D3D11MaterialViewport
             {
                 continue;
             }
+            if (_materials.ParametersForSubmesh(pair.Key).Visible is false)
+            {
+                continue;
+            }
             var submesh = _document.Submeshes[pair.Key];
             foreach (var vertexIndex in pair.Value)
             {
@@ -161,7 +269,8 @@ internal sealed partial class D3D11MaterialViewport
                 {
                     continue;
                 }
-                AddScreenCross(_camera.Project(submesh.Vertices[vertexIndex]), 4.0f, lines);
+                var transformed = Vector3.Transform(new Vector3(submesh.Vertices[vertexIndex].X, submesh.Vertices[vertexIndex].Y, submesh.Vertices[vertexIndex].Z), _scene.ModelMatrix(pair.Key));
+                AddScreenCross(_camera.Project(new Vec3(transformed.X, transformed.Y, transformed.Z)), 4.0f, lines);
             }
         }
         DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(255, 230, 88, 245), Matrix4x4.Identity);
@@ -192,6 +301,29 @@ internal sealed partial class D3D11MaterialViewport
         DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(165, 215, 255, 235), Matrix4x4.Identity);
     }
 
+    private void DrawBrushCursorOverlay()
+    {
+        if (!_overlayBrushCursor.HasValue)
+        {
+            return;
+        }
+        const int segments = 48;
+        var center = _overlayBrushCursor.Value;
+        var lines = new List<Vector3>(segments * 2);
+        for (var index = 0; index < segments; index++)
+        {
+            var start = index * MathF.Tau / segments;
+            var end = (index + 1) * MathF.Tau / segments;
+            AddScreenLine(
+                center.X + MathF.Cos(start) * _overlayBrushRadius,
+                center.Y + MathF.Sin(start) * _overlayBrushRadius,
+                center.X + MathF.Cos(end) * _overlayBrushRadius,
+                center.Y + MathF.Sin(end) * _overlayBrushRadius,
+                lines);
+        }
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(255, 224, 92, 245), Matrix4x4.Identity);
+    }
+
     private void AddSubmeshFaceVertices(int submeshIndex, List<Vector3> triangles, List<Vector3> lines)
     {
         if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count)
@@ -201,11 +333,11 @@ internal sealed partial class D3D11MaterialViewport
         var submesh = _document.Submeshes[submeshIndex];
         foreach (var face in submesh.Faces)
         {
-            AddFaceVertices(submesh, face, triangles, lines);
+            AddFaceVertices(submeshIndex, submesh, face, triangles, lines);
         }
     }
 
-    private static void AddFaceVertices(ObjSubmesh submesh, ObjFace face, List<Vector3> triangles, List<Vector3> lines)
+    private void AddFaceVertices(int submeshIndex, ObjSubmesh submesh, ObjFace face, List<Vector3> triangles, List<Vector3> lines)
     {
         if (face.Corners.Length != 3)
         {
@@ -220,7 +352,7 @@ internal sealed partial class D3D11MaterialViewport
                 return;
             }
             var vertex = submesh.Vertices[vertexIndex];
-            vertices[index] = new Vector3(vertex.X, vertex.Y, vertex.Z);
+            vertices[index] = Vector3.Transform(new Vector3(vertex.X, vertex.Y, vertex.Z), _scene.ModelMatrix(submeshIndex));
         }
         triangles.AddRange(vertices);
         lines.Add(vertices[0]);
@@ -244,8 +376,9 @@ internal sealed partial class D3D11MaterialViewport
         }
         var a = submesh.Vertices[edge.VertexA];
         var b = submesh.Vertices[edge.VertexB];
-        lines.Add(new Vector3(a.X, a.Y, a.Z));
-        lines.Add(new Vector3(b.X, b.Y, b.Z));
+        var model = _scene.ModelMatrix(edge.SubmeshIndex);
+        lines.Add(Vector3.Transform(new Vector3(a.X, a.Y, a.Z), model));
+        lines.Add(Vector3.Transform(new Vector3(b.X, b.Y, b.Z), model));
     }
 
     private void AddScreenCross(PointF point, float radius, List<Vector3> lines)

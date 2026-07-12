@@ -163,18 +163,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         build_script = _read("build_pyside6_app.ps1")
         build_bat = _read("build.bat")
         build_gui = _read("build_gui.py")
-        spec_source = _read("CrimsonDesertModWorkbench.spec")
-
         self.assertIn('Write-Host "Building native helpers ($Configuration)..."', build_script)
         self.assertIn('& (Join-Path $scriptDir "build_native_windows.ps1") @nativeBuildArgs', build_script)
         self.assertNotIn("Skipping native helper build for fast profile", build_script)
         self.assertNotIn('$BuildProfile -eq "fast" -and (Test-NativeOutputsPresent', build_script)
         self.assertIn("native helpers still rebuild incrementally", build_bat)
         self.assertIn("native helpers still rebuild", build_gui)
-        self.assertIn(
-            '_add_native_binary("native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe", "native", required_release=True)',
-            spec_source,
-        )
 
     def test_standalone_mesh_file_load_uses_worker_thread(self) -> None:
         tab_source = _read("cdmw/ui/mesh_editor/tab.py")
@@ -215,16 +209,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
         package_start = tab_source.index("def start_standalone_native_preview_async(")
         package_body = tab_source[package_start: tab_source.index("def _handle_standalone_native_package_ready", package_start)]
-        self.assertIn("pose_native_context = self._standalone_pose_native_preview_context()", package_body)
-        self.assertIn("mesh_snapshot, pose_skeleton, pose_rotations = pose_native_context", package_body)
-        self.assertIn("mesh_pose_to_native_preview(", package_body)
-        self.assertIn("mesh_snapshot = self._standalone_preview_mesh_snapshot()", package_body)
-        self.assertIn("prepare_native_preview = lambda mesh, reference=reference_snapshot: _tab.mesh_editor_native_preview_data", package_body)
-        self.assertLess(
-            package_body.index("pose_native_context = self._standalone_pose_native_preview_context()"),
-            package_body.index("mesh_snapshot = self._standalone_preview_mesh_snapshot()"),
-        )
-        self.assertNotIn("native_preview_data()", package_body)
+        self.assertIn("Legacy native Mesh Editor preview is disabled", package_body)
+        self.assertIn("return False", package_body)
+        self.assertNotIn("MeshNativePreviewPackageWorker(", package_body)
         self.assertIn("def _standalone_pose_native_preview_context(", tab_source)
         self.assertIn("controller.pose_preview_native_context()", tab_source)
         self.assertIn("or self.standalone_texture_preview_overrides", tab_source)
@@ -242,8 +229,6 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("def mesh_editor_write_prepared_native_preview_package(", runtime_source)
         self.assertIn("write_isolated_d3d11_preview_package(", runtime_source)
-        self.assertIn('"original_only" if self.standalone_compare_mode == "source"', package_body)
-        self.assertIn("self.standalone_native_package_pending_compare_mode = self.standalone_compare_mode", package_body)
         self.assertIn("self.standalone_native_package_compare_mode = self.standalone_native_package_pending_compare_mode", tab_source)
         self.assertNotIn("def _confirm_standalone_auto_uv_topology_change(", tab_source)
         self.assertNotIn("native_mesh_auto_uv_report", tab_source)
@@ -1428,8 +1413,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("widget.setEnabled(editing_requested and not topology_busy and select_tool)", refresh_body)
         self.assertIn("_mesh_edit_preview_source_indices = lambda", source)
         self.assertIn("def _mesh_edit_enabled_toggled(_state, _callbacks, _checked: bool = False) -> None:", mesh_edit_source)
-        self.assertIn("def _start_mesh_edit_fallback(_state, _callbacks, reason: str) -> None:", mesh_edit_source)
-        self.assertIn("_state._mesh_edit_apply_preview_mode_transition(str(reason or \"mesh_edit_dotnet_fallback\"))", mesh_edit_source)
+        self.assertNotIn("def _start_mesh_edit_fallback", mesh_edit_source)
+        self.assertIn('"mesh_edit_dotnet_failed"', mesh_edit_source)
         self.assertIn("state.mesh_edit_enabled_checkbox.toggled.connect(callbacks._mesh_edit_enabled_toggled)", builder_body)
         self.assertIn('prompt_shell_context["_sync_mesh_edit_preview_settings"] = _sync_mesh_edit_preview_settings', source)
         self.assertIn('prompt_shell_context.get(\n                "_sync_mesh_edit_preview_settings"', source)
@@ -1526,8 +1511,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("edit_enabled = bool(_state.mesh_edit_enabled_checkbox.isChecked())", main_source)
         self.assertIn("_callbacks._mesh_editor_finalize_edit_mode_exit(\"mesh_edit_toggle\", mesh_changed=True)", main_source)
         toggle_body = _function_source(main_source, "_mesh_edit_enabled_toggled")
-        self.assertIn("_callbacks._start_mesh_edit_fallback(\"mesh_edit_dotnet_unavailable\")", toggle_body)
-        self.assertIn("_callbacks._start_mesh_edit_fallback(\"mesh_edit_dotnet_disabled\")", toggle_body)
+        self.assertNotIn("_start_mesh_edit_fallback", toggle_body)
+        self.assertIn("preview cannot start", toggle_body)
+        self.assertIn("preview is disabled by configuration", toggle_body)
         self.assertNotIn("_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")", toggle_body)
         self.assertNotIn("_mesh_edit_refresh_replacement_preview_model()\n", toggle_body)
         finish_body = _function_source(main_source, "_mesh_edit_finish_geometry_stroke")
@@ -2814,7 +2800,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_callbacks._mesh_editor_queue_post_edit_textured_preview_rebuild", finalize_body)
         self.assertIn("if not edit_enabled:", toggle_body)
         self.assertIn('_callbacks._mesh_editor_finalize_edit_mode_exit("mesh_edit_toggle", mesh_changed=True)', toggle_body)
-        self.assertNotIn("_queue_texture_preview_refresh()", post_exit_body)
+        self.assertIn("_queue_texture_preview_refresh()", post_exit_body)
+        self.assertLess(
+            post_exit_body.index("_mesh_edit_apply_preview_mode_transition"),
+            post_exit_body.index("_queue_texture_preview_refresh"),
+        )
         self.assertNotIn("_queue_static_preview_rebuild()", post_exit_body)
         self.assertNotIn("_restore_textured_preview_after_mesh_edit_surface_exit", source)
         self.assertIn("def alignment_d3d11_raw_package_active_or_pending(state: Mapping[str, object]) -> bool:", source)
@@ -5285,10 +5275,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         pose_branch = native_preview_body[: native_preview_body.index("return mesh_to_native_preview(self.pose_preview_mesh())")]
         self.assertNotIn("self.pose_preview_mesh()", pose_branch)
         self.assertIn("def _standalone_pose_native_preview_context(", tab_source)
-        self.assertIn("mesh_pose_to_native_preview(", tab_source)
+        sync_native_start = tab_source.index("def write_standalone_native_preview_package(")
+        sync_native_body = tab_source[
+            sync_native_start: tab_source.index("def load_standalone_native_preview_package", sync_native_start)
+        ]
+        self.assertIn("mesh_pose_to_native_preview(", sync_native_body)
         self.assertLess(
-            tab_source.index("mesh_pose_to_native_preview("),
-            tab_source.index("mesh_snapshot = self._standalone_preview_mesh_snapshot()"),
+            sync_native_body.index("mesh_pose_to_native_preview("),
+            sync_native_body.index("mesh = self._standalone_preview_mesh_snapshot()"),
         )
 
     def test_alignment_mesh_editor_texture_settings_and_view_mode_are_wired(self) -> None:

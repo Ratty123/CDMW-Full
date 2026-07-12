@@ -41,6 +41,17 @@ from cdmw.domain.archives.filters import (
 class ArchiveFilterStateMixin:
     """Archive browser filter-state capture, restore, and lookup decisions."""
 
+    def _canonicalize_archive_extension_filter_control(self) -> None:
+        raw_value = self._combo_value(self.archive_extension_filter_combo)
+        normalized_value = normalize_archive_extension_filter(raw_value) or "*"
+        if normalized_value == str(raw_value or "").strip().lower():
+            return
+        signals_blocked = self.archive_extension_filter_combo.blockSignals(True)
+        try:
+            self._set_combo_by_value(self.archive_extension_filter_combo, normalized_value)
+        finally:
+            self.archive_extension_filter_combo.blockSignals(signals_blocked)
+
     def _archive_filter_signature_from_values(
         self,
         *,
@@ -418,7 +429,7 @@ class ArchiveFilterStateMixin:
         self.archive_extension_filter_combo.blockSignals(False)
 
     def _archive_filter_state_needs_path_lookup(self, state: Mapping[str, object]) -> bool:
-        if not self._archive_saved_filter_needs_item_search(state):
+        if not self._archive_filter_state_explicitly_requires_item_search(state):
             return False
         extension_filter = normalize_archive_extension_filter(str(state.get("extension_filter", "*") or "*"))
         return extension_filter != ".pac"

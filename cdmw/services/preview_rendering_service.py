@@ -69,6 +69,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "cdmw.rendering.native_preview_core",
         "find_native_preview_core_binary",
     ),
+    "native_preview_core_service_process_id": (
+        "cdmw.rendering.native_preview_service_state",
+        "native_preview_core_service_process_id",
+    ),
     "render_settings_to_native_preview_core_dict": (
         "cdmw.rendering.native_preview_core",
         "render_settings_to_native_preview_core_dict",

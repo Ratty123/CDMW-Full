@@ -267,10 +267,7 @@ def _prepare_meshes(
         except Exception:
             pass
     source_format = str(replacement_base.format or "").strip().lower()
-    scene_flip_v = bool(
-        had_scene_result
-        and scene_import_normalizes_texture_v(source_format, replacement_base.path or request.obj_path)
-    )
+    scene_flip_v = scene_import_normalizes_texture_v(source_format, replacement_base.path or request.obj_path)
     raise_if_cancelled(stop, "Static replacement preflight stopped by user.")
     return _PreparedMeshes(
         scene_result,
@@ -367,21 +364,20 @@ def prepare_static_replacement_prompt_preflight(
     raise_if_cancelled(stop, "Static replacement preflight stopped by user.")
 
     report(7, 8, "Discovering replacement texture sources...")
-    auto_texture_sources: list[Path] = []
-    if had_scene_result:
-        auto_texture_sources.extend(
-            path
-            for path in (
-                tuple(scene_result.discovered_texture_files or ())
-                + tuple(scene_result.extracted_embedded_files or ())
-                + tuple(getattr(scene_result, "discovered_supplemental_files", ()) or ())
-            )
-            if isinstance(path, Path)
+    auto_texture_sources = [
+        path
+        for path in (
+            tuple(scene_result.discovered_texture_files or ())
+            + tuple(scene_result.extracted_embedded_files or ())
+            + tuple(getattr(scene_result, "discovered_supplemental_files", ()) or ())
         )
-    try:
-        auto_texture_sources.extend(discover_scene_texture_files(request.obj_path, replacement_mesh))
-    except Exception:
-        pass
+        if isinstance(path, Path)
+    ]
+    if not auto_texture_sources:
+        try:
+            auto_texture_sources.extend(discover_scene_texture_files(request.obj_path, replacement_mesh))
+        except Exception:
+            pass
     texture_files: list[Path] = []
     seen_texture_files: set[str] = set()
     register_texture_source_files(
